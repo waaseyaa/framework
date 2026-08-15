@@ -12,6 +12,7 @@ use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretProviderInterface;
 use Waaseyaa\Foundation\Security\SecretReference;
@@ -35,7 +36,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             purposes: $purposes,
         );
         $oldEnvelope = $oldOnly->seal(
-            ApplicationMasterPurposePolicy::TEST_REENCRYPT_PURPOSE,
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
             'oidc-token:old-row',
             3,
             'synthetic-old-plaintext',
@@ -48,7 +49,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             purposes: $purposes,
         );
         $newEnvelope = $rotated->seal(
-            ApplicationMasterPurposePolicy::TEST_REENCRYPT_PURPOSE,
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
             'oidc-token:new-row',
             3,
             'synthetic-new-plaintext',
@@ -71,7 +72,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             purposes: $this->purposes(),
         );
         $envelope = $keyring->seal(
-            ApplicationMasterPurposePolicy::TEST_REENCRYPT_PURPOSE,
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
             'oidc-token:row-7',
             3,
             'synthetic-plaintext',
@@ -80,7 +81,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         foreach (['purpose', 'record_identity', 'schema_version'] as $field) {
             $document = $envelope->toArray();
             $document[$field] = match ($field) {
-                'purpose' => ApplicationMasterPurposePolicy::TEST_LOOKUP_PURPOSE,
+                'purpose' => ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
                 'record_identity' => 'oidc-token:row-8',
                 default => 4,
             };
@@ -113,7 +114,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         }
 
         $document = $keyring->seal(
-            ApplicationMasterPurposePolicy::TEST_REENCRYPT_PURPOSE,
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
             'record:2',
             1,
             'plaintext',
@@ -140,8 +141,8 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         self::assertSame($first->checksum(), $second->checksum());
         self::assertSame(
             [
-                ApplicationMasterPurposePolicy::TEST_LOOKUP_PURPOSE,
-                ApplicationMasterPurposePolicy::TEST_REENCRYPT_PURPOSE,
+                ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
             ],
             $first->purposeIds(),
         );
@@ -191,7 +192,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
     private function reencryptPolicy(): ApplicationMasterPurposePolicy
     {
         return new ApplicationMasterPurposePolicy(
-            id: ApplicationMasterPurposePolicy::TEST_REENCRYPT_PURPOSE,
+            id: ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
             ownerPackage: 'waaseyaa/oidc',
             strategy: ApplicationMasterPurposeStrategy::ReencryptCiphertext,
             maximumLifetimeSeconds: 3_600,
@@ -204,7 +205,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
     private function lookupPolicy(): ApplicationMasterPurposePolicy
     {
         return new ApplicationMasterPurposePolicy(
-            id: ApplicationMasterPurposePolicy::TEST_LOOKUP_PURPOSE,
+            id: ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
             ownerPackage: 'waaseyaa/oidc',
             strategy: ApplicationMasterPurposeStrategy::RecomputeLookupIndex,
             maximumLifetimeSeconds: 3_600,

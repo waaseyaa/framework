@@ -132,7 +132,7 @@ Version-controlled source — including `defaults/`, packages, scripts, document
 
 Full listing: `.env.example`.
 
-`WAASEYAA_APP_SECRET` remains the Layer-0 bootstrap authority while the versioned master-key transition is implemented. Governed MCP and AI provider credentials use typed references and registered consumers; their packages reject direct environment or secret-file reads. Other existing package-level call sites remain explicit CFG-04 migration work and must not be used as precedent for new integrations.
+`WAASEYAA_APP_SECRET` remains the Layer-0 compatibility bootstrap authority while existing consumers migrate. New versioned application-master custody uses externally provisioned typed references, one active-write version, explicitly declared legacy read/verify versions, guarded purpose-specific consumers, authenticated version-bound envelopes, and a frozen purpose registry. It never generates a missing operational master or probes undeclared versions. The persisted rekey coordinator and consumer migration remain explicit CFG-04 work, so the compatibility adapter is not rotation evidence and must not be used as precedent for new integrations. Governed MCP and AI provider credentials likewise use typed references and registered consumers; their packages reject direct environment or secret-file reads.
 
 ### Configuration secrets
 

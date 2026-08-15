@@ -1852,6 +1852,51 @@ The legacy concrete `FailedJobRepository` class (a thin facade delegating to `In
 
 `CreateQueueTables` (`packages/queue/src/Migration/CreateQueueTables.php`) and timestamped migrations under `packages/queue/migrations/` (registered via `extra.waaseyaa.migrations` in `packages/queue/composer.json`) create **`waaseyaa_queue_jobs`** and **`waaseyaa_failed_jobs`**. Older docs may refer to unprefixed names; the DDL above is authoritative.
 
+## Versioned application-master custody
+
+`ApplicationMasterKeyring` is the successor-facing Layer-0 custody boundary for
+application-master rotation. It holds one monotonically versioned active-write
+reference and a bounded map of lower, explicitly declared legacy read/verify
+references. All references must use secret class `application-master` and the
+versioned resolver purpose `waaseyaa.application.master.v1`. Key material is
+resolved only at a guarded cryptographic operation boundary; the keyring,
+handles, diagnostics, exceptions, serialization, and clone surfaces expose no
+master bytes or provider identifiers.
+
+`ApplicationMasterPurposeRegistry` is assembled before use and then frozen. A
+purpose policy declares a stable purpose identifier, owning package, transition
+strategy, bounded maximum lifetime and retention, inventory adapter identity,
+and rollback behavior. Its checksum is computed from a canonical purpose-sorted
+projection. Duplicate, conflicting, syntactically valid but unregistered, or
+post-freeze registrations fail closed. The closed strategy vocabulary is:
+`reencrypt-ciphertext`, `recompute-lookup-index`,
+`retain-historic-verifier`, `invalidate-rebuildable`, `drain-or-expire`, and
+`ephemeral-no-persistence`.
+
+New encrypted writes use only the active master version. Persisted ciphertext
+uses `ApplicationMasterEnvelope` format
+`waaseyaa.application-master.envelope.v1`; XChaCha20-Poly1305 authenticates the
+format, exact master version, registered purpose, record identity, and schema
+version as associated data. A purpose-specific 32-byte key is derived from the
+selected master with HKDF-SHA-256 and a public domain-separation salt. Reads
+select exactly the version declared by the envelope and never probe arbitrary
+keys or fall back to the active version. Unknown versions, unknown purposes,
+non-canonical encodings, malformed envelopes, and authentication failures are
+refused before unrelated references are resolved.
+
+This core cryptographic boundary does not itself claim the rekey transition is
+complete. Purpose inventory adapters, joint row transitions, persisted registry
+state, immutable ledger/cursors, resumable compare-and-swap batches, rollback,
+worker/cache reconciliation, retained-backup compatibility, and predecessor
+revocation gates remain required. Their tables arrive only through DB-02
+versioned migrations; runtime constructors and read-only audits perform zero
+DDL. Framework code never generates or replaces an operational master, and
+external custody remains responsible for provisioning and eventual destruction.
+
+`ApplicationSecret` remains a compatibility adapter while existing consumers
+move to the versioned keyring. Its unversioned bootstrap behavior is not evidence
+of rotation safety and must not be copied into new persisted-purpose consumers.
+
 ## Kernel Bootstrap
 
 ### API-catalog provider composition
