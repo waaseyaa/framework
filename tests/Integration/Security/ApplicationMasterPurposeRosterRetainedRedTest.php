@@ -40,6 +40,7 @@ final class ApplicationMasterPurposeRosterRetainedRedTest extends TestCase
         ];
         foreach ($providers as $provider) {
             self::assertInstanceOf(ServiceProvider::class, $provider);
+            $provider->setKernelContext('', ['queue' => ['driver' => 'database']], []);
             $provider->setKernelServices($services);
         }
 

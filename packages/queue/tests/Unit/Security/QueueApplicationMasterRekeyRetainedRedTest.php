@@ -43,6 +43,19 @@ final class QueueApplicationMasterRekeyRetainedRedTest extends TestCase
         self::assertStringStartsWith('hmac-sha256.application-master.v1:2:', $successorEnvelope);
         self::assertSame('synthetic-predecessor', $rotated->open($predecessorEnvelope));
         self::assertSame('synthetic-successor', $rotated->open($successorEnvelope));
+
+        $unknownVersion = preg_replace(
+            '/^hmac-sha256\.application-master\.v1:2:/',
+            'hmac-sha256.application-master.v1:99:',
+            $successorEnvelope,
+        );
+        self::assertIsString($unknownVersion);
+        try {
+            $rotated->open($unknownVersion);
+            self::fail('Undeclared queue payload versions must fail closed.');
+        } catch (\RuntimeException $failure) {
+            self::assertSame('Queue payload authentication failed.', $failure->getMessage());
+        }
     }
 
     #[Test]
@@ -84,6 +97,35 @@ final class QueueApplicationMasterRekeyRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function provider_uses_the_composed_keyring_for_new_database_queue_payloads(): void
+    {
+        $database = $this->database();
+        $keyring = $this->keyring(2, [1]);
+        $provider = new QueueServiceProvider();
+        $provider->setKernelContext('', ['queue' => ['driver' => 'database']], []);
+        $provider->setKernelServices(new class ($database, $keyring) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly ApplicationMasterKeyring $keyring,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    ApplicationMasterKeyring::class => $this->keyring,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        $envelope = $provider->resolve(SignedQueuePayload::class)->seal('synthetic-provider');
+
+        self::assertStringStartsWith('hmac-sha256.application-master.v1:2:', $envelope);
+    }
+
+    #[Test]
     public function database_queue_snapshot_refuses_legacy_or_predecessor_payloads_until_they_are_drained(): void
     {
         $database = $this->database();
@@ -112,6 +154,22 @@ final class QueueApplicationMasterRekeyRetainedRedTest extends TestCase
 
         self::assertSame(0, $snapshot->totalRecords);
         self::assertSame(0, $verification->verifiedRecords);
+    }
+
+    #[Test]
+    public function verification_refuses_a_predecessor_payload_written_after_the_zero_row_snapshot(): void
+    {
+        $database = $this->database();
+        $adapter = new QueueDrainRekeyAdapter($database);
+        $context = $this->context($database, ApplicationMasterRekeyState::EnumerateSnapshot);
+        $snapshot = $adapter->snapshot($context);
+        $predecessor = SignedQueuePayload::fromApplicationMasterKeyring($this->keyring(1))->seal('synthetic-stale-writer');
+        $this->insertJob($database, $predecessor);
+
+        $this->expectException(ApplicationMasterRekeyConflictException::class);
+        $this->expectExceptionMessage('appeared after');
+
+        $adapter->verify($context, $snapshot);
     }
 
     #[Test]

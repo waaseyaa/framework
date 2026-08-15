@@ -7,7 +7,12 @@ namespace Waaseyaa\Queue;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
@@ -17,6 +22,7 @@ use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 use Waaseyaa\Queue\Occurrence\NoOccurrenceRuntime;
 use Waaseyaa\Queue\Occurrence\OccurrenceRuntimeInterface;
+use Waaseyaa\Queue\Rekey\QueueDrainRekeyAdapter;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\DatabaseFailedJobRepository;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
@@ -25,13 +31,24 @@ use Waaseyaa\Queue\Transport\InMemoryTransport;
 use Waaseyaa\Queue\Transport\TransportInterface;
 use Waaseyaa\Queue\Worker\Worker;
 
-final class QueueServiceProvider extends ServiceProvider
+final class QueueServiceProvider extends ServiceProvider implements ProvidesApplicationMasterRekeyContributionsInterface
 {
     public function register(): void
     {
         $driver = $this->config['queue']['driver'] ?? 'sync';
 
         $this->singleton(SignedQueuePayload::class, function (): SignedQueuePayload {
+            $keyring = $this->resolveOptional(ApplicationMasterKeyring::class);
+            if ($keyring instanceof ApplicationMasterKeyring) {
+                $legacyKey = null;
+                if (($this->config['queue']['accept_legacy_application_secret_payloads'] ?? false) === true) {
+                    $applicationSecret = $this->resolve(ApplicationSecret::class);
+                    assert($applicationSecret instanceof ApplicationSecret);
+                    $legacyKey = $applicationSecret->derive(ApplicationSecret::PURPOSE_QUEUE_PAYLOAD_HMAC);
+                }
+
+                return SignedQueuePayload::fromApplicationMasterKeyring($keyring, $legacyKey);
+            }
             $applicationSecret = $this->resolve(ApplicationSecret::class);
             assert($applicationSecret instanceof ApplicationSecret);
 
@@ -109,6 +126,30 @@ final class QueueServiceProvider extends ServiceProvider
                 $runtimeEpoch instanceof RuntimeEpochInterface ? $runtimeEpoch : null,
             );
         });
+    }
+
+    public function applicationMasterRekeyContributions(): iterable
+    {
+        if (($this->config['queue']['driver'] ?? 'sync') !== 'database') {
+            return;
+        }
+        $database = $this->resolve(DatabaseInterface::class);
+        if (!$database instanceof DatabaseInterface) {
+            throw new \LogicException('Queue rekey composition requires the kernel database authority.');
+        }
+
+        yield new ApplicationMasterRekeyContribution(
+            new QueueDrainRekeyAdapter($database),
+            [new ApplicationMasterPurposePolicy(
+                id: ApplicationSecret::PURPOSE_QUEUE_PAYLOAD_HMAC,
+                ownerPackage: 'waaseyaa/queue',
+                strategy: ApplicationMasterPurposeStrategy::DrainOrExpire,
+                maximumLifetimeSeconds: 0,
+                retentionSeconds: 0,
+                adapterId: QueueDrainRekeyAdapter::ID,
+                rollbackBehavior: 'drain-failed-successor-payloads',
+            )],
+        );
     }
 
     /**

@@ -35,7 +35,10 @@ primitives exercised only with synthetic evidence in this change record. The
 installed cache owner contributes a concrete, database-authoritative generation
 adapter; advancing the generation invalidates rebuildable cache payloads without
 exporting key material or rewriting payload rows. Explicit cache deletion
-reclaims the selected ids or bins across all generations. `F-CFG-011` stays red until a
+reclaims the selected ids or bins across all generations. The database queue
+now writes active-version authentication tags when a keyring is composed and
+contributes a zero-row drain gate covering pending and failed predecessor or
+failed-successor payloads without deleting jobs. `F-CFG-011` stays red until a
 separately authorized Sheg/operator workflow supplies deployment preflight,
 external custody, retained-backup, and ceremony evidence.
 

@@ -121,16 +121,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generation by CAS for both forward transition and rollback; all bins ignore
   older generations without payload rewrites, explicit deletion reclaims
   selected ids or bins across every generation, and rollback cannot reactivate
-  stale predecessor or failed-successor cache rows. Remaining package adapters
-  and process reconciliation remain incomplete.
+  stale predecessor or failed-successor cache rows. The database queue now
+  writes strict active-version application-master authentication tags, reads
+  only declared versions, and contributes a no-mutation drain gate that refuses
+  forward or rollback completion while predecessor or failed-successor pending
+  or failed payloads remain. Remaining package adapters and process
+  reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,
   passes adapters the store's exact transaction authority, and commits owner CAS
   effects with validated cursor/count/commitment evidence in one transaction.
   Malformed adapter output rolls back both row and cursor; restart resumes from
   the durable cursor without replay; and all verification results for a joint
-  adapter commit atomically. Concrete audit/OIDC/queue/state adapters and
-  fleet/backup evidence producers remain incomplete.
+  adapter commit atomically. Concrete audit/OIDC/state adapters and fleet/backup
+  evidence producers remain incomplete.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

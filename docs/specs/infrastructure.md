@@ -533,6 +533,14 @@ selected cache id or bin, so operator cache clears reclaim superseded payload
 rows instead of only hiding them. Runtime cache construction and reads perform
 no DDL.
 
+The database queue contributes its payload HMAC purpose with a fail-closed
+drain strategy. Keyring-composed writers emit the active master version and
+read only declared versions; legacy application-secret envelopes require an
+explicit cutover-only compatibility flag. Forward inventory requires pending
+and failed predecessor payloads to be empty, rollback inventory requires failed
+successor payloads to be empty, and verification repeats those exact database
+checks. The adapter performs no job deletion or payload rewrite.
+
 ### Cache event listeners
 
 | Listener | File | Listens to | Tags invalidated |
