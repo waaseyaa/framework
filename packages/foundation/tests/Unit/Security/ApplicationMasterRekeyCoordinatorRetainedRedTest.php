@@ -263,9 +263,10 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
         self::assertSame(1, $first->transitionedRecords);
         self::assertSame(1, $adapter->transitionedById['row:1'] ?? 0);
 
-        $restartedStore = new ApplicationMasterRekeyStore(DBALDatabase::createSqlite($this->dbPath));
+        $restartedDatabase = DBALDatabase::createSqlite($this->dbPath);
+        $restartedStore = new ApplicationMasterRekeyStore($restartedDatabase);
         $restartedAdapter = new SyntheticAtomicRekeyAdapter(
-            DBALDatabase::createSqlite($this->dbPath),
+            $restartedDatabase,
             self::ADAPTER_ID,
             $this->purpose(),
         );
@@ -478,9 +479,9 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
         return [$this->purposeId];
     }
 
-    public function databaseIdentity(): string
+    public function databaseAuthority(): DBALDatabase
     {
-        return $this->database->databaseIdentity();
+        return $this->database;
     }
 
     public function snapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot

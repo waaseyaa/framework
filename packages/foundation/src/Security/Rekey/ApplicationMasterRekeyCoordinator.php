@@ -39,9 +39,9 @@ final class ApplicationMasterRekeyCoordinator
         unset($purposeIds);
 
         foreach ($adapters as $adapter) {
-            if ($adapter->databaseIdentity() !== $store->databaseIdentity()) {
+            if ($adapter->databaseAuthority() !== $store->databaseAuthority()) {
                 throw new ApplicationMasterRekeyConflictException(
-                    'Application-master adapters must share the rekey store database authority.',
+                    'Application-master adapters must use the exact rekey store database authority.',
                 );
             }
             $id = $adapter->id();

@@ -1964,6 +1964,11 @@ next cursor, per-purpose counts, and batch commitment in one database
 transaction. A stale cursor or projection revision rolls the transaction back;
 retry begins from the durable cursor. Adapter completion does not imply purpose
 verification: every purpose separately records a count and verification hash.
+Composition requires each adapter to expose the exact `DatabaseInterface` object
+owned by the rekey store; parameter-derived physical-database identities are not
+sufficient because distinct connections can share them. Every owner read and CAS
+effect uses the same object supplied through `ApplicationMasterRekeyContext`
+inside the store transaction.
 
 Executable adapters implement one Foundation contract and expose the same
 non-secret `DatabaseIdentityProviderInterface` identity as the rekey store.

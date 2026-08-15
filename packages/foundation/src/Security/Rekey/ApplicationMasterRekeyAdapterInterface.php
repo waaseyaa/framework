@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Security\Rekey;
 
-use Waaseyaa\Database\DatabaseIdentityProviderInterface;
+use Waaseyaa\Database\DatabaseInterface;
 
 /** Joint-owner inventory, transition, verification, and rollback seam. @api */
-interface ApplicationMasterRekeyAdapterInterface extends DatabaseIdentityProviderInterface
+interface ApplicationMasterRekeyAdapterInterface
 {
+    /** Exact object used by the store transaction and supplied in operation context. */
+    public function databaseAuthority(): DatabaseInterface;
+
     public function id(): string;
 
     /** @return list<string> */
