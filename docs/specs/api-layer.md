@@ -57,9 +57,13 @@ content.
 Results are rebuilt field-by-field from the principal-safe search DTOs. The
 public hit attributes are title, URL, plain-text highlight, query-local score,
 source, content type, quality score, crawl timestamp, topics, and image. Facets
-are copied only from the provider's already access-filtered facet set. Raw body,
-raw indexed metadata, denied counts, candidate caps, and execution timing are
-not observable.
+are copied only from the provider's already access-filtered facet set. The
+`meta.isComplete` boolean is the provider's bounded raw-candidate-window signal.
+When false, totals, pages, and facets are lower bounds, while filters and
+non-relevance sorts describe only matches inside that window. It may be false
+with an empty principal-safe result after every inspected candidate is denied
+or filtered. Raw body, raw indexed metadata, denied identifiers, denied counts,
+and execution timing remain unobservable.
 
 <!-- Spec reviewed 2026-08-04 - #2195: ApiServiceProvider now owns an opt-in RFC 9727 catalog at GET/HEAD /.well-known/api-catalog. It assembles a deterministic, closed-world RFC 9264 JSON Linkset from kernel-injected ProvidesApiCatalogEntriesInterface providers. Canonical absolute URLs come only from api_catalog.base_url or APP_URL and must be HTTPS; request Host/X-Forwarded-Host is never reflected. The route is absent without canonical configuration or without an installed public API contribution. Authenticated/write/admin/schema surfaces and non-API discovery documents are never inferred from the route collection. -->
 
