@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Database;
 
+use Doctrine\DBAL\Configuration;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
@@ -121,22 +122,23 @@ final class DBALDatabase implements ConsistentReadDatabaseInterface
         return ['known' => $known, 'excluded' => $excluded];
     }
 
-    public static function createSqlite(string $path = ':memory:'): self
+    public static function createSqlite(string $path = ':memory:', ?string $environment = null): self
     {
+        SqliteTopology::assertSupportedPath($path);
+        if ($environment !== null) {
+            SqliteTopology::assertEnvironmentAllowsPath($path, $environment);
+        }
+
+        $configuration = new Configuration();
+        $configuration->setMiddlewares([new SqliteDriverMiddleware(fileBacked: $path !== ':memory:')]);
+
         $connection = DriverManager::getConnection([
             'driver' => 'pdo_sqlite',
             'path' => $path === ':memory:' ? null : $path,
             'memory' => $path === ':memory:',
-        ]);
+        ], $configuration);
 
-        // SQLite scopes foreign-key enforcement to each connection and leaves
-        // it disabled by default. Set it before any schema or data work.
-        $connection->executeStatement('PRAGMA foreign_keys = ON');
-
-        // Enable WAL mode for better concurrent read performance.
-        if ($path !== ':memory:') {
-            $connection->executeStatement('PRAGMA journal_mode = WAL');
-        }
+        SqliteTopology::configureAndVerify($connection, fileBacked: $path !== ':memory:');
 
         return new self($connection);
     }

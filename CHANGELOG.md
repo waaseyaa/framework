@@ -26,6 +26,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **explicit S1 SQLite topology (`S1-FW-DB-01`):** Define the one-node,
+  one-authoritative-file SQLite contract, bounded connection invariants,
+  optional rebuildable search projection, stable refusal diagnostics, and
+  forge-neutral verification authority; enforce the path and effective-PRAGMA
+  boundary in runtime code and on every physical reconnect, fail closed for
+  in-memory databases outside explicitly named development/test environments,
+  cover kernel/search/database CLI entry points, and prove it again from an
+  exact-tree deterministic installed package artifact without a source path
+  repository. Bind every repository SQLite construction occurrence and the
+  isolated artifact's exact lock-resolved dependency identities and bytes.
+
+- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
+- **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
+- **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.
+
 - Prove the #2343 golden path from a clean `composer create-project` consumer,
   including the complete governed authoring, published-content, and
   subscription recipes; byte-identical offline regeneration; strict
@@ -91,8 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recipes, strict diagnostics, and reference-consumer gates for #2343.
 
 - **page-builder history and recovery:** Add shared, permission-checked revision history and comparison endpoints, restore-as-new-draft semantics, and server-side idle recovery for block configuration in both the Waaseyaa Admin SPA and downstream Anokii shells. Historical restore is conflict-bound to the observed current revision and never deletes history or changes the published pointer.
-
-### Added
 
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
 

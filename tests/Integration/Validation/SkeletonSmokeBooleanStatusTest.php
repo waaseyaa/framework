@@ -176,7 +176,7 @@ final class SkeletonSmokeBooleanStatusTest extends TestCase
             public function __construct(string $projectRoot, LoggerInterface $logger)
             {
                 parent::__construct($projectRoot, $logger);
-                $this->config = ['database' => ':memory:'];
+                $this->config = ['database' => ':memory:', 'environment' => 'testing'];
                 $this->dispatcher = new SymfonyEventDispatcherAdapter();
             }
 

@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+write_dependency_authority=false
+if [[ "${1:-}" == '--write-dependency-authority' ]]; then
+    write_dependency_authority=true
+fi
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-s1-sqlite-artifact.XXXXXX")"
+source_tree="$work/source"
+package="$source_tree/packages/database-legacy"
+artifacts="$work/artifacts"
+consumer="$work/consumer"
+version="1.0.0-alpha.1"
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+mkdir -p "$source_tree" "$artifacts" "$consumer/vendor"
+candidate="$($root/bin/git -C "$root" rev-parse HEAD)"
+package_tree="$($root/bin/git -C "$root" rev-parse 'HEAD:packages/database-legacy')"
+if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- packages/database-legacy)" ]]; then
+    echo 'S1 artifact evidence refuses dirty database-package bytes.' >&2
+    exit 1
+fi
+$root/bin/git -C "$root" archive --format=tar HEAD packages/database-legacy \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_tree"
+
+# Composer artifact repositories read the package version from the archive's
+# manifest. Stamp only the disposable staging copy; source bytes stay intact.
+php -r '
+    $path = $argv[1];
+    $manifest = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $manifest["version"] = $argv[2];
+    $manifest["extra"]["waaseyaa"]["artifact-source"] = [
+        "commit" => $argv[3],
+        "package_tree" => $argv[4],
+    ];
+    unset($manifest["require-dev"], $manifest["autoload-dev"], $manifest["repositories"]);
+    file_put_contents($path, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$package/composer.json" "$version" "$candidate" "$package_tree"
+
+tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner --mode=u=rwX,go=rX \
+    -czf "$artifacts/waaseyaa-database-legacy-$version.tar.gz" -C "$package" .
+archive="$artifacts/waaseyaa-database-legacy-$version.tar.gz"
+tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner --mode=u=rwX,go=rX \
+    -czf "$artifacts/reproduced.tar.gz" -C "$package" .
+if [[ "$(sha256sum "$archive" | cut -d ' ' -f 1)" != "$(sha256sum "$artifacts/reproduced.tar.gz" | cut -d ' ' -f 1)" ]]; then
+    echo 'S1 artifact archive is not byte-reproducible.' >&2
+    exit 1
+fi
+
+installed="$consumer/vendor/waaseyaa/database-legacy"
+mkdir -p "$installed"
+tar -xzf "$archive" -C "$installed"
+
+if find "$installed" -type l -print -quit | grep -q .; then
+    echo 'S1 artifact unexpectedly contains a symbolic link.' >&2
+    exit 1
+fi
+
+dependency_rows="$work/dependencies.tsv"
+for dependency in doctrine/dbal doctrine/deprecations psr/cache psr/log; do
+    mkdir -p "$consumer/vendor/$(dirname "$dependency")"
+    source_digest="$(tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+        -cf - -C "$root/vendor/$dependency" . | sha256sum | cut -d ' ' -f 1)"
+    php -r '
+        [$lockPath, $installedPath, $name, $digest] = array_slice($argv, 1);
+        $lock = json_decode((string) file_get_contents($lockPath), true, flags: JSON_THROW_ON_ERROR);
+        $installed = json_decode((string) file_get_contents($installedPath), true, flags: JSON_THROW_ON_ERROR);
+        $find = static function (array $packages, string $name): array {
+            foreach ($packages as $package) {
+                if (($package["name"] ?? null) === $name) {
+                    return $package;
+                }
+            }
+            throw new RuntimeException("Missing dependency metadata for {$name}.");
+        };
+        $locked = $find($lock["packages"], $name);
+        $actual = $find($installed["packages"], $name);
+        foreach (["version"] as $field) {
+            if (($locked[$field] ?? null) !== ($actual[$field] ?? null)) {
+                throw new RuntimeException("Installed {$name} {$field} differs from composer.lock.");
+            }
+        }
+        $lockedSource = $locked["source"]["reference"] ?? "";
+        $actualSource = $actual["source"]["reference"] ?? "";
+        $lockedDist = $locked["dist"]["reference"] ?? "";
+        $actualDist = $actual["dist"]["reference"] ?? "";
+        if ($lockedSource !== $actualSource || $lockedDist !== $actualDist) {
+            throw new RuntimeException("Installed {$name} reference differs from composer.lock.");
+        }
+        echo implode("\t", [$name, $locked["version"], $lockedSource, $lockedDist, $digest]) . "\n";
+    ' "$root/composer.lock" "$root/vendor/composer/installed.json" "$dependency" "$source_digest" >> "$dependency_rows"
+    cp -R "$root/vendor/$dependency" "$consumer/vendor/$dependency"
+    copied_digest="$(tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+        -cf - -C "$consumer/vendor/$dependency" . | sha256sum | cut -d ' ' -f 1)"
+    if [[ "$source_digest" != "$copied_digest" ]]; then
+        echo "S1 artifact dependency copy drifted: $dependency" >&2
+        exit 1
+    fi
+done
+
+dependency_manifest="$consumer/dependency-manifest.json"
+php -r '
+    [$rowsPath, $lockPath, $outputPath] = array_slice($argv, 1);
+    $dependencies = [];
+    foreach (file($rowsPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $row) {
+        [$name, $version, $source, $dist, $bytes] = explode("\t", $row);
+        $dependencies[] = compact("name", "version", "source", "dist", "bytes");
+    }
+    usort($dependencies, static fn(array $a, array $b): int => $a["name"] <=> $b["name"]);
+    $manifest = [
+        "schema_version" => 1,
+        "composer_lock_sha256" => hash_file("sha256", $lockPath),
+        "dependencies" => $dependencies,
+    ];
+    file_put_contents($outputPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$dependency_rows" "$root/composer.lock" "$dependency_manifest"
+dependency_manifest_sha256="$(sha256sum "$dependency_manifest" | cut -d ' ' -f 1)"
+dependency_authority="$root/support/s1-sqlite-dependency-bytes.json"
+if [[ "$write_dependency_authority" == true ]]; then
+    cp "$dependency_manifest" "$dependency_authority"
+    printf 'Wrote S1 dependency-byte authority: %s\n' "$dependency_manifest_sha256"
+    exit 0
+fi
+if ! cmp -s "$dependency_authority" "$dependency_manifest"; then
+    echo 'S1 artifact dependency bytes or lock identities differ from the reviewed authority.' >&2
+    exit 1
+fi
+
+php "$root/tests/PackagedForm/s1-sqlite-artifact-probe.php" \
+    "$installed" "$consumer/vendor" "$candidate" "$package_tree" \
+    "$dependency_manifest" "$dependency_manifest_sha256"
+printf 'Candidate: %s\nPackage tree: %s\nArtifact SHA-256: %s\nDependency manifest SHA-256: %s\n' \
+    "$candidate" "$package_tree" "$(sha256sum "$archive" | cut -d ' ' -f 1)" \
+    "$dependency_manifest_sha256"

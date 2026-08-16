@@ -1,0 +1,370 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Fail-closed parity gate for the versioned S1 platform/lifecycle contract.
+ *
+ * Repository mode validates declared sources. --ci additionally validates the
+ * running test point and can write a machine-readable evidence record.
+ */
+
+$root = dirname(__DIR__);
+$ci = in_array('--ci', $argv, true);
+$evidencePath = null;
+$errors = [];
+
+foreach ($argv as $argument) {
+    if (str_starts_with($argument, '--evidence=')) {
+        $evidencePath = substr($argument, strlen('--evidence='));
+    }
+}
+
+/** @return array<string, mixed> */
+function readJsonObject(string $path): array
+{
+    if (!is_file($path)) {
+        throw new RuntimeException("Required JSON file is missing: {$path}");
+    }
+
+    $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || array_is_list($decoded)) {
+        throw new RuntimeException("Expected a JSON object: {$path}");
+    }
+
+    return $decoded;
+}
+
+/** @param list<string> $expected @param list<string> $errors */
+function requireExactKeys(array $value, array $expected, string $path, array &$errors): void
+{
+    $actual = array_keys($value);
+    sort($actual);
+    sort($expected);
+    if ($actual !== $expected) {
+        $errors[] = sprintf('%s keys differ: expected [%s], got [%s]', $path, implode(', ', $expected), implode(', ', $actual));
+    }
+}
+
+/** @param list<string> $errors */
+function requireSame(mixed $actual, mixed $expected, string $path, array &$errors): void
+{
+    if ($actual !== $expected) {
+        $errors[] = sprintf('%s differs: expected %s, got %s', $path, json_encode($expected), json_encode($actual));
+    }
+}
+
+/** @param list<string> $errors */
+function requireDate(mixed $value, string $path, array &$errors): ?DateTimeImmutable
+{
+    if (!is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value) !== 1) {
+        $errors[] = "{$path} must be an ISO date";
+        return null;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value, new DateTimeZone('UTC'));
+    $parseErrors = DateTimeImmutable::getLastErrors();
+    if (!$date || ($parseErrors !== false && ($parseErrors['warning_count'] > 0 || $parseErrors['error_count'] > 0))) {
+        $errors[] = "{$path} is not a real calendar date";
+        return null;
+    }
+
+    return $date;
+}
+
+/** @param list<string> $errors */
+function requireVersionRange(string $version, string $minimum, string $maximum, string $path, array &$errors): void
+{
+    if (version_compare($version, $minimum, '<') || !version_compare($version, $maximum, '<')) {
+        $errors[] = "{$path} version {$version} is outside >= {$minimum} and < {$maximum}";
+    }
+}
+
+/** @return array{output: string, exit: int} */
+function runVersionCommand(string $command): array
+{
+    $lines = [];
+    $exit = 0;
+    exec($command . ' 2>&1', $lines, $exit);
+    return ['output' => trim(implode("\n", $lines)), 'exit' => $exit];
+}
+
+try {
+    $contract = readJsonObject($root . '/support/s1-v1.json');
+    requireExactKeys($contract, ['schema_version', 'contract_version', 'last_reviewed', 'review_by', 'profile', 'platform', 'lifecycle', 'evidence', 'unsupported'], 'contract', $errors);
+    requireSame($contract['schema_version'] ?? null, 1, 'schema_version', $errors);
+    requireSame($contract['contract_version'] ?? null, 's1-v1', 'contract_version', $errors);
+
+    $profile = is_array($contract['profile'] ?? null) ? $contract['profile'] : [];
+    requireExactKeys($profile, ['name', 'status', 'scope'], 'profile', $errors);
+    requireSame($profile, ['name' => 'S1', 'status' => 'candidate', 'scope' => 'single-node SQLite'], 'profile', $errors);
+
+    $platform = is_array($contract['platform'] ?? null) ? $contract['platform'] : [];
+    requireExactKeys($platform, ['php', 'composer', 'node', 'sqlite', 'framework_os', 'browsers'], 'platform', $errors);
+
+    $php = is_array($platform['php'] ?? null) ? $platform['php'] : [];
+    requireExactKeys($php, ['constraint', 'role', 'active_support_end', 'security_support_end', 'source'], 'platform.php', $errors);
+    requireSame($php['constraint'] ?? null, '>=8.5.0 <8.6.0', 'platform.php.constraint', $errors);
+    requireSame($php['role'] ?? null, 'serving-and-cli-runtime', 'platform.php.role', $errors);
+    $phpActiveEnd = requireDate($php['active_support_end'] ?? null, 'platform.php.active_support_end', $errors);
+    requireDate($php['security_support_end'] ?? null, 'platform.php.security_support_end', $errors);
+    requireSame($php['source'] ?? null, 'https://www.php.net/supported-versions.php', 'platform.php.source', $errors);
+
+    $composerPlatform = is_array($platform['composer'] ?? null) ? $platform['composer'] : [];
+    requireExactKeys($composerPlatform, ['constraint', 'feature_line', 'role', 'source'], 'platform.composer', $errors);
+    requireSame($composerPlatform['constraint'] ?? null, '>=2.10.0 <3.0.0', 'platform.composer.constraint', $errors);
+    requireSame($composerPlatform['feature_line'] ?? null, '2.10', 'platform.composer.feature_line', $errors);
+    requireSame($composerPlatform['role'] ?? null, 'dependency-resolution-and-build-tool', 'platform.composer.role', $errors);
+    requireSame($composerPlatform['source'] ?? null, 'https://getcomposer.org/download/', 'platform.composer.source', $errors);
+
+    $node = is_array($platform['node'] ?? null) ? $platform['node'] : [];
+    requireExactKeys($node, ['constraint', 'role', 'maintenance_start', 'eol', 'source'], 'platform.node', $errors);
+    requireSame($node['constraint'] ?? null, '>=24.0.0 <25.0.0', 'platform.node.constraint', $errors);
+    requireSame($node['role'] ?? null, 'admin-build-and-test-tool', 'platform.node.role', $errors);
+    requireDate($node['maintenance_start'] ?? null, 'platform.node.maintenance_start', $errors);
+    $nodeEol = requireDate($node['eol'] ?? null, 'platform.node.eol', $errors);
+    requireSame($node['source'] ?? null, 'https://github.com/nodejs/Release#release-schedule', 'platform.node.source', $errors);
+
+    $sqlite = is_array($platform['sqlite'] ?? null) ? $platform['sqlite'] : [];
+    requireExactKeys($sqlite, ['constraint', 'role', 'security_source', 'source'], 'platform.sqlite', $errors);
+    requireSame($sqlite, ['constraint' => '>=3.40.0 <4.0.0', 'role' => 's1-database-runtime', 'security_source' => 'ubuntu-24.04-package-source', 'source' => 'https://packages.ubuntu.com/noble/sqlite3'], 'platform.sqlite', $errors);
+
+    $os = is_array($platform['framework_os'] ?? null) ? $platform['framework_os'] : [];
+    requireExactKeys($os, ['runner', 'version', 'architecture', 'standard_security_maintenance_end', 'source'], 'platform.framework_os', $errors);
+    requireSame($os, ['runner' => 'ubuntu-24.04', 'version' => '24.04', 'architecture' => 'x86_64', 'standard_security_maintenance_end' => '2029-05', 'source' => 'https://ubuntu.com/about/release-cycle'], 'platform.framework_os', $errors);
+
+    $browsers = is_array($platform['browsers'] ?? null) ? $platform['browsers'] : [];
+    requireExactKeys($browsers, ['playwright_version', 'projects', 'revision_authority', 'source'], 'platform.browsers', $errors);
+    requireSame($browsers['projects'] ?? null, ['chromium', 'firefox'], 'platform.browsers.projects', $errors);
+    requireSame($browsers['revision_authority'] ?? null, 'packages/admin/package-lock.json', 'platform.browsers.revision_authority', $errors);
+    requireSame($browsers['source'] ?? null, 'https://playwright.dev/docs/browsers', 'platform.browsers.source', $errors);
+
+    $lifecycle = is_array($contract['lifecycle'] ?? null) ? $contract['lifecycle'] : [];
+    requireExactKeys($lifecycle, ['release_model', 'fixed_train', 'upgrade_treatment_trains', 'backports', 'security_fix_delivery', 'response_time_sla', 'review_frequency', 'next_transition_notice_days'], 'lifecycle', $errors);
+    requireSame($lifecycle, [
+        'release_model' => 'forward-only-immutable-alpha-tags',
+        'fixed_train' => 'latest-tagged-alpha',
+        'upgrade_treatment_trains' => 3,
+        'backports' => false,
+        'security_fix_delivery' => 'newest-tagged-alpha',
+        'response_time_sla' => false,
+        'review_frequency' => 'quarterly-and-every-tagged-release',
+        'next_transition_notice_days' => 90,
+    ], 'lifecycle', $errors);
+
+    $evidence = is_array($contract['evidence'] ?? null) ? $contract['evidence'] : [];
+    requireExactKeys($evidence, ['framework', 'consumer'], 'evidence', $errors);
+    $frameworkEvidence = is_array($evidence['framework'] ?? null) ? $evidence['framework'] : [];
+    requireExactKeys($frameworkEvidence, ['status', 'owner', 'test_point', 'command'], 'evidence.framework', $errors);
+    requireSame($frameworkEvidence, ['status' => 'verified', 'owner' => 'waaseyaa/framework', 'test_point' => 'ubuntu-24.04-x86_64', 'command' => 'php bin/check-support-contract --ci'], 'evidence.framework', $errors);
+    $consumerEvidence = is_array($evidence['consumer'] ?? null) ? $evidence['consumer'] : [];
+    requireExactKeys($consumerEvidence, ['status', 'owner', 'work_package', 'test_point', 'proof'], 'evidence.consumer', $errors);
+    requireSame($consumerEvidence, [
+        'status' => 'pending',
+        'owner' => 'jonesrussell/sheguiandah-waaseyaa',
+        'work_package' => 'S0-SHEG-02',
+        'test_point' => 'ubuntu-24.04-x86_64-ext4-apache-2.4-php-fpm-8.5',
+        'proof' => null,
+    ], 'evidence.consumer', $errors);
+
+    $unsupported = is_array($contract['unsupported'] ?? null) ? $contract['unsupported'] : [];
+    requireExactKeys($unsupported, ['profiles', 'databases', 'filesystems', 'web_runtimes', 'browsers'], 'unsupported', $errors);
+    requireSame($unsupported['profiles'] ?? null, ['H1'], 'unsupported.profiles', $errors);
+    requireSame($unsupported['databases'] ?? null, ['mysql', 'postgresql'], 'unsupported.databases', $errors);
+    requireSame($unsupported['filesystems'] ?? null, ['nfs', 'smb', 'object-mounted', 'clustered'], 'unsupported.filesystems', $errors);
+    requireSame($unsupported['web_runtimes'] ?? null, ['non-apache-2.4', 'non-php-fpm-8.5'], 'unsupported.web_runtimes', $errors);
+    requireSame($unsupported['browsers'] ?? null, ['webkit', 'safari', 'branded-browser-specific-behavior'], 'unsupported.browsers', $errors);
+
+    $lastReviewed = requireDate($contract['last_reviewed'] ?? null, 'last_reviewed', $errors);
+    $reviewBy = requireDate($contract['review_by'] ?? null, 'review_by', $errors);
+    $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
+    if ($lastReviewed && $lastReviewed > $today) {
+        $errors[] = 'last_reviewed cannot be in the future';
+    }
+    if ($lastReviewed && $reviewBy && ($reviewBy <= $lastReviewed || $lastReviewed->diff($reviewBy)->days > 93)) {
+        $errors[] = 'review_by must be after last_reviewed and no more than 93 days later';
+    }
+    if ($reviewBy && $reviewBy < $today) {
+        $errors[] = 'support contract review_by date has expired';
+    }
+    $supportReductions = array_values(array_filter([$phpActiveEnd, $nodeEol]));
+    if ($reviewBy && $supportReductions !== []) {
+        usort($supportReductions, static fn (DateTimeImmutable $a, DateTimeImmutable $b): int => $a <=> $b);
+        $noticeDays = is_int($lifecycle['next_transition_notice_days'] ?? null) ? $lifecycle['next_transition_notice_days'] : 0;
+        $noticeDeadline = $supportReductions[0]->modify("-{$noticeDays} days");
+        if ($reviewBy > $noticeDeadline) {
+            $errors[] = 'contract review must occur at least 90 days before the next support-reducing transition';
+        }
+    }
+
+    $composer = readJsonObject($root . '/composer.json');
+    requireSame($composer['require']['php'] ?? null, '>=8.5 <8.6', 'composer.json require.php', $errors);
+    requireSame($composer['require']['ext-pdo_sqlite'] ?? null, '*', 'composer.json require.ext-pdo_sqlite', $errors);
+    requireSame($composer['require']['ext-sqlite3'] ?? null, '*', 'composer.json require.ext-sqlite3', $errors);
+    $composerLock = readJsonObject($root . '/composer.lock');
+    requireSame($composerLock['platform']['php'] ?? null, $composer['require']['php'] ?? null, 'composer.lock platform.php', $errors);
+
+    $adminPackage = readJsonObject($root . '/packages/admin/package.json');
+    requireSame(trim((string) file_get_contents($root . '/.nvmrc')), '24', '.nvmrc', $errors);
+    requireSame($adminPackage['engines']['node'] ?? null, '>=24 <25', 'packages/admin/package.json engines.node', $errors);
+
+    $adminLock = readJsonObject($root . '/packages/admin/package-lock.json');
+    $lockedPlaywright = $adminLock['packages']['node_modules/@playwright/test']['version'] ?? null;
+    requireSame($lockedPlaywright, $browsers['playwright_version'] ?? null, 'locked Playwright version', $errors);
+    requireSame($adminLock['packages']['node_modules/playwright-core']['version'] ?? null, $lockedPlaywright, 'locked playwright-core version', $errors);
+
+    $playwrightConfig = (string) file_get_contents($root . '/packages/admin/playwright.config.ts');
+    preg_match_all("/name:\\s*'([^']+)'/", $playwrightConfig, $projectMatches);
+    $configuredProjects = array_values(array_intersect($projectMatches[1] ?? [], ['chromium', 'firefox', 'webkit']));
+    requireSame($configuredProjects, ['chromium', 'firefox'], 'Playwright project matrix', $errors);
+
+    foreach (['docs/specs/s1-support-lifecycle.md', 'SECURITY.md'] as $requiredDocument) {
+        if (!is_file($root . '/' . $requiredDocument)) {
+            $errors[] = "Required policy is missing: {$requiredDocument}";
+        }
+    }
+    if (is_file($root . '/SECURITY.md')) {
+        $securityPolicy = (string) file_get_contents($root . '/SECURITY.md');
+        foreach (['private vulnerability reporting', 'no response-time SLA', 'Authentication is not authorization', 'No additional accepted risk'] as $requiredPolicyText) {
+            if (stripos($securityPolicy, $requiredPolicyText) === false) {
+                $errors[] = "SECURITY.md omits required policy text: {$requiredPolicyText}";
+            }
+        }
+    }
+
+    $readme = (string) file_get_contents($root . '/README.md');
+    if (str_contains($readme, 'PHP 8.5 or later') || str_contains($readme, 'SQLite 3 (default) or MySQL/PostgreSQL')) {
+        $errors[] = 'README still contains an unbounded legacy platform claim';
+    }
+    foreach (['S1 consumer certification is still pending', 'H1', 'MySQL/PostgreSQL', 'WebKit/Safari'] as $requiredBoundary) {
+        if (!str_contains($readme, $requiredBoundary)) {
+            $errors[] = "README omits support boundary: {$requiredBoundary}";
+        }
+    }
+
+    $workflow = (string) file_get_contents($root . '/.github/workflows/ci.yml');
+    if (preg_match('/^  support-contract:\R(?<job>.*?)(?=^  [a-z0-9_-]+:\R|\z)/ms', $workflow, $jobMatch) !== 1) {
+        $errors[] = 'CI support-contract job is missing';
+        $supportJob = '';
+    } else {
+        $supportJob = $jobMatch['job'];
+    }
+    $workflowChecks = [
+        '/^    runs-on: ubuntu-24\.04$/m' => 'explicit ubuntu-24.04 runner',
+        '/uses: actions\/checkout@[0-9a-f]{40}\s+# v7\.0\.1/' => 'immutable checkout action',
+        '/uses: shivammathur\/setup-php@[0-9a-f]{40}\s+# v2\.37\.2/' => 'immutable PHP setup action',
+        '/uses: actions\/setup-node@[0-9a-f]{40}\s+# v7\.0\.0/' => 'immutable Node setup action',
+        "/php-version: '8\.5'/" => 'PHP 8.5 test point',
+        "/node-version-file: '\.nvmrc'/" => 'Node test point',
+        '/php bin\/check-support-contract --ci --evidence=support-contract-evidence\.json/' => 'CI contract execution and evidence',
+        '/uses: actions\/upload-artifact@[0-9a-f]{40}\s+# v7\.0\.1/' => 'immutable evidence upload action',
+        '/retention-days: 30/' => 'evidence retention',
+    ];
+    foreach ($workflowChecks as $pattern => $label) {
+        if (preg_match($pattern, $supportJob) !== 1) {
+            $errors[] = "CI support-contract job omits {$label}";
+        }
+    }
+    if (str_contains($workflow, 'runs-on: ubuntu-latest')) {
+        $errors[] = 'CI contains a floating ubuntu-latest runner';
+    }
+    foreach (['ci-unit-tests', 'ci-playwright-smoke', 'verify-gates'] as $requiredJob) {
+        if (preg_match('/^  ' . preg_quote($requiredJob, '/') . ':\R(?<job>.*?)(?=^  [a-z0-9_-]+:\R|\z)/ms', $workflow, $suiteMatch) !== 1
+            || preg_match('/^    runs-on: ubuntu-24\.04$/m', $suiteMatch['job']) !== 1) {
+            $errors[] = "CI {$requiredJob} is not pinned to ubuntu-24.04";
+        }
+    }
+
+    $runtime = [
+        'php' => PHP_VERSION,
+        'composer' => null,
+        'node' => null,
+        'npm' => null,
+        'sqlite' => class_exists(SQLite3::class) ? SQLite3::version()['versionString'] : null,
+        'os' => null,
+        'architecture' => php_uname('m'),
+        'runner_image_os' => getenv('ImageOS') ?: null,
+        'runner_image_version' => getenv('ImageVersion') ?: null,
+    ];
+
+    if ($ci) {
+        requireVersionRange(PHP_VERSION, '8.5.0', '8.6.0', 'runtime PHP', $errors);
+        if (!class_exists(SQLite3::class) || !is_string($runtime['sqlite'])) {
+            $errors[] = 'CI runtime lacks ext-sqlite3';
+        } else {
+            requireVersionRange($runtime['sqlite'], '3.40.0', '4.0.0', 'runtime SQLite', $errors);
+        }
+
+        $composerVersion = runVersionCommand('composer --no-ansi --version');
+        if ($composerVersion['exit'] !== 0 || preg_match('/Composer version (\d+\.\d+\.\d+)/', $composerVersion['output'], $composerMatch) !== 1) {
+            $errors[] = 'Unable to resolve the CI Composer version';
+        } else {
+            $runtime['composer'] = $composerMatch[1];
+            requireVersionRange($composerMatch[1], '2.10.0', '3.0.0', 'runtime Composer', $errors);
+            requireSame(implode('.', array_slice(explode('.', $composerMatch[1]), 0, 2)), $composerPlatform['feature_line'] ?? null, 'runtime Composer feature line', $errors);
+        }
+
+        foreach (['node' => 'node --version', 'npm' => 'npm --version'] as $name => $command) {
+            $result = runVersionCommand($command);
+            if ($result['exit'] !== 0) {
+                $errors[] = "Unable to resolve the CI {$name} version";
+                continue;
+            }
+            $runtime[$name] = ltrim($result['output'], 'v');
+        }
+        if (is_string($runtime['node'])) {
+            requireVersionRange($runtime['node'], '24.0.0', '25.0.0', 'runtime Node', $errors);
+        }
+
+        $osRelease = is_file('/etc/os-release') ? parse_ini_file('/etc/os-release') : false;
+        $runtime['os'] = is_array($osRelease) ? ($osRelease['VERSION_ID'] ?? null) : null;
+        requireSame($runtime['os'], '24.04', 'runtime OS version', $errors);
+        requireSame($runtime['architecture'], 'x86_64', 'runtime architecture', $errors);
+    }
+
+    $evidenceRecord = [
+        'schema_version' => 1,
+        'contract_version' => $contract['contract_version'] ?? null,
+        'contract_sha256' => hash_file('sha256', $root . '/support/s1-v1.json'),
+        'result' => $errors === [] ? 'pass' : 'fail',
+        'commit' => null,
+        'workflow_sha' => getenv('GITHUB_SHA') ?: null,
+        'checked_at' => gmdate('c'),
+        'runtime' => $runtime,
+        'consumer_certification' => $consumerEvidence['status'] ?? null,
+    ];
+    $gitHead = runVersionCommand('git -C ' . escapeshellarg($root) . ' rev-parse HEAD');
+    if ($gitHead['exit'] === 0 && preg_match('/^[0-9a-f]{40}$/D', $gitHead['output']) === 1) {
+        $evidenceRecord['commit'] = $gitHead['output'];
+    } elseif ($ci) {
+        $errors[] = 'Unable to resolve the checked-out commit for CI evidence';
+    }
+    $evidenceRecord['result'] = $errors === [] ? 'pass' : 'fail';
+
+    if ($evidencePath !== null) {
+        if ($evidencePath === '' || str_contains($evidencePath, '..') || str_contains($evidencePath, '/') || str_contains($evidencePath, '\\')) {
+            $errors[] = '--evidence must be a filename in the repository root';
+        } else {
+            file_put_contents($root . '/' . $evidencePath, json_encode($evidenceRecord, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        }
+    }
+
+    foreach ($runtime as $name => $version) {
+        if ($version !== null) {
+            fwrite(STDOUT, sprintf("support-contract %s=%s\n", $name, $version));
+        }
+    }
+} catch (Throwable $exception) {
+    $errors[] = $exception->getMessage();
+}
+
+if ($errors !== []) {
+    foreach (array_values(array_unique($errors)) as $error) {
+        fwrite(STDERR, "ERROR: {$error}\n");
+    }
+    exit(1);
+}
+
+fwrite(STDOUT, "OK: S1 support contract and executable test points agree.\n");
+exit(0);

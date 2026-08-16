@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-08-11 - #2336 S1 upgrade compatibility: Foundation exposes a pure, read-only preflight decision surface. It does not boot the kernel, read configuration or schema state, run migrations, enter maintenance, or perform rollback/restore. Callers must supply the exact versioned observation described by docs/specs/s1-upgrade-compatibility.md; unknown or mixed state is refused, and a ready result authorizes only a separately governed apply phase. Existing configuration and migration mechanisms remain uncertified evidence sources until their independent findings close. -->
+
 <!-- Spec reviewed 2026-08-09 - issue #2322: HealthSchemaServiceProvider registers tenancy:repair-translation-peers as an explicit, dry-run-capable repair surface. It uses the live entity type metadata and database connection but never runs during boot; operators must quiesce writes before applying repairs. -->
 <!-- Spec reviewed 2026-08-09 - issue #2320: EntityTypeManagerFactory resolves CommunityScope once per entity type and injects that same instance into both SqlStorageDriver and RevisionableStorageDriver. Community-scoped base rows are therefore the kernel-owned visibility and mutation anchor for default and translation revision history, without duplicating community_id into revision tables. -->
 
@@ -585,7 +587,14 @@ final class DBALDatabase implements DatabaseInterface
 }
 ```
 
-`DBALDatabase` wraps a Doctrine DBAL `Connection`. The `createSqlite()` factory enables foreign-key enforcement on every new connection before any schema or data work, and enables WAL mode for non-memory databases. Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
+`DBALDatabase` wraps a Doctrine DBAL `Connection`. Under the
+[S1 SQLite topology](s1-sqlite-topology.md), `createSqlite()` is the shared
+connection boundary for authoritative storage and the optional search
+projection. It rejects DSN/URI and UNC/device path shapes, enables and verifies
+foreign-key enforcement plus a 5000 ms busy timeout on every connection, and
+enables and verifies WAL for file-backed databases. Effective drift fails with
+stable `S1-DB003`; issuing a PRAGMA without reading it back is not evidence.
+Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
 
 ### TransactionInterface
 
@@ -1952,7 +1961,7 @@ These variables and config keys are the primary **bootstrap surface** for operat
 | `APP_ENV` | Canonical environment name; falls back to config `environment`, then `'production'`. Drives `isDevelopmentMode()` and the production SQLite existence guard. |
 | `APP_DEBUG` | Boolean debug flag; falls back to config `debug`. **Must not be true** when the resolved environment is non-development (see boot guard above). |
 | `WAASEYAA_APP_SECRET` | Sole application master secret. Outside `local`/`dev`/`development`/`testing`, it must be `base64:` plus canonical RFC 4648 encoding of exactly 32 bytes and is resolved before database boot. Development kernels synthesize a per-kernel ephemeral value when absent. `ApplicationSecret` derives raw 32-byte HKDF-SHA-256 keys with public salt `waaseyaa.app-secret.hkdf.v1` and distinct versioned purpose labels; master and derived bytes are never configuration values, logs, exceptions, or serialized payloads. |
-| `WAASEYAA_DB` | Optional override for the SQLite database file path when `config['database']` is not set (see `DatabaseBootstrapper`). Relative values resolve against the kernel **project root**, never the process CWD (#1650 / FR-007); absolute values (POSIX, Windows drive-letter, UNC) and `:memory:` pass through untouched. |
+| `WAASEYAA_DB` | Optional override for the SQLite database file path when `config['database']` is not set (see `DatabaseBootstrapper`). Relative values resolve against the kernel **project root**, never the process CWD (#1650 / FR-007). Pure resolution preserves POSIX, Windows drive-letter, UNC and `:memory:` spellings; production boot separately rejects UNC/device paths and production `:memory:` under the S1 topology. |
 | `WAASEYAA_CONFIG_DIR` | Optional override for the sync config directory (used by `ConsoleKernel` alongside `config['config_dir']`). |
 | `.env` (file) | Loaded first from `$projectRoot/.env` via `EnvLoader::load()` before `config/waaseyaa.php`. `EnvLoader` writes to `putenv()`, `$_ENV`, and `$_SERVER` without overwriting keys already present in any of those stores (see source listing under Kernel Bootstrap file index). |
 
@@ -1982,7 +1991,7 @@ Creates `DBALDatabase::createSqlite()` using the canonical path resolution (`res
 | `:memory:` | sentinel | `:memory:` (untouched; never warns) |
 | `/var/db/app.sqlite` | absolute (leading `/`) | untouched |
 | `C:\data\app.sqlite`, `C:/data/app.sqlite` | absolute (drive letter + separator) | untouched |
-| `\\server\share\app.sqlite` | absolute (UNC) | untouched |
+| `\\server\share\app.sqlite` | absolute (UNC) | untouched by pure resolution; S1 boot refuses `S1-DB001` before connection |
 | `./storage/waaseyaa.sqlite` | relative (leading `./` stripped) | `{projectRoot}/storage/waaseyaa.sqlite` |
 | `storage/waaseyaa.sqlite` | relative | `{projectRoot}/storage/waaseyaa.sqlite` |
 | `../shared/db.sqlite` | relative (climbing) | `{projectRoot}/../shared/db.sqlite` |
@@ -1995,11 +2004,13 @@ Creates `DBALDatabase::createSqlite()` using the canonical path resolution (`res
 
 Production safety contract:
 - environment resolution matches the kernel contract: config `'environment'` key → `APP_ENV` env var → `'production'`
+- DSN/URI-shaped raw configuration and UNC/device paths fail with `S1-DB001`
+- production `:memory:` fails with `S1-DB002`; it remains a development/test-only sentinel
 - when the resolved environment is `production`, file-backed SQLite paths must already exist before boot continues
 - if the resolved production SQLite file is missing, bootstrap throws `RuntimeException` naming `bin/waaseyaa db:init` as the sanctioned first-deploy path (`Database not found at {path}. In production, the database must already exist. Run "bin/waaseyaa db:init" to create the database file and apply migrations. The command is idempotent and safe to run on every deploy.`). The guard itself is unchanged; `db:init` bypasses it by running through the minimal-console path (see `ConsoleKernel::shouldUseMinimalConsole()` and the `DbInitCommand` reference below).
 - when that production guard fires, bootstrap does not create the parent directory as a side effect
 - non-production environments (`local`, `dev`, `development`, `testing`, etc.) keep the existing auto-create behavior
-- `:memory:` remains allowed in all environments for explicit in-memory bootstrap/test cases
+- `:memory:` remains allowed in non-production environments for explicit in-memory bootstrap/test cases
 
 ### ManifestBootstrapper
 

@@ -1,0 +1,320 @@
+#!/usr/bin/env node
+
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, relative, resolve } from 'node:path'
+
+const REQUIRED_OPTIONS = [
+  'repository-root',
+  'split-provenance-dir',
+  'output-dir',
+  'source-repository',
+  'source-sha',
+  'tag',
+  'builder-id',
+  'workflow-run-id',
+  'composer-version',
+  'node-version',
+]
+
+try {
+  const options = parseOptions(process.argv.slice(2))
+  for (const name of REQUIRED_OPTIONS) {
+    requireValue(options, name)
+  }
+
+  requireFullSha(options['source-sha'], 'source SHA')
+  if (!/^v[0-9A-Za-z][0-9A-Za-z._-]*$/.test(options.tag)) {
+    throw new Error(`Invalid release tag: ${options.tag}`)
+  }
+
+  const repositoryRoot = resolve(options['repository-root'])
+  const splitDirectory = resolve(options['split-provenance-dir'])
+  const outputDirectory = resolve(options['output-dir'])
+  const composerLockPath = join(repositoryRoot, 'composer.lock')
+  const npmLockPath = join(repositoryRoot, 'packages/admin/package-lock.json')
+  const composerLock = readJson(composerLockPath)
+  const npmLock = readJson(npmLockPath)
+  const packages = loadPackages(repositoryRoot, splitDirectory, options)
+  const workflowInputs = loadWorkflowInputs(join(repositoryRoot, '.github/workflows'))
+  const sbom = buildSbom(composerLock, npmLock, options)
+
+  mkdirSync(outputDirectory, { recursive: true, mode: 0o700 })
+  const sbomPath = join(outputDirectory, 'waaseyaa-framework.cdx.json')
+  writeAtomic(sbomPath, stableJson(sbom))
+
+  const provenance = {
+    schema_version: 1,
+    predicate_type: 'https://waaseyaa.org/provenance/framework-release/v1',
+    source: {
+      repository: options['source-repository'],
+      sha: options['source-sha'],
+    },
+    release: {
+      tag: options.tag,
+    },
+    builder: {
+      id: options['builder-id'],
+      workflow_run_id: options['workflow-run-id'],
+    },
+    tools: {
+      composer: options['composer-version'],
+      node: options['node-version'],
+    },
+    locks: {
+      composer: {
+        path: 'composer.lock',
+        sha256: sha256File(composerLockPath),
+      },
+      npm: {
+        path: 'packages/admin/package-lock.json',
+        sha256: sha256File(npmLockPath),
+      },
+    },
+    workflow_inputs: workflowInputs,
+    packages,
+    evidence: {
+      sbom: {
+        path: basename(sbomPath),
+        sha256: sha256File(sbomPath),
+      },
+    },
+  }
+  const provenancePath = join(outputDirectory, 'waaseyaa-framework-provenance.json')
+  writeAtomic(provenancePath, stableJson(provenance))
+
+  const checksums = [sbomPath, provenancePath]
+    .sort((left, right) => basename(left).localeCompare(basename(right)))
+    .map((path) => `${sha256File(path)}  ${basename(path)}`)
+    .join('\n') + '\n'
+  writeAtomic(join(outputDirectory, 'SHA256SUMS'), checksums)
+
+  console.log(`Generated release evidence for ${packages.length} split packages.`)
+} catch (error) {
+  console.error(`release-evidence: ${error instanceof Error ? error.message : String(error)}`)
+  process.exitCode = 1
+}
+
+function parseOptions(arguments_) {
+  const options = {}
+  for (const argument of arguments_) {
+    const match = argument.match(/^--([a-z0-9-]+)=(.+)$/)
+    if (!match) throw new Error(`Expected --name=value argument, received: ${argument}`)
+    if (Object.hasOwn(options, match[1])) throw new Error(`Duplicate option: --${match[1]}`)
+    options[match[1]] = match[2]
+  }
+  return options
+}
+
+function requireValue(options, name) {
+  if (!Object.hasOwn(options, name) || options[name].trim() === '') {
+    throw new Error(`Missing required option: --${name}`)
+  }
+}
+
+function requireFullSha(value, label) {
+  if (!/^[0-9a-f]{40}$/.test(value)) throw new Error(`Invalid ${label}: ${value}`)
+}
+
+function readJson(path) {
+  if (!existsSync(path)) throw new Error(`Required JSON file is missing: ${path}`)
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'))
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${path}: ${error.message}`)
+  }
+}
+
+function loadPackages(repositoryRoot, splitDirectory, options) {
+  if (!existsSync(splitDirectory)) throw new Error(`Split provenance directory is missing: ${splitDirectory}`)
+
+  const expected = new Map()
+  const packagesDirectory = join(repositoryRoot, 'packages')
+  for (const directory of readdirSync(packagesDirectory, { withFileTypes: true })) {
+    if (!directory.isDirectory()) continue
+    const manifestPath = join(packagesDirectory, directory.name, 'composer.json')
+    if (!existsSync(manifestPath)) continue
+    const manifest = readJson(manifestPath)
+    if (typeof manifest.name !== 'string' || !manifest.name.startsWith('waaseyaa/')) {
+      throw new Error(`Publishable manifest lacks a waaseyaa/* name: ${manifestPath}`)
+    }
+    expected.set(manifest.name, {
+      name: manifest.name,
+      prefix: relative(repositoryRoot, dirname(manifestPath)).replaceAll('\\', '/'),
+      manifest_path: relative(repositoryRoot, manifestPath).replaceAll('\\', '/'),
+      manifest_sha256: sha256File(manifestPath),
+    })
+  }
+
+  const records = new Map()
+  for (const filename of readdirSync(splitDirectory).filter((file) => file.endsWith('.json')).sort()) {
+    const path = join(splitDirectory, filename)
+    const record = readJson(path)
+    for (const field of ['source_repository', 'source_sha', 'package', 'prefix', 'split_repository', 'split_sha', 'tag', 'run_id']) {
+      if (typeof record[field] !== 'string' || record[field] === '') {
+        throw new Error(`${filename} lacks required string field ${field}`)
+      }
+    }
+    requireFullSha(record.source_sha, `${filename} source SHA`)
+    requireFullSha(record.split_sha, `${filename} split SHA`)
+    if (records.has(record.package)) throw new Error(`Duplicate split provenance for ${record.package}`)
+    if (!expected.has(record.package)) throw new Error(`Unexpected split provenance package: ${record.package}`)
+    records.set(record.package, record)
+  }
+
+  const result = []
+  for (const [name, manifest] of [...expected.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    const record = records.get(name)
+    if (!record) throw new Error(`Missing split provenance for ${name}`)
+    const expectedRepository = name
+    if (record.source_repository !== options['source-repository'] || record.source_sha !== options['source-sha']) {
+      throw new Error(`${name} split provenance does not bind the requested source identity`)
+    }
+    if (record.tag !== options.tag || record.run_id !== options['workflow-run-id']) {
+      throw new Error(`${name} split provenance does not bind the requested release run`)
+    }
+    if (record.prefix !== manifest.prefix || record.split_repository !== expectedRepository) {
+      throw new Error(`${name} split provenance does not match its tracked package manifest`)
+    }
+    result.push({
+      ...manifest,
+      split_repository: record.split_repository,
+      split_sha: record.split_sha,
+    })
+  }
+
+  return result
+}
+
+function loadWorkflowInputs(workflowDirectory) {
+  const inputs = new Map()
+  for (const filename of readdirSync(workflowDirectory).filter((file) => /\.ya?ml$/.test(file)).sort()) {
+    const contents = readFileSync(join(workflowDirectory, filename), 'utf8')
+    for (const match of contents.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#\s*(.+))?$/gm)) {
+      if (match[1].startsWith('./')) continue
+      const reference = match[1].match(/^([^@\s]+)@([0-9a-f]{40})$/)
+      if (!reference) throw new Error(`${filename} contains mutable external action ${match[1]}`)
+      const version = (match[2] ?? '').trim()
+      if (version === '') throw new Error(`${filename} action ${match[1]} lacks a version comment`)
+      inputs.set(match[1], { action: reference[1], revision: reference[2], version })
+    }
+  }
+  return [...inputs.values()].sort((left, right) => left.action.localeCompare(right.action) || left.revision.localeCompare(right.revision))
+}
+
+function buildSbom(composerLock, npmLock, options) {
+  const components = new Map()
+  for (const [scope, packages] of [['production', composerLock.packages ?? []], ['development', composerLock['packages-dev'] ?? []]]) {
+    for (const dependency of packages) {
+      const purl = `pkg:composer/${dependency.name}@${encodeURIComponent(dependency.version)}`
+      const hashes = []
+      if (typeof dependency.dist?.shasum === 'string' && dependency.dist.shasum !== '') {
+        hashes.push({ alg: 'SHA-1', content: dependency.dist.shasum.toLowerCase() })
+      }
+      components.set(purl, compact({
+        type: 'library',
+        'bom-ref': purl,
+        name: dependency.name,
+        version: dependency.version,
+        purl,
+        hashes,
+        properties: [
+          { name: 'waaseyaa:lock:scope', value: scope },
+          { name: 'waaseyaa:source:reference', value: dependency.source?.reference ?? null },
+          { name: 'waaseyaa:dist:reference', value: dependency.dist?.reference ?? null },
+          { name: 'waaseyaa:dist:checksum', value: dependency.dist?.shasum || null },
+        ],
+      }))
+    }
+  }
+
+  for (const [path, dependency] of Object.entries(npmLock.packages ?? {})) {
+    if (path === '' || typeof dependency.version !== 'string') continue
+    const name = dependency.name ?? path.replace(/^.*node_modules\//, '')
+    const purlName = encodeURIComponent(name).replaceAll('%2F', '/')
+    const purl = `pkg:npm/${purlName}@${encodeURIComponent(dependency.version)}`
+    const integrityHash = parseIntegrity(dependency.integrity)
+    const priorScope = components.get(purl)?.properties?.find((property) => property.name === 'waaseyaa:lock:scope')?.value
+    const scope = dependency.dev === true && priorScope !== 'production' ? 'development' : 'production'
+    components.set(purl, compact({
+      type: 'library',
+      'bom-ref': purl,
+      name,
+      version: dependency.version,
+      purl,
+      hashes: integrityHash ? [integrityHash] : [],
+      properties: [
+        { name: 'waaseyaa:lock:scope', value: scope },
+        { name: 'waaseyaa:npm:resolved', value: dependency.resolved ?? null },
+        { name: 'waaseyaa:npm:integrity', value: dependency.integrity ?? null },
+      ],
+    }))
+  }
+
+  return {
+    bomFormat: 'CycloneDX',
+    specVersion: '1.6',
+    version: 1,
+    metadata: {
+      component: {
+        type: 'framework',
+        'bom-ref': `pkg:github/${options['source-repository']}@${options['source-sha']}`,
+        name: 'waaseyaa/framework',
+        version: options.tag,
+        purl: `pkg:github/${options['source-repository']}@${options['source-sha']}`,
+      },
+      tools: {
+        components: [
+          { type: 'application', name: 'composer', version: options['composer-version'] },
+          { type: 'application', name: 'node', version: options['node-version'] },
+        ],
+      },
+      properties: [
+        { name: 'waaseyaa:source:repository', value: options['source-repository'] },
+        { name: 'waaseyaa:source:sha', value: options['source-sha'] },
+      ],
+    },
+    components: [...components.values()].sort((left, right) => left.purl.localeCompare(right.purl)),
+  }
+}
+
+function parseIntegrity(integrity) {
+  if (typeof integrity !== 'string') return null
+  const match = integrity.match(/^(sha256|sha384|sha512)-([A-Za-z0-9+/=]+)$/)
+  if (!match) return null
+  return { alg: match[1].toUpperCase().replace('SHA', 'SHA-'), content: Buffer.from(match[2], 'base64').toString('hex') }
+}
+
+function compact(value) {
+  if (Array.isArray(value)) return value.map(compact)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined && item !== null).map(([key, item]) => [key, compact(item)]))
+  }
+  return value
+}
+
+function stableJson(value) {
+  return JSON.stringify(sortKeys(value), null, 2) + '\n'
+}
+
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortKeys(value[key])]))
+  }
+  return value
+}
+
+function sha256File(path) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
+function writeAtomic(path, contents) {
+  const temporary = `${path}.tmp`
+  try {
+    writeFileSync(temporary, contents, { encoding: 'utf8', mode: 0o600 })
+    renameSync(temporary, path)
+  } finally {
+    rmSync(temporary, { force: true })
+  }
+}

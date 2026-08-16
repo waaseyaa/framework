@@ -9,9 +9,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Command\HandlerCommand;
-use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(DbInitHandler::class)]
@@ -135,6 +135,32 @@ final class DbInitHandlerTest extends TestCase
         $this->assertStringContainsString('--dry-run', $tester->getStdout());
         $this->assertStringContainsString('would be created', $tester->getStdout());
         $this->assertStringContainsString('Would run all pending migrations', $tester->getStdout());
+    }
+
+    #[Test]
+    public function stagingMemoryDatabaseIsRefusedBeforeDryRunOrConnection(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'staging', 'database' => ':memory:'];\n",
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('S1-DB002');
+        $this->createTester()->executeMap(['--dry-run' => true]);
+    }
+
+    #[Test]
+    public function configuredDsnIsRefusedBeforeItCanBeAbsolutizedIntoAPath(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'production', 'database' => 'pgsql:host=database'];\n",
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('S1-DB001');
+        $this->createTester()->executeMap(['--dry-run' => true]);
     }
 
     #[Test]
@@ -275,8 +301,14 @@ final class DbInitHandlerTest extends TestCase
         );
 
         $container = new class implements \Psr\Container\ContainerInterface {
-            public function get(string $id): mixed { throw new \RuntimeException("Not found: {$id}"); }
-            public function has(string $id): bool { return false; }
+            public function get(string $id): mixed
+            {
+                throw new \RuntimeException("Not found: {$id}");
+            }
+            public function has(string $id): bool
+            {
+                return false;
+            }
         };
 
         return CliTester::for($definition, $container);

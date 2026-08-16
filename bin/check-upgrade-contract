@@ -1,0 +1,106 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Waaseyaa\Foundation\Upgrade\UpgradePreflightContract;
+use Waaseyaa\Foundation\Upgrade\UpgradePreflightEvaluator;
+
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+
+/** @return array<string, mixed> */
+function decodeJson(string $path): array
+{
+    if (!is_file($path)) {
+        throw new RuntimeException('Missing required JSON file: ' . $path);
+    }
+    $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+        throw new RuntimeException('Expected a JSON object: ' . $path);
+    }
+
+    return $decoded;
+}
+
+try {
+    $contract = decodeJson($root . '/packages/foundation/resources/upgrade/s1-v1.json');
+    if (UpgradePreflightContract::load() !== $contract) {
+        throw new RuntimeException('Foundation bundled-contract loader does not return the retained contract.');
+    }
+
+    $splitWorkflow = (string) file_get_contents($root . '/.github/workflows/split.yml');
+    if (!str_contains($splitWorkflow, "local: 'packages/foundation', remote: 'foundation'")) {
+        throw new RuntimeException('Foundation subtree-split ownership is absent or changed.');
+    }
+    if (($contract['contract_id'] ?? null) !== 's1-upgrade-v1'
+        || ($contract['transition_id'] ?? null) !== 'alpha293-to-s1-v1'
+        || ($contract['evaluation_order'] ?? null) !== [
+            'observation',
+            'source',
+            'target',
+            'platform',
+            'configuration',
+            'schema',
+            'operations',
+        ]
+    ) {
+        throw new RuntimeException('Upgrade contract identity or evaluation order drifted.');
+    }
+
+    $failurePolicy = $contract['failure_policy'] ?? null;
+    if (!is_array($failurePolicy)
+        || ($failurePolicy['preflight_writes'] ?? null) !== false
+        || ($failurePolicy['destructive_restore_authority'] ?? null) !== 'separate-recovery-gate'
+        || !in_array('refuse-generic-rollback', $failurePolicy['on_apply_failure'] ?? [], true)
+    ) {
+        throw new RuntimeException('Upgrade failure policy no longer fails closed.');
+    }
+
+    $expected = [
+        'ready.json' => ['ready', []],
+        'mixed-source.json' => ['unsupported', ['SOURCE_PACKAGE_SET_MIXED', 'SOURCE_PACKAGE_DIGEST_UNSUPPORTED']],
+        'unknown-source.json' => ['unsupported', ['SOURCE_TAG_UNSUPPORTED', 'SOURCE_COMMIT_UNSUPPORTED']],
+        'config-drift.json' => ['blocked', ['CONFIG_DRIFT_PRESENT']],
+        'schema-unknown.json' => ['blocked', ['SCHEMA_LEDGER_UNKNOWN', 'LIVE_SCHEMA_UNVERIFIED']],
+        'missing-recovery-proof.json' => ['blocked', ['RESTORE_PROOF_MISSING']],
+        'unknown-key.json' => ['invalid', ['OBSERVATION_UNKNOWN_KEY']],
+    ];
+    $evaluator = new UpgradePreflightEvaluator();
+    foreach ($expected as $fixture => [$decision, $reasons]) {
+        $observation = decodeJson($root . '/tests/Fixtures/UpgradePreflight/' . $fixture);
+        $result = $evaluator->evaluate($contract, $observation);
+        if ($result->decision->value !== $decision || $result->reasonCodes !== $reasons) {
+            throw new RuntimeException(sprintf(
+                '%s produced %s [%s], expected %s [%s].',
+                $fixture,
+                $result->decision->value,
+                implode(', ', $result->reasonCodes),
+                $decision,
+                implode(', ', $reasons),
+            ));
+        }
+    }
+
+    $spec = (string) file_get_contents($root . '/docs/specs/s1-upgrade-compatibility.md');
+    foreach ([
+        'The exact mixed Sheg baseline',
+        'Warnings cannot produce `ready`',
+        'avoid generic configuration or schema rollback',
+        '`S0-SHEG-02`',
+    ] as $requiredText) {
+        if (!str_contains($spec, $requiredText)) {
+            throw new RuntimeException('Upgrade specification lost required boundary: ' . $requiredText);
+        }
+    }
+
+    $changelog = (string) file_get_contents($root . '/CHANGELOG.md');
+    if (!str_contains($changelog, 'fail-closed S1 upgrade compatibility (#2336)')) {
+        throw new RuntimeException('CHANGELOG does not identify the upgrade compatibility contract.');
+    }
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'FAIL: ' . $exception->getMessage() . PHP_EOL);
+    exit(1);
+}
+
+fwrite(STDOUT, 'OK: S1 upgrade compatibility contract is ordered and fail-closed.' . PHP_EOL);

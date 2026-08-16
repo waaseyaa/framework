@@ -751,18 +751,6 @@ parameters:
 			path: packages/foundation/src/Kernel/Bootstrap/AppEntityTypeLoader.php
 
 		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 1
-			path: packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php
-
-		-
-			message: '#^Strict comparison using \!\=\= between non\-falsy\-string and '''' will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
-			count: 1
-			path: packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php
-
-		-
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 1

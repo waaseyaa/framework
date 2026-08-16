@@ -1,0 +1,440 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Fail-closed parity gate for the S1 SQLite engine and topology contract.
+ */
+
+$root = dirname(__DIR__);
+$contractPath = $root . '/support/s1-sqlite-v1.json';
+$rosterPath = $root . '/support/s1-sqlite-construction-roster.json';
+$dependencyAuthorityPath = $root . '/support/s1-sqlite-dependency-bytes.json';
+/** @var list<string> $arguments */
+$arguments = array_values(array_filter($_SERVER['argv'] ?? [], 'is_string'));
+$ci = in_array('--ci', $arguments, true);
+$writeRoster = in_array('--write-construction-roster', $arguments, true);
+$errors = [];
+
+foreach ($arguments as $argument) {
+    if (str_starts_with($argument, '--contract=')) {
+        $candidate = substr($argument, strlen('--contract='));
+        $contractPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+    if (str_starts_with($argument, '--roster=')) {
+        $candidate = substr($argument, strlen('--roster='));
+        $rosterPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+    if (str_starts_with($argument, '--dependencies=')) {
+        $candidate = substr($argument, strlen('--dependencies='));
+        $dependencyAuthorityPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+}
+
+/** @return array<string, string> */
+function s1SqliteConstructionPatterns(): array
+{
+    return [
+        'dbal_factory' => '/(?:\\\\?Waaseyaa\\\\Database\\\\)?DBALDatabase\s*::\s*createSqlite\s*\(/m',
+        'dbal_wrapper_constructor' => '/new\s+(?:\\\\?Waaseyaa\\\\Database\\\\)?DBALDatabase\s*\(/m',
+        'doctrine_factory' => '/(?:\\\\?Doctrine\\\\DBAL\\\\)?DriverManager\s*::\s*getConnection\s*\(/m',
+        'pdo_constructor' => '/new\s+\\\\?PDO\s*\(/m',
+        'sqlite3_constructor' => '/new\s+\\\\?SQLite3\s*\(/m',
+        'pdo_sqlite_token' => '/pdo_sqlite/m',
+        'sqlite_dsn_token' => '/sqlite:/m',
+    ];
+}
+
+function s1SqliteConstructionClass(string $path, string $patternId): string
+{
+    if (str_starts_with($path, 'tests/') || str_contains($path, '/tests/')) {
+        return 'test';
+    }
+
+    $reviewed = [
+        'packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
+        'packages/cli/src/Handler/DbInitHandler.php|dbal_factory' => 'serving-entrypoint',
+        'packages/cli/src/Provider/MigrateServiceProvider.php|dbal_factory' => 'serving-entrypoint',
+        'packages/database-legacy/src/DBALDatabase.php|doctrine_factory' => 'serving-connection-authority',
+        'packages/database-legacy/src/DBALDatabase.php|pdo_sqlite_token' => 'serving-connection-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactInstaller.php|pdo_constructor' => 'offline-artifact-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactInstaller.php|sqlite_dsn_token' => 'offline-artifact-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactPreparer.php|pdo_constructor' => 'offline-artifact-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactPreparer.php|sqlite_dsn_token' => 'offline-artifact-authority',
+        'packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php|dbal_factory' => 'serving-entrypoint',
+        'packages/frankenphp/src/Binary/Installer.php|pdo_sqlite_token' => 'runtime-capability-configuration',
+        'packages/node/migrations/2026_07_06_000001_node_revision_schema.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
+        'packages/search/src/SearchServiceProvider.php|dbal_factory' => 'serving-entrypoint',
+        'packages/testing/src/Database/TemporarySqliteDatabase.php|dbal_factory' => 'test-utility',
+        'bin/check-s1-sqlite-contract|dbal_factory' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|dbal_wrapper_constructor' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|doctrine_factory' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|pdo_constructor' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|pdo_sqlite_token' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|sqlite3_constructor' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|sqlite_dsn_token' => 'tooling-query',
+        'bin/check-support-contract|pdo_sqlite_token' => 'tooling-query',
+        'bin/test-quality-inventory|sqlite_dsn_token' => 'tooling-query',
+    ];
+
+    return $reviewed[$path . '|' . $patternId] ?? 'unclassified';
+}
+
+/** @return array{schema_version: int, query_version: string, patterns: array<string, string>, candidates: list<array<string, int|string>>} */
+function s1SqliteBuildConstructionRoster(string $root): array
+{
+    $patterns = s1SqliteConstructionPatterns();
+    $candidates = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    );
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile()) {
+            continue;
+        }
+        $path = str_replace('\\', '/', $file->getPathname());
+        $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
+        if (str_starts_with($relative, 'vendor/')
+            || str_starts_with($relative, 'tmp/')
+        ) {
+            continue;
+        }
+
+        $contents = (string) file_get_contents($path);
+        $firstLine = strtok($contents, "\n");
+        $phpShebang = is_string($firstLine) && preg_match('/^#!.*\bphp(?:\s|$)/', $firstLine) === 1;
+        if (!str_ends_with($relative, '.php') && !$phpShebang) {
+            continue;
+        }
+        foreach ($patterns as $patternId => $pattern) {
+            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
+            foreach ($matches[0] as [$matched, $offset]) {
+                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
+                $lineText = explode("\n", $contents)[$line - 1] ?? '';
+                $candidates[] = [
+                    'path' => $relative,
+                    'line' => $line,
+                    'pattern' => $patternId,
+                    'class' => s1SqliteConstructionClass($relative, $patternId),
+                    'match_sha256' => hash('sha256', $matched),
+                    'line_sha256' => hash('sha256', trim($lineText)),
+                    'source_sha256' => hash('sha256', $contents),
+                ];
+            }
+        }
+    }
+    usort($candidates, static fn(array $left, array $right): int => [
+        $left['path'], $left['line'], $left['pattern'],
+    ] <=> [$right['path'], $right['line'], $right['pattern']]);
+
+    return [
+        'schema_version' => 1,
+        'query_version' => 's1-sqlite-construction-v1',
+        'patterns' => $patterns,
+        'candidates' => $candidates,
+    ];
+}
+
+if ($writeRoster) {
+    $roster = s1SqliteBuildConstructionRoster($root);
+    file_put_contents(
+        $root . '/support/s1-sqlite-construction-roster.json',
+        json_encode($roster, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+    );
+    fwrite(STDOUT, sprintf("Wrote %d S1 SQLite construction candidates.\n", count($roster['candidates'])));
+    exit(0);
+}
+
+/** @return array<string, mixed> */
+function s1SqliteReadJson(string $path): array
+{
+    if (!is_file($path)) {
+        throw new RuntimeException("Required JSON file is missing: {$path}");
+    }
+
+    $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || array_is_list($decoded)) {
+        throw new RuntimeException("Expected a JSON object: {$path}");
+    }
+
+    return $decoded;
+}
+
+/** @param list<string> $errors */
+function s1SqliteSame(mixed $actual, mixed $expected, string $path, array &$errors): void
+{
+    if ($actual !== $expected) {
+        $errors[] = sprintf('%s differs: expected %s, got %s', $path, json_encode($expected), json_encode($actual));
+    }
+}
+
+/** @param list<string> $needles @param list<string> $errors */
+function s1SqliteRequires(string $path, array $needles, array &$errors): void
+{
+    if (!is_file($path)) {
+        $errors[] = "Required contract surface is missing: {$path}";
+        return;
+    }
+
+    $contents = (string) file_get_contents($path);
+    foreach ($needles as $needle) {
+        if (!str_contains($contents, $needle)) {
+            $errors[] = sprintf('%s omits required contract text: %s', $path, $needle);
+        }
+    }
+}
+
+try {
+    $contract = s1SqliteReadJson($contractPath);
+    $expectedContract = [
+        'schema_version' => 1,
+        'contract_version' => 's1-sqlite-v1',
+        'profile' => 'S1',
+        'authority' => [
+            'application_nodes' => 1,
+            'engine' => 'sqlite',
+            'authoritative_database_files' => 1,
+            'filesystem' => 'local-non-network',
+            'consumer_filesystem' => 'ext4',
+        ],
+        'connection' => [
+            'foreign_keys' => true,
+            'journal_mode' => 'wal',
+            'busy_timeout_ms' => 5000,
+            'verify_effective_pragmas' => true,
+        ],
+        'optional_search_projection' => [
+            'maximum_files' => 1,
+            'engine' => 'sqlite',
+            'authoritative' => false,
+            'must_be_rebuildable' => true,
+            'inherits_connection_contract' => true,
+        ],
+        'environment' => [
+            'in_memory_allowed' => ['local', 'dev', 'development', 'testing'],
+            'in_memory_refused' => ['all-other-environments'],
+        ],
+        'refused' => [
+            'dsn_or_uri_shaped_paths' => true,
+            'unc_or_device_paths' => true,
+            'alternate_databases' => ['mysql', 'mariadb', 'postgresql'],
+            'filesystems' => ['nfs', 'smb', 'object-mounted', 'clustered'],
+            'topologies' => [
+                'horizontal-application-scaling',
+                'replication',
+                'database-failover',
+                'H1',
+            ],
+        ],
+        'diagnostics' => [
+            'invalid_path' => 'S1-DB001',
+            'production_memory' => 'S1-DB002',
+            'pragma_mismatch' => 'S1-DB003',
+        ],
+        'verification' => [
+            'repository_command' => 'php bin/check-s1-sqlite-contract',
+            'ci_command' => 'php bin/check-s1-sqlite-contract --ci',
+            'construction_roster' => 'support/s1-sqlite-construction-roster.json',
+            'installed_artifact_command' => 'tests/PackagedForm/check-s1-sqlite-artifact',
+            'artifact_uses_path_repository' => false,
+            'artifact_binds_dependency_bytes' => true,
+            'forge_is_authority' => false,
+        ],
+    ];
+    s1SqliteSame($contract, $expectedContract, 'complete contract', $errors);
+    s1SqliteSame($contract['schema_version'] ?? null, 1, 'schema_version', $errors);
+    s1SqliteSame($contract['contract_version'] ?? null, 's1-sqlite-v1', 'contract_version', $errors);
+    s1SqliteSame($contract['profile'] ?? null, 'S1', 'profile', $errors);
+    s1SqliteSame($contract['authority'] ?? null, [
+        'application_nodes' => 1,
+        'engine' => 'sqlite',
+        'authoritative_database_files' => 1,
+        'filesystem' => 'local-non-network',
+        'consumer_filesystem' => 'ext4',
+    ], 'authority', $errors);
+    s1SqliteSame($contract['connection'] ?? null, [
+        'foreign_keys' => true,
+        'journal_mode' => 'wal',
+        'busy_timeout_ms' => 5000,
+        'verify_effective_pragmas' => true,
+    ], 'connection', $errors);
+    s1SqliteSame($contract['optional_search_projection'] ?? null, [
+        'maximum_files' => 1,
+        'engine' => 'sqlite',
+        'authoritative' => false,
+        'must_be_rebuildable' => true,
+        'inherits_connection_contract' => true,
+    ], 'optional_search_projection', $errors);
+    s1SqliteSame($contract['environment']['in_memory_refused'] ?? null, ['all-other-environments'], 'environment.in_memory_refused', $errors);
+    s1SqliteSame($contract['refused']['alternate_databases'] ?? null, ['mysql', 'mariadb', 'postgresql'], 'refused.alternate_databases', $errors);
+    s1SqliteSame($contract['diagnostics'] ?? null, [
+        'invalid_path' => 'S1-DB001',
+        'production_memory' => 'S1-DB002',
+        'pragma_mismatch' => 'S1-DB003',
+    ], 'diagnostics', $errors);
+    s1SqliteSame($contract['verification'] ?? null, [
+        'repository_command' => 'php bin/check-s1-sqlite-contract',
+        'ci_command' => 'php bin/check-s1-sqlite-contract --ci',
+        'construction_roster' => 'support/s1-sqlite-construction-roster.json',
+        'installed_artifact_command' => 'tests/PackagedForm/check-s1-sqlite-artifact',
+        'artifact_uses_path_repository' => false,
+        'artifact_binds_dependency_bytes' => true,
+        'forge_is_authority' => false,
+    ], 'verification', $errors);
+
+    s1SqliteRequires($root . '/docs/specs/s1-sqlite-topology.md', [
+        'one authoritative SQLite database',
+        'local, non-network filesystem',
+        'optional search projection',
+        'GitHub Actions may execute those commands',
+    ], $errors);
+    s1SqliteRequires($root . '/README.md', [
+        'one authoritative SQLite database',
+        'S1-DB001',
+        'H1',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/database-legacy/src/SqliteTopology.php', [
+        'BUSY_TIMEOUT_MS = 5000',
+        "INVALID_PATH = 'S1-DB001'",
+        "PRAGMA_MISMATCH = 'S1-DB003'",
+        'assertEffectivePragmas',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/database-legacy/src/DBALDatabase.php', [
+        'SqliteTopology::assertSupportedPath',
+        'SqliteDriverMiddleware',
+        'SqliteTopology::configureAndVerify',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/database-legacy/src/SqliteDriverMiddleware.php', [
+        'configureAndVerifyDriverConnection',
+        'function connect',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php', [
+        'SqliteTopology::assertEnvironmentAllowsPath',
+        'S1-DB002',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/search/README.md', [
+        'rebuildable projection',
+        'non-authoritative',
+        'S1 SQLite topology',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/search/src/SearchServiceProvider.php', [
+        'assertEnvironmentAllowsPath($searchDb, $environment)',
+        'DatabaseBootstrapper::absolutize($searchDb, $this->projectRoot)',
+        'DBALDatabase::createSqlite($searchDb, $environment)',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/cli/src/Handler/DbInitHandler.php', [
+        'assertEnvironmentAllowsPath($dbPath, $environment)',
+        'DBALDatabase::createSqlite($dbPath, $environment)',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/cli/src/Provider/MigrateServiceProvider.php', [
+        'DBALDatabase::createSqlite($dbPath, SqliteTopology::resolveEnvironment($this->config))',
+    ], $errors);
+    s1SqliteRequires($root . '/docs/specs/infrastructure.md', [
+        '[S1 SQLite topology](s1-sqlite-topology.md)',
+        'S1-DB001',
+        'S1-DB002',
+        'S1-DB003',
+    ], $errors);
+    s1SqliteRequires($root . '/skeleton/README.md', [
+        'one authoritative local',
+        '5000 ms busy timeout',
+        'non-authoritative rebuildable projection',
+    ], $errors);
+    s1SqliteRequires($root . '/tests/PackagedForm/check-s1-sqlite-artifact', [
+        'waaseyaa-database-legacy',
+        'status --porcelain=v1 -- packages/database-legacy',
+        'archive --format=tar HEAD packages/database-legacy',
+        'reproduced.tar.gz',
+        'vendor/composer/installed.json',
+        'composer_lock_sha256',
+        'dependency_manifest_sha256',
+        's1-sqlite-dependency-bytes.json',
+        'cmp -s "$dependency_authority" "$dependency_manifest"',
+        'tar -xzf',
+        'vendor/waaseyaa/database-legacy',
+        's1-sqlite-artifact-probe.php',
+    ], $errors);
+    s1SqliteRequires($root . '/tests/PackagedForm/s1-sqlite-artifact-probe.php', [
+        'ReflectionClass',
+        '$canonicalPath($packageRoot)',
+        "'foreign_keys' => 1",
+        "'busy_timeout' => 5000",
+        "'journal_mode' => 'wal'",
+        'S1 installed-artifact SQLite contract passed.',
+    ], $errors);
+
+    $charter = (string) file_get_contents($root . '/docs/governance/charter.md');
+    if (!str_contains($charter, 'support/s1-sqlite-v1.json')) {
+        $errors[] = 'docs/governance/charter.md omits the positive S1 machine-authority reference';
+    }
+    foreach (['PostgreSQL as mandatory', 'MySQL is optional but encouraged', 'SQLite/Postgres'] as $forbidden) {
+        if (str_contains($charter, $forbidden)) {
+            $errors[] = "docs/governance/charter.md retains unsupported product claim: {$forbidden}";
+        }
+    }
+
+    $composer = s1SqliteReadJson($root . '/composer.json');
+    s1SqliteSame($composer['scripts']['check-s1-sqlite-contract'] ?? null, 'php bin/check-s1-sqlite-contract', 'composer scripts.check-s1-sqlite-contract', $errors);
+    if (!in_array('@check-s1-sqlite-contract', $composer['scripts']['verify'] ?? [], true)) {
+        $errors[] = 'composer verify omits @check-s1-sqlite-contract';
+    }
+
+    s1SqliteRequires($root . '/.github/workflows/ci.yml', [
+        'php bin/check-s1-sqlite-contract --ci',
+    ], $errors);
+
+    if ($ci) {
+        if (!extension_loaded('pdo_sqlite') || !extension_loaded('sqlite3')) {
+            $errors[] = 'CI runner lacks required pdo_sqlite/sqlite3 extensions';
+        } else {
+            $version = SQLite3::version()['versionString'];
+            if (version_compare($version, '3.40.0', '<') || !version_compare($version, '4.0.0', '<')) {
+                $errors[] = "CI SQLite {$version} is outside >=3.40.0 <4.0.0";
+            }
+        }
+    }
+
+    $expectedRoster = s1SqliteReadJson($rosterPath);
+    $liveRoster = s1SqliteBuildConstructionRoster($root);
+    s1SqliteSame($expectedRoster, $liveRoster, 'complete SQLite construction roster', $errors);
+    $allowedConstructionClasses = [
+        'serving-connection-authority',
+        'serving-entrypoint',
+        'offline-artifact-authority',
+        'inherited-connection-migration',
+        'test-utility',
+        'runtime-capability-configuration',
+        'test',
+        'tooling-query',
+    ];
+    foreach ($liveRoster['candidates'] as $candidate) {
+        if (!in_array($candidate['class'], $allowedConstructionClasses, true)) {
+            $errors[] = sprintf(
+                'Unclassified SQLite construction candidate: %s:%d (%s)',
+                $candidate['path'],
+                $candidate['line'],
+                $candidate['pattern'],
+            );
+        }
+    }
+    $canonicalDependencyAuthority = s1SqliteReadJson($root . '/support/s1-sqlite-dependency-bytes.json');
+    $dependencyAuthority = s1SqliteReadJson($dependencyAuthorityPath);
+    s1SqliteSame($dependencyAuthority, $canonicalDependencyAuthority, 'dependency byte authority', $errors);
+    s1SqliteSame($dependencyAuthority['schema_version'] ?? null, 1, 'dependency authority schema', $errors);
+    s1SqliteSame(
+        array_column($dependencyAuthority['dependencies'] ?? [], 'name'),
+        ['doctrine/dbal', 'doctrine/deprecations', 'psr/cache', 'psr/log'],
+        'dependency authority package roster',
+        $errors,
+    );
+} catch (Throwable $exception) {
+    $errors[] = $exception->getMessage();
+}
+
+if ($errors !== []) {
+    fwrite(STDERR, "S1 SQLite topology contract FAILED:\n- " . implode("\n- ", $errors) . "\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "S1 SQLite topology contract passed.\n");

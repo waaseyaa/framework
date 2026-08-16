@@ -32,7 +32,7 @@ jobs:
       matrix: ${{ steps.targets.outputs.matrix }}
       source_sha: ${{ steps.source.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 0
@@ -135,7 +135,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
           fetch-depth: 0
@@ -195,7 +195,7 @@ jobs:
             > "split-main-provenance-${REMOTE_REPO}.json"
           cat "split-main-provenance-${REMOTE_REPO}.json" >> "${GITHUB_STEP_SUMMARY}"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: split-main-provenance-${{ matrix.remote }}
           path: split-main-provenance-${{ matrix.remote }}.json
