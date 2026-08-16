@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Scheduler\Schedule\Ai;
 
+use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleEntriesInterface;
@@ -49,7 +51,7 @@ final class AgentScheduleEntries implements ScheduleEntriesInterface
     public const TIMEZONE_UTC = 'UTC';
 
     /**
-     * @param \Closure(string): int|null $cliInvoker Callable that
+     * @param \Closure(string, LeaseExecutionContext): int|null $cliInvoker Callable that
      *     executes a CLI command by name and returns the exit code.
      *     When null, the registered tasks are inert no-ops — useful for
      *     tests asserting on discoverability without running anything.
@@ -98,21 +100,23 @@ final class AgentScheduleEntries implements ScheduleEntriesInterface
         return ['purge' => $purgeTask, 'reap' => $reapTask];
     }
 
-    private function makeClosure(string $commandName): \Closure
+    private function makeClosure(string $commandName): LeaseAwareClosureCommand
     {
         $invoker = $this->cliInvoker;
         if ($invoker === null) {
-            return static function () use ($commandName): int {
+            return new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use ($commandName): void {
                 // Inert: no invoker wired. Callers wire a real invoker in
                 // production; tests deliberately leave it null when they
                 // only want to assert discoverability.
                 unset($commandName);
-                return 0;
-            };
+                $context->checkpoint();
+            });
         }
 
-        return static function () use ($invoker, $commandName): int {
-            return $invoker($commandName);
-        };
+        return new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use ($invoker, $commandName): void {
+            $context->checkpoint();
+            $invoker($commandName, $context);
+            $context->checkpoint();
+        });
     }
 }

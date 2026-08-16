@@ -9,6 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\Schedule\Ai\AgentScheduleEntries;
+use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
+use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
 
 #[CoversClass(AgentScheduleEntries::class)]
 final class AgentScheduleEntriesTest extends TestCase
@@ -47,7 +51,7 @@ final class AgentScheduleEntriesTest extends TestCase
     {
         $schedule = new Schedule();
         $calls = [];
-        $invoker = static function (string $command) use (&$calls): int {
+        $invoker = static function (string $command, LeaseExecutionContext $context) use (&$calls): int {
             $calls[] = $command;
             return 0;
         };
@@ -59,16 +63,25 @@ final class AgentScheduleEntriesTest extends TestCase
         // what `ScheduleRunner` would call for closure-form tasks.
         $purgeCommand = $result['purge']->command;
         $reapCommand = $result['reap']->command;
-        self::assertInstanceOf(\Closure::class, $purgeCommand);
-        self::assertInstanceOf(\Closure::class, $reapCommand);
+        self::assertInstanceOf(LeaseAwareCommandInterface::class, $purgeCommand);
+        self::assertInstanceOf(LeaseAwareCommandInterface::class, $reapCommand);
 
-        $purgeCommand();
-        $reapCommand();
+        $purgeCommand->run(self::context('ai:purge-runs'));
+        $reapCommand->run(self::context('ai:reap-stalled-runs'));
 
         self::assertSame(
             [AgentScheduleEntries::TASK_PURGE, AgentScheduleEntries::TASK_REAP],
             $calls,
         );
+    }
+
+    private static function context(string $domain): LeaseExecutionContext
+    {
+        $authority = new InMemoryLeaseAuthority();
+        $handle = $authority->acquire($domain, 300_000);
+        self::assertNotNull($handle);
+
+        return new LeaseExecutionContext($authority, $handle, 300_000, new InMemoryFenceGuard());
     }
 
     #[Test]

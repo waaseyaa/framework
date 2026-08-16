@@ -310,7 +310,7 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
@@ -320,7 +320,7 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
@@ -330,7 +330,7 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
@@ -350,7 +350,7 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }

@@ -8,6 +8,9 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -48,6 +51,11 @@ final class EntityUpdateTool extends AbstractAgentTool
                 'entity_type' => ['type' => 'string'],
                 'id' => ['type' => ['string', 'integer']],
                 'values' => ['type' => 'object', 'additionalProperties' => true],
+                'mutation_token' => [
+                    'type' => 'string',
+                    'minLength' => 1,
+                    'description' => 'Required opaque aggregate mutation token returned by the entity read surface.',
+                ],
                 'revision_log' => ['type' => 'string', 'description' => 'Optional revision log message (revisionable entities only).'],
                 'expected_revision_id' => [
                     'type' => 'integer',
@@ -55,7 +63,7 @@ final class EntityUpdateTool extends AbstractAgentTool
                     'description' => 'Optional optimistic-locking expectation: the revision_id the caller read. The save is refused with a revision_conflict error if the entity\'s current revision differs. Revisionable entity types only.',
                 ],
             ],
-            'required' => ['entity_type', 'id', 'values'],
+            'required' => ['entity_type', 'id', 'values', 'mutation_token'],
             'additionalProperties' => false,
         ];
     }
@@ -75,7 +83,6 @@ final class EntityUpdateTool extends AbstractAgentTool
         if (!is_string($entityType) || $entityType === '' || (!is_string($id) && !is_int($id)) || !is_array($values)) {
             return AgentToolResult::error('entity.update: missing required arguments entity_type, id, values.');
         }
-
         // optimistic-locking-01KTXCHY FR-005: the expectation is a top-level
         // argument, never a writable value (`revision_id` inside `values`
         // stays refused by EntityKeyGuard).
@@ -115,6 +122,13 @@ final class EntityUpdateTool extends AbstractAgentTool
             if ($fieldDenied !== null) {
                 return $fieldDenied;
             }
+            if ($expectedRevisionId !== null && !$repository instanceof EntityRepository) {
+                return self::unsupportedExpectationError($entityType, 'repository does not support revision expectations');
+            }
+            $expectedMutation = self::parseMutationToken($arguments);
+            if ($expectedMutation instanceof AgentToolResult) {
+                return $expectedMutation;
+            }
             // CW-v1 option-1 PR-3 (working-copy awareness, design §4): the
             // MUTATION TARGET is the working copy, mirroring the JSON:API
             // PATCH / GraphQL update / FieldAutoSave surfaces. Under
@@ -127,6 +141,13 @@ final class EntityUpdateTool extends AbstractAgentTool
             // mutation retargets. For every undisciplined entity
             // `loadWorkingCopy() ≡ find()` — behavior-identical there.
             $target = $repository->loadWorkingCopy((string) $id) ?? $entity;
+            if (!$target instanceof EntityBase
+                || $expectedMutation->entityTypeId !== $entityType
+                || $expectedMutation->entityId !== (string) $target->id()
+            ) {
+                return self::aggregateConflictError('entity.update', $entityType, (string) $id);
+            }
+            $target->_hydrateMutationToken($expectedMutation);
             foreach ($values as $field => $value) {
                 if (!is_string($field)) {
                     continue;
@@ -142,9 +163,6 @@ final class EntityUpdateTool extends AbstractAgentTool
                 // concrete EntityRepository can carry — any other repository
                 // implementation must refuse loudly, never save silently
                 // (FR-007 at the surface, contract conflict-surfaces.md §2).
-                if (!$repository instanceof EntityRepository) {
-                    return self::unsupportedExpectationError($entityType, 'repository does not support revision expectations');
-                }
                 try {
                     $result = $repository->save($target, context: SaveContext::default()->withExpectedRevisionId($expectedRevisionId));
                 } catch (RevisionConflictException $e) {
@@ -160,6 +178,8 @@ final class EntityUpdateTool extends AbstractAgentTool
             } else {
                 $result = $repository->save($target);
             }
+        } catch (EntityMutationConflictException) {
+            return self::aggregateConflictError('entity.update', $entityType, (string) $id);
         } catch (EntityValidationException $e) {
             return EntityKeyGuard::validationError('entity.update', $e);
         } catch (\Throwable $e) {
@@ -174,6 +194,7 @@ final class EntityUpdateTool extends AbstractAgentTool
                 // Post-save readback of the new head (contract §7) so a
                 // chaining agent can state its next expectation re-read-free.
                 'revision_id' => method_exists($target, 'getRevisionId') ? $target->getRevisionId() : null,
+                'mutation_token' => $target->mutationToken()?->toOpaqueString(),
             ]]],
             summary: sprintf('Updated %s/%s', $entityType, (string) $id),
         );
@@ -187,7 +208,6 @@ final class EntityUpdateTool extends AbstractAgentTool
         if ($denied !== null) {
             return $denied;
         }
-
         // Contract clause 5: a dry run of an invalid call must not claim
         // it would succeed — report the refusal identically.
         $entityType = $arguments['entity_type'] ?? null;
@@ -213,6 +233,11 @@ final class EntityUpdateTool extends AbstractAgentTool
             if ($mismatch !== null) {
                 return $mismatch;
             }
+        }
+
+        $expectedMutation = self::parseMutationToken($arguments);
+        if ($expectedMutation instanceof AgentToolResult) {
+            return $expectedMutation;
         }
 
         return AgentToolResult::success(
@@ -272,6 +297,38 @@ final class EntityUpdateTool extends AbstractAgentTool
         }
 
         return [$candidate, null];
+    }
+
+    private static function parseMutationToken(array $arguments): EntityMutationToken|AgentToolResult
+    {
+        $encoded = $arguments['mutation_token'] ?? null;
+        if (!is_string($encoded) || trim($encoded) === '') {
+            return AgentToolResult::error('entity.update: mutation_token is required.');
+        }
+
+        try {
+            return EntityMutationToken::fromOpaqueString($encoded);
+        } catch (\InvalidArgumentException) {
+            return AgentToolResult::error('entity.update: mutation_token is invalid.');
+        }
+    }
+
+    private static function aggregateConflictError(string $tool, string $entityType, string $id): AgentToolResult
+    {
+        $message = sprintf("%s: mutation conflict on %s '%s'. Reload the entity before retrying.", $tool, $entityType, $id);
+
+        return new AgentToolResult(
+            isError: true,
+            content: [
+                ['type' => 'text', 'text' => $message],
+                ['type' => 'json', 'data' => [
+                    'error' => 'mutation_conflict',
+                    'entity_type' => $entityType,
+                    'id' => $id,
+                ]],
+            ],
+            summary: $message,
+        );
     }
 
     /**

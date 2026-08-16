@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Tests\Unit\Classification\Schedule;
 
+use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
+use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -74,8 +79,11 @@ final class ClassificationRetentionScheduleEntriesTest extends TestCase
         $tasks = $entries->register($this->schedule());
 
         foreach ($tasks as $task) {
-            self::assertInstanceOf(\Closure::class, $task->command);
-            ($task->command)(); // no-op; must not throw
+            self::assertInstanceOf(LeaseAwareCommandInterface::class, $task->command);
+            $authority = new InMemoryLeaseAuthority();
+            $handle = $authority->acquire($task->name, 300_000);
+            self::assertNotNull($handle);
+            $task->command->run(new LeaseExecutionContext($authority, $handle, 300_000, new InMemoryFenceGuard()));
         }
     }
 

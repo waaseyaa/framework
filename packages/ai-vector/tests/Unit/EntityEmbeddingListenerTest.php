@@ -328,15 +328,15 @@ final class EntityEmbeddingListenerTest extends TestCase
                     public function exists(string $id): bool { return true; }
                     public function count(array $criteria = []): int { return 0; }
                     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-                    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+                    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
                     public function listRevisions(string $entityId): array { return []; }
-                    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+                    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
                     public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-                    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+                    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
                     public function saveMany(array $entities, bool $validate = true): array { return []; }
                     public function deleteMany(array $entities): int { return 0; }
                     public function findTranslations(EntityInterface $entity): array { return []; }
-                    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+                    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
                     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
                     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
                 };

@@ -142,7 +142,10 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
         $detail = $this->request($router, "/admin/_surface/note/$uuid", 'GET');
         $list = $this->request($router, '/admin/_surface/note', 'GET');
         $row = $this->database->getConnection()->fetchAssociative('SELECT _data FROM note WHERE uuid = :uuid', ['uuid' => $uuid]);
-        $deleted = $this->request($router, '/admin/_surface/note/action/delete', 'POST', ['id' => $uuid]);
+        $deleted = $this->request($router, '/admin/_surface/note/action/delete', 'POST', [
+            'id' => $uuid,
+            'mutation_token' => $detail['data']['mutation_token'] ?? null,
+        ]);
         $remaining = (int) $this->database->getConnection()->fetchOne('SELECT COUNT(*) FROM note WHERE uuid = :uuid', ['uuid' => $uuid]);
 
         self::assertTrue($created['ok'], json_encode($created));

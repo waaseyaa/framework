@@ -9,6 +9,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
@@ -308,7 +309,13 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
             // rollback() itself cuts exactly ONE new revision (with the
             // framework's revert events/audit); the operator note travels on
             // our audit record rather than a second revision.
-            $restored = $this->repository->rollback($id, $targetRevisionId, $expectedCurrentRevisionId);
+            if ($expectedCurrentRevisionId !== null) {
+                $this->assertExpectedRevision($entity, $expectedCurrentRevisionId);
+            }
+            if (!$entity instanceof EntityBase || $entity->mutationToken() === null) {
+                throw new \UnexpectedValueException("Content {$id} has no aggregate mutation token.");
+            }
+            $restored = $this->repository->rollback($id, $targetRevisionId, $entity->mutationToken());
 
             $saved = $this->reload($restored);
             $this->auditRecord(AuditEventKind::ContentRolledBack, $actor, $saved, [

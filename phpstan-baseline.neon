@@ -573,7 +573,7 @@ parameters:
 		-
 			message: '#^Empty array passed to foreach\.$#'
 			identifier: foreach.emptyArray
-			count: 1
+			count: 2
 			path: packages/entity-storage/src/UnitOfWork.php
 
 		-

@@ -327,6 +327,10 @@ final class UserSqlEntityQueryPrincipalTest extends TestCase
             ->fields(['uuid', 'bundle', 'name', 'langcode', '_data'])
             ->values(['user-without-status', 'user', 'legacy-member', 'en', '{}'])
             ->execute();
+        self::assertSame(
+            1,
+            $this->repository->backfillMutationAuthorities('legacy missing-status fixture'),
+        );
 
         $profileViewer = $this->profileViewer();
         $projected = $this->queryWithHandler($this->handler, $profileViewer, false);

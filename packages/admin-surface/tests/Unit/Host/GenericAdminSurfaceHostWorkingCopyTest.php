@@ -14,6 +14,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -75,7 +77,11 @@ final class GenericAdminSurfaceHostWorkingCopyTest extends TestCase
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
         $this->resolveSessionAs($host, 99);
 
-        $result = $host->action('article', 'update', ['id' => '1', 'attributes' => ['title' => 'Edited via admin surface']]);
+        $result = $host->action('article', 'update', [
+            'id' => '1',
+            'attributes' => ['title' => 'Edited via admin surface'],
+            'mutation_token' => $workingCopy->mutationToken()?->toOpaqueString(),
+        ]);
 
         $this->assertTrue($result->ok, json_encode($result->error));
         $this->assertSame('Edited via admin surface', $result->data['attributes']['title']);
@@ -141,21 +147,10 @@ final class GenericAdminSurfaceHostWorkingCopyTest extends TestCase
 
     private function entity(int $id, string $title): EntityInterface&FieldableInterface
     {
-        return new class ($id, $title) implements EntityInterface, FieldableInterface {
-            private array $values;
-            public function __construct(int $id, string $title) { $this->values = ['id' => $id, 'title' => $title]; }
-            public function id(): int|string|null { return $this->values['id']; }
-            public function uuid(): string { return 'u-' . (string) $this->values['id']; }
-            public function label(): string { return $this->values['title']; }
-            public function getEntityTypeId(): string { return 'article'; }
-            public function bundle(): string { return 'article'; }
-            public function isNew(): bool { return false; }
-            public function get(string $name): mixed { return $this->values[$name] ?? null; }
-            public function set(string $name, mixed $value): static { $this->values[$name] = $value; return $this; }
-            public function toArray(): array { return $this->values; }
-            public function language(): string { return 'en'; }
-            public function hasField(string $name): bool { return \array_key_exists($name, $this->values); }
-            public function getFieldDefinitions(): array { return []; }
-        };
+        $entity = new TestEntity(['id' => $id, 'uuid' => 'u-' . $id, 'title' => $title], 'article');
+        $entity->enforceIsNew(false);
+        $entity->_hydrateMutationToken(EntityMutationToken::issue('admin-test', 'default', 'article', (string) $id, 1));
+
+        return $entity;
     }
 }

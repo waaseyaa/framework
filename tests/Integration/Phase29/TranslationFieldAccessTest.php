@@ -48,15 +48,17 @@ final class TranslationFieldAccessTest extends TestCase
 {
     private EntityTypeManager $entityTypeManager;
     private InMemoryEntityStorage $storage;
+    private InMemoryEntityRepository $repository;
 
     protected function setUp(): void
     {
         $this->storage = new InMemoryEntityStorage('article');
+        $this->repository = new InMemoryEntityRepository($this->storage);
 
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn(\Waaseyaa\Entity\EntityTypeInterface $definition) => $this->storage,
-            fn() => new InMemoryEntityRepository($this->storage),
+            fn() => $this->repository,
         );
 
         $this->entityTypeManager->registerEntityType(new EntityType(
@@ -108,7 +110,9 @@ final class TranslationFieldAccessTest extends TestCase
 
         // Update only a permitted field; the response must still filter `secret`.
         $data = ['data' => ['attributes' => ['body' => 'edited-body']]];
-        $doc = $controller->update($this->makeRequest($account), 'article', $entity->id(), 'fr', $data);
+        $request = $this->makeRequest($account);
+        $request->headers->set('If-Match', $entity->mutationToken()?->toStrongEtag() ?? '');
+        $doc = $controller->update($request, 'article', $entity->id(), 'fr', $data);
         $array = $doc->toArray();
         $attributes = $array['data']['attributes'] ?? [];
 
@@ -147,7 +151,7 @@ final class TranslationFieldAccessTest extends TestCase
         $fr->set('title', 'Bonjour');
         $fr->set('body', 'public-body');
         $fr->set('secret', 'top-secret');
-        $this->storage->save($entity);
+        $this->repository->save($entity);
 
         return $entity;
     }

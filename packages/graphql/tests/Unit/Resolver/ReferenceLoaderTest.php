@@ -365,7 +365,7 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         return $this->inner->loadRevision($entityId, $revisionId);
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): \Waaseyaa\Entity\EntityInterface
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->rollback($entityId, $targetRevisionId);
     }
@@ -375,7 +375,7 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         return $this->inner->listRevisions($entityId);
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId): \Waaseyaa\Entity\EntityInterface
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->setCurrentRevision($entityId, $revisionId);
     }
@@ -385,7 +385,7 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         return $this->inner->loadPublishedRevision($entityId);
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): \Waaseyaa\Entity\EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->setPublishedRevision($entityId, $revisionId);
     }
@@ -405,7 +405,7 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         return $this->inner->findTranslations($entity);
     }
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         return $this->inner->saveTranslation($entityId, $langcode, $values, $log);
     }

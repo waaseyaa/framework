@@ -78,6 +78,8 @@ final class RevisionCommunityScopeTest extends TestCase
             'uuid' => 'scoped-a',
             'title' => 'Community A',
             'community_id' => 'community-a',
+        ], entityTypeId: 'scoped_revisionable', entityKeys: [
+            'id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id',
         ]);
         $entity->enforceIsNew();
         $this->repository->save($entity, validate: false);
@@ -107,6 +109,8 @@ final class RevisionCommunityScopeTest extends TestCase
             'uuid' => 'scoped-a',
             'title' => 'Forged update',
             'community_id' => 'community-a',
+        ], entityTypeId: 'scoped_revisionable', entityKeys: [
+            'id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id',
         ]);
 
         try {
@@ -217,10 +221,17 @@ final class RevisionCommunityScopeTest extends TestCase
             'langcode' => 'en',
             'default_langcode' => 'en',
         ]);
+        self::assertSame(1, $repository->backfillMutationAuthorities('tenancy two-axis fixture'));
+        $expected = $repository->find('7')?->mutationToken();
+        self::assertNotNull($expected);
         self::assertSame(1, $driver->writeRevision('7', ['title' => 'English'], null, 'en'));
         $driver->setCurrentLangcodeRevision('7', 'en', 1);
-        self::assertSame(1, $repository->saveTranslation('7', 'oj', ['title' => 'Anishinaabemowin']));
-        self::assertSame(2, $repository->saveTranslation('7', 'oj', ['title' => 'Anishinaabemowin']));
+        self::assertSame(1, $repository->saveTranslation('7', 'oj', ['title' => 'Anishinaabemowin'], expected: $expected));
+        $expected = $repository->find('7')?->mutationToken();
+        self::assertNotNull($expected);
+        self::assertSame(2, $repository->saveTranslation('7', 'oj', ['title' => 'Anishinaabemowin'], expected: $expected));
+        $expected = $repository->find('7')?->mutationToken();
+        self::assertNotNull($expected);
         self::assertSame('community-a', $this->peerCommunity('oj'));
         self::assertNotNull($repository->loadTranslation('7', 'oj'));
         self::assertContains(EntityEvents::REVISION_CREATED->value, $this->events);
@@ -241,9 +252,9 @@ final class RevisionCommunityScopeTest extends TestCase
         self::assertSame([], $repository->translationLangcodes('7'));
 
         foreach ([
-            fn() => $repository->saveTranslation('7', 'oj', ['title' => 'Forged']),
-            fn() => $repository->saveTranslationRevision('7', 'en', ['title' => 'Forged']),
-            fn() => $repository->saveTranslationRevisions('7', ['en' => ['title' => 'Forged']]),
+            fn() => $repository->saveTranslation('7', 'oj', ['title' => 'Forged'], expected: $expected),
+            fn() => $repository->saveTranslationRevision('7', 'en', ['title' => 'Forged'], expected: $expected),
+            fn() => $repository->saveTranslationRevisions('7', ['en' => ['title' => 'Forged']], expected: $expected),
             fn() => $base->writeLangcodePeer(
                 'scoped_two_axis',
                 '7',
@@ -269,6 +280,8 @@ final class RevisionCommunityScopeTest extends TestCase
     public function ownerlessExactPeerRefusesBeforeEventsOrWrites(): void
     {
         [$repository, $base] = $this->scopedTwoAxisRepository();
+        $expected = $repository->find('7')?->mutationToken();
+        self::assertNotNull($expected);
         $this->database->insert('scoped_two_axis')
             ->fields(['id', 'uuid', 'title', 'langcode', 'default_langcode', 'community_id'])
             ->values(['7', 'two-axis-a', 'Legacy empty peer', 'oj', 'en', ''])
@@ -278,7 +291,7 @@ final class RevisionCommunityScopeTest extends TestCase
         $this->events = [];
 
         foreach ([
-            fn() => $repository->saveTranslation('7', 'oj', ['title' => 'Must refuse']),
+            fn() => $repository->saveTranslation('7', 'oj', ['title' => 'Must refuse'], expected: $expected),
             fn() => $base->writeLangcodePeer(
                 'scoped_two_axis',
                 '7',
@@ -390,6 +403,7 @@ final class RevisionCommunityScopeTest extends TestCase
             'langcode' => 'en',
             'default_langcode' => 'en',
         ]);
+        self::assertSame(1, $repository->backfillMutationAuthorities('tenancy two-axis fixture'));
 
         return [$repository, $base];
     }

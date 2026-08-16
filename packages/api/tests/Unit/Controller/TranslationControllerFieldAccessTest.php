@@ -22,6 +22,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TranslatableTestEntity;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 
@@ -40,16 +41,18 @@ use Waaseyaa\Entity\EntityTypeManager;
 final class TranslationControllerFieldAccessTest extends TestCase
 {
     private InMemoryEntityStorage $storage;
+    private InMemoryEntityRepository $repository;
     private TranslationController $controller;
 
     protected function setUp(): void
     {
         $this->storage = new InMemoryEntityStorage('article');
+        $this->repository = new InMemoryEntityRepository($this->storage);
 
         $entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $this->storage,
-            fn() => new InMemoryEntityRepository($this->storage),
+            fn() => $this->repository,
         );
         $entityTypeManager->registerEntityType(new EntityType(
             id: 'article',
@@ -75,7 +78,7 @@ final class TranslationControllerFieldAccessTest extends TestCase
         $entity = $this->createEntityWithFrTranslation();
 
         $data = ['data' => ['attributes' => ['secret' => 'leaked']]];
-        $doc = $this->controller->update($this->makeRequest(), 'article', $entity->id(), 'fr', $data);
+        $doc = $this->controller->update($this->makeMutationRequest($entity), 'article', $entity->id(), 'fr', $data);
         $array = $doc->toArray();
 
         $this->assertSame(403, $doc->statusCode, 'update() must reject a field-edit-forbidden attribute.');
@@ -113,7 +116,7 @@ final class TranslationControllerFieldAccessTest extends TestCase
         $entity = $this->createEntityWithFrTranslation();
 
         $data = ['data' => ['attributes' => ['title' => 'Salut']]];
-        $doc = $this->controller->update($this->makeRequest(), 'article', $entity->id(), 'fr', $data);
+        $doc = $this->controller->update($this->makeMutationRequest($entity), 'article', $entity->id(), 'fr', $data);
 
         $this->assertNotSame(403, $doc->statusCode, 'A non-forbidden field edit must not be blocked by the gate.');
         $array = $doc->toArray();
@@ -130,7 +133,7 @@ final class TranslationControllerFieldAccessTest extends TestCase
         );
         $fr = $entity->addTranslation('fr');
         $fr->set('title', 'Bonjour');
-        $this->storage->save($entity);
+        $this->repository->save($entity);
 
         return $entity;
     }
@@ -139,6 +142,16 @@ final class TranslationControllerFieldAccessTest extends TestCase
     {
         $request = new Request();
         $request->attributes->set('_account', $this->makeAccount(42));
+
+        return $request;
+    }
+
+    private function makeMutationRequest(EntityInterface $entity): Request
+    {
+        $request = $this->makeRequest();
+        if ($entity instanceof EntityBase && $entity->mutationToken() !== null) {
+            $request->headers->set('If-Match', $entity->mutationToken()->toStrongEtag());
+        }
 
         return $request;
     }

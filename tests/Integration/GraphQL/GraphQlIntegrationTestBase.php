@@ -10,6 +10,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -211,6 +212,16 @@ abstract class GraphQlIntegrationTestBase extends TestCase
             $messageFragment,
             implode(', ', $messages),
         ));
+    }
+
+    protected function mutationToken(string $entityType, int|string $id): string
+    {
+        $entity = $this->storages[$entityType]->find((string) $id);
+        self::assertInstanceOf(EntityBase::class, $entity);
+        $token = $entity->mutationToken()?->toOpaqueString();
+        self::assertNotNull($token);
+
+        return $token;
     }
 
     protected function createAccount(int|string $id, array $roles = ['authenticated'], array $permissions = []): AccountInterface

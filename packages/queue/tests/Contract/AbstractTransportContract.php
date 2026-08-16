@@ -189,4 +189,19 @@ abstract class AbstractTransportContract extends TestCase
         self::assertSame(1, $released['attempts'],
             'release() must increment attempts atomically (no read-then-write race)');
     }
+
+    #[Test]
+    public function deferDoesNotConsumeAnAttempt(): void
+    {
+        $transport = $this->makeTransport();
+        $transport->push('default', '{"job":"contended"}');
+        $job = $transport->pop('default');
+        self::assertNotNull($job);
+
+        $transport->defer($job['id'], 0);
+
+        $deferred = $transport->pop('default');
+        self::assertNotNull($deferred);
+        self::assertSame(0, $deferred['attempts']);
+    }
 }

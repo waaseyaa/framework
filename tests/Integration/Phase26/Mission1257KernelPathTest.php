@@ -375,6 +375,7 @@ final class Mission1257KernelPathTest extends TestCase
             ->fields(['uuid', 'type', 'name', 'langcode', '_data'])
             ->values(['uuid' => 'b', 'type' => 'alpha', 'name' => 'B', 'langcode' => 'en', '_data' => '{}'])
             ->execute();
+        $this->storage->backfillMutationAuthorities('Fixture seeds pre-DB-03 rows to isolate bundle-subtable drift.');
 
         $entities = $this->storage->findMany([1, 2]);
         self::assertCount(2, $entities, 'Base rows still load when subtable is missing — drift is non-fatal.');

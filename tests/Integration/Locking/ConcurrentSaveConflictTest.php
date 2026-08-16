@@ -21,17 +21,13 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 
 /**
- * Mission optimistic-locking-01KTXCHY WP01/T005 — exactly-one-winner pin
- * (NFR-002 / SC-004, contracts/conflict-detection.md §10).
+ * Transactional write-capable event regression retained from the legacy
+ * revision-lock contract.
  *
- * Deterministic interleave, no threads, no sleeps: a BeforeSaveEvent
- * subscriber performs a competing expectation-stated save of the same entity.
- * Events fire after the outer save's fail-fast pre-check and before the outer
- * write transaction opens, so the outer pre-check passes against the old
- * head, the inner save commits and moves the head, and the outer save's
- * guarded pointer-claim UPDATE matches 0 rows → RevisionConflictException.
- * Exactly one winner; the loser's freshly written revision row rolls back
- * with its transaction (no orphan revisions, contract §8).
+ * A listener that writes through the same database connection is nested work,
+ * not a concurrent transaction. DB-03 claims aggregate authority before
+ * write-capable events and runs them inside the mutation transaction, so a
+ * later failure must roll back both the outer mutation and listener effects.
  */
 #[CoversNothing]
 final class ConcurrentSaveConflictTest extends TestCase
@@ -97,7 +93,7 @@ final class ConcurrentSaveConflictTest extends TestCase
     }
 
     #[Test]
-    public function twoInterleavedSavesStatingTheSameExpectationProduceExactlyOneWinner(): void
+    public function nestedListenerMutationRollsBackWithTheFailingOuterCommand(): void
     {
         // Seed at revision 1.
         $seed = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
@@ -138,14 +134,15 @@ final class ConcurrentSaveConflictTest extends TestCase
         self::assertSame(1, $caught->expectedRevisionId);
         self::assertSame(2, $caught->currentRevisionId);
 
-        // Exactly one winner: the entity carries the winner's values.
+        // The listener ran on the same connection inside the outer unit of
+        // work, so the later failure rolls the entire command back.
         $final = $this->repo->find('1');
         self::assertInstanceOf(TestRevisionableEntity::class, $final);
-        self::assertSame('inner-winner', $final->label());
-        self::assertSame(2, $final->getRevisionId());
+        self::assertSame('v1', $final->label());
+        self::assertSame(1, $final->getRevisionId());
 
         // The loser's revision row rolled back: only revisions 1 and 2 exist
         // (the outer save had written revision 3 before its claim failed).
-        self::assertSame([1, 2], $this->revisionIds());
+        self::assertSame([1], $this->revisionIds());
     }
 }

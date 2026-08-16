@@ -23,6 +23,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\ReadOnlyTranslatableTestEntity;
 use Waaseyaa\Api\Tests\Fixtures\TranslatableTestEntity;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 
@@ -32,6 +33,8 @@ final class TranslationControllerTest extends TestCase
     private EntityTypeManager $entityTypeManager;
     private InMemoryEntityStorage $storage;
     private InMemoryEntityStorage $readonlyStorage;
+    private InMemoryEntityRepository $repository;
+    private InMemoryEntityRepository $readonlyRepository;
     private ResourceSerializer $serializer;
     private TranslationController $controller;
     private TranslationController $forbiddenController;
@@ -40,6 +43,8 @@ final class TranslationControllerTest extends TestCase
     {
         $this->storage = new InMemoryEntityStorage('article');
         $this->readonlyStorage = new InMemoryEntityStorage('readonly');
+        $this->repository = new InMemoryEntityRepository($this->storage);
+        $this->readonlyRepository = new InMemoryEntityRepository($this->readonlyStorage);
 
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
@@ -52,8 +57,8 @@ final class TranslationControllerTest extends TestCase
             // C-22 WP3: read/write path now goes through the canonical repository.
             function (string $entityTypeId) {
                 return match ($entityTypeId) {
-                    'readonly' => new InMemoryEntityRepository($this->readonlyStorage),
-                    default    => new InMemoryEntityRepository($this->storage),
+                    'readonly' => $this->readonlyRepository,
+                    default    => $this->repository,
                 };
             },
         );
@@ -218,6 +223,50 @@ final class TranslationControllerTest extends TestCase
     }
 
     #[Test]
+    public function showReturnsTheAggregateMutationTokenAndStrongEtagToAnAuthorizedMutator(): void
+    {
+        $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
+
+        $doc = $this->controller->show($this->makeRequest(), 'article', $entity->id(), 'en');
+        $array = $doc->toArray();
+
+        $this->assertInstanceOf(EntityBase::class, $entity);
+        $this->assertSame($entity->mutationToken()?->toOpaqueString(), $array['data']['meta']['mutation_token'] ?? null);
+        $this->assertSame($entity->mutationToken()?->toStrongEtag(), $doc->headers['ETag'] ?? null);
+    }
+
+    #[Test]
+    public function showWithholdsMutationAuthorityFromAReadOnlyCaller(): void
+    {
+        $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
+        $handler = new EntityAccessHandler([
+            new class implements AccessPolicyInterface {
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    return $operation === 'view' ? AccessResult::allowed() : AccessResult::neutral();
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return true;
+                }
+            },
+        ]);
+        $controller = new TranslationController($this->entityTypeManager, $handler, $this->serializer);
+
+        $doc = $controller->show($this->makeRequest(), 'article', $entity->id(), 'en');
+
+        $this->assertSame(200, $doc->statusCode);
+        $this->assertArrayNotHasKey('mutation_token', $doc->toArray()['data']['meta']);
+        $this->assertArrayNotHasKey('ETag', $doc->headers);
+    }
+
+    #[Test]
     public function showReturnsOriginalLanguage(): void
     {
         $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
@@ -270,7 +319,7 @@ final class TranslationControllerTest extends TestCase
             ],
         ];
 
-        $doc = $this->controller->store($this->makeRequest(), 'article', $entity->id(), 'es', $data);
+        $doc = $this->controller->store($this->makeMutationRequest($entity), 'article', $entity->id(), 'es', $data);
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('data', $array);
@@ -278,6 +327,66 @@ final class TranslationControllerTest extends TestCase
         $this->assertSame('Hola', $array['data']['attributes']['title']);
         $this->assertTrue($array['meta']['created']);
         $this->assertSame(201, $doc->statusCode);
+    }
+
+    #[Test]
+    public function everyTranslationMutationRequiresAStrongAggregateMutationPrecondition(): void
+    {
+        $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
+
+        $doc = $this->controller->store(
+            $this->makeRequest(),
+            'article',
+            $entity->id(),
+            'es',
+            ['data' => ['attributes' => ['title' => 'Hola']]],
+        );
+
+        $this->assertSame(428, $doc->statusCode);
+        $this->assertSame('MUTATION_PRECONDITION_REQUIRED', $doc->toArray()['errors'][0]['code'] ?? null);
+        $this->assertFalse($entity->hasTranslation('es'));
+
+        $entity->addTranslation('fr')->set('title', 'Bonjour');
+        $this->repository->save($entity);
+        $update = $this->controller->update(
+            $this->makeRequest(),
+            'article',
+            $entity->id(),
+            'fr',
+            ['data' => ['attributes' => ['title' => 'Salut']]],
+        );
+        $destroy = $this->controller->destroy($this->makeRequest(), 'article', $entity->id(), 'fr');
+
+        $this->assertSame(428, $update->statusCode);
+        $this->assertSame(428, $destroy->statusCode);
+        $this->assertSame('Bonjour', $entity->getTranslation('fr')->get('title'));
+        $this->assertTrue($entity->hasTranslation('fr'));
+    }
+
+    #[Test]
+    public function weak_wildcard_and_list_preconditions_are_rejected(): void
+    {
+        $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
+        $entity->addTranslation('fr')->set('title', 'Bonjour');
+        $this->repository->save($entity);
+        $etag = $entity->mutationToken()?->toStrongEtag();
+        $this->assertIsString($etag);
+
+        foreach (['W/' . $etag, '"*"', $etag . ', ' . $etag] as $invalid) {
+            $request = $this->makeRequest();
+            $request->headers->set('If-Match', $invalid);
+            $doc = $this->controller->update(
+                $request,
+                'article',
+                $entity->id(),
+                'fr',
+                ['data' => ['attributes' => ['title' => 'No']]],
+            );
+
+            $this->assertSame(400, $doc->statusCode, $invalid);
+            $this->assertSame('INVALID_MUTATION_PRECONDITION', $doc->toArray()['errors'][0]['code'] ?? null);
+        }
+        $this->assertSame('Bonjour', $entity->getTranslation('fr')->get('title'));
     }
 
     #[Test]
@@ -293,7 +402,7 @@ final class TranslationControllerTest extends TestCase
             ],
         ];
 
-        $doc = $this->controller->store($this->makeRequest(), 'article', $entity->id(), 'fr', $data);
+        $doc = $this->controller->store($this->makeMutationRequest($entity), 'article', $entity->id(), 'fr', $data);
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('errors', $array);
@@ -310,7 +419,7 @@ final class TranslationControllerTest extends TestCase
             values: ['title' => 'Hello', 'langcode' => 'en'],
             entityTypeId: 'readonly',
         );
-        $this->readonlyStorage->save($entity);
+        $this->readonlyRepository->save($entity);
 
         $data = [
             'data' => [
@@ -318,7 +427,7 @@ final class TranslationControllerTest extends TestCase
             ],
         ];
 
-        $doc = $this->controller->store($this->makeRequest(), 'readonly', $entity->id(), 'fr', $data);
+        $doc = $this->controller->store($this->makeMutationRequest($entity), 'readonly', $entity->id(), 'fr', $data);
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('errors', $array);
@@ -355,12 +464,40 @@ final class TranslationControllerTest extends TestCase
             ],
         ];
 
-        $doc = $this->controller->update($this->makeRequest(), 'article', $entity->id(), 'fr', $data);
+        $doc = $this->controller->update($this->makeMutationRequest($entity), 'article', $entity->id(), 'fr', $data);
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('data', $array);
         $this->assertSame('fr', $array['data']['meta']['langcode']);
         $this->assertSame('Salut', $array['data']['attributes']['title']);
+    }
+
+    #[Test]
+    public function staleTranslationUpdateLosesWithoutOverwritingTheWinner(): void
+    {
+        $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
+        $entity->addTranslation('fr')->set('title', 'Bonjour');
+        $this->repository->save($entity);
+        $stale = $entity->mutationToken()?->toStrongEtag();
+
+        $entity->getTranslation('fr')->set('title', 'Winner');
+        $this->repository->save($entity);
+
+        $request = $this->makeRequest();
+        $request->headers->set('If-Match', (string) $stale);
+        $doc = $this->controller->update(
+            $request,
+            'article',
+            $entity->id(),
+            'fr',
+            ['data' => ['attributes' => ['title' => 'Loser']]],
+        );
+
+        $this->assertSame(412, $doc->statusCode);
+        $this->assertSame('MUTATION_PRECONDITION_FAILED', $doc->toArray()['errors'][0]['code'] ?? null);
+        $reloaded = $this->repository->find((string) $entity->id());
+        $this->assertInstanceOf(TranslatableTestEntity::class, $reloaded);
+        $this->assertSame('Winner', $reloaded->getTranslation('fr')->get('title'));
     }
 
     #[Test]
@@ -374,7 +511,7 @@ final class TranslationControllerTest extends TestCase
             ],
         ];
 
-        $doc = $this->controller->update($this->makeRequest(), 'article', $entity->id(), 'de', $data);
+        $doc = $this->controller->update($this->makeMutationRequest($entity), 'article', $entity->id(), 'de', $data);
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('errors', $array);
@@ -402,9 +539,9 @@ final class TranslationControllerTest extends TestCase
         $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
         $fr = $entity->addTranslation('fr');
         $fr->set('title', 'Bonjour');
-        $this->storage->save($entity);
+        $this->repository->save($entity);
 
-        $doc = $this->controller->destroy($this->makeRequest(), 'article', $entity->id(), 'fr');
+        $doc = $this->controller->destroy($this->makeMutationRequest($entity), 'article', $entity->id(), 'fr');
         $array = $doc->toArray();
 
         $this->assertNull($array['data']);
@@ -418,7 +555,7 @@ final class TranslationControllerTest extends TestCase
     {
         $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
 
-        $doc = $this->controller->destroy($this->makeRequest(), 'article', $entity->id(), 'en');
+        $doc = $this->controller->destroy($this->makeMutationRequest($entity), 'article', $entity->id(), 'en');
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('errors', $array);
@@ -431,7 +568,7 @@ final class TranslationControllerTest extends TestCase
     {
         $entity = $this->createTranslatableEntity(['title' => 'Hello', 'langcode' => 'en']);
 
-        $doc = $this->controller->destroy($this->makeRequest(), 'article', $entity->id(), 'de');
+        $doc = $this->controller->destroy($this->makeMutationRequest($entity), 'article', $entity->id(), 'de');
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('errors', $array);
@@ -462,7 +599,7 @@ final class TranslationControllerTest extends TestCase
             values: $values,
             entityTypeId: 'article',
         );
-        $this->storage->save($entity);
+        $this->repository->save($entity);
 
         return $entity;
     }
@@ -474,6 +611,16 @@ final class TranslationControllerTest extends TestCase
     {
         $request = new Request();
         $request->attributes->set('_account', $this->makeAccount(42));
+
+        return $request;
+    }
+
+    private function makeMutationRequest(EntityInterface $entity): Request
+    {
+        $request = $this->makeRequest();
+        if ($entity instanceof EntityBase && $entity->mutationToken() !== null) {
+            $request->headers->set('If-Match', $entity->mutationToken()->toStrongEtag());
+        }
 
         return $request;
     }

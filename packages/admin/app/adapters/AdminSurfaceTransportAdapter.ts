@@ -26,6 +26,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
    * a refetch after a save — still hits the server.
    */
   private readonly inflightGets = new Map<string, Promise<EntityResource>>()
+  private readonly mutationTokens = new Map<string, string>()
 
   constructor(
     /** Same normalization as the admin plugin (`normalizeAppBaseURL(app.baseURL)`). */
@@ -48,7 +49,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     const url = this.surfaceUrl('admin_surface.list', { type }, qs)
     const result = await this.request<SurfaceListResult>(url, { method: 'GET' })
     return {
-      data: result.entities.map(this.normalizeEntity),
+      data: result.entities.map((entity) => this.normalizeEntity(entity, type)),
       meta: {
         total: result.total,
         offset: result.offset,
@@ -69,7 +70,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       this.surfaceUrl('admin_surface.get', { type, id }),
       { method: 'GET' },
     )
-      .then((entity) => this.normalizeEntity(entity))
+      .then((entity) => this.normalizeEntity(entity, type))
       .finally(() => this.inflightGets.delete(key))
 
     this.inflightGets.set(key, promise)
@@ -85,28 +86,32 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
         body: JSON.stringify({ attributes }),
       },
     )
-    return this.normalizeEntity(entity)
+    return this.normalizeEntity(entity, type)
   }
 
   async update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource> {
+    const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+    if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before saving it.')
     const entity = await this.request<SurfaceEntity>(
       this.surfaceUrl('admin_surface.action', { type, action: 'update' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, attributes }),
+        body: JSON.stringify({ id, attributes, mutation_token: mutationToken }),
       },
     )
-    return this.normalizeEntity(entity)
+    return this.normalizeEntity(entity, type)
   }
 
   async remove(type: string, id: string): Promise<void> {
+    const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+    if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before deleting it.')
     await this.request(
       this.surfaceUrl('admin_surface.action', { type, action: 'delete' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, mutation_token: mutationToken }),
       },
     )
   }
@@ -189,7 +194,8 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     return json.data as T
   }
 
-  private normalizeEntity(entity: SurfaceEntity): EntityResource {
+  private normalizeEntity(entity: SurfaceEntity, surfaceType: string = entity.type): EntityResource {
+    if (entity.mutation_token) this.mutationTokens.set(`${surfaceType}:${entity.id}`, entity.mutation_token)
     return {
       type: entity.type,
       id: entity.id,

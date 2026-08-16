@@ -10,10 +10,13 @@ use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\EntityStorage\AggregateMutationRepositoryInterface;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -73,6 +76,7 @@ final class TransitionService
 
     /**
      * @throws TransitionDeniedException
+     * @throws EntityMutationConflictException When a competing aggregate mutation wins the commit claim.
      * @throws RevisionConflictException CW-v1 option-1 (#1920 PR-2, design §3.2):
      *   thrown when the passed entity's revision id disagrees with the
      *   working copy's — a stale caller, never silently discarded or promoted.
@@ -215,20 +219,69 @@ final class TransitionService
             }
         }
 
+        $targetState = $workflow->getState($transition->to);
+        $publishedRevision = $repository->loadPublishedRevision($entityId);
+
+        if ($repository instanceof AggregateMutationRepositoryInterface) {
+            $isRevisionable = $this->entityTypeManager->getDefinition($entityTypeId)->isRevisionable();
+            $publishRevision = $targetState?->defaultRevision === true && $isRevisionable;
+            $committed = $repository->saveAggregateMutation(
+                $entity,
+                function (EntityInterface $subject) use (
+                    $workflowId,
+                    $transitionId,
+                    $fromState,
+                    $transition,
+                    $account,
+                    $targetState,
+                    $publishedRevision,
+                    $isRevisionable,
+                ): void {
+                    $this->dispatcher?->dispatch(
+                        new WorkflowTransitionEvent($subject, $workflowId, $transitionId, $fromState, $transition->to, $account),
+                        WorkflowEvents::PRE_TRANSITION->value,
+                    );
+                    $subject->set('workflow_state', $transition->to);
+                    if ($isRevisionable) {
+                        $this->markNewRevision($subject, true);
+                    }
+                    $status = $targetState?->published === true ? 1 : 0;
+                    if ($targetState?->defaultRevision !== true && $publishedRevision !== null) {
+                        $status = $this->workflowValues()->read($publishedRevision)->status;
+                    }
+                    $subject->set('status', $status);
+                },
+                publishRevision: $publishRevision,
+                publicationFinalizer: $publishRevision
+                    ? static function (EntityInterface $subject) use ($targetState): void {
+                        $subject->set('status', $targetState->published === true ? 1 : 0);
+                    }
+                : null,
+                beforeCommit: function (EntityInterface $subject) use ($account, $workflowId, $transitionId, $fromState, $transition): void {
+                    $this->audit($subject, $account, $workflowId, $transitionId, $fromState, $transition->to, 'allowed', required: true);
+                },
+            );
+
+            $this->dispatcher?->dispatch(
+                new WorkflowTransitionEvent($committed, $workflowId, $transitionId, $fromState, $transition->to, $account),
+                WorkflowEvents::POST_TRANSITION->value,
+            );
+            return new TransitionResult($fromState, $transition->to, $transitionId);
+        }
+        if ($entity instanceof EntityBase && $entity->mutationToken() !== null) {
+            throw new \LogicException('A mutation-authority-backed workflow repository must implement the atomic aggregate command boundary.');
+        }
+
         // Announce (pre), apply, persist, announce (post), audit — in order.
         $this->dispatcher?->dispatch(
             new WorkflowTransitionEvent($entity, $workflowId, $transitionId, $fromState, $transition->to, $account),
             WorkflowEvents::PRE_TRANSITION->value,
         );
 
-        $targetState = $workflow->getState($transition->to);
-
         // CW-v1 WP-2 decision 2 (two-pointer status semantics,
         // docs/specs/content-workflow.md "forward draft"): read the
         // CURRENTLY published revision (if any) before mutating anything —
         // this decides which of the three cases below applies.
-        $publishedRevision = $repository->loadPublishedRevision($entityId);
-
         $entity->set('workflow_state', $transition->to);
 
         // Every transition-service save creates its own tip revision,
@@ -261,7 +314,22 @@ final class TransitionService
                 // already carries the correct new content — but it is
                 // captured to satisfy the "don't discard a meaningful
                 // return value" static-analysis rule.
-                $publishedNow = $repository->setPublishedRevision((string) $entity->id(), $newRevisionId);
+                $expected = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+                $publishedNow = $repository->setPublishedRevision(
+                    (string) $entity->id(),
+                    $newRevisionId,
+                    $expected,
+                );
+                // Publishing advances the aggregate token. Preserve the
+                // caller's working entity shape (the hydrated revision adds
+                // read-only structural flags), but install the committed
+                // successor token before the status-alignment save.
+                if ($entity instanceof EntityBase
+                    && $publishedNow instanceof EntityBase
+                    && $publishedNow->mutationToken() !== null
+                ) {
+                    $entity->_hydrateMutationToken($publishedNow->mutationToken());
+                }
 
                 // Refresh the entity's OWN copy of the pointer BEFORE the
                 // follow-up save below. `published_revision_id` is a
@@ -485,6 +553,7 @@ final class TransitionService
         string $fromState,
         string $toState,
         string $outcome,
+        bool $required = false,
     ): void {
         try {
             $this->auditWriter?->record(new AuditEventDescriptor(
@@ -506,6 +575,9 @@ final class TransitionService
                 'error' => $e->getMessage(),
                 'transition' => $transitionId,
             ]);
+            if ($required) {
+                throw $e;
+            }
         }
     }
 }

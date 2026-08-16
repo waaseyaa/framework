@@ -165,7 +165,7 @@ final class GuardWiringTest extends TestCase
         // guard's "currently effective state" for `publish` falls back to the
         // workflow's initial state ('draft'); 'draft' -> 'published' is a
         // legal `publish` edge, so this must succeed and move the pointer.
-        $repository->setPublishedRevision((string) $entity->id(), $publishedRevisionId);
+        $repository->setPublishedRevision((string) $entity->id(), $publishedRevisionId, $repository->find((string) $entity->id())?->mutationToken());
 
         $published = $repository->loadPublishedRevision((string) $entity->id());
         $this->assertNotNull($published);
@@ -217,7 +217,7 @@ final class GuardWiringTest extends TestCase
             // earlier 'review' revision has no edge in the editorial
             // workflow ('review' is only reachable via 'submit_for_review'
             // from 'draft') — must be denied before any write.
-            $repository->setCurrentRevision((string) $entity->id(), $reviewRevisionId);
+            $repository->setCurrentRevision((string) $entity->id(), $reviewRevisionId, $repository->find((string) $entity->id())?->mutationToken());
         } catch (TransitionDeniedException $e) {
             $thrown = $e;
         }
@@ -261,7 +261,7 @@ final class GuardWiringTest extends TestCase
         $draft->set('workflow_state', 'published');
         $repository->save($draft);
         $firstPublishedRevisionId = (int) $draft->get('revision_id');
-        $repository->setPublishedRevision((string) $entity->id(), $firstPublishedRevisionId);
+        $repository->setPublishedRevision((string) $entity->id(), $firstPublishedRevisionId, $repository->find((string) $entity->id())?->mutationToken());
 
         // A plain content raw save with NO workflow_state change (same
         // state, 'published' -> 'published'), forced to create a revision

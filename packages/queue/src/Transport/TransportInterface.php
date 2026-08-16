@@ -48,6 +48,11 @@ interface TransportInterface
     public function release(int|string $jobId, int $delay = 0): void;
 
     /**
+     * Defer an unattempted delivery without consuming its retry budget.
+     */
+    public function defer(int|string $jobId, int $delay = 0): void;
+
+    /**
      * Get the number of pending jobs in the queue.
      */
     public function size(string $queue): int;

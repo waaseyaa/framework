@@ -7,6 +7,7 @@ namespace Waaseyaa\Entity;
 use Symfony\Component\Uid\Uuid;
 use Waaseyaa\Access\CompiledFieldReadRule;
 use Waaseyaa\Entity\Cast\ValueCaster;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 
 /**
  * Abstract base class for all entity types.
@@ -20,6 +21,8 @@ use Waaseyaa\Entity\Cast\ValueCaster;
  */
 abstract class EntityBase implements EntityInterface
 {
+    /** Snapshot authority attached only by a repository hydration boundary. */
+    private ?EntityMutationToken $mutationToken = null;
     /** Immutable non-content selectors attached by the closed hydrator. */
     private ?EntityStructure $entityStructure = null;
     /**
@@ -224,6 +227,22 @@ abstract class EntityBase implements EntityInterface
             $current->defaultRevision,
             $current->fieldNames,
         );
+    }
+
+    /** The opaque expectation for this loaded aggregate snapshot. */
+    final public function mutationToken(): ?EntityMutationToken
+    {
+        return $this->mutationToken;
+    }
+
+    /** @internal Repository hydration/successor installation only. */
+    final public function _hydrateMutationToken(EntityMutationToken $token): void
+    {
+        $id = $this->id();
+        if ($id === null || $token->entityTypeId !== $this->entityTypeId || $token->entityId !== (string) $id) {
+            throw new \LogicException('Mutation token does not match the entity snapshot identity.');
+        }
+        $this->mutationToken = $token;
     }
 
     public function bundle(): string

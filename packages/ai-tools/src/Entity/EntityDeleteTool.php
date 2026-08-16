@@ -8,6 +8,9 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -43,8 +46,9 @@ final class EntityDeleteTool extends AbstractAgentTool
             'properties' => [
                 'entity_type' => ['type' => 'string'],
                 'id' => ['type' => ['string', 'integer']],
+                'mutation_token' => ['type' => 'string', 'minLength' => 1],
             ],
-            'required' => ['entity_type', 'id'],
+            'required' => ['entity_type', 'id', 'mutation_token'],
             'additionalProperties' => false,
         ];
     }
@@ -63,7 +67,6 @@ final class EntityDeleteTool extends AbstractAgentTool
         if (!is_string($entityType) || $entityType === '' || (!is_string($id) && !is_int($id))) {
             return AgentToolResult::error('entity.delete: missing required arguments entity_type, id.');
         }
-
         if (!$this->entityTypeManager->hasDefinition($entityType)) {
             return AgentToolResult::error(sprintf('entity.delete: unknown entity type "%s"', $entityType));
         }
@@ -78,7 +81,25 @@ final class EntityDeleteTool extends AbstractAgentTool
             if ($forbidden !== null) {
                 return $forbidden;
             }
+            $encoded = $arguments['mutation_token'] ?? null;
+            if (!is_string($encoded) || trim($encoded) === '') {
+                return AgentToolResult::error('entity.delete: mutation_token is required.');
+            }
+            try {
+                $expectedMutation = EntityMutationToken::fromOpaqueString($encoded);
+            } catch (\InvalidArgumentException) {
+                return AgentToolResult::error('entity.delete: mutation_token is invalid.');
+            }
+            if (!$entity instanceof EntityBase
+                || $expectedMutation->entityTypeId !== $entityType
+                || $expectedMutation->entityId !== (string) $entity->id()
+            ) {
+                return $this->mutationConflict($entityType, (string) $id);
+            }
+            $entity->_hydrateMutationToken($expectedMutation);
             $repository->delete($entity);
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflict($entityType, (string) $id);
         } catch (\Throwable $e) {
             return $this->internalError('entity.delete', $e);
         }
@@ -97,10 +118,42 @@ final class EntityDeleteTool extends AbstractAgentTool
         if ($denied !== null) {
             return $denied;
         }
+        $parsed = self::parseMutationToken($arguments);
+        if ($parsed instanceof AgentToolResult) {
+            return $parsed;
+        }
 
         return AgentToolResult::success(
             content: [['type' => 'json', 'data' => ['would_delete' => $arguments]]],
             summary: 'Dry-run: would delete entity',
         );
+    }
+
+    private function mutationConflict(string $entityType, string $id): AgentToolResult
+    {
+        $message = sprintf("entity.delete: mutation conflict on %s '%s'. Reload the entity before retrying.", $entityType, $id);
+
+        return new AgentToolResult(
+            isError: true,
+            content: [
+                ['type' => 'text', 'text' => $message],
+                ['type' => 'json', 'data' => ['error' => 'mutation_conflict', 'entity_type' => $entityType, 'id' => $id]],
+            ],
+            summary: $message,
+        );
+    }
+
+    private static function parseMutationToken(array $arguments): EntityMutationToken|AgentToolResult
+    {
+        $encoded = $arguments['mutation_token'] ?? null;
+        if (!is_string($encoded) || trim($encoded) === '') {
+            return AgentToolResult::error('entity.delete: mutation_token is required.');
+        }
+
+        try {
+            return EntityMutationToken::fromOpaqueString($encoded);
+        } catch (\InvalidArgumentException) {
+            return AgentToolResult::error('entity.delete: mutation_token is invalid.');
+        }
     }
 }

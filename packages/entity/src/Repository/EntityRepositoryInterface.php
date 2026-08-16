@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Repository;
 
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 
@@ -138,7 +139,11 @@ interface EntityRepositoryInterface
      * @throws \InvalidArgumentException If the target revision does not exist.
      */
     #[\NoDiscard('lookup result must be checked for null')]
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface;
+    public function rollback(
+        string $entityId,
+        int $targetRevisionId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface;
 
     /**
      * List an entity's revisions, newest first.
@@ -161,7 +166,11 @@ interface EntityRepositoryInterface
      * @throws \InvalidArgumentException If the revision does not exist.
      */
     #[\NoDiscard('lookup result must be checked for null')]
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface;
+    public function setCurrentRevision(
+        string $entityId,
+        int $revisionId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface;
 
     /**
      * Load the entity's PUBLISHED revision, or null when none is published yet.
@@ -192,7 +201,11 @@ interface EntityRepositoryInterface
      * @throws \InvalidArgumentException If the revision does not exist.
      */
     #[\NoDiscard('lookup result must be checked for null')]
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface;
+    public function setPublishedRevision(
+        string $entityId,
+        int $revisionId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface;
 
     /**
      * Load the entity's WORKING COPY (CW-v1 option-1 forward-draft rebuild,
@@ -288,7 +301,13 @@ interface EntityRepositoryInterface
      *
      * @param array<string, mixed> $values This language's field values.
      */
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int;
+    public function saveTranslation(
+        string $entityId,
+        string $langcode,
+        array $values,
+        ?string $log = null,
+        ?EntityMutationToken $expected = null,
+    ): int;
 
     /**
      * Load the current value of one language from its peer (id, langcode) base

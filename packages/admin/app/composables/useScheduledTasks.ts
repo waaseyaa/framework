@@ -45,10 +45,11 @@ export function useScheduledTasks() {
 
   async function triggerTask(name: string): Promise<TaskTriggerResult> {
     error.value = null
+    const idempotencyKey = crypto.randomUUID()
     try {
       const result = await apiFetch<TaskTriggerResult>(
         `/api/scheduler/tasks/${encodeURIComponent(name)}/trigger`,
-        { method: 'POST' },
+        { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } },
       )
       await fetchTasks()
 

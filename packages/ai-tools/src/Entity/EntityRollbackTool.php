@@ -8,6 +8,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -97,7 +98,8 @@ final class EntityRollbackTool extends AbstractAgentTool
                     return $fieldDenied;
                 }
             }
-            $reverted = $repository->rollback((string) $id, $targetRevisionId);
+            $expected = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+            $reverted = $repository->rollback((string) $id, $targetRevisionId, $expected);
         } catch (\LogicException $e) {
             return AgentToolResult::error(sprintf('entity.rollback: %s is not revisionable (%s)', $entityType, $e->getMessage()));
         } catch (\Throwable $e) {

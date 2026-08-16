@@ -11,7 +11,7 @@ use Waaseyaa\CLI\Handler\ScheduleRunHandler;
 use Waaseyaa\CLI\Provider\SchedulePerfServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Queue\QueueInterface;
-use Waaseyaa\Scheduler\Lock\InMemoryLock;
+use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
@@ -55,7 +55,7 @@ final class ScheduleRunHandlerTest extends TestCase
             public function dispatch(object $message): void {}
         };
 
-        $runner = new ScheduleRunner($schedule, $queue, new InMemoryLock());
+        $runner = new ScheduleRunner($schedule, $queue, new InMemoryLeaseAuthority());
 
         return new class ($runner) implements \Psr\Container\ContainerInterface {
             public function __construct(private readonly ScheduleRunner $runner) {}

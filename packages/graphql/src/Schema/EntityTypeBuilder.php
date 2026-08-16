@@ -119,7 +119,15 @@ final class EntityTypeBuilder
      */
     private function buildOutputFields(EntityTypeInterface $entityType, ?string $bundle = null): array
     {
-        $fields = [];
+        $fields = [
+            'mutationToken' => [
+                'type' => Type::string(),
+                'resolve' => static fn(array $data): ?string => isset($data['mutationToken'])
+                    && is_string($data['mutationToken'])
+                    ? $data['mutationToken']
+                    : null,
+            ],
+        ];
         $keys = $entityType->getKeys();
 
         // Entity key: id (always present, non-null)
@@ -270,7 +278,11 @@ final class EntityTypeBuilder
      */
     private function buildInputFields(EntityTypeInterface $entityType, bool $forCreate = true, ?string $bundle = null): array
     {
-        $fields = [];
+        $fields = $forCreate ? [] : [
+            'mutationToken' => [
+                'type' => Type::nonNull(Type::string()),
+            ],
+        ];
         $keys = $entityType->getKeys();
         // Only skip id and uuid keys (system-managed).
         // The label key should be editable via input types.

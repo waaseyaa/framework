@@ -24,6 +24,7 @@ final readonly class QueueEnvelopeV1
         public ?string $tenantId,
         public ?string $communityId,
         public string $correlationId,
+        public ?QueueOccurrenceV1 $occurrence = null,
         public int $version = self::VERSION,
     ) {
         if ($serializedMessage === '' || $correlationId === '' || $version !== self::VERSION) {
@@ -43,6 +44,7 @@ final readonly class QueueEnvelopeV1
         ?string $tenantId,
         ?string $communityId,
         string $correlationId,
+        ?QueueOccurrenceV1 $occurrence = null,
     ): self {
         return new self(
             serializedMessage: $serializedMessage,
@@ -53,6 +55,7 @@ final readonly class QueueEnvelopeV1
             tenantId: $tenantId,
             communityId: $communityId,
             correlationId: $correlationId,
+            occurrence: $occurrence,
         );
     }
 
@@ -63,6 +66,7 @@ final readonly class QueueEnvelopeV1
         ?string $tenantId,
         ?string $communityId,
         string $correlationId,
+        ?QueueOccurrenceV1 $occurrence = null,
     ): self {
         return new self(
             serializedMessage: $serializedMessage,
@@ -73,6 +77,23 @@ final readonly class QueueEnvelopeV1
             tenantId: $tenantId,
             communityId: $communityId,
             correlationId: $correlationId,
+            occurrence: $occurrence,
+        );
+    }
+
+    public function withOccurrence(QueueOccurrenceV1 $occurrence): self
+    {
+        return new self(
+            serializedMessage: $this->serializedMessage,
+            actorId: $this->actorId,
+            claimsGeneration: $this->claimsGeneration,
+            systemReason: $this->systemReason,
+            serviceIdentity: $this->serviceIdentity,
+            tenantId: $this->tenantId,
+            communityId: $this->communityId,
+            correlationId: $this->correlationId,
+            occurrence: $occurrence,
+            version: $this->version,
         );
     }
 }

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Tools\Entity\EntityUpdateTool;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
+use Waaseyaa\AI\Tools\Tests\Fixtures\MutationTokenFixture;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\Access\AccountInterface;
@@ -77,7 +78,7 @@ final class EntityUpdateToolWorkingCopyTest extends TestCase
 
         $tool = new EntityUpdateTool($this->etm);
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Agent edit']],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Agent edit'], 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(),
         );
 
@@ -97,7 +98,7 @@ final class EntityUpdateToolWorkingCopyTest extends TestCase
 
         $tool = new EntityUpdateTool($this->etm);
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Agent edit']],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Agent edit'], 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(),
         );
 

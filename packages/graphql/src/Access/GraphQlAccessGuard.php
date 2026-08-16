@@ -47,6 +47,17 @@ final class GraphQlAccessGuard
         }
     }
 
+    public function canUpdate(EntityInterface $entity): bool
+    {
+        return $this->handler->check($entity, 'update', $this->account)->isAllowed();
+    }
+
+    public function canMutate(EntityInterface $entity): bool
+    {
+        return $this->canUpdate($entity)
+            || $this->handler->check($entity, 'delete', $this->account)->isAllowed();
+    }
+
     public function assertDeleteAccess(EntityInterface $entity): void
     {
         if (!$this->handler->check($entity, 'delete', $this->account)->isAllowed()) {

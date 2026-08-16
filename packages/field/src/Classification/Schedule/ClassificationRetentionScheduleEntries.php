@@ -7,6 +7,8 @@ namespace Waaseyaa\Field\Classification\Schedule;
 use Waaseyaa\Field\Classification\Job\HoldScanJob;
 use Waaseyaa\Field\Classification\Job\PurgeJob;
 use Waaseyaa\Field\Classification\Job\RedactJob;
+use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleEntriesInterface;
 use Waaseyaa\Scheduler\ScheduleInterface;
@@ -65,9 +67,9 @@ final class ClassificationRetentionScheduleEntries implements ScheduleEntriesInt
             self::TASK_PURGE => new ScheduledTask(
                 name: self::TASK_PURGE,
                 expression: self::CRON_PURGE,
-                command: static function () use ($purgeJob): void {
-                    $purgeJob?->run();
-                },
+                command: new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use ($purgeJob): void {
+                    $purgeJob?->run($context);
+                }),
                 preventOverlap: true,
                 timezone: self::TIMEZONE_UTC,
                 description: 'Purge age-eligible entities matched by purge retention policies.',
@@ -75,9 +77,9 @@ final class ClassificationRetentionScheduleEntries implements ScheduleEntriesInt
             self::TASK_REDACT => new ScheduledTask(
                 name: self::TASK_REDACT,
                 expression: self::CRON_REDACT,
-                command: static function () use ($redactJob): void {
-                    $redactJob?->run();
-                },
+                command: new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use ($redactJob): void {
+                    $redactJob?->run($context);
+                }),
                 preventOverlap: true,
                 timezone: self::TIMEZONE_UTC,
                 description: 'Redact PII fields on entities matched by redact retention policies.',
@@ -85,9 +87,9 @@ final class ClassificationRetentionScheduleEntries implements ScheduleEntriesInt
             self::TASK_HOLD_SCAN => new ScheduledTask(
                 name: self::TASK_HOLD_SCAN,
                 expression: self::CRON_HOLD_SCAN,
-                command: static function () use ($holdScanJob): void {
-                    $holdScanJob?->run();
-                },
+                command: new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use ($holdScanJob): void {
+                    $holdScanJob?->run($context);
+                }),
                 preventOverlap: true,
                 timezone: self::TIMEZONE_UTC,
                 description: 'Surface hold-vs-purge conflicts for admin review (verification-only).',

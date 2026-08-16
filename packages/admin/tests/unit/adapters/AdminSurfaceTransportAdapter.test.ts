@@ -100,6 +100,89 @@ describe('AdminSurfaceTransportAdapter', () => {
     expect(result.meta).toEqual({ total: 1, offset: 0, limit: 25 })
   })
 
+  it('carries the observed mutation token through update and delete without exposing it as an attribute', async () => {
+    const responses = [
+      { type: 'node', id: '7', attributes: { title: 'Observed' }, mutation_token: 'emt1.observed' },
+      { type: 'node', id: '7', attributes: { title: 'Updated' }, mutation_token: 'emt1.successor' },
+      undefined,
+    ]
+    const fetchFn = vi.fn().mockImplementation(async () => {
+      const data = responses.shift()
+      return {
+        ok: true,
+        status: data === undefined ? 204 : 200,
+        json: async () => ({ ok: true, data }),
+      }
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await expect(adapter.get('node', '7')).resolves.toEqual({
+      type: 'node',
+      id: '7',
+      attributes: { title: 'Observed' },
+    })
+    await adapter.update('node', '7', { title: 'Updated' })
+    await adapter.remove('node', '7')
+
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      2,
+      '/admin/_surface/node/action/update',
+      expect.objectContaining({
+        body: JSON.stringify({
+          id: '7',
+          attributes: { title: 'Updated' },
+          mutation_token: 'emt1.observed',
+        }),
+      }),
+    )
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      3,
+      '/admin/_surface/node/action/delete',
+      expect.objectContaining({
+        body: JSON.stringify({ id: '7', mutation_token: 'emt1.successor' }),
+      }),
+    )
+  })
+
+  it('keys mutation authority by the requested surface when the canonical entity type differs', async () => {
+    const responses = [
+      { type: 'taxonomy_vocabulary', id: 'topics', attributes: { name: 'Topics' }, mutation_token: 'emt1.observed' },
+      { type: 'taxonomy_vocabulary', id: 'topics', attributes: { name: 'Renamed' }, mutation_token: 'emt1.successor' },
+    ]
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: responses.shift() }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('taxonomy_vocabulary_browser', 'topics')
+    await adapter.update('taxonomy_vocabulary_browser', 'topics', { name: 'Renamed' })
+
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      2,
+      '/admin/_surface/taxonomy_vocabulary_browser/action/update',
+      expect.objectContaining({
+        body: JSON.stringify({
+          id: 'topics',
+          attributes: { name: 'Renamed' },
+          mutation_token: 'emt1.observed',
+        }),
+      }),
+    )
+  })
+
+  it('refuses a blind update before making a request', async () => {
+    const fetchFn = vi.fn()
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await expect(adapter.update('node', '7', { title: 'Blind write' })).rejects.toMatchObject({
+      status: 428,
+      title: 'Precondition required',
+    })
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
   it('throws a transport error for failed surface responses', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: false,

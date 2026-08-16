@@ -763,14 +763,33 @@ Beyond the identity-key floor, the stock write tools enforce the framework's **p
 
 This closes the asymmetry whereby an agent holding entity-level `update`/`create` access could set a field a `FieldAccessPolicy` forbids (e.g. a privileged `roles`/`status` field) that the REST/GraphQL surfaces already refuse. **Configurable** per-type write allowlists (declarative scoping of which fields a given agent may write, beyond what the policy layer already expresses) remain the broader future mechanism and are still out of scope here.
 
-## Optimistic Locking on the Stock Entity Tools (#1647)
+## Aggregate Mutation Preconditions on the Stock Entity Tools
+
+DB-03 makes `entity.update` and `entity.delete` conditional by default. Both
+schemas require a top-level opaque `mutation_token` returned by `entity.read`.
+The token binds the storage authority, tenant, entity type, entity id, aggregate
+version, and random authority tag; it is never accepted through `values`.
+Missing or malformed tokens are refused before mutation. A token transplanted
+from another aggregate, or a token made stale by a winning update/delete,
+returns the two-block `mutation_conflict` error and the losing call leaves no
+row, revision, or event. Conflict output deliberately omits the current token:
+the caller must reload through its authorized read surface.
+
+`entity.read` exposes `mutation_token` only when the caller has an update or
+delete tool capability **and** the matching entity policy permits that
+operation. Read-only/anonymous callers never receive write-authority metadata.
+Successful updates return the fresh successor token for safe chaining. Dry-run
+validates the same mandatory canonical token shape but never claims its
+read-compare is authoritative.
+
+### Legacy revision-head guard (`expected_revision_id`, #1647)
 
 Mission `optimistic-locking-01KTXCHY`. Canonical contract:
 `kitty-specs/optimistic-locking-01KTXCHY/contracts/conflict-surfaces.md`. The
 tools translate the storage contract (`docs/specs/revision-system-unified.md`
 §3b); they implement no conflict check of their own.
 
-### `entity.update` — the `expected_revision_id` argument
+#### `entity.update` — the `expected_revision_id` argument
 
 Optional **top-level** argument (JSON Schema `integer`, `minimum: 1`):
 
@@ -787,13 +806,14 @@ SaveContext::default()->withExpectedRevisionId($n))`, guarded by `$repository
 instanceof EntityRepository` (the only SaveContext-capable implementation —
 `EntityRepositoryInterface` is deliberately not widened); a stated expectation
 against any other repository implementation returns the
-`revision_expectation_unsupported` error, never a silent plain save. Calls
-**without** the argument are byte-identical to before (FR-003 at the tool
-level). Check order is unchanged: capability → argument shape → type known →
-load → entity access `update` → key-guard refusal → field set → save (the
-conflict surfaces at save time, after validation).
+`revision_expectation_unsupported` error, never a silent plain save. Omitting
+this legacy revision guard does **not** permit a blind write: the aggregate
+`mutation_token` remains mandatory. Check order preserves information-flow
+semantics: capability → argument shape → type known → load → entity access
+`update` → key/field refusal → aggregate token validation → field set →
+guarded save.
 
-### Error shapes (two-block, Mission 1 house shape)
+#### Legacy revision error shapes (two-block, Mission 1 house shape)
 
 Conflict — `RevisionConflictException` caught specifically, before the generic
 `\Throwable` arm. **Machine-correctable: re-read (or use `current` directly),
@@ -820,22 +840,23 @@ content: [ {"type": "text", "text": <message>},
              "entity_type": "<type>", "reason": "<message>"}} ]
 ```
 
-### Dry-run parity
+#### Dry-run parity
 
 A dry run carrying `expected_revision_id` loads the entity and compares the
 head: a mismatch returns the **byte-identical** `revision_conflict` payload a
 real call would produce (same `data` members, same values for the same world
 state — one shared builder, so the bytes cannot fork); a match returns the
-existing `would_update` success. A dry run without the argument is
-byte-identical to today (no load happens). The dry-run check is a
-read-compare — it cannot be authoritative; only the real save's guarded claim
-is.
+existing `would_update` success. Without `expected_revision_id`, dry-run does
+not load a revision head, but it still requires and canonically parses the
+aggregate token. The dry-run check is a read-compare — it cannot be
+authoritative; only the real save's guarded claim is.
 
-### Success payload and read exposure (FR-008)
+#### Success payload and read exposure (FR-008)
 
 - `entity.update` success payloads now carry `revision_id` = the post-save
   head (read back from the saved entity), so a chaining agent can state its
-  next expectation without a re-read.
+  optional legacy expectation without a re-read, plus the fresh mandatory
+  aggregate `mutation_token`.
 - `entity.read` emits a top-level `revision_id` member (duck-typed
   `getRevisionId()`; **omitted** for non-revisionable types — absence means
   "no expectation formable").
@@ -843,7 +864,8 @@ is.
   loaded — zero added queries).
 - `entity.list_revisions` is unchanged (already exposes per-revision ids).
 - Conflict payloads are themselves reads: they carry the current head, so the
-  re-read-and-retry loop can skip a round-trip.
+  legacy revision re-diff can skip a round-trip. Aggregate conflicts never
+  disclose a current mutation token and always require an authorized reload.
 
 ### The canonical consumer pattern
 

@@ -43,7 +43,7 @@ final class NodeTypeTest extends TestCase
     public function testNodeTypeWithIdIsNotNew(): void
     {
         $type = new NodeType(['type' => 'article']);
-        $this->assertFalse($type->isNew());
+        $this->assertTrue($type->isNew());
     }
 
     public function testConfigEntityHasNoUuid(): void

@@ -175,7 +175,7 @@ final class TwoAxisListingFilterIntegrationTest extends TestCase
                 return null;
             }
 
-            public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+            public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \LogicException('not used');
             }
@@ -200,7 +200,7 @@ final class TwoAxisListingFilterIntegrationTest extends TestCase
                 return [];
             }
 
-            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+            public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \LogicException('not used');
             }
@@ -210,12 +210,12 @@ final class TwoAxisListingFilterIntegrationTest extends TestCase
                 return null;
             }
 
-            public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+            public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \LogicException('not used');
             }
 
-            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
             {
                 throw new \LogicException('not used');
             }

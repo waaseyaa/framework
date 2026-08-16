@@ -14,6 +14,14 @@ Provides a `JobInterface`, `JobMiddlewareInterface`, and queue backend abstracti
 
 Key classes: `JobInterface`, `JobMiddlewareInterface`, `QueueInterface`.
 
+Persistent scheduler delivery is an explicit extension rather than an implied
+`QueueInterface::dispatch()` guarantee. `OccurrenceQueueInterface` attaches
+the immutable `QueueOccurrenceV1` identity to the signed authority envelope,
+and `Worker` delegates lease acquisition, fencing, completion, and
+dead-letter transitions to the scheduler-supplied `OccurrenceRuntimeInterface`.
+The queue transport reservation remains delivery mechanics, never execution
+ownership.
+
 ## Persistent payload integrity
 
 `DbalQueue` signs every serialized message with HMAC-SHA-256 under the

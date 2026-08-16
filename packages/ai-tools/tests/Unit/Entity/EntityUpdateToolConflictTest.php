@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\Entity\EntityUpdateTool;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
+use Waaseyaa\AI\Tools\Tests\Fixtures\MutationTokenFixture;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\Database\DBALDatabase;
@@ -120,7 +121,7 @@ final class EntityUpdateToolConflictTest extends TestCase
     // -----------------------------------------------------------------------
 
     #[Test]
-    public function input_schema_declares_optional_expected_revision_id(): void
+    public function input_schema_requires_the_aggregate_token_and_keeps_revision_expectation_optional(): void
     {
         $schema = $this->tool->inputSchema();
 
@@ -128,6 +129,8 @@ final class EntityUpdateToolConflictTest extends TestCase
         $this->assertSame('integer', $schema['properties']['expected_revision_id']['type']);
         $this->assertSame(1, $schema['properties']['expected_revision_id']['minimum']);
         $this->assertNotContains('expected_revision_id', $schema['required'], 'the expectation is optional');
+        $this->assertArrayHasKey('mutation_token', $schema['properties']);
+        $this->assertContains('mutation_token', $schema['required']);
     }
 
     #[Test]
@@ -162,9 +165,10 @@ final class EntityUpdateToolConflictTest extends TestCase
     {
         $this->seedEntity();
         $this->moveHead();
+        $currentMutationToken = MutationTokenFixture::for($this->repo, 'test_revisionable', '1');
 
         $result = $this->tool->execute(
-            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'loser'], 'expected_revision_id' => 1],
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'loser'], 'expected_revision_id' => 1, 'mutation_token' => $currentMutationToken],
             $this->account(),
         );
 
@@ -187,6 +191,31 @@ final class EntityUpdateToolConflictTest extends TestCase
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
         $this->assertSame('v2-winner', $reloaded->label(), 'the competing write is intact, the stale write absent');
+        $this->assertSame(2, $reloaded->getRevisionId());
+    }
+
+    #[Test]
+    public function stale_aggregate_token_is_rejected_without_disclosing_the_current_token(): void
+    {
+        $this->seedEntity();
+        $stale = MutationTokenFixture::for($this->repo, 'test_revisionable', '1');
+        $this->moveHead();
+
+        $result = $this->tool->execute(
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'loser'], 'mutation_token' => $stale],
+            $this->account(),
+        );
+
+        $this->assertTrue($result->isError);
+        $this->assertSame(
+            ['error' => 'mutation_conflict', 'entity_type' => 'test_revisionable', 'id' => '1'],
+            $result->content[1]['data'] ?? null,
+        );
+        $this->assertStringNotContainsString('emt1.', json_encode($result->content, JSON_THROW_ON_ERROR));
+
+        $reloaded = $this->repo->find('1');
+        \assert($reloaded instanceof TestRevisionableEntity);
+        $this->assertSame('v2-winner', $reloaded->label());
         $this->assertSame(2, $reloaded->getRevisionId());
     }
 
@@ -216,9 +245,10 @@ final class EntityUpdateToolConflictTest extends TestCase
         $seed->enforceIsNew();
         $repo->save($seed);
         $tool = new EntityUpdateTool(new SingleTypeEntityTypeManager($plainType, $repo));
+        $mutationToken = MutationTokenFixture::for($repo, 'test_plain', '1');
 
         $result = $tool->execute(
-            ['entity_type' => 'test_plain', 'id' => '1', 'values' => ['label' => 'y'], 'expected_revision_id' => 1],
+            ['entity_type' => 'test_plain', 'id' => '1', 'values' => ['label' => 'y'], 'expected_revision_id' => 1, 'mutation_token' => $mutationToken],
             $this->account(),
         );
 
@@ -235,7 +265,7 @@ final class EntityUpdateToolConflictTest extends TestCase
 
         // Dry-run screens the same case up front (contract §6).
         $dry = $tool->dryRun(
-            ['entity_type' => 'test_plain', 'id' => '1', 'values' => ['label' => 'y'], 'expected_revision_id' => 1],
+            ['entity_type' => 'test_plain', 'id' => '1', 'values' => ['label' => 'y'], 'expected_revision_id' => 1, 'mutation_token' => $mutationToken],
             $this->account(),
         );
         $this->assertTrue($dry->isError);
@@ -276,22 +306,22 @@ final class EntityUpdateToolConflictTest extends TestCase
     public function matching_expectation_applies_and_returns_the_new_head(): void
     {
         $this->seedEntity();
+        $mutationToken = MutationTokenFixture::for($this->repo, 'test_revisionable', '1');
 
         $result = $this->tool->execute(
-            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'v2'], 'expected_revision_id' => 1],
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'v2'], 'expected_revision_id' => 1, 'mutation_token' => $mutationToken],
             $this->account(),
         );
 
         $this->assertFalse($result->isError, $result->summary ?? '');
-        $this->assertSame(
-            [
-                'entity_type' => 'test_revisionable',
-                'id' => '1',
-                'result' => EntityConstants::SAVED_UPDATED,
-                'revision_id' => 2,
-            ],
-            $result->content[0]['data'] ?? null,
-        );
+        $data = $result->content[0]['data'] ?? null;
+        $this->assertIsArray($data);
+        $this->assertSame('test_revisionable', $data['entity_type']);
+        $this->assertSame('1', $data['id']);
+        $this->assertSame(EntityConstants::SAVED_UPDATED, $data['result']);
+        $this->assertSame(2, $data['revision_id']);
+        $this->assertIsString($data['mutation_token']);
+        $this->assertNotSame($mutationToken, $data['mutation_token']);
 
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
@@ -300,21 +330,40 @@ final class EntityUpdateToolConflictTest extends TestCase
     }
 
     #[Test]
-    public function no_expectation_call_keeps_legacy_last_write_wins(): void
+    public function aggregate_token_without_a_legacy_revision_expectation_still_prevents_blind_writes(): void
     {
         $this->seedEntity();
         $this->moveHead();
+        $mutationToken = MutationTokenFixture::for($this->repo, 'test_revisionable', '1');
 
         $result = $this->tool->execute(
-            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'v3-no-expectation']],
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'v3-no-legacy-expectation'], 'mutation_token' => $mutationToken],
             $this->account(),
         );
 
         $this->assertFalse($result->isError);
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
-        $this->assertSame('v3-no-expectation', $reloaded->label());
+        $this->assertSame('v3-no-legacy-expectation', $reloaded->label());
         $this->assertSame(3, $reloaded->getRevisionId());
+    }
+
+    #[Test]
+    public function omission_of_the_aggregate_token_is_refused_without_a_write(): void
+    {
+        $this->seedEntity();
+
+        $result = $this->tool->execute(
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'blind']],
+            $this->account(),
+        );
+
+        $this->assertTrue($result->isError);
+        $this->assertSame('entity.update: mutation_token is required.', $result->content[0]['text'] ?? null);
+        $reloaded = $this->repo->find('1');
+        \assert($reloaded instanceof TestRevisionableEntity);
+        $this->assertSame('v1', $reloaded->label());
+        $this->assertSame(1, $reloaded->getRevisionId());
     }
 
     #[Test]
@@ -376,7 +425,13 @@ final class EntityUpdateToolConflictTest extends TestCase
         $this->seedEntity();
         $this->moveHead();
 
-        $arguments = ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'loser'], 'expected_revision_id' => 1];
+        $arguments = [
+            'entity_type' => 'test_revisionable',
+            'id' => '1',
+            'values' => ['title' => 'loser'],
+            'expected_revision_id' => 1,
+            'mutation_token' => MutationTokenFixture::for($this->repo, 'test_revisionable', '1'),
+        ];
 
         $dry = $this->tool->dryRun($arguments, $this->account());
         $real = $this->tool->execute($arguments, $this->account());
@@ -396,7 +451,7 @@ final class EntityUpdateToolConflictTest extends TestCase
     {
         $this->seedEntity();
 
-        $arguments = ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'v2'], 'expected_revision_id' => 1];
+        $arguments = ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'v2'], 'expected_revision_id' => 1, 'mutation_token' => MutationTokenFixture::for($this->repo, 'test_revisionable', '1')];
         $result = $this->tool->dryRun($arguments, $this->account());
 
         $this->assertFalse($result->isError);
@@ -408,7 +463,7 @@ final class EntityUpdateToolConflictTest extends TestCase
     }
 
     #[Test]
-    public function dry_run_without_the_argument_is_unchanged(): void
+    public function dry_run_without_a_mutation_token_is_refused(): void
     {
         $this->seedEntity();
         $this->moveHead();
@@ -416,8 +471,8 @@ final class EntityUpdateToolConflictTest extends TestCase
         $arguments = ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'x']];
         $result = $this->tool->dryRun($arguments, $this->account());
 
-        $this->assertFalse($result->isError);
-        $this->assertSame(['would_update' => $arguments], $result->content[0]['data'] ?? null);
+        $this->assertTrue($result->isError);
+        $this->assertSame('entity.update: mutation_token is required.', $result->content[0]['text'] ?? null);
     }
 
     #[Test]

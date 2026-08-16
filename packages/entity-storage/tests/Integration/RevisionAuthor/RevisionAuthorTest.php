@@ -189,7 +189,7 @@ final class RevisionAuthorTest extends TestCase
 
         // B (uid 9) performs the revert to revision 1.
         $this->accountContext->set(new StubAccount(9));
-        $reverted = $repo->rollback('1', 1);
+        $reverted = $repo->rollback('1', 1, $entity->mutationToken());
 
         self::assertSame(3, $reverted->revisionId(), 'rollback() must create a NEW revision.');
         self::assertSame(
@@ -259,6 +259,7 @@ final class RevisionAuthorTest extends TestCase
                 'revision_id' => 1, '_data' => '{}',
             ])
             ->execute();
+        $repo->backfillMutationAuthorities('Integration fixture represents a pre-DB-03 persisted row.');
 
         // Clause 13: the pre-existing row reads back a null author.
         $metadata = $repo->loadRevision('1', 1)->revisionMetadata();
@@ -306,7 +307,7 @@ final class RevisionAuthorTest extends TestCase
         $repo->save($entity);
 
         $this->dispatcher->events = [];
-        $repo->setPublishedRevision('1', 1);
+        $published = $repo->setPublishedRevision('1', 1, $entity->mutationToken());
 
         $pointerEvents = $this->dispatcher->ofType(RevisionPointerMovedEvent::class);
         self::assertCount(1, $pointerEvents);
@@ -324,7 +325,7 @@ final class RevisionAuthorTest extends TestCase
 
         // Re-publish: from→to transition reflects the prior pointer.
         $this->dispatcher->events = [];
-        $repo->setPublishedRevision('1', 2);
+        $repo->setPublishedRevision('1', 2, $published->mutationToken());
         [, $second] = $this->dispatcher->ofType(RevisionPointerMovedEvent::class)[0];
         self::assertSame(1, $second->fromRevisionId);
         self::assertSame(2, $second->toRevisionId);
@@ -342,7 +343,7 @@ final class RevisionAuthorTest extends TestCase
 
         $this->accountContext->set(new StubAccount(9));
         $this->dispatcher->events = [];
-        $repo->setCurrentRevision('1', 1);
+        $repo->setCurrentRevision('1', 1, $entity->mutationToken());
 
         $pointerEvents = $this->dispatcher->ofType(RevisionPointerMovedEvent::class);
         self::assertCount(1, $pointerEvents);
@@ -366,7 +367,7 @@ final class RevisionAuthorTest extends TestCase
         $repo->save($entity);
 
         $this->dispatcher->events = [];
-        $repo->rollback('1', 1);
+        $repo->rollback('1', 1, $entity->mutationToken());
 
         self::assertSame(
             [],
@@ -395,7 +396,7 @@ final class RevisionAuthorTest extends TestCase
         $entity->enforceIsNew();
         $repo->save($entity);
 
-        $revisionId = $repo->saveTranslation('1', 'fr', ['title' => 'Bonjour']);
+        $revisionId = $repo->saveTranslation('1', 'fr', ['title' => 'Bonjour'], expected: $entity->mutationToken());
 
         // Raw row in <entity>__translation__revision carries the author.
         $raw = null;
@@ -421,10 +422,17 @@ final class RevisionAuthorTest extends TestCase
         $repo = $this->buildTwoAxisRepository();
         $this->accountContext->set(new StubAccount(7));
 
+        $entity = new RevisionAuthorTranslatableSubject([
+            'id' => 1, 'uuid' => 'ta-batch-1', 'title' => 'Base',
+            'langcode' => 'en', 'default_langcode' => 'en',
+        ]);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+
         $created = $repo->saveTranslationRevisions('1', [
             'en' => ['title' => 'Hello'],
             'fr' => ['title' => 'Bonjour'],
-        ]);
+        ], expected: $entity->mutationToken());
 
         foreach ($created as $langcode => $revisionId) {
             $translation = $repo->loadTranslationRevision('1', $langcode, $revisionId);

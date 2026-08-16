@@ -17,6 +17,8 @@ final readonly class ScheduleRunResult
     public const string STATUS_SUCCESS = 'success';
     public const string STATUS_FAILED = 'failed';
     public const string STATUS_SKIPPED_OVERLAP = 'skipped: overlap';
+    public const string STATUS_SKIPPED_DUPLICATE = 'skipped: duplicate';
+    public const string STATUS_ENQUEUED = 'enqueued';
 
     /**
      * @param list<string> $taskNames

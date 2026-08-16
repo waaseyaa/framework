@@ -19,6 +19,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\EntityMutationConflictException;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -142,12 +143,58 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
         $this->assertSame('v2', $reloaded->label());
     }
 
+    #[Test]
+    public function aggregateMutationValidatesTheClaimedStateAndRollsBackOnFailure(): void
+    {
+        $constrainedType = new EntityType(
+            id: 'test_revisionable',
+            label: 'Test',
+            class: TestRevisionableEntity::class,
+            keys: self::KEYS,
+            revisionable: true,
+            revisionDefault: true,
+            constraints: ['title' => [new NotBlank()]],
+        );
+        $handler = new SqlSchemaHandler($constrainedType, $this->db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+        $resolver = new SingleConnectionResolver($this->db);
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+            $constrainedType,
+            new SqlStorageDriver($resolver),
+            $this->spyDispatcher(),
+            new RevisionableStorageDriver($resolver, $constrainedType),
+            $this->db,
+            validator: new EntityValidator(Validation::createValidator()),
+        );
+        $entity = new TestRevisionableEntity(values: ['title' => 'valid', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $repository->save($entity);
+        $loaded = $repository->find('1');
+        self::assertInstanceOf(TestRevisionableEntity::class, $loaded);
+        $tokenBefore = $loaded->mutationToken()?->toOpaqueString();
+        $revisionCountBefore = $this->revisionRowCount();
+
+        try {
+            $repository->saveAggregateMutation(
+                $loaded,
+                static fn (TestRevisionableEntity $subject) => $subject->set('title', ''),
+            );
+            self::fail('An invalid aggregate state was committed.');
+        } catch (EntityValidationException) {
+        }
+
+        self::assertSame('valid', $repository->find('1')?->label());
+        self::assertSame($revisionCountBefore, $this->revisionRowCount());
+        self::assertSame($tokenBefore, $repository->find('1')?->mutationToken()?->toOpaqueString());
+    }
+
     // -----------------------------------------------------------------------
     // Pre-check refusal (contract §4–§6, NFR-003)
     // -----------------------------------------------------------------------
 
     #[Test]
-    public function staleExpectationRefusesPreWriteWithExactPayloadAndNoEvents(): void
+    public function aggregateTokenRefusesStaleSaveBeforeLegacyRevisionExpectation(): void
     {
         $stale = $this->seedEntity(); // loaded at revision 1
 
@@ -161,24 +208,14 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
         $this->dispatchedEvents = [];
 
         $stale->set('title', 'v2-loser');
-        $caught = null;
         try {
             $this->repo->save($stale, context: SaveContext::default()->withExpectedRevisionId(1));
-        } catch (RevisionConflictException $e) {
-            $caught = $e;
+            self::fail('Stale aggregate was accepted.');
+        } catch (EntityMutationConflictException $exception) {
+            self::assertSame('test_revisionable', $exception->entityTypeId);
+            self::assertSame('1', $exception->entityId);
+            self::assertNull($exception->currentToken);
         }
-
-        $this->assertNotNull($caught, 'Expected RevisionConflictException');
-        // Payload member-by-member (NFR-003 — deterministic, assertable bytes).
-        $this->assertSame('test_revisionable', $caught->entityTypeId);
-        $this->assertSame('1', $caught->entityId);
-        $this->assertSame(1, $caught->expectedRevisionId);
-        $this->assertSame(2, $caught->currentRevisionId);
-        $this->assertSame('REVISION_CONFLICT', $caught->errorCode);
-        $this->assertSame(
-            "Revision conflict on test_revisionable '1': expected revision 1, current revision 2.",
-            $caught->getMessage(),
-        );
 
         // A refused save dispatches NOTHING (contract §4/§6): no PRE_SAVE,
         // no BeforeSaveEvent, no POST_SAVE, no AfterSaveEvent, no REVISION_CREATED.
@@ -494,21 +531,17 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
         $repo->save($winner);
 
         $stale->set('title', 'v2-loser');
-        $caught = null;
         try {
             $repo->save($stale, context: SaveContext::default()->withExpectedRevisionId(1));
-        } catch (RevisionConflictException $e) {
-            $caught = $e;
+            self::fail('Stale aggregate was accepted.');
+        } catch (EntityMutationConflictException $exception) {
+            self::assertSame('test_plain_revisionable', $exception->entityTypeId);
+            self::assertSame('1', $exception->entityId);
         }
-
-        $this->assertNotNull($caught, 'Expected RevisionConflictException');
-        $this->assertSame(1, $caught->expectedRevisionId);
-        // The real head (2) must be reported — not null (#1654).
-        $this->assertSame(2, $caught->currentRevisionId);
     }
 
     #[Test]
-    public function nullPassThroughBehavesAsNoExpectation(): void
+    public function nullLegacyRevisionExpectationCannotRestoreLastWriteWins(): void
     {
         $stale = $this->seedEntity(); // loaded at revision 1
 
@@ -517,13 +550,15 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
         $winner->set('title', 'v2');
         $this->repo->save($winner);
 
-        // Null pass-through: no expectation stated — legacy last-write-wins.
+        // A null legacy revision expectation cannot bypass the aggregate token.
         $stale->set('title', 'v3-no-expectation');
-        $result = $this->repo->save($stale, context: SaveContext::default()->withExpectedRevisionId(null));
-
-        $this->assertSame(EntityConstants::SAVED_UPDATED, $result);
-        $reloaded = $this->repo->find('1');
-        $this->assertSame(3, $reloaded->getRevisionId());
-        $this->assertSame('v3-no-expectation', $reloaded->label());
+        $this->expectException(EntityMutationConflictException::class);
+        try {
+            $this->repo->save($stale, context: SaveContext::default()->withExpectedRevisionId(null));
+        } finally {
+            $reloaded = $this->repo->find('1');
+            $this->assertSame(2, $reloaded?->getRevisionId());
+            $this->assertSame('v2', $reloaded?->label());
+        }
     }
 }

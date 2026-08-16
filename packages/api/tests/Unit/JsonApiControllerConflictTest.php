@@ -160,6 +160,43 @@ final class JsonApiControllerConflictTest extends TestCase
         return -1;
     }
 
+    #[Test]
+    public function representationCarriesTheStrongAggregateMutationEtag(): void
+    {
+        $this->seedEntity();
+        $entity = $this->repo->find('1');
+        $this->assertNotNull($entity);
+
+        $document = $this->controller->show('test_revisionable', '1');
+
+        $this->assertSame($entity->mutationToken()?->toStrongEtag(), $document->headers['ETag'] ?? null);
+        $this->assertSame(
+            $entity->mutationToken()?->toOpaqueString(),
+            $document->toArray()['data']['meta']['mutation_token'] ?? null,
+        );
+    }
+
+    #[Test]
+    public function staleAggregateMutationPreconditionReturns412WithoutDisclosingTheWinnerToken(): void
+    {
+        $this->seedEntity();
+        $stale = $this->repo->find('1');
+        $this->assertNotNull($stale);
+        $this->moveHead();
+
+        $document = $this->controller->update(
+            'test_revisionable',
+            '1',
+            $this->patchBody(['title' => 'stale-loser']),
+            $stale->mutationToken(),
+        );
+
+        $this->assertSame(412, $document->statusCode);
+        $this->assertSame('MUTATION_PRECONDITION_FAILED', $document->toArray()['errors'][0]['code']);
+        $this->assertArrayNotHasKey('meta', $document->toArray()['errors'][0]);
+        $this->assertSame('v2-winner', $this->repo->find('1')?->label());
+    }
+
     // -----------------------------------------------------------------------
     // No-expectation invariance (contract §14, superseded 2026-07-01 by C-22 WP3)
     // -----------------------------------------------------------------------
@@ -328,7 +365,11 @@ final class JsonApiControllerConflictTest extends TestCase
     {
         $repo = $this->entityTypeManager->getRepository('test_constrained');
         \assert($repo instanceof EntityRepository);
-        $entity = new TestRevisionableEntity(values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c1']);
+        $entity = new TestRevisionableEntity(
+            values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c1'],
+            entityTypeId: 'test_constrained',
+            entityKeys: self::REV_KEYS,
+        );
         $entity->enforceIsNew();
         $repo->save($entity);
 
@@ -369,7 +410,11 @@ final class JsonApiControllerConflictTest extends TestCase
     public function patchWithoutExpectationValidationFailureMapsTo422(): void
     {
         $repo = $this->entityTypeManager->getRepository('test_constrained');
-        $entity = new TestRevisionableEntity(values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c2']);
+        $entity = new TestRevisionableEntity(
+            values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c2'],
+            entityTypeId: 'test_constrained',
+            entityKeys: self::REV_KEYS,
+        );
         $entity->enforceIsNew();
         $repo->save($entity);
 

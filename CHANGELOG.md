@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Preserve aggregate mutation authority across aliased Admin surfaces by
+  caching successor tokens under the requested surface identity.
+- Reconcile ambiguous scheduler lease acquisition and renewal only by exact
+  generation/nonce/expiry read-back with a monotonic round-trip safety margin;
+  database-clock rollback now fails closed before ownership mutation.
+- Require renewable durable database leases for overlap-protected scheduler
+  execution. Infrastructure faults are failures rather than false overlap
+  skips; overlap tasks require stable names and cooperative lease-aware
+  commands. The five first-party retention and agent registrations now use the
+  lease-aware boundary, and classification jobs renew before policy/entity
+  effects without swallowing lease loss.
+- Add the scheduler's database-local effect fence. Each resource/domain retains
+  its last accepted global fence and effect ID transactionally: stale owners
+  fail, exact replays no-op, distinct equal-fence effects fail closed, and
+  effect failure rolls back the claim. Classification purge, redaction, and
+  hold-conflict writes now execute through this sink boundary.
+- Record deterministic cron-slot occurrences for overlap-protected direct
+  commands. The ledger binds the schedule generation and due minute, grants
+  execution to one global fence, permits recovery only under a higher fence,
+  rejects a completed duplicate, and scopes effect IDs to the occurrence. A
+  higher-fence recovery advances sink ownership without replaying an already
+  committed effect from that occurrence. Manual triggers require a bounded
+  idempotency key; unprotected tasks are refused rather than falsely claiming
+  retry safety.
+- Give persistent queued scheduler commands their own crash-safe ownership
+  protocol. Occurrence and enqueue intent commit together, signed deliveries
+  carry the stable occurrence identity, workers acquire a separate renewable
+  execution lease, duplicate deliveries are no-ops, contention defers without
+  consuming attempts, and terminal dispatch/worker failure dead-letters the
+  occurrence.
+
+- Enforce the DB-03 aggregate mutation token across entity saves, deletes,
+  batches, revision-pointer moves, rollback, pruning, and translation writes;
+  require strong protocol preconditions across JSON:API, GraphQL, AI tools,
+  translations, and workflow transitions; make workflow revision creation,
+  status finalization, and publication-pointer movement one atomic aggregate
+  command; add an audited legacy-authority backfill command and keep
+  write-capable events inside the same transaction as the aggregate claim.
+- Begin `S1-FW-DB-03`: make existing-entity mutation token-based by default and
+  replace fixed-TTL scheduler overlap locks with durable renewable leases and
+  fenced effects.
+
 ### Fixed
 
 - Let application schemas organize the shared Admin SPA and Anokii entity

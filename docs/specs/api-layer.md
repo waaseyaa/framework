@@ -484,8 +484,21 @@ Mission `optimistic-locking-01KTXCHY`. Canonical contract:
 controller translates the storage contract (`revision-system-unified.md` §3b);
 it implements no conflict check of its own.
 
-**Request seam — resource-object meta, not `If-Match`.** The expectation rides
-the PATCH body:
+> **DB-03 aggregate-mutation contract supersedes the historical revision-only
+> request seam below.** Every externally routed update or delete of an existing
+> aggregate now requires exactly one strong `If-Match` value containing the
+> opaque aggregate mutation token returned by an authorized read. Missing
+> preconditions return 428, weak/wildcard/list or malformed validators return
+> 400, and an identity mismatch or stale token returns 412. The repository CAS
+> is authoritative at commit and a successful mutation returns the successor
+> token in both resource metadata and `ETag`. `expected_revision_id` remains a
+> compatibility input for the narrower historical revision-head contract; it
+> is not a substitute for the aggregate precondition. Because
+> `WaaseyaaContext` does not carry headers, the public HTTP router parses and
+> validates `If-Match` before dispatching to `JsonApiController`.
+
+**Historical revision-head seam.** The optional revision expectation rides the
+PATCH body:
 
 ```json
 { "data": { "type": "<type>", "attributes": { "...": "..." },
@@ -493,9 +506,9 @@ the PATCH body:
 ```
 
 Headers do not reach `JsonApiController` (`WaaseyaaContext` carries
-`account/parsedBody/query/method` — no headers), so `If-Match`/ETag is
-**explicitly not part of this contract**. A future additive change may map
-`If-Match` onto the same `SaveContext` seam without altering the body seam.
+`account/parsedBody/query/method` — no headers), which is why the aggregate
+precondition is enforced by the HTTP router rather than by this controller
+method. The body seam remains available only for revision-head compatibility.
 
 **Request-state table:**
 
@@ -994,8 +1007,8 @@ new FieldAutoSaveController(
 The user-facing surface of the content-workflow engine (`docs/specs/content-workflow.md` "Integration → API (WP-4)"). Registered per entity type (literal type segment + `->default('_entity_type', …)`, like field auto-save), **only when `TransitionService` resolves** — `ApiServiceProvider::routes()` and `httpDomainRouters()` both gate on `resolveOptional(TransitionService::class)`, so an install without `waaseyaa/workflows` wired registers neither the routes nor the router and requests 404 naturally.
 
 **Routes** (both `requireAuthentication()`):
-- `GET /api/{entityType}/{id}/workflow/transitions` (`api.{type}.workflow_transitions`) → `{"data": [{"id","label","to"}…], "meta": {"workflow_state": <string|null>}}`. `data` is exactly `TransitionService::getAvailableTransitions()` — the one sanctioned UI read side (permission- AND group-filtered; never offers what the write side would refuse). An unbound entity type returns 200 with empty `data` (no buttons is the correct UI), never 404/422.
-- `POST /api/{entityType}/{id}/workflow/transition` (`api.{type}.workflow_transition`), body `{"transition": "<id>"}` → 200 `{"data": {"transition","from","to"}}` from `TransitionResult`.
+- `GET /api/{entityType}/{id}/workflow/transitions` (`api.{type}.workflow_transitions`) → `{"data": [{"id","label","to"}…], "meta": {"workflow_state": <string|null>, "mutation_token": "<opaque>"}}`. `data` is exactly `TransitionService::getAvailableTransitions()` — the one sanctioned UI read side (permission- AND group-filtered; never offers what the write side would refuse). When at least one transition is available, the response also carries the working-copy token as a strong `ETag`; callers with no available mutation receive neither token nor ETag. An unbound entity type returns 200 with empty `data` (no buttons is the correct UI), never 404/422.
+- `POST /api/{entityType}/{id}/workflow/transition` (`api.{type}.workflow_transition`), body `{"transition": "<id>"}` plus the exact strong `If-Match` returned by a mutation-capable read → 200 `{"data": {"transition","from","to"}, "meta": {"mutation_token": "<successor>"}}` plus the successor `ETag`.
 
 **Controller**: `Waaseyaa\Api\Controller\WorkflowTransitionController` (deps: `EntityTypeManagerInterface`, `?EntityAccessHandler`, `TransitionService`), dispatched by `WorkflowTransitionApiRouter` (`DomainRouterInterface`, same shape as the other resolveOptional-gated admin routers).
 
@@ -1010,11 +1023,14 @@ The view gate includes the additive workflow-authority policy (#2081): an authen
 | Code | Condition |
 |------|-----------|
 | 200 | GET always (empty `data` for unbound types); POST when the transition applied |
-| 400 | POST body not valid JSON, or `transition` member missing/non-string/empty |
+| 400 | POST body invalid, or `If-Match` malformed, weak, wildcard, or a list |
 | 401 | No `_account` on the request |
 | 403 | `TransitionDeniedException` with `reason === 'permission'` |
 | 404 | Unknown entity type, entity not found, or view access denied (byte-identical, R8) |
+| 409 | Historical revision-head race between controller and transition service |
+| 412 | Aggregate token is stale or bound to another identity |
 | 422 | `TransitionDeniedException` with any other reason (`illegal_edge`, `unknown_transition`, `unbound`, `group_constraint`) |
+| 428 | POST omitted the required aggregate `If-Match` precondition |
 
 403/422 bodies carry the WP-2 contract: JSON:API error `code: 'WORKFLOW_TRANSITION_DENIED'`, `meta: {reason}` (same policy as `JsonApiController::workflowTransitionDeniedError()`, duplicated locally — that method stays private).
 
@@ -1568,6 +1584,14 @@ final class TranslationController
 | `destroy(entityTypeId, id, langcode)` | `DELETE /api/{type}/{id}/translations/{langcode}` | Delete translation |
 
 Creating a translation requires `MutableTranslatableInterface`. Deleting the original language returns 422.
+
+Translation creation, update, and deletion mutate the existing aggregate and
+therefore require the same strong aggregate `If-Match` precondition as other
+existing-resource mutations. Authorized mutation-capable reads expose the
+opaque token in resource metadata and `ETag`; view-only callers receive neither.
+Missing, malformed, and stale preconditions return 428, 400, and 412
+respectively without changing the entity. Each successful translation mutation
+returns the successor aggregate token and `ETag`.
 
 ### Error Handling Pattern
 

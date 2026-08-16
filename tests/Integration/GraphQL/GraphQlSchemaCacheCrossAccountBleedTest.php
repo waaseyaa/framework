@@ -111,12 +111,14 @@ final class GraphQlSchemaCacheCrossAccountBleedTest extends GraphQlIntegrationTe
             $handler,
             $this->createAccount(2, ['authenticated', 'member']),
         );
+        $articleOneToken = $this->mutationToken('article', 1);
+        $articleTwoToken = $this->mutationToken('article', 2);
 
         // Request A: admin primes the static schema cache with a real,
         // permitted update on article 1.
-        $adminResponse = $this->requestAs($adminEndpoint, '
-            mutation { updateArticle(id: "1", input: { title: "Renamed by admin" }) { title } }
-        ');
+        $adminResponse = $this->requestAs($adminEndpoint, "
+            mutation { updateArticle(id: \"1\", input: { title: \"Renamed by admin\", mutationToken: \"{$articleOneToken}\" }) { title } }
+        ");
         $this->assertNoErrors($adminResponse);
         $this->assertSame('Renamed by admin', $adminResponse['data']['updateArticle']['title']);
 
@@ -125,9 +127,9 @@ final class GraphQlSchemaCacheCrossAccountBleedTest extends GraphQlIntegrationTe
         // RoleBasedPolicy forbids non-admin update; R11 collapses this to
         // "Entity not found" so member cannot distinguish forbidden from
         // absent.
-        $memberResponse = $this->requestAs($memberEndpoint, '
-            mutation { updateArticle(id: "2", input: { title: "Hacked by member" }) { title } }
-        ');
+        $memberResponse = $this->requestAs($memberEndpoint, "
+            mutation { updateArticle(id: \"2\", input: { title: \"Hacked by member\", mutationToken: \"{$articleTwoToken}\" }) { title } }
+        ");
 
         $this->assertArrayHasKey(
             'errors',

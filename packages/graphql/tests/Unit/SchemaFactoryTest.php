@@ -83,6 +83,8 @@ final class SchemaFactoryTest extends TestCase
         self::assertTrue($articleType->hasField('body'));
         self::assertTrue($articleType->hasField('status'));
         self::assertTrue($articleType->hasField('created'));
+        $mutationToken = $articleType->getField('mutationToken');
+        self::assertSame('String', $mutationToken->getType()->name);
     }
 
     #[Test]

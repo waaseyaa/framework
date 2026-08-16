@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
+use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -91,7 +94,7 @@ final class ScheduleListHandlerTest extends TestCase
             new ScheduledTask(
                 name: 'report:generate',
                 expression: '0 0 * * *',
-                command: static fn () => null,
+                command: new LeaseAwareClosureCommand(static fn (LeaseExecutionContext $context) => null),
                 preventOverlap: true,
             ),
         ]));
