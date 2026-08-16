@@ -13,6 +13,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
+use Waaseyaa\User\Session\SessionCookiePolicy;
 
 #[AsMiddleware(pipeline: 'http', priority: 20)]
 final class CsrfMiddleware implements HttpMiddlewareInterface
@@ -24,6 +25,21 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     private const XSRF_COOKIE_NAME = 'XSRF-TOKEN';
     private const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
     private const CSRF_EXEMPT_CONTENT_TYPES = ['application/vnd.api+json', 'application/json'];
+
+    private readonly SessionCookiePolicy $cookiePolicy;
+
+    /**
+     * @param SessionCookiePolicy|null $cookiePolicy Resolved `session.cookie`
+     *        policy governing the XSRF-TOKEN cookie's Secure/SameSite
+     *        attributes (#2149) — the same policy SessionMiddleware applies to
+     *        the session cookie. Null keeps the hardened defaults
+     *        (secure='auto', samesite='Lax'), which match the previous
+     *        hardcoded behavior.
+     */
+    public function __construct(?SessionCookiePolicy $cookiePolicy = null)
+    {
+        $this->cookiePolicy = $cookiePolicy ?? new SessionCookiePolicy();
+    }
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
@@ -39,7 +55,7 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
                     403,
                     ['Content-Type' => 'text/html; charset=UTF-8'],
                 );
-                self::attachCookieIfHtml($request, $response);
+                self::attachCookieIfHtml($request, $response, $this->cookiePolicy);
 
                 return $response;
             }
@@ -52,14 +68,14 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
                     'detail' => 'CSRF token validation failed.',
                 ]],
             ], 403, ['Content-Type' => 'application/vnd.api+json']);
-            self::attachCookieIfAuthenticated($request, $response);
+            self::attachCookieIfAuthenticated($request, $response, $this->cookiePolicy);
 
             return $response;
         }
 
         $response = $next->handle($request);
-        self::attachCookieIfHtml($request, $response);
-        self::attachCookieIfAuthenticated($request, $response);
+        self::attachCookieIfHtml($request, $response, $this->cookiePolicy);
+        self::attachCookieIfAuthenticated($request, $response, $this->cookiePolicy);
 
         return $response;
     }
@@ -70,8 +86,9 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
      * The kernel's middleware pipeline terminates in real controller dispatch,
      * so {@see process()} calls this helper while unwinding over the final
      * response. It stays public for backwards compatibility and focused tests.
+     * A null $policy applies the hardened `session.cookie` defaults.
      */
-    public static function attachCookieIfHtml(Request $request, Response $response): void
+    public static function attachCookieIfHtml(Request $request, Response $response, ?SessionCookiePolicy $policy = null): void
     {
         $contentType = $response->headers->get('Content-Type', '');
         $primaryType = strtolower(trim(explode(';', $contentType)[0]));
@@ -79,7 +96,7 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             return;
         }
 
-        self::attachCookie($request, $response);
+        self::attachCookie($request, $response, $policy ?? new SessionCookiePolicy());
     }
 
     /**
@@ -90,8 +107,9 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
      * writer above cannot seed it with a token. Once the session is
      * authenticated the token is delivered on API responses too, with the exact
      * same cookie flags. Anonymous responses stay cookie-free.
+     * A null $policy applies the hardened `session.cookie` defaults.
      */
-    public static function attachCookieIfAuthenticated(Request $request, Response $response): void
+    public static function attachCookieIfAuthenticated(Request $request, Response $response, ?SessionCookiePolicy $policy = null): void
     {
         $account = $request->attributes->get('_account');
         $session = $request->attributes->get('_session');
@@ -104,10 +122,10 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             return;
         }
 
-        self::attachCookie($request, $response);
+        self::attachCookie($request, $response, $policy ?? new SessionCookiePolicy());
     }
 
-    private static function attachCookie(Request $request, Response $response): void
+    private static function attachCookie(Request $request, Response $response, SessionCookiePolicy $policy): void
     {
         if (session_status() !== \PHP_SESSION_ACTIVE) {
             return;
@@ -125,12 +143,16 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             return;
         }
 
+        // Secure/SameSite come from the resolved session.cookie policy so a
+        // forced `secure => true` survives plaintext requests (#2149); the
+        // policy's 'auto' defers to $request->isSecure(), which honors
+        // X-Forwarded-Proto via the kernel's trusted-proxy registration.
         $cookie = Cookie::create(self::XSRF_COOKIE_NAME)
             ->withValue(rawurlencode($token))
             ->withPath('/')
-            ->withSecure($request->isSecure())
+            ->withSecure($policy->resolveSecure($request->isSecure()))
             ->withHttpOnly(false)
-            ->withSameSite(Cookie::SAMESITE_LAX);
+            ->withSameSite($policy->sameSite());
 
         $response->headers->setCookie($cookie);
     }

@@ -16,6 +16,7 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\Session\NativeSession;
+use Waaseyaa\User\Session\SessionCookiePolicy;
 
 #[AsMiddleware(pipeline: 'http', priority: 30)]
 final class SessionMiddleware implements HttpMiddlewareInterface
@@ -95,42 +96,26 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     /**
      * Secure-by-default session cookie ini.
      *
-     * Hardened defaults are always applied (closing the insecure-by-default
-     * session cookie gap); any key in $sessionCookieOptions overrides the
-     * matching default. `secure => 'auto'` only sets the Secure flag when the
-     * request is detected as HTTPS, so plain-HTTP dev sessions keep working.
-     *
-     * @var array<string, bool|string>
+     * Resolution lives in {@see SessionCookiePolicy} (shared with
+     * CsrfMiddleware's XSRF-TOKEN cookie, #2149): hardened defaults are always
+     * applied and any key in $sessionCookieOptions overrides the matching
+     * default. `secure => 'auto'` only sets the Secure flag when the request
+     * is detected as HTTPS, so plain-HTTP dev sessions keep working.
      */
-    private const array SECURE_COOKIE_DEFAULTS = [
-        'httponly' => true,
-        'secure' => 'auto',
-        'samesite' => 'Lax',
-        'use_strict_mode' => true,
-    ];
-
     private function applySessionCookieIni(): void
     {
-        // Explicit config (left operand) wins; hardened defaults fill the rest,
-        // so every key below is guaranteed present (no array_key_exists guard).
-        $opts = ($this->sessionCookieOptions ?? []) + self::SECURE_COOKIE_DEFAULTS;
+        $policy = new SessionCookiePolicy($this->sessionCookieOptions);
 
-        ini_set('session.cookie_httponly', filter_var($opts['httponly'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
-
-        $secure = $opts['secure'];
-        if ($secure === 'auto') {
-            $secure = $this->isHttpsRequest();
-        } else {
-            $secure = filter_var($secure, FILTER_VALIDATE_BOOLEAN);
-        }
-        ini_set('session.cookie_secure', $secure ? '1' : '0');
+        ini_set('session.cookie_httponly', $policy->httpOnly() ? '1' : '0');
+        ini_set('session.cookie_secure', $policy->resolveSecure($this->isHttpsRequest()) ? '1' : '0');
 
         // An explicit override may set samesite to '' to opt out; the default never does.
-        if (is_string($opts['samesite']) && $opts['samesite'] !== '') {
-            ini_set('session.cookie_samesite', $opts['samesite']);
+        $sameSite = $policy->sameSite();
+        if ($sameSite !== null) {
+            ini_set('session.cookie_samesite', $sameSite);
         }
 
-        ini_set('session.use_strict_mode', filter_var($opts['use_strict_mode'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
+        ini_set('session.use_strict_mode', $policy->useStrictMode() ? '1' : '0');
     }
 
     /**
