@@ -7,11 +7,7 @@ namespace Waaseyaa\CLI;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\Command\Command;
 use Waaseyaa\CLI\Command\Config\ConfigCommand;
-use Waaseyaa\CLI\Command\Config\ConfigExportCommand;
-use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
-use Waaseyaa\CLI\Handler\ConfigExportHandler;
-use Waaseyaa\CLI\Handler\ConfigImportHandler;
 use Waaseyaa\CLI\Provider\HealthSchemaServiceProvider;
 use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
@@ -58,6 +54,8 @@ final class ConsoleApplicationFactory
         $logger = $this->logger ?? new NullLogger();
         $versionResolver = $this->versionResolver ?? new VersionResolver($this->kernel->getProjectRoot());
         $application = new WaaseyaaConsoleApplication($versionResolver->resolve(), $logger);
+        /** @var array<string, class-string|string> $registeredConfigSources */
+        $registeredConfigSources = [];
 
         foreach ($this->providers as $provider) {
             if (!$provider instanceof ProvidesConsoleCommandsInterface) {
@@ -86,6 +84,11 @@ final class ConsoleApplicationFactory
                     }
 
                     $this->assertNoNamespaceCollision($name, $command);
+                    $sourceClass = $this->commandSourceClass($command);
+                    ConfigCommand::assertNoDuplicate($name, $registeredConfigSources[$name] ?? null, $sourceClass);
+                    if (ConfigCommand::isReservedVerb($name)) {
+                        $registeredConfigSources[$name] = $sourceClass;
+                    }
 
                     if ($application->has($name)) {
                         $logger->warning(sprintf(
@@ -138,13 +141,14 @@ final class ConsoleApplicationFactory
 
     private function assertNoNamespaceCollision(string $name, Command $command): void
     {
-        $sourceClass = $command instanceof HandlerCommand ? $command->sourceClass() : $command::class;
-        $sourceClass = match ($sourceClass) {
-            ConfigExportHandler::class => ConfigExportCommand::class,
-            ConfigImportHandler::class => ConfigImportCommand::class,
-            default => $sourceClass,
-        };
+        ConfigCommand::assertNoCollision($name, $this->commandSourceClass($command));
+    }
 
-        ConfigCommand::assertNoCollision($name, $sourceClass);
+    /** @return class-string|string */
+    private function commandSourceClass(Command $command): string
+    {
+        $sourceClass = $command instanceof HandlerCommand ? $command->sourceClass() : $command::class;
+
+        return $sourceClass;
     }
 }

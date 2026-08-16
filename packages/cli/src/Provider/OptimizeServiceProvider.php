@@ -9,15 +9,24 @@ use Waaseyaa\CLI\Handler\OptimizeClearHandler;
 use Waaseyaa\CLI\Handler\OptimizeConfigHandler;
 use Waaseyaa\CLI\Handler\OptimizeHandler;
 use Waaseyaa\CLI\Handler\OptimizeManifestHandler;
+use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Cache\ConfigCacheCompiler;
-use Waaseyaa\Config\Storage\FileStorage;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class OptimizeServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
+final class OptimizeServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface, RequiresCapabilitiesInterface
 {
     public function register(): void {}
+
+    public function capabilityRequirements(): iterable
+    {
+        yield CapabilityRequirement::exact('configuration.authority.v1', 1);
+    }
 
     public function consoleCommands(): iterable
     {
@@ -29,17 +38,29 @@ final class OptimizeServiceProvider extends ServiceProvider implements ProvidesC
         );
         $manifestHandler = new OptimizeManifestHandler($manifestCompiler);
 
-        $configCompiler = new ConfigCacheCompiler(
-            storage: new FileStorage($root . '/config/active'),
-            cachePath: $root . '/storage/framework/config.php',
-        );
-        $configHandler = new OptimizeConfigHandler($configCompiler);
+        $compileConfig = function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io) use ($root): int {
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            $bridge = $this->resolve(ActiveConfigurationBridgeInterface::class);
+            assert($context instanceof ConfigurationAuthorityContext);
+            assert($bridge instanceof ActiveConfigurationBridgeInterface);
+            if ($bridge->authorityContext() !== $context) {
+                throw new ConfigurationAuthorityConflictException(
+                    'optimize:config received a divergent configuration authority context.',
+                );
+            }
+
+            return new OptimizeConfigHandler(new ConfigCacheCompiler(
+                storage: $bridge->activeStorage(),
+                cachePath: $root . '/storage/framework/config.php',
+                authorityContext: $context,
+            ))->execute($io);
+        };
 
         $clearHandler = new OptimizeClearHandler(storagePath: $root . '/storage');
 
         $optimizeHandler = new OptimizeHandler(subHandlers: [
             'optimize:manifest' => \Closure::fromCallable([$manifestHandler, 'execute']),
-            'optimize:config'   => \Closure::fromCallable([$configHandler, 'execute']),
+            'optimize:config'   => $compileConfig,
         ]);
 
         yield new HandlerCommand(
@@ -57,7 +78,7 @@ final class OptimizeServiceProvider extends ServiceProvider implements ProvidesC
         yield new HandlerCommand(
             name: 'optimize:config',
             description: 'Compile and cache all configuration',
-            handler: \Closure::fromCallable([$configHandler, 'execute']),
+            handler: $compileConfig,
         );
 
         yield new HandlerCommand(

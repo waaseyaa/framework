@@ -7,11 +7,18 @@ namespace Waaseyaa\Tests\Integration\Config;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityResolver;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
-use Waaseyaa\Config\ConfigServiceProvider;
+use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\Config\ConfigurationStorageServiceProvider;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -33,12 +40,13 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 #[CoversNothing]
 final class ConfigFactoryProductionBindingTest extends TestCase
 {
-    private string $projectRoot;
+    private string $projectRoot = '';
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->projectRoot = $this->createMinimalProjectRoot();
+        $this->seedActiveConfiguration();
         ConfigFactoryProbeProvider::reset();
     }
 
@@ -69,12 +77,14 @@ final class ConfigFactoryProductionBindingTest extends TestCase
         self::assertInstanceOf(
             ConfigFactoryInterface::class,
             ConfigFactoryProbeProvider::$resolvedFactory,
-            'ConfigFactoryInterface must resolve via resolveOptional() at boot, not silently return null',
+            'ConfigFactoryInterface must resolve at boot: ' . (ConfigFactoryProbeProvider::$resolutionErrors[ConfigFactoryInterface::class] ?? 'no diagnostic'),
         );
+        self::assertInstanceOf(ConfigurationAuthorityContext::class, ConfigFactoryProbeProvider::$resolvedContext);
+        self::assertSame(str_repeat('b', 64), ConfigFactoryProbeProvider::$resolvedContext->activeGenerationId);
     }
 
     #[Test]
-    public function resolvedFactoryRoundTripsASetSaveGetCycle(): void
+    public function resolvedFactoryReadsThePinnedGenerationAndRefusesDirectMutation(): void
     {
         $kernel = $this->buildKernel();
         $kernel->publicBoot();
@@ -82,17 +92,13 @@ final class ConfigFactoryProductionBindingTest extends TestCase
         $factory = ConfigFactoryProbeProvider::$resolvedFactory;
         self::assertNotNull($factory);
 
-        $config = $factory->get('workflows.assignments');
-        self::assertTrue($config->isNew(), 'a never-written config name starts out new');
+        $config = $factory->get('system.site');
+        self::assertFalse($config->isNew());
+        self::assertSame('Waaseyaa', $config->get('name'));
 
-        $editable = $factory->getEditable('workflows.assignments');
-        $editable->set('example_key', 'example_value')->save();
-
-        // A fresh get() must observe the saved value (cache invalidated by
-        // EventAwareStorage on save, storage read from the same active store).
-        $reread = $factory->get('workflows.assignments');
-        self::assertFalse($reread->isNew());
-        self::assertSame('example_value', $reread->get('example_key'));
+        $this->expectException(ConfigurationAuthorityUnavailableException::class);
+        $this->expectExceptionMessage('CFG-02 transactional activation');
+        $factory->getEditable('system.site')->set('name', 'Changed')->save();
     }
 
     #[Test]
@@ -102,6 +108,7 @@ final class ConfigFactoryProductionBindingTest extends TestCase
         $kernel->publicBoot();
 
         self::assertInstanceOf(ConfigManagerInterface::class, ConfigFactoryProbeProvider::$resolvedManager);
+        self::assertSame(['system.site'], ConfigFactoryProbeProvider::$resolvedManager->getActiveStorage()->listAll());
     }
 
     private function buildKernel(): object
@@ -121,7 +128,11 @@ final class ConfigFactoryProductionBindingTest extends TestCase
                 $this->manifest = new PackageManifest(
                     providers: array_merge(
                         $this->manifest->providers,
-                        [ConfigServiceProvider::class, ConfigFactoryProbeProvider::class],
+                        [
+                            ConfigurationAuthorityServiceProvider::class,
+                            ConfigurationStorageServiceProvider::class,
+                            ConfigFactoryProbeProvider::class,
+                        ],
                     ),
                     migrations: $this->manifest->migrations,
                     fieldTypes: $this->manifest->fieldTypes,
@@ -145,7 +156,10 @@ final class ConfigFactoryProductionBindingTest extends TestCase
 
         file_put_contents(
             $projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
+            sprintf(
+                "<?php return ['database' => %s, 'environment' => 'testing'];",
+                var_export($projectRoot . '/storage/waaseyaa.sqlite', true),
+            ),
         );
 
         file_put_contents(
@@ -164,6 +178,56 @@ final class ConfigFactoryProductionBindingTest extends TestCase
 
         return $projectRoot;
     }
+
+    private function seedActiveConfiguration(): void
+    {
+        $database = DBALDatabase::createSqlite($this->projectRoot . '/storage/waaseyaa.sqlite', 'testing');
+        $migration = require dirname(__DIR__, 3) . '/packages/entity-storage/migrations/2026_08_12_000002_configuration_authority.php';
+        $migration->up(new SchemaBuilder($database->getConnection()));
+        $context = new ConfigurationAuthorityResolver()->resolve(
+            $this->projectRoot,
+            $database->databaseIdentity(),
+            ['database' => $this->projectRoot . '/storage/waaseyaa.sqlite', 'environment' => 'testing'],
+            [],
+        );
+        $generationId = str_repeat('b', 64);
+        $file = new ConfigSyncFile(
+            entityType: 'system',
+            entityId: 'site',
+            uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
+            dependencies: [],
+            langcode: 'en',
+            fields: ['name' => 'Waaseyaa'],
+        );
+        $database->query(
+            'INSERT INTO waaseyaa_config_generation '
+            . '(authority_id, generation_id, activation_sequence, schema_version, manifest_hash, lifecycle_state, created_at) '
+            . 'VALUES (?, ?, 1, ?, ?, ?, ?)',
+            [$context->authorityId, $generationId, 'config-schema.v1', str_repeat('c', 64), 'active', '2026-08-12T00:00:00Z'],
+        );
+        $database->query(
+            'INSERT INTO waaseyaa_config_entry '
+            . '(authority_id, generation_id, config_name, entity_type, entity_id, uuid, dependencies_json, langcode, fields_json, content_hash) '
+            . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $context->authorityId,
+                $generationId,
+                $file->ref(),
+                $file->entityType,
+                $file->entityId,
+                $file->uuid,
+                '[]',
+                $file->langcode,
+                json_encode($file->fields, JSON_THROW_ON_ERROR),
+                $file->contentHash(),
+            ],
+        );
+        $database->query(
+            'INSERT INTO waaseyaa_config_activation (authority_id, generation_id, activation_sequence, activated_at) '
+            . 'VALUES (?, ?, 1, ?)',
+            [$context->authorityId, $generationId, '2026-08-12T00:00:00Z'],
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -181,14 +245,19 @@ final class ConfigFactoryProbeProvider extends ServiceProvider
     public static bool $probed = false;
     public static ?ConfigFactoryInterface $resolvedFactory = null;
     public static ?ConfigManagerInterface $resolvedManager = null;
+    public static ?ConfigurationAuthorityContext $resolvedContext = null;
+    /** @var array<class-string, string> */
+    public static array $resolutionErrors = [];
 
     public function register(): void {}
 
     public function boot(): void
     {
         self::$probed = true;
-        self::$resolvedFactory = $this->resolveOptional(ConfigFactoryInterface::class);
-        self::$resolvedManager = $this->resolveOptional(ConfigManagerInterface::class);
+        self::$resolvedFactory = $this->capture(ConfigFactoryInterface::class);
+        self::$resolvedManager = $this->capture(ConfigManagerInterface::class);
+        $context = $this->capture(ConfigurationAuthorityContext::class);
+        self::$resolvedContext = $context instanceof ConfigurationAuthorityContext ? $context : null;
     }
 
     public static function reset(): void
@@ -196,5 +265,19 @@ final class ConfigFactoryProbeProvider extends ServiceProvider
         self::$probed = false;
         self::$resolvedFactory = null;
         self::$resolvedManager = null;
+        self::$resolvedContext = null;
+        self::$resolutionErrors = [];
+    }
+
+    /** @param class-string $abstract */
+    private function capture(string $abstract): ?object
+    {
+        try {
+            return $this->resolve($abstract);
+        } catch (\Throwable $exception) {
+            self::$resolutionErrors[$abstract] = $exception::class . ': ' . $exception->getMessage();
+
+            return null;
+        }
     }
 }

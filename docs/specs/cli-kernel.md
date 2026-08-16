@@ -71,6 +71,28 @@ unknown environment names fail closed before filesystem, lock, migration, or
 connection work. Relative paths resolve against the injected project root, not
 the caller's current working directory.
 
+## Configuration authority commands and diagnostics
+
+The reserved `config:*` namespace is owned by the framework CLI. Provider
+discovery rejects both third-party collisions and duplicate framework handlers
+for those verbs. The canonical command set is `config:export`, `config:import`,
+`config:diff`, `config:status`, `config:validate`, and `config:reset`.
+
+Every command resolves the same `configuration.authority.v1` capability and
+`ConfigurationAuthorityContext` as the HTTP kernel. Export, diff, status,
+validate, reset, cache compilation, and import therefore cannot select an
+independent directory or active store. Import is additionally guarded by the
+deployment preflight boundary and compares the sync artifact against the exact
+active references before any mutation. The `--no-dependency-check` option does
+not bypass authority or deployment preflight.
+
+`about`, `health:check`, and `health:report` expose the resolved authority ID,
+active generation, sync path, and selector provenance. They do not print secret
+values. An unavailable or divergent authority is a boot/composition failure,
+not a diagnostic warning.
+
+## Site initialization
+
 `SiteServiceProvider` registers `site:init [--answers=PATH] [--project-root=PATH]
 [--dry-run] [--yes]`. It follows ordinary full console boot and composes the
 Layer-0 site-contract package. Interactive mode asks product questions in

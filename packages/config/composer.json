@@ -5,6 +5,7 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.293",
         "waaseyaa/foundation": "^0.1.0-alpha.293",
         "symfony/event-dispatcher": "^7.0",
         "symfony/yaml": "^7.0"
@@ -27,7 +28,7 @@
     "extra": {
         "waaseyaa": {
             "providers": [
-                "Waaseyaa\\Config\\ConfigServiceProvider"
+                "Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider"
             ]
         },
         "branch-alias": {
@@ -39,6 +40,10 @@
         "sort-packages": true
     },
     "repositories": [
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
         {
             "type": "path",
             "url": "../foundation"

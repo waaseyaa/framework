@@ -70,6 +70,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **one typed configuration authority (`S1-FW-CFG-01`):** Resolve bootstrap
+  selectors once, bind every active reader and all six management commands to
+  one database generation and sync-artifact path, fail closed on missing
+  activation or successor gates, reject incompatible provider capabilities,
+  and mechanically inventory every shipped configuration boundary.
+
 - **single S1 schema authority (`S1-FW-DB-02`):** Define one
   database-native, whole-plan-atomic schema coordinator; globally unique
   migration identity; zero-DDL read/runtime paths; forward-only rollback;

@@ -62,7 +62,7 @@ final class BuiltinBackendsAreRegisteredTest extends TestCase
 
             return [
                 'database' => '{$databasePath}',
-                'environment' => 'local',
+                'environment' => 'testing',
                 'app' => ['url' => 'http://localhost', 'name' => 'Backend registry regression'],
             ];
             PHP);

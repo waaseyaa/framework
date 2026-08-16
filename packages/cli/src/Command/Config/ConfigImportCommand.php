@@ -7,6 +7,8 @@ namespace Waaseyaa\CLI\Command\Config;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigImporter;
+use Waaseyaa\Config\Sync\ConfigImportPreflightException;
+use Waaseyaa\Config\Sync\ConfigSyncFileSourceInterface;
 
 /**
  * `bin/waaseyaa config:import [--dry-run] [--delete-orphans] [--halt-on-error] [--no-dependency-check]`
@@ -35,6 +37,7 @@ final class ConfigImportCommand
 {
     public function __construct(
         private readonly ConfigImporter $importer,
+        private readonly ?ConfigSyncFileSourceInterface $activeSource = null,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -44,12 +47,23 @@ final class ConfigImportCommand
         $haltOnError = (bool) $io->option('halt-on-error');
         $noDependencyCheck = (bool) $io->option('no-dependency-check');
 
-        $result = $this->importer->import(
-            dryRun: $dryRun,
-            deleteOrphans: $deleteOrphans,
-            haltOnError: $haltOnError,
-            noDependencyCheck: $noDependencyCheck,
-        );
+        try {
+            $activeRefs = [];
+            foreach ($this->activeSource?->iterate() ?? [] as $file) {
+                $activeRefs[] = $file->ref();
+            }
+            $result = $this->importer->import(
+                dryRun: $dryRun,
+                deleteOrphans: $deleteOrphans,
+                haltOnError: $haltOnError,
+                noDependencyCheck: $noDependencyCheck,
+                activeRefs: $activeRefs,
+            );
+        } catch (ConfigImportPreflightException $exception) {
+            $io->error('config:import preflight refused: ' . $exception->getMessage());
+
+            return 1;
+        }
 
         foreach ($result->entries as $entry) {
             $line = $this->renderLine($entry, $dryRun);

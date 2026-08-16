@@ -184,4 +184,11 @@ abstract class ConfigCommand
 
         throw ConfigCommandCollisionException::forVerb($verb, $offendingFqcn);
     }
+
+    public static function assertNoDuplicate(string $verb, ?string $existingFqcn, string $offendingFqcn): void
+    {
+        if ($existingFqcn !== null && self::isReservedVerb($verb)) {
+            throw ConfigCommandCollisionException::duplicateVerb($verb, $offendingFqcn, $existingFqcn);
+        }
+    }
 }

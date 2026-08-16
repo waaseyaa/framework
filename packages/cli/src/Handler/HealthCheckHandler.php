@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
 
@@ -15,11 +16,25 @@ final class HealthCheckHandler
 {
     public function __construct(
         private readonly HealthCheckerInterface $checker,
+        private readonly ConfigurationAuthorityContext $configurationAuthority,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
     {
-        $results = $this->checker->runAll();
+        $results = [
+            ...$this->checker->runAll(),
+            new HealthCheckResult(
+                name: 'Configuration authority',
+                status: 'pass',
+                message: 'One configuration authority is resolved.',
+                context: [
+                    'authority_id' => $this->configurationAuthority->authorityId,
+                    'active_generation_id' => $this->configurationAuthority->activeGenerationId,
+                    'sync_path' => $this->configurationAuthority->syncPath,
+                    'selector_provenance' => $this->configurationAuthority->selectorProvenance,
+                ],
+            ),
+        ];
 
         if ($io->option('json')) {
             $io->writeln(json_encode(

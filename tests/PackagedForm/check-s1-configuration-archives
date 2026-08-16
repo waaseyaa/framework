@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-s1-config-archives.XXXXXX")"
+source_root="$work/source"
+staging="$work/staging"
+artifacts="$work/artifacts"
+archive_packages="$work/archive-packages"
+consumer="$work/consumer"
+version="0.1.0-alpha.999"
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+candidate="$($root/bin/git -C "$root" rev-parse HEAD)"
+consumed_paths=(
+    packages
+    skeleton/config/waaseyaa.php
+    tests/CoreOnlyBoot/boot.php
+    tests/CoreOnlyBoot/prepare-runtime-schema.php
+    tests/PackagedForm/check-s1-configuration-archives
+)
+if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- "${consumed_paths[@]}")" ]]; then
+    echo 'S1 configuration archive evidence refuses dirty package or probe bytes.' >&2
+    exit 1
+fi
+
+mkdir -p "$source_root" "$staging" "$artifacts" "$archive_packages" "$consumer"
+$root/bin/git -C "$root" archive --format=tar HEAD \
+    packages skeleton/config/waaseyaa.php tests/CoreOnlyBoot \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+artifact_rows="$work/artifacts.tsv"
+while IFS= read -r manifest; do
+    package_dir="$(dirname "$manifest")"
+    package_name="$(basename "$package_dir")"
+    package_tree="$($root/bin/git -C "$root" rev-parse "HEAD:packages/$package_name")"
+    staged="$staging/$package_name"
+    mkdir -p "$staged"
+    cp -R "$package_dir"/. "$staged"/
+
+    php -r '
+        [$path, $version, $commit, $tree] = array_slice($argv, 1);
+        $manifest = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $manifest["version"] = $version;
+        $manifest["extra"]["waaseyaa"]["artifact-source"] = [
+            "commit" => $commit,
+            "package_tree" => $tree,
+        ];
+        unset($manifest["require-dev"], $manifest["autoload-dev"], $manifest["repositories"]);
+        file_put_contents($path, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    ' "$staged/composer.json" "$version" "$candidate" "$package_tree"
+
+    archive="$artifacts/waaseyaa-$package_name-$version.tar.gz"
+    reproduced="$work/reproduced-$package_name.tar.gz"
+    for target in "$archive" "$reproduced"; do
+        tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner --mode=u=rwX,go=rX \
+            -czf "$target" -C "$staged" .
+    done
+    archive_sha="$(sha256sum "$archive" | cut -d ' ' -f 1)"
+    if [[ "$archive_sha" != "$(sha256sum "$reproduced" | cut -d ' ' -f 1)" ]]; then
+        echo "Configuration package archive is not reproducible: waaseyaa/$package_name" >&2
+        exit 1
+    fi
+    mkdir -p "$archive_packages/$package_name"
+    tar -xzf "$archive" -C "$archive_packages/$package_name"
+    printf 'waaseyaa/%s\t%s\t%s\n' "$package_name" "$package_tree" "$archive_sha" >> "$artifact_rows"
+done < <(find "$source_root/packages" -mindepth 2 -maxdepth 2 -name composer.json -type f | LC_ALL=C sort)
+
+composer_log="$work/composer.out"
+run_composer() {
+    if ! "$composer_bin" "$@" >>"$composer_log" 2>&1; then
+        tail -100 "$composer_log" >&2
+        exit 1
+    fi
+}
+run_composer init --working-dir="$consumer" \
+    --name=waaseyaa/s1-configuration-archive-consumer \
+    --require="waaseyaa/core:$version" \
+    --require="waaseyaa/cli:$version" --no-interaction
+run_composer config --working-dir="$consumer" repositories.waaseyaa path "$archive_packages/*"
+run_composer config --working-dir="$consumer" repositories.waaseyaa.options.symlink false
+run_composer config --working-dir="$consumer" minimum-stability dev
+run_composer config --working-dir="$consumer" prefer-stable true
+run_composer install --working-dir="$consumer" --no-dev --no-interaction --no-progress --prefer-dist
+
+if [[ -d "$consumer/vendor/waaseyaa/ai-agent" ]]; then
+    echo 'Archive-only core consumer unexpectedly installed waaseyaa/ai-agent.' >&2
+    exit 1
+fi
+
+php -r '
+    [$installedPath, $expectedCommit] = array_slice($argv, 1);
+    $installed = json_decode((string) file_get_contents($installedPath), true, flags: JSON_THROW_ON_ERROR);
+    foreach ($installed["packages"] ?? $installed as $package) {
+        $name = $package["name"] ?? "";
+        if (!str_starts_with($name, "waaseyaa/")) {
+            continue;
+        }
+        $source = $package["extra"]["waaseyaa"]["artifact-source"] ?? null;
+        if (!is_array($source) || ($source["commit"] ?? null) !== $expectedCommit
+            || preg_match("/^[a-f0-9]{40}$/D", (string) ($source["package_tree"] ?? "")) !== 1) {
+            throw new RuntimeException("Installed package lacks exact-candidate artifact provenance: {$name}");
+        }
+    }
+' "$consumer/vendor/composer/installed.json" "$candidate"
+
+mkdir -p "$consumer/config" "$consumer/storage/files" "$consumer/storage/framework"
+cp "$source_root/skeleton/config/waaseyaa.php" "$consumer/config/waaseyaa.php"
+printf 'APP_ENV=testing\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/core-only.sqlite\n' "$consumer" > "$consumer/.env"
+cp "$source_root/tests/CoreOnlyBoot/boot.php" "$consumer/boot.php"
+cp "$source_root/tests/CoreOnlyBoot/prepare-runtime-schema.php" "$consumer/prepare-runtime-schema.php"
+php "$consumer/prepare-runtime-schema.php"
+php "$consumer/boot.php" | grep -Fq 'core-only kernel boot OK'
+if ! (cd "$consumer" && php vendor/waaseyaa/cli/bin/waaseyaa list --raw) >"$work/commands.out" 2>&1; then
+    cat "$work/commands.out" >&2
+    exit 1
+fi
+for command in config:export config:import config:diff config:status config:validate config:reset; do
+    if [[ "$(grep -c "^${command}[[:space:]]" "$work/commands.out")" -ne 1 ]]; then
+        echo "Exact-head archive consumer did not resolve exactly one $command adapter." >&2
+        cat "$work/commands.out" >&2
+        exit 1
+    fi
+done
+
+artifact_manifest="$work/artifact-manifest.json"
+php -r '
+    [$rowsPath, $candidate, $output] = array_slice($argv, 1);
+    $packages = [];
+    foreach (file($rowsPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $row) {
+        [$name, $tree, $archive] = explode("\t", $row);
+        $packages[] = compact("name", "tree", "archive");
+    }
+    usort($packages, static fn(array $a, array $b): int => $a["name"] <=> $b["name"]);
+    file_put_contents($output, json_encode([
+        "schema_version" => 1,
+        "candidate" => $candidate,
+        "packages" => $packages,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$artifact_rows" "$candidate" "$artifact_manifest"
+
+printf 'S1 configuration exact-head archive proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"
+printf 'Archive manifest SHA-256: %s\n' "$(sha256sum "$artifact_manifest" | cut -d ' ' -f 1)"

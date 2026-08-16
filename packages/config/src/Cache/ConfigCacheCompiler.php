@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Cache;
 
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\StorageInterface;
 
 /**
@@ -14,6 +15,7 @@ final class ConfigCacheCompiler
     public function __construct(
         private readonly StorageInterface $storage,
         private readonly string $cachePath,
+        private readonly ?ConfigurationAuthorityContext $authorityContext = null,
     ) {}
 
     /**
@@ -49,7 +51,18 @@ final class ConfigCacheCompiler
             throw new \RuntimeException(sprintf('Failed to create cache directory: %s', $dir));
         }
 
-        $content = '<?php return ' . var_export($data, true) . ';' . "\n";
+        $payload = $data;
+        if ($this->authorityContext !== null) {
+            $payload = [
+                '_waaseyaa_config_cache_v1' => [
+                    'authority_id' => $this->authorityContext->authorityId,
+                    'generation_id' => $this->authorityContext->requireActiveGenerationId(),
+                    'activation_sequence' => $this->authorityContext->activationSequence,
+                ],
+                'config' => $data,
+            ];
+        }
+        $content = '<?php return ' . var_export($payload, true) . ';' . "\n";
         $tmpPath = $this->cachePath . '.tmp.' . getmypid();
 
         if (file_put_contents($tmpPath, $content) === false) {

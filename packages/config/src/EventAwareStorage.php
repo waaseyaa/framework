@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config;
 
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Config\Event\ConfigEvent;
 use Waaseyaa\Config\Event\ConfigEvents;
 

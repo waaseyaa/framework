@@ -20,6 +20,7 @@ use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
@@ -42,6 +43,7 @@ final class FieldAccessWiringTest extends TestCase
 
     protected function setUp(): void
     {
+        EntityReadRuntime::installFieldRegistry(null);
         $this->storage = new InMemoryEntityStorage('article');
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
@@ -95,6 +97,11 @@ final class FieldAccessWiringTest extends TestCase
         };
 
         $this->accessHandler = new EntityAccessHandler([$policy]);
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installFieldRegistry(null);
     }
 
     #[Test]

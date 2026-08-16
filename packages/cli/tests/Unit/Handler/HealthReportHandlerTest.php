@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Handler\HealthReportHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
 
@@ -63,6 +64,7 @@ final class HealthReportHandlerTest extends TestCase
         $this->assertArrayHasKey('generated_at', $decoded);
         $this->assertArrayHasKey('system', $decoded);
         $this->assertArrayHasKey('health_checks', $decoded);
+        $this->assertSame('/srv/waaseyaa/config-sync', $decoded['system']['Config Sync Path']);
     }
 
     #[Test]
@@ -105,7 +107,7 @@ final class HealthReportHandlerTest extends TestCase
 
     private function createTester(HealthCheckerInterface $checker): CliTester
     {
-        $handler = new HealthReportHandler($checker, $this->projectRoot);
+        $handler = new HealthReportHandler($checker, $this->projectRoot, $this->authorityContext());
         $definition = new HandlerCommand(
             name: 'health:report',
             description: 'Generate a full diagnostic report for operator review',
@@ -122,6 +124,18 @@ final class HealthReportHandlerTest extends TestCase
         };
 
         return CliTester::for($definition, $container);
+    }
+
+    private function authorityContext(): ConfigurationAuthorityContext
+    {
+        return new ConfigurationAuthorityContext(
+            authorityId: str_repeat('a', 64),
+            databaseIdentity: 'database:v1:test',
+            syncPath: '/srv/waaseyaa/config-sync',
+            selectorProvenance: ['config.sync_path'],
+            activeGenerationId: str_repeat('b', 64),
+            activationSequence: 1,
+        );
     }
 
     private function removeDir(string $dir): void

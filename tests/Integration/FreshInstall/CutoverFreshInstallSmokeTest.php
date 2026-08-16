@@ -231,7 +231,7 @@ final class CutoverFreshInstallSmokeTest extends TestCase
 
             return [
                 'database' => '{$databasePath}',
-                'environment' => 'local',
+                'environment' => 'testing',
                 'app' => ['url' => 'http://localhost', 'name' => 'Fresh-install cutover smoke'],
                 'auth' => ['dev_fallback_account' => true],
                 'ssr' => ['theme' => '', 'cache_max_age' => 0],
@@ -262,7 +262,7 @@ final class CutoverFreshInstallSmokeTest extends TestCase
             "127.0.0.1:{$this->serverPort}",
             __DIR__ . '/Fixtures/authoring_http_router.php',
         ], $this->projectRoot, [
-            'APP_ENV' => 'local',
+            'APP_ENV' => 'testing',
             'WAASEYAA_TEST_PROJECT_ROOT' => $this->projectRoot,
         ]);
         $this->server->setTimeout(null);

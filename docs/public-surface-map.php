@@ -63,6 +63,8 @@ return [
     'Waaseyaa\Foundation\Kernel\Bootstrap\PolicyDependencyResolverInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface' => 'public',
@@ -119,6 +121,7 @@ return [
     'Waaseyaa\Cache\ContextNames' => 'public',
     'Waaseyaa\Cache\Exception\InvalidCacheTagException' => 'public',
     'Waaseyaa\Database\DatabaseInterface' => 'public',
+    'Waaseyaa\Database\DatabaseIdentityProviderInterface' => 'public',
     'Waaseyaa\Database\ConsistentReadDatabaseInterface' => 'public',
     // SelectInterface gained two raw-expression seams in WP6 (#1816):
     // whereRaw(string, array) and orderByRaw(string, string). condition() /
@@ -404,6 +407,8 @@ return [
     'Waaseyaa\Config\ConfigFactoryInterface' => 'public',
     'Waaseyaa\Config\ConfigManagerInterface' => 'public',
     'Waaseyaa\Config\StorageInterface' => 'public',
+    'Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface' => 'public',
+    'Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface' => 'public',
     'Waaseyaa\Config\TranslatableConfigFactoryInterface' => 'public',
     'Waaseyaa\Config\Event\ConfigEvents' => 'public',
     // M-003 (config-management-v1) — CMI sync substrate. Charter §5.5; spec docs/specs/config-management.md.
@@ -421,6 +426,7 @@ return [
     'Waaseyaa\Config\Sync\ConfigExporter' => 'public',
     'Waaseyaa\Config\Sync\ConfigImporter' => 'public',
     'Waaseyaa\Config\Sync\ConfigImportApplyHookInterface' => 'public',
+    'Waaseyaa\Config\Sync\ConfigImportPreflightInterface' => 'public',
     'Waaseyaa\Config\Sync\ConfigDiffer' => 'public',
     'Waaseyaa\Config\Sync\ConfigStatusReporter' => 'public',
     'Waaseyaa\Config\Sync\ConfigResetter' => 'public',

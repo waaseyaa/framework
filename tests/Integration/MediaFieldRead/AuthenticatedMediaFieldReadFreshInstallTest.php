@@ -200,7 +200,7 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
 
         return "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n"
             . "    'database' => {$database},\n"
-            . "    'environment' => 'local',\n"
+            . "    'environment' => 'testing',\n"
             . "    'debug' => true,\n"
             . "    'files_root' => {$files},\n"
             . "    'app' => ['url' => 'http://localhost', 'name' => 'Media regression'],\n"

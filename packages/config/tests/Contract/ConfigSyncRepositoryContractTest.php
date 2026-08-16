@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Tests\Contract;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -20,10 +20,10 @@ use Waaseyaa\Config\Sync\ConfigSyncRepository;
  *  - Warn-and-skip behaviour on files outside the naming convention.
  *  - `list()`, `get()`, `put()`, `delete()`, `has()`, `syncPath()` surface.
  *
- * Marked `@CoversNothing` because contract tests document API shape; the
- * concrete unit tests cover the implementation.
+ * These executable contract tests are also the concrete implementation's
+ * filesystem and crash-safety coverage.
  */
-#[CoversNothing]
+#[CoversClass(ConfigSyncRepository::class)]
 final class ConfigSyncRepositoryContractTest extends TestCase
 {
     private string $tempDir;
@@ -57,8 +57,9 @@ final class ConfigSyncRepositoryContractTest extends TestCase
         $target = $this->tempDir . '/role.coordinator.yml';
         self::assertFileExists($target);
 
-        // No temp file left behind.
+        // No legacy or uniquely-named temp file is left behind.
         self::assertFileDoesNotExist($target . '.tmp');
+        self::assertSame([], glob($target . '.tmp-*') ?: []);
 
         $contents = file_get_contents($target);
         self::assertIsString($contents);
@@ -185,6 +186,25 @@ final class ConfigSyncRepositoryContractTest extends TestCase
 
         self::assertDirectoryExists($nested);
         self::assertFileExists($nested . '/role.coordinator.yml');
+    }
+
+    #[Test]
+    public function putRefusesToReplaceASymbolicLink(): void
+    {
+        $outside = $this->tempDir . '/outside.yml';
+        file_put_contents($outside, "outside\n");
+        self::assertTrue(symlink($outside, $this->tempDir . '/role.coordinator.yml'));
+
+        $repo = new ConfigSyncRepository($this->tempDir);
+        try {
+            $repo->put($this->makeFile());
+            self::fail('A symbolic-link sync member was replaced.');
+        } catch (\Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException $exception) {
+            self::assertStringContainsString('regular non-link file', $exception->getMessage());
+        }
+
+        self::assertSame("outside\n", file_get_contents($outside));
+        self::assertSame([], glob($this->tempDir . '/role.coordinator.yml.tmp-*') ?: []);
     }
 
     #[Test]

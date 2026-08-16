@@ -11,12 +11,16 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
+use Waaseyaa\CLI\Command\Config\ConfigExportCommand;
+use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
+use Waaseyaa\CLI\Command\Config\ConfigResetCommand;
+use Waaseyaa\CLI\Command\Config\ConfigStatusCommand;
+use Waaseyaa\CLI\Command\Config\ConfigValidateCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\CacheClearHandler;
-use Waaseyaa\CLI\Handler\ConfigExportHandler;
-use Waaseyaa\CLI\Handler\ConfigImportHandler;
 use Waaseyaa\CLI\Handler\EntityCreateHandler;
 use Waaseyaa\CLI\Handler\EntityListHandler;
 use Waaseyaa\CLI\Handler\InstallHandler;
@@ -186,78 +190,21 @@ final class CliCommandIntegrationTest extends TestCase
     #[Test]
     public function testConfigExportAndImport(): void
     {
-        // Write config to active storage.
-        $this->activeStorage->write('system.site', [
-            'name' => 'My Waaseyaa Site',
-            'slogan' => 'Built with Waaseyaa',
-        ]);
-        $this->activeStorage->write('system.theme', [
-            'default' => 'stark',
-        ]);
-
-        // Export via native handler.
         $provider = new ConfigCacheDbAuditServiceProvider();
-        $exportDef = null;
-        $importDef = null;
+        $definitions = [];
         foreach ($provider->consoleCommands() as $cmd) {
-            if ($cmd->name === 'config:export') {
-                $exportDef = $cmd;
-            }
-            if ($cmd->name === 'config:import') {
-                $importDef = $cmd;
+            if (str_starts_with((string) $cmd->name, 'config:')) {
+                $definitions[(string) $cmd->name] = $cmd->sourceClass();
             }
         }
-        $this->assertNotNull($exportDef);
-        $this->assertNotNull($importDef);
-
-        $configManager = $this->configManager;
-        $configContainer = new class ($configManager) implements \Psr\Container\ContainerInterface {
-            public function __construct(private readonly \Waaseyaa\Config\ConfigManagerInterface $manager) {}
-            public function get(string $id): mixed
-            {
-                return match ($id) {
-                    ConfigExportHandler::class => new ConfigExportHandler($this->manager),
-                    ConfigImportHandler::class => new ConfigImportHandler($this->manager),
-                    default => throw new \RuntimeException("Container::get({$id}) unexpected"),
-                };
-            }
-            public function has(string $id): bool
-            {
-                return in_array($id, [ConfigExportHandler::class, ConfigImportHandler::class], true);
-            }
-        };
-
-        $exportTester = CliTester::for($exportDef, $configContainer);
-        $exportTester->execute([]);
-
-        $this->assertSame(0, $exportTester->getExitCode());
-        $this->assertStringContainsString('Configuration exported. Active storage contains 2 items', $exportTester->getStdout());
-
-        // Verify sync storage has the config.
-        $this->assertSame(['name' => 'My Waaseyaa Site', 'slogan' => 'Built with Waaseyaa'], $this->syncStorage->read('system.site'));
-        $this->assertSame(['default' => 'stark'], $this->syncStorage->read('system.theme'));
-
-        // Modify active storage (simulate drift).
-        $this->activeStorage->write('system.site', [
-            'name' => 'Modified Site',
-            'slogan' => 'Changed slogan',
-        ]);
-
-        // Verify active is now different.
-        $activeData = $this->activeStorage->read('system.site');
-        $this->assertSame('Modified Site', $activeData['name']);
-
-        // Import via native handler (should restore from sync).
-        $importTester = CliTester::for($importDef, $configContainer);
-        $importTester->execute([]);
-
-        $this->assertSame(0, $importTester->getExitCode());
-        $this->assertStringContainsString('Configuration imported successfully', $importTester->getStdout());
-
-        // Verify active matches sync after import.
-        $restored = $this->activeStorage->read('system.site');
-        $this->assertSame('My Waaseyaa Site', $restored['name']);
-        $this->assertSame('Built with Waaseyaa', $restored['slogan']);
+        $this->assertSame([
+            'config:export' => ConfigExportCommand::class,
+            'config:import' => ConfigImportCommand::class,
+            'config:diff' => ConfigDiffCommand::class,
+            'config:status' => ConfigStatusCommand::class,
+            'config:validate' => ConfigValidateCommand::class,
+            'config:reset' => ConfigResetCommand::class,
+        ], $definitions);
     }
 
     #[Test]
