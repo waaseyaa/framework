@@ -1,6 +1,9 @@
 # Entity Storage Invariant
 
-This rule is always active. Follow it silently. This is the canonical persistence pipeline for all Waaseyaa applications.
+Supplemental Claude guidance. The authorization and precedence rules in
+`docs/governance/agent-contract.md` remain authoritative. The enduring storage
+contract lives in `docs/specs/entity-system.md`; this file is a session-hot
+summary, not an independent authority.
 
 ---
 

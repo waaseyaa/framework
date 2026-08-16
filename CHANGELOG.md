@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Cross-agent governance:** Add one shared operating contract for Codex,
+  Claude Code, and delegated agents; make harness files explicit adapters;
+  remove stale package counts and GitHub check counts; synchronize the
+  consumer Claude rules from one Foundation-owned source; and gate future
+  instruction drift in repository verification.
+
 - **Solo-maintainer governance (`S0-FW-04`):** Record the real Framework owner
   in CODEOWNERS, enumerate critical orchestration paths, and replace the
   impossible two-human approval assumption with an explicit solo-maintainer

@@ -1,82 +1,57 @@
 # Waaseyaa Framework Invariants
 
-This rule is always active. Follow it silently. Do not cite this file in conversation.
-
----
+This consumer rule is distributed by `waaseyaa/foundation`. It summarizes
+stable framework invariants for installed applications. The installed package
+manifests and application contracts remain the source of truth; identify this
+rule when the maintainer asks which guidance applies.
 
 ## Identity
 
-Waaseyaa is a **Symfony 7-based, entity-first PHP framework**. PHP 8.4+, full dependency injection, no global state.
+Waaseyaa is a Symfony 7-based, entity-first PHP 8.5+ framework with dependency
+injection and no application-global service locator.
 
-- It is **NOT Laravel**. It does not use Illuminate components.
-- It is **NOT Drupal**. It replaces Drupal's legacy runtime with a clean, modular architecture.
-- If the codebase looks Laravel-ish (Actions/, Models/, artisan), do NOT default to Laravel conventions.
+- It is not Laravel and does not use Illuminate components or conventions.
+- It is not Drupal and does not use Drupal's legacy runtime.
+- Application code must follow Waaseyaa's installed abstractions rather than
+  inferring conventions from another framework.
 
----
-
-## Forbidden Dependencies
-
-| Forbidden | Why |
-|-----------|-----|
-| `Illuminate\Support\Facades\*` | No Laravel facades |
-| `Illuminate\Database\*` / Eloquent | No Laravel ORM |
-| `DB::transaction()`, `DB::table()` | No Laravel DB layer |
-| `Model::create()`, `Model::query()` | No Eloquent patterns |
-| `env()`, `config()` (Laravel helpers) | Use Waaseyaa config system |
-| `$entity->save()`, `$entity->delete()` | No ActiveRecord — entities are pure data objects |
-| `new \PDO(...)` | Use `DBALDatabase` + `DriverManager::getConnection()` |
-| `$pdo->prepare(...)` | Use `EntityRepository::findBy()` or `DatabaseInterface::select()` |
-
----
-
-## Required Abstractions
+## Stable boundaries
 
 | Need | Use |
-|------|-----|
-| Transactions, raw queries | `DatabaseInterface` |
-| Entity persistence (sole engine) | `EntityRepository` (events, revisions, validation, language fallback, `getQuery()`) — `SqlEntityStorage` was deleted in C-22 |
-| Entity data access | `EntityRepositoryInterface` |
+|---|---|
+| Transactions and non-entity tables | `DatabaseInterface` |
+| Entity persistence | `EntityRepository` / `EntityRepositoryInterface` |
 | Entity registration | `EntityTypeManager` |
 | Authorization | `AccessPolicyInterface` + `FieldAccessPolicyInterface` |
 | Query building | `SelectInterface` |
-| Dependency injection | Symfony DI container |
-| Config access | `getenv()` or Waaseyaa `env()` helper |
+| Dependency injection | Symfony container and Waaseyaa service providers |
+| Config access | Waaseyaa configuration services or documented environment inputs |
 
----
+Do not use Laravel facades, Eloquent, ActiveRecord-style entity methods, raw
+PDO construction, or direct SQL for entities. Supporting tables without entity
+identity or lifecycle may use `DatabaseInterface` directly.
 
-## Entity Persistence Pipeline
+## Entity persistence pipeline
 
+```text
+Entity
+  -> EntityType registered via EntityTypeManager
+  -> EntityStorageDriverInterface
+  -> EntityRepository
+  -> DatabaseInterface
 ```
-Entity (extends EntityBase or ContentEntityBase)
-  → EntityType registered via EntityTypeManager
-  → EntityStorageDriverInterface (SqlStorageDriver for SQL)
-  → EntityRepository (hydration, events, language fallback)
-  → DatabaseInterface (Doctrine DBAL, NOT raw PDO)
-```
 
-- **ContentEntityBase** — has `set()` for field mutations (most entities)
-- **EntityBase** — immutable value-like entities (rare)
-- Entities are immutable except through storage operations
-- Non-entity tables (join tables, counters, audit logs) may use `DatabaseInterface` directly
+Use `ContentEntityBase` for field-mutable content entities and `EntityBase` for
+value-like entities. Persist and delete through repositories so validation,
+events, revisions, and language behavior remain intact.
 
----
+## Package boundaries
 
-## 7-Layer Architecture
+Dependencies may only cross package layers through relationships allowed by
+the installed Composer manifests and the Framework's package-layer gate. Do not
+copy a package list or layer table from memory: inspect the installed manifests
+or the matching Framework revision because the package graph evolves.
 
-Dependencies flow **downward only**. Never import from a higher layer.
+For deeper behavior, consult the application `CLAUDE.md`, `AGENTS.md`, and
+installed Framework documentation where available.
 
-| Layer | Name | Packages |
-|-------|------|----------|
-| 0 | Foundation | cache, plugin, typed-data, database-legacy |
-| 1 | Core Data | entity, field, entity-storage, access, user, config |
-| 2 | Services | routing, queue, state, validation |
-| 3 | Content Types | node, taxonomy, media, path, menu, workflows |
-| 4 | API | api, graphql, routing |
-| 5 | AI | ai-schema, ai-agent, ai-vector, ai-pipeline |
-| 6 | Interfaces | cli, ssr, admin, mcp, telescope |
-
----
-
-## Subsystem specs
-
-For deeper framework knowledge beyond these invariants, read `docs/specs/` in the Waaseyaa monorepo (e.g. `docs/specs/entity-system.md`) or search with `rg` under `docs/specs/`. There is no Waaseyaa spec MCP server.
