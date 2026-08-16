@@ -16,6 +16,7 @@ $allowlist = [
     'database-legacy' => ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
     'config' => ['local' => 'packages/config', 'remote' => 'config'],
     'cli' => ['local' => 'packages/cli', 'remote' => 'cli'],
+    'site-contract' => ['local' => 'packages/site-contract', 'remote' => 'site-contract'],
     'access' => ['local' => 'packages/access', 'remote' => 'access'],
     'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
     'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],

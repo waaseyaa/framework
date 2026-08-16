@@ -90,11 +90,12 @@ final class ResolveSplitMainTargetsTest extends TestCase
     #[Test]
     public function resolves_the_schema_coordinator_delivery_set(): void
     {
-        [$exit, $stdout] = $this->runScript('cli,foundation,database-legacy');
+        [$exit, $stdout] = $this->runScript('site-contract,cli,foundation,database-legacy');
 
         self::assertSame(0, $exit, $stdout);
         self::assertSame([
             'include' => [
+                ['local' => 'packages/site-contract', 'remote' => 'site-contract'],
                 ['local' => 'packages/cli', 'remote' => 'cli'],
                 ['local' => 'packages/foundation', 'remote' => 'foundation'],
                 ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
