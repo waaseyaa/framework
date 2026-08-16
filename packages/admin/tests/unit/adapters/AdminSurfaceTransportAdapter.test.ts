@@ -144,6 +144,34 @@ describe('AdminSurfaceTransportAdapter', () => {
     )
   })
 
+  it('keys mutation authority by the requested surface when the canonical entity type differs', async () => {
+    const responses = [
+      { type: 'taxonomy_vocabulary', id: 'topics', attributes: { name: 'Topics' }, mutation_token: 'emt1.observed' },
+      { type: 'taxonomy_vocabulary', id: 'topics', attributes: { name: 'Renamed' }, mutation_token: 'emt1.successor' },
+    ]
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: responses.shift() }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('taxonomy_vocabulary_browser', 'topics')
+    await adapter.update('taxonomy_vocabulary_browser', 'topics', { name: 'Renamed' })
+
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      2,
+      '/admin/_surface/taxonomy_vocabulary_browser/action/update',
+      expect.objectContaining({
+        body: JSON.stringify({
+          id: 'topics',
+          attributes: { name: 'Renamed' },
+          mutation_token: 'emt1.observed',
+        }),
+      }),
+    )
+  })
+
   it('refuses a blind update before making a request', async () => {
     const fetchFn = vi.fn()
     const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)

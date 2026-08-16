@@ -49,7 +49,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     const url = this.surfaceUrl('admin_surface.list', { type }, qs)
     const result = await this.request<SurfaceListResult>(url, { method: 'GET' })
     return {
-      data: result.entities.map(this.normalizeEntity),
+      data: result.entities.map((entity) => this.normalizeEntity(entity, type)),
       meta: {
         total: result.total,
         offset: result.offset,
@@ -70,7 +70,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       this.surfaceUrl('admin_surface.get', { type, id }),
       { method: 'GET' },
     )
-      .then((entity) => this.normalizeEntity(entity))
+      .then((entity) => this.normalizeEntity(entity, type))
       .finally(() => this.inflightGets.delete(key))
 
     this.inflightGets.set(key, promise)
@@ -86,7 +86,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
         body: JSON.stringify({ attributes }),
       },
     )
-    return this.normalizeEntity(entity)
+    return this.normalizeEntity(entity, type)
   }
 
   async update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource> {
@@ -100,7 +100,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
         body: JSON.stringify({ id, attributes, mutation_token: mutationToken }),
       },
     )
-    return this.normalizeEntity(entity)
+    return this.normalizeEntity(entity, type)
   }
 
   async remove(type: string, id: string): Promise<void> {
@@ -194,8 +194,8 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     return json.data as T
   }
 
-  private normalizeEntity(entity: SurfaceEntity): EntityResource {
-    if (entity.mutation_token) this.mutationTokens.set(`${entity.type}:${entity.id}`, entity.mutation_token)
+  private normalizeEntity(entity: SurfaceEntity, surfaceType: string = entity.type): EntityResource {
+    if (entity.mutation_token) this.mutationTokens.set(`${surfaceType}:${entity.id}`, entity.mutation_token)
     return {
       type: entity.type,
       id: entity.id,

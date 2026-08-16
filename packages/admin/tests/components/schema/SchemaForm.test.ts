@@ -690,10 +690,10 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
       handler: () => ({
         ok: true,
         data: {
-          type: 'taxonomy_vocabulary_browser_edit',
+          type: 'taxonomy_vocabulary',
           id: 'renamed',
           attributes: { bundle: '', langcode: 'en', name: '' },
-          mutation_token: 'vocabulary-token-1',
+          mutation_token: 'emt1.vocabulary',
         },
       }),
     })
@@ -723,7 +723,7 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
     expect(submitted).toEqual({
       id: 'renamed',
       attributes: { name: 'Audit vocabulary' },
-      mutation_token: 'vocabulary-token-1',
+      mutation_token: 'emt1.vocabulary',
     })
   })
 
@@ -755,7 +755,7 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
     const updated = { type: 'user', id: '3', attributes: { name: 'bob-updated' } }
     registerEndpoint('/admin/_surface/user_edit_patch/3', () => ({
       ok: true,
-      data: { type: 'user_edit_patch', id: '3', attributes: { name: 'bob' }, mutation_token: 'user-token-1' },
+      data: { type: 'user', id: '3', attributes: { name: 'bob' }, mutation_token: 'emt1.user' },
     }))
     registerEndpoint('/admin/_surface/user_edit_patch/action/update', {
       method: 'POST',

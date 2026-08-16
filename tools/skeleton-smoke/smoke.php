@@ -19,6 +19,8 @@ declare(strict_types=1);
 
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
+use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\User\User;
 
@@ -42,6 +44,18 @@ if (is_file($projectRoot . '/.env')) {
 }
 
 echo "skeleton-smoke: booting HttpKernel against {$projectRoot}\n";
+
+// A fresh consumer must cross the explicit schema-transition boundary before
+// ordinary runtime boot. Runtime paths deliberately refuse to install schema.
+$schemaKernel = new ConsoleKernel($projectRoot);
+$schemaKernel->bootForSchemaSync();
+$loader = $schemaKernel->getMigrationLoader();
+$schemaKernel->getMigrator()->run($loader->loadAll(), $loader->loadAllV2());
+$manager = $schemaKernel->getEntityTypeManager();
+new EntitySchemaSyncRunner(
+    $schemaKernel->getDatabase(),
+    $manager->getFieldRegistry(),
+)->run($manager->getDefinitions());
 
 // HttpKernel is final and AbstractKernel::boot() is protected; HttpKernel
 // boots through handle() in production. The smoke does not want to fake an
