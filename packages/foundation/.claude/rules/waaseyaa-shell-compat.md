@@ -1,5 +1,7 @@
 # Shell Compatibility
 
+This consumer rule is distributed by `waaseyaa/foundation`.
+
 When writing bash commands via the Bash tool, follow these rules to avoid platform-specific failures.
 
 ---

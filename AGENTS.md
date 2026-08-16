@@ -1,18 +1,14 @@
-# Waaseyaa Agent Rules
+# Waaseyaa Agent Adapter
 
-- `CLAUDE.md` is authoritative. Read it, the relevant `docs/specs/` contracts, and `docs/specs/workflow.md`; do not run retired Spec Kitty commands.
-- Substantive work is design-first and anchored to a stable change record. One
-  review candidate is used per work package. A forge issue/PR may mirror those
-  identities, but it is never the authority and `#N` is not a portable ID.
-- Use TDD: add the regression test first and run it to prove red before implementing.
-- Every PR adds an appropriate `CHANGELOG.md` `[Unreleased]` entry.
-- Acknowledge reviewed spec drift up front with `spec-reviewed:` commit trailers; the blocking CI spec-drift check reads commit trailers.
-- Respect package layers. Symfony imports use the existing checker allowlist convention; any exception belongs in the explicit allowlist with a one-line rationale.
-- Run repository Git commands through `bin/git`; it mechanically refuses `git stash` for all agents and subagents. If a rebase needs a clean tree, commit on a temporary branch. Do not touch the dangling `da4d26758` stash.
-- Run the split Unit suite with `php -d memory_limit=1G ./vendor/bin/phpunit --testsuite Unit --no-coverage`; do not run the whole suite as one process. The root configuration declares a coverage report, so omitting `--no-coverage` on a machine without a coverage driver stops at a runner warning before any tests execute.
-- Run local gates under `set -o pipefail`. Verification is authoritative only
-  when its signed evidence binds the exact candidate, command, inputs, and
-  supported runner. GitHub Actions is one replaceable executor.
-- Never merge to `main` while a release split/fan-out is running.
-- Merge PRs only via the `auto-merge-when-green` label, which enables native auto-merge after all five required checks pass.
-- Keep changes paired with boundary-level tests; update specs only when architecture or enduring contracts change.
+All Codex and generic agents must read and follow
+`docs/governance/agent-contract.md`. It is the canonical cross-agent operating
+contract for authorization, isolation, evidence, Git, review, and publication.
+
+Read `CLAUDE.md` for the current architecture map, subsystem routing, commands,
+and repository-specific gotchas. Read the applicable `docs/specs/` contracts
+and `docs/specs/workflow.md` before substantive work. Do not run retired Spec
+Kitty commands.
+
+Harness permissions and available tools do not expand the user's requested
+scope. If this adapter, a nested `AGENTS.md`, or a tool skill conflicts with the
+shared contract, follow the higher-authority instruction and report the conflict.

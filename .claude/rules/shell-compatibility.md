@@ -1,5 +1,8 @@
 # Shell Compatibility
 
+Supplemental Claude guidance. The authorization and precedence rules in
+`docs/governance/agent-contract.md` remain authoritative.
+
 When writing bash commands via the Bash tool, follow these rules to avoid platform-specific failures.
 
 ---

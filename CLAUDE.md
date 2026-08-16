@@ -1,7 +1,12 @@
 # Waaseyaa
 
+`docs/governance/agent-contract.md` is the canonical cross-agent operating
+contract. Read it before substantive work. This file is the Claude Code adapter
+for architecture, subsystem routing, commands, and repository-specific gotchas;
+it cannot expand authorization or weaken the shared contract.
+
 ## Project Structure
-- Monorepo: 73 PHP packages in `packages/`, 3 consumer-facing meta-packages (`core` = engine; `cms` = `core` + content types; `full` = expanded reusable tooling without opt-in domains), 1 JS admin SPA (`packages/admin/`, no composer.json)
+- Monorepo: PHP packages live in `packages/`; the consumer-facing metapackages are `core` (engine), `cms` (`core` + content types), and `full` (expanded reusable tooling without opt-in domains). The JS admin SPA lives in `packages/admin/` and has no `composer.json`.
 - **Metapackage menu vs. `waaseyaa/framework`:** downstream consumers `composer require` one curated metapackage (`waaseyaa/core`/`cms`/`full`) — see `docs/roadmap/packagist-publishing-plan.md` and ADR-004 §8. The dev `skeleton/` requires `waaseyaa/framework`, whose default dependency graph follows the same opt-in-domain boundary even though the monorepo contains every package. The metapackage require-graphs are version-swept by `bin/sync-internal-versions`, split-mirrored by `split.yml`, and guarded by CI: `ci/core-only-boot` boots the kernel on `waaseyaa/core` alone (`tests/CoreOnlyBoot/boot.php`), `ci/packaged-form` runs a consumer that requires `waaseyaa/core` (`tests/PackagedForm/`), and `MetapackageSmokeTest` checks autoloadability of all three.
 - 7-layer architecture (Foundation → Core Data → Content Types → Services → API → AI → Interfaces)
 - Each package has its own `composer.json` with path repository references
@@ -222,7 +227,7 @@ Design docs in `docs/history/plans/` are session artifacts (implementation histo
 
 **Platform — the suite is Linux-first; run it split, not as one process:**
 - Run the **split suites** (`--testsuite Unit --no-coverage`, then `--testsuite Integration --no-coverage`), not a bare `./vendor/bin/phpunit`: the whole suite as a single process OOMs at PHP's default 128 MB `memory_limit`. Raise `memory_limit` or run the two suites separately (CI runs them as separate jobs on Linux). The explicit `--no-coverage` is required when no coverage driver is installed; otherwise the configured coverage report emits a runner warning before discovery and zero tests execute.
-- **Windows contributors:** the CLI snapshot tests pass on Windows because their fixtures (`*.stdout` / `*.stderr` / `*.exit`) are pinned to `eol=lf` in `.gitattributes` — with `core.autocrlf=true` they were otherwise checked out CRLF and ~72 `CliTester` snapshot assertions failed on the line endings alone. The *remaining* Windows failures are **POSIX-only by design** and are expected to fail off Linux: the release-tooling tests assume `bash`, `proc_open`, POSIX advisory file locks, and symlinks; the bin-script and OIDC-RSA tests assume a POSIX toolchain. `composer test` / `composer verify` are green on Linux and in CI. Treat a Windows-only failure in those areas as environmental — confirm it against a clean Linux run (or `git stash` + clean main) before assuming you introduced it.
+- **Windows contributors:** the CLI snapshot tests pass on Windows because their fixtures (`*.stdout` / `*.stderr` / `*.exit`) are pinned to `eol=lf` in `.gitattributes` — with `core.autocrlf=true` they were otherwise checked out CRLF and ~72 `CliTester` snapshot assertions failed on the line endings alone. The *remaining* Windows failures are **POSIX-only by design** and are expected to fail off Linux: the release-tooling tests assume `bash`, `proc_open`, POSIX advisory file locks, and symlinks; the bin-script and OIDC-RSA tests assume a POSIX toolchain. `composer test` / `composer verify` are green on Linux and in CI. Treat a Windows-only failure in those areas as environmental — confirm it in a separate clean Linux worktree before assuming you introduced it.
 
 **Code quality:**
 - `composer cs-check` — check code style (dry-run PHP-CS-Fixer)

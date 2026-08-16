@@ -1,6 +1,7 @@
 # Scratch Hygiene
 
-This rule is always active. Follow it silently.
+Supplemental Claude guidance. The authorization and precedence rules in
+`docs/governance/agent-contract.md` remain authoritative.
 
 ---
 

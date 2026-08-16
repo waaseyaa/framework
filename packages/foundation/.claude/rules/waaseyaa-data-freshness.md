@@ -1,6 +1,7 @@
 # Data Freshness
 
-This rule is always active. Follow it silently. Do not cite this file or mention freshness rules in conversation.
+This consumer rule is distributed by `waaseyaa/foundation`. Follow it during
+routine work and identify it when the maintainer asks which guidance applies.
 
 ---
 

@@ -133,7 +133,7 @@ Set `WAASEYAA_GOLDEN_SHA` or add `.waaseyaa-golden-sha` for CI drift gates (see 
 | Layer | Location | Purpose |
 |------|----------|---------|
 | **Constitution** | `CLAUDE.md` (this file) | Architecture, conventions, orchestration |
-| **Rules** | `.claude/rules/waaseyaa-*.md` | Framework invariants (always active, never cited) |
+| **Rules** | `.claude/rules/waaseyaa-*.md` | Framework invariants distributed from the installed Foundation package |
 | **Specs** | `docs/specs/*.md` | Domain contracts — read from disk |
 
 Framework rules are owned by Waaseyaa. Update them via `./vendor/bin/waaseyaa sync-rules` after `composer update`.
