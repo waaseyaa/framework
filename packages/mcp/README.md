@@ -55,7 +55,10 @@ account's permissions.
   makes `content.search` available, but anonymous callers see it only after the
   application explicitly enables `mcp.public.content_search_enabled`. It
   returns only results, counts, and facets visible to the exact request
-  principal.
+  principal. `is_complete: false` reports exhaustion of Search's raw bounded
+  candidate window; totals/pages/facets are then lower bounds and filters or
+  non-relevance sorts cover only that window. The flag may accompany an empty
+  visible result when every inspected candidate is denied or filtered.
 - **Public content resources:** `resources/list`, `resources/templates/list`,
   and `resources/read` are available only after the strict default-off
   `mcp.public.content_resources_enabled` flag is enabled with an installed

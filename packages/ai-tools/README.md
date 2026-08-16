@@ -18,8 +18,13 @@ When the optional `waaseyaa/search` package is installed, the catalogue adds
 metadata, and facets from Search's access-checked read surface. It passes the
 acting `AuthorizationPrincipalInterface` unchanged, so entity access, guarded
 field reads, tenant claims, and denied-result counts retain Search's fail-closed
-semantics. Pagination is also bounded to a 1,000-result window so an anonymous
-caller cannot amplify one rate-limited request into an unbounded offset scan.
+semantics. Search inspects one raw 1,000-candidate relevance window plus a
+truncation sentinel so an anonymous caller cannot amplify one rate-limited
+request into an unbounded offset scan. `is_complete: false` marks exhaustion;
+totals, pages, and facets are then lower bounds, while filters and
+non-relevance sorts cover only principal-safe matches inside that window. The
+flag can accompany zero visible hits when every inspected candidate is denied
+or filtered.
 
 Search is an explicit composition opt-in, not a hard dependency. The catalogue
 checks only autoload availability during boot and `tools/list`; it resolves the

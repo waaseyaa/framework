@@ -35,8 +35,13 @@ Count, facets, page selection, and rank order must share one ordered pointer
 basis fetched by a single bounded statement. The provider projects at most
 1,000 candidates and uses one extra pointer as a truncation sentinel; when it
 is present, every public adapter must expose `isComplete: false` and treat the
-reported totals, pages, and facets as lower bounds. Titles and snippets derive
-only from principal-safe canonical projections (see the README's
+reported totals, pages, and facets as lower bounds. Filters and non-relevance
+sorts apply only to principal-safe matches inside that raw top-1,000 relevance
+window; they do not widen or reorder the candidate scan itself. Completeness is
+the raw pointer-window signal and is determined before authorization, so an
+all-denied or fully filtered window may correctly return no visible data with
+`isComplete: false`. That flag does not identify or count denied candidates.
+Titles and snippets derive only from principal-safe canonical projections (see the README's
 "Principal-safe read surface"). Asynchronous
 indexing still requires a production queue consumer before a job is
 introduced.

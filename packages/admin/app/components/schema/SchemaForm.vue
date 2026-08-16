@@ -154,15 +154,42 @@ const fieldSections = computed<RenderedSection[]>(() => {
 
   const unassigned = fields.filter(([fieldName]) => !assigned.has(fieldName))
   if (unassigned.length > 0) {
-    sections.push({ id: 'other', label: 'Other details', fields: unassigned })
+    sections.push({ id: 'other', label: t('form_other_details'), fields: unassigned })
   }
 
   return sections.length > 0 ? sections : [{ id: 'all', label: '', fields }]
 })
 
+const sectionOpenState = ref<Record<string, boolean>>({})
+
+watch(fieldSections, (sections) => {
+  const next: Record<string, boolean> = {}
+  for (const section of sections) {
+    if (!section.collapsible) continue
+    next[section.id] = sectionOpenState.value[section.id] ?? !section.collapsed
+  }
+  sectionOpenState.value = next
+}, { immediate: true })
+
+watch(fieldErrors, () => {
+  const next = { ...sectionOpenState.value }
+  for (const section of fieldSections.value) {
+    if (section.collapsible && section.fields.some(([fieldName]) => fieldErrors.value[fieldName] !== undefined)) {
+      next[section.id] = true
+    }
+  }
+  sectionOpenState.value = next
+}, { deep: true })
+
 function sectionIsOpen(section: RenderedSection): boolean {
-  if (!section.collapsible || !section.collapsed) return true
-  return section.fields.some(([fieldName]) => fieldErrors.value[fieldName] !== undefined)
+  return !section.collapsible || sectionOpenState.value[section.id] !== false
+}
+
+function onSectionToggle(section: RenderedSection, event: Event): void {
+  if (!section.collapsible) return
+  const details = event.currentTarget
+  if (!(details instanceof HTMLDetailsElement)) return
+  sectionOpenState.value = { ...sectionOpenState.value, [section.id]: details.open }
 }
 
 const validationMessages = computed(() => [
@@ -340,7 +367,12 @@ async function onSubmit() {
         data-testid="form-section"
         :data-section-id="section.id"
       >
-        <component :is="section.collapsible ? 'details' : 'div'" class="form-section__panel" :open="section.collapsible ? sectionIsOpen(section) : undefined">
+        <component
+          :is="section.collapsible ? 'details' : 'div'"
+          class="form-section__panel"
+          :open="section.collapsible ? sectionIsOpen(section) : undefined"
+          @toggle="onSectionToggle(section, $event)"
+        >
           <summary v-if="section.collapsible" class="form-section__summary">
             <span>{{ section.label }}</span>
             <small v-if="section.description">{{ section.description }}</small>
@@ -407,7 +439,7 @@ async function onSubmit() {
 }
 .form-section__description {
   margin: 0 0 1rem;
-  color: var(--color-text-muted, #5d6670);
+  color: var(--color-muted, #5d6670);
   font-size: 0.875rem;
 }
 .form-section__summary {
@@ -419,7 +451,7 @@ async function onSubmit() {
   font-weight: 700;
 }
 .form-section__summary small {
-  color: var(--color-text-muted, #5d6670);
+  color: var(--color-muted, #5d6670);
   font-size: 0.8125rem;
   font-weight: 400;
 }

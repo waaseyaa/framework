@@ -114,10 +114,29 @@ final class MakeStorageMigrationHandler
 
         $targetPath = $targetDir . '/' . $filename;
 
+        // A timestamp is an ordering prefix, not the migration's identity.
+        // Detect an earlier invocation for the same entity/backend even when
+        // this invocation crosses a wall-clock second. Otherwise a slow run
+        // silently creates a duplicate and --force never overwrites what the
+        // operator asked to replace.
+        $existingPaths = glob(
+            $targetDir . '/????????_??????_storage_migration_' . $entityTypeId . '_to_' . $target . '.php',
+        );
+        if ($existingPaths === false) {
+            $existingPaths = [];
+        }
+        sort($existingPaths, SORT_STRING);
+        $existingPath = $existingPaths === [] ? null : $existingPaths[array_key_last($existingPaths)];
+
         // Exit code 3 — file already exists without --force.
-        if (file_exists($targetPath) && !$force) {
-            $io->error(sprintf('Migration %s exists. Use --force to overwrite.', $filename));
+        if ($existingPath !== null && !$force) {
+            $io->error(sprintf('Migration %s exists. Use --force to overwrite.', basename($existingPath)));
             return 3;
+        }
+
+        if ($existingPath !== null) {
+            $targetPath = $existingPath;
+            $filename = basename($existingPath);
         }
 
         file_put_contents($targetPath, $content);

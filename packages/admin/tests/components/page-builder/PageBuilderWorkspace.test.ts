@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import type { PageBuilderDefinitions, PageBuilderDraft, PageBuilderRevision } from '~/contracts/pageBuilder'
+import { nextTick } from 'vue'
+import type { PageBuilderCommand, PageBuilderDefinitions, PageBuilderDraft, PageBuilderRevision } from '~/contracts/pageBuilder'
 
-const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionRef, loadingRef, savingRef, errorRef, loadMock, applyMock, refreshPreviewMock, loadHistoryMock, compareRevisionMock, restoreRevisionMock } = vi.hoisted(() => {
+const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionRef, loadingRef, savingRef, errorRef, conflictRef, loadMock, applyMock, loadLatestForConflictMock, retryConflictMock, dismissConflictMock, refreshPreviewMock, loadHistoryMock, compareRevisionMock, restoreRevisionMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     definitionsRef: ref<PageBuilderDefinitions | null>(null),
@@ -14,8 +15,12 @@ const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionR
     loadingRef: ref(false),
     savingRef: ref(false),
     errorRef: ref<string | null>(null),
+    conflictRef: ref<{ detail: string, latestLoaded: boolean } | null>(null),
     loadMock: vi.fn(),
     applyMock: vi.fn(),
+    loadLatestForConflictMock: vi.fn(),
+    retryConflictMock: vi.fn(),
+    dismissConflictMock: vi.fn(),
     refreshPreviewMock: vi.fn(),
     loadHistoryMock: vi.fn(),
     compareRevisionMock: vi.fn(),
@@ -41,8 +46,12 @@ vi.mock('~/composables/usePageBuilder', () => ({
     loading: loadingRef,
     saving: savingRef,
     error: errorRef,
+    conflict: conflictRef,
     load: loadMock,
     apply: applyMock,
+    loadLatestForConflict: loadLatestForConflictMock,
+    retryConflict: retryConflictMock,
+    dismissConflict: dismissConflictMock,
     refreshPreview: refreshPreviewMock,
     loadHistory: loadHistoryMock,
     compareRevision: compareRevisionMock,
@@ -87,6 +96,85 @@ const draft: PageBuilderDraft = {
   },
 }
 
+function applyCommandToDraft(command: PageBuilderCommand): void {
+  if (!draftRef.value) return
+  const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+  const next = clone(draftRef.value)
+  const sections = next.document.sections
+  const locateBlock = (blockId: string) => {
+    for (const section of sections) {
+      for (const [regionId, regionBlocks] of Object.entries(section.regions)) {
+        const position = regionBlocks.findIndex(block => block.id === blockId)
+        if (position >= 0) return { section, regionId, regionBlocks, position, block: regionBlocks[position]! }
+      }
+    }
+    return null
+  }
+
+  switch (command.type) {
+    case 'add_block': {
+      const section = sections.find(item => item.id === command.section_id)!
+      section.regions[command.region_id]!.splice(command.position, 0, clone(command.block))
+      break
+    }
+    case 'duplicate_block': {
+      const source = locateBlock(command.source_block_id)!
+      source.regionBlocks.splice(source.position + 1, 0, { ...clone(source.block), id: command.duplicate_block_id })
+      break
+    }
+    case 'configure_block':
+      locateBlock(command.block_id)!.block.config = clone(command.config)
+      break
+    case 'move_block': {
+      const source = locateBlock(command.block_id)!
+      const [block] = source.regionBlocks.splice(source.position, 1)
+      const destination = sections.find(item => item.id === command.destination_section_id)!
+      destination.regions[command.destination_region_id]!.splice(command.position, 0, block!)
+      break
+    }
+    case 'remove_block': {
+      const source = locateBlock(command.block_id)!
+      source.regionBlocks.splice(source.position, 1)
+      break
+    }
+    case 'add_section':
+      sections.splice(command.position, 0, clone(command.section))
+      break
+    case 'duplicate_section': {
+      const source = sections.findIndex(item => item.id === command.source_section_id)
+      const duplicate = clone(sections[source]!)
+      duplicate.id = command.duplicate_section_id
+      for (const blocks of Object.values(duplicate.regions)) {
+        for (const block of blocks) block.id = command.duplicate_block_ids[block.id]!
+      }
+      sections.splice(source + 1, 0, duplicate)
+      break
+    }
+    case 'move_section': {
+      const source = sections.findIndex(item => item.id === command.section_id)
+      const [section] = sections.splice(source, 1)
+      sections.splice(command.position, 0, section!)
+      break
+    }
+    case 'remove_section': {
+      const source = sections.findIndex(item => item.id === command.section_id)
+      sections.splice(source, 1)
+      break
+    }
+    case 'change_section_layout': {
+      const section = sections.find(item => item.id === command.section_id)!
+      const layout = definitionsRef.value!.layouts.find(item => item.id === command.layout_id && item.version === command.layout_version)!
+      section.layout = { id: layout.id, version: layout.version }
+      section.regions = Object.fromEntries(layout.regions.map(regionId => [regionId, section.regions[regionId] ?? []]))
+      break
+    }
+  }
+
+  next.entity_revision_id += 1
+  next.document_fingerprint = String(next.entity_revision_id).padStart(64, '0')
+  draftRef.value = next
+}
+
 beforeEach(() => {
   definitionsRef.value = structuredClone(definitions)
   draftRef.value = structuredClone(draft)
@@ -96,8 +184,15 @@ beforeEach(() => {
   loadingRef.value = false
   savingRef.value = false
   errorRef.value = null
+  conflictRef.value = null
   loadMock.mockReset().mockResolvedValue(undefined)
-  applyMock.mockReset().mockResolvedValue(true)
+  applyMock.mockReset().mockImplementation(async (command: PageBuilderCommand) => {
+    applyCommandToDraft(command)
+    return true
+  })
+  loadLatestForConflictMock.mockReset().mockResolvedValue(true)
+  retryConflictMock.mockReset().mockResolvedValue(true)
+  dismissConflictMock.mockReset()
   refreshPreviewMock.mockReset().mockResolvedValue(true)
   loadHistoryMock.mockReset().mockResolvedValue(true)
   compareRevisionMock.mockReset().mockResolvedValue(true)
@@ -106,9 +201,20 @@ beforeEach(() => {
 
 async function mountWorkspace() {
   const { default: PageBuilderWorkspace } = await import('~/components/page-builder/PageBuilderWorkspace.vue')
-  const wrapper = await mountSuspended(PageBuilderWorkspace, { props: { surface: 'page', entityId: '42' } })
+  const wrapper = await mountSuspended(PageBuilderWorkspace, {
+    props: { surface: 'page', entityId: '42' },
+    attachTo: document.body,
+  })
   await flushPromises()
   return wrapper
+}
+
+async function decideConfirmation(confirm = true) {
+  const selector = confirm ? '[data-testid="confirm-dialog-confirm"]' : '[data-testid="confirm-dialog-cancel"]'
+  const button = document.querySelector<HTMLButtonElement>(selector)
+  expect(button).not.toBeNull()
+  button!.click()
+  await flushPromises()
 }
 
 describe('PageBuilderWorkspace', () => {
@@ -123,6 +229,25 @@ describe('PageBuilderWorkspace', () => {
     expect(wrapper.text()).toContain('One column')
     expect(wrapper.text()).not.toContain('rich_text')
     expect(wrapper.get('textarea').element.value).toBe('Welcome')
+  })
+
+  it('preserves a conflicting change and requires an explicit compare then reapply choice', async () => {
+    conflictRef.value = { detail: 'The page changed.', latestLoaded: false }
+    const wrapper = await mountWorkspace()
+
+    expect(wrapper.get('[data-page-builder-conflict]').text()).toContain('page_builder_conflict_help')
+    expect(wrapper.get('textarea').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-page-builder-conflict] button').trigger('click')
+    await flushPromises()
+    expect(loadLatestForConflictMock).toHaveBeenCalledOnce()
+
+    conflictRef.value = { detail: 'The page changed.', latestLoaded: true }
+    await nextTick()
+    const actions = wrapper.findAll('[data-page-builder-conflict] button')
+    expect(actions).toHaveLength(2)
+    await actions[0]!.trigger('click')
+    await flushPromises()
+    expect(retryConflictMock).toHaveBeenCalledOnce()
   })
 
   it('applies inspector changes as a guarded command and refreshes the exact preview', async () => {
@@ -188,6 +313,32 @@ describe('PageBuilderWorkspace', () => {
     randomUUID.mockRestore()
   })
 
+  it('offers only block and layout definitions allowed by the active template', async () => {
+    const governedDefinitions = structuredClone(definitions)
+    governedDefinitions.blocks.push({
+      id: 'internal_only',
+      version: 1,
+      label: 'Internal only',
+      renderer: 'content.internal',
+      config_schema: { type: 'object', properties: {} },
+    })
+    governedDefinitions.layouts.push({
+      id: 'campaign_only',
+      version: 1,
+      regions: ['main'],
+      required_regions: ['main'],
+      allowed_blocks: ['rich_text'],
+    })
+    definitionsRef.value = governedDefinitions
+
+    const wrapper = await mountWorkspace()
+
+    expect(wrapper.text()).not.toContain('Internal only')
+    expect(wrapper.text()).not.toContain('Campaign only')
+    expect(wrapper.findAll('.page-builder__block-card')).toHaveLength(1)
+    expect(wrapper.findAll('.page-builder__add-section')).toHaveLength(1)
+  })
+
   it('adds a registered section and removes the selected block through guarded commands', async () => {
     definitionsRef.value = structuredClone(definitions)
     definitionsRef.value.layouts.push({
@@ -197,6 +348,7 @@ describe('PageBuilderWorkspace', () => {
       required_regions: ['content', 'sidebar'],
       allowed_blocks: ['rich_text'],
     })
+    definitionsRef.value.templates[0]!.allowed_layouts.push('sidebar')
     const wrapper = await mountWorkspace()
     refreshPreviewMock.mockClear()
     const randomUUID = vi.spyOn(crypto, 'randomUUID').mockReturnValue('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')
@@ -216,7 +368,10 @@ describe('PageBuilderWorkspace', () => {
 
     applyMock.mockClear()
     refreshPreviewMock.mockClear()
+    await wrapper.get('[data-block-select="blk_intro"]').trigger('click')
+    await flushPromises()
     await wrapper.get('.btn-danger').trigger('click')
+    await decideConfirmation()
     await flushPromises()
 
     expect(applyMock).toHaveBeenCalledWith({ type: 'remove_block', block_id: 'blk_intro' })
@@ -251,6 +406,169 @@ describe('PageBuilderWorkspace', () => {
       position: 1,
     }))
     randomUUID.mockRestore()
+  })
+
+  it('moves a selected block into another allowed section region', async () => {
+    const multiDefinitions = structuredClone(definitions)
+    multiDefinitions.layouts.push({
+      id: 'two_column',
+      version: 1,
+      regions: ['main', 'sidebar'],
+      required_regions: ['main', 'sidebar'],
+      allowed_blocks: ['rich_text'],
+    })
+    multiDefinitions.templates[0]!.allowed_layouts.push('two_column')
+    definitionsRef.value = multiDefinitions
+    const multiSectionDraft = structuredClone(draft)
+    multiSectionDraft.document.sections.push({
+      id: 'sec_secondary',
+      layout: { id: 'two_column', version: 1 },
+      regions: { main: [], sidebar: [] },
+    })
+    draftRef.value = multiSectionDraft
+    const wrapper = await mountWorkspace()
+    applyMock.mockClear()
+
+    await wrapper.get('[data-block-destination]').setValue('sec_secondary::sidebar')
+    await wrapper.get('[data-move-block-to-region]').trigger('click')
+    await flushPromises()
+
+    expect(applyMock).toHaveBeenCalledWith({
+      type: 'move_block',
+      block_id: 'blk_intro',
+      destination_section_id: 'sec_secondary',
+      destination_region_id: 'sidebar',
+      position: 0,
+    })
+    expect(wrapper.text()).toContain('page_builder_block_moved_to_region')
+  })
+
+  it('flushes dirty block configuration before a structural move replaces the draft', async () => {
+    const multiDefinitions = structuredClone(definitions)
+    multiDefinitions.layouts.push({
+      id: 'two_column',
+      version: 1,
+      regions: ['main', 'sidebar'],
+      required_regions: ['main', 'sidebar'],
+      allowed_blocks: ['rich_text'],
+    })
+    multiDefinitions.templates[0]!.allowed_layouts.push('two_column')
+    definitionsRef.value = multiDefinitions
+    const multiSectionDraft = structuredClone(draft)
+    multiSectionDraft.document.sections.push({
+      id: 'sec_secondary',
+      layout: { id: 'two_column', version: 1 },
+      regions: { main: [], sidebar: [] },
+    })
+    draftRef.value = multiSectionDraft
+    const wrapper = await mountWorkspace()
+    applyMock.mockClear()
+
+    await wrapper.get('textarea').setValue('Boozhoo — keep this')
+    await wrapper.get('[data-block-destination]').setValue('sec_secondary::sidebar')
+    await wrapper.get('[data-move-block-to-region]').trigger('click')
+    await flushPromises()
+
+    expect(applyMock.mock.calls.map(([command]) => command)).toEqual([
+      { type: 'configure_block', block_id: 'blk_intro', config: { body: 'Boozhoo — keep this' } },
+      {
+        type: 'move_block',
+        block_id: 'blk_intro',
+        destination_section_id: 'sec_secondary',
+        destination_region_id: 'sidebar',
+        position: 0,
+      },
+    ])
+    expect(wrapper.get('textarea').element.value).toBe('Boozhoo — keep this')
+    expect(draftRef.value!.document.sections[1]!.regions.sidebar![0]!.config.body).toBe('Boozhoo — keep this')
+  })
+
+  it('offers complete guarded section manipulation from the shared outline', async () => {
+    const multiDefinitions = structuredClone(definitions)
+    multiDefinitions.layouts.push({
+      id: 'two_column',
+      version: 1,
+      regions: ['main', 'sidebar'],
+      required_regions: ['main', 'sidebar'],
+      allowed_blocks: ['rich_text'],
+    })
+    multiDefinitions.templates[0]!.allowed_layouts.push('two_column')
+    definitionsRef.value = multiDefinitions
+    const multiSectionDraft = structuredClone(draft)
+    multiSectionDraft.document.sections.push({
+      id: 'sec_secondary',
+      layout: { id: 'one_column', version: 1 },
+      regions: { main: [] },
+    })
+    draftRef.value = multiSectionDraft
+    const uuid = vi.spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')
+      .mockReturnValueOnce('11111111-2222-4333-8444-555555555555')
+      .mockReturnValueOnce('99999999-2222-4333-8444-555555555555')
+    const wrapper = await mountWorkspace()
+
+    await wrapper.get('[data-section-select="sec_secondary"]').trigger('click')
+    applyMock.mockClear()
+    await wrapper.get('[data-move-section-up]').trigger('click')
+    expect(applyMock).toHaveBeenLastCalledWith({ type: 'move_section', section_id: 'sec_secondary', position: 0 })
+
+    await wrapper.get('[data-section-layout]').setValue('two_column::1')
+    await wrapper.get('[data-change-section-layout]').trigger('click')
+    expect(applyMock).toHaveBeenLastCalledWith({
+      type: 'change_section_layout',
+      section_id: 'sec_secondary',
+      layout_id: 'two_column',
+      layout_version: 1,
+    })
+
+    await wrapper.get('[data-duplicate-section]').trigger('click')
+    await flushPromises()
+    expect(applyMock).toHaveBeenLastCalledWith({
+      type: 'duplicate_section',
+      source_section_id: 'sec_secondary',
+      duplicate_section_id: 'sec_aaaaaaaabbbb4ccc8dddeeeeeeeeeeee',
+      duplicate_block_ids: {},
+    })
+
+    await wrapper.get('[data-section-select="sec_main"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-duplicate-section]').trigger('click')
+    await flushPromises()
+    expect(applyMock).toHaveBeenLastCalledWith({
+      type: 'duplicate_section',
+      source_section_id: 'sec_main',
+      duplicate_section_id: 'sec_11111111222243338444555555555555',
+      duplicate_block_ids: { blk_intro: 'blk_99999999222243338444555555555555' },
+    })
+    expect((document.activeElement as HTMLElement).dataset.sectionSelect).toBe('sec_11111111222243338444555555555555')
+
+    await wrapper.get('[data-section-select="sec_main"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-remove-section]').trigger('click')
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('page_builder_remove_section_confirm:1')
+    await decideConfirmation()
+    expect(applyMock).toHaveBeenLastCalledWith({ type: 'remove_section', section_id: 'sec_main' })
+    expect((document.activeElement as HTMLElement).dataset.sectionSelect).toBe('sec_11111111222243338444555555555555')
+    uuid.mockRestore()
+  })
+
+  it('does not remove a section when the destructive confirmation is declined', async () => {
+    const twoSections = structuredClone(draft)
+    twoSections.document.sections.push({
+      id: 'sec_secondary',
+      layout: { id: 'one_column', version: 1 },
+      regions: { main: [] },
+    })
+    draftRef.value = twoSections
+    const wrapper = await mountWorkspace()
+
+    await wrapper.get('[data-section-select="sec_main"]').trigger('click')
+    applyMock.mockClear()
+    await wrapper.get('[data-remove-section]').trigger('click')
+    await decideConfirmation(false)
+
+    expect(applyMock).not.toHaveBeenCalled()
+    expect(draftRef.value!.document.sections.map(section => section.id)).toEqual(['sec_main', 'sec_secondary'])
   })
 
   it('accepts block selection only from its same-origin exact-preview frame', async () => {
@@ -303,8 +621,6 @@ describe('PageBuilderWorkspace', () => {
       config: { body: 'Added' },
     })
     draftRef.value = current
-    const confirm = vi.fn().mockReturnValue(true)
-    Object.defineProperty(window, 'confirm', { configurable: true, value: confirm })
     const wrapper = await mountWorkspace()
 
     const historyButton = wrapper.findAll('button').find(button => button.text() === 'page_builder_history')!
@@ -322,8 +638,9 @@ describe('PageBuilderWorkspace', () => {
     expect(wrapper.text()).toContain('page_builder_changed')
 
     await wrapper.get('.page-builder__comparison .btn-primary').trigger('click')
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('page_builder_restore_confirm:5')
+    await decideConfirmation()
     await flushPromises()
-    expect(confirm).toHaveBeenCalledWith('page_builder_restore_confirm:5')
     expect(restoreRevisionMock).toHaveBeenCalledWith(5)
     expect(refreshPreviewMock).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('page_builder_revision_restored:5')

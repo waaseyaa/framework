@@ -309,13 +309,15 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
             // rollback() itself cuts exactly ONE new revision (with the
             // framework's revert events/audit); the operator note travels on
             // our audit record rather than a second revision.
-            if ($expectedCurrentRevisionId !== null) {
-                $this->assertExpectedRevision($entity, $expectedCurrentRevisionId);
-            }
             if (!$entity instanceof EntityBase || $entity->mutationToken() === null) {
                 throw new \UnexpectedValueException("Content {$id} has no aggregate mutation token.");
             }
-            $restored = $this->repository->rollback($id, $targetRevisionId, $entity->mutationToken());
+            $restored = $this->repository->rollback(
+                $id,
+                $targetRevisionId,
+                $entity->mutationToken(),
+                $expectedCurrentRevisionId,
+            );
 
             $saved = $this->reload($restored);
             $this->auditRecord(AuditEventKind::ContentRolledBack, $actor, $saved, [

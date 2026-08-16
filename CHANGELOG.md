@@ -58,10 +58,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Make `make:storage-migration` detect an existing entity/backend migration
+  across timestamp boundaries, and make `--force` overwrite that migration
+  instead of silently creating a second file.
+
 - Let application schemas organize the shared Admin SPA and Anokii entity
   editor into accessible task-oriented sections, including collapsible
-  secondary details that reopen for validation errors, while always rendering
-  declared writable fields that were not assigned to a section (#2375).
+  secondary details that reopen for validation errors without stealing focus
+  when an error clears, while always rendering declared writable fields that
+  were not assigned to a section (#2375).
+
+- Accept empty configuration objects at the page-builder wire boundary so an
+  editor can duplicate a blockless section, and enforce the documented
+  one-section minimum at the server boundary (#2344).
+
+- Ship the #2344 confirmation-dialog keyboard focus trap in the rebuilt Admin
+  SPA distribution alongside the page-builder workspace.
+
+- Keep the responsive sidebar close control hidden on desktop by preserving
+  its intended cascade order after extracting the shared admin stylesheet.
 
 - Load the shared Admin SPA design-system stylesheet on shell-free entity-editor
   and page-builder routes so same-origin clients such as Anokii receive the
@@ -74,6 +89,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generated verifier establish its own consumer-project working directory.
 
 ### Added
+
+- Define and verify a bounded FTS5 candidate-window completeness contract
+  shared by Search, API, MCP, and AI-tool consumers, including explicit
+  truncation metadata and surface-parity coverage (#2379).
+
+- Expose governed cross-region block movement and complete section selection,
+  reordering, layout change, duplication, and guarded removal in the shared
+  Admin SPA page-builder workspace used by Anokii, with accessible destructive
+  confirmation and explicit compare/reapply recovery for concurrent edits
+  (#2344).
 
 - **one typed configuration authority (`S1-FW-CFG-01`):** Resolve bootstrap
   selectors once, bind every active reader and all six management commands to

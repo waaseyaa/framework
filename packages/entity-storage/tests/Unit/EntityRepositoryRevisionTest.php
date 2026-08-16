@@ -17,6 +17,7 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\EntityMutationConflictException;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 
@@ -177,6 +178,31 @@ final class EntityRepositoryRevisionTest extends TestCase
             self::assertSame('test_revisionable', $exception->entityTypeId);
             self::assertSame('1', $exception->entityId);
             self::assertNull($exception->currentToken);
+            self::assertCount(2, $this->repo->listRevisions('1'));
+            self::assertSame([], $this->dispatchedEvents);
+        }
+    }
+
+    #[Test]
+    public function guarded_rollback_rejects_a_stale_revision_without_events_or_a_new_revision(): void
+    {
+        $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $this->repo->save($entity);
+
+        $entity = $this->repo->find('1');
+        $entity->set('title', 'v2');
+        $this->repo->save($entity);
+        $this->dispatchedEvents = [];
+
+        try {
+            $this->repo->rollback('1', 1, $this->mutationToken('1'), 1);
+            self::fail('A rollback guarded by a stale current revision was accepted.');
+        } catch (RevisionConflictException $exception) {
+            self::assertSame('test_revisionable', $exception->entityTypeId);
+            self::assertSame('1', $exception->entityId);
+            self::assertSame(1, $exception->expectedRevisionId);
+            self::assertSame(2, $exception->currentRevisionId);
             self::assertCount(2, $this->repo->listRevisions('1'));
             self::assertSame([], $this->dispatchedEvents);
         }

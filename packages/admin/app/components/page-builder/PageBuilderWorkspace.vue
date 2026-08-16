@@ -6,6 +6,7 @@ import type {
   PageBuilderLayoutDefinition,
   PageBuilderSection,
 } from '~/contracts/pageBuilder'
+import ConfirmDialog from '~/components/common/ConfirmDialog.vue'
 import { usePageBuilder } from '~/composables/usePageBuilder'
 import type { SchemaProperty } from '~/composables/useSchema'
 
@@ -22,18 +23,25 @@ type JsonSchemaProperty = Omit<SchemaProperty, 'enum'> & {
 
 const { t } = useLanguage()
 const {
-  definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error,
-  load, apply, refreshPreview, loadHistory, compareRevision, restoreRevision,
+  definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error, conflict,
+  load, apply, loadLatestForConflict, retryConflict, dismissConflict,
+  refreshPreview, loadHistory, compareRevision, restoreRevision,
 } = usePageBuilder(
   props.surface,
   props.entityId,
 )
 const selectedBlockId = ref<string | null>(null)
+const selectedSectionId = ref<string | null>(null)
+const blockDestination = ref('')
+const sectionLayoutChoice = ref('')
 const previewSize = ref<PreviewSize>('desktop')
 const editableConfig = ref<Record<string, unknown>>({})
 const announcement = ref('')
 const configDirty = ref(false)
 const historyOpen = ref(false)
+const confirmation = ref({ open: false, title: '', message: '', confirmLabel: '', dangerous: false })
+let resolveConfirmation: ((confirmed: boolean) => void) | null = null
+let confirmationReturnFocus: HTMLElement | null = null
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const commonLayoutPrefix = computed(() => {
@@ -56,6 +64,25 @@ function cloneConfig(config: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(config)) as Record<string, unknown>
 }
 
+function requestConfirmation(options: { title: string, message: string, confirmLabel: string, dangerous?: boolean }): Promise<boolean> {
+  if (resolveConfirmation) return Promise.resolve(false)
+  confirmationReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  confirmation.value = { open: true, dangerous: options.dangerous ?? false, ...options }
+  return new Promise((resolve) => { resolveConfirmation = resolve })
+}
+
+async function decideConfirmation(confirmed: boolean) {
+  confirmation.value.open = false
+  const resolve = resolveConfirmation
+  resolveConfirmation = null
+  resolve?.(confirmed)
+  if (!confirmed) {
+    await nextTick()
+    confirmationReturnFocus?.focus()
+  }
+  confirmationReturnFocus = null
+}
+
 const blocks = computed(() => {
   const result: Array<{ block: PageBuilderBlock, section: PageBuilderSection, regionId: string, position: number }> = []
   for (const section of draft.value?.document.sections ?? []) {
@@ -66,6 +93,37 @@ const blocks = computed(() => {
   return result
 })
 const selectedEntry = computed(() => blocks.value.find(entry => entry.block.id === selectedBlockId.value) ?? null)
+const sections = computed(() => draft.value?.document.sections ?? [])
+const selectedSection = computed(() => sections.value.find(section => section.id === selectedSectionId.value) ?? null)
+const selectedSectionIndex = computed(() => sections.value.findIndex(section => section.id === selectedSectionId.value))
+const editingBlocked = computed(() => saving.value || conflict.value !== null)
+const sectionPosition = (section: PageBuilderSection) => sections.value.findIndex(candidate => candidate.id === section.id) + 1
+const sectionBlockCount = (section: PageBuilderSection) => Object.values(section.regions).reduce((count, regionBlocks) => count + regionBlocks.length, 0)
+const activeTemplate = computed(() => definitions.value?.templates.find(template => (
+  template.id === draft.value?.document.template.id && template.version === draft.value?.document.template.version
+)) ?? null)
+const availableSectionLayouts = computed(() => (definitions.value?.layouts ?? []).filter(layout => (
+  !activeTemplate.value || activeTemplate.value.allowed_layouts.includes(layout.id)
+)))
+const availableBlocks = computed(() => (definitions.value?.blocks ?? []).filter(block => (
+  !activeTemplate.value || activeTemplate.value.allowed_blocks.includes(block.id)
+)))
+const blockDestinations = computed(() => {
+  const entry = selectedEntry.value
+  if (!entry || !definitions.value) return []
+  return sections.value.flatMap(section => {
+    const layout = definitions.value!.layouts.find(candidate => (
+      candidate.id === section.layout.id && candidate.version === section.layout.version
+    ))
+    if (!layout?.allowed_blocks.includes(entry.block.type)) return []
+    return Object.keys(section.regions).map(regionId => ({
+      value: `${section.id}::${regionId}`,
+      section,
+      regionId,
+      label: `${layoutLabel(section.layout.id)} · ${regionId}`,
+    }))
+  })
+})
 const selectedDefinition = computed(() => definitions.value?.blocks.find(
   definition => definition.id === selectedEntry.value?.block.type && definition.version === selectedEntry.value?.block.version,
 ) ?? null)
@@ -107,6 +165,11 @@ const comparisonChanges = computed(() => {
 
 watch(selectedEntry, (entry) => {
   editableConfig.value = entry ? cloneConfig(entry.block.config) : {}
+  blockDestination.value = entry ? `${entry.section.id}::${entry.regionId}` : ''
+}, { immediate: true })
+
+watch(selectedSection, (section) => {
+  sectionLayoutChoice.value = section ? `${section.layout.id}::${section.layout.version}` : ''
 }, { immediate: true })
 
 function secureId(prefix: 'blk' | 'sec'): string {
@@ -119,6 +182,14 @@ function secureId(prefix: 'blk' | 'sec'): string {
 async function selectBlock(blockId: string) {
   if (configDirty.value && !await saveSelectedBlock(true)) return
   selectedBlockId.value = blockId
+  selectedSectionId.value = blocks.value.find(entry => entry.block.id === blockId)?.section.id ?? null
+}
+
+async function selectSection(sectionId: string) {
+  if (configDirty.value && !await saveSelectedBlock(true)) return
+  if (!sections.value.some(section => section.id === sectionId)) return
+  selectedSectionId.value = sectionId
+  selectedBlockId.value = null
 }
 
 function fieldValue(key: string): string | number | boolean {
@@ -167,9 +238,45 @@ function entityReferenceSchema(schema: JsonSchemaProperty): SchemaProperty {
 async function run(command: PageBuilderCommand, message: string): Promise<boolean> {
   const saved = await apply(command)
   if (!saved) return false
+  announcement.value = ''
+  await nextTick()
   announcement.value = message
   await refreshPreview()
   return true
+}
+
+async function loadConflictComparison() {
+  if (await loadLatestForConflict()) {
+    historyOpen.value = true
+    await refreshPreview()
+  }
+}
+
+async function reapplyConflict() {
+  if (await retryConflict()) {
+    announcement.value = ''
+    await nextTick()
+    announcement.value = t('page_builder_conflict_reapplied')
+    configDirty.value = false
+    historyOpen.value = false
+    await loadHistory()
+    await refreshPreview()
+  }
+}
+
+function keepLatestAfterConflict() {
+  dismissConflict()
+  configDirty.value = false
+}
+
+async function focusOutlineTarget(kind: 'block' | 'section', id: string | null) {
+  if (!id) return
+  await nextTick()
+  const attribute = kind === 'block' ? 'data-block-select' : 'data-section-select'
+  const target = [...document.querySelectorAll<HTMLElement>(`[${attribute}]`)].find(element => (
+    element.getAttribute(attribute) === id
+  ))
+  target?.focus()
 }
 
 async function saveSelectedBlock(automatic = false): Promise<boolean> {
@@ -196,14 +303,22 @@ async function toggleHistory() {
 async function restoreComparedRevision() {
   const revisionId = comparedRevision.value?.entity_revision_id
   if (!revisionId) return
-  if (!window.confirm(t('page_builder_restore_confirm', { revision: String(revisionId) }))) return
+  if (configDirty.value && !await saveSelectedBlock(true)) return
+  if (!await requestConfirmation({
+    title: t('page_builder_restore_title'),
+    message: t('page_builder_restore_confirm', { revision: String(revisionId) }),
+    confirmLabel: t('page_builder_restore_as_draft'),
+  })) return
   if (await restoreRevision(revisionId)) {
+    announcement.value = ''
+    await nextTick()
     announcement.value = t('page_builder_revision_restored', { revision: String(revisionId) })
     await refreshPreview()
   }
 }
 
 async function addBlock(definition: PageBuilderBlockDefinition) {
+  if (configDirty.value && !await saveSelectedBlock(true)) return
   const selected = selectedEntry.value
   const section = selected?.section ?? draft.value?.document.sections[0]
   if (!section) return
@@ -224,44 +339,82 @@ async function addBlock(definition: PageBuilderBlockDefinition) {
     position: selected ? selected.position + 1 : section.regions[regionId]?.length ?? 0,
     block: { id: blockId, type: definition.id, version: definition.version, config },
   }, t('page_builder_block_added', { block: definition.label }))
-  if (saved) selectedBlockId.value = blockId
+  if (saved) {
+    selectedBlockId.value = blockId
+    await focusOutlineTarget('block', blockId)
+  }
 }
 
 async function addSection(layout: PageBuilderLayoutDefinition) {
   if (!draft.value) return
+  if (configDirty.value && !await saveSelectedBlock(true)) return
   const regions = Object.fromEntries(layout.regions.map(region => [region, []]))
-  await run({
+  const sectionId = secureId('sec')
+  if (await run({
     type: 'add_section',
     position: draft.value.document.sections.length,
-    section: { id: secureId('sec'), layout: { id: layout.id, version: layout.version }, regions },
-  }, t('page_builder_section_added'))
+    section: { id: sectionId, layout: { id: layout.id, version: layout.version }, regions },
+  }, t('page_builder_section_added'))) {
+    selectedSectionId.value = sectionId
+    selectedBlockId.value = null
+    await focusOutlineTarget('section', sectionId)
+  }
 }
 
 async function removeSelectedBlock() {
   if (!selectedEntry.value) return
+  if (configDirty.value && !await saveSelectedBlock(true)) return
   const blockId = selectedEntry.value.block.id
+  if (!await requestConfirmation({
+    title: t('page_builder_remove_block'),
+    message: t('page_builder_remove_block_confirm'),
+    confirmLabel: t('page_builder_remove_block'),
+    dangerous: true,
+  })) return
   if (await run({ type: 'remove_block', block_id: blockId }, t('page_builder_block_removed'))) {
     selectedBlockId.value = null
+    await focusOutlineTarget('section', selectedSectionId.value)
   }
 }
 
 async function moveSelectedBlock(offset: -1 | 1) {
+  if (configDirty.value && !await saveSelectedBlock(true)) return
   const entry = selectedEntry.value
   /* v8 ignore next -- the controls only render while selectedEntry exists */
   if (!entry) return
   const destination = entry.position + offset
   const regionBlocks = entry.section.regions[entry.regionId] ?? []
   if (destination < 0 || destination >= regionBlocks.length) return
-  await run({
+  if (await run({
     type: 'move_block',
     block_id: entry.block.id,
     destination_section_id: entry.section.id,
     destination_region_id: entry.regionId,
     position: destination,
-  }, t('page_builder_block_moved'))
+  }, t('page_builder_block_moved'))) await focusOutlineTarget('block', entry.block.id)
+}
+
+async function moveSelectedBlockToRegion() {
+  const requestedDestination = blockDestination.value
+  if (configDirty.value && !await saveSelectedBlock(true)) return
+  const entry = selectedEntry.value
+  const destination = blockDestinations.value.find(candidate => candidate.value === requestedDestination)
+  if (!entry || !destination || destination.value === `${entry.section.id}::${entry.regionId}`) return
+  const position = destination.section.regions[destination.regionId]?.length ?? 0
+  if (await run({
+    type: 'move_block',
+    block_id: entry.block.id,
+    destination_section_id: destination.section.id,
+    destination_region_id: destination.regionId,
+    position,
+  }, t('page_builder_block_moved_to_region'))) {
+    selectedSectionId.value = destination.section.id
+    await focusOutlineTarget('block', entry.block.id)
+  }
 }
 
 async function duplicateSelectedBlock() {
+  if (configDirty.value && !await saveSelectedBlock(true)) return
   const entry = selectedEntry.value
   if (!entry) return
   const duplicateId = secureId('blk')
@@ -271,6 +424,71 @@ async function duplicateSelectedBlock() {
     duplicate_block_id: duplicateId,
   }, t('page_builder_block_duplicated'))) {
     selectedBlockId.value = duplicateId
+    await focusOutlineTarget('block', duplicateId)
+  }
+}
+
+async function moveSelectedSection(offset: -1 | 1) {
+  const section = selectedSection.value
+  const index = selectedSectionIndex.value
+  if (!section || index < 0) return
+  const position = index + offset
+  if (position < 0 || position >= sections.value.length) return
+  if (await run({ type: 'move_section', section_id: section.id, position }, t('page_builder_section_moved'))) {
+    await focusOutlineTarget('section', section.id)
+  }
+}
+
+async function changeSelectedSectionLayout() {
+  const section = selectedSection.value
+  const layout = availableSectionLayouts.value.find(candidate => (
+    `${candidate.id}::${candidate.version}` === sectionLayoutChoice.value
+  ))
+  if (!section || !layout || (layout.id === section.layout.id && layout.version === section.layout.version)) return
+  if (await run({
+    type: 'change_section_layout',
+    section_id: section.id,
+    layout_id: layout.id,
+    layout_version: layout.version,
+  }, t('page_builder_section_layout_changed'))) await focusOutlineTarget('section', section.id)
+}
+
+async function duplicateSelectedSection() {
+  const source = selectedSection.value
+  if (!source) return
+  const duplicateSectionId = secureId('sec')
+  const duplicateBlockIds = Object.fromEntries(Object.values(source.regions).flat().map(block => [
+    block.id,
+    secureId('blk'),
+  ]))
+  if (await run({
+    type: 'duplicate_section',
+    source_section_id: source.id,
+    duplicate_section_id: duplicateSectionId,
+    duplicate_block_ids: duplicateBlockIds,
+  }, t('page_builder_section_duplicated'))) {
+    selectedSectionId.value = duplicateSectionId
+    selectedBlockId.value = null
+    await focusOutlineTarget('section', duplicateSectionId)
+  }
+}
+
+async function removeSelectedSection() {
+  const section = selectedSection.value
+  const index = selectedSectionIndex.value
+  if (!section || sections.value.length <= 1) return
+  const blockCount = Object.values(section.regions).reduce((count, blocks) => count + blocks.length, 0)
+  if (!await requestConfirmation({
+    title: t('page_builder_remove_section'),
+    message: t('page_builder_remove_section_confirm', { count: String(blockCount) }),
+    confirmLabel: t('page_builder_remove_section'),
+    dangerous: true,
+  })) return
+  const fallbackSectionId = sections.value[index + 1]?.id ?? sections.value[index - 1]?.id ?? null
+  if (await run({ type: 'remove_section', section_id: section.id }, t('page_builder_section_removed'))) {
+    selectedSectionId.value = fallbackSectionId
+    selectedBlockId.value = null
+    await focusOutlineTarget('section', fallbackSectionId)
   }
 }
 
@@ -285,17 +503,30 @@ onMounted(async () => {
   window.addEventListener('message', onPreviewMessage)
   await load()
   await loadHistory()
-  if (blocks.value[0]) selectedBlockId.value = blocks.value[0].block.id
+  if (blocks.value[0]) {
+    selectedBlockId.value = blocks.value[0].block.id
+    selectedSectionId.value = blocks.value[0].section.id
+  } else if (sections.value[0]) selectedSectionId.value = sections.value[0].id
   await refreshPreview()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('message', onPreviewMessage)
   if (autosaveTimer) clearTimeout(autosaveTimer)
+  decideConfirmation(false)
 })
 </script>
 
 <template>
   <section class="page-builder" :aria-busy="loading || saving">
+    <ConfirmDialog
+      :open="confirmation.open"
+      :title="confirmation.title"
+      :message="confirmation.message"
+      :confirm-label="confirmation.confirmLabel"
+      :dangerous="confirmation.dangerous"
+      @confirm="decideConfirmation(true)"
+      @cancel="decideConfirmation(false)"
+    />
     <header class="page-builder__toolbar">
       <div>
         <p class="page-builder__eyebrow">{{ t('page_builder_eyebrow') }}</p>
@@ -328,6 +559,24 @@ onBeforeUnmount(() => {
     </header>
 
     <p class="sr-only" aria-live="polite">{{ announcement }}</p>
+    <div v-if="conflict" class="page-builder__conflict" role="alert" data-page-builder-conflict>
+      <div>
+        <strong>{{ t('page_builder_conflict_title') }}</strong>
+        <span>{{ t('page_builder_conflict_help') }}</span>
+        <small>{{ conflict.detail }}</small>
+      </div>
+      <button v-if="!conflict.latestLoaded" type="button" class="btn" :disabled="saving" @click="loadConflictComparison">
+        {{ t('page_builder_load_latest_compare') }}
+      </button>
+      <template v-else>
+        <button type="button" class="btn btn-primary" :disabled="saving" @click="reapplyConflict">
+          {{ t('page_builder_reapply_change') }}
+        </button>
+        <button type="button" class="btn" :disabled="saving" @click="keepLatestAfterConflict">
+          {{ t('page_builder_keep_latest') }}
+        </button>
+      </template>
+    </div>
     <div v-if="error" class="page-builder__error" role="alert">
       <strong>{{ t('page_builder_could_not_continue') }}</strong>
       <span>{{ error }}</span>
@@ -345,11 +594,11 @@ onBeforeUnmount(() => {
         </div>
         <div class="page-builder__block-list">
           <button
-            v-for="definition in definitions.blocks"
+            v-for="definition in availableBlocks"
             :key="`${definition.id}:${definition.version}`"
             type="button"
             class="page-builder__block-card"
-            :disabled="saving || draft.document.sections.length === 0"
+            :disabled="editingBlocked || draft.document.sections.length === 0"
             @click="addBlock(definition)"
           >
             <span class="page-builder__block-icon" aria-hidden="true">+</span>
@@ -366,11 +615,11 @@ onBeforeUnmount(() => {
         </div>
         <div class="page-builder__layout-list">
           <button
-            v-for="layout in definitions.layouts"
+            v-for="layout in availableSectionLayouts"
             :key="`${layout.id}:${layout.version}`"
             type="button"
             class="page-builder__add-section"
-            :disabled="saving"
+            :disabled="editingBlocked"
             @click="addSection(layout)"
           >
             + {{ layoutLabel(layout.id) }}
@@ -429,7 +678,7 @@ onBeforeUnmount(() => {
             <ul v-else>
               <li v-for="change in comparisonChanges" :key="change.id"><strong>{{ t(`page_builder_${change.kind}`) }}:</strong> {{ change.label }}</li>
             </ul>
-            <button type="button" class="btn btn-primary" :disabled="saving || comparedRevision.entity_revision_id === draft.entity_revision_id" @click="restoreComparedRevision">
+            <button type="button" class="btn btn-primary" :disabled="editingBlocked || comparedRevision.entity_revision_id === draft.entity_revision_id" @click="restoreComparedRevision">
               {{ t('page_builder_restore_as_draft') }}
             </button>
           </div>
@@ -451,7 +700,7 @@ onBeforeUnmount(() => {
               :label="schema.title ?? key"
               :description="schema.description"
               :required="configFieldRequired(key)"
-              :disabled="saving"
+              :disabled="editingBlocked"
               :schema="entityReferenceSchema(schema)"
               @update:model-value="setConfigValue(key, $event)"
             />
@@ -462,7 +711,7 @@ onBeforeUnmount(() => {
               :label="schema.title ?? key"
               :description="schema.description"
               :required="configFieldRequired(key)"
-              :disabled="saving"
+              :disabled="editingBlocked"
               :schema="entityReferenceSchema(schema)"
               @update:model-value="setConfigValue(key, $event)"
             />
@@ -474,7 +723,7 @@ onBeforeUnmount(() => {
                 :id="configFieldId(key)"
                 :value="selectValue(key)"
                 :required="configFieldRequired(key)"
-                :disabled="saving"
+                :disabled="editingBlocked"
                 @change="setFieldValue(key, schema, $event)"
               >
                 <option v-for="option in schema.enum" :key="String(option)" :value="String(option)">{{ option }}</option>
@@ -485,7 +734,7 @@ onBeforeUnmount(() => {
                 type="checkbox"
                 :checked="fieldValue(key) === true"
                 :required="configFieldRequired(key)"
-                :disabled="saving"
+                :disabled="editingBlocked"
                 @change="setFieldValue(key, schema, $event)"
               >
               <input
@@ -494,7 +743,7 @@ onBeforeUnmount(() => {
                 type="number"
                 :value="selectValue(key)"
                 :required="configFieldRequired(key)"
-                :disabled="saving"
+                :disabled="editingBlocked"
                 @input="setFieldValue(key, schema, $event)"
               >
               <textarea
@@ -503,7 +752,7 @@ onBeforeUnmount(() => {
                 :rows="schema.format === 'textarea' ? 7 : 3"
                 :value="selectValue(key)"
                 :required="configFieldRequired(key)"
-                :disabled="saving"
+                :disabled="editingBlocked"
                 @input="setFieldValue(key, schema, $event)"
               />
             </template>
@@ -511,35 +760,102 @@ onBeforeUnmount(() => {
           <p v-if="Object.keys(configProperties).length === 0" class="page-builder__hint">
             {{ t('page_builder_no_editable_settings') }}
           </p>
-          <button type="submit" class="btn btn-primary" :disabled="saving">
+          <button type="submit" class="btn btn-primary" :disabled="editingBlocked">
             {{ saving ? t('page_builder_saving') : t('page_builder_apply_change') }}
           </button>
           <div class="page-builder__block-actions" role="group" :aria-label="t('page_builder_reorder_block')">
-            <button type="button" class="btn" :disabled="saving || selectedEntry.position === 0" @click="moveSelectedBlock(-1)">
+            <button type="button" class="btn" :disabled="editingBlocked || selectedEntry.position === 0" @click="moveSelectedBlock(-1)">
               {{ t('page_builder_move_up') }}
             </button>
             <button
               type="button"
               class="btn"
-              :disabled="saving || selectedEntry.position >= (selectedEntry.section.regions[selectedEntry.regionId]?.length ?? 0) - 1"
+              :disabled="editingBlocked || selectedEntry.position >= (selectedEntry.section.regions[selectedEntry.regionId]?.length ?? 0) - 1"
               @click="moveSelectedBlock(1)"
             >
               {{ t('page_builder_move_down') }}
             </button>
           </div>
-          <button type="button" class="btn" :disabled="saving" @click="duplicateSelectedBlock">
+          <div v-if="blockDestinations.length > 1" class="page-builder__destination">
+            <label for="page-builder-block-destination">{{ t('page_builder_move_to_region') }}</label>
+            <select id="page-builder-block-destination" v-model="blockDestination" data-block-destination :disabled="editingBlocked">
+              <option v-for="destination in blockDestinations" :key="destination.value" :value="destination.value">
+                {{ destination.label }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn"
+              data-move-block-to-region
+              :disabled="editingBlocked || blockDestination === `${selectedEntry.section.id}::${selectedEntry.regionId}`"
+              @click="moveSelectedBlockToRegion"
+            >
+              {{ t('page_builder_move_block') }}
+            </button>
+          </div>
+          <button type="button" class="btn" :disabled="editingBlocked" @click="duplicateSelectedBlock">
             {{ t('page_builder_duplicate_block') }}
           </button>
-          <button type="button" class="btn btn-danger" :disabled="saving" @click="removeSelectedBlock">
+          <button type="button" class="btn btn-danger" :disabled="editingBlocked" @click="removeSelectedBlock">
             {{ t('page_builder_remove_block') }}
           </button>
         </form>
+        <section v-else-if="selectedSection" class="page-builder__section-controls" :aria-label="t('page_builder_section_settings')">
+          <div class="page-builder__panel-heading">
+            <div>
+              <span>{{ t('page_builder_section') }}</span>
+              <h2>{{ layoutLabel(selectedSection.layout.id) }}</h2>
+            </div>
+          </div>
+          <div class="page-builder__block-actions" role="group" :aria-label="t('page_builder_reorder_section')">
+            <button type="button" class="btn" data-move-section-up :disabled="editingBlocked || selectedSectionIndex <= 0" @click="moveSelectedSection(-1)">
+              {{ t('page_builder_move_up') }}
+            </button>
+            <button type="button" class="btn" data-move-section-down :disabled="editingBlocked || selectedSectionIndex >= sections.length - 1" @click="moveSelectedSection(1)">
+              {{ t('page_builder_move_down') }}
+            </button>
+          </div>
+          <div class="page-builder__field">
+            <label for="page-builder-section-layout">{{ t('page_builder_section_layout') }}</label>
+            <select id="page-builder-section-layout" v-model="sectionLayoutChoice" data-section-layout :disabled="editingBlocked">
+              <option v-for="layout in availableSectionLayouts" :key="`${layout.id}:${layout.version}`" :value="`${layout.id}::${layout.version}`">
+                {{ layoutLabel(layout.id) }}
+              </option>
+            </select>
+          </div>
+          <button
+            type="button"
+            class="btn"
+            data-change-section-layout
+            :disabled="editingBlocked || sectionLayoutChoice === `${selectedSection.layout.id}::${selectedSection.layout.version}`"
+            @click="changeSelectedSectionLayout"
+          >
+            {{ t('page_builder_apply_layout') }}
+          </button>
+          <button type="button" class="btn" data-duplicate-section :disabled="editingBlocked" @click="duplicateSelectedSection">
+            {{ t('page_builder_duplicate_section') }}
+          </button>
+          <button type="button" class="btn btn-danger" data-remove-section :disabled="editingBlocked || sections.length <= 1" @click="removeSelectedSection">
+            {{ t('page_builder_remove_section') }}
+          </button>
+        </section>
         <p v-else class="page-builder__hint">{{ t('page_builder_select_help') }}</p>
 
         <div class="page-builder__outline">
           <h3>{{ t('page_builder_outline') }}</h3>
           <div v-for="section in draft.document.sections" :key="section.id" class="page-builder__section">
-            <strong>{{ layoutLabel(section.layout.id) }}</strong>
+            <button
+              type="button"
+              class="page-builder__section-select"
+              :class="{ 'is-selected': section.id === selectedSectionId && !selectedBlockId }"
+              :aria-pressed="section.id === selectedSectionId && !selectedBlockId"
+              :aria-label="t('page_builder_section_outline_label', { position: String(sectionPosition(section)), count: String(sectionBlockCount(section)), layout: layoutLabel(section.layout.id) })"
+              :data-section-select="section.id"
+              :disabled="saving"
+              @click="selectSection(section.id)"
+            >
+              {{ t('page_builder_section_outline', { position: String(sectionPosition(section)), count: String(sectionBlockCount(section)), layout: layoutLabel(section.layout.id) }) }}
+            </button>
             <template v-for="(regionBlocks, regionId) in section.regions" :key="regionId">
               <span class="page-builder__region">{{ regionId }}</span>
               <button
@@ -549,6 +865,8 @@ onBeforeUnmount(() => {
                 class="page-builder__outline-block"
                 :class="{ 'is-selected': block.id === selectedBlockId }"
                 :aria-pressed="block.id === selectedBlockId"
+                :data-block-select="block.id"
+                :disabled="saving"
                 @click="selectBlock(block.id)"
               >
                 {{ definitions.blocks.find(item => item.id === block.type)?.label ?? block.type }}
@@ -596,8 +914,10 @@ onBeforeUnmount(() => {
 .page-builder__preview-frame { max-width: 100%; height: 100%; border: 0; border-radius: 5px; background: #fff; box-shadow: 0 10px 40px #1b2b2426; transition: width .2s ease; }
 .page-builder__preview-empty { display: grid; place-content: center; justify-items: center; width: min(100%, 680px); padding: 40px; border: 1px dashed #a8b0aa; border-radius: 8px; background: #f7f7f3; text-align: center; }
 .page-builder__preview-empty p { max-width: 38ch; margin: 8px 0 18px; color: #6a746f; }
-.page-builder__form { display: grid; gap: 13px; }
+.page-builder__form, .page-builder__section-controls { display: grid; gap: 13px; }
 .page-builder__block-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.page-builder__destination { display: grid; gap: 6px; padding: 10px; border: 1px solid #dfe2dd; border-radius: 8px; background: #f5f6f3; font-size: 13px; font-weight: 700; }
+.page-builder__destination select { width: 100%; padding: 9px 10px; border: 1px solid #cbd2cd; border-radius: 7px; background: #fff; color: inherit; font: inherit; font-weight: 400; }
 .page-builder__field { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
 .page-builder__field > label { font-weight: 700; }
 .page-builder__field small { color: #6a746f; font-weight: 400; }
@@ -607,6 +927,8 @@ onBeforeUnmount(() => {
 .page-builder__outline { margin-top: 28px; padding-top: 18px; border-top: 1px solid #dfe2dd; }
 .page-builder__outline h3 { margin-bottom: 12px; font-size: 14px; }
 .page-builder__section { display: grid; gap: 5px; margin-bottom: 12px; padding: 9px; border: 1px solid #e1e4df; border-radius: 8px; background: #fff; font-size: 12px; }
+.page-builder__section-select { width: 100%; padding: 5px 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
+.page-builder__section-select:hover, .page-builder__section-select.is-selected { border-color: var(--color-primary, #2f8068); background: var(--color-primary-light, #e5f2ed); color: var(--color-primary, #125441); }
 .page-builder__region { color: #75807b; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .page-builder__outline-block { padding: 7px 8px; border: 1px solid transparent; border-radius: 6px; background: #f1f3ef; text-align: left; cursor: pointer; }
 .page-builder__outline-block.is-selected { border-color: var(--color-primary, #2f8068); background: var(--color-primary-light, #e5f2ed); color: var(--color-primary, #125441); font-weight: 700; }
@@ -617,9 +939,12 @@ onBeforeUnmount(() => {
 .page-builder__revision-card.is-selected { border-color: var(--color-primary, #2f8068); background: var(--color-primary-light, #e5f2ed); }
 .page-builder__comparison { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #dfe2dd; }
 .page-builder__comparison ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; font-size: 12px; }
-.page-builder__error, .page-builder__loading { margin: 18px 24px; padding: 14px 16px; border-radius: 8px; }
+.page-builder__error, .page-builder__conflict, .page-builder__loading { margin: 18px 24px; padding: 14px 16px; border-radius: 8px; }
 .page-builder__error { display: flex; align-items: center; gap: 10px; background: #fff0ed; color: #8f251a; }
 .page-builder__error span { flex: 1; }
+.page-builder__conflict { display: flex; align-items: center; gap: 10px; background: #fff6dc; color: #684800; }
+.page-builder__conflict > div { display: grid; flex: 1; gap: 3px; }
+.page-builder__conflict small { color: inherit; opacity: .8; }
 .page-builder__loading { background: #fff; color: #5f6964; }
 @media (max-width: 1100px) {
   .page-builder__workspace { grid-template-columns: 190px minmax(400px, 1fr) 250px; }

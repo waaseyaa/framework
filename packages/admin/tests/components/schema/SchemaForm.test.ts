@@ -274,6 +274,48 @@ describe('SchemaForm loading and error states', () => {
 
     expect(wrapper.get('[data-testid="form-section"] details').attributes('open')).toBeDefined()
     expect(wrapper.text()).toContain('Title is required.')
+
+    const title = wrapper.get('input')
+    await title.setValue('Community feast')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="form-section"] details').attributes('open')).toBeDefined()
+  })
+
+  it('reopens a user-collapsed section when validation finds an error inside it', async () => {
+    const groupedSchema = {
+      ...bundledNodeDiscoverySchema,
+      'x-entity-type': 'node_group_user_collapsed',
+      'x-form-sections': [{
+        id: 'details',
+        label: 'Details',
+        fields: ['title'],
+        collapsible: true,
+        collapsed: false,
+      }],
+      properties: {
+        title: { type: 'string', 'x-widget': 'text', 'x-label': 'Title', 'x-required': true },
+      },
+      required: ['title'],
+    }
+    registerEndpoint('/admin/_surface/node_group_user_collapsed/action/schema', {
+      method: 'POST',
+      handler: () => ({ ok: true, data: groupedSchema }),
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, { props: { entityType: 'node_group_user_collapsed' } })
+    await flushPromises()
+    const details = wrapper.get('[data-testid="form-section"] details')
+    ;(details.element as HTMLDetailsElement).open = false
+    await details.trigger('toggle')
+    expect(details.attributes('open')).toBeUndefined()
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(details.attributes('open')).toBeDefined()
+    expect(wrapper.text()).toContain('Title is required.')
   })
 })
 

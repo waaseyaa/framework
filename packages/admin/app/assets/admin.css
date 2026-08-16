@@ -124,12 +124,6 @@ body {
   pointer-events: none;
 }
 
-.sidebar-close {
-  display: none;
-  margin: 0 12px 12px;
-  gap: 8px;
-}
-
 .sidebar-overlay {
   display: none;
 }
@@ -204,6 +198,14 @@ select:focus-visible {
 .btn-primary:hover { background: var(--color-primary-hover); }
 .btn-danger { color: var(--color-danger); border-color: var(--color-danger); }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* This rule must follow .btn so the desktop close control stays hidden;
+   the responsive rule later in this file deliberately reveals it. */
+.sidebar-close {
+  display: none;
+  margin: 0 12px 12px;
+  gap: 8px;
+}
 
 .field { margin-bottom: 16px; }
 .field-label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }

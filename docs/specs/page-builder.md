@@ -192,7 +192,7 @@ Clients submit commands against an observed entity revision token and document
 fingerprint. Initial commands are:
 
 - add, duplicate, move, configure, and remove block;
-- add, move, configure, and remove section;
+- add, duplicate, move, and remove section;
 - change an allowed section layout;
 - restore a prior entity revision as a new revision.
 
@@ -204,6 +204,21 @@ one revision-creating entity mutation with the observed concurrency token.
 Unknown targets, stale fingerprints, invalid destinations, inaccessible
 references, and definition-version mismatches are typed failures. No command
 silently drops content or coerces an unknown block.
+
+The shared Admin SPA workspace exposes the same governed command surface to
+every shell that embeds it. Its textual outline lets an editor select and
+reorder sections, duplicate a section with fresh section and block instance
+IDs, remove a section with explicit confirmation, change only to a
+template-allowed layout, and move a block only to a region whose registered
+layout admits that block type. These controls are conveniences, not authority:
+the application service revalidates every submitted destination, definition,
+revision token, and complete resulting document.
+
+The workspace treats an optimistic-concurrency refusal as recoverable editor
+state, not as a generic reload error. It retains the rejected command and the
+observed draft in memory, loads the newer draft for an explicit comparison,
+and retries the retained command only after the editor chooses to reapply it.
+It never silently discards or automatically merges a rejected edit.
 
 ### 7.1 Persistence boundary
 

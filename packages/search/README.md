@@ -7,7 +7,7 @@ Full-text and structured search for Waaseyaa applications.
 Provides a search index abstraction and query builder for finding entities
 across types. The FTS5 implementation indexes a fixed title/body document,
 supports faceting and relevance ranking, preserves Indigenous orthography in
-tokenization, and performs batched access-filtered pagination. Entities become
+tokenization, and performs bounded access-filtered pagination. Entities become
 documents either by implementing `SearchIndexableInterface` themselves or —
 for ordinary content such as `node` — through the search-owned entity
 projection contract (see below). The principal-safe read surface is consumed
@@ -25,11 +25,16 @@ entity, proves entity `view`, and regenerates its search projection inside the
 principal's field-read scope before the candidate can affect a hit, count,
 facet, rank, snippet, filter, or page boundary.
 
-FTS5 is only a batched candidate generator. Returned values and aggregates are
-derived exclusively from the principal-safe projection. Raw pointers are read
-in fixed batches of 200 until the ordered match set is exhausted, so protected
-or stale candidates cannot dilute accessible results or make totals, facets,
-and pagination silently incomplete. The entity resolver safely truncates
+FTS5 is only a bounded candidate generator. Returned values and aggregates are
+derived exclusively from the principal-safe projection. One ordered statement
+reads at most 1,001 raw pointers; the last pointer is only a truncation sentinel,
+and at most 1,000 candidates are resolved. When that sentinel is present,
+`SearchResult::isComplete` is false. Totals, pages, facets, filters, and
+non-relevance sorts then describe only the principal-safe matches inside that
+raw relevance window. An exhausted window can therefore return zero visible
+hits with `isComplete: false` when every inspected candidate is denied or
+filtered; the flag is a coarse work-bound signal, not evidence that the caller
+may access an omitted candidate. The entity resolver safely truncates
 authorized title and body text to 512 characters and 64 KiB respectively.
 `SearchResult` deliberately omits server
 duration so the API does not amplify protected-index cardinality as response
@@ -181,4 +186,4 @@ is never authority for declaring a source public.
 - **Indigenous orthography is the tokenizer acceptance bar (#2010, R21):** `search_index` uses `tokenize="unicode61 remove_diacritics 0 tokenchars '''’ʼ'"` — Unicode word boundaries, no English Porter stemmer, no diacritic folding, and ASCII apostrophe/U+2019/U+02BC retained inside tokens. Round-trip coverage pins Anishinaabemowin double vowels, apostrophe/glottal forms, macrons/acute diacritics, and Canadian syllabics. Because SQLite cannot alter an FTS5 tokenizer in place, `search:reindex` recreates the virtual table before repopulating it; upgraded indexes must be fully reindexed.
 - **FTS5 `SELECT m.*` misses FTS5 columns**: When joining `search_index` (FTS5) with `search_metadata`, `m.*` only selects metadata columns. To get FTS5 content columns (title, body), select them explicitly: `si.title`, `si.body`. The `snippet()` function also requires column index references into the FTS5 table.
 - **FTS5 query syntax is never accepted from callers**: the provider extracts Unicode word/apostrophe tokens from plain text and submits every term individually quoted, including literal words such as `and`, `or`, `not`, and `near`. Punctuation such as `full-text`, `node.js`, and `C++` becomes the same token sequence used by SQLite's tokenizer; operators and wildcards cannot enter the query grammar.
-- **Every observable uses one bounded safe basis** (#1915, R16; #2010, R21; #2270): one pointer-only statement selects document ID, entity type, and schema version for at most 1,001 ranked rows, using the final row only as a truncation sentinel. There is no `OFFSET` loop, so concurrent lifecycle writes cannot duplicate or skip candidates between scan statements and work cannot grow quadratically. The resolver canonically reloads and authorizes at most 1,000 candidates; safe projections then determine token matching, filters, rank, sort, totals, facets, pagination, and snippets. When the sentinel is present, `SearchResult::isComplete` is false and exposed by the HTTP API and agent tool; totals, pages, and facets are explicitly lower bounds. See `Fts5SearchProviderPaginationAccessFilteredTest`, `Fts5SearchProviderAccessFilteredCountTest`, and `Fts5SearchProviderTwoPhaseFetchTest`.
+- **Every observable uses one bounded safe basis** (#1915, R16; #2010, R21; #2270): one pointer-only statement selects document ID, entity type, and schema version for at most 1,001 ranked rows, using the final row only as a truncation sentinel. There is no `OFFSET` loop, so concurrent lifecycle writes cannot duplicate or skip candidates between scan statements and work cannot grow quadratically. The resolver canonically reloads and authorizes at most 1,000 candidates; safe projections then determine token matching, filters, rank, sort, totals, facets, pagination, and snippets. When the sentinel is present, `SearchResult::isComplete` is false and exposed by the HTTP API and agent tool. Totals, pages, and facets are lower bounds; filters and non-relevance sorts apply only within the raw top-1,000 relevance window. `isComplete` is computed from pointer-window exhaustion before authorization, so false can accompany an otherwise empty principal-safe result without exposing a denied identifier, field, count, facet, or score. See `Fts5SearchProviderPaginationAccessFilteredTest`, `Fts5SearchProviderAccessFilteredCountTest`, `Fts5SearchProviderCandidateWindowContractTest`, and `Fts5SearchProviderTwoPhaseFetchTest`.

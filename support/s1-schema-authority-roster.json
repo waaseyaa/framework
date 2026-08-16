@@ -1818,25 +1818,25 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "9cb0f3f5ba08fcb035e94d5ab5b9a194dc76a7ce8d420749debfbd89db87f72d",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/MakeStorageMigration/EndToEndTest.php",
-            "line": 331,
+            "line": 341,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "85da926a0fe07b4893e73547411ed61adc92469cbde6d81d909dac6dee384205",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/MakeStorageMigration/EndToEndTest.php",
-            "line": 345,
+            "line": 355,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
             "line_sha256": "b93d33598238f27fb35e36e341fe07b07b7e2e759bed327367a3a4c499a34004",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/ProviderRegistersCommandsTest.php",
@@ -2457,7 +2457,7 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "7b238fca07266cf1a52487759b5ee4a20dfef6113ee6246cf54eb8ab9fd77917",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
         },
         {
             "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
@@ -2466,61 +2466,61 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "4e2ccf09575098686b152a2e38ebdedba7df50c10070c6b68ce6bf987eb8437b",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
         },
         {
             "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
-            "line": 221,
+            "line": 244,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "945e60ecc7d870ff3764121104c1956542d9e472aad9d3b6d267b925f87bca91",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
-        },
-        {
-            "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
-            "line": 237,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "945e60ecc7d870ff3764121104c1956542d9e472aad9d3b6d267b925f87bca91",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
         },
         {
             "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
             "line": 260,
             "pattern": "ddl_sql",
             "class": "test-only",
-            "match_sha256": "bed939b70a84dd82f911764288aab26863a2d076f38e3ad13435dc485be823da",
-            "line_sha256": "0e03abf87cdcfa980885439dcb82aecb08c41293bdeffa9bcff34d413a6cb32b",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "945e60ecc7d870ff3764121104c1956542d9e472aad9d3b6d267b925f87bca91",
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
         },
         {
             "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
-            "line": 261,
+            "line": 283,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "bed939b70a84dd82f911764288aab26863a2d076f38e3ad13435dc485be823da",
+            "line_sha256": "0e03abf87cdcfa980885439dcb82aecb08c41293bdeffa9bcff34d413a6cb32b",
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
+            "line": 284,
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "c3f0fe20d4b89fc97734d4339aec1903ecff4162e6183e71fae569f0a6a8a421",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
         },
         {
             "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
-            "line": 319,
+            "line": 342,
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "58f195115628dbc3734cdc49db7d24c12c8409b5670f95ccbd78d1a7490943f6",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
         },
         {
             "path": "packages/database-legacy/tests/Unit/DBALDatabaseTest.php",
-            "line": 340,
+            "line": 363,
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "58f195115628dbc3734cdc49db7d24c12c8409b5670f95ccbd78d1a7490943f6",
-            "source_sha256": "6acd48d50bc11d565f5a6b8fb1f180cc549bba0f5ac826a8270dfd503d3788b2"
+            "source_sha256": "28e6242c45b321b00f03e5ba6c74f0f1af59b1f485bddc1d67c1d5bae026a869"
         },
         {
             "path": "packages/database-legacy/tests/Unit/Query/DBALDeleteTest.php",
@@ -3771,7 +3771,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "bae9e3c6abb617a41c180ce0092da8c7251c86d4580fe2bbc0bbaee12f308c1d",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3780,7 +3780,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "e6e9a7ba2f3d703ed3d7d3895c667a7d024b9037c4825ec02dcdd050523a34c4",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3789,7 +3789,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "e6e9a7ba2f3d703ed3d7d3895c667a7d024b9037c4825ec02dcdd050523a34c4",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3798,7 +3798,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "495e6f2241e3096e5ab678a9a1698f613b17ba0e1209267a6c74bf45cd37fe13",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3807,7 +3807,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "ed8f10fd9c455aebc63332d5d8dfbbe7639c08cc71c2624297b1292de0ae490d",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3816,7 +3816,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "495e6f2241e3096e5ab678a9a1698f613b17ba0e1209267a6c74bf45cd37fe13",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3825,7 +3825,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "495e6f2241e3096e5ab678a9a1698f613b17ba0e1209267a6c74bf45cd37fe13",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3834,7 +3834,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "f4168693b2714dbb63c0672d90d7129a9fe8054669173a7f1c3a62201930e683",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
@@ -3843,88 +3843,88 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "f4168693b2714dbb63c0672d90d7129a9fe8054669173a7f1c3a62201930e683",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 1664,
+            "line": 1676,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "fa96a80a4d5c1a2265190d413fde476af409390aa456e9f31fd55814ddb4fb6b",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 1668,
+            "line": 1680,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "fa96a80a4d5c1a2265190d413fde476af409390aa456e9f31fd55814ddb4fb6b",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 1788,
+            "line": 1800,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "fa96a80a4d5c1a2265190d413fde476af409390aa456e9f31fd55814ddb4fb6b",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 1992,
+            "line": 2004,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "fa96a80a4d5c1a2265190d413fde476af409390aa456e9f31fd55814ddb4fb6b",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 2073,
+            "line": 2085,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "424c5e55b5a9cf9e23e6295d2cfd452cc078e09f77ac42762f95c3a25800f9e5",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 2138,
+            "line": 2150,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "424c5e55b5a9cf9e23e6295d2cfd452cc078e09f77ac42762f95c3a25800f9e5",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 2300,
+            "line": 2312,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "424c5e55b5a9cf9e23e6295d2cfd452cc078e09f77ac42762f95c3a25800f9e5",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 2400,
+            "line": 2412,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "e6e9a7ba2f3d703ed3d7d3895c667a7d024b9037c4825ec02dcdd050523a34c4",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntityRepository.php",
-            "line": 2705,
+            "line": 2717,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "4fbf59485d84757d786497cacd2e3edb7f69b1cbb1b09f20508296dd2a32fe56",
-            "source_sha256": "4570feed6f512935af12813bc4e969c6762a46c102ae17874b5f55b1aee6983d"
+            "source_sha256": "1ec4ca4f483e3788859e76d30a35324b2d685cf42380a3dda3a0ccbb4391132b"
         },
         {
             "path": "packages/entity-storage/src/EntitySchemaSync.php",
@@ -8190,7 +8190,7 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "1630536ee5c8c350cc305068f2eade240a0c764ba1e655914139d4f4c0d33a44",
-            "source_sha256": "19da207bec6169af62a710b020993b10f3714d57cbd1a51a11ac7f7e1fb7818d"
+            "source_sha256": "59449199d76e60cd55077728651ff0971116d4c7ce571a0408ed15b33fda79aa"
         },
         {
             "path": "packages/publishing/tests/Unit/IdempotencyStoreTest.php",

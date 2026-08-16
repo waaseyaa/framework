@@ -17,18 +17,44 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ confirm: [], cancel: [] }>()
 const { t } = useLanguage()
 const cancelButton = ref<HTMLButtonElement | null>(null)
+const dialog = ref<HTMLElement | null>(null)
+const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 watch(() => props.open, async (open) => {
   if (!open) return
   await nextTick()
   cancelButton.value?.focus()
 })
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    emit('cancel')
+    return
+  }
+  if (event.key !== 'Tab' || !dialog.value) return
+  const focusable = [...dialog.value.querySelectorAll<HTMLElement>(focusableSelector)]
+  const first = focusable[0]
+  const last = focusable.at(-1)
+  if (!first || !last) {
+    event.preventDefault()
+    return
+  }
+  const active = document.activeElement
+  if (event.shiftKey && (active === first || !dialog.value.contains(active))) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && (active === last || !dialog.value.contains(active))) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="confirm-overlay" @click.self="emit('cancel')" @keydown.esc="emit('cancel')">
+    <div v-if="open" class="confirm-overlay" @click.self="emit('cancel')" @keydown="onKeydown">
       <section
+        ref="dialog"
         class="confirm-dialog"
         role="alertdialog"
         aria-modal="true"

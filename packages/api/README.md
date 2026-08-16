@@ -31,6 +31,12 @@ authenticated-principal bucket. Client forwarding headers do not participate
 in identity. Anonymous GET/HEAD requests are session-stateless; an existing
 session cookie still resumes the authenticated session.
 
+`meta.isComplete` reports whether Search exhausted its bounded raw candidate
+window. When it is false, totals, pages, and facets are lower bounds, and
+filters or non-relevance sorts apply only inside that window. An empty visible
+result may still be incomplete when every inspected candidate is denied or
+filtered; the response never exposes those candidates' identifiers or values.
+
 Optional bounds live under `api.content_search.rate_limit`:
 
 ```php

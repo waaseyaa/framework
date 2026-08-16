@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
-use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
-
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\Capability\CapabilityActorSemantics;
@@ -13,9 +11,16 @@ use Waaseyaa\Access\Capability\CapabilityReason;
 use Waaseyaa\Audit\Contract\PrivilegedReadDescriptor;
 use Waaseyaa\Audit\Contract\PrivilegedReadKind;
 use Waaseyaa\Audit\Contract\PrivilegedReadOutcome;
-use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Writer\DatabaseStrictPrivilegedReadLedger;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DeleteInterface;
+use Waaseyaa\Database\InsertInterface;
+use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\TransactionInterface;
+use Waaseyaa\Database\UpdateInterface;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 final class StrictPrivilegedReadLedgerTest extends TestCase
 {
@@ -182,6 +187,193 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
             'descriptor' => null,
             'created_at' => '2030-01-01 00:00:01',
         ])->execute();
+    }
+
+    #[Test]
+    public function finalization_retries_after_a_concurrent_wal_snapshot_is_invalidated(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'waaseyaa-ledger-contention-');
+        self::assertIsString($path);
+        try {
+            $first = DBALDatabase::createSqlite($path);
+            RuntimeSchemaMigrations::audit($first);
+            $second = DBALDatabase::createSqlite($path);
+            $secondLedger = new DatabaseStrictPrivilegedReadLedger($second);
+            $secondReceipt = $secondLedger->reserve($this->descriptor());
+            $triggered = false;
+            $proxy = new class ($first, function () use (&$triggered, $secondLedger, $secondReceipt): void {
+                if (!$triggered) {
+                    $triggered = true;
+                    $secondLedger->finalize($secondReceipt, PrivilegedReadOutcome::Succeeded);
+                }
+            }) implements DatabaseInterface {
+                public function __construct(private readonly DatabaseInterface $inner, private readonly \Closure $afterFirstRead) {}
+                public function select(string $table, string $alias = ''): SelectInterface
+                {
+                    return $this->inner->select($table, $alias);
+                }
+                public function insert(string $table): InsertInterface
+                {
+                    return $this->inner->insert($table);
+                }
+                public function update(string $table): UpdateInterface
+                {
+                    return $this->inner->update($table);
+                }
+                public function delete(string $table): DeleteInterface
+                {
+                    return $this->inner->delete($table);
+                }
+                public function schema(): SchemaInterface
+                {
+                    return $this->inner->schema();
+                }
+                public function transaction(string $name = ''): TransactionInterface
+                {
+                    return $this->inner->transaction($name);
+                }
+                public function quoteIdentifier(string $identifier): string
+                {
+                    return $this->inner->quoteIdentifier($identifier);
+                }
+                public function query(string $sql, array $args = []): \Traversable
+                {
+                    $rows = iterator_to_array($this->inner->query($sql, $args));
+                    ($this->afterFirstRead)();
+                    return new \ArrayIterator($rows);
+                }
+            };
+            $firstLedger = new DatabaseStrictPrivilegedReadLedger($proxy);
+            $firstReceipt = $firstLedger->reserve($this->descriptor());
+            $firstLedger->finalize($firstReceipt, PrivilegedReadOutcome::Succeeded);
+
+            self::assertTrue($triggered);
+            self::assertSame(2, (int) iterator_to_array($first->query('SELECT COUNT(*) AS count FROM privileged_read_ledger WHERE event_type = :event', ['event' => 'finalized']))[0]['count']);
+        } finally {
+            @unlink($path);
+            @unlink($path . '-wal');
+            @unlink($path . '-shm');
+        }
+    }
+
+    #[Test]
+    public function reservation_retries_bare_sqlite_busy_snapshot_at_transaction_acquisition(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::audit($database);
+        $proxy = new class ($database) implements DatabaseInterface {
+            public int $transactionAttempts = 0;
+            public function __construct(private readonly DatabaseInterface $inner) {}
+            public function select(string $table, string $alias = ''): SelectInterface
+            {
+                return $this->inner->select($table, $alias);
+            }
+            public function insert(string $table): InsertInterface
+            {
+                return $this->inner->insert($table);
+            }
+            public function update(string $table): UpdateInterface
+            {
+                return $this->inner->update($table);
+            }
+            public function delete(string $table): DeleteInterface
+            {
+                return $this->inner->delete($table);
+            }
+            public function schema(): SchemaInterface
+            {
+                return $this->inner->schema();
+            }
+            public function quoteIdentifier(string $identifier): string
+            {
+                return $this->inner->quoteIdentifier($identifier);
+            }
+            public function query(string $sql, array $args = []): \Traversable
+            {
+                return $this->inner->query($sql, $args);
+            }
+            public function transaction(string $name = ''): TransactionInterface
+            {
+                if (++$this->transactionAttempts === 1) {
+                    throw new \RuntimeException('SQLITE_BUSY_SNAPSHOT');
+                }
+                return $this->inner->transaction($name);
+            }
+        };
+        $ledger = new DatabaseStrictPrivilegedReadLedger($proxy);
+
+        $receipts = $ledger->reserveMany([$this->descriptor()]);
+
+        self::assertCount(1, $receipts);
+        self::assertSame(2, $proxy->transactionAttempts);
+        self::assertSame([['event_type' => 'reserved']], iterator_to_array($database->query('SELECT event_type FROM privileged_read_ledger')));
+    }
+
+    #[Test]
+    public function ambiguous_commit_is_not_retried_when_rollback_cannot_prove_safety(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::audit($database);
+        $proxy = new class ($database) implements DatabaseInterface {
+            public int $transactionAttempts = 0;
+            public function __construct(private readonly DatabaseInterface $inner) {}
+            public function select(string $table, string $alias = ''): SelectInterface
+            {
+                return $this->inner->select($table, $alias);
+            }
+            public function insert(string $table): InsertInterface
+            {
+                return $this->inner->insert($table);
+            }
+            public function update(string $table): UpdateInterface
+            {
+                return $this->inner->update($table);
+            }
+            public function delete(string $table): DeleteInterface
+            {
+                return $this->inner->delete($table);
+            }
+            public function schema(): SchemaInterface
+            {
+                return $this->inner->schema();
+            }
+            public function quoteIdentifier(string $identifier): string
+            {
+                return $this->inner->quoteIdentifier($identifier);
+            }
+            public function query(string $sql, array $args = []): \Traversable
+            {
+                return $this->inner->query($sql, $args);
+            }
+            public function transaction(string $name = ''): TransactionInterface
+            {
+                ++$this->transactionAttempts;
+                $inner = $this->inner->transaction($name);
+                return new class ($inner) implements TransactionInterface {
+                    public function __construct(private readonly TransactionInterface $inner) {}
+                    public function commit(): void
+                    {
+                        $this->inner->commit();
+                        throw new \RuntimeException('SQLITE_BUSY after an ambiguous commit boundary');
+                    }
+                    public function rollBack(): void
+                    {
+                        $this->inner->rollBack();
+                    }
+                };
+            }
+        };
+        $ledger = new DatabaseStrictPrivilegedReadLedger($proxy);
+
+        try {
+            $ledger->reserveMany([$this->descriptor()]);
+            self::fail('An ambiguous commit must fail closed.');
+        } catch (\Waaseyaa\Audit\Exception\PrivilegedReadLedgerException $exception) {
+            self::assertStringContainsString('could not be made durable', $exception->getMessage());
+        }
+
+        self::assertSame(1, $proxy->transactionAttempts);
+        self::assertSame(1, (int) iterator_to_array($database->query('SELECT COUNT(*) AS count FROM privileged_read_ledger'))[0]['count']);
     }
 
     private function descriptor(): PrivilegedReadDescriptor

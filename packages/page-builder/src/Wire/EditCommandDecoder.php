@@ -9,6 +9,7 @@ use Waaseyaa\PageBuilder\Command\AddSection;
 use Waaseyaa\PageBuilder\Command\ChangeSectionLayout;
 use Waaseyaa\PageBuilder\Command\ConfigureBlock;
 use Waaseyaa\PageBuilder\Command\DuplicateBlock;
+use Waaseyaa\PageBuilder\Command\DuplicateSection;
 use Waaseyaa\PageBuilder\Command\EditCommand;
 use Waaseyaa\PageBuilder\Command\MoveBlock;
 use Waaseyaa\PageBuilder\Command\MoveSection;
@@ -31,6 +32,7 @@ final readonly class EditCommandDecoder
             'move_block' => $this->moveBlock($payload),
             'remove_block' => $this->removeBlock($payload),
             'add_section' => $this->addSection($payload),
+            'duplicate_section' => $this->duplicateSection($payload),
             'move_section' => $this->moveSection($payload),
             'remove_section' => $this->removeSection($payload),
             'change_section_layout' => $this->changeSectionLayout($payload),
@@ -94,6 +96,25 @@ final readonly class EditCommandDecoder
         $this->exactKeys($payload, ['type', 'position', 'section']);
 
         return new AddSection($this->position($payload, 'position'), $this->map($payload, 'section'));
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function duplicateSection(array $payload): DuplicateSection
+    {
+        $this->exactKeys($payload, ['type', 'source_section_id', 'duplicate_section_id', 'duplicate_block_ids']);
+        $ids = $this->map($payload, 'duplicate_block_ids');
+        foreach ($ids as $sourceId => $duplicateId) {
+            if (!is_string($sourceId) || '' === $sourceId || !is_string($duplicateId) || '' === $duplicateId) {
+                throw new InvalidWireCommandException('Section duplication block IDs must be non-empty strings.');
+            }
+        }
+
+        /** @var array<non-empty-string, non-empty-string> $ids */
+        return new DuplicateSection(
+            $this->string($payload, 'source_section_id'),
+            $this->string($payload, 'duplicate_section_id'),
+            $ids,
+        );
     }
 
     /** @param array<string, mixed> $payload */
@@ -172,7 +193,7 @@ final readonly class EditCommandDecoder
     private function map(array $payload, string $key): array
     {
         $value = $payload[$key] ?? null;
-        if (!is_array($value) || array_is_list($value)) {
+        if (!is_array($value) || ([] !== $value && array_is_list($value))) {
             throw new InvalidWireCommandException("Page-builder command field {$key} must be an object.");
         }
 

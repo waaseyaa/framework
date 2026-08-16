@@ -27,11 +27,9 @@ final readonly class DatabaseStrictPrivilegedReadLedger implements BatchStrictPr
     public function reserve(PrivilegedReadDescriptor $descriptor): PrivilegedReadReceipt
     {
         $receipt = new PrivilegedReadReceipt(bin2hex(random_bytes(16)));
-        try {
+        $this->durableTransaction('privileged-read-reserve', 'Strict privileged-read reservation could not be made durable.', function () use ($receipt, $descriptor): void {
             $this->append($receipt, 'reserved', null, $this->encode($descriptor));
-        } catch (\Throwable $e) {
-            throw new PrivilegedReadLedgerException('Strict privileged-read reservation could not be made durable.', 0, $e);
-        }
+        });
         return $receipt;
     }
 
@@ -47,24 +45,18 @@ final readonly class DatabaseStrictPrivilegedReadLedger implements BatchStrictPr
             throw new \InvalidArgumentException('A strict privileged-read reservation batch cannot be empty.');
         }
 
-        $transaction = $this->database->transaction('privileged-read-reserve-batch');
-        try {
-            $receipts = [];
-            foreach ($descriptors as $descriptor) {
-                $receipt = new PrivilegedReadReceipt(bin2hex(random_bytes(16)));
+        $receipts = array_map(
+            static fn(PrivilegedReadDescriptor $_): PrivilegedReadReceipt => new PrivilegedReadReceipt(bin2hex(random_bytes(16))),
+            $descriptors,
+        );
+        $this->durableTransaction('privileged-read-reserve-batch', 'Strict privileged-read reservation batch could not be made durable.', function () use ($descriptors, $receipts): void {
+            foreach ($descriptors as $index => $descriptor) {
+                $receipt = $receipts[$index];
                 $this->append($receipt, 'reserved', null, $this->encode($descriptor));
-                $receipts[] = $receipt;
             }
-            $transaction->commit();
+        });
 
-            return $receipts;
-        } catch (\Throwable $e) {
-            try {
-                $transaction->rollBack();
-            } catch (\Throwable) {
-            }
-            throw new PrivilegedReadLedgerException('Strict privileged-read reservation batch could not be made durable.', 0, $e);
-        }
+        return $receipts;
     }
 
     /** @param list<PrivilegedReadReceipt> $receipts */
@@ -74,14 +66,15 @@ final readonly class DatabaseStrictPrivilegedReadLedger implements BatchStrictPr
             throw new \InvalidArgumentException('A strict privileged-read finalization batch cannot be empty.');
         }
 
-        $transaction = $this->database->transaction('privileged-read-finalize');
-        try {
-            $seen = [];
+        $seen = [];
+        foreach ($receipts as $receipt) {
+            if (isset($seen[$receipt->id])) {
+                throw new \InvalidArgumentException('Finalization batches require unique privileged-read receipts.');
+            }
+            $seen[$receipt->id] = true;
+        }
+        $this->durableTransaction('privileged-read-finalize', 'Strict privileged-read outcome batch could not be made durable.', function () use ($receipts, $outcome): void {
             foreach ($receipts as $receipt) {
-                if (isset($seen[$receipt->id])) {
-                    throw new \InvalidArgumentException('Finalization batches require unique privileged-read receipts.');
-                }
-                $seen[$receipt->id] = true;
                 $events = iterator_to_array($this->database->query(
                     'SELECT event_type FROM privileged_read_ledger WHERE receipt_id = :receipt ORDER BY id',
                     ['receipt' => $receipt->id],
@@ -93,17 +86,49 @@ final readonly class DatabaseStrictPrivilegedReadLedger implements BatchStrictPr
             foreach ($receipts as $receipt) {
                 $this->append($receipt, 'finalized', $outcome->value, null);
             }
-            $transaction->commit();
-        } catch (\Throwable $e) {
+        });
+    }
+
+    private function durableTransaction(string $name, string $failureMessage, callable $operation): void
+    {
+        for ($attempt = 1; $attempt <= 3; ++$attempt) {
+            $transaction = null;
             try {
-                $transaction->rollBack();
-            } catch (\Throwable) {
+                $transaction = $this->database->transaction($name);
+                $operation();
+                $transaction->commit();
+                return;
+            } catch (\Throwable $e) {
+                $rolledBack = false;
+                try {
+                    if ($transaction !== null) {
+                        $transaction->rollBack();
+                        $rolledBack = true;
+                    }
+                } catch (\Throwable) {
+                }
+                if ($e instanceof \LogicException) {
+                    throw $e;
+                }
+                $safeToRetry = $transaction === null || $rolledBack;
+                if ($attempt < 3 && $safeToRetry && $this->isRetryableSqliteContention($e)) {
+                    usleep($attempt * 10_000);
+                    continue;
+                }
+                throw new PrivilegedReadLedgerException($failureMessage, 0, $e);
             }
-            if ($e instanceof \LogicException) {
-                throw $e;
-            }
-            throw new PrivilegedReadLedgerException('Strict privileged-read outcome batch could not be made durable.', 0, $e);
         }
+    }
+
+    private function isRetryableSqliteContention(\Throwable $error): bool
+    {
+        for ($current = $error; $current !== null; $current = $current->getPrevious()) {
+            if (preg_match('/(?:database (?:table )?is locked|SQLITE_(?:BUSY|LOCKED)(?:_[A-Z0-9_]+)?)/i', $current->getMessage()) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function append(PrivilegedReadReceipt $receipt, string $eventType, ?string $outcome, ?string $descriptor): void

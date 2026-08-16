@@ -102,8 +102,14 @@ exact immutable request principal to Search, whose safe-read boundary owns
 entity, field, workflow, tenant, and community visibility and computes
 counts/facets only after authorization. The adapter copies bounded properties
 into a closed output schema and rejects malformed provider output. Pagination
-is limited to a 1,000-result window. Dispatch auditing retains sort/pagination
-shape but replaces query and free-text filters with lengths or counts.
+is limited to Search's raw 1,000-candidate relevance window plus one truncation
+sentinel. The closed result exposes `is_complete: false` when that window is
+exhausted; totals, pages, and facets are then lower bounds, and filters or
+non-relevance sorts apply only inside the window. An all-denied or fully
+filtered window can therefore be empty and incomplete without exposing a
+denied identifier, value, count, facet, or score. Dispatch auditing retains
+sort/pagination shape but replaces query and free-text filters with lengths or
+counts.
 
 ### Principal-safe content resources
 

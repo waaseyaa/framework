@@ -132,6 +132,43 @@ describe('usePageBuilder', () => {
     expect(state.saving.value).toBe(false)
   })
 
+  it('preserves a stale command, compares with the latest draft, and retries only after explicit choice', async () => {
+    mocks.command.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 409, title: 'Page changed', detail: 'Another editor saved first.' },
+    })
+    const latest = { ...draft, entity_revision_id: 9, document_fingerprint: 'b'.repeat(64) }
+    const retried = { ...draft, entity_revision_id: 10, document_fingerprint: 'c'.repeat(64) }
+    const { usePageBuilder } = await import('~/composables/usePageBuilder')
+    const state = usePageBuilder('page', '42')
+    await state.load()
+
+    await expect(state.apply(removeCommand)).resolves.toBe(false)
+    expect(state.error.value).toBeNull()
+    expect(state.conflict.value?.command).toEqual(removeCommand)
+    expect(state.conflict.value?.localDraft).toEqual(draft)
+    await expect(state.apply(removeCommand)).resolves.toBe(false)
+    expect(mocks.command).toHaveBeenCalledTimes(1)
+
+    mocks.draft.mockResolvedValueOnce({ ok: true, data: latest })
+    await expect(state.loadLatestForConflict()).resolves.toBe(true)
+    expect(state.draft.value).toEqual(latest)
+    expect(state.comparedRevision.value).toEqual(draft)
+    expect(state.conflict.value?.latestLoaded).toBe(true)
+
+    mocks.command.mockResolvedValueOnce({ ok: true, data: retried })
+    await expect(state.retryConflict()).resolves.toBe(true)
+    expect(mocks.command).toHaveBeenLastCalledWith(
+      'page',
+      '42',
+      latest,
+      removeCommand,
+      '11111111-1111-4111-8111-111111111111',
+    )
+    expect(state.draft.value).toEqual(retried)
+    expect(state.conflict.value).toBeNull()
+  })
+
   it('loads an exact revision preview and reports preview refusal', async () => {
     const { usePageBuilder } = await import('~/composables/usePageBuilder')
     const state = usePageBuilder('page', '42')

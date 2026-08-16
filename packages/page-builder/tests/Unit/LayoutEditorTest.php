@@ -11,6 +11,7 @@ use Waaseyaa\PageBuilder\Command\AddSection;
 use Waaseyaa\PageBuilder\Command\ChangeSectionLayout;
 use Waaseyaa\PageBuilder\Command\ConfigureBlock;
 use Waaseyaa\PageBuilder\Command\DuplicateBlock;
+use Waaseyaa\PageBuilder\Command\DuplicateSection;
 use Waaseyaa\PageBuilder\Command\MoveBlock;
 use Waaseyaa\PageBuilder\Command\MoveSection;
 use Waaseyaa\PageBuilder\Command\RemoveBlock;
@@ -146,6 +147,65 @@ final class LayoutEditorTest extends TestCase
     }
 
     #[Test]
+    public function duplicateSectionRequiresFreshValidatedInstanceIds(): void
+    {
+        $editor = $this->editor();
+        $document = $this->document();
+
+        $result = $editor->apply($document, $editor->fingerprint($document), new DuplicateSection(
+            sourceSectionId: 'sec_content',
+            duplicateSectionId: 'sec_copy',
+            duplicateBlockIds: ['blk_first' => 'blk_copy'],
+        ));
+
+        self::assertSame(['sec_content', 'sec_copy'], array_column($result->document()->sections(), 'id'));
+        self::assertSame(['blk_copy'], $this->blockIds($result->document(), 'main', section: 1));
+        self::assertSame(
+            $result->document()->sections()[0]['regions']['main'][0]['config'],
+            $result->document()->sections()[1]['regions']['main'][0]['config'],
+        );
+        self::assertSame(['code' => 'section.duplicated', 'target' => 'sec_copy'], $result->summary());
+    }
+
+    #[Test]
+    public function removingTheLastSectionFailsClosed(): void
+    {
+        $editor = $this->editor();
+        $document = $this->document();
+
+        try {
+            $editor->apply(
+                $document,
+                $editor->fingerprint($document),
+                new RemoveSection('sec_content'),
+            );
+            self::fail('The final page-builder section was removed.');
+        } catch (InvalidEditCommandException $exception) {
+            self::assertSame('command.section.last_required', $exception->machineCode);
+        }
+    }
+
+    #[Test]
+    public function duplicateSectionRequiresAnExactSourceToDuplicateIdMap(): void
+    {
+        $editor = $this->editor();
+        $document = $this->document();
+
+        foreach ([[], ['blk_unknown' => 'blk_copy']] as $duplicateBlockIds) {
+            try {
+                $editor->apply($document, $editor->fingerprint($document), new DuplicateSection(
+                    sourceSectionId: 'sec_content',
+                    duplicateSectionId: 'sec_copy',
+                    duplicateBlockIds: $duplicateBlockIds,
+                ));
+                self::fail('A section duplication with an inexact block ID map was accepted.');
+            } catch (InvalidEditCommandException $exception) {
+                self::assertSame('command.duplicate_section.block_ids_mismatch', $exception->machineCode);
+            }
+        }
+    }
+
+    #[Test]
     public function changingLayoutAddsDeclaredRegionsButNeverDropsContent(): void
     {
         $editor = $this->editor();
@@ -259,8 +319,8 @@ final class LayoutEditorTest extends TestCase
     }
 
     /** @return list<string> */
-    private function blockIds(LayoutDocument $document, string $region): array
+    private function blockIds(LayoutDocument $document, string $region, int $section = 0): array
     {
-        return array_column($document->sections()[0]['regions'][$region], 'id');
+        return array_column($document->sections()[$section]['regions'][$region], 'id');
     }
 }

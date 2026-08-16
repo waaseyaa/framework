@@ -80,6 +80,7 @@ export type PageBuilderCommand =
   | { type: 'move_block', block_id: string, destination_section_id: string, destination_region_id: string, position: number }
   | { type: 'remove_block', block_id: string }
   | { type: 'add_section', position: number, section: PageBuilderSection }
+  | { type: 'duplicate_section', source_section_id: string, duplicate_section_id: string, duplicate_block_ids: Record<string, string> }
   | { type: 'move_section', section_id: string, position: number }
   | { type: 'remove_section', section_id: string }
   | { type: 'change_section_layout', section_id: string, layout_id: string, layout_version: number }

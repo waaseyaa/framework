@@ -15,6 +15,13 @@ describe('global admin design system', () => {
     expect(globalStyles).toContain('.btn-primary {')
     expect(globalStyles).toContain('font-family:')
     expect(shell).not.toContain('<style>')
+
+    const buttonRule = globalStyles.indexOf('.btn {')
+    const sidebarCloseRule = globalStyles.indexOf('.sidebar-close {')
+    const responsiveSidebarCloseRule = globalStyles.lastIndexOf('.sidebar-close {')
+    expect(buttonRule).toBeGreaterThanOrEqual(0)
+    expect(sidebarCloseRule).toBeGreaterThan(buttonRule)
+    expect(responsiveSidebarCloseRule).toBeGreaterThan(sidebarCloseRule)
   })
 
   it.each([

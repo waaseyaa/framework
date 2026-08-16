@@ -1574,6 +1574,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         string $entityId,
         int $targetRevisionId,
         ?EntityMutationToken $expected = null,
+        ?int $expectedCurrentRevisionId = null,
     ): EntityInterface {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
@@ -1615,6 +1616,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $transaction = $this->database?->transaction();
         try {
             $this->claimMutationForId($entityId, $expected);
+            if ($expectedCurrentRevisionId !== null) {
+                $currentRevisionId = $this->revisionDriver->getLatestRevisionId($entityId);
+                if ($currentRevisionId !== $expectedCurrentRevisionId) {
+                    throw new RevisionConflictException(
+                        $this->entityType->id(),
+                        $entityId,
+                        $expectedCurrentRevisionId,
+                        $currentRevisionId,
+                    );
+                }
+            }
             $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
 
             // Remove revision metadata from the row — we're creating a new revision.

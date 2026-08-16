@@ -6,7 +6,11 @@ namespace Waaseyaa\Config\Activation;
 
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 
-/** Immutable outcome and post-commit evidence identity returned by the public activation seam. @api */
+/**
+ * Immutable post-commit result and evidence identity returned by the activation authority.
+ *
+ * @api
+ */
 final readonly class ConfigurationActivationResult
 {
     public function __construct(
