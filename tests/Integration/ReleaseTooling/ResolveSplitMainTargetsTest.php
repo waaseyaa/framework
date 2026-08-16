@@ -133,6 +133,21 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_schema_materialization_workflow_cohort(): void
+    {
+        [$exit, $stdout] = $this->runScript('entity,migration,workflows');
+
+        self::assertSame(0, $exit, $stdout);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/entity', 'remote' => 'entity'],
+                ['local' => 'packages/migration', 'remote' => 'migration'],
+                ['local' => 'packages/workflows', 'remote' => 'workflows'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function rejects_an_empty_selection(): void
     {
         [$exit, , $stderr] = $this->runScript(' , ');
