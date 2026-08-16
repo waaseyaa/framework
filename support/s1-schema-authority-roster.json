@@ -9931,21 +9931,21 @@
         },
         {
             "path": "tests/Integration/Phase7/ApiRoutingIntegrationTest.php",
-            "line": 169,
+            "line": 176,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "67a8e3068440c1bf4be5a969e06c42d9bfd0c63bc77ccd78027314ea47e2c308",
-            "source_sha256": "2a8814201a96518d0aab2b7641a7bd37e54a6fc5de1d9ba9b044eeefb3537391"
+            "source_sha256": "53e8fc3c751908e56c63766070539914a134056bdd7afb05e34f2099f1f63176"
         },
         {
             "path": "tests/Integration/Phase7/ApiRoutingIntegrationTest.php",
-            "line": 344,
+            "line": 351,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "67a8e3068440c1bf4be5a969e06c42d9bfd0c63bc77ccd78027314ea47e2c308",
-            "source_sha256": "2a8814201a96518d0aab2b7641a7bd37e54a6fc5de1d9ba9b044eeefb3537391"
+            "source_sha256": "53e8fc3c751908e56c63766070539914a134056bdd7afb05e34f2099f1f63176"
         },
         {
             "path": "tests/Integration/Phase7/FieldAccessWiringTest.php",

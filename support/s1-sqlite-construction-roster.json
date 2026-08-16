@@ -963,7 +963,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "a10456f44243c0bc1df8c7855eb60e11f3021d9bf582d01e816614fc62c09271"
+            "source_sha256": "306b44a682bec004fc2ea7fd3e4aa832c336eae5654c745da6c6ee2dda4035c5"
         },
         {
             "path": "packages/audit/tests/Integration/AuditImmutabilityTest.php",
