@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Test isolation — schema-sync helper no longer leaks its kernel field
+  registry:** `RuntimeSchemaMigrations::entitiesForProject()` boots a throwaway
+  restricted `ConsoleKernel` whose `FieldDefinitionRegistry` (carrying the real
+  `node.status` Protected/authorizationInput classification) was left installed
+  process-wide via `ContentEntityBase::setFieldRegistry()`. Under random test
+  order, any later in-process test hydrating a fixture `node` entity type that
+  declares `status` Public then merged the leaked registry and threw
+  `LogicException: Conflicting field-read definitions for node.status`
+  (ci/random-order, seed 1851822478). The helper now resets the process-wide
+  registry in a `finally` block; a regression test pins the invariant
+  (`tests/Integration/Support/RuntimeSchemaMigrationsFieldRegistryResetTest`).
 - **drift-detector hardening (`S1-FW-CFG-04`):** Harden the spec-drift gate end
   to end. Map `packages/oidc/` to `docs/specs/api-layer.md` (the enduring home
   of the OIDC issuer's HTTP surface) with additive path-specific secondary

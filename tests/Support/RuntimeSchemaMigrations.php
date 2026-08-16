@@ -30,18 +30,29 @@ final class RuntimeSchemaMigrations
     public static function entitiesForProject(string $projectRoot): void
     {
         $kernel = new \Waaseyaa\Foundation\Kernel\ConsoleKernel($projectRoot);
-        $kernel->bootForSchemaSync();
-        $manager = $kernel->getEntityTypeManager();
-        $database = $kernel->getDatabase();
-        if ($database instanceof DBALDatabase) {
-            self::entityMutationAuthority($database);
-        }
-        new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
-            $database,
-            $manager->getFieldRegistry(),
-        )->run($manager->getDefinitions());
-        if ($database instanceof DBALDatabase) {
-            $database->getConnection()->close();
+        try {
+            $kernel->bootForSchemaSync();
+            $manager = $kernel->getEntityTypeManager();
+            $database = $kernel->getDatabase();
+            if ($database instanceof DBALDatabase) {
+                self::entityMutationAuthority($database);
+            }
+            new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
+                $database,
+                $manager->getFieldRegistry(),
+            )->run($manager->getDefinitions());
+            if ($database instanceof DBALDatabase) {
+                $database->getConnection()->close();
+            }
+        } finally {
+            // bootForSchemaSync() installs the throwaway kernel's field registry
+            // process-wide (ContentEntityBase::setFieldRegistry, forwarded to
+            // EntityReadRuntime). That registry carries the real package field
+            // classifications (e.g. node.status Protected/authorizationInput);
+            // left installed it becomes the EntityReadRuntime::layoutFor()
+            // fallback for later tests in the same process and conflicts with
+            // fixture entity types that declare the same fields differently.
+            \Waaseyaa\Entity\ContentEntityBase::setFieldRegistry(null);
         }
     }
 
