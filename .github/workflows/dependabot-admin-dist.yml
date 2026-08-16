@@ -36,6 +36,9 @@ jobs:
         with:
           php-version: '8.5'
 
+      - name: Install PHP build runtime
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts --no-plugins
+
       # Dependency code runs only in this read-only job. No later step in this
       # workspace receives a write token, so hooks/GITHUB_ENV cannot bridge the
       # trust boundary into publication.

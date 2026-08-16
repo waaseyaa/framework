@@ -52,6 +52,24 @@ final class DependencyWorkflowTest extends TestCase
     }
 
     #[Test]
+    public function admin_dist_workflows_bootstrap_the_trusted_php_build_runtime_without_scripts_or_plugins(): void
+    {
+        foreach (['admin-dist.yml', 'dependabot-admin-dist.yml'] as $filename) {
+            $workflow = file_get_contents(__DIR__ . '/../../.github/workflows/' . $filename);
+            self::assertIsString($workflow);
+
+            $install = 'composer install --no-interaction --prefer-dist --no-progress --no-scripts --no-plugins';
+            self::assertStringContainsString($install, $workflow, $filename);
+
+            $installOffset = strpos($workflow, $install);
+            $buildOffset = strpos($workflow, 'bin/build-admin-dist');
+            self::assertIsInt($installOffset);
+            self::assertIsInt($buildOffset);
+            self::assertLessThan($buildOffset, $installOffset, $filename);
+        }
+    }
+
+    #[Test]
     public function bimaaji_declares_its_live_cli_command_integration_as_optional(): void
     {
         $manifest = json_decode(
