@@ -5206,12 +5206,12 @@
         },
         {
             "path": "packages/foundation/src/Kernel/ConsoleKernel.php",
-            "line": 102,
+            "line": 108,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "62e60a7b676959e6cf5c123ee6ef0f81ef0b399e35f2398a6d98e97adc230515",
-            "source_sha256": "0aa9e47623ae5a0e4cb9738c80be53f04d78f6eb6745ea8e98e4ffbd25d1f1ba"
+            "source_sha256": "0264fe1a7ab3eaa3e19aa9921cc67b10663a196f61edbd914b8e8b6e40ae8e7f"
         },
         {
             "path": "packages/foundation/src/Migration/MigrationRepository.php",
@@ -5220,7 +5220,7 @@
             "class": "coordinator-authority",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "7bdf6aad87a02376db69c21f9e05ed33e318180738ddfa61004a3dcce624386a",
-            "source_sha256": "0a2ed4cab523c1d8d7e148fe5930491657b8071366b762eb6bde580867c00150"
+            "source_sha256": "d03be6d61a6c98005b9fea9ad55621b67d159eff30567450348ce4ac2b41ccb6"
         },
         {
             "path": "packages/foundation/src/Migration/MigrationRepository.php",
@@ -5229,43 +5229,43 @@
             "class": "coordinator-authority",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "7b35ee4eda78bdd004edb1550923502dc98c589fbe79c2982d47fe53b27f08e8",
-            "source_sha256": "0a2ed4cab523c1d8d7e148fe5930491657b8071366b762eb6bde580867c00150"
+            "source_sha256": "d03be6d61a6c98005b9fea9ad55621b67d159eff30567450348ce4ac2b41ccb6"
         },
         {
             "path": "packages/foundation/src/Migration/MigrationRepository.php",
-            "line": 225,
+            "line": 224,
             "pattern": "ddl_sql",
             "class": "coordinator-authority",
             "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
             "line_sha256": "5bec6a87aadc18cfe6dcdac7a002e2c4e50791bbdf9e114a1ff3e42c4dabd7d6",
-            "source_sha256": "0a2ed4cab523c1d8d7e148fe5930491657b8071366b762eb6bde580867c00150"
+            "source_sha256": "d03be6d61a6c98005b9fea9ad55621b67d159eff30567450348ce4ac2b41ccb6"
         },
         {
             "path": "packages/foundation/src/Migration/MigrationRepository.php",
-            "line": 230,
+            "line": 229,
             "pattern": "ddl_sql",
             "class": "coordinator-authority",
             "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
             "line_sha256": "2551ae6c45b6ba88ec3525222cc0fb704042f90676c9c47ee85618a97b8d5813",
-            "source_sha256": "0a2ed4cab523c1d8d7e148fe5930491657b8071366b762eb6bde580867c00150"
+            "source_sha256": "d03be6d61a6c98005b9fea9ad55621b67d159eff30567450348ce4ac2b41ccb6"
         },
         {
             "path": "packages/foundation/src/Migration/MigrationRepository.php",
-            "line": 248,
+            "line": 247,
             "pattern": "ddl_sql",
             "class": "coordinator-authority",
             "match_sha256": "2d52dcb3fc5e1214a87232f9f36b00313f5973a074b1d12bfd81d2874ab0e460",
             "line_sha256": "6995c33e7de088e94a33426c2b744ff44a6c0c3e4644eaaa855ae2a0f3834059",
-            "source_sha256": "0a2ed4cab523c1d8d7e148fe5930491657b8071366b762eb6bde580867c00150"
+            "source_sha256": "d03be6d61a6c98005b9fea9ad55621b67d159eff30567450348ce4ac2b41ccb6"
         },
         {
             "path": "packages/foundation/src/Migration/MigrationRepository.php",
-            "line": 262,
+            "line": 261,
             "pattern": "ddl_sql",
             "class": "coordinator-authority",
             "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
             "line_sha256": "476362ed569339b5a0212d71fc8c5fe37329bd3444fc520428912a26ec1220f6",
-            "source_sha256": "0a2ed4cab523c1d8d7e148fe5930491657b8071366b762eb6bde580867c00150"
+            "source_sha256": "d03be6d61a6c98005b9fea9ad55621b67d159eff30567450348ce4ac2b41ccb6"
         },
         {
             "path": "packages/foundation/src/Migration/SchemaBuilder.php",
@@ -6021,16 +6021,16 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "fa5d4b59eead30270417e75fe5a6bd8e8e58a5a3cd23bf42d04a9224d33d97ce",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
-            "line": 78,
+            "line": 80,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "f82c2f9ae42077eff8860e41e3b5b687d7c6c6886cac1cc1080545edf7a0da1a",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/Schema/Compiler/CompiledMigrationPlanTest.php",

@@ -8,7 +8,6 @@ namespace Waaseyaa\Foundation\Migration;
 final readonly class SchemaAuthorityManifest
 {
     public function __construct(
-        public int $generation,
         public ?string $schemaFingerprint,
         public ?string $ledgerFingerprint,
         public ?string $sourceCatalogFingerprint,
