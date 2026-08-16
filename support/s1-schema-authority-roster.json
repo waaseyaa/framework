@@ -9976,12 +9976,12 @@
         },
         {
             "path": "tests/Integration/Phase7/JsonApiFilterSortPageIntegrationTest.php",
-            "line": 86,
+            "line": 93,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "0fef723baa541c02150f33590da7980187f0d84d778390bb2f3bd68a7d15cfe8",
-            "source_sha256": "e109397899c6788b1bfc01c520b58f0857435b8ae7f091fa82a463bc3048db1b"
+            "source_sha256": "f7fb8a318f5d01f8c673df80a290dc80e2995b0308655cc6587b96b61989f545"
         },
         {
             "path": "tests/Integration/Phase9/CliSsrCrossPackageIntegrationTest.php",
