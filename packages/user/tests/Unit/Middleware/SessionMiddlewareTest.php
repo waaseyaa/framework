@@ -524,6 +524,38 @@ final class SessionMiddlewareTest extends TestCase
 
     #[Test]
     #[RunInSeparateProcess]
+    public function samesite_empty_string_opt_out_skips_the_ini_write(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $savedSameSite = ini_get('session.cookie_samesite');
+
+        try {
+            // Sentinel: prove the opt-out leaves the ini untouched rather
+            // than writing an empty value over it.
+            ini_set('session.cookie_samesite', 'Strict');
+
+            $middleware = new SessionMiddleware($repository, null, null, [
+                'samesite' => '',
+            ]);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->invoke($middleware);
+
+            $this->assertSame(
+                'Strict',
+                ini_get('session.cookie_samesite'),
+                'An explicit samesite => \'\' opt-out must skip the ini write entirely.',
+            );
+        } finally {
+            if ($savedSameSite !== false && $savedSameSite !== '') {
+                ini_set('session.cookie_samesite', $savedSameSite);
+            } else {
+                ini_restore('session.cookie_samesite');
+            }
+        }
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
     public function secure_auto_rejects_forwarded_proto_from_untrusted_ip(): void
     {
         $repository = $this->createStub(EntityRepositoryInterface::class);

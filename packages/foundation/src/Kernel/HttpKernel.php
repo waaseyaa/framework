@@ -62,6 +62,7 @@ use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Session\SessionCookiePolicy;
 
 /**
  * HTTP front controller kernel.
@@ -620,7 +621,9 @@ final class HttpKernel extends AbstractKernel
             // is resolved in #2330. Provider discovery alone does not instantiate
             // #[AsMiddleware] classes in the HTTP pipeline.
             new CommunityMiddleware($communityContext),
-            new CsrfMiddleware(),
+            // Same resolved session.cookie policy as SessionMiddleware, so a
+            // forced `secure => true` governs the XSRF-TOKEN cookie too (#2149).
+            new CsrfMiddleware(new SessionCookiePolicy($this->sessionCookieOptions())),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
         ];
 

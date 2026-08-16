@@ -85,8 +85,8 @@ The `XSRF-TOKEN` cookie is written on every `text/html` response, and — since 
 | Name | `XSRF-TOKEN` | Exact case. Inertia's axios looks for this name. |
 | Value | `urlencode($_SESSION['_csrf_token'])` | URL-encoded. Server URL-decodes before comparison. |
 | `HttpOnly` | absent / `false` | JavaScript MUST be able to read it. |
-| `Secure` | `true` if request is HTTPS, `false` otherwise | Detected via the request's `X-Forwarded-Proto` honored by the existing trusted-proxy logic, falling back to `$_SERVER['HTTPS']`. |
-| `SameSite` | `Lax` | Hard-coded. Don't make this configurable in this mission. |
+| `Secure` | resolved `session.cookie.secure` policy | A configured boolean always wins (#2149). The `'auto'` default follows the request scheme, with `X-Forwarded-Proto` honored via the kernel's trusted-proxy registration. |
+| `SameSite` | resolved `session.cookie.samesite` (default `Lax`) | Shared with the session cookie via `SessionCookiePolicy`. An empty-string override omits the attribute; unknown values normalize to `Lax` (a typo must not 500 every response). |
 | `Path` | `/` | App-wide. |
 | `Domain` | _(unset)_ | Browser defaults to current host. |
 | `Max-Age` / `Expires` | _(unset — session cookie)_ | Lives for the browser session, matches session token lifetime. |

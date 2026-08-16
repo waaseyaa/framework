@@ -757,14 +757,16 @@ After passing a non-validating request through the pipeline, the middleware writ
 | Value | `rawurlencode($_SESSION['_csrf_token'])` |
 | `Path` | `/` |
 | `HttpOnly` | `false` (required — JS must be able to read it) |
-| `SameSite` | `Lax` |
+| `SameSite` | resolved `session.cookie.samesite` (default `Lax`; empty string omits the attribute; unknown values normalize to `Lax` — Symfony's cookie builder would otherwise throw on every response) |
 | `Domain` | not set |
-| `Secure` | mirrors `$request->isSecure()` |
+| `Secure` | resolved `session.cookie.secure` policy — a configured boolean always wins; `'auto'` (the default) mirrors `$request->isSecure()` |
 | Lifetime | session (no explicit `Expires`/`Max-Age`) |
+
+`Secure` and `SameSite` come from the same resolved `session.cookie` policy the session cookie uses (`Waaseyaa\User\Session\SessionCookiePolicy`, threaded in by `HttpKernel`, #2149): a deployment that forces `secure => true` keeps `Secure` on the XSRF-TOKEN cookie even when a request arrives over plaintext HTTP, instead of the flag silently tracking the request scheme.
 
 Inertia consumers benefit automatically: axios reads the cookie and forwards its value as `X-XSRF-TOKEN` on subsequent mutation requests.
 
-**Known gap:** `$request->isSecure()` reads raw `$_SERVER['HTTPS']` without trusted-proxy awareness. Behind a TLS terminator the `Secure` flag will not be set unless a trusted proxy is configured. Tracked at waaseyaa/framework#1394. See also: `SessionMiddleware` trusted-proxy contract above.
+**Proxy awareness:** under the `'auto'` default, `$request->isSecure()` honors `X-Forwarded-Proto` when the kernel has registered trusted proxies (`Request::setTrustedProxies()` from the `trusted_proxies` config / `TRUSTED_PROXIES` env, #1394). Deployments that must not depend on correct proxy detection force `secure => true` instead. See also: `SessionMiddleware` trusted-proxy contract above.
 
 Cross-reference: `docs/conventions/csrf-token-cookie.md` for runnable integration examples.
 

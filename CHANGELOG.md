@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Security — CSRF cookie honors the session-cookie policy (#2149):**
+  `CsrfMiddleware` now mints the `XSRF-TOKEN` cookie with `Secure`/`SameSite`
+  taken from the same resolved `session.cookie` config as the session cookie
+  (new `Waaseyaa\User\Session\SessionCookiePolicy`, threaded in by
+  `HttpKernel`). A deployment forcing `session.cookie.secure => true` keeps
+  `Secure` on the CSRF cookie even over plaintext HTTP instead of leaking the
+  token; the `'auto'` default still follows the trusted request scheme, and a
+  configured `samesite` now governs both cookies (unknown `samesite` values
+  normalize to `Lax` so a config typo cannot 500 every response).
+  `SessionMiddleware` delegates its ini resolution to the shared policy (no
+  behavior change).
+
 - **Cross-agent governance:** Add one shared operating contract for Codex,
   Claude Code, and delegated agents; make harness files explicit adapters;
   remove stale package counts and GitHub check counts; synchronize the
