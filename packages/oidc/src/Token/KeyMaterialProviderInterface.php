@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Token;
 
 use Waaseyaa\Oidc\Keys\SigningKey;
+use Waaseyaa\Oidc\Keys\SigningKeySignerInterface;
 
 /**
  * Provides signing key material for JWT issuance and verification.
@@ -22,8 +23,12 @@ interface KeyMaterialProviderInterface
      */
     public function currentKey(): SigningKey;
 
+    /** Non-exporting signer for the current active key. */
+    public function currentSigner(): SigningKeySignerInterface;
+
     /**
-     * All keys valid for verification: current + rotated-out-but-not-expired.
+     * All keys valid for verification: staged, active, and every unexpired
+     * retired predecessor.
      *
      * @return list<SigningKey>
      */

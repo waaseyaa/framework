@@ -20,9 +20,12 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
 use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
+use Waaseyaa\Oidc\Keys\RsaSigningKeySigner;
 use Waaseyaa\Oidc\Keys\SigningKey;
+use Waaseyaa\Oidc\Keys\SigningKeySignerInterface;
 use Waaseyaa\Oidc\Repository\AuthorizationCode;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
+use Waaseyaa\Oidc\Tests\Support\OidcSchema;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
@@ -31,7 +34,6 @@ use Waaseyaa\Oidc\Token\RefreshTokenGrantHandler;
 use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 use Waaseyaa\Oidc\Token\TokenController;
 use Waaseyaa\Oidc\Token\TokenRequestValidator;
-use Waaseyaa\Oidc\Tests\Support\OidcSchema;
 
 #[CoversClass(TokenController::class)]
 final class TokenControllerTest extends TestCase
@@ -345,7 +347,7 @@ final class TokenControllerTest extends TestCase
             refreshTokenIssuer: $refreshTokenIssuer,
             refreshGrantHandler: new RefreshTokenGrantHandler($refreshTokenIssuer, $accessTokenIssuer, new IdTokenMinter($this->keyProvider())),
             issuer: self::ISSUER,
-            clock: fn (): DateTimeImmutable => new DateTimeImmutable('2026-04-18T12:00:00Z'),
+            clock: fn(): DateTimeImmutable => new DateTimeImmutable('2026-04-18T12:00:00Z'),
         );
     }
 
@@ -385,7 +387,7 @@ final class TokenControllerTest extends TestCase
 
     private function seedCode(string $code, string $clientId, ?string $nonce = null): AuthorizationCode
     {
-        $now = (new DateTimeImmutable('2026-04-18T12:00:00Z'))->getTimestamp();
+        $now = new DateTimeImmutable('2026-04-18T12:00:00Z')->getTimestamp();
 
         return new AuthorizationCode(
             code: $code,
@@ -453,13 +455,16 @@ final class TokenControllerTest extends TestCase
     private function keyProvider(): KeyMaterialProviderInterface
     {
         return new class ($this->privateKeyPem, $this->publicKeyPem) implements KeyMaterialProviderInterface {
-            public function __construct(private string $private_pem, private string $public_pem)
-            {
-            }
+            public function __construct(private string $private_pem, private string $public_pem) {}
 
             public function currentKey(): SigningKey
             {
-                return new SigningKey('test-kid', 'RS256', $this->public_pem, $this->private_pem);
+                return new SigningKey('test-kid', 'RS256', $this->public_pem);
+            }
+
+            public function currentSigner(): SigningKeySignerInterface
+            {
+                return RsaSigningKeySigner::fromPrivatePem($this->currentKey(), $this->private_pem);
             }
 
             public function allActive(): array

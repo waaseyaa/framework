@@ -7,6 +7,231 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Test isolation — schema-sync helper no longer leaks its kernel field
+  registry:** `RuntimeSchemaMigrations::entitiesForProject()` boots a throwaway
+  restricted `ConsoleKernel` whose `FieldDefinitionRegistry` (carrying the real
+  `node.status` Protected/authorizationInput classification) was left installed
+  process-wide via `ContentEntityBase::setFieldRegistry()`. Under random test
+  order, any later in-process test hydrating a fixture `node` entity type that
+  declares `status` Public then merged the leaked registry and threw
+  `LogicException: Conflicting field-read definitions for node.status`
+  (ci/random-order, seed 1851822478). The helper now resets the process-wide
+  registry in a `finally` block; a regression test pins the invariant
+  (`tests/Integration/Support/RuntimeSchemaMigrationsFieldRegistryResetTest`).
+- **drift-detector hardening (`S1-FW-CFG-04`):** Harden the spec-drift gate end
+  to end. Map `packages/oidc/` to `docs/specs/api-layer.md` (the enduring home
+  of the OIDC issuer's HTTP surface) with additive path-specific secondary
+  couplings for the non-HTTP OIDC concerns (signing-key lifecycle, key
+  material, token custody, secret storage, rekey adapters, migrations →
+  `s1-signing-key-lifecycle.md` / `security-defaults.md`), and add
+  evidence-backed secondary rules for config manifest signing
+  (`config-management.md` + `s1-signing-key-lifecycle.md`), AI config schema
+  (`agent-executor.md` + `security-defaults.md`), and the hermetic admin build
+  (`admin-spa.md` + `security-defaults.md`). Map the eleven previously
+  uncovered production packages and treat `packages/*/migrations/` as
+  contract-bearing. Acknowledgement trailers are now provenance-ordered — a
+  `spec-reviewed:` trailer only covers source changes committed at or before
+  the acknowledging commit, so an old trailer cannot pre-approve later edits (a
+  final `--allow-empty` commit remains the supported acknowledgement vehicle).
+  The trailer grammar accepts a comma-separated spec list with per-token
+  validation: non-spec tokens, tokens naming no existing spec, and tokens
+  naming specs unaffected by the diff are diagnosed on stderr and ignored, and
+  the blanket `spec-reviewed: all` form is retired with a hard rejection (exit
+  2). Base resolution fails closed: an unresolvable explicit base exits 3
+  without any fallback, a repository with no determinable base exits 4 instead
+  of passing green, and git plumbing failures exit 5 instead of being
+  swallowed. The pre-push hook now reports drift truthfully — it names the
+  compared base (configurable via `WAASEYAA_DRIFT_BASE` or
+  `git config waaseyaa.driftBase`, default `origin/main`), stays advisory
+  locally, and states that hosted CI diffs the PR base and blocks. A new
+  `DriftDetectorMappingCompletenessTest` parses the mapping table out of the
+  script and fails when any `packages/*/{src,app}` package is unmapped or a
+  mapped contract document is missing. Reconcile the CFG-04 spec-drift
+  obligations: document versioned application-master preview custody in
+  `content-publishing.md`, governed provider/MCP credential custody and
+  required-server readiness in `ai-integration.md`, the
+  `ProvidesApplicationMasterRekeyContributionsInterface` capability in
+  `package-discovery.md`, and the lifecycle-governed JWKS response in
+  `api-layer.md`.
+
+- **runtime-table catalogue custody coverage (`S1-FW-CFG-04`):** Catalogue the
+  eleven CFG-04 custody runtime tables — `cache_generation`,
+  `oidc_token_custody_sequence`, and the nine `waaseyaa_application_master_*`
+  coordination and evidence tables — in `FrameworkRuntimeTableCatalogue`
+  (mutable coordination state as `preserve`, insert-once custody evidence as
+  `append_only`) so `SqliteArtifactPreparer` preserves them during artifact
+  installation instead of rejecting a legitimate serving database. Add a
+  migration-to-catalogue completeness regression that fails closed whenever a
+  migration-installed table escapes catalogue classification.
+
+- **append-only audit succession substrate (`S1-FW-CFG-04`):** Add
+  version-bound audit checkpoint authentication, non-secret application-master
+  reference identities, and DB-02-owned succession plus anchored-prune evidence
+  tables for cryptographic predecessor continuity without runtime DDL. The
+  audit package now contributes its exact retained-verifier owner and binds
+  checkpoint construction, verification, pruning, and explicit legacy
+  migration to one composed custody object. Legacy application-secret reads
+  remain available only on installs without a keyring or through an explicit
+  compatibility flag; new checkpoint and prune evidence always uses the active
+  application-master version when that custody is installed.
+
+- **secret-safe logging foundation (`S1-FW-CFG-04`):** Add guarded typed
+  secret-value metadata, mandatory final message/context sanitization for
+  fallback and configured channels, exact replacement for explicitly
+  registered synthetic or resolved representations, bounded recursive
+  inspection, and fixed non-sensitive processor, sanitizer, and handler failure
+  codes. Add closed non-secret references, typed provider failures, and one
+  production-composed resolver registry that enforces exact
+  provider/package/class/purpose/environment policy, freezes after provider
+  registration, and registers resolved values with the same final sink
+  sanitizer before returning them. Guarded bytes can cross that boundary only
+  through an explicitly registered class whose package, secret class, and
+  purpose match the reference; each consumption resolves one version and
+  replaces secret-bearing consumer failures with a fixed non-sensitive code.
+  Outbound MCP schema v2 separates `none` from `secret-reference`, declares
+  required/optional availability, validates exact integration references, and
+  migrates legacy configured environment names to required central-provider
+  references without resolving them or downgrading them to unauthenticated use.
+  AI provider schema v2 likewise replaces env-var-name fields with exact typed
+  references while retaining a deterministic v1 migration. Anthropic,
+  OpenAI-compatible chat, and OpenAI embedding adapters retain only guarded
+  handles, resolve and pin one version per request, inject headers inside
+  registered purpose consumers, hide full references from diagnostic state,
+  and replace credential-bearing transport failures with fixed custody codes.
+  The embedding test transport now sits above authentication and receives only
+  endpoint and payload; this is a **breaking** callable-signature correction for
+  that public constructor seam. Provider retry/client taxonomy and MCP transport
+  availability cross guarded custody only as fixed non-secret outcomes, while
+  arbitrary consumer failures still collapse without their message or exception
+  chain. Process-local compatibility handles join the sink-wide weak redaction
+  set while live. A fail-on-new architecture gate rejects direct environment
+  access, including fully qualified calls, and unreviewed file reads in governed
+  AI/MCP packages.
+  Independent review hardening makes
+  overlapping values redact globally longest-first, sanitizes recursive keys,
+  wraps custom kernel loggers behind the same sink, canonicalizes environment
+  identity, and keeps JSON diagnostics fingerprint-only. Admin generation and
+  distribution builds now run the npm CLI through the same pinned absolute Node
+  executable, install from the exact lock offline with lifecycle scripts
+  disabled, seed only a dedicated credential-free content-addressed cache on an
+  explicitly authorized public-registry miss, pass only fixed or validated
+  public build variables into disposable home/temp/configuration state,
+  neutralize dotenv and local Nuxt/npm configuration, classify npm failures
+  before line-scoped output sanitization, enforce bounded child output/runtime,
+  and deterministically inventory and scan generated, cached, source-map, and
+  symlink-free publishable artifacts before readable static publication.
+  OIDC signing custody now separates public metadata from non-exporting signer
+  handles, refuses read-time initialization, publishes one verify-only successor
+  through an evidenced JWKS cache horizon, transactionally activates it with a
+  monotonic version fence, retains every predecessor through the full token,
+  skew, cache, and propagation margin, and exposes only explicit confirmed
+  lifecycle commands. Issuer signing and JWKS composition always use the
+  migration-backed lifecycle even when compatibility PEM loaders are configured.
+  This removes the former immediate oidc:rotate-signing-key surface and public
+  private-PEM property, a **breaking** correction. A separately confirmed,
+  request-identified emergency path now removes compromised signing trust,
+  transactionally invalidates and hashes the enumeration of live persisted
+  access/refresh tokens, and appends the conservative stateless issuance window
+  without presenting compromise as ordinary rotation. CFG-03 manifest signing
+  now composes through a closed Ed25519 trust policy and a guarded signer that
+  consumes only an exact non-secret reference through the frozen kernel secret
+  registry. Policy registration uses that registry's canonical environment, and
+  each freshly resolved private version must derive the public key bound to its
+  trust reference before it may sign. Verifier-only profiles fail closed,
+  revoked or unknown trust references cannot verify, and raw private-key
+  configuration is rejected.
+  The versioned application-master core now adds one active-write and a bounded
+  declared legacy-read key roster over external references, a deterministic
+  frozen purpose registry with six closed transition strategies, and strict
+  XChaCha20-Poly1305 envelopes whose associated data binds format, exact master
+  version, registered purpose, record identity, and schema version. New writes
+  use only the active version; reads select only the envelope-declared version;
+  unknown versions or purposes refuse without arbitrary provider fallback; and
+  diagnostics, clone, and serialization disclose no master or provider path.
+  Invalid seal metadata now refuses before external resolution, authenticated
+  decryption has a distinct non-secret refusal code, legacy handles expose only
+  read capability, resolver freeze is a construction precondition, and the
+  plaintext-bearing seal operation is non-exporting. References are immutable
+  per master version and resolve afresh for each operation; providers must use a
+  distinct reference rather than replacing application-master bytes in place.
+  The OIDC package now owns its five persisted purposes through three physical
+  row-boundary adapters: signing private material, access-token ciphertext plus
+  lookup, and refresh-token ciphertext plus lookup. DB-02 widens ciphertext
+  storage and installs deterministic monotonic token custody sequences so
+  immutable snapshots remain bounded while successor-only writers continue.
+  Runtime reads use envelope-declared versions and bounded lookup candidates;
+  joint token CAS updates never touch revocation; rollback re-seals under the
+  restored predecessor; and legacy application-secret material is accepted
+  only through an explicit migration bridge. Token issuance and custody-sequence
+  allocation commit together, and the explicit legacy migrator now refuses
+  missing schema without lazy DDL.
+  A DB-02 Foundation migration now installs non-secret master-version,
+  immutable purpose-policy snapshot, joint-adapter cursor/count, per-purpose
+  verification, closed revocation-gate, request-projection, and append-only
+  hash-chained event tables. Runtime construction performs zero DDL. Request and
+  cursor revisions use compare-and-swap; stale batches roll back; database
+  triggers refuse event update/delete; restart reads preserve exact cursor and
+  counts; every registry-implied adapter must complete; and ledger revocation
+  requires exact purpose verification plus fleet, cache, rollback, and retained
+  backup/key-horizon evidence. The store now persists one exact-cursor open
+  failure per inventoried adapter, compare-and-swaps request/adapter failure
+  counts and revisions, blocks replay across restart, and requires a separate
+  non-secret resolution hash before retry; immutable ledger events retain both
+  transitions without storing exception text. Coordinator transition and
+  verification callback failures now roll back owner effects, discard callback
+  messages, and persist only stable operation codes plus commitments over
+  non-secret identity metadata. Snapshot failures are likewise persisted before
+  an adapter projection exists, block inventory retry, and require explicit
+  resolution before the adapter may be snapshotted once. Forward rollback is
+  an immutable, deadline-bound transition that restores predecessor writes,
+  retains the failed successor read-only and non-reusable, re-inventories every
+  owner, resumes reverse CAS batches from separate durable cursors, and requires
+  per-purpose rollback verification before completion. A second prepared plan
+  cannot install while another request is executing, and rollback operations
+  refuse when the live version ledger no longer matches the persisted request.
+  Active provider contributions now compose a deterministic frozen registry and
+  adapter roster, reject duplicate ownership or a distinct database authority,
+  and return no fabricated registry when an install has no active consumers.
+  Full kernel boot freezes that complete graph after registration and before
+  provider boot, while restricted, failed, and in-progress boots expose none.
+  The installed database-cache owner now advances one migration-owned logical
+  generation by CAS for both forward transition and rollback; all bins ignore
+  older generations without payload rewrites, explicit deletion reclaims
+  selected ids or bins across every generation, and rollback cannot reactivate
+  stale predecessor or failed-successor cache rows. The database queue now
+  writes strict active-version application-master authentication tags, reads
+  only declared versions, and contributes a no-mutation drain gate that refuses
+  forward or rollback completion while predecessor or failed-successor pending
+  or failed payloads remain. Audit checkpoint NDJSON exports now carry the
+  detached signature with the checkpoint hash-chain fields so an external
+  append-only sink retains independently verifiable authentication evidence.
+  The first keyed checkpoint also authenticates the pristine genesis anchor by
+  compare-and-swap and refuses a conflicting genesis key, avoiding a fresh
+  install's otherwise-unrepairable mixed authenticated/unsigned history.
+  Keyed checkpoint pruning now commits a domain-separated detached
+  authorization with the `pruned` transition and sealed-row deletion in one
+  transaction. Verification rejects blank, replayed, wrong-key, or substituted
+  authorizations without rewriting the original checkpoint signature, and the
+  explicit trusted-history migration upgrades already-pruned legacy chains.
+  The destructive command first verifies the complete sealed chain, so it
+  cannot bless a pre-existing forged prune state as a legitimate retry.
+  Publishing preview grants now use active-version, domain-separated
+  application-master authentication tags and read only explicitly declared
+  predecessor versions through their bounded 30-minute lifetime. The package
+  owns that stateless purpose with a zero-row ephemeral adapter; legacy raw-HMAC
+  grants require an explicit compatibility flag. The unused state purpose is
+  removed instead of assigning a fictional owner: `SqlState` remains an
+  application-composed service whose caller supplies and owns its 32-byte HMAC
+  key. Process reconciliation remains incomplete.
+  A generic coordinator now composes every frozen registry owner exactly once,
+  refuses mismatched database identities or purpose rosters before inventory,
+  passes adapters the store's exact transaction authority, and commits owner CAS
+  effects with validated cursor/count/commitment evidence in one transaction.
+  Malformed adapter output rolls back both row and cursor; restart resumes from
+  the durable cursor without replay; and all verification results for a joint
+  adapter commit atomically. The exact nine-purpose owner roster now closes
+  audit, cache, OIDC, publishing preview, and queue ownership. Fleet/backup
+  evidence producers remain incomplete.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,
@@ -20,7 +245,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without repair or mutation. Legacy per-entry production writes now refuse;
   CFG-04 key custody remains deliberately unimplemented and unsigned
   production activation remains refused.
-
 - **transactional configuration activation (`S1-FW-CFG-02`):** Add
   content-bound immutable generations, ordered compare-and-swap activation,
   idempotent request identities, explicit hash-bound deletion, and fail-closed
@@ -28,8 +252,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Preserve aggregate mutation authority across aliased Admin surfaces by
-  caching successor tokens under the requested surface identity.
 - Reconcile ambiguous scheduler lease acquisition and renewal only by exact
   generation/nonce/expiry read-back with a monotonic round-trip safety margin;
   database-clock rollback now fails closed before ownership mutation.
@@ -58,7 +280,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   execution lease, duplicate deliveries are no-ops, contention defers without
   consuming attempts, and terminal dispatch/worker failure dead-letters the
   occurrence.
-
 - Enforce the DB-03 aggregate mutation token across entity saves, deletes,
   batches, revision-pointer moves, rollback, pruning, and translation writes;
   require strong protocol preconditions across JSON:API, GraphQL, AI tools,
@@ -75,6 +296,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make `make:storage-migration` detect an existing entity/backend migration
   across timestamp boundaries, and make `--force` overwrite that migration
   instead of silently creating a second file.
+
+- Reconcile the Stage 0/1 authority gates with the accepted fresh-site source:
+  classify generated subscription migrations, refresh exact schema/SQLite
+  rosters and dependency bytes, and keep the reference-consumer CI job on a
+  fixed runner with an immutable checkout action.
+
+- Initialize the clean reference consumer through the canonical `db:init`
+  coordinator before kernel-backed `site:init`, preserving DB-02's ban on lazy
+  runtime schema creation while keeping verification itself read-only.
+
+- Build the #2343 reference consumer from an exact tracked Git archive before
+  Composer mirrors framework packages, preventing untracked workspace files or
+  nested dependency symlinks from entering provider-neutral acceptance proof.
 
 - Let application schemas organize the shared Admin SPA and Anokii entity
   editor into accessible task-oriented sections, including collapsible
@@ -108,12 +342,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shared by Search, API, MCP, and AI-tool consumers, including explicit
   truncation metadata and surface-parity coverage (#2379).
 
-- Expose governed cross-region block movement and complete section selection,
-  reordering, layout change, duplication, and guarded removal in the shared
-  Admin SPA page-builder workspace used by Anokii, with accessible destructive
-  confirmation and explicit compare/reapply recovery for concurrent edits
-  (#2344).
-
 - **one typed configuration authority (`S1-FW-CFG-01`):** Resolve bootstrap
   selectors once, bind every active reader and all six management commands to
   one database generation and sync-artifact path, fail closed on missing
@@ -124,9 +352,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   database-native, whole-plan-atomic schema coordinator; globally unique
   migration identity; zero-DDL read/runtime paths; forward-only rollback;
   strict ledger/source/live-schema verification; and a complete classified DDL
-  inventory on the verified forge-neutral SQLite predecessor. Keep explicit
-  initialization and migration commands available before runtime schema exists,
-  and prove a detached reference consumer applies that schema before boot.
+  inventory on the verified forge-neutral SQLite predecessor.
 
 - **explicit S1 SQLite topology (`S1-FW-DB-01`):** Define the one-node,
   one-authoritative-file SQLite contract, bounded connection invariants,
@@ -139,9 +365,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository. Bind every repository SQLite construction occurrence and the
   isolated artifact's exact lock-resolved dependency identities and bytes.
 
-- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
-- **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
-- **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.
+- Expose governed cross-region block movement and complete section selection,
+  reordering, layout change, duplication, and guarded removal in the shared
+  Admin SPA page-builder workspace used by Anokii, with accessible destructive
+  confirmation and explicit compare/reapply recovery for concurrent edits
+  (#2344).
+
+- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX
+  SBOM, release provenance, and checksums from exact lockfiles and every
+  split-package SHA; retain a pull-request dry run, require both automatic and
+  manual release paths to attach a checksum- and identity-verified evidence set,
+  and pin all external workflow actions to immutable commits.
+- **bounded S1 support contract (#2336):** Define the versioned S1 platform and
+  alpha lifecycle boundaries, distinguish framework conformance from pending
+  consumer certification, and reserve unsupported H1 and untested runtime
+  combinations from implied support.
+- **fail-closed S1 upgrade compatibility (#2336):** Define the named
+  alpha.293-to-S1 transition, ordered read-only preflight decisions,
+  mixed/unknown-state refusal, and forward-only failure containment without
+  claiming consumer recovery. Ship the versioned machine contract and loader
+  inside the Foundation split package so installed consumers use the reviewed
+  artifact rather than a copied contract.
 
 - Prove the #2343 golden path from a clean `composer create-project` consumer,
   including the complete governed authoring, published-content, and
@@ -208,6 +452,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recipes, strict diagnostics, and reference-consumer gates for #2343.
 
 - **page-builder history and recovery:** Add shared, permission-checked revision history and comparison endpoints, restore-as-new-draft semantics, and server-side idle recovery for block configuration in both the Waaseyaa Admin SPA and downstream Anokii shells. Historical restore is conflict-bound to the observed current revision and never deletes history or changes the published pointer.
+
+### Added
+
+- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
+
+- **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
+
+- **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.
 
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
 

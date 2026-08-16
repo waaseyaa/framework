@@ -15,6 +15,9 @@ use Waaseyaa\CLI\Handler\AdminDevHandler;
 use Waaseyaa\CLI\Handler\DebugContextHandler;
 use Waaseyaa\CLI\Handler\EventListHandler;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogManager;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
@@ -24,6 +27,17 @@ final class MiscAServiceProvider extends ServiceProvider implements ProvidesCons
 {
     public function register(): void
     {
+        $this->singleton(AdminBuildHandler::class, function (): AdminBuildHandler {
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            $sanitizer = $logger instanceof LogManager
+                ? $logger->sinkSanitizer()
+                : new RedactorProcessor();
+
+            return new AdminBuildHandler(
+                projectRoot: $this->projectRoot,
+                sanitizer: $sanitizer,
+            );
+        });
         $this->singleton(AboutHandler::class, function (): AboutHandler {
             $context = $this->resolve(ConfigurationAuthorityContext::class);
             assert($context instanceof ConfigurationAuthorityContext);
@@ -58,18 +72,18 @@ final class MiscAServiceProvider extends ServiceProvider implements ProvidesCons
             handler: [AboutHandler::class, 'execute'],
         );
 
-        $projectRoot = $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
-
         yield new HandlerCommand(
             name: 'admin:build',
             description: 'Build the Nuxt admin SPA for static hosting (npm run generate)',
-            handler: \Closure::fromCallable([new AdminBuildHandler(projectRoot: $projectRoot), 'execute']),
+            handler: [AdminBuildHandler::class, 'execute'],
         );
 
         yield new HandlerCommand(
             name: 'admin:dev',
             description: 'Run the Nuxt admin SPA in development (npm run dev)',
-            handler: \Closure::fromCallable([new AdminDevHandler(projectRoot: $projectRoot), 'execute']),
+            handler: \Closure::fromCallable([new AdminDevHandler(
+                projectRoot: $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd(),
+            ), 'execute']),
         );
 
         yield new HandlerCommand(

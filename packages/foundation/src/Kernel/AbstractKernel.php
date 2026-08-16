@@ -50,10 +50,13 @@ use Waaseyaa\Foundation\Log\Handler\ErrorLogHandler as HandlerErrorLogHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\LogManager;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyComposition;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
@@ -83,6 +86,10 @@ abstract class AbstractKernel
     protected EntityAuditLogger $entityAuditLogger;
     protected Migrator $migrator;
     private ?ApplicationSecret $applicationSecret = null;
+    private ?ApplicationMasterRekeyComposition $applicationMasterRekeyComposition = null;
+    private readonly RedactorProcessor $sinkSanitizer;
+    private readonly bool $rebuildLoggerFromConfig;
+    private ?SecretResolverRegistry $secretResolverRegistry = null;
     protected MigrationLoader $migrationLoader;
     protected MigrationRepository $migrationRepository;
 
@@ -132,8 +139,13 @@ abstract class AbstractKernel
         protected readonly string $projectRoot,
         ?LoggerInterface $logger = null,
     ) {
-        $this->logger = $logger ?? new LogManager(
-            new HandlerErrorLogHandler(),
+        $this->sinkSanitizer = $logger instanceof LogManager
+            ? $logger->sinkSanitizer()
+            : new RedactorProcessor();
+        $this->rebuildLoggerFromConfig = $logger === null || $logger instanceof LogManager;
+        $this->logger = $logger instanceof LogManager ? $logger : new LogManager(
+            $logger ?? new HandlerErrorLogHandler(),
+            $this->sinkSanitizer,
         );
     }
 
@@ -155,13 +167,13 @@ abstract class AbstractKernel
         $this->communityContext ??= new CommunityContextBootstrapper()->boot($this->config);
 
         // Upgrade logger from config.
-        if ($this->logger instanceof LogManager) {
+        if ($this->rebuildLoggerFromConfig && $this->logger instanceof LogManager) {
             $loggingConfig = $this->config['logging'] ?? [];
             if (is_array($loggingConfig) && isset($loggingConfig['channels'])) {
-                $this->logger = LogManager::fromConfig($loggingConfig);
+                $this->logger = LogManager::fromConfig($loggingConfig, $this->sinkSanitizer);
             } else {
                 $level = LogLevel::fromName((string) ($this->config['log_level'] ?? 'warning')) ?? LogLevel::WARNING;
-                $this->logger = new LogManager(new HandlerErrorLogHandler(minimumLevel: $level));
+                $this->logger = new LogManager(new HandlerErrorLogHandler(minimumLevel: $level), $this->sinkSanitizer);
             }
         }
 
@@ -171,6 +183,11 @@ abstract class AbstractKernel
                 sprintf('APP_DEBUG must not be enabled in production (APP_ENV=%s). Aborting boot.', $this->resolveEnvironment()),
             );
         }
+
+        $this->secretResolverRegistry ??= new SecretResolverRegistry(
+            $this->sinkSanitizer,
+            $this->resolveEnvironment(),
+        );
 
         // Resolve key custody before any database or provider work. A missing
         // production secret must fail at boot, before encrypted/signed state is
@@ -194,6 +211,7 @@ abstract class AbstractKernel
         $this->compileManifest();
         $this->bootMigrations();
         $this->discoverAndRegisterProviders();
+        $this->secretResolverRegistry()->freeze();
         $this->injectMigrationProviders();
         $this->injectContentModelProviders();
         $this->injectAgentToolProviders();
@@ -205,6 +223,7 @@ abstract class AbstractKernel
             $this->assertFieldAccessActivationReady();
         }
         if (!$this->restrictedDiscoveryOnly) {
+            $this->composeApplicationMasterRekeyOwners();
             $this->bootProviders();
             $this->discoverAccessPolicies();
             $this->installFieldReadRuntime();
@@ -415,6 +434,7 @@ abstract class AbstractKernel
             $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
+            secretResolverRegistry: $this->secretResolverRegistry(),
         );
     }
 
@@ -426,6 +446,16 @@ abstract class AbstractKernel
         }
 
         return $this->applicationSecret;
+    }
+
+    /** Return the one kernel-owned resolver registry after environment policy is sealed. */
+    protected function secretResolverRegistry(): SecretResolverRegistry
+    {
+        if ($this->secretResolverRegistry === null) {
+            throw new \LogicException('Secret resolution is unavailable before kernel boot.');
+        }
+
+        return $this->secretResolverRegistry;
     }
 
     /** The single process/request scope shared by the accessor guard and HTTP middleware. */
@@ -648,6 +678,17 @@ abstract class AbstractKernel
         new ProviderRegistry($this->logger)->boot($this->providers);
     }
 
+    /** Freeze the complete active owner graph before any provider boot hook executes. */
+    private function composeApplicationMasterRekeyOwners(): void
+    {
+        $this->applicationMasterRekeyComposition = null;
+        $composition = ApplicationMasterRekeyComposition::fromProviders(
+            $this->database,
+            $this->providers,
+        );
+        $this->applicationMasterRekeyComposition = $composition;
+    }
+
     protected function discoverAccessPolicies(): void
     {
         $providers = $this->providers;
@@ -662,6 +703,7 @@ abstract class AbstractKernel
             fieldReadScope: $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
+            secretResolverRegistry: $this->secretResolverRegistry(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
@@ -697,6 +739,7 @@ abstract class AbstractKernel
             $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
+            secretResolverRegistry: $this->secretResolverRegistry(),
         );
         $scope = $kernelServices->get(AccountFieldReadScopeInterface::class);
         if (!$scope instanceof AccountFieldReadScopeInterface) {
@@ -751,6 +794,7 @@ abstract class AbstractKernel
             fieldReadScope: $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
+            secretResolverRegistry: $this->secretResolverRegistry(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
@@ -781,6 +825,7 @@ abstract class AbstractKernel
             fieldReadScope: $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
+            secretResolverRegistry: $this->secretResolverRegistry(),
         );
         $gatewayAudit = $kernelServices->get(StrictFieldStorageGatewayAuditInterface::class);
         $gatewayAudit = $gatewayAudit instanceof StrictFieldStorageGatewayAuditInterface
@@ -1019,6 +1064,16 @@ abstract class AbstractKernel
     public function getDatabase(): DatabaseInterface
     {
         return $this->database;
+    }
+
+    /**
+     * Return the exact active-purpose composition only after a complete runtime boot.
+     *
+     * Restricted discovery and failed or in-progress boots expose no partial graph.
+     */
+    public function getApplicationMasterRekeyComposition(): ?ApplicationMasterRekeyComposition
+    {
+        return $this->booted ? $this->applicationMasterRekeyComposition : null;
     }
 
     public function getEventDispatcher(): EventDispatcherInterface

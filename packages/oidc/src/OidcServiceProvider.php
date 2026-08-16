@@ -9,7 +9,12 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Oidc\Authorize\AuthorizationRequestValidator;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
@@ -24,16 +29,21 @@ use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Jwks\JwksController;
 use Waaseyaa\Oidc\Jwks\JwksDocumentBuilder;
 use Waaseyaa\Oidc\Key\RealKeyMaterialProvider;
+use Waaseyaa\Oidc\Key\SigningKeyEmergencyRevocationService;
+use Waaseyaa\Oidc\Key\SigningKeyLifecyclePolicy;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
 use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
+use Waaseyaa\Oidc\Keys\SigningAlgorithmPolicy;
+use Waaseyaa\Oidc\Rekey\OidcAccessTokenRekeyAdapter;
+use Waaseyaa\Oidc\Rekey\OidcRefreshTokenRekeyAdapter;
+use Waaseyaa\Oidc\Rekey\OidcSigningKeyRekeyAdapter;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 use Waaseyaa\Oidc\Repository\DatabaseAuthorizationCodeRepository;
 use Waaseyaa\Oidc\Revoke\RevocationController;
 use Waaseyaa\Oidc\Security\LegacyOidcSecretMigrator;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
-use Waaseyaa\Oidc\Token\InMemoryKeyMaterialProvider;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 use Waaseyaa\Oidc\Token\PkceVerifier;
 use Waaseyaa\Oidc\Token\RefreshTokenGrantHandler;
@@ -43,7 +53,7 @@ use Waaseyaa\Oidc\Token\TokenRequestValidator;
 use Waaseyaa\Oidc\Userinfo\UserinfoClaimResolver;
 use Waaseyaa\Oidc\Userinfo\UserinfoController;
 
-final class OidcServiceProvider extends ServiceProvider
+final class OidcServiceProvider extends ServiceProvider implements ProvidesApplicationMasterRekeyContributionsInterface
 {
     public function register(): void
     {
@@ -67,39 +77,71 @@ final class OidcServiceProvider extends ServiceProvider
         );
 
         $this->singleton(
+            SigningKeyLifecyclePolicy::class,
+            fn(): SigningKeyLifecyclePolicy => new SigningKeyLifecyclePolicy(
+                maximumTokenLifetimeSeconds: $this->lifecycleDuration(
+                    'maximum_token_lifetime_seconds',
+                    7_776_000,
+                ),
+                maximumClockSkewSeconds: $this->lifecycleDuration(
+                    'maximum_clock_skew_seconds',
+                    300,
+                ),
+                jwksCacheLifetimeSeconds: $this->lifecycleDuration(
+                    'jwks_cache_lifetime_seconds',
+                    86_400,
+                ),
+                propagationMarginSeconds: $this->lifecycleDuration(
+                    'propagation_margin_seconds',
+                    300,
+                ),
+            ),
+        );
+
+        $this->singleton(
+            SigningAlgorithmPolicy::class,
+            static fn(): SigningAlgorithmPolicy => new SigningAlgorithmPolicy(),
+        );
+
+        $this->singleton(
             SigningKeyRepository::class,
             function (): SigningKeyRepository {
                 $database = $this->resolveDatabase();
-
-                $applicationSecret = $this->resolve(ApplicationSecret::class);
-                assert($applicationSecret instanceof ApplicationSecret);
+                [$keyring, $legacyKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                );
 
                 return new SigningKeyRepository(
                     database: $database,
-                    encryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
+                    encryptionKey: $legacyKey,
+                    lifecyclePolicy: $this->resolve(SigningKeyLifecyclePolicy::class),
+                    keyring: $keyring,
                 );
             },
         );
 
         $this->singleton(
             KeyMaterialProviderInterface::class,
-            function (): KeyMaterialProviderInterface {
-                if ($this->hasConfiguredFileKeys()) {
-                    return new InMemoryKeyMaterialProvider(
-                        keyLoader: $this->resolve(OidcKeyLoaderInterface::class),
-                    );
-                }
+            fn(): KeyMaterialProviderInterface => new RealKeyMaterialProvider(
+                repository: $this->resolve(SigningKeyRepository::class),
+            ),
+        );
 
-                return new RealKeyMaterialProvider(
-                    repository: $this->resolve(SigningKeyRepository::class),
-                );
-            },
+        $this->singleton(
+            SigningKeyEmergencyRevocationService::class,
+            fn(): SigningKeyEmergencyRevocationService => new SigningKeyEmergencyRevocationService(
+                database: $this->resolveDatabase(),
+                repository: $this->resolve(SigningKeyRepository::class),
+                policy: $this->resolve(SigningKeyLifecyclePolicy::class),
+            ),
         );
 
         // JWKS + discovery
         $this->singleton(
             JwksDocumentBuilder::class,
-            static fn(): JwksDocumentBuilder => new JwksDocumentBuilder(),
+            fn(): JwksDocumentBuilder => new JwksDocumentBuilder(
+                algorithmPolicy: $this->resolve(SigningAlgorithmPolicy::class),
+            ),
         );
 
         $this->singleton(
@@ -107,6 +149,7 @@ final class OidcServiceProvider extends ServiceProvider
             fn(): JwksController => new JwksController(
                 keyProvider: $this->resolve(KeyMaterialProviderInterface::class),
                 builder: $this->resolve(JwksDocumentBuilder::class),
+                lifecyclePolicy: $this->resolve(SigningKeyLifecyclePolicy::class),
             ),
         );
 
@@ -135,13 +178,18 @@ final class OidcServiceProvider extends ServiceProvider
         $this->singleton(
             AccessTokenIssuer::class,
             function (): AccessTokenIssuer {
-                $applicationSecret = $this->resolve(ApplicationSecret::class);
-                assert($applicationSecret instanceof ApplicationSecret);
+                [$keyring, $encryptionKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
+                );
+                [, $lookupKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                );
 
                 return new AccessTokenIssuer(
                     database: $this->resolveDatabase(),
-                    encryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION),
-                    lookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP),
+                    encryptionKey: $encryptionKey,
+                    lookupKey: $lookupKey,
+                    keyring: $keyring,
                 );
             },
         );
@@ -149,13 +197,18 @@ final class OidcServiceProvider extends ServiceProvider
         $this->singleton(
             RefreshTokenIssuer::class,
             function (): RefreshTokenIssuer {
-                $applicationSecret = $this->resolve(ApplicationSecret::class);
-                assert($applicationSecret instanceof ApplicationSecret);
+                [$keyring, $encryptionKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION,
+                );
+                [, $lookupKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP,
+                );
 
                 return new RefreshTokenIssuer(
                     database: $this->resolveDatabase(),
-                    encryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION),
-                    lookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP),
+                    encryptionKey: $encryptionKey,
+                    lookupKey: $lookupKey,
+                    keyring: $keyring,
                 );
             },
         );
@@ -163,16 +216,30 @@ final class OidcServiceProvider extends ServiceProvider
         $this->singleton(
             LegacyOidcSecretMigrator::class,
             function (): LegacyOidcSecretMigrator {
-                $applicationSecret = $this->resolve(ApplicationSecret::class);
-                assert($applicationSecret instanceof ApplicationSecret);
+                [$keyring, $signingKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                );
+                [, $accessEncryptionKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
+                );
+                [, $accessLookupKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                );
+                [, $refreshEncryptionKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION,
+                );
+                [, $refreshLookupKey] = $this->runtimeCustody(
+                    ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP,
+                );
 
                 return new LegacyOidcSecretMigrator(
                     database: $this->resolveDatabase(),
-                    signingKeyEncryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
-                    accessTokenEncryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION),
-                    accessTokenLookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP),
-                    refreshTokenEncryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION),
-                    refreshTokenLookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP),
+                    signingKeyEncryptionKey: $signingKey,
+                    accessTokenEncryptionKey: $accessEncryptionKey,
+                    accessTokenLookupKey: $accessLookupKey,
+                    refreshTokenEncryptionKey: $refreshEncryptionKey,
+                    refreshTokenLookupKey: $refreshLookupKey,
+                    keyring: $keyring,
                 );
             },
         );
@@ -181,6 +248,7 @@ final class OidcServiceProvider extends ServiceProvider
             IdTokenMinter::class,
             fn(): IdTokenMinter => new IdTokenMinter(
                 keyProvider: $this->resolve(KeyMaterialProviderInterface::class),
+                algorithmPolicy: $this->resolve(SigningAlgorithmPolicy::class),
             ),
         );
 
@@ -297,6 +365,90 @@ final class OidcServiceProvider extends ServiceProvider
         $this->seedOidcClientsFromConfig();
     }
 
+    public function applicationMasterRekeyContributions(): iterable
+    {
+        $database = $this->resolve(DatabaseInterface::class);
+        if (!$database instanceof DatabaseInterface) {
+            throw new \LogicException('OIDC rekey composition requires the kernel database authority.');
+        }
+        $skew = $this->lifecycleDuration('maximum_clock_skew_seconds', 300);
+        $maximumTokenLifetime = $this->lifecycleDuration('maximum_token_lifetime_seconds', 7_776_000);
+        $signingRetention = $maximumTokenLifetime
+            + $skew
+            + $this->lifecycleDuration('jwks_cache_lifetime_seconds', 86_400)
+            + $this->lifecycleDuration('propagation_margin_seconds', 300);
+
+        yield new ApplicationMasterRekeyContribution(
+            new OidcSigningKeyRekeyAdapter(
+                $database,
+                $this->legacyBridgeKey(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
+            ),
+            [new ApplicationMasterPurposePolicy(
+                ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                'waaseyaa/oidc',
+                ApplicationMasterPurposeStrategy::ReencryptCiphertext,
+                $maximumTokenLifetime,
+                $signingRetention,
+                OidcSigningKeyRekeyAdapter::ID,
+                'restore-predecessor-ciphertext',
+            )],
+        );
+        yield new ApplicationMasterRekeyContribution(
+            new OidcAccessTokenRekeyAdapter(
+                $database,
+                $this->legacyBridgeKey(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION),
+                $this->legacyBridgeKey(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP),
+            ),
+            [
+                new ApplicationMasterPurposePolicy(
+                    ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
+                    'waaseyaa/oidc',
+                    ApplicationMasterPurposeStrategy::ReencryptCiphertext,
+                    AccessTokenIssuer::EXPIRY_SECONDS,
+                    AccessTokenIssuer::EXPIRY_SECONDS + $skew,
+                    OidcAccessTokenRekeyAdapter::ID,
+                    'restore-predecessor-ciphertext-and-index',
+                ),
+                new ApplicationMasterPurposePolicy(
+                    ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                    'waaseyaa/oidc',
+                    ApplicationMasterPurposeStrategy::RecomputeLookupIndex,
+                    AccessTokenIssuer::EXPIRY_SECONDS,
+                    AccessTokenIssuer::EXPIRY_SECONDS + $skew,
+                    OidcAccessTokenRekeyAdapter::ID,
+                    'restore-predecessor-ciphertext-and-index',
+                ),
+            ],
+        );
+        yield new ApplicationMasterRekeyContribution(
+            new OidcRefreshTokenRekeyAdapter(
+                $database,
+                $this->legacyBridgeKey(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION),
+                $this->legacyBridgeKey(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP),
+            ),
+            [
+                new ApplicationMasterPurposePolicy(
+                    ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION,
+                    'waaseyaa/oidc',
+                    ApplicationMasterPurposeStrategy::ReencryptCiphertext,
+                    RefreshTokenIssuer::EXPIRY_SECONDS,
+                    RefreshTokenIssuer::EXPIRY_SECONDS + $skew,
+                    OidcRefreshTokenRekeyAdapter::ID,
+                    'restore-predecessor-ciphertext-and-index',
+                ),
+                new ApplicationMasterPurposePolicy(
+                    ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP,
+                    'waaseyaa/oidc',
+                    ApplicationMasterPurposeStrategy::RecomputeLookupIndex,
+                    RefreshTokenIssuer::EXPIRY_SECONDS,
+                    RefreshTokenIssuer::EXPIRY_SECONDS + $skew,
+                    OidcRefreshTokenRekeyAdapter::ID,
+                    'restore-predecessor-ciphertext-and-index',
+                ),
+            ],
+        );
+    }
+
     private function resolveDatabase(): DBALDatabase
     {
         $database = $this->resolve(DatabaseInterface::class);
@@ -367,15 +519,48 @@ final class OidcServiceProvider extends ServiceProvider
         return PemFileKeyLoader::fromConfig([]);
     }
 
-    private function hasConfiguredFileKeys(): bool
+    private function lifecycleDuration(string $name, int $default): int
     {
-        $configKeys = $this->config['oidc']['signing_keys'] ?? null;
-        if (is_array($configKeys) && $configKeys !== []) {
-            return true;
+        $value = $this->config['oidc']['signing_key_lifecycle'][$name] ?? $default;
+        if (!is_int($value)) {
+            throw new \RuntimeException(sprintf(
+                'OIDC signing-key lifecycle setting "%s" must be an integer.',
+                $name,
+            ));
         }
 
-        $envDir = getenv('OIDC_SIGNING_KEY_DIR');
+        return $value;
+    }
 
-        return is_string($envDir) && $envDir !== '';
+    /** @return array{ApplicationMasterKeyring|null, string|null} */
+    private function runtimeCustody(string $purpose): array
+    {
+        $keyring = $this->resolveOptional(ApplicationMasterKeyring::class);
+        if ($keyring instanceof ApplicationMasterKeyring
+            && ($this->config['oidc']['accept_legacy_application_secret_material'] ?? false) !== true) {
+            return [$keyring, null];
+        }
+        $applicationSecret = $this->resolve(ApplicationSecret::class);
+        if (!$applicationSecret instanceof ApplicationSecret) {
+            throw new \LogicException('OIDC legacy custody requires the application secret compatibility authority.');
+        }
+
+        return [
+            $keyring instanceof ApplicationMasterKeyring ? $keyring : null,
+            $applicationSecret->derive($purpose),
+        ];
+    }
+
+    private function legacyBridgeKey(string $purpose): ?string
+    {
+        if (($this->config['oidc']['accept_legacy_application_secret_material'] ?? false) !== true) {
+            return null;
+        }
+        $applicationSecret = $this->resolve(ApplicationSecret::class);
+        if (!$applicationSecret instanceof ApplicationSecret) {
+            throw new \LogicException('OIDC legacy rekey bridge requires the application secret compatibility authority.');
+        }
+
+        return $applicationSecret->derive($purpose);
     }
 }

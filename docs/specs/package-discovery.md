@@ -1,5 +1,7 @@
 # Package Discovery
 
+<!-- Spec reviewed 2026-08-15 - S1-FW-CFG-04 application-master rekey composition: installed providers may contribute active rekey owners through the new ProvidesApplicationMasterRekeyContributionsInterface capability; on full runtime boot the kernel collects contributions after every provider registers and before any provider boots, requires the kernel's exact database authority, unique adapter IDs, and exactly one active owner per purpose, then freezes the purpose registry deterministically. Custody runtime and coordinator semantics live in infrastructure.md. -->
+
 <!-- Spec reviewed 2026-08-09 - #2314 external extension policies: an installed package explicitly participating through extra.waaseyaa receives policy-only discovery for its production namespaces, preserving exact fail-closed inventory parity without activating unrelated external attribute surfaces. -->
 
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: the provider registry carries the kernel's canonical community context to composed providers, while the field package declares and activates its own migration inventory. Composer installation remains the activation boundary; no cross-layer provider ownership is introduced. -->
@@ -224,6 +226,7 @@ Beyond `register()` / `boot()`, a provider opts into kernel-invoked hooks by imp
 | `AcceptsApiCatalogEntryProvidersInterface` | `withApiCatalogEntryProviders(list)` | API-catalog registry provider |
 | `ProvidesApiCatalogEntriesInterface` | `apiCatalogEntries(): iterable` | RFC 9727 public API catalog |
 | `ProvidesRolesInterface` | `roles(): iterable` (yields `Waaseyaa\User\Role`) | `RoleRepository` |
+| `ProvidesApplicationMasterRekeyContributionsInterface` | `applicationMasterRekeyContributions(): iterable` (yields `ApplicationMasterRekeyContribution`) | `ApplicationMasterRekeyComposition` frozen active-owner graph |
 
 `ProvidesRolesInterface::roles()` returns an untyped `iterable` rather than a typed return, exactly as `HasNativeCommandsInterface::nativeCommands()` yields Layer-6 `CommandDefinition`s without importing them. Keeping the return untyped lets the Foundation (Layer 0) interface yield `Waaseyaa\User\Role` (Layer 1) without Foundation importing the User package; the concrete element type is resolved by the Layer-1 collector (`RoleRepository::fromProviders()`) at runtime. The full kernel-call-site table lives in `docs/specs/infrastructure.md`.
 
@@ -240,6 +243,17 @@ phase. Providers supply only deployment-neutral public artifact metadata. The
 API package applies application-owned representative queries and publishes the
 default-off experimental document. Installation can add a candidate artifact,
 but application configuration remains the publication boundary.
+
+Application-master rekey contribution follows the same pre-boot composition
+pattern. Installed providers implement
+`ProvidesApplicationMasterRekeyContributionsInterface`; on a full runtime boot
+(never under restricted discovery), after every provider registers and before
+any provider boots, `ApplicationMasterRekeyComposition::fromProviders()`
+collects each contribution, requires adapters bound to the kernel's exact
+database authority, unique adapter IDs, and exactly one active owner per
+purpose, then freezes the purpose registry deterministically. Installs with no
+contributors expose no registry. Composition conflict semantics and the
+secret-custody runtime live in `docs/specs/infrastructure.md`.
 
 ## PackageManifest
 

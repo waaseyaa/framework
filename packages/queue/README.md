@@ -39,6 +39,21 @@ dispatch performs one HMAC-SHA-256 plus URL-safe base64 encoding; each worker or
 retry read performs one base64 decode, one HMAC-SHA-256, and one constant-time
 comparison before the existing serialization work.
 
+When an `ApplicationMasterKeyring` is composed, new persistent payloads use the
+active master version in the strict
+`hmac-sha256.application-master.v1:<version>:<digest>:<payload>` envelope.
+Declared predecessor versions remain readable through the keyring. The legacy
+application-secret envelope is refused by default in keyring mode; the bounded
+cutover-only `queue.accept_legacy_application_secret_payloads` flag may enable
+its verifier while old rows are drained.
+
+The database queue contributes `waaseyaa.queue.payload-hmac.v1` with the
+`drain-or-expire` strategy. Forward inventory refuses until both pending and
+failed legacy/predecessor rows are empty, and rollback refuses until failed
+successor rows are empty. The adapter never deletes or rewrites jobs: operators
+and workers must drain them before the zero-row snapshot, and verification
+rechecks the database so a stale writer blocks completion.
+
 Local PHP 8.5.8 microbenchmark (2026-07-15, 100,000 in-memory seal+open
 round trips over a serialized empty object): 396.58 ms total, 3.966 µs per
 round trip. This isolates envelope work from database and job execution time.

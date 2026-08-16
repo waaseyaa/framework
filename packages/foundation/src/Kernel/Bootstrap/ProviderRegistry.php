@@ -16,6 +16,7 @@ use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -60,6 +61,7 @@ final class ProviderRegistry
          */
         ?RequestContext $requestContext = null,
         ?CommunityContextInterface $communityContext = null,
+        ?SecretResolverRegistry $secretResolverRegistry = null,
     ): array {
         $this->providers = [];
 
@@ -76,6 +78,7 @@ final class ProviderRegistry
             fieldReadScope: $fieldReadScope,
             requestContext: $requestContext,
             communityContext: $communityContext,
+            secretResolverRegistry: $secretResolverRegistry,
         );
 
         foreach ($manifest->providers as $providerClass) {

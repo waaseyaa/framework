@@ -224,6 +224,17 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function compile_includes_cache_rekey_provider_in_repo_manifest(): void
+    {
+        $repoRoot = dirname(__DIR__, 5);
+        $compiler = new PackageManifestCompiler($repoRoot, $repoRoot . '/storage');
+
+        $manifest = $compiler->compile();
+
+        $this->assertContains('Waaseyaa\\Cache\\CacheServiceProvider', $manifest->providers);
+    }
+
+    #[Test]
     public function compile_includes_mcp_provider_in_repo_manifest(): void
     {
         $repoRoot = dirname(__DIR__, 5);

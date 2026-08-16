@@ -121,21 +121,24 @@ When field-level encryption is implemented:
 
 ### Invariant: no secrets in repository source
 
-Version-controlled source — including `defaults/`, packages, scripts, documentation, and workflows — must **never** contain credentials, tokens, or connection strings. All secrets enter the application exclusively via environment variables. `bin/check-no-secrets` scans the repository root and excludes only generated or dependency trees (`.git`, `.worktrees`, `vendor`, `node_modules`, `dist`, `build`, and `tmp`). Test fixtures assemble secret-shaped dummy values from fragments so the repository contains no static token-like payload.
+Version-controlled source — including `defaults/`, packages, scripts, documentation, and workflows — must **never** contain credentials, tokens, or connection strings. Bootstrap-only legacy variables remain at documented kernel seams; governed integration and provider credentials use deployable `SecretReference` values and are resolved through the frozen kernel-owned `SecretResolverRegistry`. References contain provider, identifier, expected secret class, and versioned purpose but are not secret values; JSON and debug diagnostic views disclose only their fingerprint, class, and purpose, while configuration encoders must deliberately request the complete `toArray()` projection. `bin/check-no-secrets` scans the repository root and excludes only generated or dependency trees (`.git`, `.worktrees`, `vendor`, `node_modules`, `dist`, `build`, and `tmp`). Test fixtures assemble secret-shaped dummy values from fragments so the repository contains no static token-like payload.
 
-### Environment variable contract
+### Transitional environment variable contract
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
 | `WAASEYAA_JWT_SECRET` | HS256 shared secret for bearer auth | Only if bearer auth is used |
-| `OPENAI_API_KEY` | OpenAI API key for embeddings | Only if `embedding_provider=openai` |
 | `WAASEYAA_DEV_FALLBACK_ACCOUNT` | Dev-only auto-auth as platform admin | **Must be false in production** |
 
 Full listing: `.env.example`.
 
+`WAASEYAA_APP_SECRET` remains the Layer-0 compatibility bootstrap authority while existing consumers migrate. New versioned application-master custody uses externally provisioned typed references, one active-write version, explicitly declared legacy read/verify versions, guarded purpose-specific consumers, authenticated version-bound envelopes, and frozen resolver and purpose registries. External application-master references are immutable: providers must never replace bytes in place, and each rotation uses a distinct reference and monotonically higher keyring version. Framework custody resolves the selected reference for each operation and retains no master bytes between operations. It never generates a missing operational master or probes undeclared versions. The persisted rekey coordinator and consumer migration remain explicit CFG-04 work, so the compatibility adapter is not rotation evidence and must not be used as precedent for new integrations. Governed MCP and AI provider credentials likewise use typed references and registered consumers; their packages reject direct environment or secret-file reads.
+
+The OIDC issuer contributes three application-master purpose owners through `OidcServiceProvider::applicationMasterRekeyContributions()` (`packages/oidc/src/Rekey/`): `OidcAccessTokenRekeyAdapter` (adapter id `oidc-access-token-v1`) and `OidcRefreshTokenRekeyAdapter` (`oidc-refresh-token-v1`) each jointly own their token table's ciphertext and lookup-index purposes (`waaseyaa.oidc.access-token-encryption.v1` + `waaseyaa.oidc.access-token-lookup.v1`; refresh likewise) and rekey rows through shared joint-row compare-and-swap mechanics (`AbstractOidcTokenRekeyAdapter`); `OidcSigningKeyRekeyAdapter` (`oidc-signing-key-v1`) owns `waaseyaa.oidc.signing-key-encryption.v1` for signing private material. Legacy custody is opt-in per adapter and fail-closed at construction: the token adapters require both 32-byte legacy purpose keys or neither.
+
 ### Configuration secrets
 
-`api_keys` in `config/waaseyaa.php` maps raw API keys to UIDs. This file is **not** version-controlled in deployments (only `skeleton/config/waaseyaa.php` is committed as a template). Deployments must override it via environment-specific config.
+The legacy `api_keys` map and raw provider-key configuration are not compliant with the governed custody contract merely because a deployment file is untracked. MCP schema v2 uses explicit `none` or `secret-reference` authentication plus `required` or `optional` availability. AI provider schema v2 uses exact class-and-purpose references. Legacy environment-name fields migrate to central-provider references without resolution; raw values and direct-environment bypasses are refused. Signing custody, the versioned application-master transition, and consumers outside the governed AI/MCP scope remain tracked red conditions.
 
 ### Enforcement
 
@@ -143,6 +146,7 @@ Full listing: `.env.example`.
 |-------|------|----------|
 | `bin/check-no-secrets` | Repository-wide shell scan for token patterns | CI: `security-defaults` job |
 | `DefaultsSecretsIntegrationTest` | Structural YAML/JSON value scanning | CI: PHPUnit `--filter Phase22` |
+| `HermeticAdminBuildPipeline` | Closed child environment, pinned Node/npm execution, credential-free lock-integrity cache, bounded line-sanitized output/runtime, deterministic generated/publishable artifact inventory and byte scan | `admin:build` and `bin/build-admin-dist` |
 
 Patterns checked: `sk-*` (OpenAI), `ghp_*` (GitHub), `xox[bp]-*` (Slack), `ya29.*` (Google OAuth), `AIza*` (Google API), PEM private keys, DSN with embedded credentials.
 

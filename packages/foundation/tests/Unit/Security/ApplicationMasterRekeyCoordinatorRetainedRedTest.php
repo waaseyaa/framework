@@ -1,0 +1,932 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\Foundation\Tests\Unit\Security;
+
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
+use Waaseyaa\Foundation\Security\ApplicationMasterEnvelope;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterBatchResult;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterInventorySnapshot;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterPurposeVerification;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyAdapterInterface;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyCoordinator;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyGate;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRequest;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyStore;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretProviderInterface;
+use Waaseyaa\Foundation\Security\SecretReference;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
+use Waaseyaa\Foundation\Security\SensitiveValue;
+
+/** Retained-red atomic adapter and restart-resumption proof for CFG-04. */
+final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
+{
+    private const string REQUEST_ID = 'synthetic-coordinator-rekey-0001';
+    private const string ADAPTER_ID = 'synthetic-secret-row-v1';
+
+    private string $dbPath = '';
+
+    protected function setUp(): void
+    {
+        $this->dbPath = sys_get_temp_dir() . '/waaseyaa-app-master-coordinator-' . bin2hex(random_bytes(8)) . '.sqlite';
+    }
+
+    protected function tearDown(): void
+    {
+        foreach (['', '-wal', '-shm'] as $suffix) {
+            if ($this->dbPath !== '' && is_file($this->dbPath . $suffix)) {
+                @unlink($this->dbPath . $suffix);
+            }
+        }
+    }
+
+    #[Test]
+    public function coordinator_refuses_adapter_database_or_purpose_roster_mismatch_before_inventory(): void
+    {
+        $database = $this->migratedDatabase();
+        $otherPath = $this->dbPath . '.other';
+        $other = DBALDatabase::createSqlite($otherPath);
+        try {
+            $adapter = new SyntheticAtomicRekeyAdapter($other, self::ADAPTER_ID, $this->purpose());
+            new ApplicationMasterRekeyCoordinator(
+                new ApplicationMasterRekeyStore($database),
+                $this->rotatedKeyring(),
+                $this->purposes(),
+                [$adapter],
+            );
+            self::fail('A rekey adapter targeting a different database authority was composed.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(0, $adapter->snapshotCalls);
+        } finally {
+            unset($other);
+            foreach (['', '-wal', '-shm'] as $suffix) {
+                if (is_file($otherPath . $suffix)) {
+                    @unlink($otherPath . $suffix);
+                }
+            }
+        }
+    }
+
+    #[Test]
+    public function coordinator_refuses_a_distinct_connection_even_when_database_parameters_match(): void
+    {
+        $database = $this->migratedDatabase();
+        $samePhysicalDatabase = DBALDatabase::createSqlite($this->dbPath);
+        self::assertSame($database->databaseIdentity(), $samePhysicalDatabase->databaseIdentity());
+        self::assertNotSame($database, $samePhysicalDatabase);
+        $adapter = new SyntheticAtomicRekeyAdapter(
+            $samePhysicalDatabase,
+            self::ADAPTER_ID,
+            $this->purpose(),
+        );
+
+        try {
+            new ApplicationMasterRekeyCoordinator(
+                new ApplicationMasterRekeyStore($database),
+                $this->rotatedKeyring(),
+                $this->purposes(),
+                [$adapter],
+            );
+            self::fail('A rekey adapter with a distinct same-parameter connection was composed.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(0, $adapter->snapshotCalls);
+        }
+    }
+
+    #[Test]
+    public function snapshot_exception_persists_a_request_level_block_until_explicit_resolution(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $adapter->throwOnSnapshot = true;
+
+        try {
+            $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+            self::fail('A snapshot exception was not recorded.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $record = $store->require(self::REQUEST_ID);
+        self::assertSame(1, $record->unresolvedFailures);
+        self::assertSame(3, $record->revision);
+        self::assertSame(0, (int) $database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM waaseyaa_application_master_rekey_adapter',
+        ));
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-snapshot-failed', $failure['failure_code']);
+        self::assertStringNotContainsString(
+            'synthetic-snapshot-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            $coordinator->snapshotAdapter(self::REQUEST_ID, 3, self::ADAPTER_ID);
+            self::fail('An unresolved snapshot failure permitted inventory retry.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(1, $store->require(self::REQUEST_ID)->unresolvedFailures);
+        }
+        $store->resolveAdapterSnapshotFailure(
+            self::REQUEST_ID,
+            3,
+            self::ADAPTER_ID,
+            hash('sha256', 'synthetic-snapshot-resolution'),
+        );
+        $adapter->throwOnSnapshot = false;
+        $progress = $coordinator->snapshotAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        self::assertSame(2, $progress->totalRecords);
+    }
+
+    #[Test]
+    public function malformed_adapter_result_rolls_back_owner_rows_and_cursor_in_one_transaction(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $adapter->returnMalformedResult = true;
+
+        try {
+            $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 1);
+            self::fail('A malformed adapter result committed owner effects.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            $row = $database->getConnection()->fetchAssociative(
+                'SELECT master_version, row_revision FROM synthetic_secret_row WHERE row_id = ?',
+                ['row:1'],
+            );
+            self::assertIsArray($row);
+            self::assertSame(1, (int) $row['master_version']);
+            self::assertSame(1, (int) $row['row_revision']);
+            $progress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+            self::assertNull($progress->cursor);
+            self::assertSame(1, $progress->revision);
+            self::assertSame(3, $store->require(self::REQUEST_ID)->revision);
+        }
+    }
+
+    #[Test]
+    public function adapter_exception_rolls_back_owner_effects_and_persists_a_non_secret_retry_block(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $adapter->throwOnTransition = true;
+
+        try {
+            $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 1);
+            self::fail('An adapter exception was not surfaced as a durable retry block.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $row = $database->getConnection()->fetchAssociative(
+            'SELECT master_version, row_revision FROM synthetic_secret_row WHERE row_id = ?',
+            ['row:1'],
+        );
+        self::assertIsArray($row);
+        self::assertSame(1, (int) $row['master_version']);
+        self::assertSame(1, (int) $row['row_revision']);
+        self::assertSame(1, $store->require(self::REQUEST_ID)->unresolvedFailures);
+        $progress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+        self::assertSame(1, $progress->unresolvedFailures);
+        self::assertSame(2, $progress->revision);
+        self::assertNull($progress->cursor);
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-transition-failed', $failure['failure_code']);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', (string) $failure['evidence_hash']);
+        self::assertStringNotContainsString(
+            'synthetic-adapter-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+
+        $store->resolveAdapterFailure(
+            self::REQUEST_ID,
+            4,
+            self::ADAPTER_ID,
+            2,
+            hash('sha256', 'operator-confirmed-synthetic-resolution'),
+        );
+        $adapter->throwOnTransition = false;
+        $batch = $coordinator->transitionNextBatch(self::REQUEST_ID, 5, self::ADAPTER_ID, 1);
+        self::assertSame('row:1', $batch->cursor);
+    }
+
+    #[Test]
+    public function verification_exception_is_persisted_without_exception_text(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 2);
+        $coordinator->completeAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        $adapter->throwOnVerification = true;
+
+        try {
+            $coordinator->verifyAdapter(self::REQUEST_ID, 5, self::ADAPTER_ID);
+            self::fail('A verification exception was not recorded.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(1, $store->require(self::REQUEST_ID)->unresolvedFailures);
+        }
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-verification-failed', $failure['failure_code']);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', (string) $failure['evidence_hash']);
+        self::assertStringNotContainsString(
+            'synthetic-verification-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[Test]
+    public function valid_batches_resume_after_restart_without_reprocessing_and_verify_every_row(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+
+        $first = $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 1);
+        self::assertSame('row:1', $first->cursor);
+        self::assertSame(1, $first->transitionedRecords);
+        self::assertSame(1, $adapter->transitionedById['row:1'] ?? 0);
+
+        $restartedDatabase = DBALDatabase::createSqlite($this->dbPath);
+        $restartedStore = new ApplicationMasterRekeyStore($restartedDatabase);
+        $restartedAdapter = new SyntheticAtomicRekeyAdapter(
+            $restartedDatabase,
+            self::ADAPTER_ID,
+            $this->purpose(),
+        );
+        $restarted = new ApplicationMasterRekeyCoordinator(
+            $restartedStore,
+            $this->rotatedKeyring(),
+            $this->purposes(),
+            [$restartedAdapter],
+        );
+        $second = $restarted->transitionNextBatch(self::REQUEST_ID, 4, self::ADAPTER_ID, 1);
+        self::assertSame('row:2', $second->cursor);
+        self::assertSame(2, $second->transitionedRecords);
+        self::assertSame(0, $restartedAdapter->transitionedById['row:1'] ?? 0);
+        self::assertSame(1, $restartedAdapter->transitionedById['row:2'] ?? 0);
+
+        $completed = $restarted->completeAdapter(self::REQUEST_ID, 5, self::ADAPTER_ID);
+        self::assertSame(ApplicationMasterRekeyState::VerifyEveryPurpose, $completed->state);
+        $verified = $restarted->verifyAdapter(self::REQUEST_ID, 6, self::ADAPTER_ID);
+        self::assertSame(ApplicationMasterRekeyState::ReconcileWritersAndWorkers, $verified->state);
+
+        $rows = $database->getConnection()->fetchAllAssociative(
+            'SELECT row_id, master_version, envelope_json FROM synthetic_secret_row ORDER BY row_id',
+        );
+        self::assertCount(2, $rows);
+        foreach ($rows as $index => $row) {
+            self::assertSame(2, (int) $row['master_version']);
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            self::assertSame('synthetic-plaintext-' . ($index + 1), $this->rotatedKeyring()->open($envelope));
+        }
+    }
+
+    #[Test]
+    public function rollback_reinventories_successor_rows_and_resumes_reverse_cas_batches_after_restart(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 2);
+        $record = $coordinator->completeAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        $record = $coordinator->verifyAdapter(self::REQUEST_ID, $record->revision, self::ADAPTER_ID);
+        foreach ([
+            ApplicationMasterRekeyGate::WritersAndWorkersReconciled,
+            ApplicationMasterRekeyGate::CachesReconciled,
+        ] as $offset => $gate) {
+            $record = $store->recordRevocationGate(
+                self::REQUEST_ID,
+                $record->revision,
+                $gate,
+                hash('sha256', 'synthetic-rollback-gate:' . $gate->value),
+                1_300 + ($offset * 100),
+            );
+        }
+        $record = $store->beginRollback(
+            self::REQUEST_ID,
+            $record->revision,
+            'synthetic-successor-refused',
+            hash('sha256', 'synthetic-rollback-authorization'),
+            1_500,
+        );
+        $rollback = new ApplicationMasterRekeyCoordinator(
+            $store,
+            $this->rollbackKeyring(),
+            $this->purposes(),
+            [$adapter],
+        );
+
+        $adapter->throwOnRollbackSnapshot = true;
+        try {
+            $rollback->snapshotRollbackAdapter(
+                self::REQUEST_ID,
+                $record->revision,
+                self::ADAPTER_ID,
+            );
+            self::fail('A rollback snapshot exception was not persisted.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $failed = $store->require(self::REQUEST_ID);
+        $failedProgress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+        self::assertSame(1, $failed->unresolvedFailures);
+        self::assertNull($failedProgress->rollbackSnapshotToken);
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-rollback-snapshot-failed', $failure['failure_code']);
+        self::assertStringNotContainsString(
+            'synthetic-rollback-snapshot-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+        $record = $store->resolveAdapterFailure(
+            self::REQUEST_ID,
+            $failed->revision,
+            self::ADAPTER_ID,
+            $failedProgress->revision,
+            hash('sha256', 'synthetic-rollback-snapshot-resolution'),
+        );
+        $adapter->throwOnRollbackSnapshot = false;
+        $progress = $rollback->snapshotRollbackAdapter(
+            self::REQUEST_ID,
+            $record->revision,
+            self::ADAPTER_ID,
+        );
+        self::assertSame(2, $progress->rollbackTotalRecords);
+        self::assertNull($progress->rollbackCursor);
+
+        $adapter->throwOnRollback = true;
+        try {
+            $rollback->rollbackNextBatch(
+                self::REQUEST_ID,
+                $store->require(self::REQUEST_ID)->revision,
+                self::ADAPTER_ID,
+                1,
+            );
+            self::fail('A rollback batch exception was not persisted.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $failed = $store->require(self::REQUEST_ID);
+        $failedProgress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+        self::assertSame(1, $failed->unresolvedFailures);
+        self::assertNull($failedProgress->rollbackCursor);
+        self::assertSame(2, (int) $database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM synthetic_secret_row WHERE master_version = 2',
+        ));
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-rollback-failed', $failure['failure_code']);
+        self::assertStringNotContainsString(
+            'synthetic-rollback-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+        $store->resolveAdapterFailure(
+            self::REQUEST_ID,
+            $failed->revision,
+            self::ADAPTER_ID,
+            $failedProgress->revision,
+            hash('sha256', 'synthetic-rollback-batch-resolution'),
+        );
+        $adapter->throwOnRollback = false;
+        $first = $rollback->rollbackNextBatch(
+            self::REQUEST_ID,
+            $store->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+            1,
+        );
+        self::assertSame('row:1', $first->rollbackCursor);
+        self::assertSame(1, $first->rolledBackRecords);
+        self::assertSame(1, $adapter->rolledBackById['row:1'] ?? 0);
+
+        $restartedDatabase = DBALDatabase::createSqlite($this->dbPath);
+        $restartedStore = new ApplicationMasterRekeyStore($restartedDatabase, static fn(): int => 1_600);
+        $restartedAdapter = new SyntheticAtomicRekeyAdapter(
+            $restartedDatabase,
+            self::ADAPTER_ID,
+            $this->purpose(),
+        );
+        $restarted = new ApplicationMasterRekeyCoordinator(
+            $restartedStore,
+            $this->rollbackKeyring(),
+            $this->purposes(),
+            [$restartedAdapter],
+        );
+        $second = $restarted->rollbackNextBatch(
+            self::REQUEST_ID,
+            $restartedStore->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+            1,
+        );
+        self::assertSame('row:2', $second->rollbackCursor);
+        self::assertSame(2, $second->rolledBackRecords);
+        self::assertSame(0, $restartedAdapter->rolledBackById['row:1'] ?? 0);
+        self::assertSame(1, $restartedAdapter->rolledBackById['row:2'] ?? 0);
+
+        $record = $restarted->completeRollbackAdapter(
+            self::REQUEST_ID,
+            $restartedStore->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+        );
+        self::assertSame(ApplicationMasterRekeyState::RollingBack, $record->state);
+        $rolledBack = $restarted->completeRollback(
+            self::REQUEST_ID,
+            $record->revision,
+            hash('sha256', 'synthetic-rollback-completion'),
+            1_700,
+        );
+        self::assertSame(ApplicationMasterRekeyState::RolledBack, $rolledBack->state);
+        self::assertSame('active-write', $restartedStore->masterVersionState(1));
+        self::assertSame('failed-read-only', $restartedStore->masterVersionState(2));
+        self::assertSame(1, (int) $database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM waaseyaa_application_master_rekey_rollback_verification',
+        ));
+
+        $rows = $database->getConnection()->fetchAllAssociative(
+            'SELECT row_id, master_version, envelope_json FROM synthetic_secret_row ORDER BY row_id',
+        );
+        self::assertCount(2, $rows);
+        foreach ($rows as $index => $row) {
+            self::assertSame(1, (int) $row['master_version']);
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            self::assertSame('synthetic-plaintext-' . ($index + 1), $this->rollbackKeyring()->open($envelope));
+        }
+    }
+
+    #[Test]
+    public function rollback_batches_refuse_when_the_version_ledger_no_longer_matches_the_request(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 2);
+        $record = $coordinator->completeAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        $record = $coordinator->verifyAdapter(self::REQUEST_ID, $record->revision, self::ADAPTER_ID);
+        foreach ([
+            ApplicationMasterRekeyGate::WritersAndWorkersReconciled,
+            ApplicationMasterRekeyGate::CachesReconciled,
+        ] as $offset => $gate) {
+            $record = $store->recordRevocationGate(
+                self::REQUEST_ID,
+                $record->revision,
+                $gate,
+                hash('sha256', 'synthetic-ledger-drift-gate:' . $gate->value),
+                1_300 + ($offset * 100),
+            );
+        }
+        $record = $store->beginRollback(
+            self::REQUEST_ID,
+            $record->revision,
+            'synthetic-successor-refused',
+            hash('sha256', 'synthetic-ledger-drift-authorization'),
+            1_500,
+        );
+        $rollback = new ApplicationMasterRekeyCoordinator(
+            $store,
+            $this->rollbackKeyring(),
+            $this->purposes(),
+            [$adapter],
+        );
+        $rollback->snapshotRollbackAdapter(
+            self::REQUEST_ID,
+            $record->revision,
+            self::ADAPTER_ID,
+        );
+
+        $database->getConnection()->executeStatement(
+            "UPDATE waaseyaa_application_master_version SET state = 'legacy-read-verify' WHERE master_version = 1",
+        );
+
+        $this->expectException(ApplicationMasterRekeyConflictException::class);
+        $this->expectExceptionMessage('version ledger');
+        $rollback->rollbackNextBatch(
+            self::REQUEST_ID,
+            $store->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+            1,
+        );
+    }
+
+    /** @return array{DBALDatabase, ApplicationMasterRekeyStore, ApplicationMasterRekeyCoordinator, SyntheticAtomicRekeyAdapter} */
+    private function preparedCoordinator(): array
+    {
+        $database = $this->migratedDatabase();
+        $this->createSyntheticRows($database);
+        $store = new ApplicationMasterRekeyStore($database, static fn(): int => 1_200);
+        $registry = $this->purposes();
+        $store->prepare($this->request($registry), $registry);
+        $store->installActive(
+            self::REQUEST_ID,
+            1,
+            hash('sha256', 'synthetic-master-v1-reference'),
+            hash('sha256', 'synthetic-master-v2-reference'),
+            1_100,
+        );
+        $adapter = new SyntheticAtomicRekeyAdapter($database, self::ADAPTER_ID, $this->purpose());
+        $coordinator = new ApplicationMasterRekeyCoordinator(
+            $store,
+            $this->rotatedKeyring(),
+            $registry,
+            [$adapter],
+        );
+
+        return [$database, $store, $coordinator, $adapter];
+    }
+
+    private function createSyntheticRows(DBALDatabase $database): void
+    {
+        $database->getConnection()->executeStatement(
+            'CREATE TABLE synthetic_secret_row (
+                row_id TEXT PRIMARY KEY,
+                master_version INTEGER NOT NULL,
+                envelope_json TEXT NOT NULL,
+                row_revision INTEGER NOT NULL
+            )',
+        );
+        $old = $this->oldKeyring();
+        foreach ([1, 2] as $id) {
+            $recordId = 'row:' . $id;
+            $envelope = $old->seal($this->purpose(), $recordId, 1, 'synthetic-plaintext-' . $id);
+            $database->insert('synthetic_secret_row')->values([
+                'row_id' => $recordId,
+                'master_version' => 1,
+                'envelope_json' => json_encode($envelope->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+                'row_revision' => 1,
+            ])->execute();
+        }
+    }
+
+    private function request(ApplicationMasterPurposeRegistry $registry): ApplicationMasterRekeyRequest
+    {
+        return new ApplicationMasterRekeyRequest(
+            requestId: self::REQUEST_ID,
+            fromVersion: 1,
+            toVersion: 2,
+            registryChecksum: $registry->checksum(),
+            authorizationDigest: hash('sha256', 'synthetic-coordinator-authorization'),
+            actor: 'synthetic-operator',
+            rollbackDeadline: 2_000,
+            retentionDeadline: 2_500,
+            createdAt: 1_000,
+        );
+    }
+
+    private function purposes(): ApplicationMasterPurposeRegistry
+    {
+        $registry = new ApplicationMasterPurposeRegistry();
+        $registry->register(new ApplicationMasterPurposePolicy(
+            id: $this->purpose(),
+            ownerPackage: 'waaseyaa/foundation',
+            strategy: ApplicationMasterPurposeStrategy::ReencryptCiphertext,
+            maximumLifetimeSeconds: 3_600,
+            retentionSeconds: 86_400,
+            adapterId: self::ADAPTER_ID,
+            rollbackBehavior: 'reverse-cas',
+        ));
+        $registry->freeze();
+
+        return $registry;
+    }
+
+    private function purpose(): string
+    {
+        return ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION;
+    }
+
+    private function oldKeyring(): ApplicationMasterKeyring
+    {
+        return ApplicationMasterKeyring::fromReferences(
+            $this->resolver(),
+            1,
+            $this->reference('master-v1'),
+            [],
+            $this->purposes(),
+        );
+    }
+
+    private function rotatedKeyring(): ApplicationMasterKeyring
+    {
+        return ApplicationMasterKeyring::fromReferences(
+            $this->resolver(),
+            2,
+            $this->reference('master-v2'),
+            [1 => $this->reference('master-v1')],
+            $this->purposes(),
+        );
+    }
+
+    private function rollbackKeyring(): ApplicationMasterKeyring
+    {
+        return ApplicationMasterKeyring::fromRollbackReferences(
+            $this->resolver(),
+            1,
+            $this->reference('master-v1'),
+            [],
+            2,
+            $this->reference('master-v2'),
+            $this->purposes(),
+        );
+    }
+
+    private function resolver(): SecretResolverRegistry
+    {
+        $resolver = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
+        $provider = new SyntheticCoordinatorMasterProvider([
+            'tenant/application/master-v1' => hash('sha256', 'synthetic-master-v1', true),
+            'tenant/application/master-v2' => hash('sha256', 'synthetic-master-v2', true),
+        ]);
+        $resolver->registerProvider($provider);
+        ApplicationMasterKeyring::registerResolverConsumers($resolver);
+        $resolver->allow(
+            $provider->id(),
+            ApplicationMasterKeyring::PACKAGE,
+            SecretClass::ApplicationMaster,
+            ApplicationMasterKeyring::MASTER_PURPOSE,
+            ['testing'],
+        );
+        $resolver->freeze();
+
+        return $resolver;
+    }
+
+    private function reference(string $version): SecretReference
+    {
+        return SecretReference::create(
+            'synthetic-coordinator-vault',
+            'tenant/application/' . $version,
+            SecretClass::ApplicationMaster,
+            ApplicationMasterKeyring::MASTER_PURPOSE,
+        );
+    }
+
+    private function migratedDatabase(): DBALDatabase
+    {
+        $database = DBALDatabase::createSqlite($this->dbPath);
+        $migration = require dirname(__DIR__, 3) . '/migrations/2026_08_15_000002_application_master_rekey.php';
+        if (!$migration instanceof Migration) {
+            throw new \LogicException('The Foundation application-master rekey migration is invalid.');
+        }
+        $migration->up(new SchemaBuilder($database->getConnection()));
+
+        return $database;
+    }
+}
+
+final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapterInterface
+{
+    public int $snapshotCalls = 0;
+    public bool $throwOnSnapshot = false;
+    public bool $returnMalformedResult = false;
+    public bool $throwOnTransition = false;
+    public bool $throwOnVerification = false;
+    public bool $throwOnRollbackSnapshot = false;
+    public bool $throwOnRollback = false;
+
+    /** @var array<string, int> */
+    public array $transitionedById = [];
+
+    /** @var array<string, int> */
+    public array $rolledBackById = [];
+
+    public function __construct(
+        private readonly DBALDatabase $database,
+        private readonly string $adapterId,
+        private readonly string $purposeId,
+    ) {}
+
+    public function id(): string
+    {
+        return $this->adapterId;
+    }
+
+    public function purposeIds(): array
+    {
+        return [$this->purposeId];
+    }
+
+    public function databaseAuthority(): DBALDatabase
+    {
+        return $this->database;
+    }
+
+    public function snapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot
+    {
+        ++$this->snapshotCalls;
+        if ($this->throwOnSnapshot) {
+            throw new \RuntimeException('synthetic-snapshot-secret-shaped-detail');
+        }
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, row_revision FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->fromVersion],
+        ));
+
+        return new ApplicationMasterInventorySnapshot(
+            hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+            count($rows),
+        );
+    }
+
+    public function transitionBatch(
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+        ?string $cursor,
+        int $limit,
+    ): ApplicationMasterBatchResult {
+        if ($this->throwOnTransition) {
+            throw new \RuntimeException('synthetic-adapter-secret-shaped-detail');
+        }
+        $rows = iterator_to_array($context->database->query(sprintf(
+            'SELECT * FROM synthetic_secret_row WHERE master_version = :version AND row_id > :cursor ORDER BY row_id LIMIT %d',
+            $limit,
+        ), ['version' => $context->request->fromVersion, 'cursor' => $cursor ?? '']));
+        $ids = [];
+        foreach ($rows as $row) {
+            $id = (string) $row['row_id'];
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            $plaintext = $context->keyring->open($envelope);
+            $replacement = $context->keyring->seal($this->purposeId, $id, 1, $plaintext);
+            $updated = $context->database->update('synthetic_secret_row')->fields([
+                'master_version' => $context->request->toVersion,
+                'envelope_json' => json_encode(
+                    $replacement->toArray(),
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+                ),
+                'row_revision' => (int) $row['row_revision'] + 1,
+            ])->condition('row_id', $id)
+                ->condition('master_version', $context->request->fromVersion)
+                ->condition('row_revision', (int) $row['row_revision'])
+                ->execute();
+            if ($updated !== 1) {
+                throw new ApplicationMasterRekeyConflictException('Synthetic owner row changed during CAS transition.');
+            }
+            $ids[] = $id;
+            $this->transitionedById[$id] = ($this->transitionedById[$id] ?? 0) + 1;
+        }
+        $nextCursor = $ids === [] ? ($cursor ?? 'empty') : $ids[array_key_last($ids)];
+
+        return new ApplicationMasterBatchResult(
+            nextCursor: $nextCursor,
+            transitionedRecords: count($ids),
+            purposeCountDeltas: $this->returnMalformedResult ? [] : [$this->purposeId => count($ids)],
+            batchCommitment: hash('sha256', json_encode($ids, JSON_THROW_ON_ERROR)),
+        );
+    }
+
+    public function verify(
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+    ): array {
+        if ($this->throwOnVerification) {
+            throw new \RuntimeException('synthetic-verification-secret-shaped-detail');
+        }
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, envelope_json FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->toVersion],
+        ));
+        $commitments = [];
+        foreach ($rows as $row) {
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            $context->keyring->open($envelope);
+            $commitments[] = hash('sha256', (string) $row['envelope_json']);
+        }
+
+        return [$this->purposeId => new ApplicationMasterPurposeVerification(
+            count($rows),
+            hash('sha256', json_encode($commitments, JSON_THROW_ON_ERROR)),
+        )];
+    }
+
+    public function rollbackBatch(
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+        ?string $cursor,
+        int $limit,
+    ): ApplicationMasterBatchResult {
+        if ($this->throwOnRollback) {
+            throw new \RuntimeException('synthetic-rollback-secret-shaped-detail');
+        }
+        $rows = iterator_to_array($context->database->query(sprintf(
+            'SELECT * FROM synthetic_secret_row WHERE master_version = :version AND row_id > :cursor ORDER BY row_id LIMIT %d',
+            $limit,
+        ), ['version' => $context->request->toVersion, 'cursor' => $cursor ?? '']));
+        $ids = [];
+        foreach ($rows as $row) {
+            $id = (string) $row['row_id'];
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            $plaintext = $context->keyring->open($envelope);
+            $replacement = $context->keyring->seal($this->purposeId, $id, 1, $plaintext);
+            $updated = $context->database->update('synthetic_secret_row')->fields([
+                'master_version' => $context->request->fromVersion,
+                'envelope_json' => json_encode(
+                    $replacement->toArray(),
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+                ),
+                'row_revision' => (int) $row['row_revision'] + 1,
+            ])->condition('row_id', $id)
+                ->condition('master_version', $context->request->toVersion)
+                ->condition('row_revision', (int) $row['row_revision'])
+                ->execute();
+            if ($updated !== 1) {
+                throw new ApplicationMasterRekeyConflictException('Synthetic owner row changed during rollback CAS transition.');
+            }
+            $ids[] = $id;
+            $this->rolledBackById[$id] = ($this->rolledBackById[$id] ?? 0) + 1;
+        }
+        $nextCursor = $ids === [] ? ($cursor ?? 'empty') : $ids[array_key_last($ids)];
+
+        return new ApplicationMasterBatchResult(
+            nextCursor: $nextCursor,
+            transitionedRecords: count($ids),
+            purposeCountDeltas: [$this->purposeId => count($ids)],
+            batchCommitment: hash('sha256', json_encode($ids, JSON_THROW_ON_ERROR)),
+        );
+    }
+
+    public function rollbackSnapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot
+    {
+        if ($this->throwOnRollbackSnapshot) {
+            throw new \RuntimeException('synthetic-rollback-snapshot-secret-shaped-detail');
+        }
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, row_revision FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->toVersion],
+        ));
+
+        return new ApplicationMasterInventorySnapshot(
+            hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+            count($rows),
+        );
+    }
+
+    public function verifyRollback(
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+    ): array {
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, envelope_json FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->fromVersion],
+        ));
+        $commitments = [];
+        foreach ($rows as $row) {
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            $context->keyring->open($envelope);
+            $commitments[] = hash('sha256', (string) $row['envelope_json']);
+        }
+
+        return [$this->purposeId => new ApplicationMasterPurposeVerification(
+            count($rows),
+            hash('sha256', json_encode($commitments, JSON_THROW_ON_ERROR)),
+        )];
+    }
+}
+
+final class SyntheticCoordinatorMasterProvider implements SecretProviderInterface
+{
+    /** @param array<string, string> $masters */
+    public function __construct(private readonly array $masters) {}
+
+    public function id(): string
+    {
+        return 'synthetic-coordinator-vault';
+    }
+
+    public function resolve(SecretReference $reference): SensitiveValue
+    {
+        return SensitiveValue::fromBytes(
+            $this->masters[$reference->identifier()] ?? throw new \RuntimeException('unknown synthetic master'),
+            SecretClass::ApplicationMaster,
+            str_ends_with($reference->identifier(), 'v1') ? 'master-v1' : 'master-v2',
+        );
+    }
+}

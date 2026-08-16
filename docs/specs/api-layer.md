@@ -1,5 +1,43 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-15 - S1-FW-CFG-04: the JWKS endpoint's response is
+now governed by the OIDC signing-key lifecycle. `JwksDocumentBuilder` publishes
+only keys whose lifecycle state can verify (revoked keys are excluded) and
+asserts the closed `SigningAlgorithmPolicy` per key; `JwksController` reads its
+`Cache-Control: public, max-age` from `SigningKeyLifecyclePolicy::
+jwksCacheLifetimeSeconds()` instead of a hardcoded 86400, so the published
+cache lifetime and the rotation/retention arithmetic share one policy. Endpoint
+paths and route registration (`OidcHttpRoutes`, `AuthOidcRouteServiceProvider`)
+are unchanged. The lifecycle contract (states, staged rotation, retention,
+emergency revocation) is docs/specs/s1-signing-key-lifecycle.md. `packages/
+oidc/` is now drift-mapped to this spec: it is the enduring home of the OIDC
+issuer's HTTP surface (discovery/authorize/token/userinfo/JWKS route tables and
+the oidc-flows-completion review record below). -->
+
+<!-- Spec reviewed 2026-08-15 - OIDC issuer surface completion: two previously
+undocumented `packages/oidc/src/` concerns are contract-bearing parts of this
+spec's OIDC issuer surface. (1) Authorization-code persistence
+(`packages/oidc/src/Repository/`): `AuthorizationCodeRepositoryInterface` is
+the /token endpoint's only persistence port. Codes are 60-second single-use
+grants (`DatabaseAuthorizationCodeRepository::TTL_SECONDS`); `consume()` is
+atomic — a single-statement `UPDATE … SET consumed_at WHERE code = ? AND
+consumed_at IS NULL AND expires_at > ?` with an affected-rows check, so
+exactly one concurrent caller wins and a second consume returns null. Binding
+fields (client_id, redirect_uri, PKCE challenge) are stored verbatim and
+validated at exchange time, and the optional `nonce` is round-tripped so
+/token can embed it in the ID token's `nonce` claim (OIDC Core §3.1.3.6). The
+`oidc_authorization_codes` schema is owned by the 2026-08-12 migration
+(`2026_08_12_000006_oidc_authorization_code_schema.php`) — no longer installed
+by request traffic — with expiry and client-id indexes; `purgeExpired()` is
+the scheduled-job cleanup hook. (2) Token revocation
+(`packages/oidc/src/Revoke/RevocationController`, `POST /oidc/revoke`,
+registered by `OidcHttpRoutes`): RFC 7009 semantics — client-authenticated
+(confidential clients must present a verified secret), unknown or missing
+tokens always return 200 to prevent token enumeration (RFC 7009 §2.2), and
+access-token revocation cascades to the paired refresh token while
+refresh-token revocation does not cascade back (asymmetric per RFC 7009
+§2.1). -->
+
 <!-- Spec reviewed 2026-08-13 - workflow discovery now includes a bounded
 `meta.workflow_history` projection from the API-local audit read model after
 the existing authenticated, entity-view and workflow-state field gates pass.

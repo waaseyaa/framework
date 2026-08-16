@@ -25,7 +25,9 @@ use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 #[CoversClass(ProviderRegistryKernelServices::class)]
@@ -40,6 +42,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         array $providers = [],
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
         ?CommunityContextInterface $communityContext = null,
+        ?SecretResolverRegistry $secretResolverRegistry = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -53,6 +56,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             applicationSecret: $applicationSecret,
             fieldReadScope: $fieldReadScope,
             communityContext: $communityContext,
+            secretResolverRegistry: $secretResolverRegistry,
         );
     }
 
@@ -145,6 +149,15 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         $services = $this->services(DBALDatabase::createSqlite(), applicationSecret: $secret);
 
         self::assertSame($secret, $services->get(ApplicationSecret::class));
+    }
+
+    #[Test]
+    public function get_exposes_the_kernel_owned_secret_resolver_registry(): void
+    {
+        $registry = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
+        $services = $this->services(DBALDatabase::createSqlite(), secretResolverRegistry: $registry);
+
+        self::assertSame($registry, $services->get(SecretResolverRegistry::class));
     }
 
     /**

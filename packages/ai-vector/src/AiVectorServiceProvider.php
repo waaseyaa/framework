@@ -6,6 +6,7 @@ namespace Waaseyaa\AI\Vector;
 
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
@@ -39,6 +40,11 @@ final class AiVectorServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $secretRegistry = $this->kernelServices?->get(SecretResolverRegistry::class);
+        if ($secretRegistry instanceof SecretResolverRegistry) {
+            $secretRegistry->registerConsumer('waaseyaa/ai-vector', OpenAiEmbeddingCredentialOperation::class);
+        }
+
         $this->singleton(
             EmbeddingStorageInterface::class,
             fn(): EmbeddingStorageInterface => new SqliteEmbeddingStorage(
@@ -50,7 +56,7 @@ final class AiVectorServiceProvider extends ServiceProvider
 
         // Resolve the configured provider once. fromConfig() only constructs a
         // value object from config (no I/O), returning null when unconfigured.
-        $configuredProvider = EmbeddingProviderFactory::fromConfig($this->config);
+        $configuredProvider = EmbeddingProviderFactory::fromConfig($this->config, $secretRegistry instanceof SecretResolverRegistry ? $secretRegistry : null);
         if ($configuredProvider !== null) {
             $this->singleton(
                 EmbeddingProviderInterface::class,

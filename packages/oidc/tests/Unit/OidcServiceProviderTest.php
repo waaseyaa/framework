@@ -4,10 +4,18 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Oidc\Tests\Unit;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Oidc\Discovery\DiscoveryController;
 use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Jwks\JwksController;
@@ -15,6 +23,11 @@ use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
 use Waaseyaa\Oidc\OidcServiceProvider;
+use Waaseyaa\Oidc\Tests\Support\OidcSchema;
+use Waaseyaa\Oidc\Tests\Support\OidcApplicationMasterKeyring;
+use Waaseyaa\Oidc\Token\AccessTokenIssuer;
+use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
+use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 
 #[CoversClass(OidcServiceProvider::class)]
 final class OidcServiceProviderTest extends TestCase
@@ -154,7 +167,7 @@ final class OidcServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function registerBindsJwksControllerUsingResolvedKeyLoader(): void
+    public function issuerJwksUsesDatabaseLifecycleEvenWhenFileKeysAreConfigured(): void
     {
         [$publicPath] = $this->writeRsaKeypair('jwks-key');
 
@@ -168,6 +181,7 @@ final class OidcServiceProviderTest extends TestCase
             ],
         ], []);
 
+        $databaseKey = $this->attachSigningServices($provider);
         $provider->register();
 
         $controller = $provider->resolve(JwksController::class);
@@ -175,7 +189,12 @@ final class OidcServiceProviderTest extends TestCase
 
         $body = json_decode((string) ($controller)()->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertCount(1, $body['keys']);
-        self::assertSame('jwks-key', $body['keys'][0]['kid']);
+        self::assertSame($databaseKey->kid, $body['keys'][0]['kid']);
+        self::assertNotSame('jwks-key', $body['keys'][0]['kid']);
+        self::assertInstanceOf(
+            \Waaseyaa\Oidc\Key\RealKeyMaterialProvider::class,
+            $provider->resolve(KeyMaterialProviderInterface::class),
+        );
     }
 
     #[Test]
@@ -212,6 +231,142 @@ final class OidcServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function contributesExactApplicationMasterPurposeOwners(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $provider = new OidcServiceProvider();
+        $provider->setKernelContext('/tmp/oidc-test', [
+            'oidc' => [
+                'signing_key_lifecycle' => [
+                    'maximum_token_lifetime_seconds' => 7_776_000,
+                    'maximum_clock_skew_seconds' => 300,
+                    'jwks_cache_lifetime_seconds' => 86_400,
+                    'propagation_margin_seconds' => 300,
+                ],
+            ],
+        ], []);
+        $provider->setKernelServices(new class ($database) implements KernelServicesInterface {
+            public function __construct(private readonly DatabaseInterface $database) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === DatabaseInterface::class ? $this->database : null;
+            }
+        });
+
+        self::assertInstanceOf(ProvidesApplicationMasterRekeyContributionsInterface::class, $provider);
+        $contributions = iterator_to_array($provider->applicationMasterRekeyContributions(), false);
+        self::assertCount(3, $contributions);
+
+        $records = [];
+        foreach ($contributions as $contribution) {
+            foreach ($contribution->policies() as $policy) {
+                $records[$policy->id] = $policy->canonicalRecord();
+            }
+        }
+        ksort($records, SORT_STRING);
+
+        self::assertSame([
+            ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::ReencryptCiphertext->value,
+                'maximum_lifetime_seconds' => 3_600,
+                'retention_seconds' => 3_900,
+                'adapter_id' => 'oidc-access-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::RecomputeLookupIndex->value,
+                'maximum_lifetime_seconds' => 3_600,
+                'retention_seconds' => 3_900,
+                'adapter_id' => 'oidc-access-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::ReencryptCiphertext->value,
+                'maximum_lifetime_seconds' => 7_776_000,
+                'retention_seconds' => 7_776_300,
+                'adapter_id' => 'oidc-refresh-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::RecomputeLookupIndex->value,
+                'maximum_lifetime_seconds' => 7_776_000,
+                'retention_seconds' => 7_776_300,
+                'adapter_id' => 'oidc-refresh-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::ReencryptCiphertext->value,
+                'maximum_lifetime_seconds' => 7_776_000,
+                'retention_seconds' => 7_863_000,
+                'adapter_id' => 'oidc-signing-key-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext',
+            ],
+        ], $records);
+    }
+
+    #[Test]
+    public function composed_keyring_is_the_only_runtime_custody_required_by_default(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        OidcSchema::installSigningKeys($database);
+        OidcSchema::installTokenStorage($database);
+        $keyring = OidcApplicationMasterKeyring::create(2, [1]);
+        $provider = new OidcServiceProvider();
+        $provider->setKernelContext('/tmp/oidc-test', [], []);
+        $provider->setKernelServices(new class ($database, $keyring) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly ApplicationMasterKeyring $keyring,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    ApplicationMasterKeyring::class => $this->keyring,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        $signing = $provider->resolve(\Waaseyaa\Oidc\Key\SigningKeyRepository::class)->initialize();
+        $access = $provider->resolve(AccessTokenIssuer::class)
+            ->issue('client', 'account', ['openid'], new DateTimeImmutable('@1700000000'));
+        $refresh = $provider->resolve(RefreshTokenIssuer::class)->issue(
+            $access->jti,
+            'client',
+            'account',
+            ['openid'],
+            1_700_000_000,
+            new DateTimeImmutable('@1700000000'),
+        );
+
+        foreach ([
+            ['oidc_signing_key', 'kid', $signing->kid, 'private_key_pem'],
+            ['oidc_access_token', 'jti', $access->jti, 'token'],
+            ['oidc_refresh_token', 'jti', $refresh->jti, 'token'],
+        ] as [$table, $identityColumn, $identity, $ciphertextColumn]) {
+            $stored = (string) $database->getConnection()->fetchOne(
+                sprintf('SELECT %s FROM %s WHERE %s = ?', $ciphertextColumn, $table, $identityColumn),
+                [$identity],
+            );
+            self::assertSame(2, json_decode($stored, true, 32, JSON_THROW_ON_ERROR)['master_version']);
+        }
+    }
+
+    #[Test]
     public function jwksControllerIsSingleton(): void
     {
         [$publicPath] = $this->writeRsaKeypair('singleton-key');
@@ -225,6 +380,7 @@ final class OidcServiceProviderTest extends TestCase
             ],
         ], []);
 
+        $this->attachSigningServices($provider);
         $provider->register();
 
         self::assertSame(
@@ -252,5 +408,36 @@ final class OidcServiceProviderTest extends TestCase
         file_put_contents($privatePath, $keyPair['private']);
 
         return [$publicPath, $privatePath];
+    }
+
+    private function attachSigningServices(OidcServiceProvider $provider): \Waaseyaa\Oidc\Keys\SigningKey
+    {
+        $database = DBALDatabase::createSqlite();
+        OidcSchema::installSigningKeys($database);
+        $applicationSecret = ApplicationSecret::fromEnvironmentValue(
+            'base64:' . base64_encode(random_bytes(32)),
+            'testing',
+        );
+        $key = new \Waaseyaa\Oidc\Key\SigningKeyRepository(
+            $database,
+            $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
+        )->initialize();
+        $provider->setKernelServices(new class ($database, $applicationSecret) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly ApplicationSecret $applicationSecret,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    ApplicationSecret::class => $this->applicationSecret,
+                    default => null,
+                };
+            }
+        });
+
+        return $key;
     }
 }

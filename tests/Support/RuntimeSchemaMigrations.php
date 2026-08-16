@@ -30,18 +30,29 @@ final class RuntimeSchemaMigrations
     public static function entitiesForProject(string $projectRoot): void
     {
         $kernel = new \Waaseyaa\Foundation\Kernel\ConsoleKernel($projectRoot);
-        $kernel->bootForSchemaSync();
-        $manager = $kernel->getEntityTypeManager();
-        $database = $kernel->getDatabase();
-        if ($database instanceof DBALDatabase) {
-            self::entityMutationAuthority($database);
-        }
-        new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
-            $database,
-            $manager->getFieldRegistry(),
-        )->run($manager->getDefinitions());
-        if ($database instanceof DBALDatabase) {
-            $database->getConnection()->close();
+        try {
+            $kernel->bootForSchemaSync();
+            $manager = $kernel->getEntityTypeManager();
+            $database = $kernel->getDatabase();
+            if ($database instanceof DBALDatabase) {
+                self::entityMutationAuthority($database);
+            }
+            new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
+                $database,
+                $manager->getFieldRegistry(),
+            )->run($manager->getDefinitions());
+            if ($database instanceof DBALDatabase) {
+                $database->getConnection()->close();
+            }
+        } finally {
+            // bootForSchemaSync() installs the throwaway kernel's field registry
+            // process-wide (ContentEntityBase::setFieldRegistry, forwarded to
+            // EntityReadRuntime). That registry carries the real package field
+            // classifications (e.g. node.status Protected/authorizationInput);
+            // left installed it becomes the EntityReadRuntime::layoutFor()
+            // fallback for later tests in the same process and conflicts with
+            // fixture entity types that declare the same fields differently.
+            \Waaseyaa\Entity\ContentEntityBase::setFieldRegistry(null);
         }
     }
 
@@ -52,7 +63,12 @@ final class RuntimeSchemaMigrations
 
     public static function cache(DBALDatabase $database): void
     {
-        self::apply($database, 'packages/cache/migrations/2026_08_12_000001_cache_items_schema.php');
+        foreach ([
+            '2026_08_12_000001_cache_items_schema.php',
+            '2026_08_15_000002_cache_generation.php',
+        ] as $migration) {
+            self::apply($database, 'packages/cache/migrations/' . $migration);
+        }
     }
 
     /** Test-only PDO fixture for cache consumers that do not compose DBALDatabase. */
@@ -66,8 +82,16 @@ final class RuntimeSchemaMigrations
             created INTEGER NOT NULL DEFAULT 0,
             tags TEXT NOT NULL DEFAULT \'\',
             valid INTEGER NOT NULL DEFAULT 1,
+            generation INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (bin, cid)
         )');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cache_generation (
+            singleton_id INTEGER PRIMARY KEY,
+            generation INTEGER NOT NULL,
+            CHECK (singleton_id = 1),
+            CHECK (generation > 0)
+        )');
+        $pdo->exec('INSERT OR IGNORE INTO cache_generation (singleton_id, generation) VALUES (1, 1)');
     }
 
     public static function auth(DBALDatabase $database): void
@@ -81,6 +105,8 @@ final class RuntimeSchemaMigrations
             '2026_08_12_000003_audit_runtime_schema.php',
             '2026_08_12_000004_strict_audit_ledger_schema.php',
             '2026_08_12_000005_approval_event_schema.php',
+            '2026_08_15_000006_audit_prune_authorization.php',
+            '2026_08_15_000007_audit_checkpoint_succession.php',
         ] as $migration) {
             self::apply($database, 'packages/audit/migrations/' . $migration);
         }
@@ -95,6 +121,8 @@ final class RuntimeSchemaMigrations
             '2026_05_25_000004_oidc_user_consent_schema.php',
             '2026_07_15_000005_oidc_secret_storage.php',
             '2026_08_12_000006_oidc_authorization_code_schema.php',
+            '2026_08_15_000007_oidc_signing_key_lifecycle.php',
+            '2026_08_15_000008_oidc_application_master_custody.php',
         ] as $migration) {
             self::apply($database, 'packages/oidc/migrations/' . $migration);
         }

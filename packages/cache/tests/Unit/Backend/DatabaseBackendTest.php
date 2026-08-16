@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Cache\Tests\Unit\Backend;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheItem;
 use Waaseyaa\Cache\TagAwareCacheInterface;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(DatabaseBackend::class)]
@@ -40,6 +40,26 @@ final class DatabaseBackendTest extends TestCase
         $this->assertSame(CacheBackendInterface::PERMANENT, $item->expire);
         $this->assertSame([], $item->tags);
         $this->assertTrue($item->valid);
+    }
+
+    #[Test]
+    public function advancing_the_cache_generation_invalidates_every_existing_bin_without_rewriting_payload_rows(): void
+    {
+        $otherBin = new DatabaseBackend($this->pdo, 'cache_other');
+        $this->backend->set('item:1', 'first');
+        $otherBin->set('item:2', 'second');
+        $before = $this->pdo->query('SELECT bin, cid, data FROM cache_items ORDER BY bin, cid')->fetchAll(\PDO::FETCH_ASSOC);
+
+        $updated = $this->pdo->exec('UPDATE cache_generation SET generation = generation + 1 WHERE singleton_id = 1');
+
+        self::assertSame(1, $updated);
+        self::assertFalse($this->backend->get('item:1'));
+        self::assertFalse($otherBin->get('item:2'));
+        self::assertSame($before, $this->pdo->query('SELECT bin, cid, data FROM cache_items ORDER BY bin, cid')->fetchAll(\PDO::FETCH_ASSOC));
+
+        $this->backend->set('item:1', 'rebuilt');
+        self::assertSame('rebuilt', $this->backend->get('item:1')->data);
+        self::assertSame(2, (int) $this->pdo->query("SELECT generation FROM cache_items WHERE bin = 'cache_test' AND cid = 'item:1'")->fetchColumn());
     }
 
     #[Test]
@@ -78,6 +98,17 @@ final class DatabaseBackendTest extends TestCase
 
         // Remaining cids should only contain misses.
         $this->assertSame(['missing'], $cids);
+    }
+
+    #[Test]
+    public function empty_get_multiple_is_a_database_free_no_op(): void
+    {
+        $pdo = new \PDO('sqlite::memory:');
+        $backend = new DatabaseBackend($pdo, 'cache_unmigrated');
+        $cids = [];
+
+        self::assertSame([], $backend->getMultiple($cids));
+        self::assertSame([], $cids);
     }
 
     #[Test]
@@ -124,6 +155,17 @@ final class DatabaseBackendTest extends TestCase
     }
 
     #[Test]
+    public function delete_reclaims_a_superseded_generation_row(): void
+    {
+        $this->backend->set('delete_me', 'synthetic-canary');
+        $this->advanceGeneration();
+
+        $this->backend->delete('delete_me');
+
+        self::assertSame(0, $this->rowCount('cache_test', ['delete_me']));
+    }
+
+    #[Test]
     public function delete_multiple(): void
     {
         $this->backend->set('a', 1);
@@ -138,6 +180,20 @@ final class DatabaseBackendTest extends TestCase
     }
 
     #[Test]
+    public function delete_multiple_reclaims_superseded_generation_rows(): void
+    {
+        $this->backend->set('a', 'synthetic-a');
+        $this->backend->set('b', 'synthetic-b');
+        $this->backend->set('c', 'synthetic-c');
+        $this->advanceGeneration();
+
+        $this->backend->deleteMultiple(['a', 'c']);
+
+        self::assertSame(0, $this->rowCount('cache_test', ['a', 'c']));
+        self::assertSame(1, $this->rowCount('cache_test', ['b']));
+    }
+
+    #[Test]
     public function delete_all(): void
     {
         $this->backend->set('a', 1);
@@ -147,6 +203,21 @@ final class DatabaseBackendTest extends TestCase
 
         $this->assertFalse($this->backend->get('a'));
         $this->assertFalse($this->backend->get('b'));
+    }
+
+    #[Test]
+    public function delete_all_reclaims_every_generation_in_only_its_bin(): void
+    {
+        $otherBin = new DatabaseBackend($this->pdo, 'cache_other');
+        $this->backend->set('old', 'synthetic-old');
+        $otherBin->set('preserved', 'synthetic-other');
+        $this->advanceGeneration();
+        $this->backend->set('current', 'synthetic-current');
+
+        $this->backend->deleteAll();
+
+        self::assertSame(0, $this->rowCount('cache_test'));
+        self::assertSame(1, $this->rowCount('cache_other'));
     }
 
     #[Test]
@@ -462,5 +533,26 @@ final class DatabaseBackendTest extends TestCase
     {
         $this->backend->invalidate('nonexistent');
         $this->assertFalse($this->backend->get('nonexistent'));
+    }
+
+    /** @param list<string> $cids */
+    private function rowCount(string $bin, array $cids = []): int
+    {
+        $sql = 'SELECT COUNT(*) FROM cache_items WHERE bin = ?';
+        if ($cids !== []) {
+            $sql .= ' AND cid IN (' . implode(',', array_fill(0, count($cids), '?')) . ')';
+        }
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute([$bin, ...$cids]);
+
+        return (int) $statement->fetchColumn();
+    }
+
+    private function advanceGeneration(): void
+    {
+        self::assertSame(
+            1,
+            $this->pdo->exec('UPDATE cache_generation SET generation = generation + 1 WHERE singleton_id = 1'),
+        );
     }
 }

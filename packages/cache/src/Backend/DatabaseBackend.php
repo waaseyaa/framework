@@ -22,6 +22,7 @@ use Waaseyaa\Foundation\Security\SensitiveKey;
  *   created INTEGER
  *   tags   TEXT (comma-separated)
  *   valid  INTEGER (0 or 1)
+ *   generation INTEGER (the migration-owned logical invalidation epoch)
  * @api
  */
 final class DatabaseBackend implements TagAwareCacheInterface
@@ -55,12 +56,13 @@ final class DatabaseBackend implements TagAwareCacheInterface
 
     public function get(string $cid): CacheItem|false
     {
-        $this->ensureTable();
+        $generation = $this->currentGeneration();
 
         $stmt = $this->prepare(
-            'SELECT cid, data, expire, created, tags, valid FROM ' . self::TABLE . ' WHERE bin = :bin AND cid = :cid',
+            'SELECT cid, data, expire, created, tags, valid FROM ' . self::TABLE
+            . ' WHERE bin = :bin AND cid = :cid AND generation = :generation',
         );
-        $stmt->execute([':bin' => $this->bin, ':cid' => $cid]);
+        $stmt->execute([':bin' => $this->bin, ':cid' => $cid, ':generation' => $generation]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if ($row === false) {
@@ -73,17 +75,18 @@ final class DatabaseBackend implements TagAwareCacheInterface
     /** @return array<string, CacheItem> */
     public function getMultiple(array &$cids): array
     {
-        $this->ensureTable();
-
         if ($cids === []) {
             return [];
         }
 
+        $generation = $this->currentGeneration();
+
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
         $stmt = $this->prepare(
-            'SELECT cid, data, expire, created, tags, valid FROM ' . self::TABLE . " WHERE bin = ? AND cid IN ({$placeholders})",
+            'SELECT cid, data, expire, created, tags, valid FROM ' . self::TABLE
+            . " WHERE bin = ? AND generation = ? AND cid IN ({$placeholders})",
         );
-        $stmt->execute([$this->bin, ...array_values($cids)]);
+        $stmt->execute([$this->bin, $generation, ...array_values($cids)]);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $items = [];
@@ -101,7 +104,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
 
     public function set(string $cid, mixed $data, int $expire = self::PERMANENT, array $tags = []): void
     {
-        $this->ensureTable();
+        $generation = $this->currentGeneration();
 
         $data = $this->projectionDiagnostic->inspect($cid, $data);
         $serialized = serialize($data);
@@ -109,7 +112,9 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $now = time();
 
         $stmt = $this->prepare(
-            'INSERT OR REPLACE INTO ' . self::TABLE . ' (bin, cid, data, expire, created, tags, valid) VALUES (:bin, :cid, :data, :expire, :created, :tags, :valid)',
+            'INSERT OR REPLACE INTO ' . self::TABLE
+            . ' (bin, cid, data, expire, created, tags, valid, generation)'
+            . ' VALUES (:bin, :cid, :data, :expire, :created, :tags, :valid, :generation)',
         );
         $stmt->execute([
             ':bin' => $this->bin,
@@ -119,13 +124,13 @@ final class DatabaseBackend implements TagAwareCacheInterface
             ':created' => $now,
             ':tags' => $tagsString,
             ':valid' => 1,
+            ':generation' => $generation,
         ]);
     }
 
     public function delete(string $cid): void
     {
         $this->ensureTable();
-
         $stmt = $this->prepare('DELETE FROM ' . self::TABLE . ' WHERE bin = :bin AND cid = :cid');
         $stmt->execute([':bin' => $this->bin, ':cid' => $cid]);
     }
@@ -137,7 +142,6 @@ final class DatabaseBackend implements TagAwareCacheInterface
         }
 
         $this->ensureTable();
-
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
         $stmt = $this->prepare('DELETE FROM ' . self::TABLE . " WHERE bin = ? AND cid IN ({$placeholders})");
         $stmt->execute([$this->bin, ...array_values($cids)]);
@@ -151,10 +155,13 @@ final class DatabaseBackend implements TagAwareCacheInterface
 
     public function invalidate(string $cid): void
     {
-        $this->ensureTable();
+        $generation = $this->currentGeneration();
 
-        $stmt = $this->prepare('UPDATE ' . self::TABLE . ' SET valid = 0 WHERE bin = :bin AND cid = :cid');
-        $stmt->execute([':bin' => $this->bin, ':cid' => $cid]);
+        $stmt = $this->prepare(
+            'UPDATE ' . self::TABLE
+            . ' SET valid = 0 WHERE bin = :bin AND cid = :cid AND generation = :generation',
+        );
+        $stmt->execute([':bin' => $this->bin, ':cid' => $cid, ':generation' => $generation]);
     }
 
     public function invalidateMultiple(array $cids): void
@@ -163,17 +170,21 @@ final class DatabaseBackend implements TagAwareCacheInterface
             return;
         }
 
-        $this->ensureTable();
+        $generation = $this->currentGeneration();
 
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
-        $stmt = $this->prepare('UPDATE ' . self::TABLE . " SET valid = 0 WHERE bin = ? AND cid IN ({$placeholders})");
-        $stmt->execute([$this->bin, ...array_values($cids)]);
+        $stmt = $this->prepare(
+            'UPDATE ' . self::TABLE . " SET valid = 0 WHERE bin = ? AND generation = ? AND cid IN ({$placeholders})",
+        );
+        $stmt->execute([$this->bin, $generation, ...array_values($cids)]);
     }
 
     public function invalidateAll(): void
     {
-        $this->ensureTable();
-        $this->prepare('UPDATE ' . self::TABLE . ' SET valid = 0 WHERE bin = :bin')->execute([':bin' => $this->bin]);
+        $generation = $this->currentGeneration();
+        $this->prepare(
+            'UPDATE ' . self::TABLE . ' SET valid = 0 WHERE bin = :bin AND generation = :generation',
+        )->execute([':bin' => $this->bin, ':generation' => $generation]);
     }
 
     public function removeBin(): void
@@ -189,7 +200,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
             return;
         }
 
-        $this->ensureTable();
+        $generation = $this->currentGeneration();
 
         // Build a WHERE clause that matches any of the specified tags.
         // Tags are stored comma-separated, so we use LIKE patterns to match
@@ -218,8 +229,12 @@ final class DatabaseBackend implements TagAwareCacheInterface
         }
 
         $where = implode(' OR ', $conditions);
-        $stmt = $this->prepare('UPDATE ' . self::TABLE . " SET valid = 0 WHERE bin = :bin AND ({$where})");
+        $stmt = $this->prepare(
+            'UPDATE ' . self::TABLE
+            . " SET valid = 0 WHERE bin = :bin AND generation = :generation AND ({$where})",
+        );
         $params[':bin'] = $this->bin;
+        $params[':generation'] = $generation;
         $stmt->execute($params);
     }
 
@@ -240,7 +255,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
         }
 
         $missing = array_values(array_diff(
-            ['bin', 'cid', 'data', 'expire', 'created', 'tags', 'valid'],
+            ['bin', 'cid', 'data', 'expire', 'created', 'tags', 'valid', 'generation'],
             $columns,
         ));
         if ($missing !== []) {
@@ -252,6 +267,30 @@ final class DatabaseBackend implements TagAwareCacheInterface
         }
 
         $this->tableInitialized = true;
+    }
+
+    private function currentGeneration(): int
+    {
+        $this->ensureTable();
+        try {
+            $statement = $this->pdo->query(
+                'SELECT generation FROM cache_generation WHERE singleton_id = 1',
+            );
+            $value = $statement === false ? false : $statement->fetchColumn();
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException(
+                '[S1-DB106] Required runtime cache generation is unavailable. Apply migration "waaseyaa/cache:2026_08_15_000002_cache_generation" through the schema coordinator.',
+                previous: $exception,
+            );
+        }
+        if ((!is_int($value) && (!is_string($value) || preg_match('/^[1-9][0-9]*$/D', $value) !== 1))
+            || (int) $value < 1) {
+            throw new \RuntimeException(
+                '[S1-DB106] Required runtime cache generation is malformed. Apply migration "waaseyaa/cache:2026_08_15_000002_cache_generation" through the schema coordinator.',
+            );
+        }
+
+        return (int) $value;
     }
 
     private function prepare(string $sql): \PDOStatement
@@ -358,6 +397,9 @@ final class DatabaseBackend implements TagAwareCacheInterface
         // Kernel-wired bins always receive the cache-specific key derived from
         // WAASEYAA_APP_SECRET; direct package construction may omit it for
         // intentionally volatile/in-memory use.
+        // Every read is additionally restricted to the one migration-owned
+        // active generation, so a CFG-04 generation CAS invalidates old payloads
+        // without parsing, rewriting, or reactivating them during rollback.
         // See docs/specs/infrastructure.md "Stored-payload unserialize() trust boundary (D-12)".
         $serialized = $this->decodePayload((string) $row['data']);
         if ($serialized === false) {

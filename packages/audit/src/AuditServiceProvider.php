@@ -29,6 +29,7 @@ use Waaseyaa\Audit\Contract\AuditWriteFailureObserver;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\Audit\Integrity\AuditCheckpointCustody;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Integrity\FileCheckpointSink;
 use Waaseyaa\Audit\Listener\AgentToolAuditListener;
@@ -40,6 +41,7 @@ use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
 use Waaseyaa\Audit\Listener\PublishPointerAuditListener;
 use Waaseyaa\Audit\Listener\RollbackAuditListener;
 use Waaseyaa\Audit\Query\AuditEventQuery;
+use Waaseyaa\Audit\Rekey\AuditCheckpointSuccessionRekeyAdapter;
 use Waaseyaa\Audit\Schedule\AuditCheckpointScheduleEntries;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
@@ -59,8 +61,13 @@ use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -78,7 +85,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * TODO(WP03): bind Waaseyaa\Api\Audit\AuditQueryReadModelInterface once that interface exists.
  */
-final class AuditServiceProvider extends ServiceProvider implements HasMiddlewareInterface
+final class AuditServiceProvider extends ServiceProvider implements HasMiddlewareInterface, ProvidesApplicationMasterRekeyContributionsInterface
 {
     public function register(): void
     {
@@ -249,16 +256,35 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
             );
         });
 
-        $this->singleton(AuditCheckpointBuilder::class, function (): AuditCheckpointBuilder {
-            $logger = $this->resolveOptional(LoggerInterface::class);
+        $this->singleton(AuditCheckpointCustody::class, function (): AuditCheckpointCustody {
+            $keyring = $this->resolveOptional(ApplicationMasterKeyring::class);
+            if ($keyring instanceof ApplicationMasterKeyring) {
+                $legacyKey = null;
+                if (($this->config['audit']['accept_legacy_application_secret_checkpoints'] ?? false) === true) {
+                    $applicationSecret = $this->resolve(ApplicationSecret::class);
+                    assert($applicationSecret instanceof ApplicationSecret);
+                    $legacyKey = $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC);
+                }
+
+                return new AuditCheckpointCustody($keyring, $legacyKey);
+            }
+
             $applicationSecret = $this->resolve(ApplicationSecret::class);
             assert($applicationSecret instanceof ApplicationSecret);
+
+            return new AuditCheckpointCustody(
+                legacyKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
+            );
+        });
+
+        $this->singleton(AuditCheckpointBuilder::class, function (): AuditCheckpointBuilder {
+            $logger = $this->resolveOptional(LoggerInterface::class);
 
             return new AuditCheckpointBuilder(
                 database: $this->resolve(DatabaseInterface::class),
                 sink: $this->resolve(CheckpointSink::class),
                 logger: $logger instanceof LoggerInterface ? $logger : null,
-                hmacKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
+                custody: $this->resolve(AuditCheckpointCustody::class),
             );
         });
 
@@ -272,6 +298,27 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
                 logger: $logger instanceof LoggerInterface ? $logger : null,
             );
         });
+    }
+
+    public function applicationMasterRekeyContributions(): iterable
+    {
+        $database = $this->resolve(DatabaseInterface::class);
+        if (!$database instanceof DatabaseInterface) {
+            throw new \LogicException('Audit rekey composition requires the kernel database authority.');
+        }
+
+        yield new ApplicationMasterRekeyContribution(
+            new AuditCheckpointSuccessionRekeyAdapter($database),
+            [new ApplicationMasterPurposePolicy(
+                id: ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+                ownerPackage: 'waaseyaa/audit',
+                strategy: ApplicationMasterPurposeStrategy::RetainHistoricVerifier,
+                maximumLifetimeSeconds: 0,
+                retentionSeconds: 0,
+                adapterId: AuditCheckpointSuccessionRekeyAdapter::ID,
+                rollbackBehavior: 'append-authenticated-rollback-marker',
+            )],
+        );
     }
 
     /**
@@ -326,12 +373,7 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         // Validate schema tables without mutating them.
         $database = $this->resolveOptional(DatabaseInterface::class);
         if ($database instanceof DatabaseInterface) {
-            $applicationSecret = $this->resolve(ApplicationSecret::class);
-            assert($applicationSecret instanceof ApplicationSecret);
-            $schemaHandler = new AuditEventSchemaHandler(
-                $database,
-                $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
-            );
+            $schemaHandler = new AuditEventSchemaHandler($database);
             $schemaHandler->ensureSchema();
         }
 

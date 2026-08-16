@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Token;
 
 use DateTimeImmutable;
-use RuntimeException;
+use Waaseyaa\Oidc\Keys\SigningAlgorithmPolicy;
 
 /**
  * Mints RS256-signed ID tokens per OIDC Core §2 and RFC 7519.
@@ -21,7 +21,14 @@ final class IdTokenMinter
     private const ALGORITHM = 'RS256';
     private const EXPIRY_SECONDS = 3600;
 
-    public function __construct(private readonly KeyMaterialProviderInterface $keyProvider) {}
+    private readonly SigningAlgorithmPolicy $algorithmPolicy;
+
+    public function __construct(
+        private readonly KeyMaterialProviderInterface $keyProvider,
+        ?SigningAlgorithmPolicy $algorithmPolicy = null,
+    ) {
+        $this->algorithmPolicy = $algorithmPolicy ?? new SigningAlgorithmPolicy();
+    }
 
     public function mint(
         string $issuer,
@@ -31,7 +38,12 @@ final class IdTokenMinter
         DateTimeImmutable $now,
         ?int $authTime = null,
     ): string {
-        $key = $this->keyProvider->currentKey();
+        $signer = $this->keyProvider->currentSigner();
+        $key = $signer->key();
+        $this->algorithmPolicy->assertAllowed($key->algorithm);
+        if (!$key->state->canSign()) {
+            throw new \RuntimeException('OIDC signer handle is not in active-sign-and-verify state.');
+        }
 
         $header = [
             'alg' => self::ALGORITHM,
@@ -56,15 +68,7 @@ final class IdTokenMinter
         $encodedPayload = $this->base64UrlEncode(json_encode($claims, JSON_THROW_ON_ERROR));
         $signingInput = $encodedHeader . '.' . $encodedPayload;
 
-        $privateKey = $key->privateKeyPem;
-        if ($privateKey === null) {
-            throw new RuntimeException("Signing key kid={$key->kid} has no private key material.");
-        }
-
-        $signature = '';
-        if (!openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256)) {
-            throw new RuntimeException('Failed to sign ID token: ' . openssl_error_string());
-        }
+        $signature = $signer->sign($signingInput);
 
         return $signingInput . '.' . $this->base64UrlEncode($signature);
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Key;
 
 use Waaseyaa\Oidc\Keys\SigningKey;
+use Waaseyaa\Oidc\Keys\SigningKeySignerInterface;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 
 /**
@@ -21,6 +22,11 @@ final class RealKeyMaterialProvider implements KeyMaterialProviderInterface
     public function currentKey(): SigningKey
     {
         return $this->repository->currentKey();
+    }
+
+    public function currentSigner(): SigningKeySignerInterface
+    {
+        return $this->repository->currentSigner();
     }
 
     public function allActive(): array

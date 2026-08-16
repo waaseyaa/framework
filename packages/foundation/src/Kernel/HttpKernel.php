@@ -220,7 +220,7 @@ final class HttpKernel extends AbstractKernel
         // (audit R5 residual #1, R7 WP2).
         $this->discoveryHandler = new DiscoveryApiHandler($this->entityTypeManager, $this->database, $this->discoveryCache, $this->accessHandler);
 
-        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger);
+        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger, $this->secretResolverRegistry());
         foreach ($this->providers as $provider) {
             if (!$provider instanceof HasRenderCacheListenersInterface) {
                 continue;
@@ -287,6 +287,7 @@ final class HttpKernel extends AbstractKernel
                 fieldReadScope: $this->fieldReadScope(),
                 requestContext: $this->requestContextForProviders(),
                 communityContext: $this->communityContext,
+                secretResolverRegistry: $this->secretResolverRegistry(),
             ),
             logger: $this->logger,
         );
@@ -433,7 +434,7 @@ final class HttpKernel extends AbstractKernel
         }
 
         $broadcastStorage = new BroadcastStorage($this->database);
-        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger);
+        $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger, $this->secretResolverRegistry());
         $listenerRegistrar->registerBroadcastListeners($broadcastStorage);
 
         $path = $this->stripLanguagePrefixForHttpRouting($path);
@@ -671,7 +672,13 @@ final class HttpKernel extends AbstractKernel
             new HttpRouter\EntityTypeLifecycleRouter($this->entityTypeManager, $this->lifecycleManager),
             new HttpRouter\SchemaRouter($this->entityTypeManager, $this->accessHandler, $this->fieldRegistry, $exposurePolicy),
             new HttpRouter\WorkflowDefinitionsApiRouter(),
-            new HttpRouter\SearchRouter($this->config, $this->database, $this->entityTypeManager, $this->accessHandler),
+            new HttpRouter\SearchRouter(
+                $this->config,
+                $this->database,
+                $this->entityTypeManager,
+                $this->accessHandler,
+                $this->secretResolverRegistry(),
+            ),
         ];
 
         $providerRouters = [];

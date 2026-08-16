@@ -2427,7 +2427,7 @@
             "class": "epoch-consumer",
             "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
             "line_sha256": "460480a45c020c765b3c1101e4e6a3e4cb4c8701fcfd4c6a6da6948ca4abe1ff",
-            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+            "source_sha256": "f4af939873a5d8cd7959ec76c9479db60b291fcca9fb5e6cc5c1de1a4c402261"
         },
         {
             "path": "packages/foundation/src/Kernel/HttpKernel.php",
@@ -2436,7 +2436,7 @@
             "class": "epoch-consumer",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
-            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+            "source_sha256": "f4af939873a5d8cd7959ec76c9479db60b291fcca9fb5e6cc5c1de1a4c402261"
         },
         {
             "path": "packages/foundation/src/Kernel/HttpKernel.php",
@@ -2445,7 +2445,7 @@
             "class": "epoch-consumer",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "b744a715671d70855ff2a8c146c0dea1766264e23549bf80358359c01a5d11d5",
-            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+            "source_sha256": "f4af939873a5d8cd7959ec76c9479db60b291fcca9fb5e6cc5c1de1a4c402261"
         },
         {
             "path": "packages/foundation/src/Kernel/HttpKernel.php",
@@ -2454,7 +2454,7 @@
             "class": "epoch-consumer",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "c9ea53a5dc958927b7703a131feb7f4535b5e1c12ca15e475a1b1f6a901ef9a6",
-            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+            "source_sha256": "f4af939873a5d8cd7959ec76c9479db60b291fcca9fb5e6cc5c1de1a4c402261"
         },
         {
             "path": "packages/foundation/src/Kernel/HttpKernel.php",
@@ -2463,7 +2463,7 @@
             "class": "epoch-consumer",
             "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
             "line_sha256": "596deb7906d382fa935e9048937e2c492b4da8cd12d35eb056e1e33fe79e8d87",
-            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+            "source_sha256": "f4af939873a5d8cd7959ec76c9479db60b291fcca9fb5e6cc5c1de1a4c402261"
         },
         {
             "path": "packages/foundation/src/Kernel/HttpKernel.php",
@@ -2472,7 +2472,7 @@
             "class": "epoch-consumer",
             "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
             "line_sha256": "596deb7906d382fa935e9048937e2c492b4da8cd12d35eb056e1e33fe79e8d87",
-            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+            "source_sha256": "f4af939873a5d8cd7959ec76c9479db60b291fcca9fb5e6cc5c1de1a4c402261"
         },
         {
             "path": "packages/foundation/src/Runtime/RuntimeEpochCacheBackend.php",
@@ -2508,25 +2508,16 @@
             "class": "epoch-composition",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
         },
         {
             "path": "packages/queue/src/QueueServiceProvider.php",
-            "line": 88,
+            "line": 105,
             "pattern": "runtime_epoch",
             "class": "epoch-composition",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "155ff5ba7e6c4b65364b837f71493ecf4a6653a2e358ffe65691c20dcaca0529",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
-        },
-        {
-            "path": "packages/queue/src/QueueServiceProvider.php",
-            "line": 92,
-            "pattern": "runtime_epoch",
-            "class": "epoch-composition",
-            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
-            "line_sha256": "452d22a6046b3d970507f58258ba96c429ddd922d9b0da588d765a483e078bce",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
         },
         {
             "path": "packages/queue/src/QueueServiceProvider.php",
@@ -2534,8 +2525,17 @@
             "pattern": "runtime_epoch",
             "class": "epoch-composition",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "452d22a6046b3d970507f58258ba96c429ddd922d9b0da588d765a483e078bce",
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
+        },
+        {
+            "path": "packages/queue/src/QueueServiceProvider.php",
+            "line": 126,
+            "pattern": "runtime_epoch",
+            "class": "epoch-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "3e3b80c72950e566f528ffacde281de8e7ffd68ff241163a980fb66038093c29",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
         },
         {
             "path": "packages/queue/src/Worker/Worker.php",

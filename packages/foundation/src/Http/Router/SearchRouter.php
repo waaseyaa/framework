@@ -14,6 +14,7 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 
 final class SearchRouter implements DomainRouterInterface
 {
@@ -27,6 +28,7 @@ final class SearchRouter implements DomainRouterInterface
         private readonly DatabaseInterface $database,
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
+        private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -63,7 +65,7 @@ final class SearchRouter implements DomainRouterInterface
             ]);
         }
 
-        $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
+        $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config, $this->secretResolverRegistry);
         assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
         $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
         $serializer = new ResourceSerializer($this->entityTypeManager);

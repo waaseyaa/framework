@@ -16,6 +16,8 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\Audit\Integrity\AuditCheckpointCustody;
+use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -29,6 +31,17 @@ use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretProviderInterface;
+use Waaseyaa\Foundation\Security\SecretReference;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
+use Waaseyaa\Foundation\Security\SensitiveValue;
 
 #[CoversClass(PruneCommand::class)]
 final class PruneCommandTest extends TestCase
@@ -366,12 +379,12 @@ final class PruneCommandTest extends TestCase
         ])->execute();
     }
 
-    private function sealRealDb(DBALDatabase $db): void
+    private function sealRealDb(DBALDatabase $db, ?string $hmacKey = null): void
     {
         $sink = new class implements CheckpointSink {
             public function export(AuditCheckpoint $checkpoint): void {}
         };
-        new AuditCheckpointBuilder($db, $sink)->build();
+        new AuditCheckpointBuilder($db, $sink, hmacKey: $hmacKey)->build();
     }
 
     private function countRealEventRows(DBALDatabase $db): int
@@ -708,6 +721,152 @@ final class PruneCommandTest extends TestCase
     }
 
     #[Test]
+    public function keyed_prune_attaches_authorization_without_replacing_checkpoint_signature(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $key = 'short-operator-compatibility-key';
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'keyed-prune', 'entity.write', $past);
+        $this->sealRealDb($db, $key);
+        $signatureBefore = (string) $db->getConnection()->fetchOne(
+            'SELECT signature FROM audit_checkpoint WHERE is_genesis = 0',
+        );
+
+        $command = new PruneCommand(
+            new AuditEventQuery($db),
+            $this->makeNullWriter(),
+            $db,
+            hmacKey: $key,
+        );
+        $exitCode = $command->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(0, $exitCode);
+        self::assertTrue((new AuditChainVerifier($db, hmacKey: $key))->verify()->ok);
+        self::assertSame(
+            $signatureBefore,
+            (string) $db->getConnection()->fetchOne(
+                'SELECT signature FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+        self::assertMatchesRegularExpression(
+            '/^hmac-sha256\.audit-prune\.hkdf-v1:[a-f0-9]{64}$/D',
+            (string) $db->getConnection()->fetchOne(
+                'SELECT prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
+    public function application_master_prune_emits_a_version_bound_authorization(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $custody = new AuditCheckpointCustody($this->keyring(2));
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'versioned-keyed-prune', 'entity.write', $past);
+        new AuditCheckpointBuilder(
+            $db,
+            new class implements CheckpointSink {
+                public function export(AuditCheckpoint $checkpoint): void {}
+            },
+            custody: $custody,
+        )->build();
+
+        $exitCode = new PruneCommand(
+            new AuditEventQuery($db),
+            $this->makeNullWriter(),
+            $db,
+            custody: $custody,
+        )->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(0, $exitCode);
+        self::assertTrue((new AuditChainVerifier($db, custody: $custody))->verify()->ok);
+        self::assertStringStartsWith(
+            AuditCheckpointCustody::PRUNE_PREFIX . '2:',
+            (string) $db->getConnection()->fetchOne(
+                'SELECT prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
+    public function sealed_prune_rolls_back_when_authorization_cannot_be_persisted(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $key = random_bytes(32);
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'prune-authorization-failure', 'entity.write', $past);
+        $this->sealRealDb($db, $key);
+        $db->getConnection()->executeStatement(
+            "CREATE TRIGGER refuse_prune_authorization BEFORE UPDATE OF pruned ON audit_checkpoint BEGIN SELECT RAISE(ABORT, 'synthetic refusal'); END",
+        );
+
+        $command = new PruneCommand(
+            new AuditEventQuery($db),
+            $this->makeNullWriter(),
+            $db,
+            hmacKey: $key,
+        );
+        $exitCode = $command->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(1, $exitCode);
+        self::assertSame(1, $this->countRealEventRows($db));
+        self::assertSame(
+            ['pruned' => 0, 'prune_authorization' => ''],
+            $db->getConnection()->fetchAssociative(
+                'SELECT pruned, prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
+    public function keyed_prune_refuses_to_bless_a_preexisting_forged_pruned_state(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $key = random_bytes(32);
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'preexisting-forged-prune', 'entity.write', $past);
+        $this->sealRealDb($db, $key);
+        $db->getConnection()->executeStatement('DELETE FROM audit_event');
+        $db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET pruned = 1 WHERE is_genesis = 0',
+        );
+        $writer = $this->makeNullWriter();
+
+        $command = new PruneCommand(
+            new AuditEventQuery($db),
+            $writer,
+            $db,
+            hmacKey: $key,
+        );
+        $exitCode = $command->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(1, $exitCode);
+        self::assertSame([], $writer->recorded);
+        self::assertSame(
+            '',
+            (string) $db->getConnection()->fetchOne(
+                'SELECT prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
     public function selfAuditDeletedCountSumsSealedAndUnsealedWithSurvivors(): void
     {
         // End-to-end exercise of realTotal = sealedCount + unsealedCount with
@@ -835,5 +994,61 @@ final class PruneCommandTest extends TestCase
         $output = implode("\n", $io->outputLines());
         self::assertStringContainsString('Would prune 5 sealed event row(s)', $output);
         self::assertStringContainsString('0 unsealed tail row(s)', $output);
+    }
+
+    private function keyring(int $activeVersion): ApplicationMasterKeyring
+    {
+        $purposes = new ApplicationMasterPurposeRegistry();
+        $purposes->register(new ApplicationMasterPurposePolicy(
+            id: ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            ownerPackage: 'waaseyaa/audit',
+            strategy: ApplicationMasterPurposeStrategy::RetainHistoricVerifier,
+            maximumLifetimeSeconds: 0,
+            retentionSeconds: 0,
+            adapterId: 'audit-checkpoint-succession-v1',
+            rollbackBehavior: 'append-authenticated-rollback-marker',
+        ));
+        $purposes->freeze();
+        $resolver = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
+        $resolver->registerProvider(new CliAuditSyntheticMasterProvider());
+        $resolver->allow(
+            'cli-audit-synthetic-master',
+            ApplicationMasterKeyring::PACKAGE,
+            SecretClass::ApplicationMaster,
+            ApplicationMasterKeyring::MASTER_PURPOSE,
+            ['testing'],
+        );
+        ApplicationMasterKeyring::registerResolverConsumers($resolver);
+        $resolver->freeze();
+
+        return ApplicationMasterKeyring::fromReferences(
+            $resolver,
+            $activeVersion,
+            SecretReference::create(
+                'cli-audit-synthetic-master',
+                'master-v' . $activeVersion,
+                SecretClass::ApplicationMaster,
+                ApplicationMasterKeyring::MASTER_PURPOSE,
+            ),
+            [],
+            $purposes,
+        );
+    }
+}
+
+final class CliAuditSyntheticMasterProvider implements SecretProviderInterface
+{
+    public function id(): string
+    {
+        return 'cli-audit-synthetic-master';
+    }
+
+    public function resolve(SecretReference $reference): SensitiveValue
+    {
+        return SensitiveValue::fromBytes(
+            hash('sha256', $reference->identifier(), true),
+            SecretClass::ApplicationMaster,
+            $reference->identifier(),
+        );
     }
 }

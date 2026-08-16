@@ -21,6 +21,26 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `FormatterInterface` | interface | Formats a log record into its final string or array representation |
 | `ProcessorInterface` | interface | Enriches log records with additional context before handling |
 | `LoggerTrait` | trait | Default implementations of all log-level methods delegating to `log()` |
+| `Security\SecretClass` | enum | Closed secret classifications used by typed references, policies, and guarded consumers |
+| `Security\SecretConsumerInterface` | interface | Purpose-specific guarded endpoint for resolved secret bytes |
+| `Security\SecretProviderInterface` | interface | External secret-provider resolution seam |
+| `Security\ApplicationMasterPurposeStrategy` | enum | Closed transition strategies for versioned application-master purposes |
+| `Security\ApplicationMasterPurposePolicy` | final readonly class | Immutable owner, retention, adapter, strategy, and rollback metadata for one derived purpose |
+| `Security\ApplicationMasterPurposeRegistry` | final class | Deterministic boot-time frozen registry of application-master purposes |
+| `Security\ApplicationMasterEnvelope` | final readonly class | Strict XChaCha20-Poly1305 envelope binding master version, purpose, record, and schema identity |
+| `Security\ApplicationMasterKeyring` | final class | Active-write and bounded legacy-read custody over externally resolved versioned masters |
+| `Security\Rekey\ApplicationMasterRekeyState` | enum | Closed persisted prepare-through-revocation and forward-rollback states |
+| `Security\Rekey\ApplicationMasterRekeyGate` | enum | Closed fleet, cache, rollback, and retained-backup revocation gates |
+| `Security\Rekey\ApplicationMasterRekeyAdapterInterface` | interface | Same-database joint-owner inventory, transition, verification, and rollback seam |
+| `Security\Rekey\ApplicationMasterRekeyRequest` | final readonly class | Immutable non-secret request, authorization digest, versions, and rollback/retention horizons |
+| `Security\Rekey\ApplicationMasterRekeyStore` | final class | Migration-backed CAS projections and append-only hash-chained rekey evidence |
+| `Security\Rekey\ApplicationMasterRekeyCoordinator` | final class | Restart-safe same-transaction executor for composed owner adapters |
+| `Security\Rekey\ApplicationMasterRekeyContext` | final readonly class | Exact immutable request, guarded keyring, and store transaction authority passed to adapters |
+| `Security\Rekey\ApplicationMasterInventorySnapshot` | final readonly class | Immutable inventory count and SHA-256 commitment |
+| `Security\Rekey\ApplicationMasterBatchResult` | final readonly class | Next cursor, transitioned count, per-purpose deltas, and batch commitment |
+| `Security\Rekey\ApplicationMasterPurposeVerification` | final readonly class | Per-purpose verified count and commitment |
+| `Security\Rekey\ApplicationMasterAdapterProgress` | final readonly class | Restart-safe joint-owner snapshot, cursor, counts, and commitment projection |
+| `Security\Rekey\ApplicationMasterRekeyEvent` | final readonly class | Verifiable immutable non-secret ledger event |
 | `HttpHandlerInterface` | interface | Terminal HTTP request handler (innermost layer of the middleware onion) |
 | `HttpMiddlewareInterface` | interface | Wraps an HTTP handler to add cross-cutting behavior |
 | `JobHandlerInterface` | interface | Terminal queue job handler |

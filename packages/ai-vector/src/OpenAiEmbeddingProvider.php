@@ -4,28 +4,54 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Vector;
 
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretHandle;
+
 /**
  * @api
  */
 final class OpenAiEmbeddingProvider implements EmbeddingInterface
 {
+    public const string CREDENTIAL_PURPOSE = 'waaseyaa.ai.embedding.v1';
+
+    private readonly SecretHandle $credential;
+
+    /** @var (\Closure(string, array<string, mixed>): array<string, mixed>)|null */
+    private readonly ?\Closure $transport;
+
+    /** @var (\Closure(string, array<string, string>, array<string, mixed>): array<string, mixed>)|null */
+    private readonly ?\Closure $authenticatedTransport;
+
     /**
-     * @param callable(string, array<string, string>, array<string, mixed>): array<string, mixed>|null $transport
+     * @param callable(string, array<string, mixed>): array<string, mixed>|null $transport credential-free test/application seam
+     * @param callable(string, array<string, string>, array<string, mixed>): array<string, mixed>|null $authenticatedTransport low-level test seam below credential injection
      */
     public function __construct(
-        private readonly string $apiKey,
+        #[\SensitiveParameter]
+        string|SecretHandle $apiKey,
         private readonly string $model = 'text-embedding-3-small',
         private readonly string $endpoint = 'https://api.openai.com/v1/embeddings',
-        private readonly mixed $transport = null,
+        mixed $transport = null,
         private readonly int $dimensions = 1536,
-    ) {}
+        mixed $authenticatedTransport = null,
+    ) {
+        $this->credential = $apiKey instanceof SecretHandle
+            ? $apiKey
+            : SecretHandle::fromBytes(
+                $apiKey,
+                SecretClass::ProviderCredential,
+                self::CREDENTIAL_PURPOSE,
+                'legacy-static-v1',
+                [OpenAiEmbeddingCredentialOperation::class],
+            );
+        $this->transport = $transport !== null ? \Closure::fromCallable($transport) : null;
+        $this->authenticatedTransport = $authenticatedTransport !== null
+            ? \Closure::fromCallable($authenticatedTransport)
+            : null;
+    }
 
     public function embed(string $text): array
     {
-        if ($this->apiKey === '') {
-            throw new \RuntimeException('OpenAI API key is required.');
-        }
-
         $payload = [
             'model' => $this->model,
             'input' => $text,
@@ -62,19 +88,36 @@ final class OpenAiEmbeddingProvider implements EmbeddingInterface
      */
     private function request(array $payload): array
     {
-        $headers = [
-            'Content-Type' => 'application/json',
-            'Authorization' => 'Bearer ' . $this->apiKey,
-        ];
-
         if ($this->transport !== null) {
-            return (array) ($this->transport)($this->endpoint, $headers, $payload);
+            return ($this->transport)($this->endpoint, $payload);
         }
 
+        return $this->credential->consume(new OpenAiEmbeddingCredentialOperation(
+            function (array $headers, string $version) use ($payload): array {
+                if ($this->authenticatedTransport !== null) {
+                    return ($this->authenticatedTransport)($this->endpoint, $headers, $payload);
+                }
+
+                return $this->requestAuthenticated($payload, $headers);
+            },
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, string> $headers
+     * @return array<string, mixed>
+     */
+    private function requestAuthenticated(array $payload, array $headers): array
+    {
+        $headerLines = [];
+        foreach ($headers as $name => $value) {
+            $headerLines[] = $name . ': ' . $value;
+        }
         $context = stream_context_create([
             'http' => [
                 'method' => 'POST',
-                'header' => "Content-Type: application/json\r\nAuthorization: Bearer {$this->apiKey}\r\n",
+                'header' => implode("\r\n", $headerLines) . "\r\n",
                 'content' => json_encode($payload, JSON_THROW_ON_ERROR),
                 'timeout' => 20,
             ],

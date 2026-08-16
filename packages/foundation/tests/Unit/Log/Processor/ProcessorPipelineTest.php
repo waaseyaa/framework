@@ -76,6 +76,41 @@ final class ProcessorPipelineTest extends TestCase
     }
 
     #[Test]
+    public function broken_processor_emits_only_a_fixed_non_sensitive_code(): void
+    {
+        $logFile = sys_get_temp_dir() . '/waaseyaa-cfg04-processor-' . bin2hex(random_bytes(6)) . '.log';
+        $previousLog = ini_set('error_log', $logFile);
+
+        try {
+            $handler = new class implements HandlerInterface {
+                public function handle(LogRecord $record): void {}
+            };
+            $logger = new ChannelLogger('test', $handler, [
+                new class implements ProcessorInterface {
+                    public function process(LogRecord $record): LogRecord
+                    {
+                        throw new \RuntimeException('cfg04-processor-exception-canary');
+                    }
+                },
+            ]);
+
+            $logger->error('safe record');
+
+            $output = file_get_contents($logFile);
+            $this->assertIsString($output);
+            $this->assertStringContainsString('LOG_PROCESSOR_FAILURE', $output);
+            $this->assertStringNotContainsString('cfg04-processor-exception-canary', $output);
+        } finally {
+            if (is_string($previousLog)) {
+                ini_set('error_log', $previousLog);
+            }
+            if (file_exists($logFile)) {
+                unlink($logFile);
+            }
+        }
+    }
+
+    #[Test]
     public function global_and_per_channel_processors_merge(): void
     {
         $captured = null;

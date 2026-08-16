@@ -27,6 +27,10 @@ final class PemFileKeyLoader implements OidcKeyLoaderInterface
         }
 
         ksort($config);
+        $policy = new SigningAlgorithmPolicy();
+        foreach ($config as $entry) {
+            $policy->assertAllowed($entry['algorithm'] ?? 'RS256');
+        }
 
         return new self($config);
     }
@@ -74,11 +78,31 @@ final class PemFileKeyLoader implements OidcKeyLoaderInterface
                 kid: $kid,
                 algorithm: $entry['algorithm'] ?? 'RS256',
                 publicKeyPem: $this->readPem($entry['public_key_path']),
-                privateKeyPem: isset($entry['private_key_path']) ? $this->readPem($entry['private_key_path']) : null,
             );
         }
 
         return $keys;
+    }
+
+    public function loadCurrentSigner(): SigningKeySignerInterface
+    {
+        foreach ($this->entries as $kid => $entry) {
+            if (($entry['algorithm'] ?? 'RS256') !== 'RS256' || !isset($entry['private_key_path'])) {
+                continue;
+            }
+            $key = new SigningKey(
+                kid: $kid,
+                algorithm: 'RS256',
+                publicKeyPem: $this->readPem($entry['public_key_path']),
+            );
+            $privateKeyPem = $this->readPem($entry['private_key_path']);
+            $signer = RsaSigningKeySigner::fromPrivatePem($key, $privateKeyPem);
+            unset($privateKeyPem);
+
+            return $signer;
+        }
+
+        throw new RuntimeException('No configured RS256 signing handle is available.');
     }
 
     private function readPem(string $pemPath): string

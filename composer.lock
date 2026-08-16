@@ -4045,10 +4045,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "da129078749a450c8805390947b956c414dd5928"
+                "reference": "7929e99c3b70c32398d83aaf4d4f3f305f105057"
             },
             "require": {
                 "php": ">=8.5",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.293",
                 "waaseyaa/foundation": "^0.1.0-alpha.293"
             },
             "require-dev": {
@@ -4062,6 +4063,9 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Cache\\CacheServiceProvider"
+                    ],
                     "migrations": "migrations"
                 },
                 "branch-alias": {
@@ -5685,7 +5689,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/publishing",
-                "reference": "550fe959bdf0bad63d6d6bd5f595237be641fbba"
+                "reference": "9f3b81cc8e69dd08a651387fa4b1f66a796c11ea"
             },
             "require": {
                 "php": ">=8.5",
@@ -5704,7 +5708,10 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
-                    "migrations": "migrations"
+                    "migrations": "migrations",
+                    "providers": [
+                        "Waaseyaa\\Publishing\\PublishingServiceProvider"
+                    ]
                 },
                 "branch-alias": {
                     "dev-main": "0.1.x-dev",

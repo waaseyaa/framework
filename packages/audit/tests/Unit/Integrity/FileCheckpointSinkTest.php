@@ -45,7 +45,10 @@ final class FileCheckpointSinkTest extends TestCase
     // Helpers
     // ------------------------------------------------------------------
 
-    private function makeCheckpoint(string $uuid = 'test-uuid-0001'): AuditCheckpoint
+    private function makeCheckpoint(
+        string $uuid = 'test-uuid-0001',
+        string $signature = '',
+    ): AuditCheckpoint
     {
         return new AuditCheckpoint([
             'uuid'                 => $uuid,
@@ -55,7 +58,7 @@ final class FileCheckpointSinkTest extends TestCase
             'segment_hash'         => str_repeat('a', 64),
             'prev_checkpoint_hash' => AuditEventCanonicalizer::GENESIS_HASH,
             'checkpoint_hash'      => str_repeat('b', 64),
-            'signature'            => '',
+            'signature'            => $signature,
             'hash_version'         => 'v1',
             'is_genesis'           => false,
             'created_at'           => '2026-01-01 00:00:00',
@@ -83,6 +86,21 @@ final class FileCheckpointSinkTest extends TestCase
         $decoded = json_decode(array_values($lines)[0], true);
         self::assertIsArray($decoded);
         self::assertSame('test-uuid-0001', $decoded['uuid']);
+    }
+
+    #[Test]
+    public function testExportPreservesSignatureForIndependentVerification(): void
+    {
+        $filePath = $this->tmpDir . '/checkpoints.jsonl';
+        $sink     = new FileCheckpointSink($filePath, false);
+        $signature = 'hmac-sha256.hkdf-v1:' . str_repeat('c', 64);
+
+        $sink->export($this->makeCheckpoint(signature: $signature));
+
+        $line = trim(file_get_contents($filePath) ?: '');
+        $decoded = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($decoded);
+        self::assertSame($signature, $decoded['signature']);
     }
 
     #[Test]

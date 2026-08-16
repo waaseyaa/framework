@@ -21,6 +21,18 @@ return [
     'Waaseyaa\Foundation\Diagnostic\DiagnosticCode' => 'public',
     'Waaseyaa\Foundation\Migration\SchemaAuthorityManifest' => 'public',
     'Waaseyaa\Foundation\Log\LoggerInterface' => 'public',
+    'Waaseyaa\Foundation\Security\SecretClass' => 'public',
+    'Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy' => 'public',
+    'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyGate' => 'public',
+    'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState' => 'public',
+    'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyAdapterInterface' => 'public',
+    'Waaseyaa\Oidc\Rekey\AbstractOidcTokenRekeyAdapter' => 'internal',
+    'Waaseyaa\Foundation\Security\SecretConsumerInterface' => 'public',
+    'Waaseyaa\Foundation\Security\SecretConsumptionCode' => 'public',
+    'Waaseyaa\Foundation\Security\SecretProviderInterface' => 'public',
+    'Waaseyaa\Foundation\Security\SecretResolutionCode' => 'public',
+    'Waaseyaa\Config\Schema\Ai\McpAuthMode' => 'public',
+    'Waaseyaa\Config\Schema\Ai\McpAvailability' => 'public',
     // #2177 F4 — fail-closed reserve/finalize audit port. Lives in foundation
     // (not waaseyaa/audit) so waaseyaa/mcp keeps its no-runtime-audit-dependency
     // boundary; implemented by Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger.
@@ -80,6 +92,7 @@ return [
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface' => 'public',
     // Content-model-provider injection capability (G-026, #1940): mirrors
     // AcceptsMigrationProvidersInterface immediately above — kernel guards
     // provider wiring via this named interface instead of a Layer-3 concrete edge.
@@ -168,6 +181,7 @@ return [
 
     // Layer 0: Foundation — internal
     'Waaseyaa\Foundation\Kernel\AbstractKernel' => 'internal',
+    'Waaseyaa\Foundation\Security\ApplicationMasterSymmetricOperation' => 'internal',
     'Waaseyaa\Foundation\Tenant\TenantResolverInterface' => 'internal',
     'Waaseyaa\Plugin\Discovery\PluginDiscoveryInterface' => 'internal',
     'Waaseyaa\Plugin\Extension\KnowledgeToolingExtensionInterface' => 'internal',
@@ -412,14 +426,16 @@ return [
     'Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface' => 'public',
     'Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface' => 'public',
-    'Waaseyaa\Config\Activation\ConfigurationActivationResult' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationActivatorInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface' => 'public',
     'Waaseyaa\Config\Drift\ConfigDriftSnapshotReaderInterface' => 'public',
+    'Waaseyaa\Config\Manifest\ConfigManifestEd25519Signer' => 'public',
+    'Waaseyaa\Config\Manifest\ConfigManifestEd25519Verifier' => 'public',
     'Waaseyaa\Config\Manifest\ConfigManifestSignatureVerifierInterface' => 'public',
     'Waaseyaa\Config\Manifest\ConfigManifestSignerInterface' => 'public',
+    'Waaseyaa\Config\Manifest\ConfigManifestTrustPolicy' => 'public',
     'Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface' => 'public',
     'Waaseyaa\Config\TranslatableConfigFactoryInterface' => 'public',
     'Waaseyaa\Config\Event\ConfigEvents' => 'public',
@@ -692,9 +708,18 @@ return [
     'Waaseyaa\Mcp\Auth\ScopedMcpAuthInterface' => 'public',
     'Waaseyaa\AI\Agent\Tool\Wayfinding\AbstractTrailTool' => 'internal',
     'Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface' => 'public',
+    'Waaseyaa\Oidc\Keys\SigningKeyState' => 'public',
     'Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface' => 'public',
     'Waaseyaa\Oidc\Token\KeyMaterialProviderInterface' => 'public',
     'Waaseyaa\SSR\ThemeInterface' => 'public',
+
+    'Waaseyaa\\Oidc\\Keys\\SigningAlgorithmPolicy' => 'public',
+    'Waaseyaa\\Oidc\\Keys\\SigningKeySignerInterface' => 'public',
+    'Waaseyaa\\Oidc\\Key\\SigningKeyLifecyclePolicy' => 'public',
+    'Waaseyaa\\Oidc\\Key\\SigningKeyRepository' => 'public',
+
+    'Waaseyaa\\Oidc\\Key\\SigningKeyEmergencyRevocationService' => 'public',
+    'Waaseyaa\\Oidc\\Key\\SigningKeyRevocationRecord' => 'public',
 
     // Layer 1: Core Data — public (discovered during L5-L6 scan)
     // #2177 F3: durable bearer-token lifecycle store (hashed-at-rest, expiring,
@@ -734,6 +759,9 @@ return [
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',
 
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
+    'Waaseyaa\CLI\AdminBuild\AdminBuildPlatform' => 'internal',
+    'Waaseyaa\CLI\AdminBuild\AdminBuildProcessResult' => 'internal',
+    'Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunnerInterface' => 'internal',
 
     // Layer 6: Interfaces — internal
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',

@@ -14,7 +14,9 @@ use Waaseyaa\AI\Agent\Account\StubInitiatorAccountLoader;
 use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterInterface;
 use Waaseyaa\AI\Agent\Message\RunAgent;
 use Waaseyaa\AI\Agent\Message\RunAgentHandler;
+use Waaseyaa\AI\Agent\Provider\AnthropicCredentialOperation;
 use Waaseyaa\AI\Agent\Provider\NullLlmProvider;
+use Waaseyaa\AI\Agent\Provider\OpenAiCompatibleCredentialOperation;
 use Waaseyaa\AI\Agent\Provider\ProviderInterface;
 use Waaseyaa\AI\Agent\Reaper\StalledRunReaper;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
@@ -25,6 +27,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -63,6 +66,12 @@ final class MessagingServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $secretRegistry = $this->kernelServices?->get(SecretResolverRegistry::class);
+        if ($secretRegistry instanceof SecretResolverRegistry) {
+            $secretRegistry->registerConsumer('waaseyaa/ai-agent', AnthropicCredentialOperation::class);
+            $secretRegistry->registerConsumer('waaseyaa/ai-agent', OpenAiCompatibleCredentialOperation::class);
+        }
+
         // AgentRunBroadcasterInterface is bound by AgentRunBroadcasterServiceProvider,
         // which is registered after this provider so its singleton wins.
 

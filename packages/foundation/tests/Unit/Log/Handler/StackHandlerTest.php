@@ -16,6 +16,36 @@ use Waaseyaa\Foundation\Log\LogRecord;
 final class StackHandlerTest extends TestCase
 {
     #[Test]
+    public function failing_handler_emits_only_a_fixed_non_sensitive_code(): void
+    {
+        $logFile = sys_get_temp_dir() . '/waaseyaa-cfg04-handler-' . bin2hex(random_bytes(6)) . '.log';
+        $previousLog = ini_set('error_log', $logFile);
+
+        try {
+            $handler = new class implements HandlerInterface {
+                public function handle(LogRecord $record): void
+                {
+                    throw new \RuntimeException('cfg04-handler-exception-canary');
+                }
+            };
+            $stack = new StackHandler($handler);
+
+            $stack->handle(new LogRecord(LogLevel::ERROR, 'safe record'));
+
+            $output = file_get_contents($logFile);
+            $this->assertIsString($output);
+            $this->assertStringContainsString('LOG_HANDLER_FAILURE', $output);
+            $this->assertStringNotContainsString('cfg04-handler-exception-canary', $output);
+        } finally {
+            if (is_string($previousLog)) {
+                ini_set('error_log', $previousLog);
+            }
+            if (file_exists($logFile)) {
+                unlink($logFile);
+            }
+        }
+    }
+    #[Test]
     public function delegates_to_all_handlers(): void
     {
         $calls = [];

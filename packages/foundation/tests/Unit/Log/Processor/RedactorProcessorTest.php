@@ -10,11 +10,151 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\LogRecord;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SensitiveValue;
 
 #[CoversClass(RedactorProcessor::class)]
 final class RedactorProcessorTest extends TestCase
 {
     private const REDACTED = '[REDACTED]';
+
+    #[Test]
+    public function redacts_registered_secret_representations_from_message_and_nested_context(): void
+    {
+        $canary = 'cfg04-synthetic-canary-7xQ9mP2k';
+        $processor = new RedactorProcessor(registeredValues: [$canary]);
+        $record = new LogRecord(LogLevel::INFO, 'raw=' . $canary, [
+            'nested' => [
+                'encoded' => base64_encode($canary),
+                'url' => rawurlencode($canary),
+            ],
+        ]);
+
+        $result = $processor->process($record);
+
+        $this->assertStringNotContainsString($canary, $result->message);
+        $this->assertStringNotContainsString(base64_encode($canary), serialize($result->context));
+        $this->assertStringNotContainsString(rawurlencode($canary), serialize($result->context));
+    }
+
+    #[Test]
+    public function diagnostic_text_redacts_sensitive_lines_without_destroying_safe_error_codes(): void
+    {
+        $processor = new RedactorProcessor();
+        $diagnostic = "npm error code ENOTCACHED\nnpm error request for cookie-es failed\nretry unavailable\n";
+
+        $sanitized = $processor->sanitizeText($diagnostic);
+
+        self::assertStringContainsString('npm error code ENOTCACHED', $sanitized);
+        self::assertStringContainsString("\n" . self::REDACTED . "\n", $sanitized);
+        self::assertStringContainsString('retry unavailable', $sanitized);
+    }
+
+    #[Test]
+    public function diagnostic_text_redacts_registered_representations_containing_line_breaks(): void
+    {
+        $canary = "cfg04-multiline-canary-AAAAAAAA\nsecond-line-BBBBBBBB";
+        $processor = new RedactorProcessor(registeredValues: [$canary]);
+
+        $sanitized = $processor->sanitizeText("safe prefix\n{$canary}\nsafe suffix\n");
+
+        self::assertStringNotContainsString($canary, $sanitized);
+        self::assertStringContainsString("safe prefix\n" . self::REDACTED . "\nsafe suffix\n", $sanitized);
+    }
+
+    #[Test]
+    public function redacts_overlapping_resolved_values_independent_of_registration_order(): void
+    {
+        $short = 'cfg04-overlap-base-0001';
+        $long = $short . '.signature-suffix';
+
+        foreach ([[$short, $long], [$long, $short]] as $registrationOrder) {
+            $processor = new RedactorProcessor();
+            $holders = [];
+            foreach ($registrationOrder as $bytes) {
+                $holder = SensitiveValue::fromBytes($bytes, SecretClass::ProviderCredential, 'synthetic-v1');
+                $holder->registerWith($processor);
+                $holders[] = $holder;
+            }
+
+            $result = $processor->process(new LogRecord(LogLevel::INFO, 'auth=' . $long));
+
+            $this->assertSame('auth=' . self::REDACTED, $result->message);
+            $this->assertCount(2, $holders);
+        }
+    }
+
+    #[Test]
+    public function redacts_registered_values_from_recursive_context_keys(): void
+    {
+        $canary = 'cfg04-context-key-canary';
+        $processor = new RedactorProcessor(registeredValues: [$canary]);
+
+        $result = $processor->process(new LogRecord(LogLevel::INFO, 'lookup', [
+            'nested' => [$canary => 1],
+        ]));
+
+        $this->assertSame([self::REDACTED => 1], $result->context['nested']);
+        $this->assertStringNotContainsString($canary, serialize($result->context));
+    }
+
+    #[Test]
+    public function redacts_typed_sensitive_values_and_throwable_chains(): void
+    {
+        $sensitive = SensitiveValue::fromBytes(
+            'cfg04-typed-canary-Y8v3nK6s',
+            SecretClass::ProviderCredential,
+            'synthetic-v1',
+        );
+        $throwable = new \RuntimeException('outer', 0, new \RuntimeException('cfg04-throwable-canary'));
+        $processor = new RedactorProcessor(registeredValues: ['cfg04-throwable-canary']);
+
+        $result = $processor->process(new LogRecord(LogLevel::ERROR, 'failed', [
+            'value' => $sensitive,
+            'exception' => $throwable,
+        ]));
+
+        $this->assertSame(self::REDACTED, $result->context['value']);
+        $this->assertStringNotContainsString('cfg04-throwable-canary', serialize($result->context));
+    }
+
+    #[Test]
+    public function handles_list_context_and_binary_registered_values_without_disclosure(): void
+    {
+        $binary = "\xFF\xFEcfg04-binary-canary\x00";
+        $processor = new RedactorProcessor(registeredValues: [$binary]);
+        $record = new LogRecord(LogLevel::INFO, 'safe', [
+            'items' => ['safe', base64_encode($binary)],
+        ]);
+
+        $result = $processor->process($record);
+
+        $this->assertSame('safe', $result->context['items'][0]);
+        $this->assertSame(self::REDACTED, $result->context['items'][1]);
+        $this->assertStringNotContainsString($binary, var_export($processor, true));
+    }
+
+    #[Test]
+    public function registered_representations_retire_with_the_sanitizer(): void
+    {
+        // WeakMap drops unreachable keys only after pending object cycles have
+        // been collected. Normalize the process-wide baseline before measuring
+        // this processor's lifetime so earlier tests cannot inflate $before.
+        gc_collect_cycles();
+        $property = new \ReflectionProperty(RedactorProcessor::class, 'registeredRepresentations');
+        $registry = $property->getValue();
+        $before = $registry instanceof \WeakMap ? count($registry) : 0;
+
+        $processor = new RedactorProcessor(registeredValues: ['cfg04-lifetime-canary']);
+        $registry = $property->getValue();
+        $this->assertInstanceOf(\WeakMap::class, $registry);
+        $this->assertCount($before + 1, $registry);
+
+        unset($processor);
+        gc_collect_cycles();
+
+        $this->assertCount($before, $registry);
+    }
 
     // -------------------------------------------------------------------------
     // Key denylist: case-insensitive substring match on context key names
@@ -175,7 +315,7 @@ final class RedactorProcessorTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // Recursive: nested arrays are walked to arbitrary depth
+    // Recursive: nested arrays are walked only to a bounded depth
     // -------------------------------------------------------------------------
 
     #[Test]
@@ -212,6 +352,28 @@ final class RedactorProcessorTest extends TestCase
 
         $this->assertSame(self::REDACTED, $result->context['level1']['level2']['api_key']);
         $this->assertSame('kept', $result->context['level1']['level2']['name']);
+    }
+
+    #[Test]
+    public function replaces_context_beyond_the_recursion_limit(): void
+    {
+        $nested = ['leaf' => 'safe'];
+        for ($depth = 0; $depth < 40; ++$depth) {
+            $nested = ['nested' => $nested];
+        }
+
+        $result = new RedactorProcessor()->process(new LogRecord(
+            LogLevel::INFO,
+            'bounded',
+            $nested,
+        ));
+
+        $cursor = $result->context;
+        for ($depth = 0; $depth < 32; ++$depth) {
+            $this->assertIsArray($cursor);
+            $cursor = $cursor['nested'];
+        }
+        $this->assertSame(self::REDACTED, $cursor);
     }
 
     #[Test]

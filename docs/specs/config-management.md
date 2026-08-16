@@ -281,11 +281,15 @@ behavior belong to the active generation and its reviewed sync artifact.
 Bootstrap environment inputs are limited to authority selection—environment
 identity, database location, sync path—and opaque secret references.
 
-Credential-bearing configuration uses explicitly typed reference fields such
-as `api_key_env_var` or `client_secret_ref`. `DeployableConfigurationPolicy`
-rejects raw secret-shaped fields and bootstrap-owned names in both sync files
-and database generations. CFG-04 resolves a reference through custody without
-placing secret bytes in active configuration, YAML, manifests, or evidence.
+Credential-bearing configuration uses closed `SecretReference` fields that
+bind provider, identifier, expected secret class, and versioned purpose.
+`DeployableConfigurationPolicy` rejects raw secret-shaped fields and
+bootstrap-owned names in both sync files and database generations. CFG-04
+resolves a reference through the frozen kernel registry into a guarded handle;
+only an exact registered consumer may use the bytes, and only for one operation
+boundary. Secret bytes never enter active configuration, YAML, manifests, or
+evidence. Legacy environment-variable-name fields are migration input only and
+become central-provider references without reading the environment.
 
 See [`docs/cookbook/config-sync.md`](../cookbook/config-sync.md) §10 for the
 operator mapping. If two environments intentionally differ in deployable

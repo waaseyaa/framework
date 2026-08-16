@@ -86,11 +86,30 @@ final class AdminDistReproducibilityTest extends TestCase
         $config = (string) file_get_contents($root . '/packages/admin/nuxt.config.ts');
 
         self::assertStringContainsString('check-admin-dist-fresh" --print', $build);
+        self::assertStringContainsString('check-admin-dist-fresh" --print-build-id', $build);
         self::assertStringContainsString('WAASEYAA_ADMIN_BUILD_ID', $build);
+        self::assertStringContainsString('run-hermetic-admin-build', $build);
         self::assertStringContainsString('normalize-admin-dist', $build);
+        self::assertStringNotContainsString(' npm ci', $build);
+        self::assertStringNotContainsString(' npm run generate', $build);
         self::assertStringContainsString('buildId: process.env.WAASEYAA_ADMIN_BUILD_ID', $config);
         self::assertStringContainsString("'bin/normalize-admin-dist'", $freshness);
+        self::assertStringContainsString("'bin/run-hermetic-admin-build'", $freshness);
+        self::assertStringContainsString("'/packages/cli/src/AdminBuild'", $freshness);
         self::assertStringContainsString("'.nvmrc'", $freshness);
+        self::assertStringContainsString("in_array('--print-build-id'", $freshness);
+    }
+
+    #[Test]
+    public function procedure_drift_stales_freshness_without_changing_the_content_build_identity(): void
+    {
+        $root = $this->makeSourceSignatureFixture();
+        $beforeFull = $this->signature($root, '--print');
+        $beforeBuild = $this->signature($root, '--print-build-id');
+        file_put_contents($root . '/bin/run-hermetic-admin-build', "procedure revision two\n");
+
+        self::assertNotSame($beforeFull, $this->signature($root, '--print'));
+        self::assertSame($beforeBuild, $this->signature($root, '--print-build-id'));
     }
 
     private function makeFixture(int $timestamp, string $asset = 'compiled asset'): string
@@ -115,6 +134,62 @@ final class AdminDistReproducibilityTest extends TestCase
         $this->tempDirs[] = $root;
 
         return $root;
+    }
+
+    private function makeSourceSignatureFixture(): string
+    {
+        $sourceRoot = dirname(__DIR__, 3);
+        $root = sys_get_temp_dir() . '/waaseyaa_admin_signature_' . bin2hex(random_bytes(6));
+        foreach ([
+            'bin',
+            'packages/admin/app',
+            'packages/admin-surface',
+            'packages/cli/src/AdminBuild',
+            'packages/foundation/src/Log/Processor',
+        ] as $directory) {
+            mkdir($root . '/' . $directory, 0o755, true);
+        }
+        copy($sourceRoot . '/bin/check-admin-dist-fresh', $root . '/bin/check-admin-dist-fresh');
+        foreach ([
+            '.nvmrc',
+            'bin/build-admin-dist',
+            'bin/normalize-admin-dist',
+            'bin/run-hermetic-admin-build',
+            'packages/admin/nuxt.config.ts',
+            'packages/admin/app.config.ts',
+            'packages/admin/package.json',
+            'packages/admin/package-lock.json',
+            'packages/foundation/src/Log/Processor/RedactorProcessor.php',
+        ] as $relative) {
+            $destination = $root . '/' . $relative;
+            if (!is_dir(dirname($destination))) {
+                mkdir(dirname($destination), 0o755, true);
+            }
+            file_put_contents($destination, $relative . " fixture\n");
+        }
+        file_put_contents($root . '/packages/admin/app/input.ts', 'export const fixture = true;');
+        file_put_contents($root . '/packages/cli/src/AdminBuild/Policy.php', '<?php // fixture');
+        file_put_contents($root . '/packages/admin-surface/dist.signature', "placeholder\n");
+        $this->tempDirs[] = $root;
+
+        return $root;
+    }
+
+    private function signature(string $root, string $mode): string
+    {
+        $process = proc_open(
+            [PHP_BINARY, $root . '/bin/check-admin-dist-fresh', $mode],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        self::assertIsResource($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        self::assertSame(0, proc_close($process), (string) $stderr);
+
+        return trim((string) $stdout);
     }
 
     /** @return array{int, string, string} */
@@ -158,7 +233,8 @@ final class AdminDistReproducibilityTest extends TestCase
         if (!is_dir($dir)) {
             return;
         }
-        foreach (scandir($dir) ?: [] as $item) {
+        $items = scandir($dir);
+        foreach (is_array($items) ? $items : [] as $item) {
             if ($item === '.' || $item === '..') {
                 continue;
             }

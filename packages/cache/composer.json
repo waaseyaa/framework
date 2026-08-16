@@ -5,6 +5,7 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.293",
         "waaseyaa/foundation": "^0.1.0-alpha.293"
     },
     "suggest": {
@@ -28,6 +29,9 @@
     "minimum-stability": "stable",
     "extra": {
         "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\Cache\\CacheServiceProvider"
+            ],
             "migrations": "migrations"
         },
         "branch-alias": {
@@ -39,6 +43,10 @@
         "sort-packages": true
     },
     "repositories": [
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
         {
             "type": "path",
             "url": "../foundation"

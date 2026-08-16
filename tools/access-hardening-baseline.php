@@ -17,10 +17,20 @@ return [
         => 'Process-lifetime WeakMap custody keyed by short-lived one-time reveal objects; each entry disappears with its holder, is never persisted or serialized, and cannot cross holders, requests, accounts, or token rotations.',
     'packages/foundation/src/Security/ApplicationSecret.php::$secrets'
         => 'Process-lifetime WeakMap custody keyed by kernel-owned ApplicationSecret objects; entries disappear with their kernel, contain no request/account data, and keep master bytes out of object debug and serialization surfaces.',
-    'packages/foundation/src/Migration/SchemaMutationCoordinator.php::$activeConnections'
-        => 'Process-lifetime WeakMap of coordinator nesting depth keyed by DBAL connection; depth is removed when the outer transition exits, keys disappear with their connection, and no request, account, decision, or entity data is retained.',
+    'packages/foundation/src/Security/SecretHandle.php::$custody'
+        => 'Process-lifetime WeakMap custody keyed by non-exporting SecretHandle objects; each entry disappears with its handle, contains only a guarded value or typed reference plus resolver authority, and keeps provider paths, secret bytes, and request-scoped versions out of debug and serialization surfaces.',
+    'packages/foundation/src/Log/Processor/RedactorProcessor.php::$registeredRepresentations'
+        => 'Process-lifetime WeakMap custody keyed by a sink-sanitizer instance; registered synthetic or resolved representations disappear with that sanitizer, contain no request/account data, and remain outside object debug and serialization surfaces.',
+    'packages/foundation/src/Log/Processor/RedactorProcessor.php::$registeredSensitiveRepresentations'
+        => 'Process-lifetime nested WeakMap custody keyed first by sink sanitizer and then by a live SensitiveValue holder; representations disappear with either holder, contain no request/account data, and keep high-churn secret rotations bounded.',
+    'packages/foundation/src/Log/Processor/RedactorProcessor.php::$processSensitiveRepresentations'
+        => 'Process-lifetime WeakMap keyed by every live SensitiveValue holder so raw compatibility ingress is redacted by all sink sanitizers; representations disappear with the guarded value, contain no request/account data, and cannot outlive the credential handle or resolver result that owns them.',
     'packages/foundation/src/Security/SensitiveKey.php::$keys'
         => 'Process-lifetime WeakMap custody keyed by derived-key holder objects; entries disappear with their holder, contain no request/account data, and keep derived bytes out of object debug and serialization surfaces.',
+    'packages/foundation/src/Security/SensitiveValue.php::$values'
+        => 'Process-lifetime WeakMap custody keyed by guarded SensitiveValue objects; entries disappear with their holder, contain no request/account data, and keep secret bytes out of object debug and serialization surfaces.',
+    'packages/foundation/src/Security/SensitiveValue.php::$consumerAuthorities'
+        => 'Process-lifetime WeakMap of opaque consumption-authority objects keyed by guarded SensitiveValue holders; entries disappear with their value, contain no request/account or secret bytes, and prevent ordinary callers from invoking registered consumers without the owning resolver or handle.',
     'packages/foundation/src/Migration/SchemaMutationCoordinator.php::$activeConnections'
         => 'Transition-lifetime re-entrancy depth keyed by DBAL Connection in a WeakMap; each outer transition removes its entry in finally, abandoned connections are weakly collected, and no request, account, entity, credential, or decision data is retained.',
     'packages/graphql/src/Schema/SchemaFactory.php::$schemaCache'

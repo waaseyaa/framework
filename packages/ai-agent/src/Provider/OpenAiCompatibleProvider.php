@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Provider;
 
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretHandle;
+
 /**
  * OpenAI Chat Completions–compatible HTTP provider (OpenRouter, Azure OpenAI, local gateways, etc.).
  *
@@ -14,11 +17,29 @@ final class OpenAiCompatibleProvider implements ProviderInterface
 {
     private const string DEFAULT_BASE = 'https://api.openai.com/v1';
 
+    private readonly SecretHandle $credential;
+
+    /** @var (\Closure(string, array<string, string>, array<string, mixed>): array<string, mixed>)|null */
+    private readonly ?\Closure $authenticatedTransport;
+
     public function __construct(
-        private readonly string $apiKey,
+        #[\SensitiveParameter]
+        string|SecretHandle $apiKey,
         private readonly string $baseUrl = self::DEFAULT_BASE,
         private readonly string $model = 'gpt-4o-mini',
-    ) {}
+        ?\Closure $authenticatedTransport = null,
+    ) {
+        $this->credential = $apiKey instanceof SecretHandle
+            ? $apiKey
+            : SecretHandle::fromBytes(
+                $apiKey,
+                SecretClass::ProviderCredential,
+                OpenAiCompatibleCredentialOperation::PURPOSE,
+                'legacy-static-v1',
+                [OpenAiCompatibleCredentialOperation::class],
+            );
+        $this->authenticatedTransport = $authenticatedTransport;
+    }
 
     public function sendMessage(MessageRequest $request): MessageResponse
     {
@@ -71,6 +92,28 @@ final class OpenAiCompatibleProvider implements ProviderInterface
      */
     private function httpPost(string $url, array $body): array
     {
+        $outcome = $this->credential->consume(new OpenAiCompatibleCredentialOperation(
+            fn(array $headers, string $version): ProviderCredentialOutcome => ProviderCredentialOutcome::capture(
+                function () use ($url, $headers, $body): array {
+                    if ($this->authenticatedTransport !== null) {
+                        return ($this->authenticatedTransport)($url, $headers, $body);
+                    }
+
+                    return $this->httpPostAuthenticated($url, $body, $headers);
+                },
+            ),
+        ));
+
+        return $outcome->unwrap();
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     * @param array<string, string> $headers
+     * @return array<string, mixed>
+     */
+    private function httpPostAuthenticated(string $url, array $body, array $headers): array
+    {
         $jsonBody = \json_encode($body, \JSON_THROW_ON_ERROR);
 
         $ch = \curl_init($url);
@@ -82,10 +125,7 @@ final class OpenAiCompatibleProvider implements ProviderInterface
             \CURLOPT_POST => true,
             \CURLOPT_POSTFIELDS => $jsonBody,
             \CURLOPT_RETURNTRANSFER => true,
-            \CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $this->apiKey,
-            ],
+            \CURLOPT_HTTPHEADER => self::headerLines($headers),
             \CURLOPT_TIMEOUT => 120,
         ]);
 
@@ -126,6 +166,20 @@ final class OpenAiCompatibleProvider implements ProviderInterface
         }
 
         return $data;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<string>
+     */
+    private static function headerLines(array $headers): array
+    {
+        $lines = [];
+        foreach ($headers as $name => $value) {
+            $lines[] = $name . ': ' . $value;
+        }
+
+        return $lines;
     }
 
     /**

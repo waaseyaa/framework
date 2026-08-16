@@ -38,7 +38,7 @@ final class AuditReadModelDefinitionRegistryTest extends TestCase
         RuntimeSchemaMigrations::audit($database);
         $definitions = (new AuditReadModelDefinitionRegistry())->definitions();
 
-        foreach (['audit_event', 'audit_retention_policy', 'audit_checkpoint', 'privileged_read_ledger', 'mcp_approval_event'] as $table) {
+        foreach (['audit_event', 'audit_retention_policy', 'audit_checkpoint', 'audit_checkpoint_succession', 'audit_checkpoint_succession_pruned', 'privileged_read_ledger', 'mcp_approval_event'] as $table) {
             $columns = [];
             foreach ($database->query('PRAGMA table_info('.$table.')') as $row) {
                 $columns[] = (string) $row['name'];

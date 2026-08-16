@@ -7,8 +7,18 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ScheduleEntryRegistry;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LoggerTrait;
+use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretProviderInterface;
+use Waaseyaa\Foundation\Security\SecretReference;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
+use Waaseyaa\Foundation\Security\SensitiveValue;
+use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Scheduler\ScheduleEntriesInterface;
 use Waaseyaa\Scheduler\ScheduleInterface;
 
@@ -99,6 +109,85 @@ final class AbstractKernelTest extends TestCase
         $this->assertNotNull($kernel->getEntityTypeManager());
         $this->assertNotNull($kernel->getDatabase());
         $this->assertNotNull($kernel->getEventDispatcher());
+    }
+
+    #[Test]
+    public function kernel_freezes_secret_policy_after_provider_registration(): void
+    {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void
+            {
+                $this->boot();
+            }
+
+            public function publicSecretRegistry(): SecretResolverRegistry
+            {
+                return $this->secretResolverRegistry();
+            }
+        };
+
+        $kernel->publicBoot();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('secret resolver registry is frozen');
+        $kernel->publicSecretRegistry()->allow(
+            'synthetic-vault',
+            'waaseyaa/foundation',
+            SecretClass::ApplicationMaster,
+            'waaseyaa.application.master.v1',
+            ['testing'],
+        );
+    }
+
+    #[Test]
+    public function injected_logger_receives_resolved_values_only_after_kernel_sink_sanitization(): void
+    {
+        $collector = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<string> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = (string) $message;
+            }
+        };
+        $kernel = new class ($this->projectRoot, $collector) extends AbstractKernel {
+            public function publicBoot(): void
+            {
+                $this->boot();
+            }
+
+            public function resolveAndLogSyntheticValue(): void
+            {
+                $value = $this->secretResolverRegistry()->resolve(
+                    SecretReference::create(
+                        'synthetic-vault',
+                        'tenant/example/kernel-composition',
+                        SecretClass::ProviderCredential,
+                        'waaseyaa.kernel.composition.v1',
+                    ),
+                    'waaseyaa/foundation',
+                );
+                $this->logger->info('resolved=' . SecretResolverCompositionProvider::CANARY);
+                unset($value);
+            }
+
+            protected function compileManifest(): void
+            {
+                $this->manifest = new PackageManifest(providers: [SecretResolverCompositionProvider::class]);
+            }
+        };
+
+        $kernel->publicBoot();
+        $kernel->resolveAndLogSyntheticValue();
+
+        $this->assertContains('resolved=[REDACTED]', $collector->messages, var_export($collector->messages, true));
+        $this->assertStringNotContainsString(
+            SecretResolverCompositionProvider::CANARY,
+            implode("\n", $collector->messages),
+        );
     }
 
     #[Test]
@@ -366,5 +455,41 @@ final class AbstractKernelTest extends TestCase
 
         /** @var class-string */
         return $className;
+    }
+}
+
+/** @internal Synthetic provider fixture for the kernel-to-sink composition proof. */
+final class SecretResolverCompositionProvider extends ServiceProvider
+{
+    public const CANARY = 'cfg04-kernel-sink-canary-0001';
+
+    public function register(): void
+    {
+        $registry = $this->resolve(SecretResolverRegistry::class);
+        if (!$registry instanceof SecretResolverRegistry) {
+            throw new \LogicException('Kernel secret registry was not composed.');
+        }
+        $registry->registerProvider(new class implements SecretProviderInterface {
+            public function id(): string
+            {
+                return 'synthetic-vault';
+            }
+
+            public function resolve(SecretReference $reference): SensitiveValue
+            {
+                return SensitiveValue::fromBytes(
+                    SecretResolverCompositionProvider::CANARY,
+                    SecretClass::ProviderCredential,
+                    'synthetic-v1',
+                );
+            }
+        });
+        $registry->allow(
+            'synthetic-vault',
+            'waaseyaa/foundation',
+            SecretClass::ProviderCredential,
+            'waaseyaa.kernel.composition.v1',
+            ['testing'],
+        );
     }
 }

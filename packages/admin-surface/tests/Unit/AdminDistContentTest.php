@@ -138,19 +138,16 @@ final class AdminDistContentTest extends TestCase
     }
 
     #[Test]
-    public function shipped_bundle_build_identity_matches_its_source_signature(): void
+    public function shipped_bundle_build_identity_is_internally_consistent(): void
     {
-        $signature = trim((string) file_get_contents(dirname(__DIR__, 2) . '/dist.signature'));
-        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $signature);
-        $buildId = 'waaseyaa-' . substr($signature, 0, 32);
-
         $latest = json_decode(
             (string) file_get_contents($this->distDir() . '/_nuxt/builds/latest.json'),
             true,
             512,
             JSON_THROW_ON_ERROR,
         );
-        self::assertSame($buildId, $latest['id'] ?? null);
+        $buildId = $latest['id'] ?? null;
+        self::assertSame('waaseyaa-' . substr($this->buildContentSignature(), 0, 32), $buildId);
 
         $metaFiles = glob($this->distDir() . '/_nuxt/builds/meta/*.json') ?: [];
         self::assertCount(1, $metaFiles, 'Exactly one normalized Nuxt build-meta file must ship.');
@@ -159,6 +156,27 @@ final class AdminDistContentTest extends TestCase
             'buildId:"' . $buildId . '"',
             (string) file_get_contents($this->distDir() . '/index.html'),
         );
+    }
+
+    private function buildContentSignature(): string
+    {
+        $root = dirname(__DIR__, 4);
+        $process = proc_open(
+            [PHP_BINARY, $root . '/bin/check-admin-dist-fresh', '--print-build-id'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            $root,
+        );
+        self::assertIsResource($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        self::assertSame(0, proc_close($process), (string) $stderr);
+        $signature = trim((string) $stdout);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $signature);
+
+        return $signature;
     }
 
     #[Test]

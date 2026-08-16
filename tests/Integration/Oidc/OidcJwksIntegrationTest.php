@@ -12,13 +12,18 @@ use Waaseyaa\Tests\Support\ComposerProjectFixture;
 #[CoversNothing]
 final class OidcJwksIntegrationTest extends TestCase
 {
-    private string $repoRoot;
-    private string $projectRoot;
+    private string $repoRoot = '';
+    private string $projectRoot = '';
+    private string|false $originalApplicationSecret = false;
+    private string $applicationSecret = '';
 
     protected function setUp(): void
     {
         $this->repoRoot = (string) realpath(__DIR__ . '/../../..');
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_oidc_jwks_' . uniqid();
+        $this->originalApplicationSecret = getenv('WAASEYAA_APP_SECRET');
+        $this->applicationSecret = 'base64:' . base64_encode(random_bytes(32));
+        putenv('WAASEYAA_APP_SECRET=' . $this->applicationSecret);
 
         mkdir($this->projectRoot . '/config', 0o755, true);
         mkdir($this->projectRoot . '/storage', 0o755, true);
@@ -34,10 +39,25 @@ final class OidcJwksIntegrationTest extends TestCase
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::oidc($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
+        $applicationSecret = \Waaseyaa\Foundation\Security\ApplicationSecret::fromEnvironmentValue(
+            $this->applicationSecret,
+            'testing',
+        );
+        new \Waaseyaa\Oidc\Key\SigningKeyRepository(
+            $database,
+            $applicationSecret->derive(
+                \Waaseyaa\Foundation\Security\ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+            ),
+        )->initialize();
     }
 
     protected function tearDown(): void
     {
+        if ($this->originalApplicationSecret === false) {
+            putenv('WAASEYAA_APP_SECRET');
+        } else {
+            putenv('WAASEYAA_APP_SECRET=' . $this->originalApplicationSecret);
+        }
         if (!is_dir($this->projectRoot)) {
             return;
         }
@@ -60,11 +80,8 @@ final class OidcJwksIntegrationTest extends TestCase
     #[Test]
     public function jwksEndpointReturnsRsaJwkForActiveSigningKey(): void
     {
-        // WP04 moved signing-key material into the database: SigningKeyRepository
-        // auto-generates an RSA key (with a generated UUID kid) on first boot when
-        // the table is empty, and the JWKS endpoint serves all active keys. So we
-        // assert the JWK is structurally well-formed rather than pinning it to a
-        // pre-seeded public key.
+        // Initialization is explicit in setUp; the public read path cannot create
+        // or replace signing authority.
         $response = $this->request('/.well-known/jwks.json');
 
         self::assertSame(200, $response['status']);
@@ -80,7 +97,6 @@ final class OidcJwksIntegrationTest extends TestCase
         self::assertSame('RS256', $jwk['alg']);
         self::assertIsString($jwk['kid']);
         self::assertNotSame('', $jwk['kid']);
-
         // The modulus/exponent must be non-empty base64url with no padding so RPs
         // can reconstruct the public key.
         foreach (['n', 'e'] as $component) {
@@ -92,6 +108,27 @@ final class OidcJwksIntegrationTest extends TestCase
                 "JWK component {$component} must be base64url-encoded",
             );
         }
+    }
+
+    #[Test]
+    public function anonymousJwksReadCannotInitializeAnEmptyLifecycle(): void
+    {
+        $database = \Waaseyaa\Database\DBALDatabase::createSqlite(
+            $this->projectRoot . '/storage/waaseyaa.sqlite',
+        );
+        $database->getConnection()->executeStatement('DELETE FROM oidc_signing_key');
+        $database->getConnection()->close();
+
+        $response = $this->request('/.well-known/jwks.json');
+
+        self::assertSame(500, $response['status']);
+        $database = \Waaseyaa\Database\DBALDatabase::createSqlite(
+            $this->projectRoot . '/storage/waaseyaa.sqlite',
+        );
+        self::assertSame(
+            0,
+            (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM oidc_signing_key'),
+        );
     }
 
     /**
@@ -113,8 +150,9 @@ final class OidcJwksIntegrationTest extends TestCase
         $output = shell_exec($command);
         self::assertNotNull($output, 'Kernel runner produced no output.');
 
+        $splitOutput = preg_split('/\R/', trim((string) $output));
         $lines = array_values(array_filter(
-            preg_split('/\R/', trim((string) $output)) ?: [],
+            is_array($splitOutput) ? $splitOutput : [],
             static fn(string $line): bool => trim($line) !== '',
         ));
         $jsonPayload = $lines !== [] ? $lines[count($lines) - 1] : '';

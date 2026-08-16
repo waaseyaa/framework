@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Security;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 
 /** @api */
 final class LegacyOidcSecretMigrator
@@ -16,19 +19,42 @@ final class LegacyOidcSecretMigrator
     public function __construct(
         private readonly DatabaseInterface $database,
         #[\SensitiveParameter]
-        string $signingKeyEncryptionKey,
+        ?string $signingKeyEncryptionKey,
         #[\SensitiveParameter]
-        string $accessTokenEncryptionKey,
+        ?string $accessTokenEncryptionKey,
         #[\SensitiveParameter]
-        string $accessTokenLookupKey,
+        ?string $accessTokenLookupKey,
         #[\SensitiveParameter]
-        string $refreshTokenEncryptionKey,
+        ?string $refreshTokenEncryptionKey,
         #[\SensitiveParameter]
-        string $refreshTokenLookupKey,
+        ?string $refreshTokenLookupKey,
+        private readonly ?ApplicationMasterKeyring $keyring = null,
     ) {
-        $this->signingKeys = new SecretBoxEnvelope($signingKeyEncryptionKey);
-        $this->accessTokens = new OpaqueTokenProtector($accessTokenEncryptionKey, $accessTokenLookupKey);
-        $this->refreshTokens = new OpaqueTokenProtector($refreshTokenEncryptionKey, $refreshTokenLookupKey);
+        $this->signingKeys = $keyring === null
+            ? new SecretBoxEnvelope($signingKeyEncryptionKey)
+            : SecretBoxEnvelope::fromApplicationMasterKeyring(
+                $keyring,
+                ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                $signingKeyEncryptionKey,
+            );
+        $this->accessTokens = $keyring === null
+            ? new OpaqueTokenProtector($accessTokenEncryptionKey, $accessTokenLookupKey)
+            : OpaqueTokenProtector::fromApplicationMasterKeyring(
+                $keyring,
+                ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
+                ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                $accessTokenEncryptionKey,
+                $accessTokenLookupKey,
+            );
+        $this->refreshTokens = $keyring === null
+            ? new OpaqueTokenProtector($refreshTokenEncryptionKey, $refreshTokenLookupKey)
+            : OpaqueTokenProtector::fromApplicationMasterKeyring(
+                $keyring,
+                ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION,
+                ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP,
+                $refreshTokenEncryptionKey,
+                $refreshTokenLookupKey,
+            );
     }
 
     /** @return array{signing_keys: int, access_tokens: int, refresh_tokens: int} */
@@ -56,21 +82,32 @@ final class LegacyOidcSecretMigrator
         if (!$this->database->schema()->tableExists('oidc_signing_key')) {
             return 0;
         }
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            'oidc_signing_key',
+            ['kid', 'private_key_pem'],
+            'waaseyaa/oidc:2026_05_25_000003_oidc_signing_key_schema',
+        );
 
         $count = 0;
         foreach ($this->database->select('oidc_signing_key')->fields('oidc_signing_key', ['kid', 'private_key_pem'])->execute() as $row) {
             $stored = (string) $row['private_key_pem'];
-            if (str_starts_with($stored, 'secretbox.hkdf-v1:')) {
-                $this->signingKeys->open($stored);
-                continue;
-            }
-            if (!str_starts_with($stored, '-----BEGIN ') || !str_contains($stored, 'PRIVATE KEY-----')) {
+            $kid = (string) $row['kid'];
+            $plaintext = $stored;
+            $version = null;
+            if (str_starts_with($stored, 'secretbox.hkdf-v1:') || str_starts_with($stored, '{')) {
+                $plaintext = $this->signingKeys->open($stored, $kid);
+                $version = $this->signingKeys->applicationMasterVersion($stored);
+                if ($this->keyring === null || $version === $this->keyring->activeVersion()) {
+                    continue;
+                }
+            } elseif (!str_starts_with($stored, '-----BEGIN ') || !str_contains($stored, 'PRIVATE KEY-----')) {
                 throw new \RuntimeException('OIDC secret migration refused unrecognized signing-key material.');
             }
 
             $updated = $this->database->update('oidc_signing_key')
-                ->fields(['private_key_pem' => $this->signingKeys->seal($stored)])
-                ->condition('kid', (string) $row['kid'])
+                ->fields(['private_key_pem' => $this->signingKeys->seal($plaintext, $kid)])
+                ->condition('kid', $kid)
                 ->condition('private_key_pem', $stored)
                 ->execute();
             if ($updated !== 1) {
@@ -88,31 +125,48 @@ final class LegacyOidcSecretMigrator
         if (!$schema->tableExists($table)) {
             return 0;
         }
-        if (!$schema->fieldExists($table, 'token_lookup')) {
-            $schema->addField($table, 'token_lookup', ['type' => 'varchar', 'length' => 64]);
-            $schema->addUniqueKey($table, 'idx_' . $table . '_lookup', ['token_lookup']);
-        }
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            $table,
+            ['jti', 'token', 'token_lookup', 'custody_sequence'],
+            'waaseyaa/oidc:2026_08_15_000008_oidc_application_master_custody',
+        );
 
         $count = 0;
         foreach ($this->database->select($table)->fields($table, ['jti', 'token', 'token_lookup'])->execute() as $row) {
             $stored = (string) $row['token'];
             $lookup = $row['token_lookup'] ?? null;
-            if (is_string($lookup) && $lookup !== '') {
-                $protector->open($stored);
-                continue;
-            }
-            if ($stored === '' || str_starts_with($stored, 'secretbox.hkdf-v1:')) {
+            $jti = (string) $row['jti'];
+            $plaintext = $stored;
+            $version = null;
+            if (str_starts_with($stored, 'secretbox.hkdf-v1:') || str_starts_with($stored, '{')) {
+                $plaintext = $protector->open($stored, $jti);
+                $version = $protector->ciphertextVersion($stored);
+            } elseif ($stored === '') {
                 throw new \RuntimeException('OIDC secret migration refused inconsistent token material.');
             }
+            if (is_string($lookup) && $lookup !== '') {
+                if (!in_array($lookup, $protector->lookupCandidates($plaintext), true)) {
+                    throw new \RuntimeException('OIDC secret migration refused a mismatched token lookup index.');
+                }
+                if ($this->keyring === null
+                    || ($version === $this->keyring->activeVersion()
+                        && $protector->lookupVersion($lookup) === $this->keyring->activeVersion())) {
+                    continue;
+                }
+            }
 
-            $updated = $this->database->update($table)
+            $update = $this->database->update($table)
                 ->fields([
-                    'token' => $protector->seal($stored),
-                    'token_lookup' => $protector->lookup($stored),
+                    'token' => $protector->seal($plaintext, $jti),
+                    'token_lookup' => $protector->lookup($plaintext),
                 ])
-                ->condition('jti', (string) $row['jti'])
-                ->condition('token', $stored)
-                ->execute();
+                ->condition('jti', $jti)
+                ->condition('token', $stored);
+            $update = $lookup === null
+                ? $update->condition('token_lookup', null, 'IS NULL')
+                : $update->condition('token_lookup', $lookup);
+            $updated = $update->execute();
             if ($updated !== 1) {
                 throw new \RuntimeException('OIDC secret migration refused a concurrent token change.');
             }

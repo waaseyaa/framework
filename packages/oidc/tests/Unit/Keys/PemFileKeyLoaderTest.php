@@ -21,7 +21,7 @@ final class PemFileKeyLoaderTest extends TestCase
     protected function setUp(): void
     {
         $this->tmpDir = sys_get_temp_dir() . '/waaseyaa_oidc_keyloader_' . uniqid();
-        mkdir($this->tmpDir, 0700, true);
+        mkdir($this->tmpDir, 0o700, true);
     }
 
     protected function tearDown(): void
@@ -57,8 +57,15 @@ final class PemFileKeyLoaderTest extends TestCase
         self::assertSame('key-a', $keys[0]->kid);
         self::assertSame('RS256', $keys[0]->algorithm);
         self::assertStringContainsString('BEGIN PUBLIC KEY', $keys[0]->publicKeyPem);
-        self::assertNotNull($keys[0]->privateKeyPem);
-        self::assertStringContainsString('PRIVATE KEY', $keys[0]->privateKeyPem);
+        self::assertFalse(property_exists($keys[0], 'privateKeyPem'));
+
+        $signer = $loader->loadCurrentSigner();
+        $signature = $signer->sign('cfg04-test-payload');
+        self::assertSame($keys[0]->kid, $signer->key()->kid);
+        self::assertSame(
+            1,
+            openssl_verify('cfg04-test-payload', $signature, $keys[0]->publicKeyPem, OPENSSL_ALGO_SHA256),
+        );
     }
 
     #[Test]
@@ -77,7 +84,11 @@ final class PemFileKeyLoaderTest extends TestCase
 
         self::assertCount(1, $keys);
         self::assertSame('key-pub-only', $keys[0]->kid);
-        self::assertNull($keys[0]->privateKeyPem);
+        self::assertFalse(property_exists($keys[0], 'privateKeyPem'));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('No configured RS256 signing handle');
+        $loader->loadCurrentSigner();
     }
 
     #[Test]
@@ -134,8 +145,9 @@ final class PemFileKeyLoaderTest extends TestCase
         self::assertSame(['scan-a', 'scan-b'], array_map(static fn(SigningKey $k): string => $k->kid, $keys));
         foreach ($keys as $key) {
             self::assertSame('RS256', $key->algorithm);
-            self::assertNotNull($key->privateKeyPem);
+            self::assertFalse(property_exists($key, 'privateKeyPem'));
         }
+        self::assertSame('scan-a', $loader->loadCurrentSigner()->key()->kid);
     }
 
     #[Test]

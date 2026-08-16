@@ -52,6 +52,7 @@ final class FileCheckpointSink implements CheckpointSink
                 'segment_hash'         => $checkpoint->getSegmentHash(),
                 'prev_checkpoint_hash' => $checkpoint->getPrevCheckpointHash(),
                 'checkpoint_hash'      => $checkpoint->getCheckpointHash(),
+                'signature'            => $checkpoint->getSignature(),
                 'hash_version'         => $checkpoint->getHashVersion(),
                 'is_genesis'           => $checkpoint->isGenesis(),
                 'created_at'           => $checkpoint->getCreatedAt(),

@@ -61,4 +61,25 @@ final class ChannelLoggerTest extends TestCase
         $this->assertSame('app', $records[0]->channel);
         $this->assertSame('app', $records[1]->channel);
     }
+
+    #[Test]
+    public function default_channel_logger_sanitizes_message_and_context_before_handler(): void
+    {
+        $captured = null;
+        $handler = new class ($captured) implements HandlerInterface {
+            public function __construct(private ?LogRecord &$captured) {}
+
+            public function handle(LogRecord $record): void
+            {
+                $this->captured = $record;
+            }
+        };
+
+        $logger = new ChannelLogger('app', $handler);
+        $logger->error('password=cfg04-channel-message', ['passphrase' => 'cfg04-channel-context']);
+
+        $this->assertNotNull($captured);
+        $this->assertStringNotContainsString('cfg04-channel-message', $captured->message);
+        $this->assertSame('[REDACTED]', $captured->context['passphrase']);
+    }
 }

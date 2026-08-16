@@ -36,11 +36,11 @@ final class EmbeddingProvidersTest extends TestCase
     #[Test]
     public function openAiProviderParsesEmbeddingResponse(): void
     {
-        $capturedHeaders = [];
+        $capturedPayload = [];
         $provider = new OpenAiEmbeddingProvider(
             apiKey: 'test-key',
-            transport: static function (string $url, array $headers, array $payload) use (&$capturedHeaders): array {
-                $capturedHeaders = $headers;
+            transport: static function (string $url, array $payload) use (&$capturedPayload): array {
+                $capturedPayload = $payload;
                 return ['data' => [['embedding' => [1.0, 2.0]]]];
             },
         );
@@ -48,6 +48,6 @@ final class EmbeddingProvidersTest extends TestCase
         $vector = $provider->embed('embed me');
 
         $this->assertSame([1.0, 2.0], $vector);
-        $this->assertSame('Bearer test-key', $capturedHeaders['Authorization']);
+        $this->assertSame('embed me', $capturedPayload['input']);
     }
 }

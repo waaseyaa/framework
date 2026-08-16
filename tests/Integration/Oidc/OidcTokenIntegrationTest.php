@@ -33,11 +33,16 @@ final class OidcTokenIntegrationTest extends TestCase
 
     private string $repoRoot;
     private string $projectRoot;
+    private string|false $originalApplicationSecret = false;
+    private string $applicationSecret = '';
 
     protected function setUp(): void
     {
         $this->repoRoot = (string) realpath(__DIR__ . '/../../..');
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_oidc_token_' . uniqid();
+        $this->originalApplicationSecret = getenv('WAASEYAA_APP_SECRET');
+        $this->applicationSecret = 'base64:' . base64_encode(random_bytes(32));
+        putenv('WAASEYAA_APP_SECRET=' . $this->applicationSecret);
 
         mkdir($this->projectRoot . '/config', 0o755, true);
         mkdir($this->projectRoot . '/storage', 0o755, true);
@@ -53,10 +58,25 @@ final class OidcTokenIntegrationTest extends TestCase
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::oidc($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
+        $applicationSecret = \Waaseyaa\Foundation\Security\ApplicationSecret::fromEnvironmentValue(
+            $this->applicationSecret,
+            'testing',
+        );
+        new \Waaseyaa\Oidc\Key\SigningKeyRepository(
+            $database,
+            $applicationSecret->derive(
+                \Waaseyaa\Foundation\Security\ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+            ),
+        )->initialize();
     }
 
     protected function tearDown(): void
     {
+        if ($this->originalApplicationSecret === false) {
+            putenv('WAASEYAA_APP_SECRET');
+        } else {
+            putenv('WAASEYAA_APP_SECRET=' . $this->originalApplicationSecret);
+        }
         if (!is_dir($this->projectRoot)) {
             return;
         }
@@ -81,7 +101,11 @@ final class OidcTokenIntegrationTest extends TestCase
     {
         $result = $this->runTokenFlow(nonce: 'nonce-xyz');
 
-        self::assertSame(200, $result['status'], 'Body: ' . $result['body']);
+        self::assertSame(
+            200,
+            $result['status'],
+            'Body: ' . $result['body'] . "\nRunner diagnostics:\n" . $result['diagnostics'],
+        );
         self::assertStringContainsString('application/json', $result['headers']['content-type']);
         self::assertStringContainsString('no-store', $result['headers']['cache-control']);
 
@@ -104,7 +128,7 @@ final class OidcTokenIntegrationTest extends TestCase
     }
 
     /**
-     * @return array{status:int,headers:array<string,string>,body:string,signing_public_key:string}
+     * @return array{status:int,headers:array<string,string>,body:string,signing_public_key:string,diagnostics:string}
      */
     private function runTokenFlow(?string $nonce = null): array
     {
@@ -138,6 +162,7 @@ final class OidcTokenIntegrationTest extends TestCase
             'headers' => is_array($payload['headers'] ?? null) ? $payload['headers'] : [],
             'body' => (string) ($payload['body'] ?? ''),
             'signing_public_key' => (string) ($payload['signing_public_key'] ?? ''),
+            'diagnostics' => implode("\n", array_slice($lines, 0, -1)),
         ];
     }
 

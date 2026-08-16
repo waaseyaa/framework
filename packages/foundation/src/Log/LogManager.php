@@ -39,11 +39,15 @@ final class LogManager implements LoggerInterface
 
     private string $defaultChannel;
 
+    private readonly RedactorProcessor $sinkSanitizer;
+
     /**
      * Create a LogManager from a single default handler (Phase A compatibility).
      */
-    public function __construct(LoggerInterface|HandlerInterface $default)
-    {
+    public function __construct(
+        LoggerInterface|HandlerInterface $default,
+        ?RedactorProcessor $sinkSanitizer = null,
+    ) {
         if ($default instanceof HandlerInterface) {
             $this->handlers['default'] = $default;
         } else {
@@ -51,6 +55,7 @@ final class LogManager implements LoggerInterface
             $this->handlers['default'] = new LegacyLoggerHandler($default);
         }
         $this->defaultChannel = 'default';
+        $this->sinkSanitizer = $sinkSanitizer ?? new RedactorProcessor();
     }
 
     /**
@@ -58,21 +63,18 @@ final class LogManager implements LoggerInterface
      *
      * @param array<string, mixed> $config The 'logging' section of waaseyaa.php
      */
-    public static function fromConfig(array $config): self
+    public static function fromConfig(array $config, ?RedactorProcessor $sinkSanitizer = null): self
     {
         $channelConfigs = $config['channels'] ?? [];
         $defaultName = $config['default'] ?? 'default';
 
         if ($channelConfigs === []) {
-            return new self(new ErrorLogHandler());
+            return new self(new ErrorLogHandler(), $sinkSanitizer);
         }
 
-        // Redaction is an always-on security default: credentials logged through any
-        // channel (password, token, Authorization header, API keys, cookies, secrets)
-        // must never reach disk or S3 in cleartext. RedactorProcessor is prepended
-        // unconditionally so config-named processors (request_id, hostname, …) run after
-        // redaction, preventing any enrichment processor from re-adding cleartext secrets.
-        $globalProcessors = [new RedactorProcessor()];
+        // Configured processors run before the mandatory final sink sanitizer.
+        // This prevents enrichment processors from re-introducing sensitive data.
+        $globalProcessors = [];
 
         foreach (($config['processors'] ?? []) as $processorName) {
             $processor = self::buildProcessor($processorName);
@@ -120,7 +122,7 @@ final class LogManager implements LoggerInterface
             $handlers[$name] = new StackHandler(...$stackHandlers);
         }
 
-        $manager = new self($handlers[$defaultName] ?? new ErrorLogHandler());
+        $manager = new self($handlers[$defaultName] ?? new ErrorLogHandler(), $sinkSanitizer);
 
         foreach ($handlers as $name => $handler) {
             $manager->handlers[$name] = $handler;
@@ -148,7 +150,13 @@ final class LogManager implements LoggerInterface
             $this->channelProcessors[$name] ?? [],
         );
 
-        return new ChannelLogger($name, $handler, $processors);
+        return new ChannelLogger($name, $handler, $processors, $this->sinkSanitizer);
+    }
+
+    /** @internal Kernel composition reuses one sanitizer across logger rebuilds and secret resolution. */
+    public function sinkSanitizer(): RedactorProcessor
+    {
+        return $this->sinkSanitizer;
     }
 
     public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
@@ -164,8 +172,8 @@ final class LogManager implements LoggerInterface
         foreach ($this->globalProcessors as $processor) {
             try {
                 $record = $processor->process($record);
-            } catch (\Throwable $e) {
-                error_log(sprintf('[log] Processor %s failed: %s', $processor::class, $e->getMessage()));
+            } catch (\Throwable) {
+                error_log('[log] LOG_PROCESSOR_FAILURE');
             }
         }
 
@@ -173,9 +181,17 @@ final class LogManager implements LoggerInterface
         foreach (($this->channelProcessors[$this->defaultChannel] ?? []) as $processor) {
             try {
                 $record = $processor->process($record);
-            } catch (\Throwable $e) {
-                error_log(sprintf('[log] Processor %s failed: %s', $processor::class, $e->getMessage()));
+            } catch (\Throwable) {
+                error_log('[log] LOG_PROCESSOR_FAILURE');
             }
+        }
+
+        try {
+            $record = $this->sinkSanitizer->process($record);
+        } catch (\Throwable) {
+            error_log('[log] LOG_SANITIZER_FAILURE');
+
+            return;
         }
 
         $this->handlers[$this->defaultChannel]->handle($record);

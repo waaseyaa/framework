@@ -119,7 +119,12 @@ return [
         'embedding_provider' => getenv('WAASEYAA_EMBEDDING_PROVIDER') ?: '',
         'ollama_endpoint' => getenv('WAASEYAA_OLLAMA_ENDPOINT') ?: 'http://127.0.0.1:11434/api/embeddings',
         'ollama_model' => getenv('WAASEYAA_OLLAMA_MODEL') ?: 'nomic-embed-text',
-        'openai_api_key' => getenv('OPENAI_API_KEY') ?: '',
+        'openai_credential_reference' => [
+            'provider' => getenv('WAASEYAA_OPENAI_SECRET_PROVIDER') ?: '',
+            'identifier' => getenv('WAASEYAA_OPENAI_SECRET_ID') ?: '',
+            'secret_class' => 'provider-credential',
+            'purpose' => 'waaseyaa.ai.embedding.v1',
+        ],
         'openai_embedding_model' => getenv('WAASEYAA_OPENAI_EMBEDDING_MODEL') ?: 'text-embedding-3-small',
         // Per-entity field selection used for embedding text extraction.
         'embedding_fields' => [

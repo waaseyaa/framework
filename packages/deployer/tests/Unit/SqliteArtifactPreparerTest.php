@@ -46,9 +46,36 @@ final class SqliteArtifactPreparerTest extends TestCase
         self::assertSame(RuntimeTablePolicy::Preserve, $definitions['oidc_signing_key']->policy);
         self::assertSame(['account_id'], $definitions['agent_run']->accountReferenceColumns);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['audit_event']->policy);
+        self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['audit_checkpoint_succession']->policy);
+        self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['audit_checkpoint_succession_pruned']->policy);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['privileged_read_ledger']->policy);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['strict_audit_ledger']->policy);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['mcp_approval_event']->policy);
+    }
+
+    #[Test]
+    public function catalogue_claims_secret_custody_runtime_tables(): void
+    {
+        $definitions = new FrameworkRuntimeTableCatalogue()->definitions();
+
+        $expected = [
+            'cache_generation' => RuntimeTablePolicy::Preserve,
+            'oidc_token_custody_sequence' => RuntimeTablePolicy::Preserve,
+            'waaseyaa_application_master_rekey' => RuntimeTablePolicy::Preserve,
+            'waaseyaa_application_master_rekey_adapter' => RuntimeTablePolicy::Preserve,
+            'waaseyaa_application_master_rekey_event' => RuntimeTablePolicy::AppendOnly,
+            'waaseyaa_application_master_rekey_failure' => RuntimeTablePolicy::Preserve,
+            'waaseyaa_application_master_rekey_gate' => RuntimeTablePolicy::AppendOnly,
+            'waaseyaa_application_master_rekey_purpose' => RuntimeTablePolicy::AppendOnly,
+            'waaseyaa_application_master_rekey_rollback_verification' => RuntimeTablePolicy::AppendOnly,
+            'waaseyaa_application_master_rekey_verification' => RuntimeTablePolicy::AppendOnly,
+            'waaseyaa_application_master_version' => RuntimeTablePolicy::Preserve,
+        ];
+        foreach ($expected as $table => $policy) {
+            self::assertArrayHasKey($table, $definitions, sprintf('Custody runtime table "%s" is not catalogued.', $table));
+            self::assertSame($policy, $definitions[$table]->policy, $table);
+            self::assertSame([], $definitions[$table]->accountReferenceColumns, $table);
+        }
     }
 
     #[Test]

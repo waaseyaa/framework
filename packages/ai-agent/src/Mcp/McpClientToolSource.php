@@ -9,10 +9,16 @@ use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\Config\Schema\Ai\McpAuthMode;
+use Waaseyaa\Config\Schema\Ai\McpAvailability;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Config\StorageInterface as ConfigStorageInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SecretConsumptionException;
+use Waaseyaa\Foundation\Security\SecretReference;
+use Waaseyaa\Foundation\Security\SecretResolutionException;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 
 /**
  * Discovers tools on every enabled remote MCP server and registers each
@@ -24,12 +30,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * - **Capability**      `"{$capabilityPrefix}.{$descriptor->name}"` (e.g. `tool.mcp.github.create_issue`)
  * - **Category**        `"mcp.{$alias}"`
  *
- * Per-server failures are caught and logged; the rest of the catalogue
- * is built unaffected ("graceful degrade" per spec edge case).
- *
- * Each registered tool reads the auth header from
- * `getenv($auth_header_env_var)` at call time — never at config-load
- * time — per C-010.
+ * Optional server failures produce explicit degraded health and no tools.
+ * Required failures block readiness. Typed references resolve once across
+ * startup initialize/list and once for every later tool call so rotation is
+ * observed without retaining credential strings.
  *
  * Tool VOs are constructed against the post-WP03 `AgentTool` surface
  * shipped by `waaseyaa/ai-tools` (one VO carries `destructive`,
@@ -40,15 +44,27 @@ use Waaseyaa\Foundation\Log\NullLogger;
  */
 final class McpClientToolSource
 {
+    public const string PACKAGE = 'waaseyaa/ai-agent';
+
     private readonly LoggerInterface $logger;
+
+    private readonly McpIntegrationHealth $health;
 
     public function __construct(
         private readonly StreamableHttpMcpClient $client,
         private readonly ToolRegistryInterface $registry,
         private readonly ConfigStorageInterface $configStorage,
         ?LoggerInterface $logger = null,
+        private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
+        ?McpIntegrationHealth $health = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->health = $health ?? new McpIntegrationHealth();
+    }
+
+    public function health(): McpIntegrationHealth
+    {
+        return $this->health;
     }
 
     /**
@@ -92,13 +108,13 @@ final class McpClientToolSource
                 continue;
             }
             try {
-                $descriptors = $this->client->listTools($row['url'], $this->resolveAuthHeader($row));
-            } catch (McpServerUnavailableException $e) {
-                $this->logger->warning('MCP server unavailable during capability enumeration', [
-                    'alias' => $row['alias'],
-                    'url' => $row['url'],
-                    'message' => $e->getMessage(),
-                ]);
+                $descriptors = $this->withAuthentication(
+                    $row,
+                    fn(?string $authorization): array => $this->client->listTools($row['url'], $authorization),
+                );
+                $this->health->healthy($row['alias']);
+            } catch (\Throwable $exception) {
+                $this->handleServerFailure($row, $exception);
                 continue;
             }
             foreach ($descriptors as $descriptor) {
@@ -113,7 +129,9 @@ final class McpClientToolSource
      * @param array{
      *     alias: string,
      *     url: string,
-     *     auth_header_env_var: string,
+     *     auth_mode: McpAuthMode,
+     *     availability: McpAvailability,
+     *     credential_reference: SecretReference|null,
      *     enabled: bool,
      *     capability_prefix: string,
      * } $row
@@ -121,25 +139,17 @@ final class McpClientToolSource
     private function bootstrapServer(array $row): void
     {
         try {
-            $authHeader = $this->resolveAuthHeader($row);
-            $this->client->initialize($row['url'], $authHeader);
-            $descriptors = $this->client->listTools($row['url'], $authHeader);
-        } catch (McpServerUnavailableException $e) {
-            $this->logger->warning('Skipping MCP server: unavailable at boot', [
-                'alias' => $row['alias'],
-                'url' => $row['url'],
-                'message' => $e->getMessage(),
-            ]);
+            $descriptors = $this->withAuthentication(
+                $row,
+                function (?string $authorization) use ($row): array {
+                    $this->client->initialize($row['url'], $authorization);
 
-            return;
-        } catch (\Throwable $e) {
-            $this->logger->warning('Skipping MCP server: unexpected error', [
-                'alias' => $row['alias'],
-                'url' => $row['url'],
-                'exception' => $e::class,
-                'message' => $e->getMessage(),
-            ]);
-
+                    return $this->client->listTools($row['url'], $authorization);
+                },
+            );
+            $this->health->healthy($row['alias']);
+        } catch (\Throwable $exception) {
+            $this->handleServerFailure($row, $exception);
             return;
         }
 
@@ -152,7 +162,9 @@ final class McpClientToolSource
      * @param array{
      *     alias: string,
      *     url: string,
-     *     auth_header_env_var: string,
+     *     auth_mode: McpAuthMode,
+     *     availability: McpAvailability,
+     *     credential_reference: SecretReference|null,
      *     enabled: bool,
      *     capability_prefix: string,
      * } $row
@@ -175,12 +187,17 @@ final class McpClientToolSource
         $impl = $this->makeRemoteToolImpl(
             client: $this->client,
             url: $row['url'],
-            envVar: $row['auth_header_env_var'],
+            authMode: $row['auth_mode'],
+            availability: $row['availability'],
+            credentialReference: $row['credential_reference'],
+            secretResolverRegistry: $this->secretResolverRegistry,
             remoteName: $descriptor->name,
             description: $description,
             inputSchema: $descriptor->inputSchema,
             capability: $capability,
             logger: $this->logger,
+            health: $this->health,
+            serverAlias: $row['alias'],
         );
 
         $tool = new AgentTool(
@@ -214,26 +231,36 @@ final class McpClientToolSource
     private function makeRemoteToolImpl(
         StreamableHttpMcpClient $client,
         string $url,
-        string $envVar,
+        McpAuthMode $authMode,
+        McpAvailability $availability,
+        ?SecretReference $credentialReference,
+        ?SecretResolverRegistry $secretResolverRegistry,
         string $remoteName,
         string $description,
         array $inputSchema,
         string $capability,
         LoggerInterface $logger,
+        McpIntegrationHealth $health,
+        string $serverAlias,
     ): AbstractAgentTool {
-        return new class ($client, $url, $envVar, $remoteName, $description, $inputSchema, $capability, $logger) extends AbstractAgentTool {
+        return new class ($client, $url, $authMode, $availability, $credentialReference, $secretResolverRegistry, $remoteName, $description, $inputSchema, $capability, $logger, $health, $serverAlias) extends AbstractAgentTool {
             /**
              * @param array<string, mixed> $inputSchema
              */
             public function __construct(
                 private readonly StreamableHttpMcpClient $client,
                 private readonly string $url,
-                private readonly string $envVar,
+                private readonly McpAuthMode $authMode,
+                private readonly McpAvailability $availability,
+                private readonly ?SecretReference $credentialReference,
+                private readonly ?SecretResolverRegistry $secretResolverRegistry,
                 private readonly string $remoteName,
                 private readonly string $description,
                 private readonly array $inputSchema,
                 private readonly string $capability,
                 private readonly LoggerInterface $logger,
+                private readonly McpIntegrationHealth $health,
+                private readonly string $serverAlias,
             ) {}
 
             public function execute(array $arguments, AccountInterface $account): AgentToolResult
@@ -243,23 +270,36 @@ final class McpClientToolSource
                     return $denied;
                 }
 
-                $authHeader = $this->resolveAuth();
-
                 try {
-                    $remote = $this->client->callTool($this->url, $authHeader, $this->remoteName, $arguments);
-                } catch (McpServerUnavailableException $e) {
+                    $remote = $this->callWithAuthentication($arguments);
+                    $this->health->healthy($this->serverAlias);
+                } catch (SecretResolutionException|SecretConsumptionException|McpCredentialUnavailableException) {
+                    $this->recordCallFailure('credential_unavailable');
+
+                    return AgentToolResult::error(
+                        message: '{"error":"mcp_credential_unavailable"}',
+                        summary: 'mcp_credential_unavailable',
+                    );
+                } catch (McpServerUnavailableException) {
+                    $this->recordCallFailure('server_unavailable');
                     $this->logger->warning('Remote MCP tool call failed: server unavailable', [
                         'url' => $this->url,
                         'tool' => $this->remoteName,
-                        'message' => $e->getMessage(),
                     ]);
 
                     return AgentToolResult::error(
-                        message: json_encode(
-                            ['error' => 'mcp_server_unavailable', 'detail' => $e->getMessage()],
-                            JSON_THROW_ON_ERROR,
-                        ),
+                        message: '{"error":"mcp_server_unavailable"}',
                         summary: 'mcp_server_unavailable',
+                    );
+                } catch (McpRemoteErrorException) {
+                    $this->logger->warning('Remote MCP tool call failed: JSON-RPC error', [
+                        'url' => $this->url,
+                        'tool' => $this->remoteName,
+                    ]);
+
+                    return AgentToolResult::error(
+                        message: '{"error":"mcp_remote_error"}',
+                        summary: 'remote_error',
                     );
                 }
 
@@ -304,28 +344,99 @@ final class McpClientToolSource
                 return $out;
             }
 
-            private function resolveAuth(): ?string
+            /** @param array<string, mixed> $arguments */
+            private function callWithAuthentication(array $arguments): McpRemoteToolResult
             {
-                if ($this->envVar === '') {
-                    return null;
+                if ($this->authMode === McpAuthMode::None) {
+                    return $this->client->callTool($this->url, null, $this->remoteName, $arguments);
                 }
-                $value = getenv($this->envVar);
+                if ($this->credentialReference === null || $this->secretResolverRegistry === null) {
+                    throw new McpCredentialUnavailableException();
+                }
 
-                return ($value === false || $value === '') ? null : $value;
+                $outcome = $this->secretResolverRegistry->consume(
+                    $this->credentialReference,
+                    McpClientToolSource::PACKAGE,
+                    new McpCredentialOperation(
+                        fn(#[\SensitiveParameter] string $authorization, string $version): McpCredentialOutcome => McpCredentialOutcome::capture(
+                            fn(): McpRemoteToolResult => $this->client->callTool(
+                                $this->url,
+                                $authorization,
+                                $this->remoteName,
+                                $arguments,
+                            ),
+                            $this->url,
+                        ),
+                    ),
+                );
+
+                return $outcome->unwrap();
+            }
+
+            private function recordCallFailure(string $reason): void
+            {
+                if ($this->availability === McpAvailability::Required) {
+                    $this->health->blocked($this->serverAlias, $reason);
+                } else {
+                    $this->health->degraded($this->serverAlias, $reason);
+                }
             }
         };
     }
 
     /**
-     * @param array{auth_header_env_var: string} $row
+     * @template T
+     * @param array{
+     *     url: string,
+     *     auth_mode: McpAuthMode,
+     *     credential_reference: SecretReference|null,
+     * } $row
+     * @param \Closure(?string): T $operation
+     * @return T
      */
-    private function resolveAuthHeader(array $row): ?string
+    private function withAuthentication(array $row, \Closure $operation): mixed
     {
-        if ($row['auth_header_env_var'] === '') {
-            return null;
+        if ($row['auth_mode'] === McpAuthMode::None) {
+            return $operation(null);
         }
-        $value = getenv($row['auth_header_env_var']);
+        if ($row['credential_reference'] === null || $this->secretResolverRegistry === null) {
+            throw new McpCredentialUnavailableException();
+        }
 
-        return ($value === false || $value === '') ? null : $value;
+        $outcome = $this->secretResolverRegistry->consume(
+            $row['credential_reference'],
+            self::PACKAGE,
+            new McpCredentialOperation(
+                fn(#[\SensitiveParameter] string $authorization, string $version): McpCredentialOutcome => McpCredentialOutcome::capture(
+                    fn(): mixed => $operation($authorization),
+                    $row['url'],
+                ),
+            ),
+        );
+
+        return $outcome->unwrap();
+    }
+
+    /**
+     * @param array{alias: string, availability: McpAvailability} $row
+     */
+    private function handleServerFailure(array $row, \Throwable $exception): void
+    {
+        $reason = $exception instanceof SecretResolutionException
+            || $exception instanceof SecretConsumptionException
+            || $exception instanceof McpCredentialUnavailableException
+                ? 'credential_unavailable'
+                : 'server_unavailable';
+
+        if ($row['availability'] === McpAvailability::Required) {
+            $this->health->blocked($row['alias'], $reason);
+            throw new McpReadinessException($row['alias'], $reason);
+        }
+
+        $this->health->degraded($row['alias'], $reason);
+        $this->logger->warning('Skipping optional MCP server: degraded', [
+            'alias' => $row['alias'],
+            'reason' => $reason,
+        ]);
     }
 }

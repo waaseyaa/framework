@@ -251,10 +251,18 @@ Every `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` exposes a fixed set 
 | `httpDomainRouters(HttpKernel): iterable<DomainRouterInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface` | `HttpKernel::buildDomainRouterChain()` |
 | `withMigrationProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface` | `AbstractKernel::injectMigrationProviders()` |
 | `withAgentToolProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface` | `AbstractKernel::injectAgentToolProviders()` |
+| `applicationMasterRekeyContributions(): iterable<ApplicationMasterRekeyContribution>` | `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface` | `ApplicationMasterRekeyComposition::fromProviders()` during `AbstractKernel` boot |
 
 The `withMigrationProviders` hook lets the kernel hand the discovered migration providers (objects exposing application migrations, found via the Layer-3 `HasMigrationsInterface`) to the provider that owns the migration registry, before that provider's `boot()` resolves the registry. The capability interface lives in Foundation so the kernel guards the call site with a named interface (not a concrete FQCN) while the Layer-3 migration `ServiceProvider` opts in via a downward dependency; the interface param is `list<object>` and the implementation filters to migration providers.
 
 The `withAgentToolProviders` hook is the corresponding application-tool lifecycle. The kernel discovers providers implementing the Layer-5 `ProvidesAgentToolsInterface`, sorts them by provider class for deterministic registration, and supplies them to `AiToolsServiceProvider` before provider boot. The registry invokes each contributor exactly once when its singleton is first constructed. Contributors receive the registry directly and must not resolve it recursively or capture request-scoped state. Duplicate tool names remain hard failures.
+
+The application-master contribution hook runs only for a full runtime boot,
+after every provider has registered and before any provider boot hook executes.
+The kernel composes the complete set against its exact `DatabaseInterface`
+object, freezes purpose and adapter order deterministically, and exposes the
+result only after the whole boot succeeds. Restricted discovery, an install
+with no active consumers, and any failed or in-progress boot expose no registry.
 
 ### ServiceProvider kernel-services bus
 
@@ -277,6 +285,7 @@ public function get(string $abstract): ?object;
 | `Psr\EventDispatcher\EventDispatcherInterface` | The same event dispatcher instance (G-025 / #1940) |
 | `Waaseyaa\Foundation\Event\EventDispatcherInterface` | The same event dispatcher instance, guarded by `instanceof` since the property's declared type doesn't statically guarantee it (G-025 / #1940) |
 | `Waaseyaa\Foundation\Log\LoggerInterface` | The kernel’s logger |
+| `Waaseyaa\Foundation\Security\SecretResolverRegistry` | The one kernel-owned registry used to compose secret providers and exact provider/package/class/purpose/environment policy during provider registration; the kernel freezes it immediately after that registration pass |
 | `\PDO` | The native PDO connection beneath `DBALDatabase` |
 | `Waaseyaa\Access\Gate\GateInterface` | A shared `EntityAccessGate` wrapping the kernel's `EntityAccessHandler` (G-014 / #1940) — memoized per handler instance. Resolves `null` before `AbstractKernel::discoverAccessPolicies()` has run (the handler accessor is not yet available), matching the existing `EntityAccessHandler::class` case's degrade-to-null behaviour. |
 | anything else | The first sibling provider whose `getBindings()` declares the abstract, or `null` |
@@ -478,7 +487,7 @@ interface TagAwareCacheInterface extends CacheBackendInterface
 | Backend | File | Tag-aware | Notes |
 |---------|------|-----------|-------|
 | `MemoryBackend` | `packages/cache/src/Backend/MemoryBackend.php` | Yes | In-memory array; use for tests. Implements `TagAwareCacheInterface`. |
-| `DatabaseBackend` | `packages/cache/src/Backend/DatabaseBackend.php` | Yes | PDO-backed; auto-creates table on first use. `INSERT OR REPLACE`. Tags stored comma-separated. |
+| `DatabaseBackend` | `packages/cache/src/Backend/DatabaseBackend.php` | Yes | PDO-backed; requires migration-owned schema. `INSERT OR REPLACE`. Tags are comma-separated and every read is restricted to the active cache generation. |
 | `NullBackend` | `packages/cache/src/Backend/NullBackend.php` | No | All gets return false; all writes are no-ops. Use for disabled bins. |
 
 ### CacheFactory and CacheConfiguration
@@ -511,6 +520,28 @@ $cache = $factory->get('cache_other');   // returns MemoryBackend
 File: `packages/cache/src/CacheTagsInvalidator.php`
 
 `CacheTagsInvalidator` holds references to all registered cache bins and delegates `invalidateTags()` to those that implement `TagAwareCacheInterface`.
+
+### Application-master cache invalidation
+
+`CacheServiceProvider` contributes the installed cache HMAC purpose through the
+Foundation application-master capability. The DB-02 migration-owned
+`cache_generation` singleton is the bounded invalidation authority: every
+database-cache write records its current generation and every read requires an
+exact match. Forward rekey and rollback each compare-and-swap that one logical
+record to the next monotonic generation. Existing payload rows are neither
+opened nor rewritten, and a later rollback never reactivates an older cache
+generation. Explicit deletion is physical across every generation for the
+selected cache id or bin, so operator cache clears reclaim superseded payload
+rows instead of only hiding them. Runtime cache construction and reads perform
+no DDL.
+
+The database queue contributes its payload HMAC purpose with a fail-closed
+drain strategy. Keyring-composed writers emit the active master version and
+read only declared versions; legacy application-secret envelopes require an
+explicit cutover-only compatibility flag. Forward inventory requires pending
+and failed predecessor payloads to be empty, rollback inventory requires failed
+successor payloads to be empty, and verification repeats those exact database
+checks. The adapter performs no job deletion or payload rewrite.
 
 ### Cache event listeners
 
@@ -1088,7 +1119,7 @@ Per spec §15 Q9, `extra.waaseyaa.migrations` also accepts an **ordered list** o
 
 **SQLite / `down()`:** Additive column migrations may use a no-op `down()` when portable `DROP COLUMN` is not guaranteed; prefer compensating migrations for breaking changes.
 
-**Reference packages:** `waaseyaa/queue`, `waaseyaa/notification`, `waaseyaa/scheduler`, `waaseyaa/ai-observability` register `migrations`; `waaseyaa/oidc` registers its client, token, signing-key, consent, and secret-storage migrations. The secret-storage migration adds keyed lookup columns for access and refresh tokens; existing secret values are converted transactionally by the application-key-aware `oidc:migrate-secrets --confirm` command (#2037).
+**Reference packages:** `waaseyaa/queue`, `waaseyaa/notification`, `waaseyaa/scheduler`, `waaseyaa/ai-observability` register `migrations`; `waaseyaa/oidc` registers its client, token, signing-key, consent, secret-storage, authorization-code, signing-key-lifecycle, and application-master-custody migrations. The secret-storage migration adds keyed lookup columns for access and refresh tokens; existing secret values are converted transactionally by the application-key-aware `oidc:migrate-secrets --confirm` command (#2037). The authorization-code migration (`2026_08_12_000006`) owns the `oidc_authorization_codes` schema formerly installed by request traffic (contract: `docs/specs/api-layer.md`).
 
 ## HTTP Client
 
@@ -1189,7 +1220,7 @@ Immutable value object carrying a single log entry: `level` (LogLevel), `message
 
 File: `packages/foundation/src/Log/LogManager.php`
 
-Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`). `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config)` static factory builds channels from config (two-pass: non-stack handlers first, then stack handlers that reference other channels). `addGlobalProcessor(ProcessorInterface $processor)` allows runtime registration of processors (used by `HttpKernel` to add `RequestContextProcessor` after request resolution).
+Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`) plus an optional kernel-scoped `RedactorProcessor` sink sanitizer. `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config, ?RedactorProcessor $sinkSanitizer = null)` builds channels in two passes and preserves the same mandatory sanitizer even for empty configuration. `addGlobalProcessor(ProcessorInterface $processor)` allows runtime registration of enrichment processors (used by `HttpKernel` to add `RequestContextProcessor` after request resolution); the sink sanitizer always runs after them so later processors cannot reintroduce secret data. The kernel reuses this exact sanitizer instance when configuration rebuilds the manager and when it constructs `SecretResolverRegistry`, so a resolved `SensitiveValue` registers its eligible raw and encoded representations before the resolver returns it. A non-`LogManager` logger injected into the kernel is wrapped as a legacy handler behind this same mandatory sanitizer and is not replaced by configuration; injection therefore cannot create an unsanitized custody registry.
 
 The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, then upgrades it after config loads: if `config['logging']['channels']` exists, uses `LogManager::fromConfig()`; otherwise falls back to `log_level` config with a single `Handler\ErrorLogHandler(minimumLevel: $level)`.
 
@@ -1197,7 +1228,7 @@ The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, th
 
 File: `packages/foundation/src/Log/ChannelLogger.php`
 
-Scoped `LoggerInterface` that stamps a channel name on every `LogRecord`, runs processors (global + per-channel), then delegates to a `HandlerInterface`. Created by `LogManager::channel()`. Constructor: `(string $channel, HandlerInterface $handler, array $processors = [])`. Processor failures are best-effort: caught, logged via `error_log()`, pipeline continues.
+Scoped `LoggerInterface` that stamps a channel name on every `LogRecord`, runs processors (global + per-channel), applies the same mandatory final sink sanitizer as its manager, then delegates to a `HandlerInterface`. Processor failures emit only fixed `LOG_PROCESSOR_FAILURE` fallback text and continue; sanitizer failure emits fixed `LOG_SANITIZER_FAILURE` text and drops the original record.
 
 ### Handler pipeline
 
@@ -1206,7 +1237,7 @@ Scoped `LoggerInterface` that stamps a channel name on every `LogRecord`, runs p
 | `HandlerInterface` | `Log/Handler/HandlerInterface.php` | Contract: `handle(LogRecord $record): void` |
 | `ErrorLogHandler` | `Log/Handler/ErrorLogHandler.php` | Delegates to `error_log()`. Constructor: `(?FormatterInterface $formatter = null, LogLevel $minimumLevel = LogLevel::DEBUG, ?\Closure $writer = null)`. Discards messages below `minimumLevel`. |
 | `FileHandler` | `Log/Handler/FileHandler.php` | Appends formatted record to a file with `LOCK_EX`. Constructor: `(string $path, ?FormatterInterface $formatter = null, LogLevel $minimumLevel = LogLevel::DEBUG)`. |
-| `StackHandler` | `Log/Handler/StackHandler.php` | Fan-out to multiple handlers. Constructor: `(HandlerInterface ...$handlers)`. Best-effort: catches `\Throwable` per handler so one failure doesn't stop others. |
+| `StackHandler` | `Log/Handler/StackHandler.php` | Fan-out to multiple handlers. Constructor: `(HandlerInterface ...$handlers)`. Best-effort: catches `\Throwable` per handler so one failure doesn't stop others and emits only fixed `LOG_HANDLER_FAILURE` fallback text. |
 | `NullHandler` | `Log/Handler/NullHandler.php` | Discards all records — for testing and disabled logging. |
 | `StreamHandler` | `Log/Handler/StreamHandler.php` | Writes to `php://stderr` or any stream resource. Constructor validates resource type; throws `\InvalidArgumentException` on non-resource. |
 | `LegacyLoggerHandler` | `Log/LegacyLoggerHandler.php` | Adapts Phase A `LoggerInterface` implementations to `HandlerInterface`. Internal, used by `LogManager` for backward compatibility. |
@@ -1226,7 +1257,7 @@ Processors enrich `LogRecord` context before handlers receive the record. Execut
 | Interface/Class | File | Purpose |
 |-------|------|---------|
 | `ProcessorInterface` | `Log/Processor/ProcessorInterface.php` | Contract: `process(LogRecord $record): LogRecord`. Must return a new record, not mutate input. |
-| `RedactorProcessor` | `Log/Processor/RedactorProcessor.php` | **Always-on security default** — prepended unconditionally by `LogManager::fromConfig()` before any config-named processors. Redacts context keys whose lowercased name contains any denylist keyword (`password`, `token`, `secret`, `authorization`, `api_key`, `cookie`) and, as a backstop, string values that contain those keywords (e.g. a verbatim `Authorization: Bearer …` header). Applies recursively to nested arrays. Replacement sentinel: `[REDACTED]`. Extra keywords accepted via constructor. Config name `redact` (can also be added explicitly via `processors` config). |
+| `RedactorProcessor` | `Log/Processor/RedactorProcessor.php` | **Mandatory final sink sanitizer** for bare, empty-config, configured, and scoped channel paths. It sanitizes message text plus bounded recursive context keys and values after all enrichment processors; replaces typed `SensitiveValue` objects, Throwable chains, Stringable values, unknown objects/resources, and explicitly registered raw/base64/base64url/URL/JSON-escaped representations; and retains heuristic key/value matching for `password`, `token`, `secret`, `authorization`, `api_key`, `cookie`, `credential`, `private_key`, and `passphrase` as defense in depth. All live representation lists are globally longest-first before replacement, so overlapping values cannot leak a suffix based on resolution order. Resolved-value representations are held in a nested WeakMap keyed by the sanitizer and live `SensitiveValue`, so high-churn versions retire with their custody holder. Replacement sentinel: `[REDACTED]`. Config name `redact` remains available as an earlier explicit processor, but cannot replace or bypass the final sanitizer. |
 | `RequestIdProcessor` | `Log/Processor/RequestIdProcessor.php` | Adds `request_id` (UUID hex) to context. Same ID for all records within a single processor instance. |
 | `HostnameProcessor` | `Log/Processor/HostnameProcessor.php` | Adds `hostname` to context. Defaults to `gethostname()`. |
 | `MemoryUsageProcessor` | `Log/Processor/MemoryUsageProcessor.php` | Adds `memory_peak_mb` (float) to context. |
@@ -1861,6 +1892,179 @@ The legacy concrete `FailedJobRepository` class (a thin facade delegating to `In
 
 `CreateQueueTables` (`packages/queue/src/Migration/CreateQueueTables.php`) and timestamped migrations under `packages/queue/migrations/` (registered via `extra.waaseyaa.migrations` in `packages/queue/composer.json`) create **`waaseyaa_queue_jobs`** and **`waaseyaa_failed_jobs`**. Older docs may refer to unprefixed names; the DDL above is authoritative.
 
+## Versioned application-master custody
+
+`ApplicationMasterKeyring` is the successor-facing Layer-0 custody boundary for
+application-master rotation. It holds one monotonically versioned active-write
+reference and a bounded map of lower, explicitly declared legacy read/verify
+references. All references must use secret class `application-master` and the
+versioned resolver purpose `waaseyaa.application.master.v1`. Key material is
+resolved only at a guarded cryptographic operation boundary; the keyring,
+handles, diagnostics, exceptions, serialization, and clone surfaces expose no
+master bytes or provider identifiers.
+The resolver must already be frozen when the keyring is constructed. Legacy
+handles are read-only and cannot invoke the seal consumer. Each cryptographic
+operation resolves its selected reference afresh; framework custody deliberately
+does not retain master bytes between operations. A provider may apply its own
+policy-governed cache behind the reference boundary, but it must never replace
+the bytes of an existing application-master reference in place. Rotation creates
+a new immutable reference and monotonically higher keyring version; the
+provider-returned version token is diagnostic metadata, not an envelope key ID.
+
+`ApplicationMasterPurposeRegistry` is assembled before use and then frozen. A
+purpose policy declares a stable purpose identifier, owning package, transition
+strategy, bounded maximum lifetime and retention, inventory adapter identity,
+and rollback behavior. Its checksum is computed from a canonical purpose-sorted
+projection. Duplicate, conflicting, syntactically valid but unregistered, or
+post-freeze registrations fail closed. The closed strategy vocabulary is:
+`reencrypt-ciphertext`, `recompute-lookup-index`,
+`retain-historic-verifier`, `invalidate-rebuildable`, `drain-or-expire`, and
+`ephemeral-no-persistence`.
+
+New encrypted writes use only the active master version. Persisted ciphertext
+uses `ApplicationMasterEnvelope` format
+`waaseyaa.application-master.envelope.v1`; XChaCha20-Poly1305 authenticates the
+format, exact master version, registered purpose, record identity, and schema
+version as associated data. A purpose-and-master-version-specific 32-byte key is
+derived from the selected master with HKDF-SHA-256 and a public
+domain-separation salt. Reads
+select exactly the version declared by the envelope and never probe arbitrary
+keys or fall back to the active version. Unknown versions, unknown purposes,
+non-canonical encodings, malformed envelopes, and authentication failures are
+refused before unrelated references are resolved. Invalid caller-supplied seal
+metadata is validated before the active reference is resolved. Authenticated
+decryption failures retain the stable non-secret
+`SECRET_CONSUMER_AUTHENTICATION_FAILED` reason instead of collapsing into a
+generic consumer failure.
+
+Non-ciphertext purposes use strict
+`waaseyaa.application-master.authentication.v1` tags carrying only the exact
+master version, registered purpose, and canonical SHA-256 HMAC output. Creating
+a write tag always uses the active version. Verification selects only the tag's
+declared readable version. Lookup-index purposes may compute one candidate per
+declared readable version so rows remain retrievable during transition; that
+legacy operation does not grant predecessor write authority. Authentication,
+verification, and lookup operations derive and erase their purpose/version key
+inside the guarded consumer and never export it. Ciphertext purposes refuse the
+authentication surface, and non-lookup purposes refuse multi-version lookup
+candidates before resolving external custody.
+
+This core cryptographic boundary does not itself claim the rekey transition is
+complete. Purpose inventory adapters, joint row transitions, persisted registry
+state, immutable ledger/cursors, resumable compare-and-swap batches,
+worker/cache reconciliation, retained-backup compatibility, and predecessor
+revocation gates remain required. Their tables arrive only through DB-02
+versioned migrations; runtime constructors and read-only audits perform zero
+DDL. Framework code never generates or replaces an operational master, and
+external custody remains responsible for provisioning and eventual destruction.
+
+The persistence model separates append-only evidence from mutable coordination
+projections. `waaseyaa_application_master_rekey_event` is a per-request,
+sequence-unique SHA-256 hash chain; database triggers refuse update and delete.
+`waaseyaa_application_master_rekey` stores the immutable request tuple and a CAS
+revision for its current state. Purpose-policy snapshots are canonical rows bound
+to the request's registry checksum. Non-secret master-version rows retain only
+version, state, reference fingerprint, and lifecycle timestamps. Adapter progress,
+per-purpose verification, and revocation-gate evidence use request-scoped
+composite keys. No table stores master or derived-key bytes, plaintext, complete
+ciphertext, tokens, or raw authorization material.
+
+The persisted state vocabulary follows the authorized sequence exactly:
+`prepare-and-authorize`, `install-new-active-with-old-legacy-read-verify`,
+`enumerate-snapshot`, `transition-bounded-batches`, `verify-every-purpose`,
+`reconcile-writers-and-workers`,
+`hold-and-optionally-execute-rollback-window`,
+`prove-backup-retention-or-restore-compatibility`, and
+`revoke-old-in-ledger`. Forward-only `rolling-back` and `rolled-back` states may
+record an exercised rollback; failures append evidence and block advancement but
+do not erase a resumable state or cursor.
+The canonical writer/worker and cache reconciliation gates move the request into
+the still-open rollback-window state. Recording `rollback-window-closed` moves it
+forward to backup-retention proof; it never opens a window that its own evidence
+declares closed.
+An authorized rollback starts only from that open state, at a non-backdated time
+no later than the immutable rollback deadline, after complete adapter and purpose
+verification and with no unresolved failure. One transaction records the forward
+`rolling-back` event, returns active writes to the predecessor, and changes the
+failed successor to `failed-read-only`. The successor remains readable, recorded,
+and non-reusable; neither framework rollback nor its evidence claims external key
+destruction.
+The matching explicit rollback keyring topology makes the predecessor the only
+active seal/authentication version, retains any lower declared legacy readers,
+and permits exactly one higher failed successor for open, verification, and
+lookup only. Ordinary monotonic construction continues to reject higher
+read-only versions; rollback composition must bind this exceptional topology to
+the persisted `rolling-back` request and version ledger.
+
+Each inventoried adapter may have at most one open failure at its exact durable
+cursor. Recording a failure compare-and-swaps both adapter and request failure
+counts, advances both revisions without changing the resumable state/cursor, and
+appends only a stable failure code plus non-secret evidence hash. Resolution
+requires the exact request revision, adapter revision, open cursor, and a new
+resolution hash; it closes the mutable failure projection and appends immutable
+resolution evidence before retry is permitted. Exception text, tokens,
+ciphertext, plaintext, and key material are never persisted as failure evidence.
+Restart reconstructs the block from database projections rather than process
+memory. The coordinator translates transition and verification callback
+exceptions into stable operation-specific codes and a SHA-256 commitment over
+only request digest, adapter, cursor, operation, and exception class; callback
+messages are discarded. Owner effects roll back before this separate failure
+transaction commits. Snapshot callback failures use the same non-secret
+commitment before an adapter projection exists, increment only the request
+failure count, and block inventory retry until exact resolution evidence closes
+the open failure. A successful retry then creates the adapter projection once.
+
+One adapter owns every purpose that shares a storage row. Its immutable snapshot
+binds adapter id, sorted purpose ids, inventory token, and total. Each bounded
+batch commits the owner's joint row CAS effects and the expected prior cursor,
+next cursor, per-purpose counts, and batch commitment in one database
+transaction. A stale cursor or projection revision rolls the transaction back;
+retry begins from the durable cursor. Adapter completion does not imply purpose
+verification: every purpose separately records a count and verification hash.
+Composition requires each adapter to expose the exact `DatabaseInterface` object
+owned by the rekey store; parameter-derived physical-database identities are not
+sufficient because distinct connections can share them. Every owner read and CAS
+effect uses the same object supplied through `ApplicationMasterRekeyContext`
+inside the store transaction.
+
+Rollback re-inventories successor-version rows only after the persisted writer
+switch. Every adapter has a separate immutable rollback snapshot, cursor, count
+map, status, and SHA-256 batch chain; forward transition evidence is never
+overwritten. Reverse owner CAS effects and rollback cursor evidence commit in one
+transaction on the exact database authority, and restart resumes from that
+cursor without replay. Callback failures roll owner effects back, retain only a
+stable code and non-secret commitment at the rollback cursor, and require exact
+resolution evidence. An adapter becomes rollback-complete only after immutable
+per-purpose verification matches its durable rollback counts. The request enters
+`rolled-back` only when every composed owner is complete and verified, the
+predecessor remains active, the successor remains failed-read-only, and a final
+non-secret completion hash extends the event chain.
+
+Executable adapters implement one Foundation contract and expose the exact
+`DatabaseInterface` object owned by the rekey store. Composition refuses a
+distinct object before inventory or mutation even when both connections report
+the same physical database identity. Snapshot is
+read-only. A transition callback executes *inside* the store's database
+transaction after expected request/adapter revisions and cursor are checked; it
+returns the next cursor, row count, exact per-purpose deltas, and commitment.
+The store validates that result before committing both owner CAS effects and
+cursor evidence. A malformed result, owner CAS conflict, or ledger write failure
+rolls the whole batch back. Verification is likewise owner-supplied but is
+persisted separately for every purpose. Restart reconstructs context from the
+immutable request, registry snapshot, adapter snapshot, and durable cursor; no
+completed external effect is inferred from an in-memory coordinator object.
+
+Predecessor revocation additionally requires exact evidence for four closed
+gates: `writers-and-workers-reconciled`, `caches-reconciled`,
+`rollback-window-closed`, and `retained-backups-compatible-or-expired`. Missing
+or failed purpose verification, adapter failure, cursor incompleteness, or a
+missing gate refuses revocation. Revocation changes only the framework ledger
+and future-use policy; it does not claim external key destruction.
+
+`ApplicationSecret` remains a compatibility adapter while existing consumers
+move to the versioned keyring. Its unversioned bootstrap behavior is not evidence
+of rotation safety and must not be copied into new persisted-purpose consumers.
+
 ## Kernel Bootstrap
 
 ### API-catalog provider composition
@@ -1922,6 +2126,7 @@ EnvLoader::load(.env)
   → ConfigLoader::load(config/waaseyaa.php)
   → rebuild LogManager (fromConfig if logging.channels exists, else log_level fallback)
   → debug/environment safety guard
+  → construct one SecretResolverRegistry over the same final sink sanitizer
   → resolve WAASEYAA_APP_SECRET into kernel-owned ApplicationSecret (before database IO)
   → new EventDispatcher()
   → new EntityTypeLifecycleManager($projectRoot)
@@ -1931,7 +2136,8 @@ EnvLoader::load(.env)
   → bootEntityTypeManager()  // delegates to EntityTypeManagerFactory: repository factory (EntityRepository, sole engine post-C-22) — no storage factory is wired
   → compileManifest()        // ManifestBootstrapper
   → bootMigrations()         // reuses DBAL connection from bootDatabase
-  → discoverAndRegisterProviders()  // ProviderRegistry
+  → discoverAndRegisterProviders()  // providers may register exact secret provider/policy declarations
+  → freeze SecretResolverRegistry   // all later provider/class/purpose/environment mutations refuse
   → loadAppEntityTypes()     // reads config/entity-types.php
   → validateContentTypes()   // DiagnosticEmitter check
   → bootProviders()          // calls boot() on all registered providers
@@ -1978,7 +2184,7 @@ These variables and config keys are the primary **bootstrap surface** for operat
 
 **Review note (assert / IO):** Layer 0 code may use `assert()` for internal invariants and file/stream helpers for logging, caches, or HTTP clients. Production should assume `zend.assertions` may be off; hot paths must not rely on assertions for security. When adding `file_put_contents`, `fopen`, `unserialize`, or `base64_decode` in Layer 0 packages, document the trust boundary (operator-only paths vs request-derived input) in package-level docblocks or this spec.
 
-**Stored-payload `unserialize()` trust boundary (D-12):** Three Layer-0 stores deserialize object graphs — `Worker::processJob()` (`packages/queue/src/Worker/Worker.php`), `DatabaseBackend::mapRowToItem()` (`packages/cache`), and `SqlState::get()/getMultiple()` (`packages/state`). This is **intentional and cannot be tightened to `allowed_classes => false`**: queue messages are open-ended objects and cache/state values are `mixed`; a static allowlist would reject legitimate consumer classes. Every persistent payload is authenticated before `unserialize()`: cache uses `waaseyaa.cache.payload-hmac.v1`, queue and failed-job retry use `waaseyaa.queue.payload-hmac.v1`, and SQL state uses `waaseyaa.state.payload-hmac.v1`. Each HMAC-SHA-256 key is derived independently from `WAASEYAA_APP_SECRET`; versioned envelopes parse strictly and compare MACs with `hash_equals()`. Persistent queue/state readers accept authenticated envelopes only.
+**Stored-payload `unserialize()` trust boundary (D-12):** Three Layer-0 stores deserialize object graphs — `Worker::processJob()` (`packages/queue/src/Worker/Worker.php`), `DatabaseBackend::mapRowToItem()` (`packages/cache`), and `SqlState::get()/getMultiple()` (`packages/state`). This is **intentional and cannot be tightened to `allowed_classes => false`**: queue messages are open-ended objects and cache/state values are `mixed`; a static allowlist would reject legitimate consumer classes. Every persistent payload is authenticated before `unserialize()`: cache uses `waaseyaa.cache.payload-hmac.v1`, queue and failed-job retry use `waaseyaa.queue.payload-hmac.v1`, and SQL state uses the caller-owned 32-byte HMAC key supplied to `SqlState`. Cache and queue keys are application-master purpose owners; the state package deliberately declares no built-in purpose because no production provider composes `SqlState`. An application that persists SQL state must own and document that key lifecycle explicitly. All three versioned envelopes parse strictly and compare MACs with `hash_equals()`; persistent queue/state readers accept authenticated envelopes only.
 
 ### DatabaseBootstrapper
 

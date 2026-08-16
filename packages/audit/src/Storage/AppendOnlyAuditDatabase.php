@@ -77,6 +77,8 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
     private const APPEND_ONLY_TABLES = [
         'audit_event',
         'audit_checkpoint',
+        'audit_checkpoint_succession',
+        'audit_checkpoint_succession_pruned',
         'privileged_read_ledger',
         // The strict reserve/finalize ledger (#2177 F4). Append-only for the
         // same reason as the others: a reservation that could be updated or

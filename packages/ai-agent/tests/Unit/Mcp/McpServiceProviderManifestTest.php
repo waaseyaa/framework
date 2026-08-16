@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\AI\Agent\Mcp\McpCapabilitiesSource;
+use Waaseyaa\AI\Agent\Mcp\McpReadinessException;
 use Waaseyaa\AI\Agent\Mcp\McpServiceProvider;
 use Waaseyaa\AI\Tools\AiToolsServiceProvider;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
@@ -104,6 +105,48 @@ final class McpServiceProviderManifestTest extends TestCase
         self::assertInstanceOf(AiToolsServiceProvider::class, $toolsProvider);
         $tools = $toolsProvider->resolve(ToolRegistryInterface::class);
         self::assertTrue($tools->has('stub.echo'));
+    }
+
+    #[Test]
+    public function requiredCredentialFailurePropagatesThroughProviderBoot(): void
+    {
+        $storage = new InMemoryConfigStorage();
+        $storage->write(McpServersConfig::CONFIG_NAME, [
+            McpServersConfig::ITEMS_KEY => [[
+                'alias' => 'required-stub',
+                'url' => 'https://stub.invalid/mcp',
+                'auth_mode' => 'secret-reference',
+                'availability' => 'required',
+                'credential_reference' => [
+                    'provider' => 'unavailable-vault',
+                    'identifier' => 'tenant/stub/mcp-authorization',
+                    'secret_class' => 'integration-credential',
+                    'purpose' => McpServersConfig::AUTHORIZATION_PURPOSE,
+                ],
+                'enabled' => true,
+                'capability_prefix' => 'tool.mcp.required-stub',
+            ]],
+        ]);
+        McpHostServicesProvider::$http = new StubMcpServerHttpClient();
+        McpHostServicesProvider::$storage = $storage;
+
+        $dispatcher = new EventDispatcher();
+        $registry = new ProviderRegistry(new NullLogger());
+        $providers = $registry->discoverAndRegister(
+            manifest: new PackageManifest(providers: [
+                McpServiceProvider::class,
+                AiToolsServiceProvider::class,
+                McpHostServicesProvider::class,
+            ]),
+            projectRoot: dirname(__DIR__, 5),
+            config: [],
+            entityTypeManager: new EntityTypeManager($dispatcher),
+            database: DBALDatabase::createSqlite(':memory:'),
+            dispatcher: $dispatcher,
+        );
+
+        $this->expectException(McpReadinessException::class);
+        $registry->boot($providers);
     }
 }
 

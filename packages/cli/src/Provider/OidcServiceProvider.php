@@ -7,8 +7,9 @@ namespace Waaseyaa\CLI\Provider;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Command\Oidc\EmergencyRevokeSigningKeyCommand;
 use Waaseyaa\CLI\Command\Oidc\MigrateSecretsCommand;
-use Waaseyaa\CLI\Command\Oidc\RotateSigningKeyCommand;
+use Waaseyaa\CLI\Command\Oidc\SigningKeyLifecycleCommand;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -25,16 +26,92 @@ final class OidcServiceProvider extends ServiceProvider implements ProvidesConso
 {
     public function register(): void
     {
-        // RotateSigningKeyCommand is resolved from the container at dispatch time.
-        // OidcServiceProvider (waaseyaa/oidc) registers SigningKeyRepository.
+        // Handlers are resolved from the container at dispatch time.
     }
 
     public function consoleCommands(): iterable
     {
         yield new HandlerCommand(
-            name: 'oidc:rotate-signing-key',
-            description: 'Generate a new RS256 signing keypair and rotate out the current key (WP04).',
-            handler: [RotateSigningKeyCommand::class, 'execute'],
+            name: 'oidc:init-signing-key',
+            description: 'Explicitly initialize an empty OIDC signing-key lifecycle.',
+            handler: [SigningKeyLifecycleCommand::class, 'initialize'],
+            options: [$this->confirmOption()],
+        );
+        yield new HandlerCommand(
+            name: 'oidc:stage-signing-key',
+            description: 'Publish one verify-only signing-key successor.',
+            handler: [SigningKeyLifecycleCommand::class, 'stage'],
+            options: [$this->confirmOption()],
+        );
+        yield new HandlerCommand(
+            name: 'oidc:record-signing-key-propagation',
+            description: 'Attach observable propagation evidence to a staged successor.',
+            handler: [SigningKeyLifecycleCommand::class, 'recordPropagation'],
+            options: [
+                new HandlerOption(
+                    name: 'kid',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Staged signing-key id.',
+                ),
+                new HandlerOption(
+                    name: 'evidence-hash',
+                    mode: HandlerOptionMode::Required,
+                    description: 'SHA-256 of non-secret propagation evidence.',
+                ),
+                $this->confirmOption(),
+            ],
+        );
+        yield new HandlerCommand(
+            name: 'oidc:activate-signing-key',
+            description: 'Activate an evidenced successor after its effective JWKS cache horizon.',
+            handler: [SigningKeyLifecycleCommand::class, 'activate'],
+            options: [
+                new HandlerOption(
+                    name: 'kid',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Staged signing-key id.',
+                ),
+                new HandlerOption(
+                    name: 'expected-active-version',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Current active version fence.',
+                ),
+                $this->confirmOption(),
+            ],
+        );
+        yield new HandlerCommand(
+            name: 'oidc:cleanup-signing-keys',
+            description: 'Remove only policy-expired retired verification keys.',
+            handler: [SigningKeyLifecycleCommand::class, 'cleanup'],
+            options: [$this->confirmOption()],
+        );
+        yield new HandlerCommand(
+            name: 'oidc:emergency-revoke-signing-key',
+            description: 'Revoke compromised signing trust and enumerate affected tokens.',
+            handler: [EmergencyRevokeSigningKeyCommand::class, 'execute'],
+            options: [
+                new HandlerOption(
+                    name: 'request-id',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Unique idempotency identity for this compromise response.',
+                ),
+                new HandlerOption(
+                    name: 'kid',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Compromised signing-key id.',
+                ),
+                new HandlerOption(
+                    name: 'actor',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Non-secret operator identity.',
+                ),
+                new HandlerOption(
+                    name: 'reason',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Non-secret compromise reason.',
+                ),
+                $this->confirmOption(),
+            ],
         );
         yield new HandlerCommand(
             name: 'oidc:migrate-secrets',
@@ -47,6 +124,15 @@ final class OidcServiceProvider extends ServiceProvider implements ProvidesConso
                     description: 'Confirm the bounded in-place custody migration.',
                 ),
             ],
+        );
+    }
+
+    private function confirmOption(): HandlerOption
+    {
+        return new HandlerOption(
+            name: 'confirm',
+            mode: HandlerOptionMode::None,
+            description: 'Confirm the bounded signing-key lifecycle mutation.',
         );
     }
 }

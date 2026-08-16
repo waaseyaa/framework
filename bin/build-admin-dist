@@ -9,20 +9,23 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SIGNATURE="$(php "$ROOT/bin/check-admin-dist-fresh" --print)"
-BUILD_ID="waaseyaa-${SIGNATURE:0:32}"
+BUILD_ID_SIGNATURE="$(php "$ROOT/bin/check-admin-dist-fresh" --print-build-id)"
+BUILD_ID="waaseyaa-${BUILD_ID_SIGNATURE:0:32}"
 
-echo "==> Installing admin SPA dependencies (npm ci)"
-( cd "$ROOT/packages/admin" && npm ci )
-
-echo "==> Generating static Nuxt SPA"
-( cd "$ROOT/packages/admin" && WAASEYAA_ADMIN_BUILD_ID="$BUILD_ID" npm run generate )
+echo "==> Installing and generating the static Nuxt SPA in a hermetic child"
+WAASEYAA_ADMIN_BUILD_ID="$BUILD_ID" \
+WAASEYAA_ADMIN_BUILD_ALLOW_PUBLIC_REGISTRY=1 \
+php "$ROOT/bin/run-hermetic-admin-build"
 
 echo "==> Normalizing volatile Nuxt metadata"
-php "$ROOT/bin/normalize-admin-dist" "$ROOT/packages/admin/.output/public" "$SIGNATURE"
+php "$ROOT/bin/normalize-admin-dist" "$ROOT/packages/admin/.output/public" "$BUILD_ID_SIGNATURE"
 
 echo "==> Copying build output to packages/admin-surface/dist"
 rm -rf "$ROOT/packages/admin-surface/dist"
 cp -r "$ROOT/packages/admin/.output/public" "$ROOT/packages/admin-surface/dist"
+
+echo "==> Scanning final publishable and ignored build artifacts"
+php "$ROOT/bin/run-hermetic-admin-build" --scan-only
 
 echo "==> Writing admin dist freshness signature"
 php "$ROOT/bin/check-admin-dist-fresh" --write
