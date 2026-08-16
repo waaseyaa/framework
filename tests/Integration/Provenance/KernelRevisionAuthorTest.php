@@ -197,7 +197,7 @@ final class KernelRevisionAuthorTest extends TestCase
             {
                 parent::__construct($projectRoot, $logger);
                 // DatabaseBootstrapper reads `config.database` as a path string.
-                $this->config = ['database' => ':memory:'];
+                $this->config = ['database' => ':memory:', 'environment' => 'testing'];
                 // boot() seeds the dispatcher before bootDatabase() /
                 // bootEntityTypeManager() consume it.
                 $this->dispatcher = new SymfonyEventDispatcherAdapter();
