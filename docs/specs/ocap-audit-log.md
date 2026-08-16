@@ -11,6 +11,19 @@ against prefix-neighbour subjects. -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds the StrictPrivilegedReadLedgerInterface reservation/finalization contract and metadata-only descriptor/receipt/outcome values. It is separate from and does not alter the existing best-effort AuditWriterInterface; no implementation is wired in WP1. Canonical contract: entity-field-read-boundary.md. -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 adds durable strict privileged-read persistence as immutable reservation/finalization events, atomic single-finalization, explicit interrupted reservations, exact multi-field/bootstrap and dormant query readers, and complete classifications for every flat audit table column. This remains separate from best-effort AuditWriterInterface telemetry. -->
 
+### Strict privileged-read durability under SQLite contention
+
+`DatabaseStrictPrivilegedReadLedger` makes every single reservation, batch
+reservation, and batch finalization durable inside an explicit database
+transaction. A transient SQLite `BUSY` or `LOCKED` failure may be retried at
+most twice, with bounded 10 ms then 20 ms backoff, only when no transaction was
+opened or the failed transaction was successfully rolled back. Receipt
+identities are allocated before the attempt loop and remain stable across a
+retry. Logic/contract failures are never retried or wrapped; non-contention
+storage failures and any failure whose rollback cannot be proven surface as
+`PrivilegedReadLedgerException` immediately. This preserves fail-closed audit
+authority without treating an ambiguous commit as safe to replay.
+
 **Package:** `waaseyaa/audit` (L1 — Core Data)
 **Mission:** `ocap-audit-log-substrate-01KSEFTF`
 **Requirement refs:** FR-001–FR-015, NFR-001–NFR-005, C-001–C-005, DIR-004

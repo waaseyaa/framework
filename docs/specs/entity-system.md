@@ -1,5 +1,7 @@
 # Entity System
 
+<!-- Spec reviewed 2026-08-16 - S1-FW-DB-03: every persisted existing aggregate carries an opaque, tenant/type/id-bound EntityMutationToken. EntityRepository claims that token transactionally for saves, deletes, batches, revision-pointer moves, rollback, pruning, and translation writes; stale, missing, or transplanted authority fails closed without disclosing the successor token. Supported HTTP, GraphQL, AI, workflow, publishing, and Admin mutation surfaces must propagate the observed token. New aggregates establish authority during creation, while the audited backfill path exists only for legacy rows. Canonical contract and scheduler fencing companion: s1-concurrency-fencing.md. -->
+
 <!-- Spec reviewed 2026-08-09 - issue #2322: two-axis translation peer writes use the optional LangcodePeerStorageDriverV2Interface rather than repository-owned raw SQL. Scoped drivers require a visible canonical base owner, stamp that community_id onto new peers, and refuse foreign or legacy-empty exact peers before events or writes. CommunityTranslationPeerRepairer and tenancy:repair-translation-peers provide an explicit, UUID-guarded repair for existing empty-owner peers. -->
 <!-- Spec reviewed 2026-08-09 - issue #2320: the kernel passes one per-type CommunityScope to both base and revision drivers. Revision visibility and mutation authorization are anchored to the indexed base-table community_id; foreign revision payloads, histories, working copies, translation histories, and in-process pointers remain invisible, and foreign mutations fail before events or writes. Revision tables intentionally do not duplicate community_id. -->
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: community-scoped writes stamp the active community and refuse conflicting values in both storage drivers; SQL_BLOB types retain an indexed physical community discriminator. Framework field and agent providers now construct entity types from class attributes, and classification entities/migrations align bundle, language, and blob columns with the canonical schema contract. -->
@@ -1558,6 +1560,16 @@ sync bundle as runtime state, or select a second store. `optimize:config`
 consumes that same context and emits generation-bound rebuildable derived state.
 Production-equivalent environments refuse capability publication when the
 active generation is absent.
+
+**Transactional activation:** Production writes through
+`ConfigurationActivatorInterface`, which stages a complete immutable successor
+generation and compares both the content generation ID and monotonic activation
+sequence before commit. `ConfigurationActivationResult` exposes the committed
+token and a value-free evidence hash for idempotent retry correlation. Legacy
+editable `StorageInterface` callers are adapted to the same whole-generation
+CAS; omission retains an entry and deletion requires a hash-bound tombstone.
+After commit, cached immutable config reads are invalidated by the runtime epoch
+rather than switching to a second active store.
 
 <!-- Spec reviewed 2026-08-12 - S1-FW-CFG-01 typed authority supersedes the former config/active FileStorage binding. -->
 

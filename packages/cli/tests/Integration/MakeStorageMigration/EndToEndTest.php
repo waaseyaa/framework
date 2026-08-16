@@ -304,6 +304,14 @@ final class EndToEndTest extends TestCase
         $tester->execute(['existing_entity']);
         self::assertSame(0, $tester->getExitCode());
 
+        // Make the existing migration unambiguously older than this run. The
+        // duplicate identity must not depend on both invocations landing in
+        // the same wall-clock second.
+        $generated = glob($this->tempDir . '/migrations/*_storage_migration_existing_entity_to_sql-column.php') ?: [];
+        self::assertCount(1, $generated);
+        $olderPath = $this->tempDir . '/migrations/20000101_000000_storage_migration_existing_entity_to_sql-column.php';
+        self::assertTrue(rename($generated[0], $olderPath));
+
         // Second run without --force — should exit 3.
         $tester2 = $this->createTesterFor($handler);
         $tester2->execute(['existing_entity']);
@@ -315,6 +323,8 @@ final class EndToEndTest extends TestCase
         $tester3 = $this->createTesterFor($handler);
         $tester3->execute(['existing_entity', '--force']);
         self::assertSame(0, $tester3->getExitCode());
+        self::assertFileExists($olderPath);
+        self::assertCount(1, glob($this->tempDir . '/migrations/*.php') ?: []);
     }
 
     // -------------------------------------------------------------------------

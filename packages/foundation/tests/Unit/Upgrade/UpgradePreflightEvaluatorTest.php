@@ -96,6 +96,20 @@ final class UpgradePreflightEvaluatorTest extends TestCase
             ['OBSERVATION_TYPE_INVALID'],
             $evaluator->evaluate($contract, $invalidType)->reasonCodes,
         );
+
+        $unknownNestedKey = $observation;
+        $unknownNestedKey['schema']['unknown'] = true;
+        self::assertSame(
+            ['OBSERVATION_UNKNOWN_KEY'],
+            $evaluator->evaluate($contract, $unknownNestedKey)->reasonCodes,
+        );
+
+        $missingNestedKey = $observation;
+        unset($missingNestedKey['schema']['pending_plan']);
+        self::assertSame(
+            ['OBSERVATION_MISSING_KEY'],
+            $evaluator->evaluate($contract, $missingNestedKey)->reasonCodes,
+        );
     }
 
     /** @return array<string, mixed> */

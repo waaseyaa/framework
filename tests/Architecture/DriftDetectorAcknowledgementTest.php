@@ -91,6 +91,28 @@ final class DriftDetectorAcknowledgementTest extends TestCase
     }
 
     #[Test]
+    public function oidc_source_is_coupled_to_the_api_layer_spec(): void
+    {
+        mkdir($this->fixtureRoot . '/packages/oidc/src', 0o777, true);
+        file_put_contents($this->fixtureRoot . '/packages/oidc/src/Repository.php', "<?php\nfinal class Repository {}\n");
+        file_put_contents($this->fixtureRoot . '/docs/specs/api-layer.md', "# API layer\n");
+        $this->executeCommand('git add .');
+        $this->executeCommand("git commit --quiet -m 'test: add OIDC baseline'");
+        file_put_contents(
+            $this->fixtureRoot . '/packages/oidc/src/Repository.php',
+            "<?php\nfinal class Repository { public const CHANGED = true; }\n",
+        );
+        $this->executeCommand('git add packages/oidc/src/Repository.php');
+        $this->executeCommand("git commit --quiet -m 'feat: change OIDC contract'");
+
+        [$exitCode, $output] = $this->executeCommand('bash tools/drift-detector.sh HEAD~1', allowFailure: true);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('STALE: docs/specs/api-layer.md', $output);
+        self::assertStringNotContainsString('not mapped to any spec', $output);
+    }
+
+    #[Test]
     public function admin_surface_source_is_coupled_to_the_admin_spa_spec(): void
     {
         mkdir($this->fixtureRoot . '/packages/admin-surface/src', 0o777, true);
@@ -109,28 +131,6 @@ final class DriftDetectorAcknowledgementTest extends TestCase
 
         self::assertSame(1, $exitCode, $output);
         self::assertStringContainsString('STALE: docs/specs/admin-spa.md', $output);
-        self::assertStringNotContainsString('not mapped to any spec', $output);
-    }
-
-    #[Test]
-    public function oidc_source_is_coupled_to_the_api_layer_spec(): void
-    {
-        mkdir($this->fixtureRoot . '/packages/oidc/src', 0o777, true);
-        file_put_contents($this->fixtureRoot . '/packages/oidc/src/JwksController.php', "<?php\nfinal class JwksController {}\n");
-        file_put_contents($this->fixtureRoot . '/docs/specs/api-layer.md', "# API Layer\n");
-        $this->executeCommand('git add .');
-        $this->executeCommand("git commit --quiet -m 'test: add oidc baseline'");
-        file_put_contents(
-            $this->fixtureRoot . '/packages/oidc/src/JwksController.php',
-            "<?php\nfinal class JwksController { public const CHANGED = true; }\n",
-        );
-        $this->executeCommand('git add packages/oidc/src/JwksController.php');
-        $this->executeCommand("git commit --quiet -m 'feat: change oidc contract'");
-
-        [$exitCode, $output] = $this->executeCommand('bash tools/drift-detector.sh HEAD~1', allowFailure: true);
-
-        self::assertSame(1, $exitCode, $output);
-        self::assertStringContainsString('STALE: docs/specs/api-layer.md', $output);
         self::assertStringNotContainsString('not mapped to any spec', $output);
     }
 

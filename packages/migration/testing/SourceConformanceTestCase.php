@@ -226,6 +226,9 @@ abstract class SourceConformanceTestCase extends TestCase
     public function c5_streaming_memory_bound_for_large_fixture(): void
     {
         \gc_collect_cycles();
+        // Peak usage is process-wide. Reset it so randomized predecessors do
+        // not get charged to this plugin's streaming-memory delta.
+        \memory_reset_peak_usage();
         $baseline = \memory_get_usage(true);
 
         $plugin = $this->buildPluginUnderTestForLargeFixture();
