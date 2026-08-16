@@ -14,6 +14,7 @@ declare(strict_types=1);
 $allowlist = [
     'foundation' => ['local' => 'packages/foundation', 'remote' => 'foundation'],
     'database-legacy' => ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
+    'config' => ['local' => 'packages/config', 'remote' => 'config'],
     'access' => ['local' => 'packages/access', 'remote' => 'access'],
     'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
     'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
