@@ -95,7 +95,7 @@ export interface AdminSurfaceCatalogEntry {
 
 export interface AdminSurfaceReferenceMetadata {
   labelField: string
-  search: { field: string; operator: 'STARTS_WITH' } | null
+  search: { field: string; operator: 'STARTS_WITH' | 'CONTAINS' } | null
   sort: { field: string; direction: 'ASC' } | null
 }
 

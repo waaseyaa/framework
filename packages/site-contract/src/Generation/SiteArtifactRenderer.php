@@ -12,9 +12,39 @@ use Waaseyaa\SiteContract\SiteManifestSchema;
 /** @api */
 final class SiteArtifactRenderer
 {
+    /** @var array<string, SiteRecipeRendererInterface> */
+    private array $recipeRenderers = [];
+
+    /** @param iterable<SiteRecipeRendererInterface> $recipeRenderers */
+    public function __construct(iterable $recipeRenderers = [])
+    {
+        foreach ($recipeRenderers as $renderer) {
+            $id = $renderer->id();
+            if ($id === '' || isset($this->recipeRenderers[$id])) {
+                throw new \InvalidArgumentException("Duplicate or empty site recipe renderer identity: {$id}");
+            }
+            $this->recipeRenderers[$id] = $renderer;
+        }
+    }
+
     public function render(SiteManifest $manifest): GeneratedSite
     {
+        foreach (array_keys($manifest->recipes) as $recipeId) {
+            if (!isset($this->recipeRenderers[$recipeId])) {
+                throw new \InvalidArgumentException("Unsupported first-party recipe: {$recipeId}");
+            }
+        }
         $manifestYaml = new SiteManifestParser()->render($manifest);
+        $recipeTests = [];
+        $recipeArtifacts = [];
+        foreach ($manifest->recipes as $recipeId => $_selection) {
+            foreach ($this->recipeRenderers[$recipeId]->render($manifest) as $artifact) {
+                $recipeArtifacts[] = $artifact;
+                if (str_starts_with($artifact->path, 'tests/Acceptance/') && str_ends_with($artifact->path, 'Test.php')) {
+                    $recipeTests[] = $artifact->path;
+                }
+            }
+        }
 
         $artifacts = [
             new GeneratedArtifact('.waaseyaa/site.yaml', $manifestYaml),
@@ -23,8 +53,11 @@ final class SiteArtifactRenderer
             new GeneratedArtifact('AGENTS.md', $this->agents(), extensionRegion: 'local-guidance'),
             new GeneratedArtifact('tests/Architecture/SiteContractTest.php', $this->architectureTest()),
             new GeneratedArtifact('tests/Acceptance/SiteGoldenPathTest.php', $this->acceptanceTest()),
-            new GeneratedArtifact('bin/maintenance/site-verify', $this->verificationScript(), 0o755),
+            new GeneratedArtifact('bin/maintenance/site-verify', $this->verificationScript($recipeTests), 0o755),
         ];
+        foreach ($recipeArtifacts as $artifact) {
+            $artifacts[] = $artifact;
+        }
 
         $metadataRows = [];
         foreach ($artifacts as $artifact) {
@@ -126,30 +159,50 @@ final class SiteArtifactRenderer
                     $root = dirname(__DIR__, 2);
                     $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
                     self::assertSame('bin/maintenance/site-verify', $manifest->verificationCommand);
-                    self::assertFileIsExecutable($root . '/' . $manifest->verificationCommand);
+                    self::assertFileExists($root . '/' . $manifest->verificationCommand);
+                    self::assertTrue(is_executable($root . '/' . $manifest->verificationCommand));
                 }
             }
             PHP;
     }
 
-    private function verificationScript(): string
+    /** @param list<string> $recipeTests */
+    private function verificationScript(array $recipeTests): string
     {
-        return <<<'PHP'
+        $tests = var_export([
+            'tests/Architecture/SiteContractTest.php',
+            'tests/Acceptance/SiteGoldenPathTest.php',
+            ...$recipeTests,
+        ], true);
+
+        return str_replace('__TESTS__', $tests, <<<'PHP'
             #!/usr/bin/env php
             <?php
 
             declare(strict_types=1);
 
             $root = dirname(__DIR__, 2);
+            if (!chdir($root)) {
+                fwrite(STDERR, "site-verify: cannot enter the generated project root\n");
+                exit(2);
+            }
             $runner = $root . '/vendor/bin/phpunit';
+            $waaseyaa = $root . '/vendor/bin/waaseyaa';
             if (!is_file($runner)) {
                 fwrite(STDERR, "site-verify: dependencies are not installed\n");
                 exit(2);
             }
-            $tests = [
-                'tests/Architecture/SiteContractTest.php',
-                'tests/Acceptance/SiteGoldenPathTest.php',
-            ];
+            if (!is_file($waaseyaa)) {
+                fwrite(STDERR, "site-verify: Waaseyaa CLI is not installed\n");
+                exit(2);
+            }
+            $doctor = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($waaseyaa)
+                . ' site:doctor --strict --format=json --project-root=' . escapeshellarg($root);
+            passthru($doctor, $exitCode);
+            if ($exitCode !== 0) {
+                exit($exitCode);
+            }
+            $tests = __TESTS__;
             foreach ($tests as $test) {
                 $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($runner) . ' ' . escapeshellarg($root . '/' . $test) . ' --no-coverage';
                 passthru($command, $exitCode);
@@ -158,6 +211,6 @@ final class SiteArtifactRenderer
                 }
             }
             exit(0);
-            PHP;
+            PHP);
     }
 }

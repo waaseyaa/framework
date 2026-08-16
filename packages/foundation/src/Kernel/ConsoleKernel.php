@@ -78,7 +78,13 @@ final class ConsoleKernel extends AbstractKernel
         }
 
         try {
-            if ($input->getFirstArgument() === 'schema:sync') {
+            if (in_array($input->getFirstArgument(), [
+                'schema:sync',
+                'migrate',
+                'migrate:rollback',
+                'migrate:status',
+                'site:init',
+            ], true)) {
                 $this->bootForSchemaSync();
             } else {
                 $this->bootForCli();

@@ -166,13 +166,13 @@ final class MigrationRepository
             $this->connection->executeQuery('PRAGMA table_info(waaseyaa_schema_authority)')->fetchAllAssociative(),
             'name',
         );
-        $required = ['generation', 'schema_fingerprint', 'ledger_fingerprint', 'source_catalog_fingerprint'];
+        $required = ['schema_fingerprint', 'ledger_fingerprint', 'source_catalog_fingerprint'];
         if (array_diff($required, $columns) !== []) {
             throw new \RuntimeException('[S1-DB105] Schema authority manifest requires coordinator upgrade.');
         }
 
         $row = $this->connection->fetchAssociative(
-            'SELECT generation, schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint
+            'SELECT schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint
              FROM waaseyaa_schema_authority WHERE authority_id = 1',
         );
         if ($row === false) {
@@ -180,7 +180,6 @@ final class MigrationRepository
         }
 
         return new SchemaAuthorityManifest(
-            generation: (int) $row['generation'],
             schemaFingerprint: is_string($row['schema_fingerprint']) ? $row['schema_fingerprint'] : null,
             ledgerFingerprint: is_string($row['ledger_fingerprint']) ? $row['ledger_fingerprint'] : null,
             sourceCatalogFingerprint: is_string($row['source_catalog_fingerprint'])

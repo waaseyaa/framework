@@ -187,7 +187,10 @@ The skeleton's `.env.example` sets `WAASEYAA_DEV_FALLBACK_ACCOUNT=true` by defau
 | @types/node    | ^25.6.2   | Node type definitions           |
 | @playwright/test | ^1.59.1 | E2E browser testing in CI and local `test:e2e` runs |
 
-No CSS framework. Styles are defined in `packages/admin/app/components/layout/AdminShell.vue` as global CSS using CSS custom properties (`--color-primary`, `--color-surface`, etc.).
+No CSS framework. The application-level stylesheet at
+`packages/admin/app/assets/admin.css` defines the global controls and CSS
+custom properties (`--color-primary`, `--color-surface`, etc.) for every route,
+including shell-free entity-editor and page-builder embeds.
 
 ## API Proxy
 
@@ -218,6 +221,16 @@ oversized, extra, or missing command fields fail closed.
 The Admin SPA client added by the subsequent work package consumes this same
 contract as Anokii. It must not use generic entity PATCH, a direct repository
 save, or a client-private command vocabulary for layout edits.
+
+An application may also declare `x-preview: { action: string }` on an
+ID-scoped editable entity schema. The detail page then exposes a draft-preview
+action and calls that exact host-declared Admin Surface action with the entity
+ID. A successful response must contain a same-origin absolute-path
+`preview_url`; the SPA rejects other URL shapes and renders the accepted URL in
+an application dialog. The host remains authoritative for bundle eligibility,
+access, revision selection, signature lifetime, non-indexing, and cache policy.
+Absence of `x-preview` means the client exposes no preview control. This is a
+capability extension, not a hard-coded content-type list.
 
 ### Cast-aware entity attributes (#1181)
 
@@ -505,8 +518,26 @@ The form rendering pipeline:
 
 1. `SchemaForm` calls `useSchema(entityType).fetch()` to get the JSON Schema
 2. `sortedProperties(true)` returns editable fields sorted by `x-weight`
-3. For each field, `SchemaField` resolves the widget component from `x-widget`
-4. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+3. Optional `x-form-sections` presentation metadata groups those fields into
+   operator tasks without changing their schema, access, validation, or write
+   authority
+4. For each field, `SchemaField` resolves the widget component from `x-widget`
+5. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+
+`x-form-sections` is an ordered list of `{id, label, description?, fields,
+collapsible?, collapsed?}` objects. IDs and labels are non-empty strings and
+`fields` contains schema property names. The client ignores malformed sections,
+duplicate assignments, and unavailable/read-only fields. Every remaining
+editable field is rendered once in an `Other details` section, so incomplete
+presentation metadata can never hide writable data. A collapsed section opens
+when one of its fields has a validation error. Section metadata is inert
+presentation: it cannot add fields, bypass field access, change submission
+payloads, inject templates, or execute callbacks.
+
+Task-oriented shells such as Anokii and the full Admin SPA receive exactly the
+same sections because both mount the shared `SchemaForm`. Applications own the
+operator-facing labels and assignments for their content bundles; they do not
+fork the Vue editor.
 
 ### List-View Column Policy (`packages/admin/app/components/schema/SchemaList.vue`)
 
@@ -1202,6 +1233,15 @@ Admin surface for the MCP endpoint. Four pages under `/mcp/`, accessible via the
 ## Governed page builder
 
 The Admin SPA exposes registered page-builder surfaces at `/page-builder/{surface}/{id}`. The workspace combines Drupal-style governed structure with a direct visual editing interaction: the left library contains only backend-registered block definitions, the centre iframe renders a signed preview of the exact persisted revision, and the right inspector edits only schema-declared configuration. The outline remains a keyboard-accessible selection path when preview selection is unavailable.
+
+Library insertion follows the editor's current context: when a block is
+selected in the exact preview or outline, a newly chosen block is inserted
+immediately after it in the same section and region. Without a selection the
+document's initial region remains the deterministic fallback. Section creation
+shows every backend-registered layout as an explicit choice and creates the
+declared regions for that layout. Internal block and layout identifiers are not
+shown as ordinary editor labels; registered block labels and readable layout
+names keep application namespaces out of the Communications Officer workflow.
 
 The same workspace is also exposed without the Admin SPA navigation shell at
 `/page-builder-embed/{surface}/{id}`. This route is authenticated by the same

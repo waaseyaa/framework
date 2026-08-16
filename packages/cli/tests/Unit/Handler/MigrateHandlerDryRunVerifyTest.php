@@ -12,9 +12,16 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Command\Migrate\VerifyAuthorityResult;
+use Waaseyaa\CLI\Command\Migrate\VerifyFormatter;
+use Waaseyaa\CLI\Command\Migrate\VerifyOutcome;
+use Waaseyaa\CLI\Command\Migrate\VerifyResultRow;
+use Waaseyaa\CLI\Command\Migrate\VerifyRunner;
+use Waaseyaa\CLI\Command\Migrate\VerifySummary;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\MigrationCatalogFingerprint;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -26,6 +33,12 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
 use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
 
 #[CoversClass(MigrateHandler::class)]
+#[CoversClass(VerifyAuthorityResult::class)]
+#[CoversClass(VerifyFormatter::class)]
+#[CoversClass(VerifyOutcome::class)]
+#[CoversClass(VerifyResultRow::class)]
+#[CoversClass(VerifyRunner::class)]
+#[CoversClass(VerifySummary::class)]
 final class MigrateHandlerDryRunVerifyTest extends TestCase
 {
     #[Test]
@@ -225,6 +238,52 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
         self::assertSame([], $connection->fetchFirstColumn(
             "SELECT name FROM sqlite_schema WHERE name LIKE 'waaseyaa_%' ORDER BY name",
         ));
+    }
+
+    #[Test]
+    public function verifyJsonClassifiesVerifiedLegacyAndOrphanRows(): void
+    {
+        [$connection, $repo] = self::makeConnectionAndRepo();
+        $legacy = new class extends Migration {
+            public function up(SchemaBuilder $schema): void {}
+        };
+        $driftedLegacy = new class extends Migration {
+            public function up(SchemaBuilder $schema): void {}
+        };
+        $checksum = MigrationCatalogFingerprint::legacySourceChecksum($legacy);
+        $repo->record('waaseyaa/test:legacy', 'waaseyaa/test', 1, $checksum, MigrationCatalogFingerprint::legacyPlanHash($checksum));
+        $repo->record('waaseyaa/missing:orphan', 'waaseyaa/missing', 2, str_repeat('a', 64), str_repeat('b', 64));
+        $repo->record('waaseyaa/test:drifted', 'waaseyaa/test', 3, str_repeat('c', 64), str_repeat('d', 64));
+        $migrator = new Migrator($connection, $repo);
+        $tester = self::buildTesterFromHandler(new MigrateHandler(
+            migrator: $migrator,
+            migrationsProvider: static fn(): array => [
+                'waaseyaa/test' => [
+                    'waaseyaa/test:legacy' => $legacy,
+                    'waaseyaa/test:drifted' => $driftedLegacy,
+                ],
+            ],
+            v2MigrationsProvider: static fn(): array => [],
+            repository: $repo,
+            compiler: SqliteCompiler::forVersion('3.40.0'),
+            isProduction: true,
+        ));
+
+        $tester->execute(['--verify', '--json']);
+
+        self::assertSame(1, $tester->getExitCode());
+        $payload = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('verify', $payload['kind']);
+        self::assertSame(
+            [
+                'waaseyaa/test:legacy' => 'match',
+                'waaseyaa/missing:orphan' => 'orphan',
+                'waaseyaa/test:drifted' => 'mismatch',
+            ],
+            array_column($payload['results'], 'status', 'migration'),
+        );
+        self::assertSame(1, $payload['summary']['orphan']);
+        self::assertSame(5, (new VerifySummary(1, 1, 1, 1, 1))->total());
     }
 
     #[Test]
