@@ -1620,7 +1620,8 @@ Exceptions thrown by terminal dispatch setup (including provider router construc
 
 Behaviour of the CSRF response step:
 
-- **Restricted to `text/html`** — skips JSON, octet-stream, and any other primary Content-Type.
+- **`text/html` responses, plus authenticated login sessions** — the HTML writer skips JSON, octet-stream, and any other primary Content-Type; a second writer delivers the same cookie on any response whose request carries an authenticated `_account` and the `waaseyaa_uid` login-session marker (#2177 SPA boot path). See `docs/specs/access-control.md` for the full delivery matrix.
+- **Policy-governed flags (#2149)** — `buildMiddlewareStack()` constructs `CsrfMiddleware` with `new SessionCookiePolicy($this->sessionCookieOptions())`, so the cookie's `Secure`/`SameSite` attributes follow the same resolved `session.cookie` config as the session cookie (forced booleans win; `'auto'` follows the trusted request scheme).
 - **Idempotent** — no-ops if an `XSRF-TOKEN` cookie is already present on the response (the middleware may have set it for non-validating GET requests that pass through without the 200-stub issue).
 - **Session guard** — returns immediately if no PHP session is active or the session token key is absent.
 

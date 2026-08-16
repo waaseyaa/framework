@@ -7464,6 +7464,15 @@
             "source_sha256": "29c58b022e8d2174e4e10fe9f514cd9fbf7970418573b8b73bb1fcedb680610c"
         },
         {
+            "path": "tests/Integration/Phase13/CsrfCookieSecurePolicyIntegrationTest.php",
+            "line": 56,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
+            "source_sha256": "7c3c03ebfd84048cca7e6420bb29042258a194e04a55abb8abf1293b69545c98"
+        },
+        {
             "path": "tests/Integration/Phase13/InertiaMultipartCsrfIntegrationTest.php",
             "line": 68,
             "pattern": "dbal_factory",
