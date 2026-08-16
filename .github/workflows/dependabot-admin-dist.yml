@@ -43,7 +43,12 @@ jobs:
       # workspace receives a write token, so hooks/GITHUB_ENV cannot bridge the
       # trust boundary into publication.
       - name: Build admin SPA dist and freshness signature
-        run: bin/build-admin-dist
+        run: |
+          NODE_BINARY="$(command -v node)"
+          NPM_BINARY="$(realpath "$(command -v npm)")"
+          PATH="$(dirname "$NODE_BINARY"):/usr/local/bin:/usr/bin:/bin"
+          export NODE_BINARY NPM_BINARY PATH
+          bin/build-admin-dist
 
       - name: Export only the generated public artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
