@@ -27,6 +27,13 @@ use Waaseyaa\Config\Exception\ConfigSerializationException;
  */
 final readonly class ConfigSyncFile
 {
+    public const FORMAT_V1 = 'waaseyaa.config-sync/1';
+    public const FORMAT_LEGACY_READ_ONLY = 'waaseyaa.config-sync/0-read-only';
+
+    private const LEGACY_SCHEMA_ID = 'waaseyaa.config.legacy-unbound';
+    private const LEGACY_SCHEMA_HASH = 'sha256:0000000000000000000000000000000000000000000000000000000000000000';
+    private const LEGACY_OWNER_PACKAGE = 'waaseyaa/config';
+
     public const ID_PATTERN = '/^[a-z][a-z0-9_]*$/';
     public const REF_PATTERN = '/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/';
 
@@ -34,15 +41,92 @@ final readonly class ConfigSyncFile
      * @param list<string>         $dependencies each entry `<entity_type>.<entity_id>`
      * @param array<string, mixed> $fields       alphabetically-sorted field values
      */
-    public function __construct(
+    private function __construct(
         public string $entityType,
         public string $entityId,
         public string $uuid,
         public array $dependencies,
         public string $langcode,
         public array $fields,
+        public string $format,
+        public string $schemaId,
+        public int $schemaVersion,
+        public string $schemaHash,
+        public string $ownerPackage,
+        public int $ownerConfigContractVersion,
     ) {
         $this->validateShallow();
+    }
+
+    /**
+     * Represent a retained format-0 entry for read/rollback compatibility.
+     * It is deliberately not serializable as v1 sync input.
+     *
+     * @param list<string> $dependencies
+     * @param array<string, mixed> $fields
+     */
+    public static function legacyReadable(
+        string $entityType,
+        string $entityId,
+        string $uuid,
+        array $dependencies,
+        string $langcode,
+        array $fields,
+    ): self {
+        return new self(
+            $entityType,
+            $entityId,
+            $uuid,
+            $dependencies,
+            $langcode,
+            $fields,
+            self::FORMAT_LEGACY_READ_ONLY,
+            self::LEGACY_SCHEMA_ID,
+            1,
+            self::LEGACY_SCHEMA_HASH,
+            self::LEGACY_OWNER_PACKAGE,
+            1,
+        );
+    }
+
+    /**
+     * Construct one strictly bound v1 writable artifact.
+     *
+     * @param list<string> $dependencies
+     * @param array<string, mixed> $fields
+     */
+    public static function writable(
+        string $entityType,
+        string $entityId,
+        string $uuid,
+        array $dependencies,
+        string $langcode,
+        array $fields,
+        string $schemaId,
+        int $schemaVersion,
+        string $schemaHash,
+        string $ownerPackage,
+        int $ownerConfigContractVersion,
+    ): self {
+        return new self(
+            $entityType,
+            $entityId,
+            $uuid,
+            $dependencies,
+            $langcode,
+            $fields,
+            self::FORMAT_V1,
+            $schemaId,
+            $schemaVersion,
+            $schemaHash,
+            $ownerPackage,
+            $ownerConfigContractVersion,
+        );
+    }
+
+    public function isWritableV1(): bool
+    {
+        return $this->format === self::FORMAT_V1;
     }
 
     /**
@@ -105,10 +189,36 @@ final readonly class ConfigSyncFile
         /** @var array<string, mixed> $meta */
         $meta = $parsed['_meta'];
 
-        foreach (['entity_type', 'uuid', 'langcode'] as $required) {
+        $allowedMeta = [
+            'dependencies',
+            'entity_id',
+            'entity_type',
+            'format',
+            'langcode',
+            'owner_config_contract_version',
+            'owner_package',
+            'schema_hash',
+            'schema_id',
+            'schema_version',
+            'uuid',
+        ];
+        foreach (array_keys($meta) as $key) {
+            if (!\in_array($key, $allowedMeta, true)) {
+                throw ConfigSerializationException::invalidMeta($filename, sprintf('unknown _meta key "%s".', $key));
+            }
+        }
+
+        foreach (['format', 'entity_type', 'entity_id', 'uuid', 'langcode', 'dependencies', 'schema_id', 'schema_version', 'schema_hash', 'owner_package', 'owner_config_contract_version'] as $required) {
             if (!\array_key_exists($required, $meta)) {
                 throw ConfigSerializationException::missingMetaKey($filename, $required);
             }
+        }
+
+        if ($meta['format'] !== self::FORMAT_V1) {
+            throw ConfigSerializationException::invalidMeta($filename, sprintf(
+                'format must be "%s".',
+                self::FORMAT_V1,
+            ));
         }
 
         $entityType = $meta['entity_type'];
@@ -124,6 +234,10 @@ final readonly class ConfigSyncFile
             );
         }
 
+        if (!\is_string($meta['entity_id']) || $meta['entity_id'] !== $derivedFromFilename['entity_id']) {
+            throw ConfigSerializationException::invalidMeta($filename, 'entity_id must agree with the filename.');
+        }
+
         $uuid = $meta['uuid'];
         if (!\is_string($uuid) || $uuid === '') {
             throw ConfigSerializationException::missingMetaKey($filename, 'uuid');
@@ -135,29 +249,41 @@ final readonly class ConfigSyncFile
         }
 
         $dependencies = $meta['dependencies'] ?? [];
-        if (!\is_array($dependencies)) {
-            $dependencies = [];
+        if (!\is_array($dependencies) || !array_is_list($dependencies)) {
+            throw ConfigSerializationException::invalidMeta($filename, 'dependencies must be a list of canonical refs.');
         }
 
         /** @var list<string> $normalisedDependencies */
         $normalisedDependencies = [];
         foreach ($dependencies as $dependency) {
-            if (\is_string($dependency) && $dependency !== '') {
-                $normalisedDependencies[] = $dependency;
+            if (!\is_string($dependency) || preg_match(self::REF_PATTERN, $dependency) !== 1) {
+                throw ConfigSerializationException::invalidMeta($filename, 'dependencies must contain only canonical string refs.');
             }
+            if ($dependency === $derivedFromFilename['entity_type'] . '.' . $derivedFromFilename['entity_id']) {
+                throw ConfigSerializationException::invalidMeta($filename, 'dependencies cannot contain the entry itself.');
+            }
+            if (\in_array($dependency, $normalisedDependencies, true)) {
+                throw ConfigSerializationException::invalidMeta($filename, 'dependencies must be unique.');
+            }
+            $normalisedDependencies[] = $dependency;
         }
 
         $fields = $parsed;
         unset($fields['_meta']);
         ksort($fields, \SORT_STRING);
 
-        return new self(
+        return self::writable(
             entityType: $entityType,
             entityId: $derivedFromFilename['entity_id'],
             uuid: $uuid,
             dependencies: $normalisedDependencies,
             langcode: $langcode,
             fields: $fields,
+            schemaId: self::requiredMetaString($meta, 'schema_id', $filename),
+            schemaVersion: self::requiredMetaInteger($meta, 'schema_version', $filename),
+            schemaHash: self::requiredMetaString($meta, 'schema_hash', $filename),
+            ownerPackage: self::requiredMetaString($meta, 'owner_package', $filename),
+            ownerConfigContractVersion: self::requiredMetaInteger($meta, 'owner_config_contract_version', $filename),
         );
     }
 
@@ -239,12 +365,42 @@ final readonly class ConfigSyncFile
         if ($this->langcode === '') {
             throw new \InvalidArgumentException('ConfigSyncFile langcode must be non-empty.');
         }
+        if (!\in_array($this->format, [self::FORMAT_V1, self::FORMAT_LEGACY_READ_ONLY], true)) {
+            throw new \InvalidArgumentException('ConfigSyncFile format is unsupported.');
+        }
+        if ($this->format === self::FORMAT_LEGACY_READ_ONLY
+            && ($this->schemaId !== self::LEGACY_SCHEMA_ID
+                || $this->schemaHash !== self::LEGACY_SCHEMA_HASH
+                || $this->ownerPackage !== self::LEGACY_OWNER_PACKAGE)
+        ) {
+            throw new \InvalidArgumentException('Legacy-readable configuration identity is internally inconsistent.');
+        }
+        if (preg_match('/^[a-z][a-z0-9_.-]*$/', $this->schemaId) !== 1) {
+            throw new \InvalidArgumentException('ConfigSyncFile schemaId must be a canonical identifier.');
+        }
+        if ($this->schemaVersion < 1 || $this->ownerConfigContractVersion < 1) {
+            throw new \InvalidArgumentException('ConfigSyncFile schema and owner contract versions must be positive integers.');
+        }
+        if (preg_match('/^sha256:[0-9a-f]{64}$/', $this->schemaHash) !== 1) {
+            throw new \InvalidArgumentException('ConfigSyncFile schemaHash must be a lowercase sha256 digest.');
+        }
+        if (preg_match('/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/', $this->ownerPackage) !== 1) {
+            throw new \InvalidArgumentException('ConfigSyncFile ownerPackage must be a canonical package name.');
+        }
+        // @phpstan-ignore function.alreadyNarrowedType (runtime API boundary)
+        if (!array_is_list($this->dependencies) || \count($this->dependencies) !== \count(array_unique($this->dependencies))) {
+            throw new \InvalidArgumentException('ConfigSyncFile dependencies must be a unique list.');
+        }
         foreach ($this->dependencies as $dependency) {
-            if (preg_match(self::REF_PATTERN, $dependency) !== 1) {
+            // @phpstan-ignore function.alreadyNarrowedType (runtime API boundary)
+            if (!\is_string($dependency) || preg_match(self::REF_PATTERN, $dependency) !== 1) {
                 throw new \InvalidArgumentException(sprintf(
-                    'ConfigSyncFile dependency "%s" must match `<entity_type>.<entity_id>`.',
-                    $dependency,
+                    'ConfigSyncFile dependency of type "%s" must match `<entity_type>.<entity_id>`.',
+                    get_debug_type($dependency),
                 ));
+            }
+            if ($dependency === $this->ref()) {
+                throw new \InvalidArgumentException('ConfigSyncFile cannot depend on itself.');
             }
         }
         // Assert (not silently re-sort) field-key alphabetical ordering.
@@ -257,5 +413,27 @@ final readonly class ConfigSyncFile
             );
         }
         DeployableConfigurationPolicy::assertDeployableFile($this);
+    }
+
+    /** @param array<string, mixed> $meta */
+    private static function requiredMetaString(array $meta, string $key, string $filename): string
+    {
+        $value = $meta[$key] ?? null;
+        if (!\is_string($value) || $value === '') {
+            throw ConfigSerializationException::invalidMeta($filename, sprintf('%s must be a non-empty string.', $key));
+        }
+
+        return $value;
+    }
+
+    /** @param array<string, mixed> $meta */
+    private static function requiredMetaInteger(array $meta, string $key, string $filename): int
+    {
+        $value = $meta[$key] ?? null;
+        if (!\is_int($value) || $value < 1) {
+            throw ConfigSerializationException::invalidMeta($filename, sprintf('%s must be a positive integer.', $key));
+        }
+
+        return $value;
     }
 }

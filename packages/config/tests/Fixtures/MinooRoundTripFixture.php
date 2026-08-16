@@ -76,7 +76,7 @@ final class MinooRoundTripFixture
     {
         $files = array_values(self::files());
 
-        return new class($files) implements ConfigSyncFileSourceInterface {
+        return new class ($files) implements ConfigSyncFileSourceInterface {
             /** @param list<ConfigSyncFile> $files */
             public function __construct(private readonly array $files) {}
 
@@ -96,7 +96,7 @@ final class MinooRoundTripFixture
     public static function mutated(): array
     {
         $files = self::files();
-        $files['role.admin'] = new ConfigSyncFile(
+        $files['role.admin'] = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: ConfigSyncFile::deterministicUuid('role', 'admin'),
@@ -106,6 +106,11 @@ final class MinooRoundTripFixture
                 'label' => 'Administrator',
                 'permissions' => ['administer site', 'edit any node'],
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         return $files;
@@ -123,13 +128,18 @@ final class MinooRoundTripFixture
     ): ConfigSyncFile {
         ksort($fields, \SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: $dependencies,
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 }

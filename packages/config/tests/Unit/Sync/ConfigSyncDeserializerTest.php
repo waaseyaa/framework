@@ -22,8 +22,15 @@ final class ConfigSyncDeserializerTest extends TestCase
             _meta:
               dependencies:
                 - role.admin
+              entity_id: coordinator
               entity_type: role
+              format: waaseyaa.config-sync/1
               langcode: en
+              owner_config_contract_version: 1
+              owner_package: waaseyaa/config
+              schema_hash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              schema_id: waaseyaa.role
+              schema_version: 1
               uuid: 0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f
             description: 'Coordinators manage community calendars.'
             id: coordinator
@@ -32,7 +39,7 @@ final class ConfigSyncDeserializerTest extends TestCase
 
             YAML;
 
-        $file = (new ConfigSyncDeserializer())->fromYaml($yaml, 'role.coordinator.yml');
+        $file = new ConfigSyncDeserializer()->fromYaml($yaml, 'role.coordinator.yml');
 
         self::assertSame('role', $file->entityType);
         self::assertSame('coordinator', $file->entityId);
@@ -46,7 +53,7 @@ final class ConfigSyncDeserializerTest extends TestCase
     #[Test]
     public function roundTripsThroughSerializer(): void
     {
-        $original = new ConfigSyncFile(
+        $original = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
@@ -58,10 +65,15 @@ final class ConfigSyncDeserializerTest extends TestCase
                 'label' => 'Coordinator',
                 'weight' => 10,
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
-        $yaml = (new ConfigSyncSerializer())->toYaml($original);
-        $parsed = (new ConfigSyncDeserializer())->fromYaml($yaml, 'role.coordinator.yml');
+        $yaml = new ConfigSyncSerializer()->toYaml($original);
+        $parsed = new ConfigSyncDeserializer()->fromYaml($yaml, 'role.coordinator.yml');
 
         self::assertSame($original->entityType, $parsed->entityType);
         self::assertSame($original->entityId, $parsed->entityId);
@@ -87,7 +99,7 @@ final class ConfigSyncDeserializerTest extends TestCase
             YAML;
 
         $this->expectException(ConfigSerializationException::class);
-        (new ConfigSyncDeserializer())->fromYaml($yaml, 'role.admin.yml');
+        new ConfigSyncDeserializer()->fromYaml($yaml, 'role.admin.yml');
     }
 
     #[Test]
@@ -96,7 +108,7 @@ final class ConfigSyncDeserializerTest extends TestCase
         $yaml = "this: is\n  not\nvalid: yaml\n";
 
         $this->expectException(ConfigSerializationException::class);
-        (new ConfigSyncDeserializer())->fromYaml($yaml, 'role.admin.yml');
+        new ConfigSyncDeserializer()->fromYaml($yaml, 'role.admin.yml');
     }
 
     #[Test]
@@ -105,7 +117,7 @@ final class ConfigSyncDeserializerTest extends TestCase
         $yaml = "- just\n- a\n- list\n";
 
         $this->expectException(ConfigSerializationException::class);
-        (new ConfigSyncDeserializer())->fromYaml($yaml, 'role.admin.yml');
+        new ConfigSyncDeserializer()->fromYaml($yaml, 'role.admin.yml');
     }
 
     #[Test]
@@ -114,7 +126,7 @@ final class ConfigSyncDeserializerTest extends TestCase
         $yaml = "label: x\n";
 
         $this->expectException(ConfigSerializationException::class);
-        (new ConfigSyncDeserializer())->fromYaml($yaml, 'role.admin.yml');
+        new ConfigSyncDeserializer()->fromYaml($yaml, 'role.admin.yml');
     }
 
     #[Test]
@@ -128,6 +140,6 @@ final class ConfigSyncDeserializerTest extends TestCase
             YAML;
 
         $this->expectException(ConfigSerializationException::class);
-        (new ConfigSyncDeserializer())->fromYaml($yaml, 'role.admin.yml');
+        new ConfigSyncDeserializer()->fromYaml($yaml, 'role.admin.yml');
     }
 }

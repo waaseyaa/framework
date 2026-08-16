@@ -167,7 +167,7 @@ final class ConfigValidateCommandTest extends TestCase
 
     private function makeContainer(ConfigValidateCommand $command): ContainerInterface
     {
-        return new class($command) implements ContainerInterface {
+        return new class ($command) implements ContainerInterface {
             public function __construct(private readonly ConfigValidateCommand $command) {}
 
             public function get(string $id): mixed
@@ -192,15 +192,20 @@ final class ConfigValidateCommandTest extends TestCase
     {
         [$entityType, $entityId] = explode('.', $ref, 2);
         ksort($fields, \SORT_STRING);
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
-        (new ConfigSyncRepository($this->tempDir))->put($file);
+        new ConfigSyncRepository($this->tempDir)->put($file);
     }
 
     private function removeDir(string $dir): void

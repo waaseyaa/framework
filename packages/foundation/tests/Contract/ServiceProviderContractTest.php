@@ -21,6 +21,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersI
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -91,6 +92,7 @@ final class ServiceProviderContractTest extends TestCase
         'configureHttpKernel' => ConfiguresHttpKernelInterface::class,
         'middleware' => HasMiddlewareInterface::class,
         'httpDomainRouters' => HasHttpDomainRoutersInterface::class,
+        'finalizeProviderBoot' => FinalizesProviderBootInterface::class,
     ];
 
     #[Test]

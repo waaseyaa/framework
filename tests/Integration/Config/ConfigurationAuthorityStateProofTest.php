@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityResolver;
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImporter;
@@ -108,13 +109,18 @@ final class ConfigurationAuthorityStateProofTest extends TestCase
             [],
         );
         $generation = str_repeat('b', 64);
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'system',
             entityId: 'site',
             uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
             dependencies: [],
             langcode: 'en',
             fields: ['name' => 'Waaseyaa'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
         $database->query(
             'INSERT INTO waaseyaa_config_generation '
@@ -181,10 +187,12 @@ final class RecordingConfigPreflight implements ConfigImportPreflightInterface
         bool $dryRun,
         bool $deleteOrphans,
         bool $noDependencyCheck,
-    ): void {
+    ): ?VerifiedConfigBundle {
         ++$this->calls;
         $this->lastDryRun = $dryRun;
         $this->lastDeleteOrphans = $deleteOrphans;
+
+        return null;
     }
 }
 

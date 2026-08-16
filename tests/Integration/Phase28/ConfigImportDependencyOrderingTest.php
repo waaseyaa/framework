@@ -145,29 +145,44 @@ final class ConfigImportDependencyOrderingTest extends TestCase
         // the resolver's iterative DFS post-order: A → B → C means C runs
         // first, then B, then A.
         $repository = new ConfigSyncRepository($this->tempDir);
-        $repository->put(new ConfigSyncFile(
+        $repository->put(ConfigSyncFile::writable(
             entityType: 'menu',
             entityId: 'parent',
             uuid: ConfigSyncFile::deterministicUuid('menu', 'parent'),
             dependencies: ['menu.child'],
             langcode: 'en',
             fields: ['label' => 'Parent'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         ));
-        $repository->put(new ConfigSyncFile(
+        $repository->put(ConfigSyncFile::writable(
             entityType: 'menu',
             entityId: 'child',
             uuid: ConfigSyncFile::deterministicUuid('menu', 'child'),
             dependencies: ['menu.grandchild'],
             langcode: 'en',
             fields: ['label' => 'Child'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         ));
-        $repository->put(new ConfigSyncFile(
+        $repository->put(ConfigSyncFile::writable(
             entityType: 'menu',
             entityId: 'grandchild',
             uuid: ConfigSyncFile::deterministicUuid('menu', 'grandchild'),
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'Grandchild'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         ));
 
         $recorder = new RecordingApplyHook();

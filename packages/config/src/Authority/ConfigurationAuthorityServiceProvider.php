@@ -4,23 +4,26 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Authority;
 
-use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
-use Waaseyaa\Config\Activation\TransactionalConfigurationStorage;
 use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
+use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
+use Waaseyaa\Config\Schema\Ai\McpServersConfig;
+use Waaseyaa\Config\Schema\Ai\ProvidersConfig;
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityDeclaration;
+use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /** Sole production composition root for configuration.authority.v1. @api */
-class ConfigurationAuthorityServiceProvider extends ServiceProvider implements ProvidesCapabilitiesInterface
+class ConfigurationAuthorityServiceProvider extends ServiceProvider implements FinalizesProviderBootInterface, ProvidesCapabilitiesInterface
 {
     private const array BOOTSTRAP_ONLY_ENVIRONMENTS = ['local', 'dev', 'development', 'testing'];
 
@@ -36,6 +39,18 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
 
         $this->singleton(ConfigurationAuthorityResolver::class, ConfigurationAuthorityResolver::class);
         $this->singleton(ConfigSchemaValidator::class, ConfigSchemaValidator::class);
+        $this->singleton(ConfigSchemaRegistry::class, fn(): ConfigSchemaRegistry => new ConfigSchemaRegistry(
+            $this->resolve(ConfigSchemaValidator::class),
+        ));
+        $this->singleton(UnsignedConfigPolicy::class, function (): UnsignedConfigPolicy {
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            assert($context instanceof ConfigurationAuthorityContext);
+
+            // CFG-01 does not yet publish a sealed local/test bootstrap-policy
+            // identity. Fail closed in every composed profile until it does;
+            // mutable APP_ENV alone never grants unsigned authority.
+            return UnsignedConfigPolicy::refusing($context->authorityId);
+        });
         $this->singleton(ConfigurationAuthorityContext::class, function () use ($root, $bootstrap): ConfigurationAuthorityContext {
             $database = $this->resolveOptional(DatabaseIdentityProviderInterface::class);
             if (!$database instanceof DatabaseIdentityProviderInterface) {
@@ -115,6 +130,21 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
         yield new CapabilityDeclaration('configuration.authority.v1', 1, $context->authorityId);
     }
 
+    public function boot(): void
+    {
+        $registry = $this->resolve(ConfigSchemaRegistry::class);
+        assert($registry instanceof ConfigSchemaRegistry);
+        McpServersConfig::register($registry);
+        ProvidersConfig::register($registry);
+    }
+
+    public function finalizeProviderBoot(): void
+    {
+        $registry = $this->resolve(ConfigSchemaRegistry::class);
+        assert($registry instanceof ConfigSchemaRegistry);
+        $registry->freeze();
+    }
+
     private function resolveActiveBridge(): ActiveConfigurationBridgeInterface
     {
         $bridge = $this->kernelServices?->get(ActiveConfigurationBridgeInterface::class);
@@ -143,22 +173,9 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
         if (in_array($environment, self::BOOTSTRAP_ONLY_ENVIRONMENTS, true)) {
             return $storage;
         }
-        $activator = $this->kernelServices?->get(ConfigurationActivatorInterface::class);
-        if (!$activator instanceof ConfigurationActivatorInterface) {
-            throw new ConfigurationAuthorityUnavailableException(
-                'Production editable configuration requires the transactional activation authority.',
-            );
-        }
+        $context->requireActiveGenerationId();
 
-        return new TransactionalConfigurationStorage(
-            $storage,
-            $activator,
-            new ConfigurationActiveToken(
-                $context->requireActiveGenerationId(),
-                $context->activationSequence
-                    ?? throw new \LogicException('Active configuration sequence is unavailable.'),
-            ),
-        );
+        return new ReadOnlyActiveConfigurationStorage($storage);
     }
 
     private function resolveEventDispatcher(): EventDispatcherInterface&\Symfony\Contracts\EventDispatcher\EventDispatcherInterface

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Schema\Ai;
 
-use Waaseyaa\Config\Schema\ConfigSchemaValidator;
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 
 /**
  * Schema for `config.ai.mcp_servers` — the list of remote MCP servers
@@ -35,6 +35,9 @@ use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 final class McpServersConfig
 {
     public const CONFIG_NAME = 'ai.mcp_servers';
+    public const SCHEMA_VERSION = 1;
+    public const OWNER_PACKAGE = 'waaseyaa/config';
+    public const OWNER_CONFIG_CONTRACT_VERSION = 1;
 
     /**
      * The `items` payload always lives under the `items` key of the config
@@ -50,10 +53,12 @@ final class McpServersConfig
     public static function schema(): array
     {
         return [
+            'dialect' => ConfigSchemaRegistry::DIALECT_V1,
             'type' => 'object',
             'properties' => [
                 self::ITEMS_KEY => [
                     'type' => 'array',
+                    'items' => self::rowSchema(),
                     'default' => [],
                 ],
             ],
@@ -84,11 +89,17 @@ final class McpServersConfig
     }
 
     /**
-     * Register this schema with the validator.
+     * Register this schema with the closed authority registry.
      */
-    public static function register(ConfigSchemaValidator $validator): void
+    public static function register(ConfigSchemaRegistry $registry): void
     {
-        $validator->registerSchema(self::CONFIG_NAME, self::schema());
+        $registry->register(
+            self::CONFIG_NAME,
+            self::SCHEMA_VERSION,
+            self::OWNER_PACKAGE,
+            self::OWNER_CONFIG_CONTRACT_VERSION,
+            self::schema(),
+        );
     }
 
     /**

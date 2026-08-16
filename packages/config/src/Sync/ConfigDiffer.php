@@ -8,7 +8,7 @@ namespace Waaseyaa\Config\Sync;
  * Renders unified diffs between the sync store and the active store and
  * classifies each ref as in-sync / drift / sync-only / active-only / renamed.
  *
- * Both sides are projected through {@see ConfigSyncSerializer::toYaml()}
+ * Both sides are projected through {@see ConfigSyncSerializer::toDiagnosticYaml()}
  * before diffing, so byte-identical {@see ConfigSyncFile} values produce
  * byte-identical YAML and therefore zero diff (FR-031: "both sides
  * serialize identically before diffing to avoid spurious whitespace
@@ -181,8 +181,8 @@ final class ConfigDiffer
 
     private function buildIdentityResult(string $ref, ConfigSyncFile $syncFile, ConfigSyncFile $activeFile): DiffResult
     {
-        $syncYaml = $this->serializer->toYaml($syncFile);
-        $activeYaml = $this->serializer->toYaml($activeFile);
+        $syncYaml = $this->serializer->toDiagnosticYaml($syncFile);
+        $activeYaml = $this->serializer->toDiagnosticYaml($activeFile);
 
         if ($syncYaml === $activeYaml) {
             return new DiffResult(
@@ -202,7 +202,7 @@ final class ConfigDiffer
 
     private function buildSyncOnlyResult(string $ref, ConfigSyncFile $syncFile): DiffResult
     {
-        $syncYaml = $this->serializer->toYaml($syncFile);
+        $syncYaml = $this->serializer->toDiagnosticYaml($syncFile);
 
         return new DiffResult(
             ref: $ref,
@@ -214,7 +214,7 @@ final class ConfigDiffer
 
     private function buildActiveOnlyResult(string $ref, ConfigSyncFile $activeFile): DiffResult
     {
-        $activeYaml = $this->serializer->toYaml($activeFile);
+        $activeYaml = $this->serializer->toDiagnosticYaml($activeFile);
 
         return new DiffResult(
             ref: $ref,
@@ -230,8 +230,8 @@ final class ConfigDiffer
         string $oldRef,
         ?ConfigSyncFile $oldActive,
     ): DiffResult {
-        $syncYaml = $this->serializer->toYaml($syncFile);
-        $activeYaml = $oldActive !== null ? $this->serializer->toYaml($oldActive) : '';
+        $syncYaml = $this->serializer->toDiagnosticYaml($syncFile);
+        $activeYaml = $oldActive !== null ? $this->serializer->toDiagnosticYaml($oldActive) : '';
 
         return new DiffResult(
             ref: $newRef,

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Tests\Unit\Schema;
 
-use Waaseyaa\Config\Schema\ConfigSchemaValidator;
-use Waaseyaa\Config\Schema\SchemaViolation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 
 #[CoversClass(ConfigSchemaValidator::class)]
 final class ConfigSchemaValidatorTest extends TestCase
@@ -18,6 +17,46 @@ final class ConfigSchemaValidatorTest extends TestCase
     protected function setUp(): void
     {
         $this->validator = new ConfigSchemaValidator();
+    }
+
+    #[Test]
+    public function direct_validation_meta_validates_the_schema_before_data(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported configuration schema keyword "coerce"');
+
+        $this->validator->validate([], [
+            'type' => 'object',
+            'coerce' => true,
+        ]);
+    }
+
+    #[Test]
+    public function nullable_explicitly_distinguishes_null_from_wrong_type(): void
+    {
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'subtitle' => ['type' => 'string', 'nullable' => true],
+            ],
+        ];
+
+        self::assertSame([], $this->validator->validate(['subtitle' => null], $schema));
+        self::assertCount(1, $this->validator->validate(['subtitle' => false], $schema));
+    }
+
+    #[Test]
+    public function nullable_keyword_must_be_boolean(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('nullable');
+
+        $this->validator->validate([], [
+            'type' => 'object',
+            'properties' => [
+                'subtitle' => ['type' => 'string', 'nullable' => 'yes'],
+            ],
+        ]);
     }
 
     #[Test]
@@ -95,8 +134,11 @@ final class ConfigSchemaValidatorTest extends TestCase
     }
 
     #[Test]
-    public function validate_detects_wrong_type_number(): void
+    public function validate_rejects_unsupported_number_schema_type(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported configuration schema type "number"');
+
         $schema = [
             'type' => 'object',
             'properties' => [
@@ -104,29 +146,24 @@ final class ConfigSchemaValidatorTest extends TestCase
             ],
         ];
 
-        $data = ['ratio' => 'not-a-number'];
-
-        $violations = $this->validator->validate($data, $schema);
-
-        $this->assertCount(1, $violations);
+        $this->validator->validate(['ratio' => 1], $schema);
     }
 
     #[Test]
-    public function validate_number_accepts_integers_and_floats(): void
+    public function validate_integer_rejects_floating_point_values(): void
     {
         $schema = [
             'type' => 'object',
             'properties' => [
-                'int_val' => ['type' => 'number'],
-                'float_val' => ['type' => 'number'],
+                'value' => ['type' => 'integer'],
             ],
         ];
 
-        $data = ['int_val' => 42, 'float_val' => 3.14];
+        $data = ['value' => 3.14];
 
         $violations = $this->validator->validate($data, $schema);
 
-        $this->assertSame([], $violations);
+        $this->assertCount(1, $violations);
     }
 
     #[Test]
@@ -135,7 +172,7 @@ final class ConfigSchemaValidatorTest extends TestCase
         $schema = [
             'type' => 'object',
             'properties' => [
-                'tags' => ['type' => 'array'],
+                'tags' => ['type' => 'array', 'items' => ['type' => 'string']],
             ],
         ];
 
@@ -297,7 +334,7 @@ final class ConfigSchemaValidatorTest extends TestCase
     }
 
     #[Test]
-    public function validate_ignores_extra_properties_without_additional_properties_flag(): void
+    public function validate_rejects_extra_properties_without_additional_properties_schema(): void
     {
         $schema = [
             'type' => 'object',
@@ -310,7 +347,8 @@ final class ConfigSchemaValidatorTest extends TestCase
 
         $violations = $this->validator->validate($data, $schema);
 
-        $this->assertSame([], $violations);
+        $this->assertCount(1, $violations);
+        $this->assertSame('extra_key', $violations[0]->path);
     }
 
     #[Test]

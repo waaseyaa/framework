@@ -6,19 +6,19 @@ namespace Waaseyaa\EntityStorage\Tests\Unit\Config;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
-use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
-use Waaseyaa\Config\Authority\ConfigurationActiveToken;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Config\Tests\Fixtures\VerifiedConfigBundleFixture;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Config\ConfigurationStorageServiceProvider;
 use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationBridge;
 use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationStorage;
-use Waaseyaa\EntityStorage\Config\DatabaseConfigurationGenerationResolver;
 use Waaseyaa\EntityStorage\Config\DatabaseConfigurationActivator;
+use Waaseyaa\EntityStorage\Config\DatabaseConfigurationGenerationResolver;
 use Waaseyaa\EntityStorage\Config\TestingActiveConfigurationBridge;
 use Waaseyaa\EntityStorage\Config\TestingConfigurationGenerationResolver;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -72,22 +72,24 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
     {
         $migration = require dirname(__DIR__, 3) . '/migrations/2026_08_12_000003_configuration_activation.php';
         $migration->up(new SchemaBuilder($this->database->getConnection()));
+        $manifestMigration = require dirname(__DIR__, 3) . '/migrations/2026_08_15_000004_configuration_manifest_replay.php';
+        $manifestMigration->up(new SchemaBuilder($this->database->getConnection()));
         $authorizer = new class implements ConfigurationActivationAuthorizerInterface {
             public function authorize(ConfigurationActivationRequest $request, bool $deletes): void {}
         };
         $activator = new DatabaseConfigurationActivator($this->database, $this->baseContext, $authorizer);
-        $first = $activator->activate(new ConfigurationActivationRequest(
+        $first = $activator->activate(ConfigurationActivationRequest::activateVerified(
             'reader-pin-a',
             null,
-            [$this->syncFile(['name' => 'A'])],
+            VerifiedConfigBundleFixture::fromFiles([$this->syncFile(['name' => 'A'])], 1),
         ));
         $oldContext = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
         $oldBridge = new DatabaseActiveConfigurationBridge($this->database, $oldContext);
 
-        $activator->activate(new ConfigurationActivationRequest(
+        $activator->activate(ConfigurationActivationRequest::activateVerified(
             'reader-pin-b',
             $first->token,
-            [$this->syncFile(['name' => 'B'])],
+            VerifiedConfigBundleFixture::fromFiles([$this->syncFile(['name' => 'B'])], 2),
             expectedEntryHashes: ['system.site' => $this->syncFile(['name' => 'A'])->contentHash()],
         ));
         $freshContext = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
@@ -95,6 +97,9 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
 
         self::assertSame(['name' => 'A'], $oldBridge->activeStorage()->read('system.site'));
         self::assertSame(['name' => 'B'], $freshBridge->activeStorage()->read('system.site'));
+        $freshFiles = array_values(iterator_to_array($freshBridge->iterate()));
+        self::assertCount(1, $freshFiles);
+        self::assertTrue($freshFiles[0]->isWritableV1());
         self::assertSame(1, $oldContext->activationSequence);
         self::assertSame(2, $freshContext->activationSequence);
     }
@@ -134,24 +139,34 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         );
         $context = $resolver->bind($this->baseContext);
         $bridge = new TestingActiveConfigurationBridge($context);
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'system',
             entityId: 'site',
             uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
             dependencies: [],
             langcode: 'en',
             fields: ['name' => 'Waaseyaa'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         self::assertSame('created', $bridge->apply($file));
         self::assertSame('unchanged', $bridge->apply($file));
-        $updated = new ConfigSyncFile(
+        $updated = ConfigSyncFile::writable(
             entityType: 'system',
             entityId: 'site',
             uuid: $file->uuid,
             dependencies: [],
             langcode: 'en',
             fields: ['name' => 'Waaseyaa', 'slogan' => 'Living knowledge'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
         self::assertSame('updated', $bridge->apply($updated));
         self::assertSame($context, $bridge->authorityContext());
@@ -355,13 +370,18 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
     {
         ksort($fields, SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: 'system',
             entityId: 'site',
             uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

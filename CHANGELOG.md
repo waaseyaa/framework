@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
+  v1 configuration contract with closed recursive schema validation, separate
+  default-materialized effective documents, versioned canonical encoding,
+  exhaustive sync-directory validation, kernel-finalized schema registration,
+  and distinct exact-byte, authored-content, effective-entry, signed-bundle,
+  and generation identities. Bind complete verified bundles to CFG-02
+  activation, persist append-only manifest provenance and monotonic replay
+  state, retain readable package-contract metadata for generations, require
+  explicit forward migration from format 0, and verify authored, effective,
+  active, package, registry, replay, SQLite, sync, and compiled-artifact drift
+  without repair or mutation. Legacy per-entry production writes now refuse;
+  CFG-04 key custody remains deliberately unimplemented and unsigned
+  production activation remains refused.
+
 - **transactional configuration activation (`S1-FW-CFG-02`):** Add
   content-bound immutable generations, ordered compare-and-swap activation,
   idempotent request identities, explicit hash-bound deletion, and fail-closed

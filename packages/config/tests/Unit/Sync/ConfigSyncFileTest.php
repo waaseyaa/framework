@@ -28,13 +28,18 @@ final class ConfigSyncFileTest extends TestCase
     public function entityTypePatternIsEnforced(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new ConfigSyncFile(
+        ConfigSyncFile::writable(
             entityType: 'INVALID',
             entityId: 'admin',
             uuid: 'abc',
             dependencies: [],
             langcode: 'en',
             fields: [],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -42,13 +47,18 @@ final class ConfigSyncFileTest extends TestCase
     public function entityIdPatternIsEnforced(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new ConfigSyncFile(
+        ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'Has-Dash',
             uuid: 'abc',
             dependencies: [],
             langcode: 'en',
             fields: [],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -56,13 +66,18 @@ final class ConfigSyncFileTest extends TestCase
     public function emptyUuidRejected(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new ConfigSyncFile(
+        ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: '',
             dependencies: [],
             langcode: 'en',
             fields: [],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -70,13 +85,18 @@ final class ConfigSyncFileTest extends TestCase
     public function emptyLangcodeRejected(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new ConfigSyncFile(
+        ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: 'u',
             dependencies: [],
             langcode: '',
             fields: [],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -84,13 +104,18 @@ final class ConfigSyncFileTest extends TestCase
     public function dependencyPatternIsEnforced(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new ConfigSyncFile(
+        ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: 'u',
             dependencies: ['NotAValidRef'],
             langcode: 'en',
             fields: [],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -98,7 +123,7 @@ final class ConfigSyncFileTest extends TestCase
     public function fieldsMustBeSortedAlphabetically(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new ConfigSyncFile(
+        ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: 'u',
@@ -106,6 +131,11 @@ final class ConfigSyncFileTest extends TestCase
             langcode: 'en',
             // Out-of-order: 'weight' appears before 'label'.
             fields: ['weight' => 10, 'label' => 'Admin'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -124,7 +154,7 @@ final class ConfigSyncFileTest extends TestCase
     public function contentHashChangesWhenFieldsChange(): void
     {
         $a = $this->makeFile();
-        $b = new ConfigSyncFile(
+        $b = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
@@ -136,9 +166,39 @@ final class ConfigSyncFileTest extends TestCase
                 'label' => 'Coordinator',
                 'weight' => 10,
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         self::assertNotSame($a->contentHash(), $b->contentHash());
+    }
+
+    #[Test]
+    public function legacyTransactionalContentHashDoesNotFoldInCfg03SchemaMetadata(): void
+    {
+        $baseline = $this->makeFile();
+        $versioned = ConfigSyncFile::writable(
+            entityType: $baseline->entityType,
+            entityId: $baseline->entityId,
+            uuid: $baseline->uuid,
+            dependencies: $baseline->dependencies,
+            langcode: $baseline->langcode,
+            fields: $baseline->fields,
+            schemaId: 'waaseyaa.role',
+            schemaVersion: 7,
+            schemaHash: 'sha256:' . str_repeat('a', 64),
+            ownerPackage: 'waaseyaa/identity',
+            ownerConfigContractVersion: 3,
+        );
+
+        self::assertSame(
+            $baseline->contentHash(),
+            $versioned->contentHash(),
+            'CFG-02 persisted CAS identity remains backward-compatible; CFG-03 hashes use separate named APIs.',
+        );
     }
 
     #[Test]
@@ -180,8 +240,15 @@ final class ConfigSyncFileTest extends TestCase
         $parsed = [
             '_meta' => [
                 'dependencies' => ['role.admin'],
+                'entity_id' => 'coordinator',
                 'entity_type' => 'role',
+                'format' => ConfigSyncFile::FORMAT_V1,
                 'langcode' => 'en',
+                'owner_config_contract_version' => 1,
+                'owner_package' => 'waaseyaa/config',
+                'schema_hash' => 'sha256:' . str_repeat('a', 64),
+                'schema_id' => 'waaseyaa.role',
+                'schema_version' => 1,
                 'uuid' => '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
             ],
             'description' => 'Coordinators manage community calendars.',
@@ -242,20 +309,27 @@ final class ConfigSyncFileTest extends TestCase
     }
 
     #[Test]
-    public function fromParsedArrayDefaultsDependenciesToEmptyList(): void
+    public function fromParsedArrayRejectsMissingDependencies(): void
     {
         $parsed = [
             '_meta' => [
+                'entity_id' => 'coordinator',
                 'entity_type' => 'role',
+                'format' => ConfigSyncFile::FORMAT_V1,
                 'uuid' => 'u',
                 'langcode' => 'en',
+                'owner_config_contract_version' => 1,
+                'owner_package' => 'waaseyaa/config',
+                'schema_hash' => 'sha256:' . str_repeat('a', 64),
+                'schema_id' => 'waaseyaa.role',
+                'schema_version' => 1,
             ],
             'label' => 'Coordinator',
         ];
 
-        $file = ConfigSyncFile::fromParsedArray($parsed, 'role.coordinator.yml');
-
-        self::assertSame([], $file->dependencies);
+        $this->expectException(ConfigSerializationException::class);
+        $this->expectExceptionMessage('dependencies');
+        ConfigSyncFile::fromParsedArray($parsed, 'role.coordinator.yml');
     }
 
     #[Test]
@@ -286,7 +360,7 @@ final class ConfigSyncFileTest extends TestCase
 
     private function makeFile(): ConfigSyncFile
     {
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
@@ -298,6 +372,11 @@ final class ConfigSyncFileTest extends TestCase
                 'label' => 'Coordinator',
                 'weight' => 10,
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 }

@@ -93,21 +93,31 @@ final class ConfigStatusCommandTest extends TestCase
     public function json_format_includes_renamed_from_for_renames(): void
     {
         $uuid = ConfigSyncFile::deterministicUuid('role', 'coordinator');
-        $sync = new ConfigSyncFile(
+        $sync = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'community_coordinator',
             uuid: $uuid,
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'CC'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
-        $active = new ConfigSyncFile(
+        $active = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: $uuid,
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'C'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
         $tester = $this->makeTester([$sync], [$active]);
 
@@ -155,7 +165,7 @@ final class ConfigStatusCommandTest extends TestCase
         foreach ($syncFiles as $file) {
             $repo->put($file);
         }
-        $source = new class($activeFiles) implements ConfigSyncFileSourceInterface {
+        $source = new class ($activeFiles) implements ConfigSyncFileSourceInterface {
             /** @param list<ConfigSyncFile> $files */
             public function __construct(private readonly array $files) {}
 
@@ -191,7 +201,7 @@ final class ConfigStatusCommandTest extends TestCase
 
     private function makeContainer(ConfigStatusCommand $command): ContainerInterface
     {
-        return new class($command) implements ContainerInterface {
+        return new class ($command) implements ContainerInterface {
             public function __construct(private readonly ConfigStatusCommand $command) {}
 
             public function get(string $id): mixed
@@ -216,13 +226,18 @@ final class ConfigStatusCommandTest extends TestCase
     {
         ksort($fields, \SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

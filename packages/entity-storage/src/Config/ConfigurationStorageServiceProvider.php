@@ -15,6 +15,8 @@ use Waaseyaa\Config\Activation\RefusingConfigurationRollbackValidator;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface;
+use Waaseyaa\Config\Drift\ConfigDriftSnapshotReaderInterface;
+use Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
@@ -70,6 +72,24 @@ final class ConfigurationStorageServiceProvider extends ServiceProvider implemen
             assert($activator instanceof ConfigurationCandidateMaintenanceInterface);
 
             return $activator;
+        });
+        $this->singleton(ConfigReplayStateReaderInterface::class, function (): ConfigReplayStateReaderInterface {
+            $database = $this->resolve(DatabaseInterface::class);
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            assert($database instanceof DatabaseInterface);
+            assert($context instanceof ConfigurationAuthorityContext);
+
+            return new DatabaseConfigReplayStateReader($database, $context);
+        });
+        $this->singleton(ConfigDriftSnapshotReaderInterface::class, function (): ConfigDriftSnapshotReaderInterface {
+            $database = $this->resolve(DatabaseInterface::class);
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            $bridge = $this->resolve(ActiveConfigurationBridgeInterface::class);
+            assert($database instanceof DatabaseInterface);
+            assert($context instanceof ConfigurationAuthorityContext);
+            assert($bridge instanceof ActiveConfigurationBridgeInterface);
+
+            return new DatabaseConfigDriftSnapshotReader($database, $context, $bridge);
         });
         $this->singleton(RuntimeEpochInterface::class, function () use ($testing): RuntimeEpochInterface {
             if ($testing) {

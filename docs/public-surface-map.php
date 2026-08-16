@@ -71,6 +71,7 @@ return [
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface' => 'public',
     // Migration-provider injection capability (PR #1614): kernel guards provider
     // wiring via this named interface instead of a Layer-3 concrete edge.
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface' => 'public',
@@ -416,6 +417,10 @@ return [
     'Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface' => 'public',
+    'Waaseyaa\Config\Drift\ConfigDriftSnapshotReaderInterface' => 'public',
+    'Waaseyaa\Config\Manifest\ConfigManifestSignatureVerifierInterface' => 'public',
+    'Waaseyaa\Config\Manifest\ConfigManifestSignerInterface' => 'public',
+    'Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface' => 'public',
     'Waaseyaa\Config\TranslatableConfigFactoryInterface' => 'public',
     'Waaseyaa\Config\Event\ConfigEvents' => 'public',
     // M-003 (config-management-v1) — CMI sync substrate. Charter §5.5; spec docs/specs/config-management.md.

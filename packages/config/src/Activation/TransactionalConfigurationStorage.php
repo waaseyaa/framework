@@ -7,10 +7,13 @@ namespace Waaseyaa\Config\Activation;
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\StorageInterface;
-use Waaseyaa\Config\Sync\ConfigSyncFile;
 
 /**
- * Legacy StorageInterface mutation adapter over one immutable successor-generation CAS.
+ * Retained read adapter for the pre-CFG-03 public surface.
+ *
+ * Per-entry StorageInterface mutation cannot authenticate a complete authored
+ * bundle and therefore always refuses. New activation callers must hand a
+ * verified strict-v1 candidate directly to CFG-02.
  *
  * @api
  */
@@ -18,13 +21,10 @@ final class TransactionalConfigurationStorage implements StorageInterface
 {
     /** @var array<string, self> */
     private array $collections = [];
-    /** @var array<string, ConfigSyncFile>|null */
-    private ?array $observedFiles = null;
-
     public function __construct(
         private readonly StorageInterface $reader,
         private readonly ConfigurationActivatorInterface $activator,
-        private ConfigurationActiveToken $observedToken,
+        private readonly ConfigurationActiveToken $observedToken,
         private readonly string $collection = '',
     ) {}
 
@@ -55,101 +55,22 @@ final class TransactionalConfigurationStorage implements StorageInterface
 
     public function write(string $name, array $data): bool
     {
-        $ref = $this->rootRef($name);
-        $existing = $this->files()[$ref] ?? null;
-        [$entityType, $entityId] = explode('.', $ref, 2);
-        ksort($data, SORT_STRING);
-        $file = new ConfigSyncFile(
-            $entityType,
-            $entityId,
-            $existing === null ? ConfigSyncFile::deterministicUuid($entityType, $entityId) : $existing->uuid,
-            $existing === null ? [] : $existing->dependencies,
-            $existing === null ? 'en' : $existing->langcode,
-            $data,
-        );
-        $this->activateAndRefresh(new ConfigurationActivationRequest(
-            $this->requestId('save', $ref, $file->contentHash()),
-            $this->observedToken,
-            [$file],
-            expectedEntryHashes: $existing === null ? [] : [$ref => $existing->contentHash()],
-        ));
-
-        return true;
+        throw $this->mutationUnavailable();
     }
 
     public function delete(string $name): bool
     {
-        $ref = $this->rootRef($name);
-        $existing = $this->files()[$ref] ?? null;
-        if (!$existing instanceof ConfigSyncFile) {
-            return false;
-        }
-        $this->activateAndRefresh(new ConfigurationActivationRequest(
-            $this->requestId('delete', $ref, $existing->contentHash()),
-            $this->observedToken,
-            [],
-            [$ref => $existing->contentHash()],
-        ));
-
-        return true;
+        throw $this->mutationUnavailable();
     }
 
     public function rename(string $name, string $newName): bool
     {
-        $oldRef = $this->rootRef($name);
-        $newRef = $this->rootRef($newName);
-        $existing = $this->files()[$oldRef] ?? null;
-        if (!$existing instanceof ConfigSyncFile || isset($this->files()[$newRef])) {
-            return false;
-        }
-        [$entityType, $entityId] = explode('.', $newRef, 2);
-        $replacement = new ConfigSyncFile(
-            $entityType,
-            $entityId,
-            ConfigSyncFile::deterministicUuid($entityType, $entityId),
-            $existing->dependencies,
-            $existing->langcode,
-            $existing->fields,
-        );
-        $this->activateAndRefresh(new ConfigurationActivationRequest(
-            $this->requestId('rename', $oldRef . ':' . $newRef, $replacement->contentHash()),
-            $this->observedToken,
-            [$replacement],
-            [$oldRef => $existing->contentHash()],
-        ));
-
-        return true;
+        throw $this->mutationUnavailable();
     }
 
     public function deleteAll(string $prefix = ''): bool
     {
-        $files = $this->files();
-        $retained = [];
-        $tombstones = [];
-        foreach ($files as $ref => $file) {
-            if ($prefix === '' || str_starts_with($ref, $prefix)) {
-                $tombstones[$ref] = $file->contentHash();
-            } else {
-                $retained[] = $file;
-            }
-        }
-        if ($tombstones === []) {
-            return true;
-        }
-        $expectedEntryHashes = [];
-        foreach ($retained as $file) {
-            $expectedEntryHashes[$file->ref()] = $file->contentHash();
-        }
-        $this->activateAndRefresh(new ConfigurationActivationRequest(
-            $this->requestId('delete-all', $prefix, hash('sha256', json_encode($tombstones, JSON_THROW_ON_ERROR))),
-            $this->observedToken,
-            $retained,
-            $tombstones,
-            expectedEntryHashes: $expectedEntryHashes,
-            completeReplacement: true,
-        ));
-
-        return true;
+        throw $this->mutationUnavailable();
     }
 
     public function createCollection(string $collection): static
@@ -162,44 +83,10 @@ final class TransactionalConfigurationStorage implements StorageInterface
         );
     }
 
-    /** @return array<string, ConfigSyncFile> */
-    private function files(): array
+    private function mutationUnavailable(): ConfigurationAuthorityUnavailableException
     {
-        if ($this->observedFiles === null) {
-            $this->observedFiles = [];
-            foreach ($this->activator->readGeneration($this->observedToken) as $file) {
-                $this->observedFiles[$file->ref()] = $file;
-            }
-        }
-
-        return $this->observedFiles;
-    }
-
-    private function rootRef(string $name): string
-    {
-        if ($this->collection !== '' || preg_match(ConfigSyncFile::REF_PATTERN . 'D', $name) !== 1) {
-            throw new ConfigurationAuthorityUnavailableException(
-                'Transactional configuration mutation currently requires one canonical root config ref.',
-            );
-        }
-
-        return $name;
-    }
-
-    private function activateAndRefresh(ConfigurationActivationRequest $request): void
-    {
-        $result = $this->activator->activate($request);
-        $this->observedToken = $result->token;
-        $this->observedFiles = null;
-    }
-
-    private function requestId(string $operation, string $scope, string $payloadHash): string
-    {
-        return 'config-' . $operation . ':' . hash('sha256', json_encode([
-            'scope' => $scope,
-            'payload_hash' => $payloadHash,
-            'expected_generation_id' => $this->observedToken->generationId,
-            'expected_activation_sequence' => $this->observedToken->activationSequence,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        return new ConfigurationAuthorityUnavailableException(
+            'Legacy per-entry configuration mutation cannot authenticate a complete CFG-03 bundle and is unavailable.',
+        );
     }
 }

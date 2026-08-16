@@ -7,8 +7,6 @@ namespace Waaseyaa\AI\Agent\Mcp;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\ConfigManagerInterface;
-use Waaseyaa\Config\Schema\Ai\McpServersConfig;
-use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\StorageInterface as ConfigStorageInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -74,12 +72,6 @@ final class McpServiceProvider extends ServiceProvider implements RequiresCapabi
 
     public function boot(): void
     {
-        // Register the schema so config sync / audit can validate the row.
-        $validator = $this->kernelServices?->get(ConfigSchemaValidator::class);
-        if ($validator instanceof ConfigSchemaValidator) {
-            McpServersConfig::register($validator);
-        }
-
         // Bootstrap remote tool catalogues. Failures degrade gracefully —
         // we never let a flaky MCP server abort the kernel boot.
         if ($this->resolveToolRegistry() === null) {

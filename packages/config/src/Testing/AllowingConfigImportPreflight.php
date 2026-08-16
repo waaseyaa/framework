@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Testing;
 
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
 use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 
 /** Explicit test-only proof gate; production providers must never bind it. */
@@ -15,5 +16,7 @@ final class AllowingConfigImportPreflight implements ConfigImportPreflightInterf
         bool $dryRun,
         bool $deleteOrphans,
         bool $noDependencyCheck,
-    ): void {}
+    ): ?VerifiedConfigBundle {
+        return null;
+    }
 }

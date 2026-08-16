@@ -27,6 +27,13 @@
     "prefer-stable": true,
     "extra": {
         "waaseyaa": {
+            "config-contract": {
+                "schema-provider": "Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider",
+                "version": 1,
+                "readable_versions": [
+                    1
+                ]
+            },
             "providers": [
                 "Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider"
             ]

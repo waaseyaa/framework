@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Config\Sync;
 
 use Symfony\Component\Yaml\Yaml;
+use Waaseyaa\Config\Exception\ConfigSerializationException;
 
 /**
  * Emits the canonical YAML representation of a {@see ConfigSyncFile}.
@@ -58,6 +59,12 @@ final class ConfigSyncSerializer
      */
     public function toYaml(ConfigSyncFile $file): string
     {
+        if (!$file->isWritableV1()) {
+            throw ConfigSerializationException::invalidMeta(
+                $file->filename(),
+                'legacy-readable configuration cannot be serialized as writable v1 sync input.',
+            );
+        }
         $payload = $this->buildPayload($file);
         $yaml = Yaml::dump($payload, self::INLINE_DEPTH, self::INDENT, self::DUMP_FLAGS);
 
@@ -71,6 +78,38 @@ final class ConfigSyncSerializer
     }
 
     /**
+     * Render one file for read-only operator diagnostics.
+     *
+     * Legacy active rows intentionally remain distinguishable from writable
+     * v1 input: this projection omits the v1-only authority fields and can
+     * never be passed to {@see ConfigSyncRepository::put()} as an object.
+     * It exists so status/diff can report retained CFG-02 state instead of
+     * either manufacturing schema identity or aborting the read-only command.
+     */
+    public function toDiagnosticYaml(ConfigSyncFile $file): string
+    {
+        if ($file->isWritableV1()) {
+            return $this->toYaml($file);
+        }
+
+        $meta = [
+            'dependencies' => $file->dependencies,
+            'entity_type' => $file->entityType,
+            'format' => $file->format,
+            'langcode' => $file->langcode,
+            'uuid' => $file->uuid,
+        ];
+        ksort($meta, \SORT_STRING);
+
+        $fields = $file->fields;
+        ksort($fields, \SORT_STRING);
+        $payload = ['_meta' => $meta, ...$fields];
+        $yaml = Yaml::dump($payload, self::INLINE_DEPTH, self::INDENT, self::DUMP_FLAGS);
+
+        return str_ends_with($yaml, "\n") ? $yaml : $yaml . "\n";
+    }
+
+    /**
      * Build the canonical mapping that the YAML emitter walks. `_meta` first
      * (via insertion order), then alphabetically-sorted field keys.
      *
@@ -78,10 +117,23 @@ final class ConfigSyncSerializer
      */
     public function buildPayload(ConfigSyncFile $file): array
     {
+        if (!$file->isWritableV1()) {
+            throw ConfigSerializationException::invalidMeta(
+                $file->filename(),
+                'legacy-readable configuration cannot be serialized as writable v1 sync input.',
+            );
+        }
         $meta = [
             'dependencies' => $file->dependencies,
+            'entity_id' => $file->entityId,
             'entity_type' => $file->entityType,
+            'format' => $file->format,
             'langcode' => $file->langcode,
+            'owner_config_contract_version' => $file->ownerConfigContractVersion,
+            'owner_package' => $file->ownerPackage,
+            'schema_hash' => $file->schemaHash,
+            'schema_id' => $file->schemaId,
+            'schema_version' => $file->schemaVersion,
             'uuid' => $file->uuid,
         ];
         ksort($meta, \SORT_STRING);

@@ -35,21 +35,31 @@ final class CycleFixture
      */
     public static function files(): array
     {
-        $admin = new ConfigSyncFile(
+        $admin = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: ConfigSyncFile::deterministicUuid('role', 'admin'),
             dependencies: ['role.member'],
             langcode: 'en',
             fields: ['label' => 'Admin'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
-        $member = new ConfigSyncFile(
+        $member = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'member',
             uuid: ConfigSyncFile::deterministicUuid('role', 'member'),
             dependencies: ['role.admin'],
             langcode: 'en',
             fields: ['label' => 'Member'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         return [

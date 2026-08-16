@@ -8,7 +8,18 @@ use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
 use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
 use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeVerifier;
+use Waaseyaa\Config\Manifest\ConfigSyncBundleManifest;
+use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
+use Waaseyaa\Config\Schema\ConfigContentHasher;
+use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
+use Waaseyaa\Config\Schema\ConfigPackageContract;
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
+use Waaseyaa\Config\Sync\ConfigSyncBundleValidationResult;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Config\Sync\ConfigSyncSerializer;
+use Waaseyaa\Config\Sync\ValidatedConfigSyncEntry;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Config\DatabaseConfigurationActivator;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -25,6 +36,7 @@ $database = DBALDatabase::createSqlite(__DIR__ . '/activation.sqlite', 'testing'
 foreach ([
     '2026_08_12_000002_configuration_authority.php',
     '2026_08_12_000003_configuration_activation.php',
+    '2026_08_15_000004_configuration_manifest_replay.php',
 ] as $migrationFile) {
     $migration = require __DIR__ . '/vendor/waaseyaa/entity-storage/migrations/' . $migrationFile;
     $migration->up(new SchemaBuilder($database->getConnection()));
@@ -42,23 +54,63 @@ $validator = new class implements ConfigurationRollbackValidatorInterface {
     public function validate(ConfigurationRollbackRequest $request, array $targetFiles): void {}
 };
 $activator = new DatabaseConfigurationActivator($database, $context, $authorizer, $validator);
-$file = static fn(string $name): ConfigSyncFile => new ConfigSyncFile(
-    'system',
-    'site',
-    ConfigSyncFile::deterministicUuid('system', 'site'),
-    [],
-    'en',
-    ['name' => $name],
-);
-$firstRequest = new ConfigurationActivationRequest('packaged-first', null, [$file('A')]);
+$bundle = static function (string $name, int $sequence): VerifiedConfigBundle {
+    $registry = new ConfigSchemaRegistry();
+    $registration = $registry->register('waaseyaa.test.config', 1, 'waaseyaa/config', 1, [
+        'dialect' => ConfigSchemaRegistry::DIALECT_V1,
+        'type' => 'object',
+        'properties' => ['name' => ['type' => 'string']],
+        'required' => ['name'],
+    ]);
+    $registry->freeze();
+    $file = ConfigSyncFile::writable(
+        'system',
+        'site',
+        ConfigSyncFile::deterministicUuid('system', 'site'),
+        [],
+        'en',
+        ['name' => $name],
+        schemaId: $registration->schemaId,
+        schemaVersion: $registration->schemaVersion,
+        schemaHash: $registration->canonicalSchemaHash,
+        ownerPackage: $registration->ownerPackage,
+        ownerConfigContractVersion: $registration->ownerConfigContractVersion,
+    );
+    $bytes = new ConfigSyncSerializer()->toYaml($file);
+    $result = new ConfigSyncBundleValidationResult([
+        new ValidatedConfigSyncEntry($file, $bytes, new ConfigContentHasher()->hash($file, $bytes, $registry)),
+    ], []);
+    $manifest = ConfigSyncBundleManifest::fromValidatedBundle(
+        $result,
+        $registry,
+        'test:packaged-activation',
+        $sequence,
+        ['producer' => 'exact-head-packaged-proof'],
+        ['waaseyaa/config' => 1],
+    );
+    $verification = new ConfigManifestEnvelopeVerifier()->verifyUnsigned(
+        $manifest,
+        UnsignedConfigPolicy::sealedLocal('authority:packaged-proof', 'sha256:' . str_repeat('a', 64)),
+    );
+
+    return VerifiedConfigBundle::bind(
+        $result,
+        $registry,
+        $verification,
+        new ConfigPackageCompatibility([
+            new ConfigPackageContract('waaseyaa/config', 1, 'packaged-proof.Provider', [1]),
+        ]),
+    );
+};
+$firstRequest = ConfigurationActivationRequest::activateVerified('packaged-first', null, $bundle('A', 1));
 $first = $activator->activate($firstRequest);
 $retry = $activator->activate($firstRequest);
 if ($first->token != $retry->token || $first->evidenceHash() !== $retry->evidenceHash()) {
     throw new RuntimeException('Packaged activation retry was not idempotent and evidence-stable.');
 }
-$second = $activator->activate(new ConfigurationActivationRequest('packaged-second', $first->token, [$file('B')]));
+$second = $activator->activate(ConfigurationActivationRequest::activateVerified('packaged-second', $first->token, $bundle('B', 2)));
 try {
-    $activator->activate(new ConfigurationActivationRequest('packaged-stale', $first->token, [$file('C')]));
+    $activator->activate(ConfigurationActivationRequest::activateVerified('packaged-stale', $first->token, $bundle('C', 3)));
     throw new RuntimeException('Packaged activation accepted a stale token.');
 } catch (ConfigurationActivationConflictException) {
 }

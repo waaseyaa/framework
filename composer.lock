@@ -4202,12 +4202,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/config",
-                "reference": "ab9ff9efdb5d179d39a8e3cf08e25dfe43b31de9"
+                "reference": "b9eaa2ba27f468c7151a07af60a9289e2caadd6e"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/event-dispatcher": "^7.0",
                 "symfony/yaml": "^7.0",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.293",
                 "waaseyaa/foundation": "^0.1.0-alpha.293"
             },
             "require-dev": {
@@ -4216,8 +4217,15 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "config-contract": {
+                        "schema-provider": "Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider",
+                        "version": 1,
+                        "readable_versions": [
+                            1
+                        ]
+                    },
                     "providers": [
-                        "Waaseyaa\\Config\\ConfigServiceProvider"
+                        "Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider"
                     ]
                 },
                 "branch-alias": {
@@ -4429,7 +4437,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
-                "reference": "06ba83df1479b0d56dc1a0786ce569aca171c6ac"
+                "reference": "0531cb921db6e9caa074102e4d696697e2dd5425"
             },
             "require": {
                 "php": ">=8.5",
@@ -4455,7 +4463,8 @@
                 "waaseyaa": {
                     "migrations": "migrations",
                     "providers": [
-                        "Waaseyaa\\EntityStorage\\Backend\\FrameworkFieldStorageBackendProvider"
+                        "Waaseyaa\\EntityStorage\\Backend\\FrameworkFieldStorageBackendProvider",
+                        "Waaseyaa\\EntityStorage\\Config\\ConfigurationStorageServiceProvider"
                     ]
                 }
             },

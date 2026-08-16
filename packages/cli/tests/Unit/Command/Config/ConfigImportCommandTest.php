@@ -18,6 +18,8 @@ use Waaseyaa\Config\Activation\ConfigurationActivationResult;
 use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
+use Waaseyaa\Config\Tests\Fixtures\VerifiedConfigBundleFixture;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
@@ -90,11 +92,26 @@ final class ConfigImportCommandTest extends TestCase
     {
         $this->seed(['role.admin' => []]);
         $activator = new class implements ConfigurationActivatorInterface {
-            public function activate(ConfigurationActivationRequest $request): ConfigurationActivationResult { throw new \LogicException('dry-run activated'); }
-            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult { throw new \LogicException('not used'); }
-            public function committedResult(string $requestId): ?ConfigurationActivationResult { return null; }
-            public function currentToken(): ?ConfigurationActiveToken { return null; }
-            public function readGeneration(ConfigurationActiveToken $token): iterable { return []; }
+            public function activate(ConfigurationActivationRequest $request): ConfigurationActivationResult
+            {
+                throw new \LogicException('dry-run activated');
+            }
+            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult
+            {
+                throw new \LogicException('not used');
+            }
+            public function committedResult(string $requestId): ?ConfigurationActivationResult
+            {
+                return null;
+            }
+            public function currentToken(): ?ConfigurationActiveToken
+            {
+                return null;
+            }
+            public function readGeneration(ConfigurationActiveToken $token): iterable
+            {
+                return [];
+            }
         };
         $tester = $this->makeTester(activator: $activator);
 
@@ -182,13 +199,18 @@ final class ConfigImportCommandTest extends TestCase
         $repository = new ConfigSyncRepository($this->tempDir);
         foreach ($refsWithDeps as $ref => $dependencies) {
             [$entityType, $entityId] = explode('.', $ref, 2);
-            $file = new ConfigSyncFile(
+            $file = ConfigSyncFile::writable(
                 entityType: $entityType,
                 entityId: $entityId,
                 uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
                 dependencies: $dependencies,
                 langcode: 'en',
                 fields: [],
+                schemaId: 'waaseyaa.test.config',
+                schemaVersion: 1,
+                schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                ownerPackage: 'waaseyaa/config',
+                ownerConfigContractVersion: 1,
             );
             $repository->put($file);
         }
@@ -208,6 +230,22 @@ final class ConfigImportCommandTest extends TestCase
 
             public function delete(string $ref): void {}
         };
+        if ($preflight === null && $activator !== null) {
+            $bundle = VerifiedConfigBundleFixture::fromFiles(array_values(iterator_to_array($repository->list())));
+            $preflight = new class ($bundle) implements ConfigImportPreflightInterface {
+                public function __construct(private readonly VerifiedConfigBundle $bundle) {}
+
+                public function assertReady(
+                    array $syncFiles,
+                    array $activeRefs,
+                    bool $dryRun,
+                    bool $deleteOrphans,
+                    bool $noDependencyCheck,
+                ): ?VerifiedConfigBundle {
+                    return $this->bundle;
+                }
+            };
+        }
         $importer = new ConfigImporter(
             $repository,
             $hook,

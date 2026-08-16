@@ -232,7 +232,7 @@ final class ConfigSyncRepositoryContractTest extends TestCase
 
     private function makeFile(string $entityType = 'role', string $entityId = 'coordinator'): ConfigSyncFile
     {
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
@@ -242,6 +242,11 @@ final class ConfigSyncRepositoryContractTest extends TestCase
                 'id' => $entityId,
                 'label' => ucfirst($entityId),
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Sync;
 
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
+
 /** Mandatory gate invoked before import can call any active-store mutation seam. @api */
 interface ConfigImportPreflightInterface
 {
@@ -17,5 +19,5 @@ interface ConfigImportPreflightInterface
         bool $dryRun,
         bool $deleteOrphans,
         bool $noDependencyCheck,
-    ): void;
+    ): ?VerifiedConfigBundle;
 }

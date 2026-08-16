@@ -7,19 +7,17 @@ namespace Waaseyaa\Config\Tests\Unit\Sync;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Audit\ConfigAuditChannel;
 use Waaseyaa\Config\Audit\ConfigAuditEvent;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigResetter;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
-use Waaseyaa\Config\Sync\ConfigSyncRepository;
 use Waaseyaa\Config\Sync\ConfigSyncFileSourceInterface;
-use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
-use Waaseyaa\Config\Activation\ConfigurationActivationResult;
-use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
-use Waaseyaa\Config\Authority\ConfigurationActiveToken;
+use Waaseyaa\Config\Sync\ConfigSyncRepository;
 
 #[CoversClass(ConfigResetter::class)]
 final class ConfigResetterTest extends TestCase
@@ -186,36 +184,42 @@ final class ConfigResetterTest extends TestCase
     }
 
     #[Test]
-    public function productionResetUsesOneHashBoundActivationAndNeverTheLegacyHook(): void
+    public function productionResetRefusesUntilACompleteVerifiedBundlePlannerExists(): void
     {
         $repository = $this->seed(['role.admin' => []]);
-        $activeFile = new ConfigSyncFile(
+        $activeFile = ConfigSyncFile::writable(
             'role',
             'admin',
             ConfigSyncFile::deterministicUuid('role', 'admin'),
             [],
             'en',
             ['label' => 'Old'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
         $source = new class ($activeFile) implements ConfigSyncFileSourceInterface {
             public function __construct(private readonly ConfigSyncFile $file) {}
-            public function iterate(): iterable { yield $this->file; }
+            public function iterate(): iterable
+            {
+                yield $this->file;
+            }
         };
         $hook = new class implements ConfigImportApplyHookInterface {
-            public function apply(ConfigSyncFile $file): string { throw new \LogicException('legacy hook called'); }
-            public function delete(string $ref): void { throw new \LogicException('legacy hook called'); }
+            public function apply(ConfigSyncFile $file): string
+            {
+                throw new \LogicException('legacy hook called');
+            }
+            public function delete(string $ref): void
+            {
+                throw new \LogicException('legacy hook called');
+            }
         };
         $expected = new ConfigurationActiveToken(str_repeat('a', 64), 4);
-        $committed = new ConfigurationActiveToken(str_repeat('b', 64), 5);
         $activator = $this->createMock(ConfigurationActivatorInterface::class);
-        $activator->expects($this->once())
-            ->method('activate')
-            ->with($this->callback(static function (ConfigurationActivationRequest $request) use ($activeFile, $expected): bool {
-                return $request->requestId === 'reset-request-1'
-                    && $request->expectedToken == $expected
-                    && $request->expectedEntryHashes() === ['role.admin' => $activeFile->contentHash()];
-            }))
-            ->willReturn(new ConfigurationActivationResult('committed', $committed, 'reset-request-1', str_repeat('c', 64)));
+        $activator->expects($this->never())->method('activate');
         $resetter = new ConfigResetter(
             $repository,
             $hook,
@@ -229,7 +233,8 @@ final class ConfigResetterTest extends TestCase
             expectedToken: $expected,
         );
 
-        self::assertSame(ConfigImportEntryResult::STATUS_UPDATED, $result->status);
+        self::assertSame(ConfigImportEntryResult::STATUS_FAILED, $result->status);
+        self::assertStringContainsString('complete verified CFG-03 bundle planner', (string) $result->reason);
     }
 
     /**
@@ -240,13 +245,18 @@ final class ConfigResetterTest extends TestCase
         $repository = new ConfigSyncRepository($this->tempDir);
         foreach ($refsWithDeps as $ref => $dependencies) {
             [$entityType, $entityId] = explode('.', $ref, 2);
-            $file = new ConfigSyncFile(
+            $file = ConfigSyncFile::writable(
                 entityType: $entityType,
                 entityId: $entityId,
                 uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
                 dependencies: $dependencies,
                 langcode: 'en',
                 fields: [],
+                schemaId: 'waaseyaa.test.config',
+                schemaVersion: 1,
+                schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                ownerPackage: 'waaseyaa/config',
+                ownerConfigContractVersion: 1,
             );
             $repository->put($file);
         }
@@ -256,7 +266,7 @@ final class ConfigResetterTest extends TestCase
 
     private function stubHook(string $status): ConfigImportApplyHookInterface
     {
-        return new class($status) implements ConfigImportApplyHookInterface {
+        return new class ($status) implements ConfigImportApplyHookInterface {
             public function __construct(private readonly string $status) {}
 
             public function apply(ConfigSyncFile $file): string
