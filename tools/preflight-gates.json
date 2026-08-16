@@ -179,7 +179,7 @@
             "run": "php bin/check-s1-configuration-activation",
             "repair": "review the diff, then php bin/check-s1-configuration-activation --write-roster and commit the roster",
             "profile": "default",
-            "enforced_by": "architecture-test:S1ConfigurationActivationContractTest.php",
+            "enforced_by": "workflow:ci.yml#php bin/check-s1-configuration-activation",
             "refresh": {
                 "mode": "auto",
                 "write": "php bin/check-s1-configuration-activation --write-roster"
@@ -191,7 +191,7 @@
             "run": "php bin/check-s1-configuration-authority",
             "repair": "review the diff, then php bin/check-s1-configuration-authority --write-roster and commit the roster",
             "profile": "default",
-            "enforced_by": "workflow:ci.yml#run_gate check-s1-configuration-authority",
+            "enforced_by": "workflow:ci.yml#php bin/check-s1-configuration-authority",
             "refresh": {
                 "mode": "auto",
                 "write": "php bin/check-s1-configuration-authority --write-roster"
@@ -203,7 +203,7 @@
             "run": "php bin/check-s1-schema-authority",
             "repair": "review the diff, then php bin/check-s1-schema-authority --write-roster and commit the roster",
             "profile": "default",
-            "enforced_by": "architecture-test:S1SchemaAuthorityContractTest.php",
+            "enforced_by": "workflow:ci.yml#php bin/check-s1-schema-authority",
             "refresh": {
                 "mode": "auto",
                 "write": "php bin/check-s1-schema-authority --write-roster"
@@ -273,7 +273,7 @@
         },
         {
             "id": "spec-drift",
-            "run": "bash tools/drift-detector.sh {base}",
+            "run": "bash tools/drift-detector.sh --include-worktree {base}",
             "base": true,
             "repair": "update the affected spec in the same change set, or commit a 'spec-reviewed: <spec-path> - <reason>' trailer",
             "profile": "default",
@@ -281,7 +281,7 @@
         },
         {
             "id": "changelog-discipline",
-            "run": "bash tools/check-changelog-discipline.sh {base}",
+            "run": "bash tools/check-changelog-discipline.sh --include-worktree {base}",
             "base": true,
             "repair": "add a CHANGELOG.md entry under [Unreleased] (the PR-body 'no-changelog: <reason>' override is applied by CI only)",
             "profile": "default",

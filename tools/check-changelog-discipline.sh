@@ -19,11 +19,30 @@
 #   1 — discipline violated
 #
 # Usage:
-#   bash tools/check-changelog-discipline.sh [<base-ref>]
+#   bash tools/check-changelog-discipline.sh [--include-worktree] [<base-ref>]
 
 set -euo pipefail
 
-base="${1:-origin/main}"
+base="origin/main"
+base_set=0
+include_worktree=0
+for argument in "$@"; do
+    case "$argument" in
+        --include-worktree) include_worktree=1 ;;
+        -*)
+            echo "changelog-discipline: unknown option '${argument}'." >&2
+            exit 2
+            ;;
+        *)
+            if [[ "$base_set" -eq 1 ]]; then
+                echo "changelog-discipline: more than one base ref supplied." >&2
+                exit 2
+            fi
+            base="$argument"
+            base_set=1
+            ;;
+    esac
+done
 
 # Ensure base is fetched.
 git rev-parse --verify "${base}" >/dev/null 2>&1 || {
@@ -32,6 +51,11 @@ git rev-parse --verify "${base}" >/dev/null 2>&1 || {
 }
 
 changed="$(git diff --name-only "${base}...HEAD")"
+if [[ "$include_worktree" -eq 1 ]]; then
+    tracked_worktree="$(git diff --name-only HEAD)"
+    untracked_worktree="$(git ls-files --others --exclude-standard)"
+    changed="$(printf '%s\n%s\n%s\n' "$changed" "$tracked_worktree" "$untracked_worktree" | sed '/^$/d' | sort -u)"
+fi
 
 if [[ -z "${changed}" ]]; then
     echo "changelog-discipline: no changes detected; skipping."

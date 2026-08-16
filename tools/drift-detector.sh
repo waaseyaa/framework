@@ -11,7 +11,10 @@
 # fixture changes, and base-branch commits never produce false positives, and a
 # spec can no longer be "freshened" by an unrelated one-character edit.
 #
-# Usage: tools/drift-detector.sh [<base-ref>|<N>]
+# Usage: tools/drift-detector.sh [--include-worktree] [<base-ref>|<N>]
+#   --include-worktree  Include staged, unstaged, and untracked files. A commit
+#                       acknowledgement never covers a later worktree change;
+#                       the affected spec must also change in the worktree.
 #   <base-ref>  Ref to diff against (default: origin/main, then `main`; an
 #               EXPLICITLY supplied base that does not resolve is a hard
 #               failure — there is no fallback).
@@ -42,8 +45,12 @@
 set -euo pipefail
 
 __DD_FILTERED_ARGS=()
+__DD_INCLUDE_WORKTREE=0
 for __arg in "$@"; do
     case "$__arg" in
+        --include-worktree)
+            __DD_INCLUDE_WORKTREE=1
+            ;;
         --output=json)
             echo "drift-detector: --output=json is no longer supported; use the human gate output." >&2
             exit 2
@@ -94,6 +101,20 @@ if ! CHANGED_FILES="$(git diff --name-only "${BASE_REF}...HEAD")"; then
   exit 5
 fi
 
+WORKTREE_FILES=""
+if [ "$__DD_INCLUDE_WORKTREE" -eq 1 ]; then
+  if ! __DD_TRACKED_WORKTREE="$(git diff --name-only HEAD)"; then
+    echo "ERROR: 'git diff --name-only HEAD' failed; cannot evaluate worktree drift." >&2
+    exit 5
+  fi
+  if ! __DD_UNTRACKED_WORKTREE="$(git ls-files --others --exclude-standard)"; then
+    echo "ERROR: 'git ls-files --others --exclude-standard' failed; cannot evaluate worktree drift." >&2
+    exit 5
+  fi
+  WORKTREE_FILES="$(printf '%s\n%s\n' "$__DD_TRACKED_WORKTREE" "$__DD_UNTRACKED_WORKTREE" | sed '/^$/d' | sort -u)"
+  CHANGED_FILES="$(printf '%s\n%s\n' "$CHANGED_FILES" "$WORKTREE_FILES" | sed '/^$/d' | sort -u)"
+fi
+
 if [ -z "$CHANGED_FILES" ]; then
   echo "No spec-affecting changes (no diff vs ${BASE_REF})."
   exit 0
@@ -105,6 +126,11 @@ fi
 # .gitkeep, *.json/*.lock manifests) — none of which define the contract a
 # spec documents.
 SOURCE_FILES="$(printf '%s\n' "$CHANGED_FILES" \
+  | grep -E '^(packages/[^/]+/(src|app|migrations)/|src/|public/)' \
+  | grep -vE '(^|/)(tests?|testing|Fixtures)/|(_test|Test)\.(php|ts)$|\.(md|json|lock|neon|layers)$|(^|/)\.gitkeep$' \
+  || true)"
+
+WORKTREE_SOURCE_FILES="$(printf '%s\n' "$WORKTREE_FILES" \
   | grep -E '^(packages/[^/]+/(src|app|migrations)/|src/|public/)' \
   | grep -vE '(^|/)(tests?|testing|Fixtures)/|(_test|Test)\.(php|ts)$|\.(md|json|lock|neon|layers)$|(^|/)\.gitkeep$' \
   || true)"
@@ -196,6 +222,7 @@ declare -A AFFECTED_SPECS=()
 declare -A SPEC_CHANGES=()
 declare -A FILE_SPECS=()
 declare -A UNMAPPED_PKGS=()
+declare -A WORKTREE_AFFECTED_SPECS=()
 __DD_MATCHED=0
 
 record_spec() {
@@ -263,6 +290,15 @@ while IFS= read -r file; do
     UNMAPPED_PKGS["${pkg_dir}/"]=1
   fi
 done <<< "$SOURCE_FILES"
+
+# A commit trailer or an earlier committed spec edit cannot pre-approve a
+# later worktree source change. Record which specs need a same-worktree edit.
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  for spec in ${FILE_SPECS[$file]:-}; do
+    WORKTREE_AFFECTED_SPECS["$spec"]=1
+  done
+done <<< "$WORKTREE_SOURCE_FILES"
 
 if [ "${#AFFECTED_SPECS[@]}" -eq 0 ]; then
   echo "No specs mapped to the changed source."
@@ -378,13 +414,19 @@ done <<< "$RANGE_COMMITS"
 
 is_acknowledged() {
   local spec="$1"
+  [ -n "${WORKTREE_AFFECTED_SPECS[$spec]:-}" ] && return 1
   local ack_idx="${ACK_IDX[$spec]:--1}"
   [ "$ack_idx" -lt 0 ] && return 1
   [ "$ack_idx" -ge "${LAST_SRC[$spec]:-0}" ]
 }
 
 spec_in_diff() {
-  printf '%s\n' "$CHANGED_FILES" | grep -qxF "$1"
+  local spec="$1"
+  if [ -n "${WORKTREE_AFFECTED_SPECS[$spec]:-}" ]; then
+    printf '%s\n' "$WORKTREE_FILES" | grep -qxF "$spec"
+    return
+  fi
+  printf '%s\n' "$CHANGED_FILES" | grep -qxF "$spec"
 }
 
 echo "Affected specs:"
@@ -400,6 +442,11 @@ for spec in $(printf '%s\n' "${!AFFECTED_SPECS[@]}" | sort); do
     echo "  OK: $spec (updated in this change set)"
   elif is_acknowledged "$spec"; then
     echo "  OK: $spec (acknowledged via 'spec-reviewed:')"
+  elif [ -n "${WORKTREE_AFFECTED_SPECS[$spec]:-}" ]; then
+    echo "  STALE: $spec"
+    echo "    Uncommitted source changes are not covered by committed spec edits or 'spec-reviewed:' trailers."
+    echo "    Fix: update this spec in the worktree before committing"
+    STALE_COUNT=$((STALE_COUNT + 1))
   elif [ -n "${ACK_IDX[$spec]:-}" ]; then
     echo "  STALE: $spec"
     echo "    Acknowledgement in ${ACK_SHA[$spec]} predates later source change in ${LAST_SRC_SHA[$spec]:-unknown}."

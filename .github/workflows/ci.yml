@@ -45,6 +45,15 @@ jobs:
       - name: Verify S1 SQLite topology contract
         run: php bin/check-s1-sqlite-contract --ci
 
+      - name: Verify S1 configuration activation contract
+        run: php bin/check-s1-configuration-activation
+
+      - name: Verify S1 configuration authority contract
+        run: php bin/check-s1-configuration-authority
+
+      - name: Verify S1 schema authority contract
+        run: php bin/check-s1-schema-authority
+
       - name: Publish exact environment evidence
         if: always()
         run: |
@@ -157,7 +166,6 @@ jobs:
     # Doc-code coupling is a pull-request concern (like changelog-discipline):
     # it asks "did this PR update the spec alongside the source?". There is no
     # such question to ask on a post-merge push to main, so skip it there.
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -166,7 +174,12 @@ jobs:
           fetch-depth: 0
 
       - name: Check for stale specs
+        if: github.event_name == 'pull_request'
         run: bash tools/drift-detector.sh "origin/${{ github.base_ref }}"
+
+      - name: Skip PR-only coupling check
+        if: github.event_name != 'pull_request'
+        run: echo "spec-drift is a pull-request coupling check; no PR diff exists for this event."
 
   ci-lint:
     name: ci/lint
@@ -276,7 +289,7 @@ jobs:
     # Fast contracts gate the long jobs (governed-gates.md §5): a stale
     # recorded roster fails once in support/s1-contract (~30s) instead of
     # re-reporting through unit/random-order/coverage minutes later (#2400).
-    needs: support-contract
+    needs: [support-contract, spec-drift]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -328,7 +341,7 @@ jobs:
     name: ci/random-order
     runs-on: ubuntu-24.04
     # See ci-unit-tests: fast contracts gate the long jobs (#2400).
-    needs: support-contract
+    needs: [support-contract, spec-drift]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -386,7 +399,7 @@ jobs:
     name: ci/coverage
     runs-on: ubuntu-24.04
     # See ci-unit-tests: fast contracts gate the long jobs (#2400).
-    needs: support-contract
+    needs: [support-contract, spec-drift]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

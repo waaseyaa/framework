@@ -89,17 +89,6 @@ function preflightResolveBase(string $root, ?string $explicit): string
 
 $resolvedBase = preflightResolveBase($root, $base);
 
-// The committed-state gates (base:true) evaluate commits only; make the
-// worktree/committed boundary loud instead of surprising (governed-gates.md §3).
-exec(sprintf('git -C %s status --porcelain=v1 2>/dev/null', escapeshellarg($root)), $statusLines);
-$dirtyCount = count(array_filter($statusLines, static fn(string $line): bool => trim($line) !== ''));
-if ($dirtyCount > 0) {
-    fwrite(STDOUT, sprintf(
-        "note: %d uncommitted change(s) in the worktree — spec-drift and changelog-discipline evaluate commits only; commit first for an exact answer on those two gates.\n\n",
-        $dirtyCount,
-    ));
-}
-
 $failures = [];
 $ran = 0;
 $startedAll = microtime(true);

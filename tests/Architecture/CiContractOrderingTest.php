@@ -20,7 +20,35 @@ use PHPUnit\Framework\TestCase;
 final class CiContractOrderingTest extends TestCase
 {
     #[Test]
-    public function long_test_jobs_wait_for_the_fast_contract_job(): void
+    public function fast_contract_job_runs_every_s1_roster_gate(): void
+    {
+        $ci = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        $supportJob = $this->job($ci, 'support-contract');
+
+        foreach ([
+            'php bin/check-support-contract --ci',
+            'php bin/check-s1-sqlite-contract --ci',
+            'php bin/check-s1-configuration-activation',
+            'php bin/check-s1-configuration-authority',
+            'php bin/check-s1-schema-authority',
+        ] as $command) {
+            $this->assertStringContainsString($command, $supportJob);
+        }
+    }
+
+    #[Test]
+    public function spec_drift_job_completes_on_non_pull_request_events(): void
+    {
+        $ci = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        $specDriftJob = $this->job($ci, 'spec-drift');
+
+        $this->assertStringContainsString("if: github.event_name == 'pull_request'", $specDriftJob);
+        $this->assertStringContainsString("if: github.event_name != 'pull_request'", $specDriftJob);
+        $this->assertStringContainsString('spec-drift is a pull-request coupling check', $specDriftJob);
+    }
+
+    #[Test]
+    public function long_test_jobs_wait_for_fast_contract_and_spec_drift_jobs(): void
     {
         $ci = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
 
@@ -28,11 +56,23 @@ final class CiContractOrderingTest extends TestCase
             $this->assertSame(
                 1,
                 preg_match(
-                    '/^  ' . preg_quote($job, '/') . ':\n(?:.*\n)*?    needs: support-contract$/m',
+                    '/^  ' . preg_quote($job, '/') . ':\n(?:.*\n)*?    needs: \[support-contract, spec-drift\]$/m',
                     $ci,
                 ),
-                sprintf('Job %s must declare `needs: support-contract` so contract failures fail once, fast.', $job),
+                sprintf('Job %s must wait for support-contract and spec-drift so governance failures fail fast.', $job),
             );
         }
+    }
+
+    private function job(string $workflow, string $id): string
+    {
+        $matched = preg_match(
+            '/^  ' . preg_quote($id, '/') . ':\n(?:(?!^  [a-zA-Z0-9_-]+:).*(?:\n|$))*/m',
+            $workflow,
+            $matches,
+        );
+        $this->assertSame(1, $matched, sprintf('Workflow job %s must exist.', $id));
+
+        return $matches[0];
     }
 }

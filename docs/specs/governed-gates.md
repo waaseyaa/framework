@@ -47,11 +47,11 @@ command, repair command, profile, and the CI surface that enforces it. A self-te
 command, and (b) every gate names a CI enforcement surface that actually exists in the workflow
 files — so the manifest cannot silently drift from CI.
 
-State semantics: preflight runs against the worktree wherever the underlying gate does. The two
-committed-ref gates (spec drift, changelog discipline) are run against `origin/main` (or
-`WAASEYAA_DRIFT_BASE`); when the worktree is dirty, preflight prints an explicit warning that
-uncommitted changes are invisible to those two gates and an exact answer requires committing
-first. This makes the historically silent worktree/committed asymmetry loud instead of surprising.
+State semantics: preflight evaluates the committed range against `origin/main` (or
+`WAASEYAA_DRIFT_BASE`) **plus staged, unstaged, and untracked worktree files**. Spec-review
+trailers remain commit metadata: a committed trailer cannot pre-approve a later worktree source
+change, so that source change requires a corresponding worktree spec edit. Hosted CI omits the
+worktree mode because its checkout is already the exact immutable PR head.
 
 ### 2. `bin/refresh-governance-artifacts` — one refresh command
 
@@ -77,9 +77,10 @@ Local gate runs must see what the developer sees:
   content cannot poison local runs: `.git/`, nested `vendor/`, `node_modules/`, and `storage/`
   are excluded everywhere (previously the SQLite scanner walked `.git/` — producing permission
   warnings — and nested `packages/*/vendor`, producing phantom local-only roster entries).
-- The committed-ref gates (drift, changelog discipline) stay committed-ref — acknowledgement
-  trailers are commit metadata and cannot exist for uncommitted work — but preflight makes that
-  boundary explicit (dirty-tree warning, §1) instead of silently passing.
+- Drift and changelog discipline combine the committed PR range with staged, unstaged, and
+  untracked paths when invoked by preflight. A spec changed in an earlier commit does not cover a
+  later uncommitted source edit; the spec must also change in the worktree. This preserves trailer
+  provenance while making local results describe the tree the developer is actually reviewing.
 
 ### 4. Pre-push parity
 
@@ -92,13 +93,12 @@ recorded here, in the manifest, and in the hook's output, not implicit.
 
 ### 5. CI ordering — fast contracts gate the long jobs
 
-The `support/s1-contract` job (~30s: support contract + all S1 roster gates) is a `needs:`
-prerequisite of the three long test jobs (`ci/unit-tests`, `ci/random-order`, `ci/coverage`). A
-stale roster is therefore **one fast red job with a precise message**, and the long jobs never
-start; they cannot re-report the same failure three more times. Job names and the required-check
-ruleset are unchanged — this adds edges, not renames. `spec-drift` stays parallel (it is PR-only
-and 13s; making push-triggered long jobs depend on a skipped job would complicate `needs:`
-semantics for no latency win).
+The `support/s1-contract` job (~30s: support contract + all four S1 roster gates) and `spec-drift`
+job are `needs:` prerequisites of the three long test jobs (`ci/unit-tests`, `ci/random-order`,
+`ci/coverage`). A stale roster or spec therefore fails in its owning fast job, and the long jobs
+never start or re-report the same failure three more times. On non-PR events `spec-drift` completes
+with an explicit no-PR-diff result, so push and dispatch runs retain the same dependency graph.
+Job names and required-check rules remain unchanged — this adds edges and commands, not renames.
 
 ### 6. Recorded-roster identity: semantic, not positional
 
@@ -146,4 +146,4 @@ Applies to all four S1 rosters: `s1-configuration-activation`, `s1-configuration
 | S1 verifiers (schema v2) | `bin/check-s1-{configuration-activation,configuration-authority,schema-authority,sqlite-contract}` |
 | Recorded rosters | `support/s1-*-roster.json` |
 | Hook integration | `bin/project-hooks` (`pre_push`) |
-| CI ordering | `.github/workflows/ci.yml` (`needs: support-contract` on the three long jobs) |
+| CI ordering | `.github/workflows/ci.yml` (`needs: [support-contract, spec-drift]` on the three long jobs) |

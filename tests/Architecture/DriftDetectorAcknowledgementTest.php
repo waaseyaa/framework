@@ -336,6 +336,47 @@ final class DriftDetectorAcknowledgementTest extends TestCase
     }
 
     #[Test]
+    public function include_worktree_detects_uncommitted_source_after_a_committed_acknowledgement(): void
+    {
+        $this->executeCommand("git commit --quiet --allow-empty -m 'chore: premature review' -m 'spec-reviewed: docs/specs/entity-system.md - committed state only'");
+        file_put_contents(
+            $this->fixtureRoot . '/packages/entity/src/Example.php',
+            "<?php\nfinal class Example { public const UNCOMMITTED = true; }\n",
+        );
+
+        [$withoutExit] = $this->executeCommand('bash tools/drift-detector.sh HEAD~1', allowFailure: true);
+        [$withExit, $withOutput] = $this->executeCommand(
+            'bash tools/drift-detector.sh --include-worktree HEAD~1',
+            allowFailure: true,
+        );
+
+        self::assertSame(0, $withoutExit, 'Committed-only mode must remain deterministic for hosted CI.');
+        self::assertSame(1, $withExit, $withOutput);
+        self::assertStringContainsString('Uncommitted source changes are not covered', $withOutput);
+    }
+
+    #[Test]
+    public function include_worktree_accepts_a_same_worktree_spec_update(): void
+    {
+        file_put_contents(
+            $this->fixtureRoot . '/packages/entity/src/Example.php',
+            "<?php\nfinal class Example { public const UNCOMMITTED = true; }\n",
+        );
+        file_put_contents(
+            $this->fixtureRoot . '/docs/specs/entity-system.md',
+            "# Entity system\n\nDocuments the uncommitted contract change.\n",
+        );
+
+        [$exitCode, $output] = $this->executeCommand(
+            'bash tools/drift-detector.sh --include-worktree HEAD',
+            allowFailure: true,
+        );
+
+        self::assertSame(0, $exitCode, $output);
+        self::assertStringContainsString('OK: docs/specs/entity-system.md (updated in this change set)', $output);
+    }
+
+    #[Test]
     public function explicit_invalid_base_ref_fails_closed_without_fallback(): void
     {
         file_put_contents(

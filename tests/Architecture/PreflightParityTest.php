@@ -87,7 +87,8 @@ final class PreflightParityTest extends TestCase
             'check-composer-policy', 'check-package-layers',
             // support/s1-contract CI job + the remaining S1 roster gates
             'check-support-contract', 'check-s1-sqlite-contract',
-            'check-s1-configuration-activation', 'check-s1-schema-authority',
+            'check-s1-configuration-activation', 'check-s1-configuration-authority',
+            'check-s1-schema-authority',
             // dedicated fast workflows / jobs
             'surface-parity', 'spec-drift', 'changelog-discipline',
             'check-ingestion-defaults', 'check-no-secrets', 'check-release-publish-shape',
