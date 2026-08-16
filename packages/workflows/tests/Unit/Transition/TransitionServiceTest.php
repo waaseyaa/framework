@@ -20,6 +20,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\EntityStorage\AggregateMutationRepositoryInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Event\WorkflowEvents;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
@@ -254,7 +255,13 @@ final class TransitionServiceTest extends TestCase
      * {@see SpyEntityRepository} used by `service()` doesn't simulate any of
      * that.
      */
-    private function serviceWithRepository(Workflow $workflow, EntityRepositoryInterface $repository, ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null): TransitionService
+    private function serviceWithRepository(
+        Workflow $workflow,
+        EntityRepositoryInterface $repository,
+        ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
+        ?EventDispatcherInterface $dispatcher = null,
+        ?AuditWriterInterface $auditWriter = null,
+    ): TransitionService
     {
         $workflowRepository = new WorkflowLookupRepository($workflow);
         $entityTypeManager = new class ($workflowRepository, $repository) implements EntityTypeManagerInterface {
@@ -291,6 +298,8 @@ final class TransitionServiceTest extends TestCase
         return new TransitionService(
             bindings: $this->bindings($workflow, $entityTypeManager),
             entityTypeManager: $entityTypeManager,
+            dispatcher: $dispatcher,
+            auditWriter: $auditWriter,
             logger: $logger,
         );
     }
@@ -510,6 +519,52 @@ final class TransitionServiceTest extends TestCase
         $this->assertSame([], $repository->publishedCalls);
         $this->assertCount(1, $repository->saveCalls);
         $this->assertTrue($entity->isNewRevision());
+    }
+
+    #[Test]
+    public function aggregate_publish_runs_transition_audit_and_publication_inside_one_command(): void
+    {
+        $repository = new AggregateMutationSpyRepository();
+        $dispatcher = $this->spyDispatcher();
+        $auditWriter = $this->spyAuditWriter();
+        $service = $this->serviceWithRepository(
+            $this->editorialWorkflow(),
+            $repository,
+            dispatcher: $dispatcher,
+            auditWriter: $auditWriter,
+        );
+        $account = $this->account(7, ['use editorial transition publish']);
+        $entity = $this->revisionableEntity('draft', status: 0);
+
+        $result = $service->transition($entity, 'publish', $account);
+
+        $this->assertSame('draft', $result->fromState);
+        $this->assertSame('published', $result->toState);
+        $this->assertSame('published', $entity->get('workflow_state'));
+        $this->assertSame(1, $entity->get('status'));
+        $this->assertTrue($entity->isNewRevision());
+        $this->assertSame([true], $repository->publishRevisionCalls);
+        $this->assertSame(['pre', 'post'], $dispatcher->firedNames());
+        $this->assertCount(1, $auditWriter->recorded);
+        $this->assertSame('allowed', $auditWriter->recorded[0]->outcome);
+    }
+
+    #[Test]
+    public function aggregate_forward_draft_preserves_the_published_status_without_moving_the_pointer(): void
+    {
+        $publishedRevision = $this->entity('published');
+        $publishedRevision->set('status', 1);
+        $repository = new AggregateMutationSpyRepository($publishedRevision);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition reject']);
+        $entity = $this->revisionableEntity('review', status: 0);
+
+        $result = $service->transition($entity, 'reject', $account);
+
+        $this->assertSame('draft', $result->toState);
+        $this->assertSame('draft', $entity->get('workflow_state'));
+        $this->assertSame(1, $entity->get('status'));
+        $this->assertSame([false], $repository->publishRevisionCalls);
     }
 
     #[Test]
@@ -802,7 +857,7 @@ final class SpyAuditWriter implements AuditWriterInterface
  * `setPublishedRevision()` so tests can assert the safe-ordering contract
  * (status only flips AFTER the pointer move succeeds).
  */
-final class RevisionAwareSpyRepository implements EntityRepositoryInterface
+class RevisionAwareSpyRepository implements EntityRepositoryInterface
 {
     /** @var list<array<string, mixed>> */
     public array $saveCalls = [];
@@ -873,6 +928,31 @@ final class RevisionAwareSpyRepository implements EntityRepositoryInterface
     public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+}
+
+final class AggregateMutationSpyRepository extends RevisionAwareSpyRepository implements AggregateMutationRepositoryInterface
+{
+    /** @var list<bool> */
+    public array $publishRevisionCalls = [];
+
+    public function saveAggregateMutation(
+        EntityInterface $entity,
+        \Closure $mutation,
+        bool $publishRevision = false,
+        bool $validate = true,
+        ?\Closure $publicationFinalizer = null,
+        ?\Closure $beforeCommit = null,
+    ): EntityInterface {
+        $this->publishRevisionCalls[] = $publishRevision;
+        $mutation($entity);
+        $this->save($entity, $validate);
+        if ($publishRevision) {
+            $publicationFinalizer?->__invoke($entity);
+        }
+        $beforeCommit?->__invoke($entity);
+
+        return $entity;
+    }
 }
 
 /**
