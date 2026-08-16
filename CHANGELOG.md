@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Solo-maintainer governance (`S0-FW-04`):** Record the real Framework owner
+  in CODEOWNERS, enumerate critical orchestration paths, and replace the
+  impossible two-human approval assumption with an explicit solo-maintainer
+  contract: mandatory strict/up-to-date status checks, resolved review threads,
+  pull-request-only audited administrative bypass, retained agent review where
+  useful, and a quarterly bus-factor-one accepted-risk review. Agent review is
+  supporting evidence and is never represented as a GitHub human approval.
+
 - **Test isolation — schema-sync helper no longer leaks its kernel field
   registry:** `RuntimeSchemaMigrations::entitiesForProject()` boots a throwaway
   restricted `ConsoleKernel` whose `FieldDefinitionRegistry` (carrying the real

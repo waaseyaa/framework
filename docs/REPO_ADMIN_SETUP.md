@@ -12,45 +12,41 @@ Instructions for configuring branch protection, environments, and secrets.
 | `ci/unit-tests` | PHPUnit unit + integration tests |
 | `ci/playwright-smoke` | Playwright smoke tests against running app |
 
-### Protection Rules
+### Solo-maintainer protection rules
 
-- Require pull request before merging
-- Require at least **1 approving review**
-- Dismiss stale reviews on new pushes
-- Require status checks to pass before merging
-- Require branches to be up to date before merging
-- Do not allow force pushes
-- Do not allow branch deletion
-- Include administrators
+Waaseyaa Framework is intentionally maintained by `@jonesrussell`. Do not
+configure a required human approval until a distinct qualified maintainer
+exists: a one-approval rule would make the repository inoperable and a
+self-approval would not be independent. The accepted bus-factor-one risk is
+tracked in Framework issue #2387 and reviewed quarterly.
 
-### Configure via CLI
+- Require a pull request before merging.
+- Require **0 human approvals** while only one eligible human exists.
+- Require all canonical status checks and require the branch to be up to date.
+- Require review threads to be resolved.
+- Do not allow force pushes or branch deletion.
+- Restrict administrator bypass to **pull-request mode**. An emergency override
+  must retain a PR, reason, exact checks, and GitHub audit history; never restore
+  an always-on direct bypass.
+- Retain an independent agent-review comment for high-risk changes where useful.
+  Agent review is evidence, not a GitHub human approval or maintainer authority.
 
-```bash
-gh api -X PUT repos/OWNER/REPO/branches/main/protection \
-  --input - <<'JSON'
-{
-  "required_status_checks": {
-    "strict": true,
-    "contexts": ["ci/lint", "ci/unit-tests", "ci/playwright-smoke"]
-  },
-  "enforce_admins": true,
-  "required_pull_request_reviews": {
-    "required_approving_review_count": 1,
-    "dismiss_stale_reviews": true
-  },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false
-}
-JSON
-```
+The active control is repository ruleset `main-protection` (currently id
+`15181711`), not classic branch protection. Read the full ruleset, preserve its
+complete required-check roster, and update it through the GitHub ruleset API or
+repository settings. Never replace it with the abbreviated historical
+three-check example.
 
 ### Verify
 
 ```bash
-gh api repos/OWNER/REPO/branches/main/protection \
-  --jq '{checks: .required_status_checks.contexts, reviews: .required_pull_request_reviews.required_approving_review_count, force_push: .allow_force_pushes.enabled}'
+gh api repos/OWNER/REPO/rulesets/15181711 \
+  --jq '{enforcement, rules, bypass_actors, current_user_can_bypass}'
 ```
+
+Verify that the pull-request rule reports zero approvals and resolved threads,
+required status checks report `strict_required_status_checks_policy:true`, and
+every bypass actor reports `bypass_mode:"pull_request"`.
 
 ## 2. GitHub Environments
 
@@ -93,10 +89,12 @@ GitHub Actions `GITHUB_TOKEN` is used for all other operations (PR comments, iss
 
 ## 4. CODEOWNERS
 
-Create `.github/CODEOWNERS` if it doesn't exist:
+The tracked `.github/CODEOWNERS` names the sole real human owner and repeats the
+critical orchestration paths for review routing. While the repository has only
+one eligible human, leave `require_code_owner_review:false`; turning it on would
+not create independence and can only create a self-review deadlock.
 
 ```
-# Default reviewer
 * @jonesrussell
 ```
 
