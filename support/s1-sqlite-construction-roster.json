@@ -1786,39 +1786,39 @@
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 229,
+            "line": 230,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12545df181a4f0bb13711c9b74bfe79bc7bb312131d6a45cc7c6c50d89e86146"
+            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 229,
+            "line": 230,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12545df181a4f0bb13711c9b74bfe79bc7bb312131d6a45cc7c6c50d89e86146"
+            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 347,
+            "line": 382,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12545df181a4f0bb13711c9b74bfe79bc7bb312131d6a45cc7c6c50d89e86146"
+            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 347,
+            "line": 382,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12545df181a4f0bb13711c9b74bfe79bc7bb312131d6a45cc7c6c50d89e86146"
+            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerTest.php",
@@ -6772,12 +6772,12 @@
         },
         {
             "path": "tests/Integration/Phase15/AccessVisibilityConsistencyIntegrationTest.php",
-            "line": 43,
+            "line": 54,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "b9b4316bc444e9776c57729f29ad089b043aea640b4a04040957e68846980bce"
+            "source_sha256": "777acf9d0525d9ef250675abe4d3c2ba894ce96b7eacf9a2aa4edb9bd6c26b87"
         },
         {
             "path": "tests/Integration/Phase15/PerformanceFixturePackIntegrationTest.php",
