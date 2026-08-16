@@ -339,25 +339,25 @@
             "class": "result-contract",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
-            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+            "source_sha256": "20aa846a95e12d96d7f32bff7eb8d562f73f2824b7cfd5a02e9447453344180e"
         },
         {
             "path": "packages/config/src/Activation/ConfigurationActivationResult.php",
-            "line": 13,
+            "line": 14,
             "pattern": "active_token",
             "class": "result-contract",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "983598a1298f2ea5fc1af3d85fe78e63b0e0c2f609d87e00e0d78554dcfd0084",
-            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+            "source_sha256": "20aa846a95e12d96d7f32bff7eb8d562f73f2824b7cfd5a02e9447453344180e"
         },
         {
             "path": "packages/config/src/Activation/ConfigurationActivationResult.php",
-            "line": 17,
+            "line": 18,
             "pattern": "active_token",
             "class": "result-contract",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "e2dd0c85fea1568175aa8e64c013f2ed0ef3ef260f4bf4f24362f5c455a2a44f",
-            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+            "source_sha256": "20aa846a95e12d96d7f32bff7eb8d562f73f2824b7cfd5a02e9447453344180e"
         },
         {
             "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
