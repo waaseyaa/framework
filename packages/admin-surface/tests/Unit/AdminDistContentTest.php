@@ -101,6 +101,23 @@ final class AdminDistContentTest extends TestCase
     }
 
     #[Test]
+    public function shipped_bundle_contains_the_shared_admin_design_system(): void
+    {
+        $css = $this->concatenatedBundleCss();
+
+        self::assertStringContainsString(
+            '--admin-target-size:44px',
+            $css,
+            'The served admin bundle is missing the shared design-system tokens.',
+        );
+        self::assertStringContainsString(
+            '.field-input',
+            $css,
+            'The served admin bundle is missing shared structured-editor field styling.',
+        );
+    }
+
+    #[Test]
     public function shipped_bundle_contains_the_shell_free_structured_entity_editor(): void
     {
         $js = $this->concatenatedBundleJs();
@@ -173,5 +190,23 @@ final class AdminDistContentTest extends TestCase
         }
 
         return $js;
+    }
+
+    private function concatenatedBundleCss(): string
+    {
+        $nuxtDir = $this->distDir() . '/_nuxt';
+        self::assertDirectoryExists($nuxtDir, 'Built bundle dir packages/admin-surface/dist/_nuxt is missing.');
+
+        $css = '';
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($nuxtDir, \FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile() && str_ends_with($file->getFilename(), '.css')) {
+                $css .= (string) file_get_contents($file->getPathname());
+            }
+        }
+
+        return $css;
     }
 }

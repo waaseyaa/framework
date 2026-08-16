@@ -56,9 +56,11 @@ final class SchemaMutationCoordinatorTest extends TestCase
             'waaseyaa_schema_authority',
             'waaseyaa_migrations',
         ]));
-        $manifest = (new MigrationRepository($connection))->schemaAuthorityManifest();
+        $manifest = new MigrationRepository($connection)->schemaAuthorityManifest();
         self::assertNotNull($manifest);
-        self::assertSame(1, $manifest->generation);
+        self::assertSame(1, (int) $connection->fetchOne(
+            'SELECT generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
+        ));
         self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $manifest->schemaFingerprint ?? '');
         self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $manifest->ledgerFingerprint ?? '');
         self::assertNull($manifest->sourceCatalogFingerprint);

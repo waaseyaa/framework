@@ -17,12 +17,10 @@ final class AppServiceProvider extends ServiceProvider
 
     public function routes(WaaseyaaRouter $router, ?\Waaseyaa\Entity\EntityTypeManager $entityTypeManager = null): void
     {
-        $controller = new HomeController();
-
         $router->addRoute(
             'home',
             RouteBuilder::create('/')
-                ->controller(fn () => $controller->index())
+                ->controller([HomeController::class, 'index'])
                 ->allowAll()
                 ->methods('GET')
                 ->build(),

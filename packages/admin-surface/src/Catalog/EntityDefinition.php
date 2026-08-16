@@ -24,7 +24,7 @@ final class EntityDefinition
     /**
      * @var array{
      *   labelField: string,
-     *   search: array{field: string, operator: 'STARTS_WITH'}|null,
+     *   search: array{field: string, operator: 'STARTS_WITH'|'CONTAINS'}|null,
      *   sort: array{field: string, direction: 'ASC'}|null
      * }|null
      */
@@ -78,18 +78,22 @@ final class EntityDefinition
         string $labelField,
         ?string $searchField = null,
         ?string $sortField = null,
+        string $searchOperator = 'STARTS_WITH',
     ): self {
         foreach (array_filter([$labelField, $searchField, $sortField], static fn(?string $field): bool => $field !== null) as $field) {
             if ($field === '' || preg_match('/^[A-Za-z0-9_]+$/', $field) !== 1) {
                 throw new \InvalidArgumentException('Reference metadata fields must be non-empty machine names.');
             }
         }
+        if (!in_array($searchOperator, ['STARTS_WITH', 'CONTAINS'], true)) {
+            throw new \InvalidArgumentException('Reference search operator must be STARTS_WITH or CONTAINS.');
+        }
 
         $this->reference = [
             'labelField' => $labelField,
             'search' => $searchField === null ? null : [
                 'field' => $searchField,
-                'operator' => 'STARTS_WITH',
+                'operator' => $searchOperator,
             ],
             'sort' => $sortField === null ? null : [
                 'field' => $sortField,

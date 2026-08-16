@@ -7,7 +7,7 @@ import { useEntity } from '~/composables/useEntity'
 const route = useRoute()
 const { t, entityLabel: translateEntityLabel } = useLanguage()
 const { hasCapability } = useAdmin()
-const { get, remove } = useEntity()
+const { get, remove, runAction } = useEntity()
 
 const entityType = computed(() => route.params.entityType as string)
 const entityId = computed(() => route.params.id as string)
@@ -26,6 +26,7 @@ onMounted(async () => {
 const entityLabel = computed(() => translateEntityLabel(entityType.value, schema.value?.title ?? entityType.value))
 const workflowBound = computed(() => schema.value?.['x-workflow']?.bound === true)
 const pageBuilderAvailable = computed(() => entityType.value === 'node' && entityBundle.value === 'page')
+const previewAction = computed(() => schema.value?.['x-preview']?.action ?? null)
 const { appName } = useAdminConfig()
 
 const mode = ref<'view' | 'edit'>('view')
@@ -38,6 +39,9 @@ const showDeleteConfirm = ref(false)
 const deleting = ref(false)
 const deleteError = ref('')
 const canDelete = computed(() => hasCapability(entityType.value, 'delete'))
+const previewDialog = ref<HTMLDialogElement | null>(null)
+const previewUrl = ref('')
+const previewing = ref(false)
 
 useHead({ title: computed(() => {
   const titleKey = mode.value === 'edit' ? 'edit_entity' : 'view_entity'
@@ -74,6 +78,30 @@ async function confirmDelete() {
     showDeleteConfirm.value = false
   }
 }
+
+async function openPreview() {
+  if (!previewAction.value || previewing.value) return
+  previewing.value = true
+  errorMessage.value = ''
+  try {
+    const result = await runAction(entityType.value, previewAction.value, { id: entityId.value }) as { preview_url?: unknown }
+    if (typeof result.preview_url !== 'string' || !result.preview_url.startsWith('/')) {
+      throw new Error(t('preview_invalid_response'))
+    }
+    previewUrl.value = result.preview_url
+    await nextTick()
+    previewDialog.value?.showModal()
+  } catch (e: any) {
+    errorMessage.value = e?.detail ?? e?.message ?? t('preview_failed')
+  } finally {
+    previewing.value = false
+  }
+}
+
+function closePreview() {
+  previewDialog.value?.close()
+  previewUrl.value = ''
+}
 </script>
 
 <template>
@@ -96,6 +124,16 @@ async function confirmDelete() {
         >
           {{ t('page_builder_open') }}
         </NuxtLink>
+        <button
+          v-if="mode === 'view' && previewAction"
+          type="button"
+          class="btn"
+          data-testid="detail-preview"
+          :disabled="previewing"
+          @click="openPreview"
+        >
+          {{ previewing ? t('preview_opening') : t('preview_draft') }}
+        </button>
         <button
           v-if="mode === 'view'"
           class="btn btn-primary"
@@ -160,6 +198,18 @@ async function confirmDelete() {
       @cancel="showDeleteConfirm = false"
       @confirm="confirmDelete"
     />
+    <dialog ref="previewDialog" class="preview-dialog" @cancel.prevent="closePreview">
+      <header class="preview-dialog__header">
+        <h2>{{ t('preview_draft') }}</h2>
+        <button type="button" class="btn" :aria-label="t('preview_close')" @click="closePreview">×</button>
+      </header>
+      <iframe
+        v-if="previewUrl"
+        :src="previewUrl"
+        :title="t('preview_frame_title')"
+        class="preview-dialog__frame"
+      />
+    </dialog>
   </div>
 </template>
 
@@ -172,4 +222,22 @@ async function confirmDelete() {
   min-width: 0;
   max-width: 100%;
 }
+.preview-dialog {
+  width: min(1180px, calc(100vw - 32px));
+  height: min(860px, calc(100vh - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.preview-dialog::backdrop { background: rgb(15 23 42 / 70%); }
+.preview-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border, #d8dee8);
+}
+.preview-dialog__header h2 { margin: 0; }
+.preview-dialog__frame { width: 100%; height: calc(100% - 65px); border: 0; }
 </style>

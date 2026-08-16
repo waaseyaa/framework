@@ -187,7 +187,7 @@ return [
     'Waaseyaa\HttpClient\SseLineStreamInterface' => 'public',
     'Waaseyaa\Scheduler\ScheduleInterface' => 'internal',
     'Waaseyaa\State\StateInterface' => 'internal',
-    'Waaseyaa\Mail\MailerInterface' => 'internal',
+    'Waaseyaa\Mail\MailerInterface' => 'public',
     'Waaseyaa\Mail\Transport\TransportInterface' => 'internal',
     'Waaseyaa\HttpClient\HttpClientInterface' => 'internal',
     'Waaseyaa\Ingestion\PayloadValidatorInterface' => 'internal',
@@ -195,6 +195,8 @@ return [
     // Fresh-site manifest contract (#2343 WP1). These closed vocabularies are
     // serialized in the public provider-neutral manifest/report API.
     'Waaseyaa\SiteContract\Capability\CapabilityState' => 'public',
+    'Waaseyaa\SiteContract\Doctor\FindingSeverity' => 'public',
+    'Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface' => 'public',
     'Waaseyaa\SiteContract\Version\ManifestVersionDisposition' => 'public',
 
     // Layer 1: Core Data — public
@@ -565,6 +567,7 @@ return [
     'Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface' => 'public',
     'Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface' => 'public',
     'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'internal',
+    'Waaseyaa\Publishing\ContentRevisionHistoryInterface' => 'internal',
     'Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => 'public',
     'Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface' => 'public',
     'Waaseyaa\PageBuilder\Preview\RevisionPreviewUrlGeneratorInterface' => 'public',

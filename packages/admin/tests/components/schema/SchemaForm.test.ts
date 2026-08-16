@@ -173,6 +173,108 @@ describe('SchemaForm loading and error states', () => {
     await flushPromises()
     expect(wrapper.find('form').exists()).toBe(true)
   })
+
+  it('renders schema-declared task sections without dropping unassigned fields', async () => {
+    const groupedSchema = {
+      ...bundledNodeDiscoverySchema,
+      'x-entity-type': 'node_grouped_form',
+      'x-form-sections': [
+        {
+          id: 'basics',
+          label: 'Basics',
+          description: 'What community members need to recognize the event.',
+          fields: ['title'],
+        },
+        {
+          id: 'location',
+          label: 'Location',
+          description: 'Where the event takes place.',
+          fields: ['venue'],
+          collapsible: true,
+          collapsed: true,
+        },
+      ],
+      properties: {
+        title: {
+          type: 'string',
+          'x-widget': 'text',
+          'x-label': 'Title',
+          'x-weight': 0,
+        },
+        venue: {
+          type: 'string',
+          'x-widget': 'text',
+          'x-label': 'Venue',
+          'x-weight': 10,
+        },
+        notes: {
+          type: 'string',
+          'x-widget': 'textarea',
+          'x-label': 'Internal notes',
+          'x-weight': 20,
+        },
+      },
+      required: ['title'],
+    }
+    registerEndpoint('/admin/_surface/node_grouped_form/action/schema', {
+      method: 'POST',
+      handler: () => ({ ok: true, data: groupedSchema }),
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'node_grouped_form' },
+    })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.loading').exists()).toBe(false))
+
+    const sections = wrapper.findAll('[data-testid="form-section"]')
+    expect(sections).toHaveLength(3)
+    expect(sections[0]!.get('h2').text()).toBe('Basics')
+    expect(sections[0]!.text()).toContain('What community members need to recognize the event.')
+    expect(sections[0]!.find('input').attributes('id')).toContain('title')
+
+    const location = sections[1]!.get('details')
+    expect(location.attributes('open')).toBeUndefined()
+    expect(location.get('summary').text()).toContain('Location')
+    expect(location.text()).toContain('Where the event takes place.')
+    expect(location.find('input').attributes('id')).toContain('venue')
+
+    expect(sections[2]!.get('h2').text()).toBe('Other details')
+    expect(sections[2]!.text()).toContain('Internal notes')
+    expect(wrapper.findAll('.field-anchor')).toHaveLength(3)
+  })
+
+  it('opens a collapsed section when one of its fields has a validation error', async () => {
+    const groupedSchema = {
+      ...bundledNodeDiscoverySchema,
+      'x-entity-type': 'node_group_error',
+      'x-form-sections': [{
+        id: 'details',
+        label: 'Details',
+        fields: ['title'],
+        collapsible: true,
+        collapsed: true,
+      }],
+      properties: {
+        title: { type: 'string', 'x-widget': 'text', 'x-label': 'Title', 'x-required': true },
+      },
+      required: ['title'],
+    }
+    registerEndpoint('/admin/_surface/node_group_error/action/schema', {
+      method: 'POST',
+      handler: () => ({ ok: true, data: groupedSchema }),
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, { props: { entityType: 'node_group_error' } })
+    await flushPromises()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="form-section"] details').attributes('open')).toBeDefined()
+    expect(wrapper.text()).toContain('Title is required.')
+  })
 })
 
 describe('SchemaForm submit — create mode (no entityId)', () => {
@@ -546,10 +648,10 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
       handler: () => ({
         ok: true,
         data: {
-          type: 'taxonomy_vocabulary_browser_edit',
+          type: 'taxonomy_vocabulary',
           id: 'renamed',
           attributes: { bundle: '', langcode: 'en', name: '' },
-          mutation_token: 'vocabulary-token-1',
+          mutation_token: 'emt1.vocabulary',
         },
       }),
     })
@@ -579,7 +681,7 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
     expect(submitted).toEqual({
       id: 'renamed',
       attributes: { name: 'Audit vocabulary' },
-      mutation_token: 'vocabulary-token-1',
+      mutation_token: 'emt1.vocabulary',
     })
   })
 
@@ -611,7 +713,7 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
     const updated = { type: 'user', id: '3', attributes: { name: 'bob-updated' } }
     registerEndpoint('/admin/_surface/user_edit_patch/3', () => ({
       ok: true,
-      data: { type: 'user_edit_patch', id: '3', attributes: { name: 'bob' }, mutation_token: 'user-token-1' },
+      data: { type: 'user', id: '3', attributes: { name: 'bob' }, mutation_token: 'emt1.user' },
     }))
     registerEndpoint('/admin/_surface/user_edit_patch/action/update', {
       method: 'POST',

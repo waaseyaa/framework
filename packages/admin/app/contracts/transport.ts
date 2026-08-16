@@ -12,7 +12,7 @@ export interface TransportAdapter {
     field: string,
     query: string,
     limit?: number,
-    operator?: 'STARTS_WITH',
+    operator?: 'STARTS_WITH' | 'CONTAINS',
     sort?: { field: string; direction: 'ASC' } | null,
   ): Promise<EntityResource[]>
   runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown>

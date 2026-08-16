@@ -78,14 +78,14 @@ describe('AdminSurfaceTransportAdapter', () => {
   })
 
   describe('update', () => {
-    it('sends POST to /_surface/{type}/action/update with id, attributes, and the loaded mutation token', async () => {
+    it('sends POST to /_surface/{type}/action/update with id and attributes', async () => {
       const fetchFn = vi.fn()
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
           json: () => Promise.resolve({
             ok: true,
-            data: { type: 'node', id: '3', attributes: { title: 'Old' }, mutation_token: 'token-3' },
+            data: { type: 'node', id: '3', attributes: { title: 'Original' }, mutation_token: 'emt1.observed' },
           }),
         } as unknown as Response)
         .mockResolvedValueOnce({
@@ -93,7 +93,7 @@ describe('AdminSurfaceTransportAdapter', () => {
           status: 200,
           json: () => Promise.resolve({
             ok: true,
-            data: { type: 'node', id: '3', attributes: { title: 'Updated' }, mutation_token: 'token-4' },
+            data: { type: 'node', id: '3', attributes: { title: 'Updated' }, mutation_token: 'emt1.successor' },
           }),
         } as unknown as Response)
       const adapter = makeAdapter(fetchFn)
@@ -105,19 +105,19 @@ describe('AdminSurfaceTransportAdapter', () => {
       const body = JSON.parse(opts.body)
       expect(body.id).toBe('3')
       expect(body.attributes.title).toBe('Updated')
-      expect(body.mutation_token).toBe('token-3')
+      expect(body.mutation_token).toBe('emt1.observed')
     })
   })
 
   describe('remove', () => {
-    it('sends POST to /_surface/{type}/action/delete with the loaded mutation token', async () => {
+    it('sends POST to /_surface/{type}/action/delete', async () => {
       const fetchFn = vi.fn()
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
           json: () => Promise.resolve({
             ok: true,
-            data: { type: 'node', id: '5', attributes: {}, mutation_token: 'token-5' },
+            data: { type: 'node', id: '5', attributes: {}, mutation_token: 'emt1.observed' },
           }),
         } as unknown as Response)
         .mockResolvedValueOnce({
@@ -131,7 +131,7 @@ describe('AdminSurfaceTransportAdapter', () => {
       const [url, opts] = fetchFn.mock.calls[1]
       expect(url).toBe('/_surface/node/action/delete')
       expect(opts.method).toBe('POST')
-      expect(JSON.parse(opts.body).mutation_token).toBe('token-5')
+      expect(JSON.parse(opts.body).mutation_token).toBe('emt1.observed')
     })
   })
 
