@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-08-16 - S1-FW-DB-03: scheduler overlap protection uses renewable database leases with generation/nonce/expiry read-back, monotonic safety margins, and fail-closed ambiguity handling. Fenced effects reject stale owners and distinguish exact replay from conflicting equal-fence work. Protected cron slots persist deterministic occurrences; queued occurrences commit enqueue intent with the occurrence identity and workers acquire a separate renewable execution lease before effects. The queue envelope/worker occurrence interfaces carry that identity without weakening ordinary queue retry semantics. EntityTypeManagerFactory also wires the aggregate mutation authority described in entity-system.md. Canonical contract: s1-concurrency-fencing.md. -->
+
 <!-- Spec reviewed 2026-08-11 - #2336 S1 upgrade compatibility: Foundation exposes a pure, read-only preflight decision surface. It does not boot the kernel, read configuration or schema state, run migrations, enter maintenance, or perform rollback/restore. Callers must supply the exact versioned observation described by docs/specs/s1-upgrade-compatibility.md; unknown or mixed state is refused, and a ready result authorizes only a separately governed apply phase. Existing configuration and migration mechanisms remain uncertified evidence sources until their independent findings close. -->
 
 <!-- Spec reviewed 2026-08-09 - issue #2322: HealthSchemaServiceProvider registers tenancy:repair-translation-peers as an explicit, dry-run-capable repair surface. It uses the live entity type metadata and database connection but never runs during boot; operators must quiesce writes before applying repairs. -->
@@ -1796,6 +1798,14 @@ Long-running daemon that processes jobs from a queue transport.
 - Memory growth budget exhausted (`$options->memoryLimit > 0` and `(memory_get_usage(true) - baselineBytes) >= $options->memoryLimit * 1024 * 1024`, where `baselineBytes` is captured once at the start of `run()` — **not** total process RSS; avoids exiting immediately when the host process is already large)
 
 **POSIX signal handling:** `listenForSignals()` registers SIGTERM/SIGINT handlers that set `$shouldQuit = true`. `pcntl_signal_dispatch()` is called each iteration in `shouldContinue()`. Gracefully degrades when `pcntl` extension is unavailable.
+
+**Configuration runtime epoch:** A long-running worker captures the configured
+`RuntimeEpochInterface` value before each job and checks it again after the job
+boundary. When transactional configuration activation advances the epoch, the
+worker exits the loop cleanly after the current job so its supervisor can start
+a process bound to the new immutable generation. The HTTP kernel uses the same
+epoch to invalidate generation-sensitive caches; epoch failure is fail-closed,
+not permission to keep serving an unknown generation.
 
 **Job processing pipeline:**
 1. `transport->pop($queue)` — dequeue raw message (`{id, payload, attempts}`)

@@ -120,7 +120,8 @@ describe('PageBuilderWorkspace', () => {
     expect(wrapper.find('iframe').attributes('src')).toBe('/preview/page/42?revision=7')
     expect(wrapper.text()).toContain('page_builder_revision:7')
     expect(wrapper.text()).toContain('Rich text')
-    expect(wrapper.text()).toContain('one_column')
+    expect(wrapper.text()).toContain('One column')
+    expect(wrapper.text()).not.toContain('rich_text')
     expect(wrapper.get('textarea').element.value).toBe('Welcome')
   })
 
@@ -188,19 +189,28 @@ describe('PageBuilderWorkspace', () => {
   })
 
   it('adds a registered section and removes the selected block through guarded commands', async () => {
+    definitionsRef.value = structuredClone(definitions)
+    definitionsRef.value.layouts.push({
+      id: 'sidebar',
+      version: 1,
+      regions: ['content', 'sidebar'],
+      required_regions: ['content', 'sidebar'],
+      allowed_blocks: ['rich_text'],
+    })
     const wrapper = await mountWorkspace()
     refreshPreviewMock.mockClear()
     const randomUUID = vi.spyOn(crypto, 'randomUUID').mockReturnValue('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')
 
-    await wrapper.get('.page-builder__add-section').trigger('click')
+    const sidebar = wrapper.findAll('.page-builder__add-section').find(button => button.text().includes('Sidebar'))!
+    await sidebar.trigger('click')
     await flushPromises()
     expect(applyMock).toHaveBeenCalledWith({
       type: 'add_section',
       position: 1,
       section: {
         id: 'sec_aaaaaaaabbbb4ccc8dddeeeeeeeeeeee',
-        layout: { id: 'one_column', version: 1 },
-        regions: { main: [] },
+        layout: { id: 'sidebar', version: 1 },
+        regions: { content: [], sidebar: [] },
       },
     })
 
@@ -212,6 +222,34 @@ describe('PageBuilderWorkspace', () => {
     expect(applyMock).toHaveBeenCalledWith({ type: 'remove_block', block_id: 'blk_intro' })
     expect(refreshPreviewMock).toHaveBeenCalledOnce()
     expect(wrapper.text()).toContain('page_builder_nothing_selected')
+    randomUUID.mockRestore()
+  })
+
+  it('inserts a new block after the selected block in its actual section and region', async () => {
+    const multiSectionDraft = structuredClone(draft)
+    multiSectionDraft.document.sections.push({
+      id: 'sec_secondary',
+      layout: { id: 'one_column', version: 1 },
+      regions: {
+        main: [{ id: 'blk_secondary', type: 'rich_text', version: 1, config: { body: 'Secondary' } }],
+      },
+    })
+    draftRef.value = multiSectionDraft
+    const wrapper = await mountWorkspace()
+    const randomUUID = vi.spyOn(crypto, 'randomUUID').mockReturnValue('11111111-2222-4333-8444-555555555555')
+
+    const secondary = wrapper.findAll('.page-builder__outline-block').find(button => button.text() === 'Rich text' && button.attributes('aria-pressed') !== 'true')!
+    await secondary.trigger('click')
+    applyMock.mockClear()
+    await wrapper.get('.page-builder__block-card').trigger('click')
+    await flushPromises()
+
+    expect(applyMock).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'add_block',
+      section_id: 'sec_secondary',
+      region_id: 'main',
+      position: 1,
+    }))
     randomUUID.mockRestore()
   })
 

@@ -10,6 +10,10 @@
         },
         {
             "type": "path",
+            "url": "../admin-surface"
+        },
+        {
+            "type": "path",
             "url": "../audit"
         },
         {
@@ -43,6 +47,26 @@
         {
             "type": "path",
             "url": "../migration"
+        },
+        {
+            "type": "path",
+            "url": "../listing"
+        },
+        {
+            "type": "path",
+            "url": "../mail"
+        },
+        {
+            "type": "path",
+            "url": "../page-builder"
+        },
+        {
+            "type": "path",
+            "url": "../path"
+        },
+        {
+            "type": "path",
+            "url": "../publishing"
         },
         {
             "type": "path",
@@ -90,6 +114,14 @@
         },
         {
             "type": "path",
+            "url": "../seo"
+        },
+        {
+            "type": "path",
+            "url": "../ssr"
+        },
+        {
+            "type": "path",
             "url": "../workflows"
         }
     ],
@@ -97,6 +129,7 @@
         "php": ">=8.5",
         "symfony/console": "^8.0",
         "waaseyaa/access": "^0.1.0-alpha.293",
+        "waaseyaa/admin-surface": "^0.1.0-alpha.293",
         "waaseyaa/audit": "^0.1.0-alpha.293",
         "waaseyaa/auth": "^0.1.0-alpha.293",
         "waaseyaa/cache": "^0.1.0-alpha.293",
@@ -105,7 +138,12 @@
         "waaseyaa/entity-storage": "^0.1.0-alpha.293",
         "waaseyaa/groups": "^0.1.0-alpha.293",
         "waaseyaa/http-client": "^0.1.0-alpha.293",
+        "waaseyaa/listing": "^0.1.0-alpha.293",
+        "waaseyaa/mail": "^0.1.0-alpha.293",
         "waaseyaa/migration": "^0.1.0-alpha.293",
+        "waaseyaa/page-builder": "^0.1.0-alpha.293",
+        "waaseyaa/path": "^0.1.0-alpha.293",
+        "waaseyaa/publishing": "^0.1.0-alpha.293",
         "waaseyaa/queue": "^0.1.0-alpha.293",
         "waaseyaa/scheduler": "^0.1.0-alpha.293",
         "waaseyaa/site-contract": "^0.1.0-alpha.293",
@@ -117,6 +155,8 @@
         "waaseyaa/plugin": "^0.1.0-alpha.293",
         "waaseyaa/routing": "^0.1.0-alpha.293",
         "waaseyaa/search": "^0.1.0-alpha.293",
+        "waaseyaa/seo": "^0.1.0-alpha.293",
+        "waaseyaa/ssr": "^0.1.0-alpha.293",
         "waaseyaa/workflows": "^0.1.0-alpha.293"
     },
     "suggest": {

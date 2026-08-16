@@ -90,6 +90,32 @@ describe('EntityAutocomplete authoritative reference search', () => {
     expect(wrapper.get('[role="option"]').text()).toBe('Annual report')
   })
 
+  it('honours catalog-owned contains search with governed picker filters', async () => {
+    getEntity.mockReturnValue({
+      id: 'media',
+      reference: {
+        ...mediaReference,
+        search: { field: 'name', operator: 'CONTAINS' as const },
+      },
+    })
+    list.mockResolvedValue({ data: [mediaResult()], meta: { total: 1, offset: 0, limit: 10 } })
+    const wrapper = await mountWidget({
+      'x-target-type': 'media',
+      'x-target-filter': { bundle: 'image' },
+    })
+
+    await enterQuery(wrapper, 'report')
+
+    expect(list).toHaveBeenCalledWith('media', {
+      filter: {
+        name: { operator: 'CONTAINS', value: 'report' },
+        bundle: { operator: 'EQUALS', value: 'image' },
+      },
+      sort: 'name',
+      page: { offset: 0, limit: 10 },
+    })
+  })
+
   it.each([
     ['missing', undefined],
     ['malformed', { labelField: 4, search: { field: 'name', operator: 'STARTS_WITH' } }],

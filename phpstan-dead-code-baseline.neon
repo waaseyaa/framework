@@ -25,13 +25,19 @@ parameters:
 			path: packages/auth/src/Token/AuthTokenRepositoryInterface.php
 
 		-
-			message: '#^Unused Waaseyaa\\Config\\EventAwareStorage\:\:getCollectionName$#'
+			message: '#^Unused Waaseyaa\\Config\\Activation\\TransactionalConfigurationStorage\:\:getCollectionName$#'
 			identifier: shipmonk.deadMethod
 			count: 1
-			path: packages/config/src/EventAwareStorage.php
+			path: packages/config/src/Activation/TransactionalConfigurationStorage.php
 
 		-
-			message: '#^Unused Waaseyaa\\Config\\EventAwareStorage\:\:readMultiple$#'
+			message: '#^Unused Waaseyaa\\Config\\Activation\\TransactionalConfigurationStorage\:\:readMultiple$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/config/src/Activation/TransactionalConfigurationStorage.php
+
+		-
+			message: '#^Unused Waaseyaa\\Config\\EventAwareStorage\:\:getCollectionName$#'
 			identifier: shipmonk.deadMethod
 			count: 1
 			path: packages/config/src/EventAwareStorage.php

@@ -9,9 +9,22 @@ A Waaseyaa CMS application.
 ```bash
 composer create-project waaseyaa/waaseyaa my-app --stability=dev
 cd my-app
+./vendor/bin/waaseyaa site:init
+.ci/site-verify
 ```
 
 Use `./vendor/bin/waaseyaa` for the CLI. Optional path-linked `waaseyaa/*` checkouts: copy `composer.local.json.example` to `composer.local.json` (see [docs/local-dev.md](docs/local-dev.md)).
+
+`site:init` records the site's product decisions and generates supported
+content, subscription, and governed-authoring integrations. The page builder
+is one shared revisioned service used by both the generic Admin SPA and an
+enabled Anokii shell. High-volume Updates, Events, Jobs, and Announcements use
+their faster typed content forms and can be placed on pages through governed
+listing blocks.
+
+`.ci/site-verify` is the local, provider-neutral verification boundary. The
+included GitHub workflow merely calls it; another hosted or local runner can do
+the same without changing the application contract.
 
 ## Directory Structure
 
@@ -57,6 +70,8 @@ composer run dev                    # Serve on FrankenPHP at http://127.0.0.1:80
 ./vendor/bin/waaseyaa optimize:manifest  # Rebuild provider manifest
 ./vendor/bin/waaseyaa serve              # Single-worker php -S dev server (zero-config; not for the admin SPA's SSE or production)
 ./vendor/bin/waaseyaa                    # CLI
+./vendor/bin/waaseyaa site:init          # Initialize/regenerate the governed site contract
+.ci/site-verify                          # Offline provider-neutral site verification
 ./bin/maintenance/waaseyaa-audit-site    # Optional convergence preflight
 ```
 

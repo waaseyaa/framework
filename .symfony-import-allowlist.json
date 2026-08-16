@@ -13,6 +13,7 @@
     "packages/entity-storage/src/Hydration/EntityInstantiator.php": "Sealed repository hydration generates missing UUID values with the framework's established Symfony Uid implementation.",
     "packages/entity/src/Validation/ValidationFieldReader.php": "Implements the closed restricted-field validation boundary using Symfony Validator constraints and violation result types.",
     "packages/ssr/src/PageComposition/EntityPageComposerInterface.php": "The SSR page-composition contract returns the same HttpFoundation response type as the existing SSR render pipeline so application shell headers and decorators survive delegation.",
+    "packages/site-contract/src/Doctor/DoctorSuppressionSet.php": "The provider-neutral diagnostic suppression authority uses Symfony Yaml only as its declared serialization parser and projects no Symfony type into the public contract.",
     "packages/site-contract/src/SiteManifestParser.php": "The provider-neutral manifest authority uses Symfony Yaml only as its declared serialization parser and projects no Symfony type into the public contract."
   },
   "legacy_files": [
@@ -118,6 +119,7 @@
     "packages/queue/src/MessageBusQueue.php",
     "packages/search/src/EventSubscriber/SearchIndexSubscriber.php",
     "packages/search/src/SearchServiceProvider.php",
+    "packages/site-contract/src/Doctor/DoctorSuppressionSet.php",
     "packages/site-contract/src/SiteManifestParser.php",
     "packages/ssr/src/Formatter/HtmlFormatter.php",
     "packages/ssr/src/Http/AppController/AppControllerArgumentResolver.php",
