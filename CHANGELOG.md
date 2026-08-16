@@ -58,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Make `make:storage-migration` detect an existing entity/backend migration
+  across timestamp boundaries, and make `--force` overwrite that migration
+  instead of silently creating a second file.
+
 - Let application schemas organize the shared Admin SPA and Anokii entity
   editor into accessible task-oriented sections, including collapsible
   secondary details that reopen for validation errors without stealing focus
