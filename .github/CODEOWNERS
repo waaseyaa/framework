@@ -1,0 +1,15 @@
+# Waaseyaa Framework is intentionally maintained by one human. This file
+# records real ownership; it does not claim an unavailable independent human.
+* @jonesrussell
+
+# Critical repository, publication, upgrade, and deployment/data-custody paths.
+/.github/workflows/ @jonesrussell
+/.github/CODEOWNERS @jonesrussell
+/bin/resolve-split-main-targets @jonesrussell
+/bin/configure-split-tag-protection @jonesrussell
+/bin/generate-release-evidence @jonesrussell
+/bin/check-release-* @jonesrussell
+/packages/deployer/ @jonesrussell
+/packages/foundation/resources/upgrade/ @jonesrussell
+/tools/ @jonesrussell
+/composer.json @jonesrussell
