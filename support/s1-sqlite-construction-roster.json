@@ -1791,7 +1791,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
@@ -1800,25 +1800,25 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 382,
+            "line": 394,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 382,
+            "line": 394,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "0442129354d99ef268bd8af6e0308c28dccd9d216ac0f6cef9953e6ef5c8e06f"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerTest.php",
