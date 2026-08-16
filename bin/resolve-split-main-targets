@@ -17,6 +17,7 @@ $allowlist = [
     'config' => ['local' => 'packages/config', 'remote' => 'config'],
     'cli' => ['local' => 'packages/cli', 'remote' => 'cli'],
     'site-contract' => ['local' => 'packages/site-contract', 'remote' => 'site-contract'],
+    'migration' => ['local' => 'packages/migration', 'remote' => 'migration'],
     'access' => ['local' => 'packages/access', 'remote' => 'access'],
     'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
     'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
