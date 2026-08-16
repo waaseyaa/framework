@@ -12,6 +12,12 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Command\Migrate\VerifyAuthorityResult;
+use Waaseyaa\CLI\Command\Migrate\VerifyFormatter;
+use Waaseyaa\CLI\Command\Migrate\VerifyOutcome;
+use Waaseyaa\CLI\Command\Migrate\VerifyResultRow;
+use Waaseyaa\CLI\Command\Migrate\VerifyRunner;
+use Waaseyaa\CLI\Command\Migrate\VerifySummary;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\Migration;
@@ -26,6 +32,12 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
 use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
 
 #[CoversClass(MigrateHandler::class)]
+#[CoversClass(VerifyAuthorityResult::class)]
+#[CoversClass(VerifyFormatter::class)]
+#[CoversClass(VerifyOutcome::class)]
+#[CoversClass(VerifyResultRow::class)]
+#[CoversClass(VerifyRunner::class)]
+#[CoversClass(VerifySummary::class)]
 final class MigrateHandlerDryRunVerifyTest extends TestCase
 {
     #[Test]
