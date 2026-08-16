@@ -60,6 +60,20 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_foundation_database_delivery_set(): void
+    {
+        [$exit, $stdout] = $this->runScript('foundation,database-legacy');
+
+        self::assertSame(0, $exit, $stdout);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/foundation', 'remote' => 'foundation'],
+                ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function resolves_the_shared_workflow_history_delivery_set(): void
     {
         [$exit, $stdout] = $this->runScript('api,audit,admin-surface');
