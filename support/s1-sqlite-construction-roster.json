@@ -1548,7 +1548,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "1e78ee5c2bde21a93f810ac663bd931a65b9c885d90195b48e481af238457a39",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/MakeStorageMigration/EndToEndTest.php",
@@ -1557,25 +1557,25 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "1e78ee5c2bde21a93f810ac663bd931a65b9c885d90195b48e481af238457a39",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/MakeStorageMigration/EndToEndTest.php",
-            "line": 327,
+            "line": 337,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "1e78ee5c2bde21a93f810ac663bd931a65b9c885d90195b48e481af238457a39",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/MakeStorageMigration/EndToEndTest.php",
-            "line": 327,
+            "line": 337,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "1e78ee5c2bde21a93f810ac663bd931a65b9c885d90195b48e481af238457a39",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Unit/Command/Ai/AiPurgeRunsCommandTest.php",

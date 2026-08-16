@@ -1818,25 +1818,25 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "9cb0f3f5ba08fcb035e94d5ab5b9a194dc76a7ce8d420749debfbd89db87f72d",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/MakeStorageMigration/EndToEndTest.php",
-            "line": 331,
+            "line": 341,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "85da926a0fe07b4893e73547411ed61adc92469cbde6d81d909dac6dee384205",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/MakeStorageMigration/EndToEndTest.php",
-            "line": 345,
+            "line": 355,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
             "line_sha256": "b93d33598238f27fb35e36e341fe07b07b7e2e759bed327367a3a4c499a34004",
-            "source_sha256": "f06ef39516d21abd6832a0cb64a066ceaf46f03ed95ae7edf87017ff12ea44ad"
+            "source_sha256": "c3db52a6148361435a64d64f02afbc948b7109b49c753cc2f1edc514c8c2381c"
         },
         {
             "path": "packages/cli/tests/Integration/ProviderRegistersCommandsTest.php",
