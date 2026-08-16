@@ -273,6 +273,10 @@ jobs:
   ci-unit-tests:
     name: ci/unit-tests
     runs-on: ubuntu-24.04
+    # Fast contracts gate the long jobs (governed-gates.md §5): a stale
+    # recorded roster fails once in support/s1-contract (~30s) instead of
+    # re-reporting through unit/random-order/coverage minutes later (#2400).
+    needs: support-contract
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -323,6 +327,8 @@ jobs:
   ci-random-order:
     name: ci/random-order
     runs-on: ubuntu-24.04
+    # See ci-unit-tests: fast contracts gate the long jobs (#2400).
+    needs: support-contract
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -379,6 +385,8 @@ jobs:
   ci-coverage:
     name: ci/coverage
     runs-on: ubuntu-24.04
+    # See ci-unit-tests: fast contracts gate the long jobs (#2400).
+    needs: support-contract
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

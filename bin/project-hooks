@@ -93,7 +93,7 @@ claude_session() {
   echo "Base: $base"
   echo "Committed diff: $summary"
   echo "Working tree: $status_count changed path(s)"
-  echo "Publication gate: run composer verify; spec drift is checked on push."
+  echo "Publication gate: php bin/check-pr-preflight --full plus the Unit/Integration/Architecture suites; the pre-push hook runs the fast preflight (spec drift blocking)."
 }
 
 pre_commit() {
@@ -111,24 +111,18 @@ pre_commit() {
 pre_push() {
   require_command php
   cd "$REPO_ROOT"
-  php bin/check-portable-paths
-  php bin/check-composer-policy
-  php bin/check-symfony-imports
-  php bin/check-package-layers
-  local drift_base drift_failed=0
-  drift_base="${WAASEYAA_DRIFT_BASE:-$(git -C "$REPO_ROOT" config --get waaseyaa.driftBase || true)}"
-  [[ -n "$drift_base" ]] || drift_base="origin/main"
-  if ! bash tools/drift-detector.sh "$drift_base"; then
-    drift_failed=1
-    echo "project-hooks: spec drift detected against ${drift_base} (set WAASEYAA_DRIFT_BASE or 'git config waaseyaa.driftBase' to change the local base)." >&2
-    echo "project-hooks: drift is advisory locally, but hosted CI diffs against the PR base branch and blocks merge — blocking in CI against the PR base." >&2
-    echo "project-hooks: update the spec or commit a 'spec-reviewed: <spec-path> - <reason>' trailer." >&2
+  # governed-gates.md §4: pre-push enforces what CI enforces — the complete
+  # fast repo-state preflight, all blocking (spec drift included; no gate is
+  # softer locally than in CI). The manifest tools/preflight-gates.json is
+  # the single gate roster; PreflightParityTest keeps it CI-identical. For an
+  # ENVIRONMENTAL failure (not a real finding), escape with git push --no-verify
+  # and rely on the authoritative hosted CI.
+  if ! php bin/check-pr-preflight; then
+    echo "project-hooks: preflight failed — each FAIL above names its exact repair command." >&2
+    echo "project-hooks: environmental failure (not a real finding)? push with git push --no-verify; hosted CI stays authoritative." >&2
+    exit 1
   fi
-  if [[ "$drift_failed" -eq 0 ]]; then
-    echo "Fast pre-push checks passed (spec drift clean against ${drift_base}). Run 'composer verify' for the complete local gate."
-  else
-    echo "Fast pre-push checks passed except spec drift (advisory locally, blocking in CI against the PR base). Run 'composer verify' for the complete local gate."
-  fi
+  echo "Pre-push preflight passed. Run 'php bin/check-pr-preflight --full' (adds phpstan + dead-code) plus the three test suites before opening a PR."
 }
 
 case "${1:-}" in

@@ -13,7 +13,7 @@ Undetected drift causes agents to generate code that conflicts with recent chang
 
 | Tool | Purpose | How to run |
 |------|---------|-----------|
-| `tools/drift-detector.sh` | Finds stale specs by comparing last-modified dates | `bash tools/drift-detector.sh` |
+| `tools/drift-detector.sh` | Finds stale specs via PR-diff coupling: maps changed source (`git diff BASE...HEAD`) to owning specs; `spec-reviewed:` commit trailers acknowledge reviewed drift (provenance-ordered) | `bash tools/drift-detector.sh origin/main` |
 | Read / `rg` on `docs/specs/` | Cross-reference subsystem specs during development | Local files in the repo |
 | Anchor issues | Scope and work-package state for multi-PR efforts | `gh issue view <N>` (incl. comment trail) |
 | `bin/check-milestones` | Optional GitHub issue ↔ Track milestone hygiene | `bin/check-milestones` |

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Governed-gate preflight (#2400):** One local command now mirrors every
+  fast repo-state gate hosted CI blocks merge on: `bin/check-pr-preflight`
+  runs the full roster (~10s) with accumulator semantics — every gate runs,
+  every failure names its exact repair command — and `--full` adds the
+  phpstan-engine gates. The roster is data (`tools/preflight-gates.json`),
+  bound to composer.json and the workflow files by `PreflightParityTest` so
+  it cannot drift from CI. `bin/refresh-governance-artifacts` is the paired
+  repair command: mechanical recorded artifacts (the four S1 rosters,
+  dispatcher-keys baseline, admin dist) regenerate via their verifiers' own
+  write modes with a post-write recheck; judgment artifacts print their exact
+  hand-repair instruction. The pre-push hook now runs the blocking preflight
+  (the advisory-local/blocking-CI spec-drift split is removed), the three
+  long CI test jobs `needs:` the ~30s `support/s1-contract` job so a stale
+  roster fails once and fast, and S1 roster entries now bind **semantic
+  identity** (path, pattern, class, normalized match hash, occurrence index —
+  schema v2, shared `bin/lib/s1-roster.php`) instead of line numbers and
+  whole-file hashes, so unrelated edits in rostered files no longer force
+  regeneration commits. Scan scopes uniformly exclude non-repository trees
+  (`.git/`, nested `vendor/`/`node_modules/`, `storage/`). Contract:
+  `docs/specs/governed-gates.md`.
+
 - **Security — CSRF cookie honors the session-cookie policy (#2149):**
   `CsrfMiddleware` now mints the `XSRF-TOKEN` cookie with `Secure`/`SameSite`
   taken from the same resolved `session.cookie` config as the session cookie

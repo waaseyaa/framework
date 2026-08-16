@@ -37,26 +37,27 @@ final class ProjectHooksTest extends TestCase
     {
         $script = (string) file_get_contents($this->root . '/bin/project-hooks');
         self::assertStringContainsString('check-portable-paths', $script);
-        self::assertStringContainsString('check-composer-policy', $script);
-        self::assertStringContainsString('check-symfony-imports', $script);
-        self::assertStringContainsString('drift-detector.sh', $script);
-        self::assertStringContainsString('composer verify', $script);
+        self::assertStringContainsString('check-pr-preflight', $script);
         self::assertStringNotContainsString('phpstan analyse', $script);
         self::assertStringNotContainsString('phpunit', $script);
         self::assertStringNotContainsString('parallel:', $script);
     }
 
     #[Test]
-    public function pre_push_reports_drift_truthfully_against_a_configurable_base(): void
+    public function pre_push_runs_the_blocking_preflight_with_no_advisory_splits(): void
     {
+        // governed-gates.md §4: pre-push enforces what CI enforces. The old
+        // advisory-local/blocking-CI split for spec drift is gone — the
+        // preflight (which includes spec-drift as a blocking gate) is the
+        // pre-push gate, and an environmental failure is escaped with
+        // git push --no-verify, never by downgrading a gate to advisory.
         $script = (string) file_get_contents($this->root . '/bin/project-hooks');
 
-        self::assertStringNotContainsString('drift-detector.sh origin/main', $script, 'pre-push must not hardcode the drift base at the callsite');
-        self::assertStringContainsString('WAASEYAA_DRIFT_BASE', $script);
-        self::assertStringContainsString('waaseyaa.driftBase', $script);
-        self::assertStringContainsString('spec drift clean against ${drift_base}', $script);
-        self::assertStringContainsString('except spec drift', $script);
-        self::assertStringContainsString('blocking in CI against the PR base', $script);
+        self::assertStringContainsString('php bin/check-pr-preflight', $script);
+        self::assertStringNotContainsString('advisory', $script, 'No gate may be advisory locally while CI blocks on it.');
+        self::assertStringNotContainsString('except spec drift', $script);
+        self::assertStringContainsString('--no-verify', $script, 'The environmental-failure escape hatch must be documented in the hook output.');
+        self::assertStringContainsString('--full', $script, 'The hook must point at the full profile for the phpstan-engine gates.');
     }
 
     #[Test]
