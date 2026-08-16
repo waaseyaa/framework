@@ -7428,6 +7428,15 @@
             "source_sha256": "0da9f0cd7b851b35478101cd70acdaec7525019cbf376e39f2ac62f95a043ff6"
         },
         {
+            "path": "tests/Integration/Oidc/SigningKeyLifecycleCliTest.php",
+            "line": 28,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
+            "source_sha256": "42b0ce1b035966962d5c10d0922d07011b7244916de0f1968fc3cded6c0f0fa8"
+        },
+        {
             "path": "tests/Integration/Phase11/AuthorizationPipelineTest.php",
             "line": 44,
             "pattern": "dbal_factory",
