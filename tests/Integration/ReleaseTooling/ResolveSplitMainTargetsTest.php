@@ -74,6 +74,20 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_configuration_authority_delivery_set(): void
+    {
+        [$exit, $stdout] = $this->runScript('config,entity-storage');
+
+        self::assertSame(0, $exit, $stdout);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/config', 'remote' => 'config'],
+                ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function resolves_the_shared_workflow_history_delivery_set(): void
     {
         [$exit, $stdout] = $this->runScript('api,audit,admin-surface');
