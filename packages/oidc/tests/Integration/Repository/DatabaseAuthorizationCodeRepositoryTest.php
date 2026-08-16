@@ -10,6 +10,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Oidc\Repository\AuthorizationCode;
 use Waaseyaa\Oidc\Repository\DatabaseAuthorizationCodeRepository;
+use Waaseyaa\Oidc\Tests\Support\OidcSchema;
 
 #[CoversClass(DatabaseAuthorizationCodeRepository::class)]
 #[CoversClass(AuthorizationCode::class)]
@@ -23,6 +24,7 @@ final class DatabaseAuthorizationCodeRepositoryTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        OidcSchema::installAuthorizationCodes($this->database);
     }
 
     public function testIssueReturnsCodeWithExpectedFields(): void
@@ -175,8 +177,10 @@ final class DatabaseAuthorizationCodeRepositoryTest extends TestCase
         self::assertSame(0, $repo->purgeExpired());
     }
 
-    public function testEnsureTableAddsNonceColumnToLegacySchema(): void
+    public function testExplicitMigrationAddsNonceColumnToLegacySchema(): void
     {
+        $this->database = DBALDatabase::createSqlite();
+
         // Simulate a table provisioned by #1283 before nonce was introduced.
         $this->database->query(<<<'SQL'
             CREATE TABLE oidc_authorization_codes (
@@ -192,6 +196,8 @@ final class DatabaseAuthorizationCodeRepositoryTest extends TestCase
                 consumed_at INTEGER
             )
         SQL);
+
+        OidcSchema::installAuthorizationCodes($this->database);
 
         $repo = $this->buildRepo();
 

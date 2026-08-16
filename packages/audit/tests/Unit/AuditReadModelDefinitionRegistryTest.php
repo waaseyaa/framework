@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Unit;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\ReadModel\AuditReadModelDefinitionRegistry;
@@ -32,8 +34,8 @@ final class AuditReadModelDefinitionRegistryTest extends TestCase
     public function definitions_have_exact_parity_with_every_flat_audit_table(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
-        (new ApprovalEventSchema($database))->ensure();
+        RuntimeSchemaMigrations::audit($database);
+        RuntimeSchemaMigrations::audit($database);
         $definitions = (new AuditReadModelDefinitionRegistry())->definitions();
 
         foreach (['audit_event', 'audit_retention_policy', 'audit_checkpoint', 'privileged_read_ledger', 'mcp_approval_event'] as $table) {

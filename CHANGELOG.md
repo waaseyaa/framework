@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **single S1 schema authority (`S1-FW-DB-02`):** Define one
+  database-native, whole-plan-atomic schema coordinator; globally unique
+  migration identity; zero-DDL read/runtime paths; forward-only rollback;
+  strict ledger/source/live-schema verification; and a complete classified DDL
+  inventory on the verified forge-neutral SQLite predecessor. Keep explicit
+  initialization and migration commands available before runtime schema exists,
+  and prove a detached reference consumer applies that schema before boot.
+
 - **explicit S1 SQLite topology (`S1-FW-DB-01`):** Define the one-node,
   one-authoritative-file SQLite contract, bounded connection invariants,
   optional rebuildable search projection, stable refusal diagnostics, and

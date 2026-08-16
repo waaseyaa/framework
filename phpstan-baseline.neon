@@ -205,24 +205,6 @@ parameters:
 			path: packages/api/src/Query/QueryParser.php
 
 		-
-			message: '#^Cannot call method execute\(\) on PDOStatement\|false\.$#'
-			identifier: method.nonObject
-			count: 12
-			path: packages/cache/src/Backend/DatabaseBackend.php
-
-		-
-			message: '#^Cannot call method fetch\(\) on PDOStatement\|false\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: packages/cache/src/Backend/DatabaseBackend.php
-
-		-
-			message: '#^Cannot call method fetchAll\(\) on PDOStatement\|false\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: packages/cache/src/Backend/DatabaseBackend.php
-
-		-
 			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
 			count: 1

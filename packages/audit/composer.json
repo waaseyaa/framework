@@ -63,7 +63,8 @@
         "waaseyaa": {
             "providers": [
                 "Waaseyaa\\Audit\\AuditServiceProvider"
-            ]
+            ],
+            "migrations": "migrations"
         },
         "branch-alias": {
             "dev-main": "0.1.x-dev",

@@ -13,6 +13,7 @@ use Waaseyaa\State\Exception\EntityProjectionWriteForbidden;
 use Waaseyaa\State\MemoryState;
 use Waaseyaa\State\ProjectionDeprecationDiagnostic;
 use Waaseyaa\State\SqlState;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 final class ProjectionDeprecationDiagnosticTest extends TestCase
 {
@@ -120,7 +121,9 @@ final class ProjectionDeprecationDiagnosticTest extends TestCase
                 $events[] = [$code, $context];
             },
         );
-        $state = new SqlState(DBALDatabase::createSqlite(), str_repeat('s', 32), $diagnostic);
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::state($database);
+        $state = new SqlState($database, str_repeat('s', 32), $diagnostic);
         $value = new \stdClass();
 
         $state->set('one', $value);

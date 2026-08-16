@@ -151,7 +151,7 @@ final class ContentModelRegistrationEndToEndTest extends TestCase
         $registry = new MigrationRegistry([$migrationsProvider]);
         $registry->boot();
 
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
 
         $runner = new MigrationRunner(
             registry: $registry,
@@ -214,7 +214,7 @@ final class ContentModelRegistrationEndToEndTest extends TestCase
             registry: $registry,
             chain: new ProcessChainExecutor(),
             idMap: new MigrationIdMap($kit->database),
-            contentModelRegistrar: new ContentModelRegistrar($kit->typeManager),
+            contentModelRegistrar: new ContentModelRegistrar($kit->typeManager, $kit->database),
             contentModelProviders: [$noopProvider],
         );
 
@@ -252,7 +252,7 @@ final class ContentModelRegistrationEndToEndTest extends TestCase
             registry: $registry,
             chain: new ProcessChainExecutor(),
             idMap: new MigrationIdMap($kit->database),
-            contentModelRegistrar: new ContentModelRegistrar($kit->typeManager),
+            contentModelRegistrar: new ContentModelRegistrar($kit->typeManager, $kit->database),
             contentModelProviders: [$flaky],
         );
 

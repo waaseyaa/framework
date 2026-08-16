@@ -26,6 +26,7 @@ use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\FieldReadLevel;
@@ -55,6 +56,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        EntityReadRuntime::installFieldRegistry(null);
         $this->database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
         $resolver = new SingleConnectionResolver($this->database);
@@ -109,6 +111,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
                 'end_date' => ['type' => 'integer', 'read' => FieldReadLevel::Protected],
             ],
         ));
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($this->database);
         new RelationshipSchemaManager($this->database)->ensure();
 
         $this->serializer = new ResourceSerializer($this->entityTypeManager);
@@ -119,6 +122,11 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
         $this->account = new DiscoveryFixtureAnonymousAccount();
         $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
         $this->seedFixtureCorpus();
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installFieldRegistry(null);
     }
 
     #[Test]
@@ -182,6 +190,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
         }
 
         $relationshipRepository = $this->entityTypeManager->getRepository('relationship');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($this->database);
         new RelationshipSchemaManager($this->database)->ensure();
         foreach (WorkflowFixturePack::discoveryRelationships() as $fixture) {
             $relationship = $relationshipRepository->create([

@@ -65,6 +65,11 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
         // Minimal framework config.
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
+        $database = \Waaseyaa\Database\DBALDatabase::createSqlite($this->projectRoot . '/storage/waaseyaa.sqlite');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::auth($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
 
         // Root composer.json declaring our fixture provider so the kernel's
         // PackageManifestCompiler picks it up via extra.waaseyaa.providers.
@@ -78,6 +83,7 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
                 ],
             ],
         ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
     }
 
     protected function tearDown(): void

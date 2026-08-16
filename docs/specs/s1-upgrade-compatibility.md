@@ -140,8 +140,10 @@ Existing convenience signals are deliberately insufficient:
   aggregate checksum, or recursive canonicalization invariant.
 - The stable sync envelope does not currently carry a required supported
   format version.
-- Migration verify currently treats legacy/null-checksum rows as unknown
-  without live-schema introspection.
+- Migration verify treats historical null-checksum rows as a blocking unknown,
+  binds new legacy rows to exact executable source, and compares the stored
+  coordinator manifest with read-only live-schema introspection. Consumer
+  readiness still requires zero unknown rows and exact retained evidence.
 - Schema rollback can remove ledger authority when no reversible source ran.
 
 The evaluator therefore consumes stronger explicit evidence fields and refuses

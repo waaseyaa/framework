@@ -188,6 +188,11 @@ final class ValidationOverheadTest extends TestCase
             );
         }
         $kernel->publicFieldRegistry()->registerCoreFields(self::ENTITY_TYPE_ID, $fields);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
+        );
 
         return $kernel->publicEntityTypeManager()->getRepository(self::ENTITY_TYPE_ID);
     }

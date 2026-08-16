@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -19,7 +21,7 @@ final class DatabaseStrictFieldStorageGatewayAuditTest extends TestCase
     public function reservation_and_success_are_durable_value_free_events(): void
     {
         $database = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($database)->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $audit = new DatabaseStrictFieldStorageGatewayAudit($database);
 
         $receipt = $audit->reserve($this->attempt());
@@ -42,7 +44,7 @@ final class DatabaseStrictFieldStorageGatewayAuditTest extends TestCase
     public function failure_records_whether_backend_invocation_started(): void
     {
         $database = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($database)->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $audit = new DatabaseStrictFieldStorageGatewayAudit($database);
         $attempt = $this->attempt();
 
@@ -59,7 +61,7 @@ final class DatabaseStrictFieldStorageGatewayAuditTest extends TestCase
     public function failure_for_a_different_attempt_cannot_finalize_the_reservation(): void
     {
         $database = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($database)->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $audit = new DatabaseStrictFieldStorageGatewayAudit($database);
         $receipt = $audit->reserve($this->attempt());
         $differentAttempt = new FieldStorageGatewayAttempt(

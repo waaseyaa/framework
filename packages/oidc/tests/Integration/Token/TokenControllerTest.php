@@ -31,6 +31,7 @@ use Waaseyaa\Oidc\Token\RefreshTokenGrantHandler;
 use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 use Waaseyaa\Oidc\Token\TokenController;
 use Waaseyaa\Oidc\Token\TokenRequestValidator;
+use Waaseyaa\Oidc\Tests\Support\OidcSchema;
 
 #[CoversClass(TokenController::class)]
 final class TokenControllerTest extends TestCase
@@ -330,6 +331,7 @@ final class TokenControllerTest extends TestCase
         }
 
         $db = DBALDatabase::createSqlite();
+        OidcSchema::installTokenStorage($db);
         $accessTokenIssuer = new AccessTokenIssuer($db, str_repeat('a', 32), str_repeat('b', 32));
         $refreshTokenIssuer = new RefreshTokenIssuer($db, str_repeat('c', 32), str_repeat('d', 32));
 

@@ -62,6 +62,7 @@ final class MercureMonitorEndpointTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($this->database);
         $this->broadcastStorage = new BroadcastStorage($this->database);
 
         $this->tmpDir = sys_get_temp_dir() . '/waaseyaa_monitor_test_' . uniqid();

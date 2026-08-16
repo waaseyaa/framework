@@ -79,7 +79,7 @@ final class DbInitHandler
             }
 
             $repository = new MigrationRepository($connection);
-            $repository->createTable();
+            $repository->installOrUpgradeLedger();
 
             $manifest = new PackageManifestCompiler(
                 basePath: $this->projectRoot,
@@ -139,7 +139,7 @@ final class DbInitHandler
     private function syncSchema(SymfonyCommandIO $io): void
     {
         $kernel = new ConsoleKernel($this->projectRoot);
-        $kernel->bootForCli();
+        $kernel->bootForSchemaSync();
 
         // Trigger the (lazy) kernel boot and capture the services BEFORE the
         // try/finally. If the boot fails (e.g. a project with no registered
@@ -239,7 +239,9 @@ final class DbInitHandler
         }
 
         $repository = new MigrationRepository($connection);
-        $repository->createTable();
+        // Validate the existing ledger with metadata reads only. An empty
+        // migration source set must not let a stale ledger escape inspection.
+        $repository->getCompleted();
         $manifest = new PackageManifestCompiler(
             basePath: $this->projectRoot,
             storagePath: $this->projectRoot . '/storage',

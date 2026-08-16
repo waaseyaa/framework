@@ -7,10 +7,15 @@ namespace Waaseyaa\Messaging;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
+use Waaseyaa\Entity\Attribute\StorageSchemaTransition;
+use Waaseyaa\Entity\Attribute\StorageUniqueKey;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Messaging\Schema\ThreadParticipantSchema;
 
 #[ContentEntityType(id: 'thread_participant', label: 'Thread Participant', api: true)]
 #[ContentEntityKeys(id: 'tpid', uuid: 'uuid', label: 'role')]
+#[StorageUniqueKey('thread_participant_thread_user_unique', ['thread_id', 'user_id'])]
+#[StorageSchemaTransition(ThreadParticipantSchema::class)]
 final class ThreadParticipant extends ContentEntityBase
 {
     #[Field(label: 'Thread ID', settings: ['weight' => 0, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

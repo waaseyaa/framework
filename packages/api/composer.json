@@ -139,6 +139,7 @@
     "prefer-stable": true,
     "extra": {
         "waaseyaa": {
+            "migrations": "migrations",
             "providers": [
                 "Waaseyaa\\Api\\ApiServiceProvider"
             ]

@@ -58,9 +58,9 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
 
         // Durable bearer-token lifecycle store (#2177 F3). Consumed by the MCP
         // write tier's default auth and the `bearer-token:*` operator commands.
-        // Deliberately NOT eagerly ensuring schema here: the store bootstraps
-        // its table lazily on first use, so resolving the binding never costs
-        // a database roundtrip.
+        // Deliberately NOT verifying schema here: first use performs a
+        // read-only migration-owned schema check. Runtime code never installs
+        // or repairs the bearer-token table.
         $this->singleton(Token\Bearer\BearerTokenStoreInterface::class, fn() => new Token\Bearer\DatabaseBearerTokenStore(
             $this->resolve(\Waaseyaa\Database\DatabaseInterface::class),
         ));

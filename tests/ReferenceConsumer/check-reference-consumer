@@ -44,6 +44,7 @@ fi
 
 php "$framework_root/tests/ReferenceConsumer/prepare.php" bind-lock "$framework_root" "$consumer_root"
 (cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
+(cd "$consumer_root" && php vendor/bin/waaseyaa migrate --no-interaction)
 
 before=$(php "$framework_root/tests/ReferenceConsumer/prepare.php" snapshot "$framework_root" "$consumer_root")
 export COMPOSER_DISABLE_NETWORK=1

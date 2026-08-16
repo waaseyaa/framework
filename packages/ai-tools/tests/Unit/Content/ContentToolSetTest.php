@@ -17,6 +17,7 @@ use Waaseyaa\AI\Tools\Content\MediaAssetStore;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
@@ -51,6 +52,7 @@ final class ContentToolSetTest extends TestCase
     protected function setUp(): void
     {
         $db = $this->database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::publishing($db);
         $articleType = new EntityType(
             id: 'test_article',
             label: 'Test article',

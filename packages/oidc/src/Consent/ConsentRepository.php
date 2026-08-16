@@ -6,6 +6,7 @@ namespace Waaseyaa\Oidc\Consent;
 
 use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
  * Records and queries user consent decisions.
@@ -20,7 +21,7 @@ final class ConsentRepository
 {
     private const TABLE = 'oidc_user_consent';
 
-    private bool $tableEnsured = false;
+    private bool $schemaVerified = false;
 
     public function __construct(
         private readonly DatabaseInterface $database,
@@ -33,7 +34,7 @@ final class ConsentRepository
      */
     public function hasConsent(string $accountId, string $clientId, array $scopes): bool
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $hash = $this->scopeSetHash($scopes);
 
@@ -57,7 +58,7 @@ final class ConsentRepository
      */
     public function record(string $accountId, string $clientId, array $scopes): void
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $hash = $this->scopeSetHash($scopes);
         $now = new DateTimeImmutable()->getTimestamp();
@@ -80,22 +81,19 @@ final class ConsentRepository
         return hash('sha256', implode(' ', $sorted));
     }
 
-    private function ensureTable(): void
+    private function assertSchemaAvailable(): void
     {
-        if ($this->tableEnsured) {
+        if ($this->schemaVerified) {
             return;
         }
 
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS oidc_user_consent (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                    account_id VARCHAR(255) NOT NULL,
-                    client_id VARCHAR(255) NOT NULL,
-                    scope_set_hash CHAR(64) NOT NULL,
-                    granted_at INTEGER NOT NULL
-                )
-            SQL);
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            ['id', 'account_id', 'client_id', 'scope_set_hash', 'granted_at'],
+            'waaseyaa/oidc:2026_05_25_000004_oidc_user_consent_schema',
+        );
 
-        $this->tableEnsured = true;
+        $this->schemaVerified = true;
     }
 }

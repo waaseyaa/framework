@@ -72,6 +72,7 @@ final class InteractiveHitlTest extends TestCase
         $schema = new SchemaBuilder($this->database->getConnection());
         $migration->up($schema);
 
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($this->database);
         $this->broadcastStorage = new BroadcastStorage($this->database);
         $this->runRepository = $this->buildRunRepository();
         $this->auditRepository = $this->buildAuditRepository();

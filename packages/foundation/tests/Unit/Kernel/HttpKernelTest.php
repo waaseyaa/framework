@@ -307,12 +307,13 @@ final class HttpKernelTest extends TestCase
         $cacheProperty = new \ReflectionProperty(HttpKernel::class, 'discoveryCache');
         $cache = $cacheProperty->getValue($kernel);
         self::assertInstanceOf(CacheBackendInterface::class, $cache);
-        $cache->set('secret-custody-probe', 'value');
 
         $database = $kernel->getDatabase();
         self::assertInstanceOf(DBALDatabase::class, $database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
+        $cache->set('secret-custody-probe', 'value');
         $stored = (string) $database->getConnection()->fetchOne(
-            "SELECT data FROM cache_discovery WHERE cid = 'secret-custody-probe'",
+            "SELECT data FROM cache_items WHERE bin = 'cache_discovery' AND cid = 'secret-custody-probe'",
         );
         $derived = hash_hkdf(
             'sha256',
@@ -437,15 +438,32 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function real_kernel_stack_installs_community_resolution_before_principal_construction(): void
     {
+        $databasePath = $this->projectRoot . '/audit-stack.sqlite';
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:', 'environment' => 'testing', 'community_id' => 'configured-community'];",
+            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'community_id' => 'configured-community'];",
         );
         $this->writeInstalledPackageProviders([
             'waaseyaa/foundation' => ['Waaseyaa\\Foundation\\FoundationServiceProvider'],
             'waaseyaa/user' => ['Waaseyaa\\User\\UserServiceProvider'],
             'waaseyaa/audit' => ['Waaseyaa\\Audit\\AuditServiceProvider'],
         ]);
+
+        $database = DBALDatabase::createSqlite($databasePath, 'testing');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
+        $database->getConnection()->close();
+
+        $schemaKernel = new \Waaseyaa\Foundation\Kernel\ConsoleKernel($this->projectRoot);
+        $schemaKernel->bootForCli();
+        $schemaManager = $schemaKernel->getEntityTypeManager();
+        $schemaDatabase = $schemaKernel->getDatabase();
+        new \Waaseyaa\EntityStorage\EntitySchemaSync(
+            $schemaDatabase,
+            $schemaManager->getFieldRegistry(),
+        )->syncAll($schemaManager->getDefinitions());
+        if ($schemaDatabase instanceof DBALDatabase) {
+            $schemaDatabase->getConnection()->close();
+        }
 
         $kernel = new HttpKernel($this->projectRoot);
         new \ReflectionMethod(AbstractKernel::class, 'boot')->invoke($kernel);

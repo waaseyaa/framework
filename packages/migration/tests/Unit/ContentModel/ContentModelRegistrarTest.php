@@ -7,6 +7,7 @@ namespace Waaseyaa\Migration\Tests\Unit\ContentModel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Migration\ContentModel\ContentModel;
@@ -28,7 +29,7 @@ final class ContentModelRegistrarTest extends TestCase
     public function it_registers_the_bundle_config_entity_and_declares_typed_fields(): void
     {
         $kit = ContentModelTestKit::build();
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
 
         $registrar->register($this->buildModel());
 
@@ -46,7 +47,7 @@ final class ContentModelRegistrarTest extends TestCase
     public function it_is_idempotent_across_repeated_registration(): void
     {
         $kit = ContentModelTestKit::build();
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
 
         $registrar->register($this->buildModel());
         $registrar->register($this->buildModel());
@@ -59,7 +60,7 @@ final class ContentModelRegistrarTest extends TestCase
     public function it_is_a_no_op_for_an_empty_model(): void
     {
         $kit = ContentModelTestKit::build();
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
 
         $registrar->register(new ContentModel());
 
@@ -77,7 +78,7 @@ final class ContentModelRegistrarTest extends TestCase
             $kit->typeManager->registerEntityType($entityType);
         }
 
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
         $registrar->register(new ContentModel(
             vocabularies: ['category', 'post_tag', 'tribe_events_cat'],
         ));
@@ -97,7 +98,7 @@ final class ContentModelRegistrarTest extends TestCase
     public function it_throws_loudly_when_the_destination_entity_type_is_not_registered(): void
     {
         $kit = ContentModelTestKit::build();
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
 
         $model = new ContentModel(types: [
             new ContentTypeModel(
@@ -117,7 +118,7 @@ final class ContentModelRegistrarTest extends TestCase
     public function it_throws_loudly_when_a_field_declaration_is_rejected(): void
     {
         $kit = ContentModelTestKit::build();
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
 
         // Wrong targetBundle — FieldDefinitionRegistry::registerBundleFields()
         // rejects this; the registrar must surface it, not swallow it.
@@ -147,7 +148,7 @@ final class ContentModelRegistrarTest extends TestCase
     {
         $typeManager = new EntityTypeManager(new \Symfony\Component\EventDispatcher\EventDispatcher());
         $typeManager->registerEntityType(ContentModelTestKit::pageContentType());
-        $registrar = new ContentModelRegistrar($typeManager);
+        $registrar = new ContentModelRegistrar($typeManager, DBALDatabase::createSqlite());
 
         $field = new FieldDefinition(
             name: 'summary',
@@ -176,7 +177,7 @@ final class ContentModelRegistrarTest extends TestCase
         // migration_test_widget (from the existing bundle-threading fixture)
         // declares no bundleEntityType — a legitimate design, not a failure.
         $kit = ContentModelTestKit::build();
-        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
 
         $kit->typeManager->registerEntityType(
             \Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidgetType::nonRevisionable(),

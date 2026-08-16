@@ -15,5 +15,6 @@ final readonly class VerifyOutcome
     public function __construct(
         public array $rows,
         public VerifySummary $summary,
+        public VerifyAuthorityResult $authority,
     ) {}
 }

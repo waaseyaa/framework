@@ -366,6 +366,11 @@ final class KernelValidationWiringTest extends TestCase
                 constraints: [new GreaterThan(0)],
             ),
         ]);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
+        );
 
         return $kernel->publicEntityTypeManager()->getRepository(self::ENTITY_TYPE_ID);
     }

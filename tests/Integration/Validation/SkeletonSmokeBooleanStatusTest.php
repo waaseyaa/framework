@@ -211,9 +211,15 @@ final class SkeletonSmokeBooleanStatusTest extends TestCase
      */
     private function registerUserType(object $kernel): EntityRepositoryInterface
     {
+        $type = EntityType::fromClass(User::class);
         $kernel->publicEntityTypeManager()->registerEntityType(
-            EntityType::fromClass(User::class),
+            $type,
             registrant: self::class,
+        );
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
         );
 
         return $kernel->publicEntityTypeManager()->getRepository('user');

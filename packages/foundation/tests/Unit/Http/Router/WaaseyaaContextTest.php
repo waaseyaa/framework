@@ -12,6 +12,7 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Http\Router\WaaseyaaContext;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(WaaseyaaContext::class)]
 final class WaaseyaaContextTest extends TestCase
@@ -20,7 +21,7 @@ final class WaaseyaaContextTest extends TestCase
     public function from_request_extracts_all_attributes(): void
     {
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
-        $broadcastStorage = new BroadcastStorage(DBALDatabase::createSqlite());
+        $broadcastStorage = $this->createBroadcastStorage();
 
         $request = Request::create('/test', 'POST');
         $request->query->set('page', '2');
@@ -41,7 +42,7 @@ final class WaaseyaaContextTest extends TestCase
     public function from_request_handles_null_parsed_body(): void
     {
         $account = $this->createStub(AuthorizationPrincipalInterface::class);
-        $broadcastStorage = new BroadcastStorage(DBALDatabase::createSqlite());
+        $broadcastStorage = $this->createBroadcastStorage();
 
         $request = Request::create('/test', 'GET');
         $request->attributes->set('_account', $account);
@@ -52,5 +53,13 @@ final class WaaseyaaContextTest extends TestCase
 
         self::assertNull($ctx->parsedBody);
         self::assertSame('GET', $ctx->method);
+    }
+
+    private function createBroadcastStorage(): BroadcastStorage
+    {
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+
+        return new BroadcastStorage($database);
     }
 }

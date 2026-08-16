@@ -9,12 +9,13 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 
 /**
- * End-to-end assertion that an AbstractKernel-booted application
- * materializes `{base}__{bundle}` subtables for registered bundle fields.
+ * End-to-end assertion that kernel-registered definitions are materialized
+ * only by the explicit coordinated schema-sync boundary.
  *
  * The bundle substrate has two wire-ups: a FieldDefinitionRegistry on the
  * EntityTypeManager (drives addBundleFields) and a SqlSchemaHandler that
@@ -114,7 +115,7 @@ PHP,
     }
 
     #[Test]
-    public function registeredBundleFieldsMaterializeSubtableViaKernelPath(): void
+    public function registered_bundle_fields_materialize_only_during_explicit_schema_sync(): void
     {
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void
@@ -139,6 +140,11 @@ PHP,
                 targetBundle: 'gizmo',
             ),
         ]);
+
+        new EntitySchemaSync(
+            $kernel->getDatabase(),
+            $etm->getFieldRegistry(),
+        )->syncAll($etm->getDefinitions());
 
         $etm->getRepository('kernel_test_widget');
 
@@ -176,6 +182,10 @@ PHP,
         $kernel->publicBoot();
 
         $etm = $kernel->getEntityTypeManager();
+        new EntitySchemaSync(
+            $kernel->getDatabase(),
+            $etm->getFieldRegistry(),
+        )->syncAll($etm->getDefinitions());
         $etm->getRepository('kernel_test_widget');
 
         $database = $kernel->getDatabase();
@@ -183,7 +193,7 @@ PHP,
         $connection = $database->getConnection();
 
         $unwantedSubtables = $connection->fetchAllAssociative(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'kernel_test_widget__%'",
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name GLOB 'kernel_test_widget__*'",
         );
         self::assertSame(
             [],
@@ -198,7 +208,7 @@ PHP,
     }
 
     #[Test]
-    public function lazyReferencedTableCreationRetriesDeferredForeignKeys(): void
+    public function explicit_schema_sync_retries_deferred_foreign_keys(): void
     {
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void
@@ -209,6 +219,10 @@ PHP,
         $kernel->publicBoot();
 
         $manager = $kernel->getEntityTypeManager();
+        new EntitySchemaSync(
+            $kernel->getDatabase(),
+            $manager->getFieldRegistry(),
+        )->syncAll($manager->getDefinitions());
         $manager->getRepository('kernel_test_child');
         $manager->getRepository('kernel_test_parent');
 

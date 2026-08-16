@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -34,7 +36,7 @@ final class AuditCheckpointBuilderTest extends TestCase
     protected function setUp(): void
     {
         $this->db = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($this->db)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->db);
 
         $exported = &$this->exported;
         $this->spy = new class ($exported) implements CheckpointSink {

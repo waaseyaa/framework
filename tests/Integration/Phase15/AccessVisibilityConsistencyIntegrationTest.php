@@ -23,6 +23,7 @@ use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -37,6 +38,16 @@ use Waaseyaa\Workflows\WorkflowVisibilityFilter;
 #[CoversNothing]
 final class AccessVisibilityConsistencyIntegrationTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        EntityReadRuntime::installFieldRegistry(null);
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installFieldRegistry(null);
+    }
+
     #[Test]
     public function reviewStateIsHiddenAcrossSearchAndRelationshipBrowseEvenWhenStatusIsTruthy(): void
     {
@@ -85,6 +96,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
             ],
         ));
         $manager->getRepository('relationship');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($database);
         new RelationshipSchemaManager($database)->ensure();
 
         $nodeRepository = $manager->getRepository('node');

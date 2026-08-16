@@ -7,11 +7,16 @@ namespace Waaseyaa\EntityStorage;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\ForeignKeySchemaInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Entity\EntityTypeForeignKeyDefinitionInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\EntityTypeStorageSchemaTransitionDefinitionInterface;
+use Waaseyaa\Entity\EntityTypeStorageUniqueKeyDefinitionInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Backend\SqlColumnSchemaBuilder;
+use Waaseyaa\EntityStorage\Schema\EntityStorageSchemaTransitionInterface;
+use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldStorage;
@@ -80,6 +85,10 @@ final class SqlSchemaHandler
      */
     public function ensureTable(): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->ensureTable())) {
+            return;
+        }
+
         $schema = $this->database->schema();
 
         if (!$schema->tableExists($this->tableName)) {
@@ -118,6 +127,8 @@ final class SqlSchemaHandler
         }
 
         $this->ensureDeclaredForeignKeys();
+        $this->runDeclaredSchemaTransitions();
+        $this->ensureDeclaredUniqueKeys();
 
         if (!$this->shouldProcessBundles()) {
             return;
@@ -132,9 +143,99 @@ final class SqlSchemaHandler
         }
     }
 
+    /** Validate every runtime table required by this entity definition without DDL. */
+    public function assertRuntimeSchema(): void
+    {
+        $baseFields = array_keys($this->buildTableSpec()['fields']);
+        if ($this->primaryBackendId === ReservedBackendIds::SQL_COLUMN) {
+            foreach ($this->entityLevelFields as $field) {
+                $baseFields[] = $field->getName();
+            }
+        }
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            $this->tableName,
+            array_values(array_unique($baseFields)),
+            'waaseyaa schema:sync',
+        );
+        $this->assertDeclaredUniqueKeysReady();
+
+        if ($this->entityType->isRevisionable()) {
+            SchemaRequirement::assertAvailable(
+                $this->database,
+                $this->getRevisionTableName(),
+                array_keys($this->buildRevisionTableSpec()['fields']),
+                'waaseyaa schema:sync',
+            );
+        }
+
+        if ($this->entityType->isTranslatable()) {
+            if ($this->primaryBackendId === ReservedBackendIds::SQL_COLUMN) {
+                $translationHandler = new TranslationSchemaHandler($this->database);
+                $translationFields = [
+                    'entity_id',
+                    'langcode',
+                    'translation_status',
+                    'translation_source',
+                    'translation_created',
+                    'translation_changed',
+                    ...array_keys($translationHandler->partitionTranslatableFields($this->entityType)),
+                ];
+                SchemaRequirement::assertAvailable(
+                    $this->database,
+                    $translationHandler->translationTableName($this->tableName),
+                    array_values(array_unique($translationFields)),
+                    'waaseyaa schema:sync',
+                );
+            } elseif ($this->primaryBackendId !== ReservedBackendIds::SQL_BLOB) {
+                SchemaRequirement::assertAvailable(
+                    $this->database,
+                    $this->getTranslationTableName(),
+                    array_keys($this->buildTranslationTableSpec()['fields']),
+                    'waaseyaa schema:sync',
+                );
+            }
+        }
+
+        if ($this->entityType->isRevisionable() && $this->entityType->isTranslatable()) {
+            SchemaRequirement::assertAvailable(
+                $this->database,
+                $this->getTranslationRevisionTableName(),
+                array_keys($this->buildTranslationRevisionTableSpec()['fields']),
+                'waaseyaa schema:sync',
+            );
+        }
+
+        if (!$this->shouldProcessBundles()) {
+            return;
+        }
+        foreach ($this->registeredBundlesFor($this->entityType) as $bundle) {
+            $bundleFields = $this->fieldRegistry->bundleFieldsFor($this->entityType->id(), $bundle);
+            if ($bundleFields !== []) {
+                $this->assertBundleSubtableReady($bundle, $bundleFields);
+            }
+        }
+    }
+
+    /** @param array<string, FieldDefinitionInterface> $bundleFields */
+    public function assertBundleSubtableReady(string $bundle, array $bundleFields): void
+    {
+        $table = $this->bundleSubtableName($bundle);
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            $table,
+            array_keys($this->buildBundleSubtableSpec($table, $bundleFields)['fields']),
+            'waaseyaa schema:sync',
+        );
+    }
+
     /** Add declared restrictive relationships once both participating tables exist. */
     public function ensureDeclaredForeignKeys(): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->ensureDeclaredForeignKeys())) {
+            return;
+        }
+
         if (!$this->entityType instanceof EntityTypeForeignKeyDefinitionInterface) {
             return;
         }
@@ -161,6 +262,123 @@ final class SqlSchemaHandler
         }
     }
 
+    /** Materialize declarative promoted columns and composite uniqueness. */
+    public function ensureDeclaredUniqueKeys(): void
+    {
+        if ($this->coordinateIfNeeded(fn() => $this->ensureDeclaredUniqueKeys())) {
+            return;
+        }
+        if (!$this->entityType instanceof EntityTypeStorageUniqueKeyDefinitionInterface) {
+            return;
+        }
+
+        $schema = $this->database->schema();
+        if (!$schema->tableExists($this->tableName)) {
+            return;
+        }
+        $definitions = $this->entityType->getFieldDefinitions();
+        foreach ($this->entityType->getStorageUniqueKeys() as $key) {
+            foreach ($key['fields'] as $fieldName) {
+                $field = $definitions[$fieldName] ?? null;
+                if (!$field instanceof FieldDefinitionInterface) {
+                    throw new \LogicException(sprintf(
+                        'Storage unique key "%s" on "%s" names unknown field "%s".',
+                        $key['name'],
+                        $this->entityType->id(),
+                        $fieldName,
+                    ));
+                }
+                if (!$schema->fieldExists($this->tableName, $fieldName)) {
+                    $schema->addField($this->tableName, $fieldName, $this->deriveColumnSpec($field));
+                }
+            }
+
+            $this->backfillPromotedFields($key['fields']);
+            $database = $this->database;
+            $indexes = $database instanceof DBALDatabase
+                ? $database->getConnection()->createSchemaManager()->listTableIndexes($this->tableName)
+                : [];
+            if (!isset($indexes[strtolower($key['name'])]) && !isset($indexes[$key['name']])) {
+                $schema->addUniqueKey($this->tableName, $key['name'], $key['fields']);
+            }
+        }
+    }
+
+    private function runDeclaredSchemaTransitions(): void
+    {
+        if (!$this->entityType instanceof EntityTypeStorageSchemaTransitionDefinitionInterface) {
+            return;
+        }
+        foreach ($this->entityType->getStorageSchemaTransitions() as $transitionClass) {
+            if (!is_a($transitionClass, EntityStorageSchemaTransitionInterface::class, true)) {
+                throw new \LogicException(sprintf(
+                    'Entity storage transition "%s" must implement %s.',
+                    $transitionClass,
+                    EntityStorageSchemaTransitionInterface::class,
+                ));
+            }
+            new $transitionClass($this->database)->apply($this->database, $this->tableName);
+        }
+    }
+
+    /** @param non-empty-list<string> $fieldNames */
+    private function backfillPromotedFields(array $fieldNames): void
+    {
+        if (!$this->database->schema()->fieldExists($this->tableName, '_data')) {
+            return;
+        }
+        $idKey = $this->entityType->getKeys()['id'] ?? 'id';
+        foreach ($this->database->select($this->tableName)->fields($this->tableName, [$idKey, '_data'])->execute() as $row) {
+            try {
+                $data = json_decode((string) ($row['_data'] ?? ''), true, flags: JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                continue;
+            }
+            if (!is_array($data)) {
+                continue;
+            }
+            $values = [];
+            foreach ($fieldNames as $fieldName) {
+                if (array_key_exists($fieldName, $data)) {
+                    $values[$fieldName] = $data[$fieldName];
+                }
+            }
+            if ($values !== []) {
+                $this->database->update($this->tableName)
+                    ->fields($values)
+                    ->condition($idKey, (string) $row[$idKey])
+                    ->execute();
+            }
+        }
+    }
+
+    private function assertDeclaredUniqueKeysReady(): void
+    {
+        if (!$this->entityType instanceof EntityTypeStorageUniqueKeyDefinitionInterface) {
+            return;
+        }
+        foreach ($this->entityType->getStorageUniqueKeys() as $key) {
+            SchemaRequirement::assertAvailable(
+                $this->database,
+                $this->tableName,
+                $key['fields'],
+                'waaseyaa schema:sync',
+            );
+            $database = $this->database;
+            if (!$database instanceof DBALDatabase) {
+                continue;
+            }
+            $indexes = $database->getConnection()->createSchemaManager()->listTableIndexes($this->tableName);
+            if (!isset($indexes[strtolower($key['name'])]) && !isset($indexes[$key['name']])) {
+                throw new \RuntimeException(sprintf(
+                    '[S1-DB106] Required runtime schema is unavailable for table "%s"; missing: unique key %s. Apply migration "waaseyaa schema:sync" through the schema coordinator.',
+                    $this->tableName,
+                    $key['name'],
+                ));
+            }
+        }
+    }
+
     /**
      * Creates (or additively updates) the subtable for a given bundle.
      *
@@ -177,6 +395,10 @@ final class SqlSchemaHandler
      */
     public function ensureBundleSubtable(string $bundle, array $bundleFields): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->ensureBundleSubtable($bundle, $bundleFields))) {
+            return;
+        }
+
         $subtableName = $this->bundleSubtableName($bundle);
         $schema = $this->database->schema();
 
@@ -245,6 +467,10 @@ final class SqlSchemaHandler
      */
     public function ensureTranslationTable(array $translatableFieldSchemas = []): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->ensureTranslationTable($translatableFieldSchemas))) {
+            return;
+        }
+
         $schema = $this->database->schema();
         $translationTableName = $this->getTranslationTableName();
 
@@ -288,6 +514,10 @@ final class SqlSchemaHandler
      */
     public function ensureRevisionTable(): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->ensureRevisionTable())) {
+            return;
+        }
+
         $schema = $this->database->schema();
         $revisionTableName = $this->getRevisionTableName();
 
@@ -371,6 +601,10 @@ final class SqlSchemaHandler
      */
     public function ensureTranslationRevisionTable(): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->ensureTranslationRevisionTable())) {
+            return;
+        }
+
         if (!$this->entityType->isRevisionable() || !$this->entityType->isTranslatable()) {
             return;
         }
@@ -395,6 +629,10 @@ final class SqlSchemaHandler
      */
     public function seedRevisions(): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->seedRevisions())) {
+            return;
+        }
+
         $db = $this->database;
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
@@ -456,6 +694,10 @@ final class SqlSchemaHandler
      */
     public function addFieldColumns(array $fieldSchemas): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->addFieldColumns($fieldSchemas))) {
+            return;
+        }
+
         $schema = $this->database->schema();
 
         foreach ($fieldSchemas as $columnName => $columnSpec) {
@@ -473,6 +715,10 @@ final class SqlSchemaHandler
      */
     public function addTranslationFieldColumns(array $fieldSchemas): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->addTranslationFieldColumns($fieldSchemas))) {
+            return;
+        }
+
         $schema = $this->database->schema();
         $translationTableName = $this->getTranslationTableName();
 
@@ -481,6 +727,19 @@ final class SqlSchemaHandler
                 $schema->addField($translationTableName, $columnName, $columnSpec);
             }
         }
+    }
+
+    /** Execute one top-level entity-schema transition under the singular coordinator. */
+    private function coordinateIfNeeded(callable $transition): bool
+    {
+        $executor = new CoordinatedEntitySchemaExecutor($this->database);
+        if ($executor->isActive()) {
+            return false;
+        }
+
+        $executor->execute($transition);
+
+        return true;
     }
 
     /**

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Unit\Writer;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -22,7 +24,7 @@ final class AuditEventWriterTest extends TestCase
     public function it_appends_a_descriptor_to_the_audit_log(): void
     {
         $inner = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($inner)->ensureSchema();
+        RuntimeSchemaMigrations::audit($inner);
         $writer = new AuditEventWriter(new AppendOnlyAuditDatabase($inner));
 
         $writer->record(new AuditEventDescriptor(
@@ -69,7 +71,7 @@ final class AuditEventWriterTest extends TestCase
     private function writerOnFreshSchema(): array
     {
         $inner = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($inner)->ensureSchema();
+        RuntimeSchemaMigrations::audit($inner);
 
         return [$inner, new AuditEventWriter(new AppendOnlyAuditDatabase($inner))];
     }

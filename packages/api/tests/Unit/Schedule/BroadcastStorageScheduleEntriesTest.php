@@ -12,6 +12,7 @@ use Waaseyaa\Api\Schedule\BroadcastStorageScheduleEntries;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(BroadcastStorageScheduleEntries::class)]
 final class BroadcastStorageScheduleEntriesTest extends TestCase
@@ -22,6 +23,7 @@ final class BroadcastStorageScheduleEntriesTest extends TestCase
     {
         // BroadcastStorage is final — cannot be mocked. Use a real in-memory SQLite instance.
         $db = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::broadcast($db);
         $this->broadcastStorage = new BroadcastStorage($db);
     }
 

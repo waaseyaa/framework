@@ -150,8 +150,8 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         // The strict reserve/finalize ledger for mutating request pipelines
         // (#2177 F4). Its port lives in foundation, not here, because the MCP
         // write tier consumes it and must not require waaseyaa/audit at runtime.
-        // The table is created on first bind so a deployment that never uses a
-        // durable surface pays nothing.
+        // Runtime resolution validates coordinator-installed schema and never
+        // creates or repairs it.
         $this->singleton(StrictAuditLedgerInterface::class, function (): StrictAuditLedgerInterface {
             $database = $this->resolve(DatabaseInterface::class);
             new StrictAuditLedgerSchema($database)->ensure();
@@ -162,9 +162,7 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         // The durable human-approval store for destructive MCP write-tier calls
         // (#2177 F1). Same shape as the strict ledger above: the port lives in
         // foundation so the MCP write tier needs no runtime waaseyaa/audit
-        // dependency, and the mcp_approval_event table is created lazily on
-        // first resolution so a deployment that never uses the write tier pays
-        // nothing at boot.
+        // dependency. Runtime resolution validates coordinator-installed schema.
         $this->singleton(OperationApprovalStoreInterface::class, function (): OperationApprovalStoreInterface {
             $database = $this->resolve(DatabaseInterface::class);
             new ApprovalEventSchema($database)->ensure();
@@ -325,7 +323,7 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
 
     public function boot(): void
     {
-        // Ensure schema tables exist.
+        // Validate schema tables without mutating them.
         $database = $this->resolveOptional(DatabaseInterface::class);
         if ($database instanceof DatabaseInterface) {
             $applicationSecret = $this->resolve(ApplicationSecret::class);

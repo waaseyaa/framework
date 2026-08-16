@@ -67,6 +67,7 @@
     "prefer-stable": true,
     "extra": {
         "waaseyaa": {
+            "migrations": "migrations",
             "providers": [
                 "Waaseyaa\\Foundation\\FoundationServiceProvider",
                 "Waaseyaa\\Foundation\\MercureMonitorServiceProvider"

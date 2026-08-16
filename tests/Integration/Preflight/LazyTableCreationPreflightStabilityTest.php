@@ -48,12 +48,10 @@ use Waaseyaa\Publishing\Tests\Fixtures\SymfonyTestSanitizer;
 use Waaseyaa\Publishing\Tests\Fixtures\TestArticleEntity;
 
 /**
- * #2143 regression: ONE field-access preflight artifact must stay valid while
- * first-party services materialize their tables lazily on first production
- * use. Pre-fix, the all-table schema fingerprint changed after the first
- * authenticated MCP request (rate-limit table), after the first createDraft
- * (publishing idempotency table), and again after its replay — each next
- * "request" then failed boot with a stale-preflight error.
+ * #2143 regression: ONE field-access preflight artifact must stay valid after
+ * deploy-time migrations install first-party infrastructure tables. Runtime
+ * requests may use those tables but must never mutate schema or invalidate the
+ * entity-field preflight artifact.
  *
  * Production-shaped: a real SQLite file shared across independent
  * connections, the real `field-access:preflight --write-artifact` handler,
@@ -107,6 +105,8 @@ final class LazyTableCreationPreflightStabilityTest extends TestCase
     {
         // --- Deploy phase: materialize entity schema, then write the artifact once.
         $deployDb = $this->connect();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::auth($deployDb);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::publishing($deployDb);
         $entityType = $this->entityType();
         new SqlSchemaHandler($entityType, $deployDb)->ensureTable();
         new SqlSchemaHandler($entityType, $deployDb)->ensureRevisionTable();
@@ -127,25 +127,22 @@ final class LazyTableCreationPreflightStabilityTest extends TestCase
         )), 'The deploy-time preflight must be READY before the first request.');
         $artifactBytes = (string) file_get_contents($this->root . '/.waaseyaa/field-access-preflight.json');
 
-        // --- Request 1: boot gate passes, authenticated tools/list with rate
-        // limiting enabled materializes the rate-limit table on first use.
+        // --- Request 1: boot gate passes with migrated rate limiting enabled.
         $this->assertProductionBootPasses('request 1 (fresh deploy)');
         $db1 = $this->connect();
         $response = $this->serve($db1, $this->rpc('tools/list'));
         $list = $this->decode($response);
         $names = array_map(static fn(array $tool): string => $tool['name'], $list['result']['tools']);
         self::assertContains('article.createDraft', $names);
-        self::assertTrue($this->tableExists($db1, 'rate_limits'), 'Rate limiting must have materialized its table lazily.');
+        self::assertTrue($this->tableExists($db1, 'rate_limits'), 'The deploy migration must provide rate-limit state before traffic.');
 
-        // --- Request 2: the boot AFTER the rate-limit table appeared. Pre-fix
-        // this is the first stale-preflight 500. createDraft then materializes
-        // the publishing idempotency table on first use.
+        // --- Request 2: createDraft uses the migrated idempotency table.
         $this->assertProductionBootPasses('request 2 (after lazy rate-limit table)');
         $db2 = $this->connect();
         $draft = $this->decode($this->serve($db2, $this->createDraftRpc()));
         self::assertNotTrue($draft['result']['isError'] ?? false, 'createDraft must succeed: ' . json_encode($draft));
         $draftText = $draft['result']['content'][0]['text'];
-        self::assertTrue($this->tableExists($db2, 'publishing_idempotency'), 'Idempotency store must have materialized its table lazily.');
+        self::assertTrue($this->tableExists($db2, 'publishing_idempotency'), 'The deploy migration must provide idempotency state before traffic.');
 
         // --- Request 3: boot after the idempotency table appeared, then the
         // byte-identical replay of the same createDraft (same idempotency key).
@@ -215,6 +212,7 @@ final class LazyTableCreationPreflightStabilityTest extends TestCase
             new RevisionableStorageDriver($resolver, $entityType),
             $db,
         );
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::publishing($db);
         $publisher = new ContentPublisher(
             $this->descriptor(),
             $repo,

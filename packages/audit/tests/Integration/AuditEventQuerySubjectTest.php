@@ -11,9 +11,9 @@ use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditQuery;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Query\AuditEventQuery;
-use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(AuditEventQuery::class)]
 final class AuditEventQuerySubjectTest extends TestCase
@@ -22,7 +22,7 @@ final class AuditEventQuerySubjectTest extends TestCase
     public function subject_uri_filter_returns_only_the_exact_resource_history(): void
     {
         $database = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($database)->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $writer = new AuditEventWriter($database);
 
         foreach (['entity:node/7', 'entity:node/70'] as $subjectUri) {

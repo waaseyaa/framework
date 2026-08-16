@@ -7,10 +7,8 @@ namespace Waaseyaa\CLI\Command\Migrate;
 /**
  * Per-migration outcome of {@see VerifyRunner::verify()}.
  *
- * `status` is one of `match | mismatch | unknown | orphan`. Both
- * checksum strings may be null for the `unknown` and `orphan` cases —
- * the formatter renders absent values as JSON null and as `—` in the
- * human-readable column.
+ * Status is `match`, `mismatch`, `unknown`, `orphan`, `package_mismatch`, or
+ * `plan_mismatch`. Both checksum strings may be null for unknown/orphan.
  */
 final readonly class VerifyResultRow
 {

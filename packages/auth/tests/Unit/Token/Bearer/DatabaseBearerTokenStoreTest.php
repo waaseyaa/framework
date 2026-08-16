@@ -20,6 +20,7 @@ use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\Testing\Clock\MutableEntityClock;
 use Waaseyaa\Testing\Database\TemporarySqliteDatabase;
+use Waaseyaa\Auth\Tests\Support\AuthSchema;
 
 #[CoversClass(DatabaseBearerTokenStore::class)]
 final class DatabaseBearerTokenStoreTest extends TestCase
@@ -38,6 +39,7 @@ final class DatabaseBearerTokenStoreTest extends TestCase
     {
         $this->databaseFixture = new TemporarySqliteDatabase();
         $this->database = $this->databaseFixture->database();
+        AuthSchema::install($this->databaseFixture->database());
         $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseBearerTokenStore($this->database, $this->clock);
     }

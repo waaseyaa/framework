@@ -55,6 +55,14 @@ final class EntitySchemaSync
      */
     public function syncAll(iterable $entityTypes): void
     {
+        new CoordinatedEntitySchemaExecutor($this->database)->execute(
+            fn() => $this->doSyncAll($entityTypes),
+        );
+    }
+
+    /** @param iterable<EntityTypeInterface> $entityTypes */
+    private function doSyncAll(iterable $entityTypes): void
+    {
         $handlers = [];
         foreach ($entityTypes as $entityType) {
             $backend = $this->resolveBackend($entityType);

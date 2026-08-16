@@ -241,6 +241,11 @@ final class KernelRevisionAuthorTest extends TestCase
             revisionDefault: true,
         );
         $kernel->publicEntityTypeManager()->registerEntityType($type, registrant: self::class);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
+        );
 
         return $kernel->publicEntityTypeManager()->getRepository(self::ENTITY_TYPE_ID);
     }

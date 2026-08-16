@@ -34,6 +34,7 @@ final class BroadcastingE2ETest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($this->database);
         $this->storage = new BroadcastStorage($this->database);
         $this->dispatcher = new SymfonyEventDispatcherAdapter();
         $registrar = new EventListenerRegistrar($this->dispatcher);

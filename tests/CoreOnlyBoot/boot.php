@@ -22,14 +22,26 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-$kernel = new class (__DIR__) extends \Waaseyaa\Foundation\Kernel\AbstractKernel {
+final class CoreOnlyBootKernel extends \Waaseyaa\Foundation\Kernel\AbstractKernel
+{
     public function bootProbe(): void
     {
         $this->boot();
     }
-};
+}
 
 try {
+    $schemaKernel = new CoreOnlyBootKernel(__DIR__);
+    $schemaKernel->bootForSchemaSync();
+    $loader = $schemaKernel->getMigrationLoader();
+    $schemaKernel->getMigrator()->run($loader->loadAll(), $loader->loadAllV2());
+    $manager = $schemaKernel->getEntityTypeManager();
+    new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
+        $schemaKernel->getDatabase(),
+        $manager->getFieldRegistry(),
+    )->run($manager->getDefinitions());
+
+    $kernel = new CoreOnlyBootKernel(__DIR__);
     $kernel->bootProbe();
     fwrite(\STDOUT, "core-only kernel boot OK\n");
     exit(0);

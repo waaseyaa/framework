@@ -27,7 +27,15 @@ final class ThreadParticipantSchemaTest extends TestCase
         EntityType::clearFromClassCache();
         $database = DBALDatabase::createSqlite();
         $type = EntityType::fromClass(ThreadParticipant::class, group: 'messaging');
-        (new SqlSchemaHandler($type, $database))->ensureTable();
+        $legacyType = new EntityType(
+            id: $type->id(),
+            label: $type->getLabel(),
+            class: $type->getClass(),
+            keys: $type->getKeys(),
+            group: $type->getGroup(),
+            _fieldDefinitions: $type->getFieldDefinitions(),
+        );
+        (new SqlSchemaHandler($legacyType, $database))->ensureTable();
 
         $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
@@ -43,7 +51,7 @@ final class ThreadParticipantSchemaTest extends TestCase
         ]);
         $repository->save($first, validate: false);
 
-        $schema = new ThreadParticipantSchema($database);
+        $schema = new SqlSchemaHandler($type, $database);
         $schema->ensureTable();
         $schema->ensureTable();
 
@@ -74,7 +82,15 @@ final class ThreadParticipantSchemaTest extends TestCase
         EntityType::clearFromClassCache();
         $database = DBALDatabase::createSqlite();
         $type = EntityType::fromClass(ThreadParticipant::class, group: 'messaging');
-        (new SqlSchemaHandler($type, $database))->ensureTable();
+        $legacyType = new EntityType(
+            id: $type->id(),
+            label: $type->getLabel(),
+            class: $type->getClass(),
+            keys: $type->getKeys(),
+            group: $type->getGroup(),
+            _fieldDefinitions: $type->getFieldDefinitions(),
+        );
+        (new SqlSchemaHandler($legacyType, $database))->ensureTable();
 
         $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
@@ -101,7 +117,7 @@ final class ThreadParticipantSchemaTest extends TestCase
         ]);
         $repository->save($newer, validate: false);
 
-        (new ThreadParticipantSchema($database))->ensureTable();
+        (new SqlSchemaHandler($type, $database))->ensureTable();
 
         $rows = iterator_to_array($database->query(
             'SELECT tpid, role, _data FROM thread_participant WHERE thread_id = ? AND user_id = ?',
