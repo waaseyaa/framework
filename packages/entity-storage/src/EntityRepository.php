@@ -1435,12 +1435,26 @@ final class EntityRepository implements EntityRepositoryInterface
         return $this->find($id);
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    /**
+     * @param int|null $expectedCurrentRevisionId Optional working-copy head required at the transactional write boundary.
+     */
+    public function rollback(string $entityId, int $targetRevisionId, ?int $expectedCurrentRevisionId = null): EntityInterface
     {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
         $this->revisionDriver->assertEntityMutationAllowed($entityId);
+        if ($expectedCurrentRevisionId !== null) {
+            $currentRevisionId = $this->revisionDriver->getLatestRevisionId($entityId);
+            if ($currentRevisionId !== $expectedCurrentRevisionId) {
+                throw new RevisionConflictException(
+                    $this->entityType->id(),
+                    $entityId,
+                    $expectedCurrentRevisionId,
+                    $currentRevisionId,
+                );
+            }
+        }
 
         // Revert authorship (clause 4): the NEW revision is authored by whoever
         // performs the revert — resolved once, from the ambient context (no
@@ -1499,6 +1513,18 @@ final class EntityRepository implements EntityRepositoryInterface
         // Wrap in transaction (invariant #4: atomic pointer update).
         $transaction = $this->database?->transaction();
         try {
+            if ($expectedCurrentRevisionId !== null) {
+                $currentRevisionId = $this->revisionDriver->getLatestRevisionId($entityId);
+                if ($currentRevisionId !== $expectedCurrentRevisionId) {
+                    throw new RevisionConflictException(
+                        $this->entityType->id(),
+                        $entityId,
+                        $expectedCurrentRevisionId,
+                        $currentRevisionId,
+                    );
+                }
+            }
+
             $log = "Reverted to revision {$targetRevisionId}";
             $newRevisionId = $this->writeRevisionRow($entityId, $targetRow, $log, author: $actor);
 

@@ -359,6 +359,44 @@ final class ContentPublisherTest extends TestCase
     }
 
     #[Test]
+    public function rollback_with_a_stale_current_revision_refuses_before_copy_forward(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(['title' => 'Original']), 'k1');
+        $updated = $this->publisher->updateDraft($this->actor, (string) $draft['id'], ['title' => 'Edited'], $draft['revision_id'], 'k2');
+        $this->publisher->updateDraft($this->actor, (string) $draft['id'], ['title' => 'Newest'], $updated['revision_id'], 'k3');
+
+        try {
+            $this->publisher->rollback(
+                $this->actor,
+                (string) $draft['id'],
+                $draft['revision_id'],
+                'stale-restore',
+                expectedCurrentRevisionId: $updated['revision_id'],
+            );
+            self::fail('A stale page-builder restore was accepted.');
+        } catch (RevisionConflictException $exception) {
+            self::assertSame($updated['revision_id'], $exception->expectedRevisionId);
+            self::assertCount(3, $this->publisher->revisions($this->actor, (string) $draft['id']));
+        }
+    }
+
+    #[Test]
+    public function exact_historical_revision_read_preserves_content_and_history_flags(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(['title' => 'Original']), 'k1');
+        $updated = $this->publisher->updateDraft($this->actor, (string) $draft['id'], ['title' => 'Edited'], $draft['revision_id'], 'k2');
+
+        $historical = $this->publisher->revision($this->actor, (string) $draft['id'], $draft['revision_id']);
+        $current = $this->publisher->revision($this->actor, (string) $draft['id'], $updated['revision_id']);
+
+        self::assertSame('Original', $historical['title']);
+        self::assertFalse($historical['is_current']);
+        self::assertSame('Edited', $current['title']);
+        self::assertTrue($current['is_current']);
+        self::assertTrue($current['is_latest']);
+    }
+
+    #[Test]
     public function update_creates_a_new_revision_and_returns_the_new_token(): void
     {
         $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'k1');

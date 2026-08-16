@@ -56,7 +56,7 @@ const targetFilter = computed<Record<string, string>>(() => {
 
 type ReferenceMetadata = {
   labelField: string
-  search: { field: string; operator: 'STARTS_WITH' }
+  search: { field: string; operator: 'STARTS_WITH' | 'CONTAINS' }
   sort: { field: string; direction: 'ASC' } | null
 }
 
@@ -65,7 +65,7 @@ const reference = computed<ReferenceMetadata | null>(() => {
   const raw = getEntity(targetType.value)?.reference
   if (!raw || typeof raw.labelField !== 'string' || raw.labelField.trim() === '') return null
   if (!raw.search || typeof raw.search.field !== 'string' || raw.search.field.trim() === '') return null
-  if (raw.search.operator !== 'STARTS_WITH') return null
+  if (raw.search.operator !== 'STARTS_WITH' && raw.search.operator !== 'CONTAINS') return null
   if (raw.sort !== null && (
     typeof raw.sort?.field !== 'string'
     || raw.sort.field.trim() === ''
