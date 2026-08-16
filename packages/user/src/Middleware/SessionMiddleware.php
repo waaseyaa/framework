@@ -60,13 +60,22 @@ final class SessionMiddleware implements HttpMiddlewareInterface
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
+        $statelessRequest = $this->isStatelessRequest($request);
         if (
             session_status() !== \PHP_SESSION_ACTIVE
             && !$request->attributes->has('_session')
-            && !$this->isStatelessRequest($request)
+            && !$statelessRequest
         ) {
             $this->applySessionCookieIni();
+            // PHP's cache limiter otherwise emits a second Cache-Control field
+            // outside the Response object. The response middleware below is
+            // the single cache-policy authority for session-bound responses.
+            session_cache_limiter('');
             session_start();
+        }
+
+        if (!$statelessRequest) {
+            $request->attributes->set(ResponseCacheControlMiddleware::SESSION_BOUND_ATTRIBUTE, true);
         }
 
         // Attach a session to the Request so controllers can use

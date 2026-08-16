@@ -61,6 +61,7 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
+use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\Session\SessionCookiePolicy;
 
@@ -593,6 +594,9 @@ final class HttpKernel extends AbstractKernel
         }
 
         $middlewares = [
+            // Outermost response policy: it unwinds after every cookie writer
+            // and replaces public cache directives on session-bound responses.
+            new ResponseCacheControlMiddleware(),
             new SecurityHeadersMiddleware(
                 csp: null,
                 hstsEnabled: false,

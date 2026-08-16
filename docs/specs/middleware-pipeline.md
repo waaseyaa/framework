@@ -1,4 +1,5 @@
 # Middleware Pipeline
+<!-- Spec reviewed 2026-08-16 - #2150: ResponseCacheControlMiddleware is the outermost HTTP response-policy layer. SessionMiddleware marks every stateful request and disables PHP's independent session cache limiter before startup; after all inner cookie writers unwind, the response layer replaces any cache policy with private, no-store when the request is session-bound or the Symfony response carries Set-Cookie. Cookie-free stateless responses preserve their public SSR policy. -->
 <!-- Spec reviewed 2026-08-10 - #2327 corrected runtime wiring: HttpKernel explicitly installs CommunityMiddleware at priority 20 because compiled AsMiddleware metadata is not itself an executable registration path (#2330 tracks that broader discovery/runtime mismatch). CommunityMiddleware preserves route/session precedence, falls back to the authoritative active configured context, writes `_community_id` before FieldReadContextMiddleware, and restores the prior configured context after dispatch for long-lived workers. Fixed-community immutable principals therefore align with storage/controllers; inactive contexts remain unscoped. -->
 <!-- Spec reviewed 2026-07-30 - #2154 (follow-up to #2146): a session.stateless_paths entry of exactly "/" now means the ROOT PATH only, not a prefix of every path. Prefix-matching it made every anonymous GET stateless including /admin/login (a GET that must mint a CSRF token, withheld when no session exists), so an app could not express a cookie-free homepage without silently breaking its own authentication. Named prefixes are unchanged. See middleware-pipeline.md "Stateless path gate". -->
 
@@ -152,7 +153,7 @@ A middleware can short-circuit by returning a response without calling `$next->h
 The production HTTP pipeline in `HttpKernel::serveHttpRequest()` wires middleware in priority order around the real dispatch handler:
 
 ```
-SecurityHeadersMiddleware -> SessionMiddleware -> CommunityMiddleware -> CsrfMiddleware -> FieldReadContextMiddleware -> AuthorizationMiddleware -> controller/domain-router dispatch
+ResponseCacheControlMiddleware -> SecurityHeadersMiddleware -> SessionMiddleware -> CommunityMiddleware -> CsrfMiddleware -> FieldReadContextMiddleware -> AuthorizationMiddleware -> controller/domain-router dispatch
 ```
 
 ### Pre-boot maintenance gate (outside this pipeline)
@@ -216,7 +217,19 @@ Behavior:
 4. Loads `User` entity via `EntityRepositoryInterface::find($uid)`.
 5. Falls back to `AnonymousUser` if uid is null, user not found, or storage throws.
 6. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
-7. Calls `$next->handle($request)`.
+7. Marks non-stateless requests as session-bound for final cache reconciliation,
+   disables PHP's independent session cache limiter before framework-owned
+   session startup, and calls `$next->handle($request)`.
+
+### Final response cache policy
+
+`ResponseCacheControlMiddleware` is priority 110, outside every built-in
+response mutator. After inner middleware and controller dispatch complete, it
+replaces the entire `Cache-Control` field with `private, no-store` when either
+the request was session-bound or the final Symfony response carries any
+`Set-Cookie`. This removes `public`/`s-maxage` contradictions and leaves exactly
+one response-level cache authority. Cookie-free stateless responses retain the
+SSR renderer's public policy.
 
 This middleware always calls the next handler. It never short-circuits.
 
