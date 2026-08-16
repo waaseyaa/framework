@@ -86,6 +86,15 @@ deployment preflight boundary and compares the sync artifact against the exact
 active references before any mutation. The `--no-dependency-check` option does
 not bypass authority or deployment preflight.
 
+`config:import` and `config:reset` submit one caller-identified activation
+request against the complete expected active token. Production stages an
+immutable successor generation and publishes it with compare-and-swap; stale
+tokens, request-ID reuse with different input, missing mutation authorization,
+or any failed transaction return a nonzero command result without changing the
+serving generation. Lost-response retries with the same canonical request are
+idempotent. Explicit tombstones, rather than omitted sync entries, authorize
+deletion.
+
 `about`, `health:check`, and `health:report` expose the resolved authority ID,
 active generation, sync path, and selector provenance. They do not print secret
 values. An unavailable or divergent authority is a boot/composition failure,

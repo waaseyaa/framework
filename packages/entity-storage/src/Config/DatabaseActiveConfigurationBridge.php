@@ -34,9 +34,10 @@ final class DatabaseActiveConfigurationBridge implements ActiveConfigurationBrid
 
     public function iterate(): iterable
     {
+        $table = $this->entryTable();
         $rows = $this->database->query(
             'SELECT entity_type, entity_id, uuid, dependencies_json, langcode, fields_json '
-            . 'FROM waaseyaa_config_entry WHERE authority_id = ? AND generation_id = ? ORDER BY entity_type, entity_id',
+            . "FROM {$table} WHERE authority_id = ? AND generation_id = ? ORDER BY entity_type, entity_id",
             [$this->context->authorityId, $this->context->requireActiveGenerationId()],
         );
         foreach ($rows as $row) {
@@ -73,5 +74,19 @@ final class DatabaseActiveConfigurationBridge implements ActiveConfigurationBrid
         return new ConfigurationAuthorityUnavailableException(
             'Configuration mutation is unavailable until CFG-02 activation and CFG-03 validation gates are bound.',
         );
+    }
+
+    private function entryTable(): string
+    {
+        if ($this->database->schema()->tableExists('waaseyaa_config_generation_v2')) {
+            foreach ($this->database->query(
+                'SELECT 1 FROM waaseyaa_config_generation_v2 WHERE authority_id = ? AND generation_id = ?',
+                [$this->context->authorityId, $this->context->requireActiveGenerationId()],
+            ) as $_row) {
+                return 'waaseyaa_config_entry_v2';
+            }
+        }
+
+        return 'waaseyaa_config_entry';
     }
 }

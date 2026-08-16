@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Config\Tests\Unit\Cache;
 
 use Waaseyaa\Config\Cache\CachedConfigFactory;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Config;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
@@ -148,6 +149,69 @@ final class CachedConfigFactoryTest extends TestCase
         $config = $factory->get('system.site');
 
         $this->assertSame('Real', $config->get('name'));
+    }
+
+    #[Test]
+    public function generationBoundCacheIsUsedOnlyForItsExactActiveToken(): void
+    {
+        $cachePath = $this->tempDir . '/config.php';
+        $context = $this->authorityContext(str_repeat('a', 64), 7);
+        $payload = [
+            '_waaseyaa_config_cache_v1' => [
+                'authority_id' => $context->authorityId,
+                'generation_id' => $context->activeGenerationId,
+                'activation_sequence' => $context->activationSequence,
+            ],
+            'config' => ['system.site' => ['name' => 'Cached exact token']],
+        ];
+        file_put_contents($cachePath, '<?php return ' . var_export($payload, true) . ';');
+        $inner = $this->createMock(ConfigFactoryInterface::class);
+        $inner->expects($this->never())->method('get');
+
+        $factory = new CachedConfigFactory($inner, $cachePath, $context);
+
+        self::assertSame('Cached exact token', $factory->get('system.site')->get('name'));
+    }
+
+    #[Test]
+    public function staleOrUnverifiableGenerationBoundCacheIsBypassed(): void
+    {
+        $cachePath = $this->tempDir . '/config.php';
+        $compiledContext = $this->authorityContext(str_repeat('a', 64), 7);
+        $payload = [
+            '_waaseyaa_config_cache_v1' => [
+                'authority_id' => $compiledContext->authorityId,
+                'generation_id' => $compiledContext->activeGenerationId,
+                'activation_sequence' => $compiledContext->activationSequence,
+            ],
+            'config' => ['system.site' => ['name' => 'Stale']],
+        ];
+        file_put_contents($cachePath, '<?php return ' . var_export($payload, true) . ';');
+        $storage = new MemoryStorage();
+        $storage->write('system.site', ['name' => 'Active storage']);
+        $inner = new ConfigFactory($storage, new EventDispatcher());
+
+        $staleFactory = new CachedConfigFactory(
+            $inner,
+            $cachePath,
+            $this->authorityContext(str_repeat('b', 64), 8),
+        );
+        $unverifiableFactory = new CachedConfigFactory($inner, $cachePath);
+
+        self::assertSame('Active storage', $staleFactory->get('system.site')->get('name'));
+        self::assertSame('Active storage', $unverifiableFactory->get('system.site')->get('name'));
+    }
+
+    private function authorityContext(string $generationId, int $sequence): ConfigurationAuthorityContext
+    {
+        return new ConfigurationAuthorityContext(
+            authorityId: str_repeat('f', 64),
+            databaseIdentity: 'database:v1:cached-config-test',
+            syncPath: $this->tempDir,
+            selectorProvenance: ['testing'],
+            activeGenerationId: $generationId,
+            activationSequence: $sequence,
+        );
     }
 
     private function removeDir(string $dir): void

@@ -41,6 +41,7 @@ function s1SchemaClass(string $path): string
 
     $reviewed = [
         'bin/check-s1-schema-authority' => 'tooling-query',
+        'bin/check-s1-configuration-activation' => 'tooling-query',
         'packages/ai-agent/migrations/2026_05_18_000001_create_agent_run.php' => 'coordinator-plan-or-executor',
         'packages/ai-agent/migrations/2026_07_14_000001_add_approval_expires_at.php' => 'coordinator-plan-or-executor',
         'packages/ai-agent/src/Routing/AgentRouteServiceProvider.php' => 'explicit-exclusion',
@@ -90,6 +91,7 @@ function s1SchemaClass(string $path): string
         'packages/entity-storage/src/Backend/TypeMapping.php' => 'read-only-or-declaration',
         'packages/entity-storage/migrations/2026_08_12_000001_entity_mutation_authority.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/migrations/2026_08_12_000002_configuration_authority.php' => 'coordinator-plan-or-executor',
+        'packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/src/Driver/InMemoryStorageDriverV2.php' => 'explicit-exclusion',
         'packages/entity-storage/src/Driver/RevisionableStorageDriverV2.php' => 'explicit-exclusion',
         'packages/entity-storage/src/Driver/SqlStorageDriverV2.php' => 'explicit-exclusion',

@@ -1561,6 +1561,16 @@ consumes that same context and emits generation-bound rebuildable derived state.
 Production-equivalent environments refuse capability publication when the
 active generation is absent.
 
+**Transactional activation:** Production writes through
+`ConfigurationActivatorInterface`, which stages a complete immutable successor
+generation and compares both the content generation ID and monotonic activation
+sequence before commit. `ConfigurationActivationResult` exposes the committed
+token and a value-free evidence hash for idempotent retry correlation. Legacy
+editable `StorageInterface` callers are adapted to the same whole-generation
+CAS; omission retains an entry and deletion requires a hash-bound tombstone.
+After commit, cached immutable config reads are invalidated by the runtime epoch
+rather than switching to a second active store.
+
 <!-- Spec reviewed 2026-08-12 - S1-FW-CFG-01 typed authority supersedes the former config/active FileStorage binding. -->
 
 ### ConfigManagerInterface

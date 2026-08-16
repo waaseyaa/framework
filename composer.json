@@ -525,6 +525,7 @@
         "check-s1-sqlite-contract": "php bin/check-s1-sqlite-contract",
         "check-s1-schema-authority": "php bin/check-s1-schema-authority",
         "check-s1-configuration-authority": "php bin/check-s1-configuration-authority",
+        "check-s1-configuration-activation": "php bin/check-s1-configuration-activation",
         "test": "php -d memory_limit=1G vendor/bin/phpunit --no-coverage",
         "test:random": "php bin/test-random-order",
         "verify": [
@@ -538,6 +539,7 @@
             "@check-s1-sqlite-contract",
             "@check-s1-schema-authority",
             "@check-s1-configuration-authority",
+            "@check-s1-configuration-activation",
             "@check-composer-policy",
             "@check-package-layers",
             "@check-package-layers-pl008-self-test",

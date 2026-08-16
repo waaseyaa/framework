@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Authority;
 
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Activation\TransactionalConfigurationStorage;
+use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManager;
@@ -74,10 +77,18 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
 
             return $context;
         });
-        $this->singleton(ConfigFactoryInterface::class, function (): ConfigFactory {
+        $this->singleton(ConfigFactoryInterface::class, function () use ($root): ConfigFactoryInterface {
             $bridge = $this->resolveActiveBridge();
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            assert($context instanceof ConfigurationAuthorityContext);
+            $storage = $this->mutationStorage($bridge, $context);
+            $inner = new ConfigFactory($storage, $this->resolveEventDispatcher());
 
-            return new ConfigFactory($bridge->activeStorage(), $this->resolveEventDispatcher());
+            return new CachedConfigFactory(
+                $inner,
+                $root . '/storage/framework/config.php',
+                $context,
+            );
         });
         $this->singleton(ConfigManagerInterface::class, function (): ConfigManager {
             $context = $this->resolve(ConfigurationAuthorityContext::class);
@@ -85,7 +96,7 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
             assert($context instanceof ConfigurationAuthorityContext);
 
             return new ConfigManager(
-                activeStorage: $bridge->activeStorage(),
+                activeStorage: $this->mutationStorage($bridge, $context),
                 syncStorage: new SyncArtifactStorageAdapter($context),
                 eventDispatcher: $this->resolveEventDispatcher(),
             );
@@ -121,6 +132,33 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
         }
 
         return $bridge;
+    }
+
+    private function mutationStorage(
+        ActiveConfigurationBridgeInterface $bridge,
+        ConfigurationAuthorityContext $context,
+    ): \Waaseyaa\Config\StorageInterface {
+        $storage = $bridge->activeStorage();
+        $environment = strtolower(trim((string) ($this->config['environment'] ?? 'production')));
+        if (in_array($environment, self::BOOTSTRAP_ONLY_ENVIRONMENTS, true)) {
+            return $storage;
+        }
+        $activator = $this->kernelServices?->get(ConfigurationActivatorInterface::class);
+        if (!$activator instanceof ConfigurationActivatorInterface) {
+            throw new ConfigurationAuthorityUnavailableException(
+                'Production editable configuration requires the transactional activation authority.',
+            );
+        }
+
+        return new TransactionalConfigurationStorage(
+            $storage,
+            $activator,
+            new ConfigurationActiveToken(
+                $context->requireActiveGenerationId(),
+                $context->activationSequence
+                    ?? throw new \LogicException('Active configuration sequence is unavailable.'),
+            ),
+        );
     }
 
     private function resolveEventDispatcher(): EventDispatcherInterface&\Symfony\Contracts\EventDispatcher\EventDispatcherInterface

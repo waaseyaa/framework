@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Sync;
 
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Audit\ConfigAuditChannel;
 use Waaseyaa\Config\Audit\ConfigAuditEvent;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
 
 /**
@@ -69,6 +72,8 @@ final class ConfigResetter
         private readonly ConfigSyncRepository $repository,
         private readonly ConfigImportApplyHookInterface $applyHook,
         ?callable $auditLogger = null,
+        private readonly ?ConfigurationActivatorInterface $activator = null,
+        private readonly ?ConfigSyncFileSourceInterface $activeSource = null,
     ) {
         $this->auditLogger = $auditLogger;
     }
@@ -86,6 +91,8 @@ final class ConfigResetter
         string $ref,
         ?string $actor = null,
         bool $skipConfirmation = false,
+        ?string $activationRequestId = null,
+        ?ConfigurationActiveToken $expectedToken = null,
     ): ConfigImportEntryResult {
         $file = $this->repository->get($ref);
         if ($file === null) {
@@ -94,6 +101,56 @@ final class ConfigResetter
                 status: ConfigImportEntryResult::STATUS_FAILED,
                 reason: sprintf('sync-store entity not found: %s', $ref),
             );
+        }
+
+        if ($this->activator !== null) {
+            if ($activationRequestId === null || $activationRequestId === '' || $expectedToken === null) {
+                return new ConfigImportEntryResult(
+                    ref: $ref,
+                    status: ConfigImportEntryResult::STATUS_FAILED,
+                    reason: 'production config:reset requires activation request ID and expected active token',
+                );
+            }
+            $active = null;
+            foreach ($this->activeSource?->iterate() ?? [] as $activeFile) {
+                if ($activeFile->ref() === $ref) {
+                    $active = $activeFile;
+                    break;
+                }
+            }
+            try {
+                $activation = $this->activator->activate(new ConfigurationActivationRequest(
+                    $activationRequestId,
+                    $expectedToken,
+                    [$file],
+                    expectedEntryHashes: $active === null ? [] : [$ref => $active->contentHash()],
+                ));
+            } catch (\Throwable $exception) {
+                $wrapped = ConfigImportFailedException::applyFailed($ref, $exception->getMessage(), $exception);
+                $this->emit('warning', sprintf('config:reset failed: %s — %s', $ref, $wrapped->getMessage()), $this->buildEvent(
+                    $ref,
+                    $actor,
+                    $skipConfirmation,
+                    'failed',
+                    $wrapped->getMessage(),
+                ));
+
+                return new ConfigImportEntryResult($ref, ConfigImportEntryResult::STATUS_FAILED, $wrapped->getMessage());
+            }
+            $status = $active === null
+                ? ConfigImportEntryResult::STATUS_CREATED
+                : (hash_equals($active->contentHash(), $file->contentHash())
+                    ? ConfigImportEntryResult::STATUS_UNCHANGED
+                    : ConfigImportEntryResult::STATUS_UPDATED);
+            $this->emit('info', sprintf('config:reset generation committed: %s (%s).', $ref, $status), $this->buildEvent(
+                $ref,
+                $actor,
+                $skipConfirmation,
+                $status,
+                null,
+            ));
+
+            return new ConfigImportEntryResult($ref, $status);
         }
 
         try {

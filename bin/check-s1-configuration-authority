@@ -92,6 +92,7 @@ function s1ConfigClass(string $path): string
         'packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php' => 'higher-layer-bridge',
         'packages/entity-storage/src/Config/DatabaseActiveConfigurationBridge.php' => 'higher-layer-bridge',
         'packages/entity-storage/src/Config/DatabaseActiveConfigurationStorage.php' => 'higher-layer-bridge',
+        'packages/entity-storage/src/Config/DatabaseConfigurationActivator.php' => 'higher-layer-bridge',
         'packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php' => 'higher-layer-bridge',
         'packages/entity-storage/src/Config/TestingActiveConfigurationBridge.php' => 'explicit-testing-profile',
         'packages/entity-storage/src/Config/TestingConfigurationGenerationResolver.php' => 'explicit-testing-profile',

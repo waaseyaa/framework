@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Sync;
 
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Dependency\DependencyResolver;
 use Waaseyaa\Config\Dependency\Exception\ConfigDependencyCycleException;
 use Waaseyaa\Config\Dependency\Exception\ConfigDependencyMissingException;
@@ -58,6 +61,7 @@ final class ConfigImporter
         private readonly ConfigImportPreflightInterface $preflight,
         private readonly DependencyResolver $resolver = new DependencyResolver(),
         ?callable $auditLogger = null,
+        private readonly ?ConfigurationActivatorInterface $activator = null,
     ) {
         $this->auditLogger = $auditLogger;
     }
@@ -78,6 +82,9 @@ final class ConfigImporter
         bool $haltOnError = false,
         bool $noDependencyCheck = false,
         array $activeRefs = [],
+        ?string $activationRequestId = null,
+        ?ConfigurationActiveToken $expectedToken = null,
+        array $activeFiles = [],
     ): ConfigImportResult {
         $syncFiles = $this->collectSyncFiles();
         $entries = [];
@@ -119,6 +126,18 @@ final class ConfigImporter
             }
         }
 
+        if ($this->activator !== null) {
+            return $this->activateGeneration(
+                $syncFiles,
+                $orderedRefs,
+                $deleteOrphans,
+                $activationRequestId,
+                $expectedToken,
+                $activeFiles,
+                $dryRun,
+            );
+        }
+
         foreach ($orderedRefs as $ref) {
             $entry = $this->processOne($syncFiles[$ref], $dryRun);
             $entries[] = $entry;
@@ -140,6 +159,161 @@ final class ConfigImporter
         }
 
         return new ConfigImportResult(entries: $entries, dryRun: $dryRun);
+    }
+
+    /**
+     * @param array<string, ConfigSyncFile> $syncFiles
+     * @param list<string> $orderedRefs
+     * @param list<ConfigSyncFile> $activeFiles
+     */
+    private function activateGeneration(
+        array $syncFiles,
+        array $orderedRefs,
+        bool $deleteOrphans,
+        ?string $activationRequestId,
+        ?ConfigurationActiveToken $expectedToken,
+        array $activeFiles,
+        bool $dryRun = false,
+    ): ConfigImportResult {
+        if (!$dryRun && ($activationRequestId === null || $activationRequestId === '')) {
+            return new ConfigImportResult(entries: [new ConfigImportEntryResult(
+                ref: '<generation>',
+                status: ConfigImportEntryResult::STATUS_FAILED,
+                reason: 'production config:import requires --activation-request-id',
+            )]);
+        }
+        $activationRequestId ??= 'dry-run:' . substr(hash('sha256', json_encode([
+            'expected' => $expectedToken === null ? null : [
+                'generation_id' => $expectedToken->generationId,
+                'activation_sequence' => $expectedToken->activationSequence,
+            ],
+            'refs' => $orderedRefs,
+            'delete_orphans' => $deleteOrphans,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), 0, 64);
+
+        $activeByRef = [];
+        foreach ($activeFiles as $file) {
+            $activeByRef[$file->ref()] = $file;
+        }
+        $orderedFiles = array_map(static fn(string $ref): ConfigSyncFile => $syncFiles[$ref], $orderedRefs);
+        $tombstones = [];
+        $expectedEntryHashes = [];
+        foreach ($orderedFiles as $file) {
+            if (isset($activeByRef[$file->ref()])) {
+                $expectedEntryHashes[$file->ref()] = $activeByRef[$file->ref()]->contentHash();
+            }
+        }
+        if ($deleteOrphans) {
+            foreach ($activeByRef as $ref => $file) {
+                if (!isset($syncFiles[$ref])) {
+                    $tombstones[$ref] = $file->contentHash();
+                }
+            }
+        }
+
+        $request = new ConfigurationActivationRequest(
+            $activationRequestId,
+            $expectedToken,
+            $orderedFiles,
+            $tombstones,
+            $expectedEntryHashes,
+            completeReplacement: $deleteOrphans,
+        );
+        $nextByRef = $deleteOrphans ? [] : $activeByRef;
+        foreach ($orderedFiles as $file) {
+            $nextByRef[$file->ref()] = $file;
+        }
+        foreach ($tombstones as $ref => $_hash) {
+            unset($nextByRef[$ref]);
+        }
+        ksort($nextByRef, SORT_STRING);
+        $manifest = [];
+        foreach ($nextByRef as $ref => $file) {
+            $manifest[$ref] = $file->contentHash();
+        }
+        $generationId = hash('sha256', json_encode([
+            'schema' => 'configuration-generation.v1',
+            'entries' => $manifest,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $planHash = hash('sha256', json_encode([
+            'schema' => 'configuration-activation-plan.v1',
+            'input_hash' => $request->inputHash(),
+            'generation_id' => $generationId,
+            'refs' => array_keys($nextByRef),
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+        if ($dryRun) {
+            $entries = [];
+            foreach ($orderedFiles as $file) {
+                $previous = $activeByRef[$file->ref()] ?? null;
+                $status = !$previous instanceof ConfigSyncFile
+                    ? ConfigImportEntryResult::STATUS_CREATED
+                    : (hash_equals($previous->contentHash(), $file->contentHash())
+                        ? ConfigImportEntryResult::STATUS_UNCHANGED
+                        : ConfigImportEntryResult::STATUS_UPDATED);
+                $entries[] = new ConfigImportEntryResult($file->ref(), $status);
+            }
+            foreach (array_keys($tombstones) as $ref) {
+                $entries[] = new ConfigImportEntryResult($ref, ConfigImportEntryResult::STATUS_DELETED);
+            }
+            if (!$deleteOrphans) {
+                foreach (array_diff_key($activeByRef, $syncFiles) as $ref => $_file) {
+                    $entries[] = new ConfigImportEntryResult(
+                        $ref,
+                        ConfigImportEntryResult::STATUS_UNCHANGED,
+                        'orphan retained; use --delete-orphans for explicit removal',
+                    );
+                }
+            }
+
+            return new ConfigImportResult($entries, true, $generationId, $planHash);
+        }
+
+        try {
+            $activation = $this->activator->activate($request);
+        } catch (\Throwable $exception) {
+            return new ConfigImportResult(entries: [new ConfigImportEntryResult(
+                ref: '<generation>',
+                status: ConfigImportEntryResult::STATUS_FAILED,
+                reason: ConfigImportFailedException::applyFailed('<generation>', $exception->getMessage(), $exception)->getMessage(),
+            )]);
+        }
+
+        $entries = [];
+        foreach ($orderedFiles as $file) {
+            $previous = $activeByRef[$file->ref()] ?? null;
+            $status = !$previous instanceof ConfigSyncFile
+                ? ConfigImportEntryResult::STATUS_CREATED
+                : (hash_equals($previous->contentHash(), $file->contentHash())
+                    ? ConfigImportEntryResult::STATUS_UNCHANGED
+                    : ConfigImportEntryResult::STATUS_UPDATED);
+            $entries[] = new ConfigImportEntryResult($file->ref(), $status);
+        }
+        foreach (array_keys($tombstones) as $ref) {
+            $entries[] = new ConfigImportEntryResult($ref, ConfigImportEntryResult::STATUS_DELETED);
+        }
+        if (!$deleteOrphans) {
+            foreach (array_diff_key($activeByRef, $syncFiles) as $ref => $_file) {
+                $entries[] = new ConfigImportEntryResult(
+                    $ref,
+                    ConfigImportEntryResult::STATUS_UNCHANGED,
+                    'orphan retained; use --delete-orphans for explicit removal',
+                );
+            }
+        }
+        $this->audit('info', 'config:import generation committed.', [
+            'activation_request_id' => $activation->requestId,
+            'generation_id' => $activation->token->generationId,
+            'activation_sequence' => $activation->token->activationSequence,
+            'plan_hash' => $activation->planHash,
+            'status' => $activation->status,
+        ]);
+
+        return new ConfigImportResult(
+            entries: $entries,
+            generationId: $activation->token->generationId,
+            planHash: $activation->planHash,
+        );
     }
 
     /**

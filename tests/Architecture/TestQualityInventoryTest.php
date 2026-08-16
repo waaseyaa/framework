@@ -33,7 +33,7 @@ final class TestQualityInventoryTest extends TestCase
         self::assertSame([], $inventory['determinism']['waits']['unclassified']);
         self::assertSame([], $inventory['determinism']['conditional_skips']['framework_gap']);
         self::assertSame([], $inventory['determinism']['conditional_skips']['unclassified']);
-        self::assertCount(4, array_merge(
+        self::assertCount(5, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));

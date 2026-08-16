@@ -1799,6 +1799,14 @@ Long-running daemon that processes jobs from a queue transport.
 
 **POSIX signal handling:** `listenForSignals()` registers SIGTERM/SIGINT handlers that set `$shouldQuit = true`. `pcntl_signal_dispatch()` is called each iteration in `shouldContinue()`. Gracefully degrades when `pcntl` extension is unavailable.
 
+**Configuration runtime epoch:** A long-running worker captures the configured
+`RuntimeEpochInterface` value before each job and checks it again after the job
+boundary. When transactional configuration activation advances the epoch, the
+worker exits the loop cleanly after the current job so its supervisor can start
+a process bound to the new immutable generation. The HTTP kernel uses the same
+epoch to invalidate generation-sensitive caches; epoch failure is fail-closed,
+not permission to keep serving an unknown generation.
+
 **Job processing pipeline:**
 1. `transport->pop($queue)` — dequeue raw message (`{id, payload, attempts}`)
 2. `@unserialize($raw['payload'])` — deserialize (failures recorded to `FailedJobRepository`)

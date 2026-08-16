@@ -21,6 +21,24 @@ this file is the single source of truth post-mission.
 > gates. Environment overlays may select bootstrap authorities and opaque
 > secret references only; they cannot override deployable values.
 
+### S1 transactional activation amendment (CFG-02)
+
+Production mutation compiles a complete immutable successor generation and
+publishes it through one database transaction. The active token is the pair of
+a deterministic content `generation_id` and a monotonically increasing
+`activation_sequence`; both are compared at commit so rollback to familiar
+content cannot create an ABA hole. A caller-supplied activation request ID is
+bound to the canonical input and original expected token before staging, making
+lost-response retries idempotent and mismatched reuse a typed refusal.
+
+Ordinary input is additive: absence retains the active entry. Deletion requires
+an explicit tombstone bound to the expected active entry hash, or a separately
+authorized complete-replacement plan. The transaction's first operation claims
+the configuration activation counter, then rechecks the expected head and
+appends one immutable activation record. Any false result, exception,
+contention, or stale token leaves the previous head serving. Events and external
+evidence follow commit and never define the head.
+
 ---
 
 ## 1. What ships
