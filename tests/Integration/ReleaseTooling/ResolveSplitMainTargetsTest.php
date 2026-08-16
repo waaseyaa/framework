@@ -88,6 +88,21 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_schema_coordinator_delivery_set(): void
+    {
+        [$exit, $stdout] = $this->runScript('cli,foundation,database-legacy');
+
+        self::assertSame(0, $exit, $stdout);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/cli', 'remote' => 'cli'],
+                ['local' => 'packages/foundation', 'remote' => 'foundation'],
+                ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function resolves_the_shared_workflow_history_delivery_set(): void
     {
         [$exit, $stdout] = $this->runScript('api,audit,admin-surface');
