@@ -12,6 +12,8 @@ declare(strict_types=1);
  * removes every remediation-required class before certification.
  */
 
+require_once __DIR__ . '/lib/s1-roster.php';
+
 $root = dirname(__DIR__);
 $rosterPath = $root . '/support/s1-schema-authority-roster.json';
 $arguments = array_values(array_filter($_SERVER['argv'] ?? [], 'is_string'));
@@ -186,78 +188,56 @@ function s1SchemaClass(string $path): string
     return $reviewed[$path] ?? 'unclassified';
 }
 
-/** @return array{schema_version: int, query_version: string, patterns: array<string, string>, allowed_classes: list<string>, candidates: list<array<string, int|string>>} */
-function s1SchemaBuildRoster(string $root): array
+/**
+ * Live scan with transient line numbers (report-time display only — never
+ * recorded; roster identity is semantic, see docs/specs/governed-gates.md §6).
+ *
+ * @return list<array{path: string, pattern: string, class: string, match_sha256: string, occurrence: int, line: int}>
+ */
+function s1SchemaScan(string $root): array
 {
-    $patterns = s1SchemaPatterns();
-    $allowedClasses = [
-        'coordinator-authority',
-        'coordinator-plan-or-executor',
-        'authoritative-bypass-remediation-required',
-        'projection-authority',
-        'etl-boundary',
-        'tooling-generator',
-        'tooling-query',
-        'test-tooling',
-        'test-only',
-        'read-only-or-declaration',
-        'explicit-exclusion',
-    ];
-    $candidates = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    return s1RosterScan(
+        $root,
+        [''],
+        s1SchemaPatterns(),
+        static function (string $relative, string $contents): bool {
+            $firstLine = strtok($contents, "\n");
+            $phpShebang = is_string($firstLine) && preg_match('/^#!.*\bphp(?:\s|$)/', $firstLine) === 1;
+
+            return str_ends_with($relative, '.php') || $phpShebang;
+        },
+        static fn(string $relative, string $patternId): string => s1SchemaClass($relative),
     );
-    foreach ($iterator as $file) {
-        if (!$file instanceof SplFileInfo || !$file->isFile()) {
-            continue;
-        }
-        $path = str_replace('\\', '/', $file->getPathname());
-        $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
-        if (str_starts_with($relative, 'vendor/')
-            || str_starts_with($relative, '.git/')
-            || str_starts_with($relative, 'tmp/')
-        ) {
-            continue;
-        }
+}
 
-        $contents = (string) file_get_contents($path);
-        $firstLine = strtok($contents, "\n");
-        $phpShebang = is_string($firstLine) && preg_match('/^#!.*\bphp(?:\s|$)/', $firstLine) === 1;
-        if (!str_ends_with($relative, '.php') && !$phpShebang) {
-            continue;
-        }
-        $lines = explode("\n", $contents);
-        foreach ($patterns as $patternId => $pattern) {
-            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
-            foreach ($matches[0] as [$matched, $offset]) {
-                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
-                $candidates[] = [
-                    'path' => $relative,
-                    'line' => $line,
-                    'pattern' => $patternId,
-                    'class' => s1SchemaClass($relative),
-                    'match_sha256' => hash('sha256', $matched),
-                    'line_sha256' => hash('sha256', trim($lines[$line - 1] ?? '')),
-                    'source_sha256' => hash('sha256', $contents),
-                ];
-            }
-        }
-    }
-    usort($candidates, static fn(array $left, array $right): int => [
-        $left['path'], $left['line'], $left['pattern'], $left['match_sha256'],
-    ] <=> [$right['path'], $right['line'], $right['pattern'], $right['match_sha256']]);
-
-    return [
-        'schema_version' => 1,
-        'query_version' => 's1-schema-boundaries-v1',
-        'patterns' => $patterns,
-        'allowed_classes' => $allowedClasses,
-        'candidates' => $candidates,
-    ];
+/**
+ * @param list<array<string, int|string>> $transient Entries from s1SchemaScan().
+ * @return array<string, mixed>
+ */
+function s1SchemaBuildRoster(array $transient): array
+{
+    return s1RosterDocument(
+        's1-schema-boundaries-v2',
+        s1SchemaPatterns(),
+        [
+            'coordinator-authority',
+            'coordinator-plan-or-executor',
+            'authoritative-bypass-remediation-required',
+            'projection-authority',
+            'etl-boundary',
+            'tooling-generator',
+            'tooling-query',
+            'test-tooling',
+            'test-only',
+            'read-only-or-declaration',
+            'explicit-exclusion',
+        ],
+        s1RosterCanonicalize($transient),
+    );
 }
 
 if ($writeRoster) {
-    $roster = s1SchemaBuildRoster($root);
+    $roster = s1SchemaBuildRoster(s1SchemaScan($root));
     file_put_contents(
         $root . '/support/s1-schema-authority-roster.json',
         json_encode($roster, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
@@ -275,11 +255,21 @@ try {
     if (!is_array($recorded) || array_is_list($recorded)) {
         throw new RuntimeException('Schema-authority roster must be a JSON object.');
     }
-    $live = s1SchemaBuildRoster($root);
+    $transient = s1SchemaScan($root);
+    $live = s1SchemaBuildRoster($transient);
     if ($recorded !== $live) {
         $errors[] = 'Recorded schema-authority roster differs from the live verifier-owned occurrence universe.';
+        $diff = s1RosterDiff(
+            is_array($recorded['candidates'] ?? null) ? $recorded['candidates'] : [],
+            $transient,
+            'php bin/check-s1-schema-authority --write-roster',
+        );
+        if ($diff === []) {
+            $diff = ['roster metadata (schema/query/patterns/classes) differs — regenerate with php bin/check-s1-schema-authority --write-roster and commit the roster.'];
+        }
+        array_push($errors, ...$diff);
     }
-    foreach ($live['candidates'] as $candidate) {
+    foreach ($transient as $candidate) {
         if ($candidate['class'] === 'unclassified') {
             $errors[] = sprintf('Unclassified production schema boundary: %s:%d (%s).', $candidate['path'], $candidate['line'], $candidate['pattern']);
         }

@@ -61,6 +61,10 @@ constructors, driver tokens, and SQLite DSNs. Every occurrence is classified as
 a serving authority/entry point, offline artifact authority, inherited
 migration wrapper, runtime capability configuration, test utility, test, or
 tooling query; omission, invention, or valid-class substitution fails.
+Roster entries bind semantic identity (path, pattern, class, normalized match
+hash, occurrence index) — never line numbers or file hashes — so unrelated
+edits in rostered files cannot invalidate the roster (schema v2, see
+[governed-gates.md](governed-gates.md) §6).
 The installed-artifact proof seals the exact candidate database package,
 extracts it into an isolated consumer `vendor` boundary without a Composer path
 repository, proves that the runtime class loaded from that artifact, and then
