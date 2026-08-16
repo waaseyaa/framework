@@ -1,0 +1,132 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * One repair command for every governed recorded artifact
+ * (docs/specs/governed-gates.md §2).
+ *
+ * For each gate in tools/preflight-gates.json that declares refresh metadata:
+ * run the gate; if it passes, do nothing (a clean tree is a no-op). If it
+ * fails and the artifact is mechanical (`mode: auto`), regenerate it via the
+ * verifier's own write mode and report what changed. If it fails and the
+ * artifact needs human judgment (`mode: manual`), print the exact
+ * instruction and leave the exit code non-zero — refresh never fabricates a
+ * reviewed rationale.
+ *
+ * Always review `git diff` of regenerated artifacts before committing.
+ *
+ * Usage:
+ *   bin/refresh-governance-artifacts           # repair what is stale
+ *   bin/refresh-governance-artifacts --list    # print the artifact registry
+ */
+
+$root = dirname(__DIR__);
+$manifestPath = $root . '/tools/preflight-gates.json';
+$list = false;
+
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if ($argument === '--list') {
+        $list = true;
+    } elseif (str_starts_with($argument, '--manifest=')) {
+        $manifestPath = substr($argument, strlen('--manifest='));
+    } else {
+        fwrite(STDERR, "refresh-governance-artifacts: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+
+try {
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+} catch (Throwable $exception) {
+    fwrite(STDERR, "refresh-governance-artifacts: cannot read manifest {$manifestPath}: {$exception->getMessage()}\n");
+    exit(2);
+}
+
+$governed = array_values(array_filter(
+    is_array($manifest['gates'] ?? null) ? $manifest['gates'] : [],
+    static fn(array $gate): bool => is_array($gate['refresh'] ?? null),
+));
+
+if ($list) {
+    foreach ($governed as $gate) {
+        fwrite(STDOUT, sprintf(
+            "%-40s %-7s %s\n",
+            (string) $gate['id'],
+            (string) $gate['refresh']['mode'],
+            (string) ($gate['refresh']['write'] ?? $gate['refresh']['instruction'] ?? ''),
+        ));
+    }
+    exit(0);
+}
+
+function refreshRunCommand(string $root, string $command): array
+{
+    $output = [];
+    $exitCode = 0;
+    exec(sprintf('cd %s && (%s) 2>&1', escapeshellarg($root), $command), $output, $exitCode);
+
+    return [$output, $exitCode];
+}
+
+$manualPending = 0;
+$refreshed = 0;
+
+foreach ($governed as $gate) {
+    $id = (string) $gate['id'];
+    [, $checkExit] = refreshRunCommand($root, (string) $gate['run']);
+    if ($checkExit === 0) {
+        fwrite(STDOUT, sprintf("clean %-40s nothing to refresh\n", $id));
+        continue;
+    }
+
+    $mode = (string) $gate['refresh']['mode'];
+    if ($mode === 'manual') {
+        ++$manualPending;
+        fwrite(STDOUT, sprintf("stale %-40s needs human judgment:\n      %s\n", $id, (string) $gate['refresh']['instruction']));
+        continue;
+    }
+
+    $write = (string) $gate['refresh']['write'];
+    [$writeOutput, $writeExit] = refreshRunCommand($root, $write);
+    if ($writeExit !== 0) {
+        ++$manualPending;
+        fwrite(STDOUT, sprintf("stale %-40s regeneration FAILED (%s):\n", $id, $write));
+        foreach ($writeOutput as $line) {
+            fwrite(STDOUT, '      ' . $line . "\n");
+        }
+        continue;
+    }
+
+    // Confirm the regeneration actually repaired the gate — a write mode that
+    // "succeeds" while the gate still fails is a finding, not a repair.
+    [$recheckOutput, $recheckExit] = refreshRunCommand($root, (string) $gate['run']);
+    if ($recheckExit !== 0) {
+        ++$manualPending;
+        fwrite(STDOUT, sprintf("stale %-40s regenerated but the gate STILL fails:\n", $id));
+        foreach ($recheckOutput as $line) {
+            fwrite(STDOUT, '      ' . $line . "\n");
+        }
+        continue;
+    }
+
+    ++$refreshed;
+    fwrite(STDOUT, sprintf("fixed %-40s regenerated via: %s\n", $id, $write));
+}
+
+if ($refreshed > 0) {
+    fwrite(STDOUT, "\nRegenerated artifact diff (review before committing):\n");
+    [$diffStat] = refreshRunCommand($root, 'git diff --stat -- support/ tools/');
+    foreach ($diffStat as $line) {
+        fwrite(STDOUT, '  ' . $line . "\n");
+    }
+}
+
+fwrite(STDOUT, sprintf(
+    "\n%d artifact(s) regenerated, %d still need attention.\n",
+    $refreshed,
+    $manualPending,
+));
+
+exit($manualPending > 0 ? 1 : 0);
