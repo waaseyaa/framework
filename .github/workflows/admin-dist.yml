@@ -51,7 +51,12 @@ jobs:
       # so the committed dist and packages/admin-surface/dist.signature stay in
       # lockstep with the admin source (D6 / check-admin-dist-fresh gate).
       - name: Build admin SPA dist (+ freshness signature)
-        run: bin/build-admin-dist
+        run: |
+          NODE_BINARY="$(command -v node)"
+          NPM_BINARY="$(realpath "$(command -v npm)")"
+          PATH="$(dirname "$NODE_BINARY"):/usr/local/bin:/usr/bin:/bin"
+          export NODE_BINARY NPM_BINARY PATH
+          bin/build-admin-dist
 
       - name: Check for changes
         id: diff

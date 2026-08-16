@@ -60,6 +60,18 @@ final class DependencyWorkflowTest extends TestCase
 
             $install = 'composer install --no-interaction --prefer-dist --no-progress --no-scripts --no-plugins';
             self::assertStringContainsString($install, $workflow, $filename);
+            self::assertStringContainsString('NODE_BINARY="$(command -v node)"', $workflow, $filename);
+            self::assertStringContainsString(
+                'NPM_BINARY="$(realpath "$(command -v npm)")"',
+                $workflow,
+                $filename,
+            );
+            self::assertStringContainsString(
+                'PATH="$(dirname "$NODE_BINARY"):/usr/local/bin:/usr/bin:/bin"',
+                $workflow,
+                $filename,
+            );
+            self::assertStringContainsString('export NODE_BINARY NPM_BINARY PATH', $workflow, $filename);
 
             $installOffset = strpos($workflow, $install);
             $buildOffset = strpos($workflow, 'bin/build-admin-dist');
