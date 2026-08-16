@@ -1822,39 +1822,39 @@
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 217,
+            "line": 230,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "c7439113f210097320c14bdcf9dc42fd6e4d5fa6731fe335448187192d56a1ea"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 217,
+            "line": 230,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "c7439113f210097320c14bdcf9dc42fd6e4d5fa6731fe335448187192d56a1ea"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 335,
+            "line": 394,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "c7439113f210097320c14bdcf9dc42fd6e4d5fa6731fe335448187192d56a1ea"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
-            "line": 335,
+            "line": 394,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "c7439113f210097320c14bdcf9dc42fd6e4d5fa6731fe335448187192d56a1ea"
+            "source_sha256": "f84bbbcd436da85fba88dc1a46f81ed289c8c0891a9890d215c40a1d6e49c8ce"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerTest.php",
@@ -2857,12 +2857,12 @@
         },
         {
             "path": "packages/entity-storage/tests/Unit/EntityRepositoryRevisionTest.php",
-            "line": 33,
+            "line": 34,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "e714c4912399df64fd0d07760a4f38c7354ce992cd9b6e4faaeb4b7c562dc7a7"
+            "source_sha256": "1a7669db9cbedc68e3ff5398cf0e88934263cac360e8b31017df228f33a64951"
         },
         {
             "path": "packages/entity-storage/tests/Unit/EntityRepositorySqlCrudTest.php",
@@ -3181,120 +3181,120 @@
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 25,
+            "line": 27,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 157,
+            "line": 159,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 181,
+            "line": 183,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 200,
+            "line": 202,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 217,
+            "line": 219,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 236,
+            "line": 238,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 294,
+            "line": 296,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 409,
+            "line": 480,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 419,
+            "line": 490,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 431,
+            "line": 502,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 450,
+            "line": 521,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 474,
+            "line": 545,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
-            "line": 497,
+            "line": 568,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "beedb36f6576700401d6e607c525a73a33367d1a300369bdc83c1f0281a48ea1"
+            "source_sha256": "49e37c1877db3fd56f5b541157740e89eeb3f01e83177a4c65d63689ee7199a4"
         },
         {
             "path": "packages/entity-storage/tests/Unit/TranslationStorageTest.php",
@@ -4275,7 +4275,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
@@ -4284,7 +4284,7 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
@@ -4293,7 +4293,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
@@ -4302,25 +4302,25 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
-            "line": 70,
+            "line": 72,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
-            "line": 70,
+            "line": 72,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "12901d741c3f4015b62189d181a8758b1b36031254d780a76ee8da73455102d7"
+            "source_sha256": "effc5e874afefcfdcefe51a36fb54d11672a40b9add6b8601d996116512e94f3"
         },
         {
             "path": "packages/foundation/tests/Unit/RateLimit/DatabaseRateLimiterTest.php",
@@ -6988,21 +6988,21 @@
         },
         {
             "path": "tests/Integration/Phase14/DiscoveryFixtureConsumersIntegrationTest.php",
-            "line": 58,
+            "line": 60,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "ec8ab28ed59c8285a8dfbb096ab92c3f324c84b15193a5e879a41d7ef548e0ef"
+            "source_sha256": "06a2695a96b6fd41080d8d1f5d4165119b03fd4ede33b42c41e8d25119f5294c"
         },
         {
             "path": "tests/Integration/Phase15/AccessVisibilityConsistencyIntegrationTest.php",
-            "line": 43,
+            "line": 54,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "b9b4316bc444e9776c57729f29ad089b043aea640b4a04040957e68846980bce"
+            "source_sha256": "777acf9d0525d9ef250675abe4d3c2ba894ce96b7eacf9a2aa4edb9bd6c26b87"
         },
         {
             "path": "tests/Integration/Phase15/PerformanceFixturePackIntegrationTest.php",

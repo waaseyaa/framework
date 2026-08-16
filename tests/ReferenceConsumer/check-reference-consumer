@@ -57,6 +57,7 @@ php "$framework_source/tests/ReferenceConsumer/prepare.php" bind-lock "$framewor
 # acceptance test runs; verification remains read-only.
 (cd "$consumer_root" && php vendor/bin/waaseyaa db:init --no-interaction)
 (cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
+(cd "$consumer_root" && php vendor/bin/waaseyaa migrate --no-interaction)
 
 before=$(php "$framework_source/tests/ReferenceConsumer/prepare.php" snapshot "$framework_source" "$consumer_root")
 export COMPOSER_DISABLE_NETWORK=1

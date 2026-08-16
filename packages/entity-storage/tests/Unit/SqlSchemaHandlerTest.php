@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use Waaseyaa\Database\DBALDatabase;
@@ -15,6 +16,7 @@ use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 
+#[CoversClass(SqlSchemaHandler::class)]
 final class SqlSchemaHandlerTest extends TestCase
 {
     private DBALDatabase $database;
@@ -328,6 +330,75 @@ final class SqlSchemaHandlerTest extends TestCase
         }
     }
 
+    public function testDeclaredUniqueKeyPromotesBackfillsAndValidatesRuntimeSchema(): void
+    {
+        $baseType = new EntityType(
+            id: 'unique_entity', label: 'Unique Entity', class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            _fieldDefinitions: ['slug' => new FieldDefinition(name: 'slug', type: 'string')],
+        );
+        new SqlSchemaHandler($baseType, $this->database)->ensureTable();
+        $this->database->insert('unique_entity')->fields(['id', 'uuid', '_data'])->values([
+            'id' => '1', 'uuid' => 'unique-1',
+            '_data' => json_encode(['slug' => 'water'], JSON_THROW_ON_ERROR),
+        ])->execute();
+
+        $authoritativeType = new EntityType(
+            id: 'unique_entity', label: 'Unique Entity', class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            _fieldDefinitions: ['slug' => new FieldDefinition(name: 'slug', type: 'string')],
+            _storageUniqueKeys: [['name' => 'unique_entity_slug', 'fields' => ['slug']]],
+        );
+        $handler = new SqlSchemaHandler($authoritativeType, $this->database);
+        $handler->ensureTable();
+        $handler->assertRuntimeSchema();
+
+        $this->assertSame('water', $this->database->getConnection()->fetchOne('SELECT slug FROM unique_entity WHERE id = ?', ['1']));
+        $indexes = $this->database->getConnection()->createSchemaManager()->listTableIndexes('unique_entity');
+        $this->assertArrayHasKey('unique_entity_slug', $indexes);
+        $this->assertTrue($indexes['unique_entity_slug']->isUnique());
+    }
+
+    public function testDeclaredUniqueKeyRejectsAnUnknownField(): void
+    {
+        $type = new EntityType(
+            id: 'invalid_unique_entity', label: 'Invalid Unique Entity', class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            _storageUniqueKeys: [['name' => 'invalid_unique', 'fields' => ['missing']]],
+        );
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('names unknown field "missing"');
+        new SqlSchemaHandler($type, $this->database)->ensureTable();
+    }
+
+    public function testDeclaredSchemaTransitionRunsIdempotentlyDuringSchemaSync(): void
+    {
+        $type = new EntityType(
+            id: 'transition_entity', label: 'Transition Entity', class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            _storageSchemaTransitions: [TestAddSchemaColumnTransition::class],
+        );
+        $handler = new SqlSchemaHandler($type, $this->database);
+        $handler->ensureTable();
+        $handler->ensureTable();
+
+        $this->assertTrue($this->database->schema()->fieldExists('transition_entity', 'transitioned'));
+    }
+
+    public function testDeclaredSchemaTransitionMustImplementTheTransitionContract(): void
+    {
+        $type = new EntityType(
+            id: 'invalid_transition_entity', label: 'Invalid Transition Entity', class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            _storageSchemaTransitions: [\stdClass::class],
+        );
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('must implement');
+        new SqlSchemaHandler($type, $this->database)->ensureTable();
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -520,5 +591,17 @@ final class SqlSchemaHandlerTest extends TestCase
         $this->assertSame('pre-mission row', $rows[0]['revision_log']);
         $this->assertSame('2026-01-01 00:00:00', $rows[0]['revision_created']);
         $this->assertNull($rows[0]['revision_author']);
+    }
+}
+
+final class TestAddSchemaColumnTransition implements \Waaseyaa\EntityStorage\Schema\EntityStorageSchemaTransitionInterface
+{
+    public function __construct(\Waaseyaa\Database\DatabaseInterface $_database) {}
+
+    public function apply(\Waaseyaa\Database\DatabaseInterface $database, string $table): void
+    {
+        if (!$database->schema()->fieldExists($table, 'transitioned')) {
+            $database->schema()->addField($table, 'transitioned', ['type' => 'int', 'not null' => true, 'default' => 0]);
+        }
     }
 }

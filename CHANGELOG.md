@@ -14,31 +14,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Preserve aggregate mutation authority across aliased Admin surfaces by
+  caching successor tokens under the requested surface identity.
 - Reconcile ambiguous scheduler lease acquisition and renewal only by exact
   generation/nonce/expiry read-back with a monotonic round-trip safety margin;
   database-clock rollback now fails closed before ownership mutation.
 - Require renewable durable database leases for overlap-protected scheduler
-  execution, with stable task names, cooperative lease-aware commands, fenced
-  effects, deterministic cron-slot occurrences, and crash-safe queued command
-  ownership.
-- Enforce the DB-03 aggregate mutation token across entity and revision writes
-  while retaining the page-builder's explicit expected-revision guard at the
-  same transactional rollback boundary.
+  execution. Infrastructure faults are failures rather than false overlap
+  skips; overlap tasks require stable names and cooperative lease-aware
+  commands. The five first-party retention and agent registrations now use the
+  lease-aware boundary, and classification jobs renew before policy/entity
+  effects without swallowing lease loss.
+- Add the scheduler's database-local effect fence. Each resource/domain retains
+  its last accepted global fence and effect ID transactionally: stale owners
+  fail, exact replays no-op, distinct equal-fence effects fail closed, and
+  effect failure rolls back the claim. Classification purge, redaction, and
+  hold-conflict writes now execute through this sink boundary.
+- Record deterministic cron-slot occurrences for overlap-protected direct
+  commands. The ledger binds the schedule generation and due minute, grants
+  execution to one global fence, permits recovery only under a higher fence,
+  rejects a completed duplicate, and scopes effect IDs to the occurrence. A
+  higher-fence recovery advances sink ownership without replaying an already
+  committed effect from that occurrence. Manual triggers require a bounded
+  idempotency key; unprotected tasks are refused rather than falsely claiming
+  retry safety.
+- Give persistent queued scheduler commands their own crash-safe ownership
+  protocol. Occurrence and enqueue intent commit together, signed deliveries
+  carry the stable occurrence identity, workers acquire a separate renewable
+  execution lease, duplicate deliveries are no-ops, contention defers without
+  consuming attempts, and terminal dispatch/worker failure dead-letters the
+  occurrence.
+
+- Enforce the DB-03 aggregate mutation token across entity saves, deletes,
+  batches, revision-pointer moves, rollback, pruning, and translation writes;
+  require strong protocol preconditions across JSON:API, GraphQL, AI tools,
+  translations, and workflow transitions; make workflow revision creation,
+  status finalization, and publication-pointer movement one atomic aggregate
+  command; add an audited legacy-authority backfill command and keep
+  write-capable events inside the same transaction as the aggregate claim.
+- Begin `S1-FW-DB-03`: make existing-entity mutation token-based by default and
+  replace fixed-TTL scheduler overlap locks with durable renewable leases and
+  fenced effects.
 
 ### Fixed
-
-- Reconcile the Stage 0/1 authority gates with the accepted fresh-site source:
-  classify generated subscription migrations, refresh exact schema/SQLite
-  rosters and dependency bytes, and keep the reference-consumer CI job on a
-  fixed runner with an immutable checkout action.
-
-- Initialize the clean reference consumer through the canonical `db:init`
-  coordinator before kernel-backed `site:init`, preserving DB-02's ban on lazy
-  runtime schema creation while keeping verification itself read-only.
-
-- Build the #2343 reference consumer from an exact tracked Git archive before
-  Composer mirrors framework packages, preventing untracked workspace files or
-  nested dependency symlinks from entering provider-neutral acceptance proof.
 
 - Let application schemas organize the shared Admin SPA and Anokii entity
   editor into accessible task-oriented sections, including collapsible
@@ -68,6 +86,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Define and verify a bounded FTS5 candidate-window completeness contract
+  shared by Search, API, MCP, and AI-tool consumers, including explicit
+  truncation metadata and surface-parity coverage (#2379).
+
+- Expose governed cross-region block movement and complete section selection,
+  reordering, layout change, duplication, and guarded removal in the shared
+  Admin SPA page-builder workspace used by Anokii, with accessible destructive
+  confirmation and explicit compare/reapply recovery for concurrent edits
+  (#2344).
+
 - **one typed configuration authority (`S1-FW-CFG-01`):** Resolve bootstrap
   selectors once, bind every active reader and all six management commands to
   one database generation and sync-artifact path, fail closed on missing
@@ -78,7 +106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   database-native, whole-plan-atomic schema coordinator; globally unique
   migration identity; zero-DDL read/runtime paths; forward-only rollback;
   strict ledger/source/live-schema verification; and a complete classified DDL
-  inventory on the verified forge-neutral SQLite predecessor.
+  inventory on the verified forge-neutral SQLite predecessor. Keep explicit
+  initialization and migration commands available before runtime schema exists,
+  and prove a detached reference consumer applies that schema before boot.
 
 - **explicit S1 SQLite topology (`S1-FW-DB-01`):** Define the one-node,
   one-authoritative-file SQLite contract, bounded connection invariants,
@@ -91,11 +121,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository. Bind every repository SQLite construction occurrence and the
   isolated artifact's exact lock-resolved dependency identities and bytes.
 
-- Expose governed cross-region block movement and complete section selection,
-  reordering, layout change, duplication, and guarded removal in the shared
-  Admin SPA page-builder workspace used by Anokii, with accessible destructive
-  confirmation and explicit compare/reapply recovery for concurrent edits
-  (#2344).
+- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
+- **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
+- **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.
 
 - Prove the #2343 golden path from a clean `composer create-project` consumer,
   including the complete governed authoring, published-content, and
@@ -162,14 +190,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recipes, strict diagnostics, and reference-consumer gates for #2343.
 
 - **page-builder history and recovery:** Add shared, permission-checked revision history and comparison endpoints, restore-as-new-draft semantics, and server-side idle recovery for block configuration in both the Waaseyaa Admin SPA and downstream Anokii shells. Historical restore is conflict-bound to the observed current revision and never deletes history or changes the published pointer.
-
-### Added
-
-- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
-
-- **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
-
-- **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.
 
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
 
