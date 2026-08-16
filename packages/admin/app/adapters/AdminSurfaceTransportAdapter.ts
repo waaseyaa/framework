@@ -127,7 +127,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     field: string,
     query: string,
     limit: number = 10,
-    operator: 'STARTS_WITH' = 'STARTS_WITH',
+    operator: 'STARTS_WITH' | 'CONTAINS' = 'STARTS_WITH',
     sort: { field: string; direction: 'ASC' } | null = { field, direction: 'ASC' },
   ): Promise<EntityResource[]> {
     if (query.length < 2) return []

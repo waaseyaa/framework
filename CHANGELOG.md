@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Let application schemas organize the shared Admin SPA and Anokii entity
+  editor into accessible task-oriented sections, including collapsible
+  secondary details that reopen for validation errors, while always rendering
+  declared writable fields that were not assigned to a section (#2375).
+
+- Load the shared Admin SPA design-system stylesheet on shell-free entity-editor
+  and page-builder routes so same-origin clients such as Anokii receive the
+  canonical controls, typography, spacing, focus treatment, and target-size
+  tokens without mounting or copying the default navigation shell (#2373).
+
+- Make the #2343 reference-consumer proof resolve exact local candidate
+  packages from detached and provider-neutral source checkouts instead of
+  inferring Composer versions from a forge-specific branch name, and make the
+  generated verifier establish its own consumer-project working directory.
+
 ### Added
 
 - **explicit S1 SQLite topology (`S1-FW-DB-01`):** Define the one-node,
@@ -23,6 +40,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
 - **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
 - **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.
+
+- Prove the #2343 golden path from a clean `composer create-project` consumer,
+  including the complete governed authoring, published-content, and
+  subscription recipes; byte-identical offline regeneration; strict
+  diagnostics; framework-lock update continuity; and local plus hosted CI
+  adapters that share one provider-neutral verification command.
+
+- Generate the first-party governed-authoring golden-path recipe with one
+  revisioned page-layout authority shared by Admin SPA and Anokii, governed
+  block/layout definitions, exact-revision preview, history and guarded
+  restore, a shared renderer, design tokens, and role-oriented acceptance
+  tests (#2343).
+
+- Generate the first-party subscription golden-path recipe with tracked private
+  storage, normalized and validated identifiers, durable consent evidence,
+  hashed unsubscribe tokens, export/deletion/retention operations, and Mail /
+  Queue delivery that remains disabled until unsubscribe is proven (#2343).
+
+- Generate the first-party published-content golden-path recipe with typed bundle fields, access-aware Listings, canonical Path routes, sitemap and SEO integration, container wiring, Twig templates, and provider-neutral acceptance tests (#2343).
+
+- Add the provider-neutral strict `site:doctor` command, deterministic repo-wide
+  application-source discovery, generated-artifact and Composer provenance
+  checks, exact expiring suppressions, canonical evidence reports, and strict
+  `site-verify` integration for fresh-site convergence work in #2343.
 
 - Allow the non-release, exact-main split workflow to mirror the API and audit
   packages alongside admin-surface for downstream integration verification.
@@ -77,6 +118,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **page-builder authenticated surface (#2344):** Add one permission-scoped Admin Surface contract for deterministic definitions, draft reads, strict edit commands, and exact-revision preview grants shared by Waaseyaa Admin SPA and Anokii.
 
 ### Fixed
+
+- Allow governed entity-reference pickers to use catalog-declared `CONTAINS`
+  search, so large media libraries remain searchable by remembered words while
+  preserving the same allowlisted query contract in Admin SPA and Anokii.
 
 - **random-order fixture cleanup (#2334):** Make disposable drift-detector Git fixture cleanup idempotent when Git object paths disappear during teardown, preventing harmless filesystem races from failing the architecture random-order gate.
 

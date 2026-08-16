@@ -168,6 +168,29 @@ final class CatalogBuilderTest extends TestCase
     }
 
     #[Test]
+    public function reference_metadata_can_use_contains_search_for_large_media_libraries(): void
+    {
+        $builder = new CatalogBuilder();
+        $builder->defineEntity('media', 'Media')
+            ->reference('name', 'name', 'name', 'CONTAINS');
+
+        self::assertSame([
+            'labelField' => 'name',
+            'search' => ['field' => 'name', 'operator' => 'CONTAINS'],
+            'sort' => ['field' => 'name', 'direction' => 'ASC'],
+        ], $builder->build()[0]['reference']);
+    }
+
+    #[Test]
+    public function reference_metadata_rejects_an_unknown_search_operator(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Reference search operator must be STARTS_WITH or CONTAINS.');
+
+        (new EntityDefinition('media', 'Media'))->reference('name', 'name', 'name', 'REGEX');
+    }
+
+    #[Test]
     public function invalidCapabilityThrows(): void
     {
         $entity = new EntityDefinition('test', 'Test');

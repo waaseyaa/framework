@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+framework_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+work_root=${WAASEYAA_REFERENCE_WORK_ROOT:-$(mktemp -d)}
+consumer_root="$work_root/consumer"
+project_source="$work_root/project-source"
+keep=${WAASEYAA_REFERENCE_KEEP:-0}
+export APP_ENV=testing
+export WAASEYAA_APP_SECRET=base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+composer_bin=$(command -v composer)
+if [[ -x "$HOME/.local/bin/composer" ]]; then
+  composer_bin="$HOME/.local/bin/composer"
+fi
+
+cleanup() {
+  if [[ "$keep" != "1" ]]; then
+    rm -rf -- "$work_root"
+  fi
+}
+trap cleanup EXIT
+
+mkdir -p "$project_source"
+cp -R "$framework_root/skeleton/." "$project_source/"
+git -C "$project_source" init --quiet
+git -C "$project_source" config user.name 'Waaseyaa Reference Consumer'
+git -C "$project_source" config user.email 'reference-consumer@invalid.example'
+git -C "$project_source" add --all
+git -C "$project_source" commit --quiet -m 'Exact candidate project skeleton'
+project_revision=$(git -C "$project_source" rev-parse HEAD)
+"$composer_bin" create-project waaseyaa/waaseyaa "$consumer_root" \
+  --repository="{\"type\":\"package\",\"package\":{\"name\":\"waaseyaa/waaseyaa\",\"version\":\"dev-main\",\"source\":{\"url\":\"$project_source\",\"type\":\"git\",\"reference\":\"$project_revision\"}}}" \
+  --stability=dev --prefer-source --no-install --no-scripts --no-plugins --no-interaction
+cp "$framework_root/tests/ReferenceConsumer/site.answers.yaml" "$consumer_root/site.answers.yaml"
+php "$framework_root/tests/ReferenceConsumer/prepare.php" configure "$framework_root" "$consumer_root"
+
+# The dependency install is the only network-permitted phase. Waaseyaa path
+# packages are copied (never symlinked) into this clean create-project fixture.
+"$composer_bin" update --working-dir="$consumer_root" --no-interaction --no-scripts --no-plugins --prefer-dist
+if find "$consumer_root/vendor/waaseyaa" -type l -print -quit | grep -q .; then
+  echo "reference-consumer: installed Waaseyaa packages must not be source symlinks" >&2
+  exit 1
+fi
+
+php "$framework_root/tests/ReferenceConsumer/prepare.php" bind-lock "$framework_root" "$consumer_root"
+(cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
+
+before=$(php "$framework_root/tests/ReferenceConsumer/prepare.php" snapshot "$framework_root" "$consumer_root")
+export COMPOSER_DISABLE_NETWORK=1
+(cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
+after=$(php "$framework_root/tests/ReferenceConsumer/prepare.php" snapshot "$framework_root" "$consumer_root")
+if [[ "$before" != "$after" ]]; then
+  echo "reference-consumer: offline regeneration is not byte-identical" >&2
+  exit 1
+fi
+
+(cd "$consumer_root" && php vendor/bin/waaseyaa site:doctor --strict --format=json --project-root="$consumer_root")
+"$consumer_root/bin/maintenance/site-verify"
+"$consumer_root/.ci/site-verify"
+
+# Framework upgrade continuity: a reviewed dependency-lock change must fail
+# strict provenance until site:init rebinds the manifest, without replacing the
+# shared Admin SPA/Anokii page authority or any generated acceptance contract.
+printf '\n' >> "$consumer_root/composer.lock"
+if (cd "$consumer_root" && php vendor/bin/waaseyaa site:doctor --strict --format=json --project-root="$consumer_root") >"$work_root/lock-drift.json" 2>&1; then
+  echo "reference-consumer: lock drift was accepted before regeneration" >&2
+  exit 1
+fi
+grep -q 'SITE011_COMPOSER_LOCK_DRIFT' "$work_root/lock-drift.json"
+php "$framework_root/tests/ReferenceConsumer/prepare.php" bind-lock "$framework_root" "$consumer_root"
+(cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
+(cd "$consumer_root" && php vendor/bin/waaseyaa site:doctor --strict --format=json --project-root="$consumer_root")
+"$consumer_root/.ci/site-verify"
+
+grep -q "'clients' => \['admin_spa', 'anokii'\]" "$consumer_root/config/waaseyaa-recipes/governed-authoring.php"
+for bundle in page update event job announcement; do
+  grep -q "'bundle' => '$bundle'" "$consumer_root/config/waaseyaa-recipes/published-content.php"
+done
+
+echo "reference-consumer: PASS (offline regeneration, framework upgrade continuity, provider-neutral adapter)"

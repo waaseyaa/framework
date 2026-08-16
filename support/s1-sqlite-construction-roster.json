@@ -975,6 +975,15 @@
             "source_sha256": "494f62f7f432843b4f86d787c1e6979e7da416edf427b54b6d7d969f4a86262a"
         },
         {
+            "path": "packages/audit/tests/Integration/AuditEventQuerySubjectTest.php",
+            "line": 24,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "a10456f44243c0bc1df8c7855eb60e11f3021d9bf582d01e816614fc62c09271"
+        },
+        {
             "path": "packages/audit/tests/Integration/AuditImmutabilityTest.php",
             "line": 39,
             "pattern": "dbal_factory",
@@ -1794,6 +1803,33 @@
             "source_sha256": "aede741121f271770dd51579f305f96d7a4e55dcacae3f4aed1cb385011491d0"
         },
         {
+            "path": "packages/cli/tests/Unit/Handler/SiteDoctorHandlerTest.php",
+            "line": 33,
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "c7ba103ead9736d14f1edd4a492b4575ec80d8a9cf237f42feaea90e2f1285f2",
+            "line_sha256": "2b3e78a59b4baba2e41a5afc00f7aa4b8c5c4d0fe6db99c4692c1095cb508048",
+            "source_sha256": "6e4993bfebec3c55318c22916aa61796f3fc05374ea7fc1a5082572caf11d92c"
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/SiteDoctorHandlerTest.php",
+            "line": 33,
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "line_sha256": "2b3e78a59b4baba2e41a5afc00f7aa4b8c5c4d0fe6db99c4692c1095cb508048",
+            "source_sha256": "6e4993bfebec3c55318c22916aa61796f3fc05374ea7fc1a5082572caf11d92c"
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/SiteDoctorHandlerTest.php",
+            "line": 85,
+            "pattern": "sqlite3_constructor",
+            "class": "test",
+            "match_sha256": "2216ca51c29c9bfaabd07b77ebed5d788b08767e0833b77b4bd91e673f6f1b5b",
+            "line_sha256": "765b5f0422496b9ee79543e090168957bb12f1db8b82d71c228d888007102548",
+            "source_sha256": "6e4993bfebec3c55318c22916aa61796f3fc05374ea7fc1a5082572caf11d92c"
+        },
+        {
             "path": "packages/cli/tests/Unit/Handler/WorkflowsBackfillStateHandlerTest.php",
             "line": 95,
             "pattern": "dbal_factory",
@@ -2533,12 +2569,12 @@
         },
         {
             "path": "packages/entity-storage/tests/Unit/EntityRepositoryRevisionTest.php",
-            "line": 32,
+            "line": 33,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "56cd2ffc49693798305828733c3af67079bc9586a0f0d0bedf0a2c78510ea6e9"
+            "source_sha256": "20dcba0016a60032978417371059fb2cd48233c15ab5f808429f074b8a48f0f8"
         },
         {
             "path": "packages/entity-storage/tests/Unit/EntityRepositorySqlCrudTest.php",
@@ -4810,12 +4846,12 @@
         },
         {
             "path": "packages/publishing/tests/Unit/ContentPublisherTest.php",
-            "line": 62,
+            "line": 63,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "edb52a8a635aaee7ff888596e30138e4638c3fe7dffab9d2f6795fd92cef5e2a",
-            "source_sha256": "3c933bb80df881e24c1209817b2038a4bc8c6684f4eb68dbd54a039513c36c21"
+            "source_sha256": "a00ebeacdcbf21a01278f47eb340fc10d8e10cb2bd1ea081ceef69525278aa11"
         },
         {
             "path": "packages/publishing/tests/Unit/IdempotencyStoreTest.php",
@@ -5320,6 +5356,24 @@
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
             "source_sha256": "6c9775fb3272ba01e8cbcd29905dd58e844649e886680408e66a20cf41edd0f3"
+        },
+        {
+            "path": "packages/site-contract/tests/Unit/SiteDoctorReportTest.php",
+            "line": 60,
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "312a5b2cf549260f2fd2637f570dbfed9d3a2b2759cd7ee075ce2ca432ffcd3c",
+            "line_sha256": "dbdbcc2696fd6b6c050fafdd266a999f7f76c8f86c2c96770cc782011c20b012",
+            "source_sha256": "8e711217a4b7a94f56b395a92951dc1620faee3eb1aa7ebe375b753603762d0a"
+        },
+        {
+            "path": "packages/site-contract/tests/Unit/SiteDoctorReportTest.php",
+            "line": 60,
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "line_sha256": "dbdbcc2696fd6b6c050fafdd266a999f7f76c8f86c2c96770cc782011c20b012",
+            "source_sha256": "8e711217a4b7a94f56b395a92951dc1620faee3eb1aa7ebe375b753603762d0a"
         },
         {
             "path": "packages/ssr/tests/Integration/SsrPreviewWorkingCopyTest.php",
