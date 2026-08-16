@@ -757,7 +757,7 @@ After passing a non-validating request through the pipeline, the middleware writ
 | Value | `rawurlencode($_SESSION['_csrf_token'])` |
 | `Path` | `/` |
 | `HttpOnly` | `false` (required — JS must be able to read it) |
-| `SameSite` | resolved `session.cookie.samesite` (default `Lax`; empty string omits the attribute) |
+| `SameSite` | resolved `session.cookie.samesite` (default `Lax`; empty string omits the attribute; unknown values normalize to `Lax` — Symfony's cookie builder would otherwise throw on every response) |
 | `Domain` | not set |
 | `Secure` | resolved `session.cookie.secure` policy — a configured boolean always wins; `'auto'` (the default) mirrors `$request->isSecure()` |
 | Lifetime | session (no explicit `Expires`/`Max-Age`) |

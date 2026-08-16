@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
@@ -142,6 +143,65 @@ final class CsrfMiddlewareCookiePolicyTest extends TestCase
             $cookie->getSameSite(),
             'The samesite opt-out (empty string) must omit the attribute, mirroring the session-cookie ini path.',
         );
+    }
+
+    #[Test]
+    public function invalid_configured_samesite_falls_back_to_lax_instead_of_throwing(): void
+    {
+        // Pre-normalization this threw InvalidArgumentException inside
+        // Symfony's Cookie::withSameSite() on every cookie-attaching
+        // response, turning a samesite typo into a site-wide 500.
+        $middleware = new CsrfMiddleware(new SessionCookiePolicy(['samesite' => 'Laxx']));
+
+        $request = Request::create('http://example.test/page', 'GET');
+        $response = $middleware->process($request, $this->htmlPassthrough());
+
+        $cookie = $this->findXsrfCookie($response);
+        $this->assertNotNull($cookie);
+        $this->assertSame('lax', $cookie->getSameSite());
+    }
+
+    #[Test]
+    public function html_403_response_applies_the_policy(): void
+    {
+        // The CSRF-failure branches build their response before the normal
+        // unwind, so they thread the policy separately — pin it (#2149 review).
+        $middleware = new CsrfMiddleware(new SessionCookiePolicy(['secure' => true]));
+
+        $route = new Route('/form');
+        $route->setOption('_render', true);
+
+        $request = Request::create('http://example.test/form', 'POST');
+        $request->attributes->set('_route_object', $route);
+
+        $response = $middleware->process($request, $this->htmlPassthrough());
+
+        $this->assertSame(403, $response->getStatusCode());
+        $cookie = $this->findXsrfCookie($response);
+        $this->assertNotNull($cookie);
+        $this->assertTrue($cookie->isSecure());
+    }
+
+    #[Test]
+    public function json_403_response_applies_the_policy_for_authenticated_session(): void
+    {
+        $middleware = new CsrfMiddleware(new SessionCookiePolicy(['secure' => true]));
+
+        $route = new Route('/api/approvals');
+        $route->setOption('_csrf', true);
+
+        $request = Request::create('http://example.test/api/approvals', 'POST', [], [], [], [], '{"decision":"approve"}');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->attributes->set('_route_object', $route);
+        $request->attributes->set('_account', $this->authenticatedAccount());
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+
+        $response = $middleware->process($request, $this->jsonPassthrough());
+
+        $this->assertSame(403, $response->getStatusCode());
+        $cookie = $this->findXsrfCookie($response);
+        $this->assertNotNull($cookie);
+        $this->assertTrue($cookie->isSecure());
     }
 
     #[Test]

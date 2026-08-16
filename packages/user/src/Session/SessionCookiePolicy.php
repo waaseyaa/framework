@@ -70,12 +70,22 @@ final class SessionCookiePolicy
     /**
      * The SameSite attribute value, or null when config opts out (empty or
      * non-string value) and the attribute must be omitted entirely.
+     *
+     * Unknown values normalize to the hardened 'Lax' default: Symfony's
+     * Cookie::withSameSite() throws on anything outside lax/strict/none, so
+     * without normalization a single samesite typo would 500 every
+     * cookie-attaching response, while the session ini path silently emitted
+     * the invalid attribute. One config value must yield one behavior for
+     * both consumers.
      */
     public function sameSite(): ?string
     {
         $sameSite = $this->options['samesite'];
+        if (!is_string($sameSite) || $sameSite === '') {
+            return null;
+        }
 
-        return is_string($sameSite) && $sameSite !== '' ? $sameSite : null;
+        return in_array(strtolower($sameSite), ['lax', 'strict', 'none'], true) ? $sameSite : 'Lax';
     }
 
     public function useStrictMode(): bool

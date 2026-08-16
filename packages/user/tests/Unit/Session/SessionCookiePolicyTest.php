@@ -91,6 +91,26 @@ final class SessionCookiePolicyTest extends TestCase
     }
 
     #[Test]
+    public function invalid_samesite_falls_back_to_the_lax_default(): void
+    {
+        // A typo must not become a hard failure downstream: Symfony's
+        // Cookie::withSameSite() throws on anything outside lax/strict/none,
+        // so the policy normalizes unknown values to the hardened default
+        // instead of letting one config typo 500 every response (#2149 review).
+        $this->assertSame('Lax', (new SessionCookiePolicy(['samesite' => 'Laxx']))->sameSite());
+        $this->assertSame('Lax', (new SessionCookiePolicy(['samesite' => ' Lax']))->sameSite());
+        $this->assertSame('Lax', (new SessionCookiePolicy(['samesite' => 'lax;']))->sameSite());
+    }
+
+    #[Test]
+    public function valid_samesite_values_pass_through_case_insensitively(): void
+    {
+        $this->assertSame('strict', (new SessionCookiePolicy(['samesite' => 'strict']))->sameSite());
+        $this->assertSame('None', (new SessionCookiePolicy(['samesite' => 'None']))->sameSite());
+        $this->assertSame('LAX', (new SessionCookiePolicy(['samesite' => 'LAX']))->sameSite());
+    }
+
+    #[Test]
     public function overriding_one_key_keeps_the_other_defaults(): void
     {
         $policy = new SessionCookiePolicy(['httponly' => false]);
