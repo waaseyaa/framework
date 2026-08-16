@@ -1,0 +1,140 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * One local preflight mirroring every fast repo-state gate hosted CI blocks
+ * merge on (docs/specs/governed-gates.md §1).
+ *
+ * Gates come from tools/preflight-gates.json — data, not prose — and
+ * tests/Architecture/PreflightParityTest.php binds that manifest to
+ * composer.json and the workflow files so this command cannot drift from CI.
+ * Every gate runs (run_gate accumulator semantics: no fail-fast), every
+ * failure prints the gate's captured output plus its exact repair command,
+ * and the exit code is non-zero if anything failed.
+ *
+ * Usage:
+ *   bin/check-pr-preflight            # default profile (fast repo-state gates)
+ *   bin/check-pr-preflight --full     # adds the phpstan-engine gates (phpstan, dead-code)
+ *   bin/check-pr-preflight --list     # print the gate roster without running
+ *   bin/check-pr-preflight --base=REF # diff base for the committed-state gates
+ *                                     # (default: WAASEYAA_DRIFT_BASE, then
+ *                                     #  git config waaseyaa.driftBase, then origin/main)
+ */
+
+$root = dirname(__DIR__);
+$manifestPath = $root . '/tools/preflight-gates.json';
+$full = false;
+$list = false;
+$base = null;
+
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if ($argument === '--full') {
+        $full = true;
+    } elseif ($argument === '--list') {
+        $list = true;
+    } elseif (str_starts_with($argument, '--base=')) {
+        $base = substr($argument, strlen('--base='));
+    } elseif (str_starts_with($argument, '--manifest=')) {
+        $manifestPath = substr($argument, strlen('--manifest='));
+    } else {
+        fwrite(STDERR, "check-pr-preflight: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+
+try {
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+} catch (Throwable $exception) {
+    fwrite(STDERR, "check-pr-preflight: cannot read manifest {$manifestPath}: {$exception->getMessage()}\n");
+    exit(2);
+}
+$gates = $manifest['gates'] ?? null;
+if (!is_array($gates) || $gates === []) {
+    fwrite(STDERR, "check-pr-preflight: manifest has no gates.\n");
+    exit(2);
+}
+
+if ($list) {
+    foreach ($gates as $gate) {
+        fwrite(STDOUT, sprintf(
+            "%-40s %-8s %s\n",
+            (string) $gate['id'],
+            (string) $gate['profile'],
+            (string) $gate['run'],
+        ));
+    }
+    exit(0);
+}
+
+/** Resolve the diff base the same way bin/project-hooks does. */
+function preflightResolveBase(string $root, ?string $explicit): string
+{
+    if ($explicit !== null && $explicit !== '') {
+        return $explicit;
+    }
+    $env = getenv('WAASEYAA_DRIFT_BASE');
+    if (is_string($env) && $env !== '') {
+        return $env;
+    }
+    exec(sprintf('git -C %s config --get waaseyaa.driftBase 2>/dev/null', escapeshellarg($root)), $output, $exitCode);
+    $configured = trim(implode("\n", $output));
+    if ($exitCode === 0 && $configured !== '') {
+        return $configured;
+    }
+
+    return 'origin/main';
+}
+
+$resolvedBase = preflightResolveBase($root, $base);
+
+$failures = [];
+$ran = 0;
+$startedAll = microtime(true);
+
+foreach ($gates as $gate) {
+    $profile = (string) $gate['profile'];
+    if ($profile === 'full' && !$full) {
+        continue;
+    }
+
+    $command = (string) $gate['run'];
+    if (($gate['base'] ?? false) === true) {
+        $command = str_replace('{base}', escapeshellarg($resolvedBase), $command);
+    }
+
+    ++$ran;
+    $started = microtime(true);
+    $output = [];
+    $exitCode = 0;
+    exec(sprintf('cd %s && (%s) 2>&1', escapeshellarg($root), $command), $output, $exitCode);
+    $elapsed = microtime(true) - $started;
+
+    if ($exitCode === 0) {
+        fwrite(STDOUT, sprintf("ok   %-40s (%.1fs)\n", (string) $gate['id'], $elapsed));
+        continue;
+    }
+
+    $failures[] = $gate;
+    fwrite(STDOUT, sprintf("FAIL %-40s (%.1fs, exit %d)\n", (string) $gate['id'], $elapsed, $exitCode));
+    foreach ($output as $line) {
+        fwrite(STDOUT, '     ' . $line . "\n");
+    }
+    fwrite(STDOUT, '     repair: ' . (string) $gate['repair'] . "\n");
+}
+
+fwrite(STDOUT, sprintf(
+    "\n%d gate(s) run in %.1fs — %d failed.%s\n",
+    $ran,
+    microtime(true) - $startedAll,
+    count($failures),
+    $full ? '' : ' (phpstan-engine gates run with --full and in CI.)',
+));
+
+if ($failures !== []) {
+    fwrite(STDOUT, "failed: " . implode(', ', array_map(static fn(array $gate): string => (string) $gate['id'], $failures)) . "\n");
+    exit(1);
+}
+
+exit(0);

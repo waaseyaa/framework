@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 /** Exact, forge-neutral inventory and semantic gate for S1-FW-CFG-01. */
 
+require_once __DIR__ . '/lib/s1-roster.php';
+
 $root = dirname(__DIR__);
 $rosterPath = $root . '/support/s1-configuration-authority-roster.json';
 $contractPath = $root . '/support/s1-configuration-authority-v1.json';
@@ -109,89 +111,55 @@ function s1ConfigClass(string $path): string
     return $classes[$path] ?? 'unclassified';
 }
 
-/** @return array{schema_version: int, query_version: string, patterns: array<string, string>, allowed_classes: list<string>, candidates: list<array<string, int|string>>} */
-function s1ConfigBuildRoster(string $root): array
+/**
+ * Live scan with transient line numbers (report-time display only — never
+ * recorded; roster identity is semantic, see docs/specs/governed-gates.md §6).
+ *
+ * @return list<array{path: string, pattern: string, class: string, match_sha256: string, occurrence: int, line: int}>
+ */
+function s1ConfigScan(string $root): array
 {
-    $patterns = s1ConfigPatterns();
-    $allowedClasses = [
-        'authority-root',
-        'authority-contract',
-        'higher-layer-bridge',
-        'command-composition',
-        'command-adapter',
-        'command-orchestrator',
-        'sync-adapter',
-        'diagnostic-composition',
-        'diagnostic-consumer',
-        'optional-consumer',
-        'derived-consumer',
-        'legacy-compatibility',
-        'excluded-runtime-overlay',
-        'explicit-testing-profile',
-        'bootstrap-declaration',
-    ];
-    $candidates = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($root . '/packages', FilesystemIterator::SKIP_DOTS),
+    return s1RosterScan(
+        $root,
+        ['packages'],
+        s1ConfigPatterns(),
+        static fn(string $relative, string $contents): bool => str_ends_with($relative, '.php')
+            && (str_contains($relative, '/src/')
+                || str_contains($relative, '/migrations/')
+                || in_array($relative, ['config/waaseyaa.php', 'skeleton/config/waaseyaa.php'], true)),
+        static fn(string $relative, string $patternId): string => s1ConfigClass($relative),
+        extraFiles: ['config/waaseyaa.php', 'skeleton/config/waaseyaa.php'],
     );
-    foreach ($iterator as $file) {
-        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getExtension() !== 'php') {
-            continue;
-        }
-        $path = str_replace('\\', '/', $file->getPathname());
-        $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
-        if (!str_contains($relative, '/src/') && !str_contains($relative, '/migrations/')) {
-            continue;
-        }
-        $contents = (string) file_get_contents($path);
-        $lines = explode("\n", $contents);
-        foreach ($patterns as $patternId => $pattern) {
-            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
-            foreach ($matches[0] as [$matched, $offset]) {
-                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
-                $candidates[] = [
-                    'path' => $relative,
-                    'line' => $line,
-                    'pattern' => $patternId,
-                    'class' => s1ConfigClass($relative),
-                    'match_sha256' => hash('sha256', $matched),
-                    'line_sha256' => hash('sha256', trim($lines[$line - 1] ?? '')),
-                    'source_sha256' => hash('sha256', $contents),
-                ];
-            }
-        }
-    }
-    foreach (['config/waaseyaa.php', 'skeleton/config/waaseyaa.php'] as $relative) {
-        $path = $root . '/' . $relative;
-        $contents = (string) file_get_contents($path);
-        $lines = explode("\n", $contents);
-        foreach ($patterns as $patternId => $pattern) {
-            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
-            foreach ($matches[0] as [$matched, $offset]) {
-                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
-                $candidates[] = [
-                    'path' => $relative,
-                    'line' => $line,
-                    'pattern' => $patternId,
-                    'class' => s1ConfigClass($relative),
-                    'match_sha256' => hash('sha256', $matched),
-                    'line_sha256' => hash('sha256', trim($lines[$line - 1] ?? '')),
-                    'source_sha256' => hash('sha256', $contents),
-                ];
-            }
-        }
-    }
-    usort($candidates, static fn(array $left, array $right): int => [
-        $left['path'], $left['line'], $left['pattern'], $left['match_sha256'],
-    ] <=> [$right['path'], $right['line'], $right['pattern'], $right['match_sha256']]);
+}
 
-    return [
-        'schema_version' => 1,
-        'query_version' => 's1-configuration-boundaries-v1',
-        'patterns' => $patterns,
-        'allowed_classes' => $allowedClasses,
-        'candidates' => $candidates,
-    ];
+/**
+ * @param list<array<string, int|string>> $transient Entries from s1ConfigScan().
+ * @return array<string, mixed>
+ */
+function s1ConfigBuildRoster(array $transient): array
+{
+    return s1RosterDocument(
+        's1-configuration-boundaries-v2',
+        s1ConfigPatterns(),
+        [
+            'authority-root',
+            'authority-contract',
+            'higher-layer-bridge',
+            'command-composition',
+            'command-adapter',
+            'command-orchestrator',
+            'sync-adapter',
+            'diagnostic-composition',
+            'diagnostic-consumer',
+            'optional-consumer',
+            'derived-consumer',
+            'legacy-compatibility',
+            'excluded-runtime-overlay',
+            'explicit-testing-profile',
+            'bootstrap-declaration',
+        ],
+        s1RosterCanonicalize($transient),
+    );
 }
 
 /** @param array<string, mixed> $actual */
@@ -243,8 +211,9 @@ try {
     }
     s1ConfigAssertContract($contract);
 
-    $live = s1ConfigBuildRoster($root);
-    foreach ($live['candidates'] as $candidate) {
+    $transient = s1ConfigScan($root);
+    $live = s1ConfigBuildRoster($transient);
+    foreach ($transient as $candidate) {
         if ($candidate['class'] === 'unclassified' || !in_array($candidate['class'], $live['allowed_classes'], true)) {
             throw new RuntimeException(sprintf('Unclassified configuration boundary: %s:%d', $candidate['path'], $candidate['line']));
         }
@@ -265,6 +234,15 @@ try {
     }
     $recorded = json_decode((string) file_get_contents($rosterPath), true, flags: JSON_THROW_ON_ERROR);
     if ($recorded !== $live) {
+        $diff = s1RosterDiff(
+            is_array($recorded['candidates'] ?? null) ? $recorded['candidates'] : [],
+            $transient,
+            'php bin/check-s1-configuration-authority --write-roster',
+        );
+        if ($diff === []) {
+            $diff = ['roster metadata (schema/query/patterns/classes) differs — regenerate with php bin/check-s1-configuration-authority --write-roster and commit the roster.'];
+        }
+        fwrite(STDERR, implode("\n", $diff) . "\n");
         throw new RuntimeException('Configuration authority roster differs from the verifier-owned live occurrence set.');
     }
 

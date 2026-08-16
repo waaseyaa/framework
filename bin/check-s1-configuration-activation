@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 /** Exact, forge-neutral inventory and semantic gate for S1-FW-CFG-02. */
 
+require_once __DIR__ . '/lib/s1-roster.php';
+
 $root = dirname(__DIR__);
 $rosterPath = $root . '/support/s1-configuration-activation-roster.json';
 $contractPath = $root . '/support/s1-configuration-activation-v1.json';
@@ -103,58 +105,43 @@ function s1ActivationClass(string $path): string
     return $classes[$path] ?? 'unclassified';
 }
 
-/** @return array{schema_version:int,query_version:string,patterns:array<string,string>,allowed_classes:list<string>,candidates:list<array<string,int|string>>} */
-function s1ActivationBuildRoster(string $root): array
+/**
+ * Live scan with transient line numbers (report-time display only — never
+ * recorded; roster identity is semantic, see docs/specs/governed-gates.md §6).
+ *
+ * @return list<array{path: string, pattern: string, class: string, match_sha256: string, occurrence: int, line: int}>
+ */
+function s1ActivationScan(string $root): array
 {
-    $patterns = s1ActivationPatterns();
-    $allowedClasses = [
-        'activation-authority', 'activation-contract', 'active-reader', 'authorization-contract',
-        'authority-composition', 'command-adapter', 'command-composition', 'compiled-reader',
-        'epoch-cache', 'epoch-composition', 'epoch-consumer', 'epoch-contract', 'epoch-provider',
-        'failure-contract', 'legacy-mutation-adapter', 'maintenance-contract', 'mutation-orchestrator',
-        'refusing-default', 'request-contract', 'result-contract', 'schema-authority',
-        'testing-or-static-epoch', 'token-contract',
-    ];
-    $candidates = [];
-    foreach (['packages'] as $base) {
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $base, FilesystemIterator::SKIP_DOTS));
-        foreach ($iterator as $file) {
-            if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getExtension() !== 'php') {
-                continue;
-            }
-            $path = str_replace('\\', '/', $file->getPathname());
-            $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
-            if (!str_contains($relative, '/src/') && !str_contains($relative, '/migrations/')) {
-                continue;
-            }
-            $contents = (string) file_get_contents($path);
-            $lines = explode("\n", $contents);
-            foreach ($patterns as $patternId => $pattern) {
-                preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
-                foreach ($matches[0] as [$matched, $offset]) {
-                    $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
-                    $candidates[] = [
-                        'path' => $relative,
-                        'line' => $line,
-                        'pattern' => $patternId,
-                        'class' => s1ActivationClass($relative),
-                        'match_sha256' => hash('sha256', strtolower($matched)),
-                        'line_sha256' => hash('sha256', trim($lines[$line - 1] ?? '')),
-                        'source_sha256' => hash('sha256', $contents),
-                    ];
-                }
-            }
-        }
-    }
-    usort($candidates, static fn(array $left, array $right): int => [$left['path'], $left['line'], $left['pattern'], $left['match_sha256']] <=> [$right['path'], $right['line'], $right['pattern'], $right['match_sha256']]);
+    return s1RosterScan(
+        $root,
+        ['packages'],
+        s1ActivationPatterns(),
+        static fn(string $relative, string $contents): bool => str_ends_with($relative, '.php')
+            && (str_contains($relative, '/src/') || str_contains($relative, '/migrations/')),
+        static fn(string $relative, string $patternId): string => s1ActivationClass($relative),
+    );
+}
 
-    return [
-        'schema_version' => 1,
-        'query_version' => 's1-configuration-activation-boundaries-v1',
-        'patterns' => $patterns,
-        'allowed_classes' => $allowedClasses,
-        'candidates' => $candidates,
-    ];
+/**
+ * @param list<array<string, int|string>> $transient Entries from s1ActivationScan().
+ * @return array<string, mixed>
+ */
+function s1ActivationBuildRoster(array $transient): array
+{
+    return s1RosterDocument(
+        's1-configuration-activation-boundaries-v2',
+        s1ActivationPatterns(),
+        [
+            'activation-authority', 'activation-contract', 'active-reader', 'authorization-contract',
+            'authority-composition', 'command-adapter', 'command-composition', 'compiled-reader',
+            'epoch-cache', 'epoch-composition', 'epoch-consumer', 'epoch-contract', 'epoch-provider',
+            'failure-contract', 'legacy-mutation-adapter', 'maintenance-contract', 'mutation-orchestrator',
+            'refusing-default', 'request-contract', 'result-contract', 'schema-authority',
+            'testing-or-static-epoch', 'token-contract',
+        ],
+        s1RosterCanonicalize($transient),
+    );
 }
 
 /** @param array<string,mixed> $actual */
@@ -232,8 +219,9 @@ try {
         throw new RuntimeException('S1 activation contract must decode to an object.');
     }
     s1ActivationAssertContract($contract);
-    $live = s1ActivationBuildRoster($root);
-    foreach ($live['candidates'] as $candidate) {
+    $transient = s1ActivationScan($root);
+    $live = s1ActivationBuildRoster($transient);
+    foreach ($transient as $candidate) {
         if ($candidate['class'] === 'unclassified' || !in_array($candidate['class'], $live['allowed_classes'], true)) {
             throw new RuntimeException(sprintf('Unclassified CFG-02 boundary at %s:%d (%s).', $candidate['path'], $candidate['line'], $candidate['pattern']));
         }
@@ -243,6 +231,15 @@ try {
     }
     $recorded = json_decode((string) file_get_contents($rosterPath), true, flags: JSON_THROW_ON_ERROR);
     if ($recorded !== $live) {
+        $diff = s1RosterDiff(
+            is_array($recorded['candidates'] ?? null) ? $recorded['candidates'] : [],
+            $transient,
+            'php bin/check-s1-configuration-activation --write-roster',
+        );
+        if ($diff === []) {
+            $diff = ['roster metadata (schema/query/patterns/classes) differs — regenerate with php bin/check-s1-configuration-activation --write-roster and commit the roster.'];
+        }
+        fwrite(STDERR, implode("\n", $diff) . "\n");
         throw new RuntimeException('Recorded CFG-02 boundary roster differs from the verifier-owned live inventory.');
     }
 

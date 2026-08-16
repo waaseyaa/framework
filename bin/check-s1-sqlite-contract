@@ -7,6 +7,8 @@ declare(strict_types=1);
  * Fail-closed parity gate for the S1 SQLite engine and topology contract.
  */
 
+require_once __DIR__ . '/lib/s1-roster.php';
+
 $root = dirname(__DIR__);
 $contractPath = $root . '/support/s1-sqlite-v1.json';
 $rosterPath = $root . '/support/s1-sqlite-construction-roster.json';
@@ -81,63 +83,44 @@ function s1SqliteConstructionClass(string $path, string $patternId): string
     return $reviewed[$path . '|' . $patternId] ?? 'unclassified';
 }
 
-/** @return array{schema_version: int, query_version: string, patterns: array<string, string>, candidates: list<array<string, int|string>>} */
-function s1SqliteBuildConstructionRoster(string $root): array
+/**
+ * Live scan with transient line numbers (report-time display only — never
+ * recorded; roster identity is semantic, see docs/specs/governed-gates.md §6).
+ *
+ * @return list<array{path: string, pattern: string, class: string, match_sha256: string, occurrence: int, line: int}>
+ */
+function s1SqliteScan(string $root): array
 {
-    $patterns = s1SqliteConstructionPatterns();
-    $candidates = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    return s1RosterScan(
+        $root,
+        [''],
+        s1SqliteConstructionPatterns(),
+        static function (string $relative, string $contents): bool {
+            $firstLine = strtok($contents, "\n");
+            $phpShebang = is_string($firstLine) && preg_match('/^#!.*\bphp(?:\s|$)/', $firstLine) === 1;
+
+            return str_ends_with($relative, '.php') || $phpShebang;
+        },
+        static fn(string $relative, string $patternId): string => s1SqliteConstructionClass($relative, $patternId),
     );
-    foreach ($iterator as $file) {
-        if (!$file instanceof SplFileInfo || !$file->isFile()) {
-            continue;
-        }
-        $path = str_replace('\\', '/', $file->getPathname());
-        $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
-        if (str_starts_with($relative, 'vendor/')
-            || str_starts_with($relative, 'tmp/')
-        ) {
-            continue;
-        }
+}
 
-        $contents = (string) file_get_contents($path);
-        $firstLine = strtok($contents, "\n");
-        $phpShebang = is_string($firstLine) && preg_match('/^#!.*\bphp(?:\s|$)/', $firstLine) === 1;
-        if (!str_ends_with($relative, '.php') && !$phpShebang) {
-            continue;
-        }
-        foreach ($patterns as $patternId => $pattern) {
-            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
-            foreach ($matches[0] as [$matched, $offset]) {
-                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
-                $lineText = explode("\n", $contents)[$line - 1] ?? '';
-                $candidates[] = [
-                    'path' => $relative,
-                    'line' => $line,
-                    'pattern' => $patternId,
-                    'class' => s1SqliteConstructionClass($relative, $patternId),
-                    'match_sha256' => hash('sha256', $matched),
-                    'line_sha256' => hash('sha256', trim($lineText)),
-                    'source_sha256' => hash('sha256', $contents),
-                ];
-            }
-        }
-    }
-    usort($candidates, static fn(array $left, array $right): int => [
-        $left['path'], $left['line'], $left['pattern'],
-    ] <=> [$right['path'], $right['line'], $right['pattern']]);
-
-    return [
-        'schema_version' => 1,
-        'query_version' => 's1-sqlite-construction-v1',
-        'patterns' => $patterns,
-        'candidates' => $candidates,
-    ];
+/**
+ * @param list<array<string, int|string>> $transient Entries from s1SqliteScan().
+ * @return array<string, mixed>
+ */
+function s1SqliteBuildConstructionRoster(array $transient): array
+{
+    return s1RosterDocument(
+        's1-sqlite-construction-v2',
+        s1SqliteConstructionPatterns(),
+        null,
+        s1RosterCanonicalize($transient),
+    );
 }
 
 if ($writeRoster) {
-    $roster = s1SqliteBuildConstructionRoster($root);
+    $roster = s1SqliteBuildConstructionRoster(s1SqliteScan($root));
     file_put_contents(
         $root . '/support/s1-sqlite-construction-roster.json',
         json_encode($roster, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
@@ -396,8 +379,20 @@ try {
     }
 
     $expectedRoster = s1SqliteReadJson($rosterPath);
-    $liveRoster = s1SqliteBuildConstructionRoster($root);
-    s1SqliteSame($expectedRoster, $liveRoster, 'complete SQLite construction roster', $errors);
+    $transient = s1SqliteScan($root);
+    $liveRoster = s1SqliteBuildConstructionRoster($transient);
+    if ($expectedRoster !== $liveRoster) {
+        $errors[] = 'complete SQLite construction roster differs from the live scan';
+        $diff = s1RosterDiff(
+            is_array($expectedRoster['candidates'] ?? null) ? $expectedRoster['candidates'] : [],
+            $transient,
+            'php bin/check-s1-sqlite-contract --write-construction-roster',
+        );
+        if ($diff === []) {
+            $diff = ['roster metadata (schema/query/patterns) differs — regenerate with php bin/check-s1-sqlite-contract --write-construction-roster and commit the roster.'];
+        }
+        array_push($errors, ...$diff);
+    }
     $allowedConstructionClasses = [
         'serving-connection-authority',
         'serving-entrypoint',
@@ -408,7 +403,7 @@ try {
         'test',
         'tooling-query',
     ];
-    foreach ($liveRoster['candidates'] as $candidate) {
+    foreach ($transient as $candidate) {
         if (!in_array($candidate['class'], $allowedConstructionClasses, true)) {
             $errors[] = sprintf(
                 'Unclassified SQLite construction candidate: %s:%d (%s)',

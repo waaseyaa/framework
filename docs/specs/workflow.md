@@ -117,6 +117,8 @@ forge mirror as supplemental context when it is available.
 
 **Specs:** `tools/drift-detector.sh` and manual reads of `docs/specs/` — see [ops/observability/drift-detection.md](../../ops/observability/drift-detection.md).
 
+**Gates:** the complete local/CI gate architecture — one preflight command mirroring CI's fast repo-state gates, one refresh command for governed recorded artifacts, pre-push parity, and semantic roster identity — is specified in [governed-gates.md](governed-gates.md). `php bin/check-pr-preflight` is the command; `tools/preflight-gates.json` is the roster.
+
 ## Composer Manifest Policy (Codified + Gated)
 
 `composer.json` consistency is a hard policy enforced by `bin/check-composer-policy` in hooks and CI.

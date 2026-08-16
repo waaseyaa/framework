@@ -88,7 +88,9 @@ it does not require a forge, issue, branch, or hosted artifact.
 ## Boundary inventory
 
 An executable repository-wide DDL roster classifies every occurrence exactly
-once as:
+once (entries bind semantic identity — path, pattern, class, normalized match
+hash, occurrence index — never line numbers or file hashes; schema v2, see
+[governed-gates.md](governed-gates.md) §6) as:
 
 - coordinator-owned authoritative schema;
 - read-only refusal;

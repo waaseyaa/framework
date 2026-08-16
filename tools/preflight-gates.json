@@ -1,0 +1,319 @@
+{
+    "schema_version": 1,
+    "_comment": "Governed-gate manifest consumed by bin/check-pr-preflight and bin/refresh-governance-artifacts (docs/specs/governed-gates.md §1). Every fast repo-state gate hosted CI blocks merge on appears here; tests/Architecture/PreflightParityTest.php binds this file to composer.json and the workflow files so it cannot drift from CI. {base} in a run command is replaced with the diff base ref (committed-state gates).",
+    "gates": [
+        {
+            "id": "check-composer-policy",
+            "alias": "check-composer-policy",
+            "run": "php bin/check-composer-policy",
+            "repair": "fix the reported composer.json policy violation (CPxxx codes are documented in bin/check-composer-policy)",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-composer-policy"
+        },
+        {
+            "id": "check-portable-paths",
+            "alias": "check-portable-paths",
+            "run": "php bin/check-portable-paths",
+            "repair": "rename the offending tracked path to a portable form",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-portable-paths"
+        },
+        {
+            "id": "check-package-layers",
+            "alias": "check-package-layers",
+            "run": "php bin/check-package-layers",
+            "repair": "move the dependency to a permitted layer or add a KERNEL_EXEMPT_FILES entry with rationale",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-package-layers"
+        },
+        {
+            "id": "check-symfony-imports",
+            "alias": "check-symfony-imports",
+            "run": "php bin/check-symfony-imports",
+            "repair": "use the Waaseyaa abstraction or extend .symfony-import-allowlist.json with a reviewed entry",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-symfony-imports",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "use the Waaseyaa abstraction, or add a reviewed .symfony-import-allowlist.json entry"
+            }
+        },
+        {
+            "id": "check-phpstan-paths",
+            "alias": "check-phpstan-paths",
+            "run": "bash bin/check-phpstan-paths",
+            "repair": "add the missing path to phpstan.neon paths",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-phpstan-paths"
+        },
+        {
+            "id": "check-phpunit-paths",
+            "alias": "check-phpunit-paths",
+            "run": "bash bin/check-phpunit-paths",
+            "repair": "add the missing test directory to phpunit.xml.dist",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-phpunit-paths"
+        },
+        {
+            "id": "check-package-layers-pl008-self-test",
+            "alias": "check-package-layers-pl008-self-test",
+            "run": "php bin/check-package-layers-pl008-self-test",
+            "repair": "restore the PL008 detection behavior in bin/check-package-layers",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-package-layers-pl008-self-test"
+        },
+        {
+            "id": "check-distribution-extensions",
+            "alias": "check-distribution-extensions",
+            "run": "php bin/check-distribution-extensions",
+            "repair": "keep distribution-extension packages out of the core metapackage require graphs",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-distribution-extensions"
+        },
+        {
+            "id": "check-getquery-bindings",
+            "alias": "check-getquery-bindings",
+            "run": "php bin/check-getquery-bindings",
+            "repair": "bind the query (->setAccount / ->accessCheck(false)) or append a commented exemption via php bin/check-getquery-bindings --generate-baseline",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-getquery-bindings",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "php bin/check-getquery-bindings --generate-baseline, then replace every \"# TODO: add exemption reason\" stub with a real reviewed reason before committing"
+            }
+        },
+        {
+            "id": "check-dispatcher-keys",
+            "alias": "check-dispatcher-keys",
+            "run": "php bin/check-dispatcher-keys",
+            "repair": "fix the dispatcher key or regenerate with php bin/check-dispatcher-keys --generate-baseline",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-dispatcher-keys",
+            "refresh": {
+                "mode": "auto",
+                "write": "php bin/check-dispatcher-keys --generate-baseline"
+            }
+        },
+        {
+            "id": "check-admin-coercion-patterns",
+            "alias": "check-admin-coercion-patterns",
+            "run": "bash bin/check-admin-coercion-patterns",
+            "repair": "use the canonical admin coercion helper for the flagged pattern",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-admin-coercion-patterns"
+        },
+        {
+            "id": "check-admin-coercion-self-test",
+            "alias": "check-admin-coercion-self-test",
+            "run": "bash bin/check-admin-coercion-patterns --self-test",
+            "repair": "restore detection behavior in bin/check-admin-coercion-patterns",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-admin-coercion-self-test"
+        },
+        {
+            "id": "check-admin-dist-fresh",
+            "alias": "check-admin-dist-fresh",
+            "run": "php bin/check-admin-dist-fresh",
+            "repair": "rebuild the admin dist with bin/build-admin-dist and commit the result",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-admin-dist-fresh",
+            "refresh": {
+                "mode": "auto",
+                "write": "bash bin/build-admin-dist"
+            }
+        },
+        {
+            "id": "check-field-guards",
+            "alias": "check-field-guards",
+            "run": "bash tests/Tooling/FieldGuardsTest.sh",
+            "repair": "restore the field-guard wiring the test asserts (including the ci.yml run_gate line)",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-field-guards"
+        },
+        {
+            "id": "check-access-hardening",
+            "alias": "check-access-hardening",
+            "run": "bash tests/Tooling/AccessHardeningGateTest.sh",
+            "repair": "fix the access-hardening finding or add a reviewed tools/access-hardening-baseline.php entry",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-access-hardening",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "fix the finding or add a reviewed tools/access-hardening-baseline.php entry with rationale"
+            }
+        },
+        {
+            "id": "check-openapi",
+            "alias": "check-openapi",
+            "run": "bash bin/check-openapi",
+            "repair": "regenerate/fix the OpenAPI document per bin/check-openapi output",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-openapi"
+        },
+        {
+            "id": "check-support-contract",
+            "run": "php bin/check-support-contract",
+            "repair": "align support/s1-v1.json and the runtime surfaces it binds (hand-edited contract)",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-support-contract --ci",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "hand-edit support/s1-v1.json and the duplicated expected values inside bin/check-support-contract so contract and runtime agree"
+            }
+        },
+        {
+            "id": "check-s1-sqlite-contract",
+            "alias": "check-s1-sqlite-contract",
+            "run": "php bin/check-s1-sqlite-contract",
+            "repair": "review the diff, then php bin/check-s1-sqlite-contract --write-construction-roster and commit the roster",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-s1-sqlite-contract --ci",
+            "refresh": {
+                "mode": "auto",
+                "write": "php bin/check-s1-sqlite-contract --write-construction-roster"
+            }
+        },
+        {
+            "id": "check-s1-configuration-activation",
+            "alias": "check-s1-configuration-activation",
+            "run": "php bin/check-s1-configuration-activation",
+            "repair": "review the diff, then php bin/check-s1-configuration-activation --write-roster and commit the roster",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-s1-configuration-activation",
+            "refresh": {
+                "mode": "auto",
+                "write": "php bin/check-s1-configuration-activation --write-roster"
+            }
+        },
+        {
+            "id": "check-s1-configuration-authority",
+            "alias": "check-s1-configuration-authority",
+            "run": "php bin/check-s1-configuration-authority",
+            "repair": "review the diff, then php bin/check-s1-configuration-authority --write-roster and commit the roster",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-s1-configuration-authority",
+            "refresh": {
+                "mode": "auto",
+                "write": "php bin/check-s1-configuration-authority --write-roster"
+            }
+        },
+        {
+            "id": "check-s1-schema-authority",
+            "alias": "check-s1-schema-authority",
+            "run": "php bin/check-s1-schema-authority",
+            "repair": "review the diff, then php bin/check-s1-schema-authority --write-roster and commit the roster",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-s1-schema-authority",
+            "refresh": {
+                "mode": "auto",
+                "write": "php bin/check-s1-schema-authority --write-roster"
+            }
+        },
+        {
+            "id": "check-governed-secret-access",
+            "alias": "check-governed-secret-access",
+            "run": "php bin/check-governed-secret-access",
+            "repair": "route the access through the governed secret surface or add a reviewed tools/governed-secret-access-baseline.php entry",
+            "profile": "default",
+            "enforced_by": "architecture-test:GovernedSecretAccessContractTest.php",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "route the access through the governed secret surface or add a reviewed tools/governed-secret-access-baseline.php entry"
+            }
+        },
+        {
+            "id": "check-changelog-shape",
+            "alias": "check-changelog-shape",
+            "run": "php bin/check-changelog-shape",
+            "repair": "fix the CHANGELOG.md structure per bin/check-changelog-shape output",
+            "profile": "default",
+            "enforced_by": "architecture-test:ChangelogShapeGuardTest.php"
+        },
+        {
+            "id": "check-contract-suite-coverage",
+            "alias": "check-contract-suite-coverage",
+            "run": "bash bin/check-contract-suite-coverage",
+            "repair": "add the missing contract-suite coverage entry",
+            "profile": "default",
+            "enforced_by": "verify-only"
+        },
+        {
+            "id": "check-ingestion-defaults",
+            "alias": "check-ingestion-defaults",
+            "run": "bash bin/check-ingestion-defaults",
+            "repair": "restore the required ingestion defaults invariants under defaults/",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#bash bin/check-ingestion-defaults"
+        },
+        {
+            "id": "check-no-secrets",
+            "alias": "check-no-secrets",
+            "run": "bash bin/check-no-secrets",
+            "repair": "remove the secret-shaped finding (and rotate the credential if it was real)",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#bash bin/check-no-secrets"
+        },
+        {
+            "id": "check-release-publish-shape",
+            "run": "bash bin/check-release-publish-shape",
+            "repair": "restore the exactly-once publish shape in the release workflows",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#bin/check-release-publish-shape"
+        },
+        {
+            "id": "surface-parity",
+            "run": "php tools/check-surface-parity.php",
+            "repair": "record the new public element's disposition in docs/public-surface-map.php (or carry a CHANGELOG removal note)",
+            "profile": "default",
+            "enforced_by": "workflow:surface-parity.yml#check-surface-parity.php",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "record each new public element's disposition in docs/public-surface-map.php (public|internal|extract|remove), or carry a CHANGELOG removal note for deleted ones"
+            }
+        },
+        {
+            "id": "spec-drift",
+            "run": "bash tools/drift-detector.sh --include-worktree {base}",
+            "base": true,
+            "repair": "update the affected spec in the same change set, or commit a 'spec-reviewed: <spec-path> - <reason>' trailer",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#drift-detector.sh"
+        },
+        {
+            "id": "changelog-discipline",
+            "run": "bash tools/check-changelog-discipline.sh --include-worktree {base}",
+            "base": true,
+            "repair": "add a CHANGELOG.md entry under [Unreleased] (the PR-body 'no-changelog: <reason>' override is applied by CI only)",
+            "profile": "default",
+            "enforced_by": "workflow:changelog-discipline.yml#check-changelog-discipline.sh"
+        },
+        {
+            "id": "cs-check",
+            "alias": "cs-check",
+            "run": "composer cs-check",
+            "repair": "composer cs-fix",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#composer cs-check"
+        },
+        {
+            "id": "phpstan",
+            "alias": "phpstan",
+            "run": "composer phpstan",
+            "repair": "fix the reported static-analysis errors (single-process fallback: php -d memory_limit=4G vendor/bin/phpstan analyse)",
+            "profile": "full",
+            "enforced_by": "workflow:ci.yml#composer phpstan"
+        },
+        {
+            "id": "check-dead-code",
+            "alias": "check-dead-code",
+            "run": "php bin/check-dead-code",
+            "repair": "delete the dead code or mark an intentional extension point with @api (baseline regen per CLAUDE.md is a reviewed exception)",
+            "profile": "full",
+            "enforced_by": "workflow:ci.yml#bin/check-dead-code",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "delete the dead code or mark intentional extension points with @api; baseline regeneration (phpstan-dead-code-baseline.neon) is a reviewed exception per CLAUDE.md"
+            }
+        }
+    ]
+}
