@@ -62,6 +62,30 @@ remain `full`, all of them either genuine self-protection triggers
 a `packages/*/composer.json`) or a path this manifest genuinely does not
 recognize (`scripts/deploy.sh`), not a manifest gap.
 
+That residual characterization is scoped to the measured 40-merge window.
+Replaying the same shipped selector over the 150 most recent merges to
+`origin/main` surfaces a wider tail of genuinely unclassified paths the
+40-merge window does not contain:
+
+| Path | Occurrences (of 150) |
+|---|---|
+| `.gitignore` | 13 |
+| `skeleton/**` (`skeleton/composer.lock`, `skeleton/.dockerignore`, `skeleton/.claude/rules/waaseyaa-framework.md`, `skeleton/tests/Integration/.gitkeep`) | 6 |
+| `phpstan-baseline.neon` | 3 |
+| `scripts/deploy.sh` | 1 |
+| `scripts/release.sh` | 1 |
+| `.spectral.yaml` | 1 |
+| `lefthook.yml` | 1 |
+| `.githooks/pre-push` | 1 |
+| `ci/packagist/validate-composer.yml` | 1 |
+
+This is a **yield** gap, not a safety gap: fail-closed means an unclassified
+path costs a full run, never a correctness failure. Widening the manifest to
+cover these paths is deliberately deferred rather than done inside this fix
+loop, so each new bounded entry gets its own considered rationale (what does
+and does not read it, whether `tests/Architecture` already proves it) instead
+of being added reactively to shrink a residual list.
+
 **Selection therefore buys roughly 13% of compute. The 3-way shard matrix
 (§5) buys the wall-clock reduction.** Both are specified here because #2404
 slice 3 requires evidence-based selection regardless of its standalone yield,

@@ -438,10 +438,15 @@ final class RandomOrderScopeSelectorTest extends TestCase
         $root = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('rosbroken', true);
         $this->fixtureRoots[] = $root;
         mkdir($root . '/packages/broken', 0o777, true);
-        // A string where composer.json's "require" object belongs: array_merge()
-        // deep inside ros_package_graph() raises TypeError, which only the
-        // CLI's catch (Throwable) — not ros_select()'s catch (RosScopeFailure) —
-        // converts into a `mode: full` decision instead of a crashed lane.
+        // This fixture has no phpunit.xml.dist at all, so ros_inventory()
+        // throws RosScopeFailure('phpunit.xml.dist is unparsable') before
+        // ros_package_graph() is ever reached — ros_select() does not catch
+        // it (that call is outside ros_select()'s internal try/catch), so it
+        // propagates to the CLI's catch (Throwable). This proves schema
+        // parity between the success and failure documents; it does NOT
+        // exercise the array_merge() TypeError inside ros_package_graph() —
+        // see a_type_error_deep_in_the_package_graph_is_caught_and_converted_to_a_full_decision
+        // for that.
         file_put_contents(
             $root . '/packages/broken/composer.json',
             json_encode(['name' => 'waaseyaa/broken', 'require' => 'oops'], JSON_THROW_ON_ERROR),
@@ -456,6 +461,43 @@ final class RandomOrderScopeSelectorTest extends TestCase
 
         $successDocument = ros_select($this->repoRoot, 'HEAD', 'HEAD', null);
         self::assertSame(array_keys($successDocument), array_keys($failureDocument));
+    }
+
+    #[Test]
+    public function a_type_error_deep_in_the_package_graph_is_caught_and_converted_to_a_full_decision(): void
+    {
+        // Unlike the fixture above, this root HAS a valid phpunit.xml.dist
+        // (so ros_inventory() succeeds) and a discoverable *Test.php, so
+        // execution actually reaches ros_package_graph(). There,
+        // array_merge($document['require'] ?? [], ...) is handed a string
+        // ("oops") where composer.json's "require" object belongs, which
+        // raises a genuine TypeError — not a RosScopeFailure. Only the CLI's
+        // catch (Throwable), not ros_select()'s internal catch
+        // (RosScopeFailure), can convert this into a `mode: full` decision
+        // instead of a crashed lane.
+        $root = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('rostypeerror', true);
+        $this->fixtureRoots[] = $root;
+        mkdir($root . '/packages/broken/tests/Unit', 0o777, true);
+
+        file_put_contents(
+            $root . '/phpunit.xml.dist',
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<phpunit><testsuites><testsuite name="Unit">'
+            . '<directory>packages/*/tests/Unit</directory>'
+            . '</testsuite></testsuites></phpunit>',
+        );
+        file_put_contents($root . '/packages/broken/tests/Unit/BrokenTest.php', "<?php\nfinal class BrokenTest {}\n");
+        file_put_contents(
+            $root . '/packages/broken/composer.json',
+            json_encode(['name' => 'waaseyaa/broken', 'require' => 'oops'], JSON_THROW_ON_ERROR),
+        );
+
+        $result = $this->runSelector(['--root=' . $root, '--base=HEAD']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        $document = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('full', $document['mode']);
+        self::assertStringStartsWith('selector failure:', (string) $document['fallback_reason']);
     }
 
     /**
