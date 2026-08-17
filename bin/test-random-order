@@ -84,7 +84,23 @@ if ($planPath !== null) {
         fwrite(STDERR, "Shard id {$shardId} is absent from the exact plan.\n");
         exit(2);
     }
-    if (($shard['empty'] ?? false) === true) {
+    // The "empty" flag is not trusted on its own: it must agree with the
+    // "suites" map it is supposedly summarizing, or the plan is inconsistent
+    // and a shard could otherwise be silently skipped (declared empty) while
+    // its plan still carries real suites/paths nobody ran.
+    $declaredEmpty = ($shard['empty'] ?? false) === true;
+    $shardSuites = $shard['suites'] ?? null;
+    $suitesNonEmpty = is_array($shardSuites) && $shardSuites !== [];
+
+    if ($declaredEmpty && $suitesNonEmpty) {
+        fwrite(
+            STDERR,
+            "Shard {$shardId} is marked empty but its plan carries a non-empty \"suites\" map; the plan is inconsistent.\n",
+        );
+        exit(2);
+    }
+
+    if ($declaredEmpty) {
         echo "PHPUnit random-order seed: {$seed}\n";
         echo "shard {$shardId} is empty; no PHPUnit process is required.\n";
         exit(0);
@@ -94,7 +110,6 @@ if ($planPath !== null) {
     // must resolve to a non-empty list of non-empty path strings, or the
     // shard is rejected instead of silently falling through to the
     // unsharded default loop below (the fail-open this guards against).
-    $shardSuites = $shard['suites'] ?? null;
     if (!is_array($shardSuites) || $shardSuites === []) {
         fwrite(STDERR, "Shard {$shardId} has no valid \"suites\" map in the plan.\n");
         exit(2);

@@ -276,7 +276,20 @@ function ros_package_graph(string $root): array
             $document['autoload']['psr-4'] ?? [],
             $document['autoload-dev']['psr-4'] ?? [],
         ) as $namespace => $_target) {
-            $psr4[rtrim((string) $namespace, '\\')] = $directory;
+            $namespace = rtrim((string) $namespace, '\\');
+            // Fail closed like the duplicate-package-name check above: a
+            // namespace claimed by two different package directories makes
+            // ros_attribute()'s longest-prefix PSR-4 matching (§3.5)
+            // ambiguous in a way this selector cannot detect downstream —
+            // silently keeping the last-declared owner would misattribute
+            // every tests/** file importing that namespace.
+            if (isset($psr4[$namespace]) && $psr4[$namespace] !== $directory) {
+                throw new RosScopeFailure(
+                    "duplicate PSR-4 namespace {$namespace}\\: declared by both "
+                    . "packages/{$psr4[$namespace]}/composer.json and packages/{$directory}/composer.json",
+                );
+            }
+            $psr4[$namespace] = $directory;
         }
     }
 
@@ -373,7 +386,8 @@ function ros_inventory(string $root): array
                     $relative = substr(str_replace('\\', '/', $candidate->getPathname()), strlen($root) + 1);
                     if (isset($inventory[$relative]) && $inventory[$relative] !== $name) {
                         throw new RosScopeFailure(
-                            "test file is assigned to more than one suite: {$relative}",
+                            "test file is assigned to more than one suite: {$relative} "
+                            . "(both \"{$inventory[$relative]}\" and \"{$name}\")",
                         );
                     }
                     $inventory[$relative] = $name;
@@ -383,7 +397,10 @@ function ros_inventory(string $root): array
         foreach ($suite->file as $file) {
             $relative = trim((string) $file);
             if (isset($inventory[$relative]) && $inventory[$relative] !== $name) {
-                throw new RosScopeFailure("test file is assigned to more than one suite: {$relative}");
+                throw new RosScopeFailure(
+                    "test file is assigned to more than one suite: {$relative} "
+                    . "(both \"{$inventory[$relative]}\" and \"{$name}\")",
+                );
             }
             $inventory[$relative] = $name;
         }

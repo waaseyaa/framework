@@ -466,24 +466,18 @@ jobs:
       # Exact-checkout binding: a wrong-head or tampered archive is discarded,
       # never trusted. vendor/waaseyaa/* are relative symlinks into packages/,
       # so a stale archive can carry links to packages this checkout lacks.
+      # The digest/extraction/symlink checks live in
+      # bin/verify-random-order-vendor-archive (extracted so they are
+      # fixture-testable — see tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php)
+      # — check-platform-reqs stays inline here since it depends on this
+      # runner's real PHP/extension profile, not on the archive itself.
       - name: Restore dependencies with integrity proof
         run: |
           set -euo pipefail
           restore_failed=0
-          ( cd build/ci && sha256sum --check vendor.tar.sha256 ) || restore_failed=1
-          if test "$restore_failed" -eq 0; then
-            tar --extract --file build/ci/vendor.tar || restore_failed=1
-          fi
+          bin/verify-random-order-vendor-archive build/ci . || restore_failed=1
           if test "$restore_failed" -eq 0; then
             composer check-platform-reqs --no-interaction || restore_failed=1
-          fi
-          if test "$restore_failed" -eq 0; then
-            expected=$(cat build/ci/installed.sha256)
-            actual=$(php -r 'echo hash_file("sha256", "vendor/composer/installed.php");')
-            test "$expected" = "$actual" || restore_failed=1
-          fi
-          if test "$restore_failed" -eq 0; then
-            php -r '$bad = []; foreach (glob("vendor/waaseyaa/*") as $link) { if (!is_file($link . "/composer.json")) { $bad[] = $link; } } if ($bad !== []) { fwrite(STDERR, "dangling: " . implode(",", $bad) . PHP_EOL); exit(1); }' || restore_failed=1
           fi
           if test "$restore_failed" -ne 0; then
             echo "::warning title=Dependency archive rejected::falling back to a locked install"

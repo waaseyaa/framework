@@ -7,28 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **CI test-selection scope manifest (#2404):** Added
-  `tools/random-order-scope-manifest.json` and its fail-closed loader
-  (`bin/lib/random-order-scope.php`, `ros_load_manifest()`), the first
-  building block of the selector described in
-  [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md) §3.3.
-  The loader force-fails closed (`RosScopeFailure`) on an unreadable or
-  unparsable manifest, a prefix entry missing a `rationale`, an ambiguous
-  (self-shadowing) directory prefix, or a `seeds` entry naming a package
-  absent from `packages/*/composer.json`. The selector CLI that consumes
-  this manifest lands in a follow-up change.
-
-- **CI test-selection contract (#2404):** Added
+- **Targeted, sharded random-order proof (#2404):** Added
   [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md), the
   design contract for fail-closed changed-package selection and random-order
-  sharding. It specifies the selection document, self-protection inputs,
-  consumer closure over `require` and `require-dev`, atomic group expansion,
-  total-and-unique PHPUnit suite assignment, run-scoped dependency artifacts
-  with exact-checkout binding, and the aggregator contract that keeps
-  `ci/random-order` a single required context. Documentation only; no
-  behaviour change yet.
-
-- **Targeted, sharded random-order proof (#2404):** On pull requests,
+  sharding — the selection document, self-protection inputs, consumer closure
+  over `require` and `require-dev`, atomic group expansion, total-and-unique
+  PHPUnit suite assignment, run-scoped dependency artifacts, and the
+  aggregator contract that keeps `ci/random-order` a single required context
+  — and implemented it end to end. `tools/random-order-scope-manifest.json`
+  plus its fail-closed loader (`bin/lib/random-order-scope.php`,
+  `ros_load_manifest()`) force-fail closed (`RosScopeFailure`) on an
+  unreadable or unparsable manifest, a prefix entry missing a `rationale`, an
+  ambiguous (self-shadowing) directory prefix, or a `seeds` entry naming a
+  package absent from `packages/*/composer.json`. On pull requests,
   `ci/random-order` now selects a fail-closed bounded scope instead of the
   complete inventory: changed packages plus their consumer closure over
   `require` and `require-dev` edges, expanded to complete test groups, unioned

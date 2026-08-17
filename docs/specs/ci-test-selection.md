@@ -136,15 +136,31 @@ alter the selector. The following changed paths force `mode: full` before any
 other classification runs:
 
 - `bin/select-random-order-scope`, `bin/build-phpunit-shards`,
-  `bin/test-random-order`
+  `bin/test-random-order`, `bin/lib/random-order-scope.php`
 - `tools/random-order-scope-manifest.json`, `tools/phpunit-timings.json`
 - `phpunit.xml.dist`, `phpunit.xml`
 - root `composer.json`, `composer.lock`
 - any `packages/*/composer.json`
 - `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
 
-This list is itself part of the manifest and covered by an architecture test,
-so adding a selector input without adding it here fails CI.
+This list is itself part of the manifest, and an architecture test
+(`selector_inputs_force_the_complete_inventory`) asserts every entry on it
+still forces `full`, so a regression that stops enforcing an already-listed
+entry fails CI. That test walks a *fixed* enumeration of the paths above; it
+cannot detect the different failure of a new file becoming a genuine selector
+input (e.g. a new file `require`d by `bin/select-random-order-scope`) without
+someone adding it to this list and the manifest's `protected` array by hand —
+there is no automated check that the protected set is complete, only that the
+recorded set is enforced.
+
+`bin/git`, which `ros_diff()` (§3.2) shells out to in order to compute the
+changed-path diff, is a de-facto selector input that this list does not name
+and that is bounded only by the generic `bin/` manifest prefix, not by
+`protected`. This is benign by construction rather than by test coverage:
+`ros_diff()`'s only use of `bin/git` is to run `git diff`, so a change that
+broke it would make that invocation fail, and a failed `git diff` is already
+one of the conditions in §3.2 that forces `full` — a broken selector input
+here degrades to the safe default instead of silently mis-selecting.
 
 ### 3.2 Diff acquisition
 
@@ -356,18 +372,34 @@ Instead, dependencies are prepared **once per run** in
 
 - `composer install --no-interaction --prefer-dist` from the exact checkout.
 - `tar` the `vendor/` tree preserving symlinks; record the archive SHA-256 in
-  the plan document.
+  a sidecar file, `build/ci/vendor.tar.sha256` (not in the plan document —
+  §7.1 shows it as a member of the bundled `random-order-plan` artifact,
+  alongside `installed.sha256`).
 - Each shard verifies the SHA-256 before extraction and refuses a mismatch.
 
-After extraction each shard runs an integrity gate, and on any failure
-discards the artifact and performs a locked `composer install` instead:
+After extraction each shard runs an integrity gate
+(`bin/verify-random-order-vendor-archive`, extracted for fixture testing —
+see the covering test in §8), and on any failure discards the artifact and
+performs a locked `composer install` instead:
 
 - `composer check-platform-reqs` passes (PHP version and extension profile).
 - `vendor/composer/installed.php` hashes to the value recorded by the
-  preparing job.
+  preparing job. This proves the extracted archive is internally
+  self-consistent — the tar was not truncated or tampered with in transit —
+  **not** that it matches this checkout; the archive ships inside the same
+  bundle as the manifest describing it, so a self-consistency check can only
+  ever prove the archive agrees with itself.
 - every `vendor/waaseyaa/*` symlink resolves to a `packages/*/composer.json`
-  present in **this** checkout — the exact-checkout binding that a persistent
-  cache cannot prove.
+  present in **this** checkout. This, not the `installed.php` hash, is the
+  actual exact-checkout binding: the real guarantee is structural, not
+  cryptographic — the artifact is run-scoped (uploaded and downloaded within
+  one workflow run under one `random-order-plan` name) and produced by
+  `prepare-random-order-plan` from the same `inputs.sha` the shard jobs
+  themselves check out, so there is no code path by which a shard could see
+  an archive built from a different commit. The symlink-resolution check
+  exists to catch the case a persistent cache is specifically rejected for —
+  a *stale* archive whose relative symlinks point at packages this checkout
+  no longer has — not to establish the binding itself.
 
 If a persistent cache is ever reintroduced, its key must pin runner image,
 PHP version, extension profile, Composer version, and the hashes of both

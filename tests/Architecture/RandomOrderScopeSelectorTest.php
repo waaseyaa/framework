@@ -125,6 +125,7 @@ final class RandomOrderScopeSelectorTest extends TestCase
             'bin/select-random-order-scope',
             'bin/build-phpunit-shards',
             'bin/test-random-order',
+            'bin/lib/random-order-scope.php',
             'tools/random-order-scope-manifest.json',
             'phpunit.xml.dist',
             'composer.json',
@@ -192,8 +193,26 @@ final class RandomOrderScopeSelectorTest extends TestCase
         $manifest = ros_load_manifest($this->repoRoot);
 
         self::assertSame([], ros_classify(['docs/specs/api-layer.md'], $manifest, $this->repoRoot)['seeds']);
-        self::assertSame([], ros_classify(['bin/check-dead-code'], $manifest, $this->repoRoot)['seeds']);
         self::assertSame(['cli'], ros_classify(['bin/waaseyaa'], $manifest, $this->repoRoot)['seeds']);
+    }
+
+    #[Test]
+    public function bin_and_tools_seed_the_packages_whose_unit_tests_read_or_execute_them(): void
+    {
+        // packages/foundation/tests/Unit/LayerDependencyTest.php reads
+        // bin/check-package-layers as text, and
+        // packages/testing/tests/Unit/SkeletonSyncRequirementsScriptTest.php
+        // exec()s tools/sync-skeleton-requirements.php — both are Unit tests
+        // in package groups a bin/- or tools/-only change does not otherwise
+        // select. Without the manifest seeding these packages, that coupling
+        // is untested by any changed-package selection.
+        $manifest = ros_load_manifest($this->repoRoot);
+
+        self::assertSame(['foundation'], ros_classify(['bin/check-dead-code'], $manifest, $this->repoRoot)['seeds']);
+        self::assertSame(
+            ['testing'],
+            ros_classify(['tools/sync-skeleton-requirements.php'], $manifest, $this->repoRoot)['seeds'],
+        );
     }
 
     #[Test]
@@ -311,11 +330,60 @@ final class RandomOrderScopeSelectorTest extends TestCase
     }
 
     #[Test]
+    public function a_duplicate_psr4_namespace_across_packages_is_a_scope_failure(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('rosns', true);
+        $this->fixtureRoots[] = $root;
+        foreach (['one', 'two'] as $dir) {
+            mkdir($root . '/packages/' . $dir, 0o777, true);
+            file_put_contents(
+                $root . '/packages/' . $dir . '/composer.json',
+                json_encode([
+                    'name' => 'waaseyaa/' . $dir,
+                    'autoload' => ['psr-4' => ['Waaseyaa\\Shared\\' => 'src/']],
+                ], JSON_THROW_ON_ERROR),
+            );
+        }
+
+        $this->expectException(\RosScopeFailure::class);
+        $this->expectExceptionMessageMatches('/duplicate PSR-4 namespace/');
+        ros_package_graph($root);
+    }
+
+    #[Test]
     public function groups_follow_the_shard_planner(): void
     {
         self::assertSame('packages/api', ros_group_of('packages/api/tests/Unit/ATest.php'));
         self::assertSame('tests/Integration', ros_group_of('tests/Integration/PhaseN/BTest.php'));
         self::assertSame('tests/Architecture', ros_group_of('tests/Architecture/CTest.php'));
+    }
+
+    #[Test]
+    public function every_tests_top_level_group_is_in_the_always_run_set(): void
+    {
+        // §3.3's claim that an unattributable tests/** file's group "is
+        // already in the always-run set" holds today only because every
+        // current top-level tests/<Dir> inventory group happens to contain
+        // at least one unattributable file. This converts that observation
+        // into an enforced invariant: a third tests/<Dir> suite whose files
+        // are ALL attributable would otherwise silently fall out of the
+        // always-run set and could be dropped by targeted selection.
+        $document = ros_select($this->repoRoot, 'HEAD', 'HEAD', null);
+        $inventory = ros_inventory($this->repoRoot);
+
+        $testsGroups = array_unique(array_filter(
+            array_map(static fn(string $path): string => ros_group_of($path), array_keys($inventory)),
+            static fn(string $group): bool => $group === 'tests' || str_starts_with($group, 'tests/'),
+        ));
+        self::assertNotEmpty($testsGroups, 'the fixture repo must have at least one tests/ inventory group');
+
+        foreach ($testsGroups as $group) {
+            self::assertContains(
+                $group,
+                $document['always_run_groups'],
+                "{$group} must be in the always-run set, or an unattributable file in it would be silently dropped by targeted selection.",
+            );
+        }
     }
 
     #[Test]

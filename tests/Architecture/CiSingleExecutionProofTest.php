@@ -28,7 +28,13 @@ final class CiSingleExecutionProofTest extends TestCase
 
         $coverageJob = $this->job($workflow, 'ci-coverage', 'mutation-pilot');
         self::assertStringNotContainsString('vendor/bin/phpunit', $coverageJob);
-        $unitGate = $this->job($workflow, 'ci-unit-tests', 'ci-random-order');
+        // Bounded to the ci-unit-tests job alone: ci-random-order moved
+        // below prepare-random-order-plan and ci-random-order-shard, so
+        // using 'ci-random-order' as the end marker here would silently
+        // widen this assertion's slice to cover those two unrelated jobs
+        // as well. prepare-random-order-plan is ci-unit-tests's immediate
+        // successor in the workflow file today.
+        $unitGate = $this->job($workflow, 'ci-unit-tests', 'prepare-random-order-plan');
         self::assertStringNotContainsString('vendor/bin/phpunit', $unitGate);
         self::assertStringContainsString('needs: [ci-test-shards]', $unitGate);
     }
@@ -87,7 +93,14 @@ final class CiSingleExecutionProofTest extends TestCase
         // not the whole workflow file.
         $randomOrderJobs = $this->job($workflow, 'prepare-random-order-plan', 'ci-package-isolation');
 
-        self::assertStringContainsString('sha256sum --check', $randomOrderJobs);
+        // The digest/extraction/symlink checks themselves are NOT grepped
+        // for here — they are extracted into bin/verify-random-order-vendor-archive
+        // and exercised against real fixture archives (good, missing,
+        // corrupt digest, dangling symlink) by
+        // RandomOrderVendorArchiveIntegrityTest. This test only pins that
+        // the workflow actually wires that script in, plus the
+        // still-inline platform check and the broad-restore-key ban.
+        self::assertStringContainsString('bin/verify-random-order-vendor-archive', $randomOrderJobs);
         self::assertStringContainsString('composer check-platform-reqs', $randomOrderJobs);
         self::assertStringNotContainsString('restore-keys: composer-v2-', $randomOrderJobs);
     }

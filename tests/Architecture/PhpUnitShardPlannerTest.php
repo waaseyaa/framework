@@ -245,6 +245,12 @@ final class PhpUnitShardPlannerTest extends TestCase
 
         self::assertSame(2, $result['exit']);
         self::assertStringContainsString('assigned to more than one suite', $result['error']);
+        // Naming neither suite left the remedy unclear on this exact
+        // pre-existing hard-failure path (prepare-test-plan, which gates
+        // ci/unit-tests and ci/coverage). Both conflicting suite names must
+        // be in the message.
+        self::assertStringContainsString('Unit', $result['error']);
+        self::assertStringContainsString('Integration', $result['error']);
     }
 
     /** @return array{exit: int, output: string} */

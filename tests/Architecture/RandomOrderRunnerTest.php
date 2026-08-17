@@ -118,13 +118,28 @@ final class RandomOrderRunnerTest extends TestCase
             1 => ['Architecture' => ['tests/Architecture/CiContractOrderingTest.php']],
         ]);
 
-        $result = $this->runCommand(['--plan=' . $plan, '--shard=1']);
+        // --testdox prints the running class's FQCN, which is what makes
+        // "the forwarded file actually ran" and "the fallback did not run
+        // the whole suite" independently checkable, without coupling this
+        // test to CiContractOrderingTest's exact test/assertion counts (a
+        // file this very branch edits).
+        $result = $this->runCommand(['--plan=' . $plan, '--shard=1', '--testdox']);
 
         self::assertSame(0, $result['exit_code'], $result['output']);
-        // Only a real run of exactly this one file produces this count. If
-        // the shard's explicit paths stop being forwarded, PHPUnit falls
-        // back to the full configured suite and this assertion fails.
-        self::assertStringContainsString('OK (3 tests, 17 assertions)', $result['output']);
+        self::assertStringContainsString(
+            'Waaseyaa\Tests\Architecture\CiContractOrdering',
+            $result['output'],
+            'The forwarded file must actually have run.',
+        );
+        // If the shard's explicit paths stop being forwarded, PHPUnit falls
+        // back to the complete configured Architecture suite, which would
+        // additionally run RandomOrderScopeSelectorTest (and every other
+        // Architecture file) — its presence is the regression signal.
+        self::assertStringNotContainsString(
+            'Waaseyaa\Tests\Architecture\RandomOrderScopeSelector',
+            $result['output'],
+            'Only the forwarded file may run; the fallback-to-full-suite regression would pull in other files too.',
+        );
     }
 
     #[Test]
@@ -181,6 +196,38 @@ final class RandomOrderRunnerTest extends TestCase
 
         self::assertSame(2, $result['exit_code'], $result['output']);
         self::assertStringContainsString('malformed suite entry', $result['output']);
+    }
+
+    #[Test]
+    public function a_shard_declared_empty_with_a_nonempty_suites_map_is_rejected(): void
+    {
+        // Guards against trusting "empty" without cross-checking "suites":
+        // a plan that says a shard is empty while still carrying real
+        // suite/path data must fail closed, not silently skip the shard's
+        // actual tests.
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+        file_put_contents($path, json_encode([
+            'schema_version' => 1,
+            'mode' => 'targeted',
+            'seed' => 2241,
+            'include' => [
+                [
+                    'id' => 1,
+                    'paths' => 'packages/genealogy/tests/Unit/OneTest.php',
+                    'suites' => ['Unit' => ['packages/genealogy/tests/Unit/OneTest.php']],
+                    'empty' => true,
+                    'test_files' => 1,
+                    'expected_seconds' => 0.0,
+                    'fallback_files' => 0,
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = $this->runCommand(['--plan=' . $path, '--shard=1']);
+
+        self::assertSame(2, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('inconsistent', $result['output']);
+        self::assertStringNotContainsString('no PHPUnit process is required', $result['output']);
     }
 
     #[Test]
