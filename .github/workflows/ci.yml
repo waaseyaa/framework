@@ -152,15 +152,19 @@ jobs:
           php-version: '8.5'
           coverage: none
 
+      # Exact key only (runner OS + PHP version + composer.lock hash) — no
+      # restore-keys: a broad prefix can hand this job a vendor/ tree built
+      # from a different lock file (docs/specs/ci-test-selection.md §7.3
+      # names the hazard). A miss here just means a fresh install, which the
+      # composite action below retries with backoff.
       - name: Cache Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
 
       - name: Run composer-dependency audit (warn-only)
         run: bash bin/audit-composer-deps
@@ -199,15 +203,16 @@ jobs:
           php-version: '8.5'
           coverage: none
 
+      # Exact key only — see composer-deps-audit's identical block above for
+      # the rationale (no broad restore-keys; retry absorbs a cache miss).
       - name: Cache Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
 
       - name: Validate composer.json
         run: composer validate
@@ -255,15 +260,16 @@ jobs:
           php-version: '8.5'
           coverage: none
 
+      # Exact key only — see composer-deps-audit's identical block for the
+      # rationale (no broad restore-keys; retry absorbs a cache miss).
       - name: Cache Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
 
       - name: Restore dead-code PHPStan result cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -296,6 +302,47 @@ jobs:
         with:
           ref: ${{ inputs.sha }}
 
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # Exact key only, everywhere in this file (round 3 harmonization): a
+      # download-cache prefix hit cannot hand a job a wrong dependency tree
+      # (it's keyed by package name+version, not a resolved vendor/ tree),
+      # but this file settled on one consistent no-restore-keys rule for
+      # every Composer cache tier rather than reasoning about two policies.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      # Single install authority (#2404 revision): every downstream test job
+      # (ci-test-shards, ci-random-order-shard) consumes this exact-head
+      # install as a run-scoped artifact instead of each running its own
+      # `composer install` against codeload.github.com. Three CI reruns on
+      # PR #2406 failed on repeated HTTP/2 429s from three independent
+      # installs (this job, ci/test-shard-1, ci/skeleton-create-project) —
+      # collapsing the first two into one authority removes two of the
+      # three failure points outright. This install is now the single
+      # highest-consequence one in the run (round 2 review, item 1): both
+      # shard matrices transitively depend on it, so it is retry-wrapped
+      # like every other install in this file, not left bare.
+      - name: Install dependencies (single authority for this run)
+        uses: ./.github/actions/composer-install-retry
+        with:
+          args: '--no-interaction --prefer-dist --no-progress'
+
+      - name: Prepare the run-scoped dependency archive
+        run: |
+          mkdir -p build/ci
+          tar --create --file build/ci/vendor.tar vendor
+          sha256sum build/ci/vendor.tar > build/ci/vendor.tar.sha256
+          php -r '$h = hash_file("sha256", "vendor/composer/installed.php"); file_put_contents("build/ci/installed.sha256", $h . PHP_EOL);'
+
       - name: Build deterministic shard plan
         run: |
           mkdir -p build/ci
@@ -307,6 +354,20 @@ jobs:
         with:
           name: phpunit-shard-plan
           path: build/ci/phpunit-shards.json
+          retention-days: 30
+
+      # Consumed by both ci-test-shards and ci-random-order-shard via
+      # bin/verify-random-order-vendor-archive, with a locked `composer
+      # install` fallback on verification failure in each consumer.
+      - name: Retain the run-scoped dependency archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vendor-archive
+          path: |
+            build/ci/vendor.tar
+            build/ci/vendor.tar.sha256
+            build/ci/installed.sha256
+          if-no-files-found: error
           retention-days: 30
 
   ci-test-shards:
@@ -329,15 +390,60 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: pcov
 
+      # Exact key only — see prepare-test-plan's identical block for the
+      # file-wide rationale.
       - name: Cache Composer downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/composer/files
           key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-php-8.5-composer-
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Download the run-scoped dependency archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: vendor-archive
+          path: build/ci
+
+      # Same fail-closed integrity gate ci-random-order-shard uses: a
+      # wrong-head or tampered archive is discarded, never trusted, and the
+      # job falls back to a locked `composer install` rather than force
+      # artifact use. See bin/verify-random-order-vendor-archive for the
+      # digest/extraction/symlink checks (fixture-tested in
+      # tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php). The
+      # fallback install itself is retry-wrapped (round 2 review, item 2):
+      # this path triggers precisely when something is already wrong, and
+      # network flakiness is a plausible cause, so the two failure modes
+      # can compound without it.
+      - name: Restore dependencies with integrity proof
+        run: |
+          set -euo pipefail
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+          restore_failed=0
+          bin/verify-random-order-vendor-archive build/ci . || restore_failed=1
+          if test "$restore_failed" -eq 0; then
+            composer check-platform-reqs --no-interaction || restore_failed=1
+          fi
+          if test "$restore_failed" -ne 0; then
+            echo "::error title=Dependency archive rejected::falling back to a locked install for ci/test-shard-${{ matrix.id }}"
+            echo "### :warning: Dependency archive rejected — ci/test-shard-${{ matrix.id }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Fell back to a locked \`composer install\`. If this happens broadly, the 429 mitigation (run-scoped vendor archive) has stopped applying — see #2404." >> "$GITHUB_STEP_SUMMARY"
+            rm -rf vendor
+            composer_retry composer install --no-interaction --prefer-dist --no-progress
+          fi
 
       - name: Download exact shard plan
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -379,11 +485,56 @@ jobs:
           SHARD_RESULT: ${{ needs.ci-test-shards.result }}
         run: test "$SHARD_RESULT" = success
 
-  ci-random-order:
-    name: ci/random-order
+  prepare-random-order-plan:
+    name: Prepare random-order plan
     runs-on: ubuntu-24.04
-    # See ci-unit-tests: fast contracts gate the long jobs (#2400).
     needs: [support-contract, spec-drift]
+    steps:
+      # fetch-depth: 0 is not needed here: the plan is built from the
+      # current checkout's test inventory and timings, not a diff against
+      # the PR base (the changed-package selector that needed history was
+      # removed — #2404).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # Single install authority (#2404 revision): this job no longer
+      # installs dependencies itself — prepare-test-plan is the one
+      # authoritative install per run, and its vendor archive is what
+      # ci-random-order-shard consumes (needs: prepare-test-plan below).
+      # bin/build-phpunit-shards works without vendor/ present; it only
+      # soft-detects the PHPUnit version for provenance when vendor exists.
+      - name: Build the deterministic shard plan
+        run: |
+          mkdir -p build/ci
+          seed=$(( (GITHUB_RUN_ID % 2147483647) + 1 ))
+          echo "::notice title=PHPUnit random-order seed::$seed"
+          php bin/build-phpunit-shards --shards=2 --timings=tools/phpunit-timings.json \
+            --seed="$seed" > build/ci/random-order-plan.json
+
+      - name: Retain the exact plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: random-order-plan
+          path: build/ci/random-order-plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+  ci-random-order-shard:
+    name: ci/random-order-shard-${{ matrix.id }}
+    runs-on: ubuntu-24.04
+    needs: [prepare-random-order-plan, prepare-test-plan]
+    strategy:
+      fail-fast: false
+      matrix:
+        id: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -396,21 +547,95 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Download the exact plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          name: random-order-plan
+          path: build/ci
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+      # The single install authority's run-scoped archive (prepare-test-plan)
+      # — same artifact ci-test-shards consumes, so this job stops being an
+      # independent codeload.github.com failure point.
+      - name: Download the run-scoped dependency archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: vendor-archive
+          path: build/ci
 
-      - name: Run the complete suite in replayable random order
+      # Exact-checkout binding: a wrong-head or tampered archive is discarded,
+      # never trusted. vendor/waaseyaa/* are relative symlinks into packages/,
+      # so a stale archive can carry links to packages this checkout lacks.
+      # The digest/extraction/symlink checks live in
+      # bin/verify-random-order-vendor-archive (extracted so they are
+      # fixture-testable — see tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php)
+      # — check-platform-reqs stays inline here since it depends on this
+      # runner's real PHP/extension profile, not on the archive itself. The
+      # fallback install itself is retry-wrapped (round 2 review, item 2) —
+      # same rationale as ci-test-shards's identical block.
+      - name: Restore dependencies with integrity proof
         run: |
-          seed=$(( (GITHUB_RUN_ID % 2147483647) + 1 ))
-          echo "::notice title=PHPUnit random-order seed::$seed"
-          TEST_RANDOM_SEED="$seed" composer test:random
+          set -euo pipefail
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+          restore_failed=0
+          bin/verify-random-order-vendor-archive build/ci . || restore_failed=1
+          if test "$restore_failed" -eq 0; then
+            composer check-platform-reqs --no-interaction || restore_failed=1
+          fi
+          if test "$restore_failed" -ne 0; then
+            echo "::error title=Dependency archive rejected::falling back to a locked install for ci/random-order-shard-${{ matrix.id }}"
+            echo "### :warning: Dependency archive rejected — ci/random-order-shard-${{ matrix.id }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Fell back to a locked \`composer install\`. If this happens broadly, the 429 mitigation (run-scoped vendor archive) has stopped applying — see #2404." >> "$GITHUB_STEP_SUMMARY"
+            rm -rf vendor
+            composer_retry composer install --no-interaction --prefer-dist --no-progress
+          fi
+
+      - name: Execute the shard in replayable random order
+        run: php bin/test-random-order --plan=build/ci/random-order-plan.json --shard=${{ matrix.id }}
+
+  ci-random-order:
+    name: ci/random-order
+    runs-on: ubuntu-24.04
+    needs: [prepare-random-order-plan, ci-random-order-shard]
+    if: always()
+    steps:
+      # `if: always()` alone would publish success after skipped shards, so the
+      # aggregator asserts planning succeeded and the shard matrix's
+      # aggregate result is success (GitHub sets needs.<matrix-job>.result to
+      # success only when every leg of a fail-fast:false matrix succeeded —
+      # any failed, cancelled, or skipped leg makes it non-success). This also
+      # covers ci-random-order-shard's own dependency on prepare-test-plan
+      # (the single install authority, #2404 revision): if that job fails or
+      # is cancelled, the shard matrix is skipped rather than run, so its
+      # aggregate result is non-success and this gate still fails closed.
+      #
+      # Matrix *width* (exactly two legs) is not something this runtime
+      # check can express — GitHub's aggregate result answers "did every leg
+      # that ran succeed", not "how many legs ran". Width is pinned instead
+      # by tests/Architecture/CiSingleExecutionProofTest.php asserting
+      # `id: [1, 2]` on the ci-random-order-shard job. Keep that assertion
+      # and this comment in sync if the matrix ever changes. Three shards is
+      # a later decision gated on measurement (docs/specs/ci-test-selection.md).
+      - name: Require complete random-order evidence
+        env:
+          PLAN_RESULT: ${{ needs.prepare-random-order-plan.result }}
+          SHARD_RESULT: ${{ needs.ci-random-order-shard.result }}
+        run: |
+          test "$PLAN_RESULT" = success
+          test "$SHARD_RESULT" = success
 
   ci-package-isolation:
     name: ci/package-isolation
@@ -427,15 +652,56 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # Exact key only — no restore-keys, same rationale as the root-graph
+      # jobs. bin/test-isolated-package runs its own `composer install`
+      # (COMPOSER_ROOT_VERSION=dev-main, an isolated single-package
+      # resolution) — the retry wrapping below absorbs a cache miss.
       - name: Cache Composer downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/composer/files
-          key: split-package-composer-${{ hashFiles('packages/access/composer.json', 'packages/testing/composer.json', 'packages/user/composer.json') }}
-          restore-keys: split-package-composer-
+          key: ${{ runner.os }}-php-8.5-split-package-composer-${{ hashFiles('packages/access/composer.json', 'packages/testing/composer.json', 'packages/user/composer.json') }}
 
-      - name: Prove the access package install and suite in isolation
-        run: bash bin/test-isolated-package access
+      # Two-phase split (#2404 revision, round 3, item 3): retry covers only
+      # the network-touching install phase (--install-only=<file>), never
+      # the test run. Retrying a whole test run would give a deterministic
+      # failure three attempts and let a flaky or order-dependent test mask
+      # real signal — a materially different risk than retrying a network
+      # call. --run-tests=<dir> then runs the isolated suite exactly once,
+      # unretried, and owns cleanup of the directory --install-only handed
+      # off (see bin/test-isolated-package's HANDED_OFF ownership comment).
+      #
+      # The isolation path is handed off through a dedicated file, NOT this
+      # step's stdout (round 4 fix): Composer's own stdout — progress
+      # noise, a PHP 8.5 deprecation notice from its bundled react/promise
+      # on every invocation — is never redirected inside the script, so
+      # capturing the script's whole stdout via command substitution
+      # silently prepended that chatter ahead of the path, producing a
+      # multi-line value that broke GITHUB_ENV's parser. A file the script
+      # writes to only at its own successful hand-off point cannot be
+      # polluted by anything a subprocess prints.
+      - name: Install the isolated access package (retry with backoff)
+        run: |
+          set -euo pipefail
+          isolation_file="$(mktemp)"
+          attempt=1
+          max_attempts=3
+          delay=5
+          until bash bin/test-isolated-package access --install-only="$isolation_file"; do
+            exit_code=$?
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              exit "$exit_code"
+            fi
+            echo "::warning title=test-isolated-package install failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+            sleep "$delay"
+            attempt=$((attempt + 1))
+            delay=$((delay * 2))
+          done
+          echo "ISOLATION_DIR=$(cat "$isolation_file")" >> "$GITHUB_ENV"
+          rm -f "$isolation_file"
+
+      - name: Run the isolated access package suite (unretried)
+        run: bash bin/test-isolated-package access --run-tests="$ISOLATION_DIR"
 
   ci-coverage:
     name: ci/coverage
@@ -508,15 +774,16 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: pcov
 
+      # Exact key only — see composer-deps-audit's identical block for the
+      # rationale (no broad restore-keys; retry absorbs a cache miss).
       - name: Cache Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
 
       - name: Measure the bounded mutation pilot
         run: time php bin/test-mutation-pilot
@@ -547,6 +814,21 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # This job is a separate consumer from prepare-test-plan's run-scoped
+      # vendor archive: it builds a fresh skeleton project, not this repo's
+      # own vendor/ tree, so it cannot reuse that artifact. Key exactly on
+      # OS, PHP version, and composer.lock hash — no broad restore keys — so
+      # a stale cache entry is never silently reused across dependency
+      # graphs (docs/specs/ci-test-selection.md §7.3 names this the
+      # persistent-cache hazard). This is Composer's package download cache
+      # (~/.cache/composer/files), not a vendor/ tree cache: safe to reuse
+      # across the multiple composer installs this job runs.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
       - name: create-project (path skeleton) and audit-site
         env:
           # A release commit reaches main before its package graph can be
@@ -555,6 +837,24 @@ jobs:
           SOURCE_SKELETON: "${{ startsWith(github.ref_name, 'release-cut/') || (github.event_name == 'push' && github.ref_name == 'main' && startsWith(github.event.head_commit.message, 'chore: release ')) }}"
         run: |
           set -euo pipefail
+          # Bounded retry with backoff around network-touching Composer
+          # commands: PR #2406 hit repeated HTTP/2 429s from
+          # codeload.github.com in this exact job. 3 attempts, 5s/10s delay.
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
           trap cleanup EXIT
@@ -564,7 +864,7 @@ jobs:
             # against this exact checkout instead of creating a circular
             # dependency on the not-yet-published tag.
             git -C "$GITHUB_WORKSPACE" checkout -B main
-            composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
+            composer_retry composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
               --repository='{"type":"path","url":"skeleton"}' \
               --stability=dev \
               --no-install --no-scripts \
@@ -572,12 +872,12 @@ jobs:
             composer config --working-dir="$work/skel-proj" repositories.framework path "$GITHUB_WORKSPACE"
             composer config --working-dir="$work/skel-proj" repositories.packages path "$GITHUB_WORKSPACE/packages/*"
             composer require --working-dir="$work/skel-proj" waaseyaa/framework:dev-main --no-update --no-interaction
-            composer install --working-dir="$work/skel-proj" --no-interaction
+            composer_retry composer install --working-dir="$work/skel-proj" --no-interaction
             composer run-script --working-dir="$work/skel-proj" post-create-project-cmd
           else
             # Ordinary PR/main CI proves the latest committed skeleton floor is
             # resolvable from the already-published release line.
-            composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
+            composer_retry composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
               --repository='{"type":"path","url":"skeleton"}' \
               --stability=dev \
               --no-interaction
@@ -587,6 +887,21 @@ jobs:
       - name: Fresh skeleton preserves the complete discovery set without classmap optimization
         run: |
           set -euo pipefail
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
           git -C "$GITHUB_WORKSPACE" checkout -B main
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
@@ -596,7 +911,7 @@ jobs:
           composer config --working-dir="$work" repositories.framework path "$GITHUB_WORKSPACE"
           composer config --working-dir="$work" repositories.packages path "$GITHUB_WORKSPACE/packages/*"
           composer require --working-dir="$work" waaseyaa/framework:dev-main --no-update --no-interaction
-          composer install --working-dir="$work" --no-interaction --no-scripts --no-plugins
+          composer_retry composer install --working-dir="$work" --no-interaction --no-scripts --no-plugins
           test "$(php -r '$m=require $argv[1]; echo count(array_filter(array_keys($m), static fn(string $c): bool => str_starts_with($c, "Waaseyaa\\")));' "$work/vendor/composer/autoload_classmap.php")" = 0
           php "$GITHUB_WORKSPACE/tools/policy-discovery-smoke.php" "$work"
 
@@ -618,16 +933,20 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # Exact key only (runner OS + PHP version + this fixture's own
+      # composer.lock hash) — no restore-keys, same rationale as the
+      # root-graph jobs: a broad prefix can hand this job a vendor/ tree
+      # built from a different lock file.
       - name: Cache packaged-form Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tests/PackagedForm/skeleton/vendor
-          key: packaged-form-composer-v1-${{ hashFiles('tests/PackagedForm/skeleton/composer.lock') }}
-          restore-keys: packaged-form-composer-v1-
+          key: ${{ runner.os }}-php-8.5-packaged-form-vendor-${{ hashFiles('tests/PackagedForm/skeleton/composer.lock') }}
 
       - name: Install packaged-form dependencies
-        working-directory: tests/PackagedForm/skeleton
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
+        with:
+          working-directory: tests/PackagedForm/skeleton
 
       - name: Run packaged-form tests
         working-directory: tests/PackagedForm/skeleton
@@ -672,9 +991,39 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # This job installs into a fresh mktemp working dir (a different
+      # dependency graph — waaseyaa/core alone), so it cannot consume
+      # prepare-test-plan's vendor archive. The only stable, cacheable thing
+      # across runs is Composer's own package download cache, not the
+      # ephemeral work dir. Exact key only — no restore-keys — same
+      # rationale as the root-graph jobs.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
       - name: Install waaseyaa/core alone and boot the kernel
         run: |
           set -euo pipefail
+          # Bounded retry with backoff around the network-touching install
+          # below (same pattern as ci/skeleton-create-project): PR #2406 hit
+          # repeated HTTP/2 429s from codeload.github.com.
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
           trap cleanup EXIT
@@ -685,7 +1034,7 @@ jobs:
           # blocks Packagist fallback). Tree is unchanged — same commit, so the checkout is clean.
           git -C "$GITHUB_WORKSPACE" checkout -B main
           printf '{"name":"waaseyaa/core-only-boot-fixture","type":"project","require":{"waaseyaa/core":"*"},"repositories":[{"type":"path","url":"%s/packages/*","options":{"symlink":false}}],"minimum-stability":"dev","prefer-stable":true}\n' "$GITHUB_WORKSPACE" > "$work/composer.json"
-          composer install --working-dir "$work" --no-interaction
+          composer_retry composer install --working-dir "$work" --no-interaction
           test -d "$work/vendor/waaseyaa/scheduler" || { echo "::error::core-only install did not pull waaseyaa/scheduler (core metapackage is missing a fail-closed kernel boot dependency)"; exit 1; }
           mkdir -p "$work/config" "$work/config/sync" "$work/storage" "$work/storage/files"
           cp "$GITHUB_WORKSPACE/skeleton/config/waaseyaa.php" "$work/config/waaseyaa.php"
@@ -730,15 +1079,16 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
+      # Exact key only — see composer-deps-audit's identical block for the
+      # rationale (no broad restore-keys; retry absorbs a cache miss).
       - name: Cache Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
 
       - name: Run the permanent verify-only boundary gates
         run: |
@@ -787,15 +1137,16 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # Exact key only — see composer-deps-audit's identical block for the
+      # rationale (no broad restore-keys; retry absorbs a cache miss).
       - name: Cache Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
 
       - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -996,15 +1347,16 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # Exact key only — see composer-deps-audit's identical block for the
+      # rationale (no broad restore-keys; retry absorbs a cache miss).
       - name: Cache Composer dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
 
       - name: Run structural secrets scan
         run: ./vendor/bin/phpunit --filter Phase22 --no-coverage

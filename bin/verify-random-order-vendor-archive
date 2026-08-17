@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+#
+# Fail-closed integrity gate for the run-scoped vendor.tar dependency
+# archive consumed by ci-random-order-shard
+# (docs/specs/ci-test-selection.md §7.3). Extracted from ci.yml's inline
+# "Restore dependencies with integrity proof" step so the three fall-back
+# conditions the spec promises — missing archive, corrupt digest, and a
+# wrong-checkout symlink — are runnable and testable outside GitHub Actions
+# instead of only grep-checked for string presence.
+#
+# `composer check-platform-reqs` deliberately stays OUT of this script and
+# remains a separate step in ci.yml: it depends on the real host's PHP
+# binary and extension profile, which is constant across every scenario
+# this script's own fixtures exercise, and pulling it in here would force
+# every fixture to carry a full composer.json/composer.lock pair.
+#
+# Usage: bin/verify-random-order-vendor-archive <archive-dir> [<work-dir>]
+#   <archive-dir>  directory containing vendor.tar, vendor.tar.sha256,
+#                  installed.sha256 (as produced by prepare-random-order-plan)
+#   <work-dir>     directory to extract vendor/ into (default: .)
+#
+# Exit 0: archive verified and extracted; <work-dir>/vendor is ready to use.
+# Exit 1: a check failed; caller must fall back to a locked `composer install`.
+# Exit 2: usage error.
+set -uo pipefail
+
+archive_dir="${1:-}"
+work_dir="${2:-.}"
+
+if [ -z "$archive_dir" ]; then
+  echo "Usage: bin/verify-random-order-vendor-archive <archive-dir> [<work-dir>]" >&2
+  exit 2
+fi
+
+fail() {
+  echo "restore_failed: $1" >&2
+  exit 1
+}
+
+test -f "$archive_dir/vendor.tar.sha256" || fail "digest file missing: $archive_dir/vendor.tar.sha256"
+test -f "$archive_dir/vendor.tar" || fail "archive missing: $archive_dir/vendor.tar"
+
+# sha256sum resolves the path recorded inside the digest file relative to
+# the CURRENT working directory, not relative to $archive_dir. The digest
+# is written from the repo root in prepare-random-order-plan
+# (`sha256sum build/ci/vendor.tar > build/ci/vendor.tar.sha256`), so this
+# check must also run from the repo root — never `cd` into $archive_dir
+# first, or the recorded path resolves to a doubled, nonexistent location.
+sha256sum --check "$archive_dir/vendor.tar.sha256" >/dev/null 2>&1 || fail "digest mismatch"
+
+rm -rf "$work_dir/vendor"
+mkdir -p "$work_dir"
+tar --extract --file "$archive_dir/vendor.tar" --directory "$work_dir" || fail "extraction failed"
+
+test -f "$archive_dir/installed.sha256" || fail "installed digest missing: $archive_dir/installed.sha256"
+expected=$(cat "$archive_dir/installed.sha256")
+if [ ! -f "$work_dir/vendor/composer/installed.php" ]; then
+  fail "installed.php missing from extracted archive"
+fi
+actual=$(php -r 'echo hash_file("sha256", $argv[1]);' "$work_dir/vendor/composer/installed.php")
+test "$expected" = "$actual" || fail "installed.php hash mismatch"
+
+bad=$(php -r '
+$bad = [];
+foreach (glob($argv[1] . "/vendor/waaseyaa/*") as $link) {
+    if (!is_file($link . "/composer.json")) {
+        $bad[] = $link;
+    }
+}
+echo implode(",", $bad);
+' "$work_dir")
+test -z "$bad" || fail "dangling symlink(s): $bad"
+
+echo "vendor archive verified"
+exit 0

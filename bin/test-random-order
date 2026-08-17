@@ -6,6 +6,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $seed = null;
 $phpunitArguments = [];
+$planPath = null;
+$shardId = null;
 
 foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
     if (str_starts_with($argument, '--seed=')) {
@@ -14,6 +16,14 @@ foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
             exit(2);
         }
         $seed = substr($argument, strlen('--seed='));
+        continue;
+    }
+    if (str_starts_with($argument, '--plan=')) {
+        $planPath = substr($argument, strlen('--plan='));
+        continue;
+    }
+    if (str_starts_with($argument, '--shard=')) {
+        $shardId = (int) substr($argument, strlen('--shard='));
         continue;
     }
 
@@ -32,8 +42,99 @@ if (preg_match('/^[1-9][0-9]*$/', $seed) !== 1 || (int) $seed > 2_147_483_647) {
     exit(2);
 }
 
+$planSuites = null;
+if ($planPath !== null) {
+    if (!is_file($planPath) || !is_readable($planPath)) {
+        fwrite(STDERR, "The shard plan file is missing or unreadable: {$planPath}\n");
+        exit(2);
+    }
+    try {
+        $plan = json_decode((string) file_get_contents($planPath), true, 512, JSON_THROW_ON_ERROR);
+    } catch (Throwable $exception) {
+        fwrite(STDERR, "The shard plan is unreadable: {$exception->getMessage()}\n");
+        exit(2);
+    }
+    if (!is_array($plan) || ($plan['schema_version'] ?? null) !== 1 || !is_array($plan['include'] ?? null)) {
+        fwrite(STDERR, "The shard plan must use schema_version 1.\n");
+        exit(2);
+    }
+
+    // One seed for every shard is the determinism guarantee: a missing or
+    // non-numeric plan seed must fail closed, never fall back to a
+    // locally-derived seed that would desynchronize shards from each other.
+    $planSeed = $plan['seed'] ?? null;
+    if ($planSeed === null) {
+        fwrite(STDERR, "The shard plan has no seed; plan mode requires one seed for every shard.\n");
+        exit(2);
+    }
+    $seed = (string) $planSeed;
+    if (preg_match('/^[1-9][0-9]*$/', $seed) !== 1 || (int) $seed > 2_147_483_647) {
+        fwrite(STDERR, "The random-order seed must be a positive integer no greater than 2147483647.\n");
+        exit(2);
+    }
+
+    $shard = null;
+    foreach ($plan['include'] as $candidate) {
+        if (is_array($candidate) && ($candidate['id'] ?? null) === $shardId) {
+            $shard = $candidate;
+            break;
+        }
+    }
+    if ($shard === null) {
+        fwrite(STDERR, "Shard id {$shardId} is absent from the exact plan.\n");
+        exit(2);
+    }
+    // The "empty" flag is not trusted on its own: it must agree with the
+    // "suites" map it is supposedly summarizing, or the plan is inconsistent
+    // and a shard could otherwise be silently skipped (declared empty) while
+    // its plan still carries real suites/paths nobody ran.
+    $declaredEmpty = ($shard['empty'] ?? false) === true;
+    $shardSuites = $shard['suites'] ?? null;
+    $suitesNonEmpty = is_array($shardSuites) && $shardSuites !== [];
+
+    if ($declaredEmpty && $suitesNonEmpty) {
+        fwrite(
+            STDERR,
+            "Shard {$shardId} is marked empty but its plan carries a non-empty \"suites\" map; the plan is inconsistent.\n",
+        );
+        exit(2);
+    }
+
+    if ($declaredEmpty) {
+        echo "PHPUnit random-order seed: {$seed}\n";
+        echo "shard {$shardId} is empty; no PHPUnit process is required.\n";
+        exit(0);
+    }
+
+    // A truncated artifact must not produce a half-valid run: every suite
+    // must resolve to a non-empty list of non-empty path strings, or the
+    // shard is rejected instead of silently falling through to the
+    // unsharded default loop below (the fail-open this guards against).
+    if (!is_array($shardSuites) || $shardSuites === []) {
+        fwrite(STDERR, "Shard {$shardId} has no valid \"suites\" map in the plan.\n");
+        exit(2);
+    }
+    foreach ($shardSuites as $suiteName => $suitePaths) {
+        if (!is_string($suiteName) || $suiteName === '' || !is_array($suitePaths) || $suitePaths === []) {
+            fwrite(STDERR, "Shard {$shardId} has a malformed suite entry in the plan.\n");
+            exit(2);
+        }
+        foreach ($suitePaths as $suitePath) {
+            if (!is_string($suitePath) || $suitePath === '') {
+                fwrite(STDERR, "Shard {$shardId} has a malformed suite entry in the plan.\n");
+                exit(2);
+            }
+        }
+    }
+    $planSuites = $shardSuites;
+}
+
 echo "PHPUnit random-order seed: {$seed}\n";
-echo "Replay: TEST_RANDOM_SEED={$seed} composer test:random\n";
+if ($planPath !== null) {
+    echo "Replay: bin/test-random-order --plan={$planPath} --shard={$shardId}\n";
+} else {
+    echo "Replay: TEST_RANDOM_SEED={$seed} composer test:random\n";
+}
 flush();
 
 $path = getenv('PATH');
@@ -45,6 +146,30 @@ $hasExplicitSelection = array_any(
     static fn(string $argument): bool => str_starts_with($argument, '--testsuite')
         || in_array($argument, $selectionArguments, true),
 );
+
+if ($planSuites !== null) {
+    foreach ($planSuites as $suite => $paths) {
+        echo "PHPUnit random-order suite: {$suite}\n";
+        $command = [
+            PHP_BINARY, '-d', 'memory_limit=1G', $root . '/vendor/bin/phpunit',
+            '--no-coverage', '--order-by=random', '--random-order-seed=' . $seed,
+        ];
+        // PHPUnit rejects explicit file arguments together with a
+        // list/discovery command (assertion failure inside
+        // ListTestSuitesCommand). When the caller passed one through,
+        // forward it alone so discovery still succeeds.
+        if (!$hasExplicitSelection) {
+            array_push($command, ...$paths);
+        }
+        array_push($command, ...$phpunitArguments);
+        flush();
+        passthru(implode(' ', array_map(escapeshellarg(...), $command)), $exitCode);
+        if ($exitCode !== 0) {
+            exit($exitCode);
+        }
+    }
+    exit(0);
+}
 
 // A single shuffled process retained every suite's fixtures until exit and
 // exceeded hosted-runner memory for some valid seeds. PHPUnit suites are

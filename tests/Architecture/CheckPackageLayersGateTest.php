@@ -480,6 +480,174 @@ final class CheckPackageLayersGateTest extends TestCase
         self::assertStringContainsString('OK', $out);
     }
 
+    #[Test]
+    public function flags_undeclared_cross_package_use_edge_in_tests_pl010(): void
+    {
+        // plugin's tests/ reference queue but neither require nor require-dev declares it.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: ['Waaseyaa\\Queue\\QueueInterface'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an undeclared cross-package tests/ use-edge.\n{$out}");
+        self::assertStringContainsString('PL010', $out);
+        self::assertStringContainsString('plugin', $out);
+        self::assertStringContainsString('queue', $out);
+    }
+
+    #[Test]
+    public function passes_when_test_edge_declared_via_require_dev_pl010(): void
+    {
+        // require-dev satisfies PL010 (test-only edges are permitted policy per
+        // bin/audit-require-dev-layers), unlike PL007 which only reads require.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: ['Waaseyaa\\Queue\\QueueInterface'],
+            requireDev: ['waaseyaa/queue' => '^0.1'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(0, $exit, "Declaring the test edge in require-dev must satisfy PL010.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
+    #[Test]
+    public function flags_undeclared_cross_package_edge_in_testing_dir_pl010(): void
+    {
+        // The testing/ tree (shared test-helper base classes) is in PL010's scope too.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'testing/Support/DemoHelper.php',
+            useStatements: ['Waaseyaa\\Queue\\QueueInterface'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an undeclared cross-package testing/ use-edge.\n{$out}");
+        self::assertStringContainsString('PL010', $out);
+        self::assertStringContainsString('testing/Support/DemoHelper.php', $out);
+    }
+
+    #[Test]
+    public function flags_grouped_use_edge_in_tests_pl010(): void
+    {
+        // `use Waaseyaa\Queue\{A, B};` — grouped use must attribute to the queue package.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: ['Waaseyaa\\Queue\\{QueueInterface, QueueMessage}'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an undeclared grouped-use tests/ edge.\n{$out}");
+        self::assertStringContainsString('PL010', $out);
+        self::assertStringContainsString('queue', $out);
+    }
+
+    #[Test]
+    public function flags_unknown_namespace_attribution_in_tests_pl010(): void
+    {
+        // An inline FQCN under a namespace segment with no PSR-4 root mapping must fail
+        // closed, not be silently skipped.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: [],
+            rawBody: 'private const FQCN = \\Waaseyaa\\NotAPackage\\Something::class;',
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail closed on an unmapped-namespace tests/ reference.\n{$out}");
+        self::assertStringContainsString('PL010', $out);
+        self::assertStringContainsString('NotAPackage', $out);
+    }
+
+    #[Test]
+    public function baseline_suppresses_known_undeclared_test_edge_pl010(): void
+    {
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: ['Waaseyaa\\Queue\\QueueInterface'],
+        );
+
+        $testEdgeBaselinePath = $this->tmpRoot . '/pl010-baseline.txt';
+        file_put_contents($testEdgeBaselinePath, "# fixture PL010 baseline\nplugin queue  # fixture accepted test edge\n");
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true, testEdgeBaselinePath: $testEdgeBaselinePath);
+
+        self::assertSame(0, $exit, "A baselined undeclared test edge must not fail the gate.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
+    #[Test]
+    public function baseline_suppresses_unknown_namespace_attribution_pl010(): void
+    {
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: [],
+            rawBody: 'private const FQCN = \\Waaseyaa\\NotAPackage\\Something::class;',
+        );
+
+        $testEdgeBaselinePath = $this->tmpRoot . '/pl010-baseline.txt';
+        file_put_contents($testEdgeBaselinePath, "# fixture PL010 baseline\nplugin NotAPackage  # fixture fabricated fixture namespace\n");
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true, testEdgeBaselinePath: $testEdgeBaselinePath);
+
+        self::assertSame(0, $exit, "A baselined unmapped-namespace test edge must not fail the gate.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
+    #[Test]
+    public function does_not_flag_root_waaseyaa_tests_namespace_reference_pl010(): void
+    {
+        // Waaseyaa\Tests\… is the repo-root shared test tree (root composer.json
+        // autoload-dev), not a package — PL010 must not require declaring it.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: ['Waaseyaa\\Tests\\Support\\RuntimeSchemaMigrations'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(0, $exit, "A root Waaseyaa\\Tests\\… reference must not fail PL010.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
+    #[Test]
+    public function does_not_flag_self_package_reference_in_tests_pl010(): void
+    {
+        // plugin's own tests referencing plugin's own namespace is not a cross-package edge.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'tests/Unit/DemoTest.php',
+            useStatements: ['Waaseyaa\\Plugin\\PluginInterface'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(0, $exit, "A same-package tests/ reference must not fail PL010.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
     /**
      * @param array<string, string> $require
      * @param list<string>          $useStatements FQCNs to `use` from the src file
@@ -490,6 +658,7 @@ final class CheckPackageLayersGateTest extends TestCase
      *                                              (token_get_all), which does not require a
      *                                              full parse, so this need only be lexically
      *                                              valid PHP.
+     * @param array<string, string> $requireDev
      */
     private function writeFixturePackage(
         string $short,
@@ -497,6 +666,7 @@ final class CheckPackageLayersGateTest extends TestCase
         string $relativeSrcFile,
         array $useStatements,
         string $rawBody = '',
+        array $requireDev = [],
     ): void {
         $pkgDir = $this->tmpRoot . '/packages/' . $short;
         $srcPath = $pkgDir . '/' . $relativeSrcFile;
@@ -504,20 +674,32 @@ final class CheckPackageLayersGateTest extends TestCase
             self::fail("Could not create fixture dir {$concurrentDir}");
         }
 
-        file_put_contents($pkgDir . '/composer.json', json_encode([
+        $manifest = [
             'name' => 'waaseyaa/' . $short,
             'type' => 'library',
             'require' => $require,
             'autoload' => ['psr-4' => ['Waaseyaa\\' . ucfirst($short) . '\\' => 'src/']],
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        ];
+        if ($requireDev !== []) {
+            $manifest['require-dev'] = $requireDev;
+        }
+        file_put_contents($pkgDir . '/composer.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         $uses = '';
         foreach ($useStatements as $fqcn) {
             $uses .= "use {$fqcn};\n";
         }
+        // Namespace the fixture file per its containing sub-tree (src/ vs tests/ vs testing/)
+        // so PL010's tests/**-and-testing/** scan sees a plausible namespace; the gate only
+        // reads directory location, not autoload wiring, so this need not resolve for real.
+        $nsSuffix = match (true) {
+            str_starts_with($relativeSrcFile, 'tests/') => '\\Tests',
+            str_starts_with($relativeSrcFile, 'testing/') => '\\Testing',
+            default => '',
+        };
         file_put_contents(
             $srcPath,
-            "<?php\n\ndeclare(strict_types=1);\n\nnamespace Waaseyaa\\" . ucfirst($short) . ";\n\n{$uses}\nfinal class Demo {\n{$rawBody}\n}\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nnamespace Waaseyaa\\" . ucfirst($short) . "{$nsSuffix};\n\n{$uses}\nfinal class Demo {\n{$rawBody}\n}\n",
         );
     }
 
@@ -531,17 +713,20 @@ final class CheckPackageLayersGateTest extends TestCase
         bool $emptyCycleBaseline = false,
         ?string $cycleBaselinePath = null,
         ?string $gatePath = null,
+        ?string $testEdgeBaselinePath = null,
     ): array {
         $baseline = $baselinePath ?? ($emptyBaseline ? '/dev/null' : '');
         // Default to /dev/null so fixture runs never fall through to the REAL repo's
         // tools/package-layers-string-literal-baseline.txt (which would silently
         // suppress fixture findings or, worse, pass because the fixture path never
-        // matches a real baseline entry for unrelated reasons).
+        // matches a real baseline entry for unrelated reasons). Same reasoning applies
+        // to the PL010 test-edge baseline.
         $env = [
             'WAASEYAA_LAYER_ROOT' => $this->tmpRoot,
             'WAASEYAA_LAYER_UNDECLARED_BASELINE' => $baseline,
             'WAASEYAA_LAYER_STRING_LITERAL_BASELINE' => $stringLiteralBaselinePath ?? '/dev/null',
             'WAASEYAA_LAYER_CYCLE_BASELINE' => $cycleBaselinePath ?? ($emptyCycleBaseline ? '/dev/null' : ''),
+            'WAASEYAA_LAYER_TEST_EDGE_BASELINE' => $testEdgeBaselinePath ?? '/dev/null',
             'PATH' => getenv('PATH') ?: '/usr/bin:/bin',
         ];
 

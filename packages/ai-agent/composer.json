@@ -55,6 +55,10 @@
         {
             "type": "path",
             "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../wayfinding"
         }
     ],
     "require": {
@@ -79,7 +83,8 @@
         "waaseyaa/wayfinding": "Provides optional trail tools for AI agents"
     },
     "require-dev": {
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/wayfinding": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

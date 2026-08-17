@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Sharded complete-inventory random-order proof; changed-package targeting
+  investigated and dropped (#2404):** Rewrote
+  [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md) after a
+  targeting investigation found the selector's own dependency graph unsound:
+  `packages/*/tests` carried 73 real, undeclared cross-package test
+  references its consumer-closure computation never saw (see the PL010 entry
+  below). Declaring that graph honestly collapsed the measured saving from
+  roughly 13% to under 4% — below ordinary CI variance, and not worth a
+  fail-closed selector's complexity or trust burden. `ci/random-order` now
+  shards the **complete** configured PHPUnit inventory unconditionally, the
+  same as `main` pushes always did; `bin/select-random-order-scope`,
+  `tools/random-order-scope-manifest.json`, and the whole changed-package
+  selection subsystem (classification, consumer closure, attribution, the
+  always-run set, the selection document, `--only`) are removed. Composer
+  installation is consolidated into one run-scoped authority:
+  `prepare-test-plan` performs the single authoritative `composer install`,
+  tars `vendor/`, and publishes a `vendor-archive` artifact that both
+  `ci-test-shards` and the random-order shard matrix verify
+  (`bin/verify-random-order-vendor-archive` — digest, `installed.php`
+  self-consistency, and per-package symlink resolution) before use, falling
+  back to a retried locked install on any integrity-gate failure — removing
+  two of the three independent `codeload.github.com` failure points that
+  caused repeated `HTTP/2 429`s on PR #2406. The random-order matrix drops
+  from three shards to two (`id: [1, 2]`); a later move to three shards is
+  its own measurement decision, gated on the existing ≥10-comparable-run
+  discipline showing both wall-clock critical-path time and total
+  runner-minutes improve, not on whether targeting works. Every other
+  independently-installing job in `ci.yml` moved to an exactly-keyed
+  Composer cache (no broad `restore-keys`) with bounded retry via the new
+  `.github/actions/composer-install-retry` composite action.
+  `nightly.yml`'s complete unsharded proof is unchanged. The rejected
+  changed-package-selection design — the undeclared-edge finding, the two
+  grouping alternatives measured and rejected, and why a ~4% saving doesn't
+  earn the complexity — is preserved as architectural evidence in the spec's
+  "Rejected design" section rather than deleted.
+
 - **Single-execution PHPUnit proof (#2404):** Blocking CI now assigns the
   configured PHP test inventory exactly once across four timing-balanced,
   package-safe shards. Each execution emits both JUnit and Clover evidence;
@@ -15,6 +51,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Committed timing evidence has a deterministic median fallback for new files,
   Composer download caches are PHP/lock scoped, and superseded pull-request
   runs cancel immediately without cancelling main-line proof.
+
+- **Enforce cross-package test-reference declarations (#2404):**
+  `bin/check-package-layers` gained **PL010**, a fail-on-new rule requiring
+  every `Waaseyaa\…` reference inside `packages/<p>/tests/**` or
+  `packages/<p>/testing/**` that resolves to another package to be declared in
+  that package's `composer.json` `require` or `require-dev` (both count, unlike
+  PL004/PL006/PL007 which read `require` only — confirmed require-dev additions
+  cannot trip layer-order or same-layer-cycle checks). A reference resolving to
+  no known PSR-4 package root fails closed instead of being silently skipped,
+  with one deliberate carve-out: the repo-root `Waaseyaa\Tests\` tree (a real
+  PSR-4 root registered in root `composer.json` `autoload-dev`, not a package).
+  Extraction is tokenizer-based (mirrors PL008): plain/`function`/`const`/
+  grouped `use` statements plus inline fully-qualified references, with
+  comments excluded so docblock `@see` prose never trips the gate. 73 real
+  cross-package test edges — found by hand-verifying a sample of the raw scan
+  hits against real code before editing any manifest — are now declared as
+  `require-dev` across 26 package manifests (with matching `repositories` path
+  entries for composer policy CP007); `foundation` alone gained 20 upward
+  test-only edges (to `api`, `cli`, `graphql`, `mcp`, `ssr`, and others), a
+  layering smell worth its own follow-up. The fail-on-new baseline
+  (`tools/package-layers-test-edge-baseline.txt`) ships with 6 reviewed
+  entries — deliberately fabricated `Waaseyaa\…`-namespaced fixtures inside
+  `PackageManifestCompilerTest` that exercise the compiler's own
+  always-scanned `Waaseyaa\` discovery prefix, plus one real repo-root
+  `benchmarks/` class loaded via manual `require_once` rather than PSR-4 — not
+  every finding could be safely renamed away without changing what the fixture
+  proves.
+
+- **Final review fix wave for the random-order sharding revision (#2404):**
+  Four hardening items from a whole-branch review before merge, plus one
+  investigated-and-reverted item. (1) The vendor-archive integrity gate's
+  rejection notice in `ci.yml` is now `::error` (was `::warning`, still
+  non-failing — the retried locked-install fallback stays the safety net)
+  plus a `$GITHUB_STEP_SUMMARY` line naming the job, so a future change that
+  silently breaks the 429 mitigation (e.g. re-adding a `path: vendor` cache
+  to a shard job) is visible on the run summary instead of buried in an
+  easy-to-miss warning annotation. (2) `bin/verify-random-order-vendor-archive`
+  now `rm -rf`s an existing `$work_dir/vendor` before extracting, so a stale
+  or leftover `vendor/` is replaced rather than overlaid (cheap insurance
+  against the same class of change item 1 guards, covered by a new fixture
+  test in `RandomOrderVendorArchiveIntegrityTest`). (3)
+  `bin/build-phpunit-shards` now validates `--seed` against the exact rule
+  `bin/test-random-order:71` enforces (`^[1-9][0-9]*$`, `<= 2147483647`),
+  failing closed with a clear message instead of silently coercing an
+  invalid seed to `"seed":0` that only surfaced as a confusing rejection two
+  jobs later. (4) `nightly.yml`'s `composer install` is wrapped in
+  `./.github/actions/composer-install-retry`, matching every other
+  independently-installing job — nightly holds no publication authority so a
+  bare 429 there only cost one night's proof, but it was the last unretried
+  install for no principled reason. (5, reverted) A review item proposed
+  dropping `packages/foundation/composer.json`'s `waaseyaa/seo` require-dev
+  edge on the theory that the `ManifestBootstrapperTest` fixture string
+  `Waaseyaa\Seo\SeoServiceProvider` was fabricated (like
+  `PackageManifestCompilerTest`'s `App\Test\TestProvider`) rather than real.
+  It is not: `load()`'s cached-manifest path
+  (`production_uses_the_compiled_cache`) merges the root manifest's declared
+  providers into the cached manifest via `mergeRootWaaseyaaIntoManifest()`
+  and then `class_exists()`-checks every provider in
+  `validateCachedProviders()`/`assertProvidersExist()`
+  (`packages/foundation/src/Discovery/PackageManifestCompiler.php`); a
+  non-existent class there throws `StaleManifestException` and forces a
+  fresh recompile, silently bypassing the exact stale-cache-trust path the
+  fixture exists to exercise. Renaming it to `App\Seo\SeoServiceProvider`
+  broke `production_uses_the_compiled_cache` (caught by a fresh review
+  before merge, full `Unit` suite confirmed green afterward). The edge, the
+  fixture string, and the PL010 declared-edge count (73, foundation's share
+  20) are all restored to their pre-review-item state; the fixture now
+  carries an explanatory comment against a repeat.
 
 - **Security — unified internal-field visibility authority (#2113):** Admin
   form schemas and detail projections now consume the same boot-scoped

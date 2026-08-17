@@ -1,0 +1,81 @@
+name: Nightly
+
+# The complete, UNSHARDED random-order proof. ci/random-order shards on pull
+# requests, which cannot observe cross-shard ordering interactions; this job
+# restores that coverage every night. It holds no publication authority.
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'Replay a specific random-order seed (empty = date-derived)'
+        required: false
+        type: string
+
+concurrency:
+  group: nightly-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  random-order-full:
+    name: nightly/random-order-full
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # Wrapped in the same bounded-retry composite action every other
+      # independently-installing job uses (#2404 revision, round 2 review,
+      # item 5) — nightly holds no publication authority, so a bare 429 here
+      # only costs one night's proof, but a lone unretried install would be
+      # the sole exception to the pattern for no principled reason.
+      - name: Install dependencies
+        uses: ./.github/actions/composer-install-retry
+        with:
+          args: '--no-interaction --prefer-dist --no-progress'
+
+      # composer test:random (bin/test-random-order, non-plan path) runs
+      # three sequential PHPUnit processes — Unit, then Integration, then
+      # Architecture — each an isolation boundary against hosted-runner
+      # memory limits. A single --log-junit path would be overwritten by
+      # each process in turn, silently retaining only the last suite's
+      # evidence. Console output is captured instead; `set -o pipefail`
+      # ensures a failing suite still fails this step even though its
+      # exit status passes through `tee`.
+      - name: Run the complete suite in replayable random order
+        env:
+          SEED_INPUT: ${{ inputs.seed }}
+        run: |
+          set -euo pipefail
+          seed="$SEED_INPUT"
+          if test -z "$seed"; then
+            seed=$(( ($(date -u +%Y%m%d) % 2147483647) + 1 ))
+          fi
+          echo "::notice title=Nightly random-order seed::$seed"
+          echo "Replay: TEST_RANDOM_SEED=$seed composer test:random"
+          mkdir -p build/logs
+          {
+            echo "Nightly random-order seed: $seed"
+            echo "Replay: TEST_RANDOM_SEED=$seed composer test:random"
+          } > build/logs/nightly-random-order.log
+          TEST_RANDOM_SEED="$seed" composer test:random 2>&1 | tee -a build/logs/nightly-random-order.log
+
+      - name: Upload failure evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: nightly-random-order-evidence
+          path: build/logs
+          if-no-files-found: warn
+          retention-days: 30

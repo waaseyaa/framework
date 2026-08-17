@@ -1,0 +1,56 @@
+name: Composer install with retry
+description: >
+  Runs `composer install` with bounded retry and exponential backoff, to
+  absorb transient HTTP/2 429s from codeload.github.com. Extracted so the
+  seven-plus fast, independently-installing CI jobs share one definition
+  instead of seven copies of the same bash function (#2404 revision, round
+  2 — three CI reruns of PR #2406 failed on repeated 429s across
+  independent installs).
+inputs:
+  working-directory:
+    description: >
+      Passed to `composer install` as --working-dir. Leave empty to install
+      at $GITHUB_WORKSPACE (the checked-out repo root).
+    required: false
+    default: ''
+  args:
+    description: Extra arguments appended to `composer install`.
+    required: false
+    default: '--no-interaction --prefer-dist'
+  max-attempts:
+    description: Total attempts before giving up.
+    required: false
+    default: '3'
+  initial-delay-seconds:
+    description: Delay before the first retry; doubles on each subsequent retry.
+    required: false
+    default: '5'
+runs:
+  using: composite
+  steps:
+    - name: composer install (retry with backoff)
+      shell: bash
+      run: |
+        set -euo pipefail
+        attempt=1
+        max_attempts=${{ inputs.max-attempts }}
+        delay=${{ inputs.initial-delay-seconds }}
+        cmd=(composer install)
+        if [ -n "${{ inputs.working-directory }}" ]; then
+          cmd+=(--working-dir "${{ inputs.working-directory }}")
+        fi
+        # Word-splitting the args input is intentional: it is a
+        # space-separated composer flag list, not a single token.
+        # shellcheck disable=SC2206
+        extra_args=(${{ inputs.args }})
+        cmd+=("${extra_args[@]}")
+        until "${cmd[@]}"; do
+          exit_code=$?
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            exit "$exit_code"
+          fi
+          echo "::warning title=Composer install failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+          sleep "$delay"
+          attempt=$((attempt + 1))
+          delay=$((delay * 2))
+        done

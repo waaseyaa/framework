@@ -397,7 +397,11 @@ final class PackageManifestCompilerTest extends TestCase
                     'name' => 'waaseyaa/test',
                     'extra' => [
                         'waaseyaa' => [
-                            'providers' => ['Waaseyaa\\Test\\TestProvider'],
+                            // Fixture provider FQCN — round-tripped as a raw string by
+                            // load()/compile(), never autoloaded here, so it deliberately
+                            // is not "Waaseyaa\…"-namespaced (matches the App\Provider\…
+                            // fixture convention above; see PL010 in bin/check-package-layers).
+                            'providers' => ['App\\Test\\TestProvider'],
                         ],
                     ],
                 ],
@@ -412,7 +416,7 @@ final class PackageManifestCompilerTest extends TestCase
         $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
         $manifest = $compiler->load();
 
-        $this->assertSame(['Waaseyaa\\Test\\TestProvider'], $manifest->providers);
+        $this->assertSame(['App\\Test\\TestProvider'], $manifest->providers);
         // Cache file should now exist
         $this->assertFileExists($storagePath . '/framework/packages.php');
     }
@@ -436,7 +440,9 @@ final class PackageManifestCompilerTest extends TestCase
                     'name' => 'waaseyaa/test',
                     'extra' => [
                         'waaseyaa' => [
-                            'providers' => ['Waaseyaa\\Test\\RecompiledProvider'],
+                            // Deliberately not "Waaseyaa\…"-namespaced — see the rationale
+                            // on the equivalent fixture in load_compiles_when_no_cache().
+                            'providers' => ['App\\Test\\RecompiledProvider'],
                         ],
                     ],
                 ],
@@ -450,7 +456,7 @@ final class PackageManifestCompilerTest extends TestCase
         $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
         $manifest = $compiler->load();
 
-        $this->assertSame(['Waaseyaa\\Test\\RecompiledProvider'], $manifest->providers);
+        $this->assertSame(['App\\Test\\RecompiledProvider'], $manifest->providers);
     }
 
     #[Test]

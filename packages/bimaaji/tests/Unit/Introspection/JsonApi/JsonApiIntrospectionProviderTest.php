@@ -43,10 +43,14 @@ final class JsonApiIntrospectionProviderTest extends TestCase
         $jsonApiRoute->setMethods(['GET']);
         $routes->add('api.node.show', $jsonApiRoute);
 
-        // Non-JSON:API route — should be excluded.
+        // Non-JSON:API route — should be excluded. The controller string is arbitrary
+        // fixture data (exclusion is driven by the missing `_json_api` route option, not
+        // this string); deliberately NOT "Waaseyaa\…"-namespaced since it names no real
+        // class in any package (bin/check-package-layers PL010 fails closed on FQCNs
+        // that resolve to no known PSR-4 root).
         $otherRoute = new Route(
             '/admin/dashboard',
-            ['_controller' => 'Waaseyaa\\Admin\\Controller\\DashboardController::index'],
+            ['_controller' => 'App\\Admin\\Controller\\DashboardController::index'],
         );
         $otherRoute->setMethods(['GET']);
         $routes->add('admin.dashboard', $otherRoute);

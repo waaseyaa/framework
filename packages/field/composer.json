@@ -35,6 +35,10 @@
         {
             "type": "path",
             "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
         }
     ],
     "require": {
@@ -49,7 +53,8 @@
         "waaseyaa/typed-data": "^0.1.0-alpha.293"
     },
     "require-dev": {
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

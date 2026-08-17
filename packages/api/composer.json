@@ -83,6 +83,30 @@
         {
             "type": "path",
             "url": "../testing"
+        },
+        {
+            "type": "path",
+            "url": "../ai-tools"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../mcp"
+        },
+        {
+            "type": "path",
+            "url": "../node"
+        },
+        {
+            "type": "path",
+            "url": "../oidc"
+        },
+        {
+            "type": "path",
+            "url": "../user"
         }
     ],
     "require": {
@@ -117,13 +141,19 @@
     "require-dev": {
         "opis/json-schema": "^2.6",
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/auth": "^0.1.0-alpha.293",
+        "waaseyaa/ai-tools": "^0.1.0-alpha.293",
         "waaseyaa/audit": "^0.1.0-alpha.293",
+        "waaseyaa/auth": "^0.1.0-alpha.293",
+        "waaseyaa/config": "^0.1.0-alpha.293",
         "waaseyaa/database-legacy": "^0.1.0-alpha.293",
+        "waaseyaa/mcp": "^0.1.0-alpha.293",
         "waaseyaa/media": "^0.1.0-alpha.293",
+        "waaseyaa/node": "^0.1.0-alpha.293",
+        "waaseyaa/oidc": "^0.1.0-alpha.293",
         "waaseyaa/search": "^0.1.0-alpha.293",
         "waaseyaa/telescope": "^0.1.0-alpha.293",
-        "waaseyaa/testing": "^0.1.0-alpha.293"
+        "waaseyaa/testing": "^0.1.0-alpha.293",
+        "waaseyaa/user": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

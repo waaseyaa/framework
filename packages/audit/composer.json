@@ -31,6 +31,10 @@
         {
             "type": "path",
             "url": "../testing"
+        },
+        {
+            "type": "path",
+            "url": "../user"
         }
     ],
     "require": {
@@ -45,7 +49,8 @@
     "require-dev": {
         "phpunit/phpunit": "^13.0",
         "waaseyaa/entity-storage": "^0.1.0-alpha.293",
-        "waaseyaa/testing": "^0.1.0-alpha.293"
+        "waaseyaa/testing": "^0.1.0-alpha.293",
+        "waaseyaa/user": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

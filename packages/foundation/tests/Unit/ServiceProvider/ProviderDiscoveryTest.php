@@ -67,6 +67,12 @@ final class ProviderDiscoveryTest extends TestCase
     #[Test]
     public function handles_multiple_providers_per_package(): void
     {
+        // Provider FQCNs are arbitrary fixture strings (discoverFromArray only parses
+        // the array shape; it never autoloads or resolves the class), so the package
+        // metadata name and the provider namespace deliberately do not need to match a
+        // real waaseyaa/* package. Not "Waaseyaa\…"-namespaced since it names no real
+        // class in any package (bin/check-package-layers PL010 fails closed on FQCNs
+        // that resolve to no known PSR-4 root).
         $installed = [
             'packages' => [
                 [
@@ -74,8 +80,8 @@ final class ProviderDiscoveryTest extends TestCase
                     'extra' => [
                         'waaseyaa' => [
                             'providers' => [
-                                'Waaseyaa\\AiSchema\\SchemaServiceProvider',
-                                'Waaseyaa\\AiSchema\\McpToolServiceProvider',
+                                'Acme\\AiSchema\\SchemaServiceProvider',
+                                'Acme\\AiSchema\\McpToolServiceProvider',
                             ],
                         ],
                     ],
