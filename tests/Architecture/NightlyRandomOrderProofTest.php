@@ -26,8 +26,24 @@ final class NightlyRandomOrderProofTest extends TestCase
         self::assertStringContainsString('schedule:', $this->workflow);
         self::assertStringContainsString('workflow_dispatch:', $this->workflow);
         self::assertStringContainsString('composer test:random', $this->workflow);
-        self::assertStringNotContainsString('--shard=', $this->workflow);
-        self::assertStringNotContainsString('--only=', $this->workflow);
+
+        // This job is the *only* proof of cross-shard ordering interactions —
+        // ci/random-order shards on pull requests and cannot observe them.
+        // bin/test-random-order forwards any argument it does not recognise
+        // straight through to PHPUnit, so a stray flag here would silently
+        // narrow "complete inventory" down to one suite/group/filter without
+        // any other signal catching it. Every flag that can narrow what runs
+        // is forbidden: --shard= and --only= (shard-plan selection),
+        // --plan= (the flag that switches the runner into shard-plan mode at
+        // all), and PHPUnit's own --testsuite, --filter, --group, and
+        // --exclude-group.
+        foreach (['--shard=', '--only=', '--plan=', '--testsuite', '--filter', '--group', '--exclude-group'] as $narrowing) {
+            self::assertStringNotContainsString(
+                $narrowing,
+                $this->workflow,
+                "nightly.yml must not narrow the complete-inventory run with {$narrowing}.",
+            );
+        }
     }
 
     #[Test]

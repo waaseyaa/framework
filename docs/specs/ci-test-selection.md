@@ -327,10 +327,17 @@ ci/random-order    needs: [prepare-random-order-plan, ci-random-order-shard]
 
 Daily `schedule` plus `workflow_dispatch` with an optional `seed` input for
 manual replay. One job runs the complete **unsharded** `composer test:random`.
-The seed is date-derived when not supplied, and always logged. The workflow
+The seed is date-derived when not supplied, and always logged — both as a
+workflow notice and as a self-contained banner written into the uploaded log
+itself, so a failure remains replayable even if the run's own step log has
+expired. `composer test:random`'s non-plan path runs three sequential
+PHPUnit processes (Unit, then Integration, then Architecture); a single
+`--log-junit` path would be silently overwritten by each process in turn, so
+the job instead captures full console output to a plain-text log
+(`build/logs/nightly-random-order.log`), not JUnit XML. The workflow
 declares its own `concurrency` group so overlapping nightlies do not stack,
-uploads JUnit logs on failure, and holds **no deployment, release, split, or
-external-state authority** of any kind.
+uploads that log as failure evidence, and holds **no deployment, release,
+split, or external-state authority** of any kind.
 
 ### 7.3 Dependency preparation
 
