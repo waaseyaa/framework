@@ -64,6 +64,26 @@ final class RandomOrderVendorArchiveIntegrityTest extends TestCase
     }
 
     #[Test]
+    public function a_stale_vendor_directory_is_replaced_not_overlaid(): void
+    {
+        // Simulates a consumer job that already has a vendor/ present (e.g. a
+        // later change re-adds a `path: vendor` cache to a shard job — see
+        // the ci.yml integrity-gate comment). A leftover file from a package
+        // that no longer exists in the fresh archive must not survive
+        // extraction: the directory is replaced wholesale, not merged.
+        $root = $this->buildFixture();
+        mkdir($root . '/vendor/waaseyaa/stale-pkg', 0o777, true);
+        file_put_contents($root . '/vendor/waaseyaa/stale-pkg/marker.txt', 'stale');
+
+        $result = $this->runVerify($root, 'archive', '.');
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertFileDoesNotExist($root . '/vendor/waaseyaa/stale-pkg/marker.txt');
+        self::assertDirectoryDoesNotExist($root . '/vendor/waaseyaa/stale-pkg');
+        self::assertFileExists($root . '/vendor/composer/installed.php');
+    }
+
+    #[Test]
     public function a_missing_archive_falls_back(): void
     {
         $root = $this->buildFixture();

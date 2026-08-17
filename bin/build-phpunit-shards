@@ -13,8 +13,20 @@ $shardCount = isset($options['shards']) ? (int) $options['shards'] : 4;
 $pretty = array_key_exists('pretty', $options);
 
 if (!is_string($timingsPath) || $timingsPath === '' || $shardCount < 1 || $shardCount > 16) {
-    fwrite(STDERR, "Usage: php bin/build-phpunit-shards --timings=<json> [--shards=4] [--root=<repo>] [--pretty]\n");
+    fwrite(STDERR, "Usage: php bin/build-phpunit-shards --timings=<json> [--shards=4] [--root=<repo>] [--pretty] [--seed=N]\n");
     exit(2);
+}
+
+// Validate up front, at the same layer the plan is produced, using the exact
+// rule bin/test-random-order:71 enforces on the consumer side — a malformed
+// seed must fail closed here with a clear message, not get silently coerced
+// to 0 and surface two jobs later as a confusing runner-side rejection.
+if (array_key_exists('seed', $options)) {
+    $seedOption = $options['seed'];
+    if (!is_string($seedOption) || preg_match('/^[1-9][0-9]*$/', $seedOption) !== 1 || (int) $seedOption > 2_147_483_647) {
+        fwrite(STDERR, "The random-order seed must be a positive integer no greater than 2147483647.\n");
+        exit(2);
+    }
 }
 
 try {

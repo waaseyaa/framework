@@ -48,6 +48,7 @@ test -f "$archive_dir/vendor.tar" || fail "archive missing: $archive_dir/vendor.
 # first, or the recorded path resolves to a doubled, nonexistent location.
 sha256sum --check "$archive_dir/vendor.tar.sha256" >/dev/null 2>&1 || fail "digest mismatch"
 
+rm -rf "$work_dir/vendor"
 mkdir -p "$work_dir"
 tar --extract --file "$archive_dir/vendor.tar" --directory "$work_dir" || fail "extraction failed"
 

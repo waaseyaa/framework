@@ -98,24 +98,28 @@ computation never saw — a raw scan first estimated 53 such pairs; a
 tokenizer-based re-derivation, hand-verified against real code before
 touching any manifest, corrected that to **73 real pairs across 26
 packages** (the enforcement that now keeps this honest, PL010, ships in this
-same revision — `bin/check-package-layers`). The selector's measured yield
+same revision — `bin/check-package-layers`). One of those 73 was later found
+to be a fabricated test fixture string, not a real cross-package test
+reference (`ManifestBootstrapperTest` renamed to `App\Seo\SeoServiceProvider`,
+dropping `waaseyaa/seo` from `packages/foundation/composer.json`), leaving
+**72 real pairs across the same 26 packages**. The selector's measured yield
 above rested on a dependency graph that did not contain these edges, which
 means the closure it computed was smaller — and the "saving" it reported
 larger — than the real reachability of a change through the *actual* test
 suite.
 
-**Measured, 2026-08-17.** Once the 73 edges were declared, the closure
+**Measured, 2026-08-17.** Once the edges were declared, the closure
 effect was recomputed directly rather than modelled: build the reverse
 dependency graph over internal `require` + `require-dev` edges, once from
 `git show d69445f60:packages/*/composer.json` (the commit before PL010 —
 the unsound graph the selector was actually measured against) and once from
-the current worktree (the sound graph with the 73 edges declared), then
+the current worktree (the sound graph with the 72 edges declared), then
 compute the transitive consumer closure for every one of the 76 packages:
 
 | | mean closure | median closure | packages closing over >50% of the graph |
 |---|---|---|---|
 | before (pre-PL010, unsound) | 21.2 | 4 of 76 | 21 / 76 |
-| after (73 edges declared) | 44.4 | **64 of 76** | 52 / 76 |
+| after (72 edges declared) | 44.4 | **64 of 76** | 52 / 76 |
 
 This is not that the hub packages got worse: `foundation` and `entity` were
 already hubs, closing over 63 of 76 packages *before* the declarations, and
@@ -125,12 +129,12 @@ graph turn out to be hubs once their real test dependencies are visible.
 `genealogy` staying at 1 both before and after shows genuine leaves remain
 leaves; the shift is not indiscriminate, it is specifically the packages
 whose tests reach outward that moved. `packages/foundation` alone accounts
-for 20 of the 73 declared edges, all upward test-only references (to `api`,
+for 19 of the 72 declared edges, all upward test-only references (to `api`,
 `cli`, `graphql`, `mcp`, `ssr`, and others); because every package in the
 framework depends on `foundation` (it is the Layer 0 base), any change
 reaching a package `foundation`'s tests reference now pulls `foundation`
 into the closure, which then pulls in essentially the whole consumer graph —
-this is most of why the median moved so far. That 20-edge upward coupling is
+this is most of why the median moved so far. That 19-edge upward coupling is
 recorded here as a known layering smell for a future issue, not fixed by
 this revision: declaring it made CI honest about test coupling that already
 existed, it did not endorse the coupling itself.

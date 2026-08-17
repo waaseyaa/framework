@@ -30,7 +30,7 @@ final class ManifestBootstrapperTest extends TestCase
             $this->tempDir . '/composer.json',
             json_encode([
                 'name' => 'app/app',
-                'extra' => ['waaseyaa' => ['providers' => ['Waaseyaa\\Seo\\SeoServiceProvider']]],
+                'extra' => ['waaseyaa' => ['providers' => ['App\\Seo\\SeoServiceProvider']]],
             ], \JSON_THROW_ON_ERROR),
         );
 
@@ -89,7 +89,7 @@ final class ManifestBootstrapperTest extends TestCase
 
         // Fresh compile reads installed.json + root composer, NOT the stale cache.
         self::assertContains('Waaseyaa\\Node\\NodeServiceProvider', $manifest->providers, 'dev must discover vendor providers fresh');
-        self::assertContains('Waaseyaa\\Seo\\SeoServiceProvider', $manifest->providers, 'dev must read root/app providers fresh');
+        self::assertContains('App\\Seo\\SeoServiceProvider', $manifest->providers, 'dev must read root/app providers fresh');
         self::assertArrayNotHasKey('stale_cached_sentinel', $manifest->permissions, 'dev must NOT use the stale cache');
     }
 

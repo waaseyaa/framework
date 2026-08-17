@@ -185,6 +185,43 @@ final class PhpUnitShardPlannerTest extends TestCase
     }
 
     #[Test]
+    public function aMalformedSeedFailsClosedAtThePlannerRatherThanSilentlyCoercingToZero(): void
+    {
+        // bin/test-random-order:71 enforces the same rule on the consumer
+        // side; the planner must reject a bad --seed itself instead of
+        // emitting a plausible-looking "seed":0 that only surfaces as a
+        // confusing rejection two jobs later.
+        $timings = $this->fixtureRoot . '/seed-timings.json';
+        file_put_contents($timings, json_encode(['schema_version' => 1, 'files' => []], JSON_THROW_ON_ERROR));
+
+        $result = $this->runPlannerRaw([
+            '--root=' . $this->fixtureRoot,
+            '--timings=' . $timings,
+            '--seed=notanumber',
+        ]);
+
+        self::assertSame(2, $result['exit']);
+        self::assertSame('', $result['output']);
+        self::assertStringContainsString('positive integer no greater than 2147483647', $result['error']);
+    }
+
+    #[Test]
+    public function aSeedAboveTheInt32BoundFailsClosed(): void
+    {
+        $timings = $this->fixtureRoot . '/seed-overflow-timings.json';
+        file_put_contents($timings, json_encode(['schema_version' => 1, 'files' => []], JSON_THROW_ON_ERROR));
+
+        $result = $this->runPlannerRaw([
+            '--root=' . $this->fixtureRoot,
+            '--timings=' . $timings,
+            '--seed=2147483648',
+        ]);
+
+        self::assertSame(2, $result['exit']);
+        self::assertStringContainsString('positive integer no greater than 2147483647', $result['error']);
+    }
+
+    #[Test]
     public function multiplyAssignedSuiteMembershipRefusesCleanly(): void
     {
         // Mirrors the live hazard docs/specs/ci-test-selection.md §5 warns

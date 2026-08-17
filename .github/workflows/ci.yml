@@ -438,7 +438,9 @@ jobs:
             composer check-platform-reqs --no-interaction || restore_failed=1
           fi
           if test "$restore_failed" -ne 0; then
-            echo "::warning title=Dependency archive rejected::falling back to a locked install"
+            echo "::error title=Dependency archive rejected::falling back to a locked install for ci/test-shard-${{ matrix.id }}"
+            echo "### :warning: Dependency archive rejected — ci/test-shard-${{ matrix.id }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Fell back to a locked \`composer install\`. If this happens broadly, the 429 mitigation (run-scoped vendor archive) has stopped applying — see #2404." >> "$GITHUB_STEP_SUMMARY"
             rm -rf vendor
             composer_retry composer install --no-interaction --prefer-dist --no-progress
           fi
@@ -594,7 +596,9 @@ jobs:
             composer check-platform-reqs --no-interaction || restore_failed=1
           fi
           if test "$restore_failed" -ne 0; then
-            echo "::warning title=Dependency archive rejected::falling back to a locked install"
+            echo "::error title=Dependency archive rejected::falling back to a locked install for ci/random-order-shard-${{ matrix.id }}"
+            echo "### :warning: Dependency archive rejected — ci/random-order-shard-${{ matrix.id }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Fell back to a locked \`composer install\`. If this happens broadly, the 429 mitigation (run-scoped vendor archive) has stopped applying — see #2404." >> "$GITHUB_STEP_SUMMARY"
             rm -rf vendor
             composer_retry composer install --no-interaction --prefer-dist --no-progress
           fi

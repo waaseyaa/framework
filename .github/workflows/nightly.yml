@@ -35,8 +35,15 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # Wrapped in the same bounded-retry composite action every other
+      # independently-installing job uses (#2404 revision, round 2 review,
+      # item 5) — nightly holds no publication authority, so a bare 429 here
+      # only costs one night's proof, but a lone unretried install would be
+      # the sole exception to the pattern for no principled reason.
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        uses: ./.github/actions/composer-install-retry
+        with:
+          args: '--no-interaction --prefer-dist --no-progress'
 
       # composer test:random (bin/test-random-order, non-plan path) runs
       # three sequential PHPUnit processes — Unit, then Integration, then
