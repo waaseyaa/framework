@@ -162,6 +162,10 @@ try {
     fwrite(STDERR, "Unable to resolve the PHPUnit suite inventory: {$failure->getMessage()}\n");
     exit(2);
 }
+// Defensive, not reachable: this loop and ros_inventory() parse the same
+// phpunit.xml.dist with the same Test.php-suffix/skip-link filters, so their
+// key sets are identical by construction. Retained in case the two ever
+// diverge.
 foreach (array_keys($files) as $path) {
     if (!isset($suiteOf[$path])) {
         fwrite(STDERR, "Test file resolves to no PHPUnit suite: {$path}\n");

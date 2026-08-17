@@ -403,7 +403,13 @@ Planner (extend `PhpUnitShardPlannerTest`):
 
 - `--only` restricts, then re-expands to complete groups
 - refusal on a selected path absent from the inventory
-- unassigned path is fatal; multiply assigned path is fatal
+- multiply assigned path is fatal
+- the zero-suite guard is defensive, not reachable: the planner's own
+  discovery loop and `ros_inventory()` parse the same `phpunit.xml.dist`
+  with the same `Test.php`-suffix and skip-link filters, so their key sets
+  are identical by construction. The check costs nothing and fails safe, so
+  it stays, but it is not a condition the planner can currently produce,
+  and it carries no test.
 - empty matrix leg is emitted explicitly, not dropped
 - determinism; `mode: targeted`
 
