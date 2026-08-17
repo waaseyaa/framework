@@ -195,6 +195,56 @@ final class PhpUnitShardPlannerTest extends TestCase
         self::assertSame(2241, $plan['seed']);
         self::assertMatchesRegularExpression('/^\d+\.\d+/', $plan['phpunit_version']);
         self::assertSame(1, $plan['selection']['schema_version']);
+        self::assertSame(
+            'no selection document supplied to the planner',
+            $plan['selection']['fallback_reason'],
+            'The synthetic no-`--only` selection must never look like a real full decision with a blank reason.',
+        );
+    }
+
+    #[Test]
+    public function onlyRefusesAGarbledMode(): void
+    {
+        $selection = $this->fixtureRoot . '/garbled-mode-selection.json';
+        file_put_contents($selection, json_encode([
+            'schema_version' => 1,
+            'mode' => 'sideways',
+            'selected_paths' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = $this->runOnly(['--only=' . $selection]);
+
+        self::assertSame(2, $result['exit']);
+        self::assertStringContainsString('mode full or targeted', $result['error']);
+    }
+
+    #[Test]
+    public function multiplyAssignedSuiteMembershipRefusesCleanly(): void
+    {
+        // Mirrors the live hazard docs/specs/ci-test-selection.md §5 warns
+        // about: a whole-tree suite directory (like packages/analytics/tests
+        // or packages/oauth-provider/tests) overlapping a narrower,
+        // package-wildcard suite directory.
+        file_put_contents($this->fixtureRoot . '/phpunit.xml.dist', <<<'XML'
+            <?xml version="1.0"?>
+            <phpunit><testsuites>
+              <testsuite name="Unit"><directory>packages/demo/tests</directory></testsuite>
+              <testsuite name="Integration"><directory>packages/*/tests/Integration</directory></testsuite>
+            </testsuites></phpunit>
+            XML);
+        mkdir($this->fixtureRoot . '/packages/demo/tests/Integration', 0o777, true);
+        file_put_contents($this->fixtureRoot . '/packages/demo/tests/Integration/OverlapTest.php', "<?php\n");
+
+        $timings = $this->fixtureRoot . '/overlap-timings.json';
+        file_put_contents($timings, json_encode(['schema_version' => 1, 'files' => []], JSON_THROW_ON_ERROR));
+
+        $result = $this->runPlannerRaw([
+            '--root=' . $this->fixtureRoot,
+            '--timings=' . $timings,
+        ]);
+
+        self::assertSame(2, $result['exit']);
+        self::assertStringContainsString('assigned to more than one suite', $result['error']);
     }
 
     /** @return array{exit: int, output: string} */
@@ -217,6 +267,28 @@ final class PhpUnitShardPlannerTest extends TestCase
         self::assertSame('', $error);
 
         return ['exit' => $exit, 'output' => (string) $output];
+    }
+
+    /**
+     * Runs the planner with an arbitrary argument list and does not assert
+     * on stderr — for fixture-root refusal tests that expect a non-zero
+     * exit and a specific stderr message.
+     *
+     * @param list<string> $args
+     * @return array{exit: int, output: string, error: string}
+     */
+    private function runPlannerRaw(array $args): array
+    {
+        $command = array_merge([PHP_BINARY, dirname(__DIR__, 2) . '/bin/build-phpunit-shards'], $args);
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        self::assertIsResource($process);
+        $output = stream_get_contents($pipes[1]);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+
+        return ['exit' => $exit, 'output' => (string) $output, 'error' => (string) $error];
     }
 
     /**

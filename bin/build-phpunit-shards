@@ -98,7 +98,21 @@ if ($files === []) {
 require_once __DIR__ . '/lib/random-order-scope.php';
 
 $mode = 'full';
-$selection = ros_document('full', null, '', '', ['inventory_files' => count($files)]);
+// Synthetic default for the no-`--only` case: there is no real selection
+// decision to embed, so this is not a document ros_select() could ever
+// produce itself (a genuine full document's fallback_reason is always
+// non-null — ros_select() sets mode to 'full' exactly when it has a
+// reason). Giving it an explicit reason instead of `null` keeps that
+// pairing intact, so a consumer reading `mode`/`fallback_reason` out of
+// the plan (spec §9 CI evidence-publishing) can't mistake this for a real
+// selector decision with a blank rationale.
+$selection = ros_document(
+    'full',
+    'no selection document supplied to the planner',
+    '',
+    '',
+    ['inventory_files' => count($files)],
+);
 $onlyPath = $options['only'] ?? '';
 if (is_string($onlyPath) && $onlyPath !== '') {
     try {
@@ -110,8 +124,9 @@ if (is_string($onlyPath) && $onlyPath !== '') {
     if (!is_array($selection)
         || ($selection['schema_version'] ?? null) !== 1
         || !is_array($selection['selected_paths'] ?? null)
+        || !in_array($selection['mode'] ?? null, ['full', 'targeted'], true)
     ) {
-        fwrite(STDERR, "The selection document must use schema_version 1.\n");
+        fwrite(STDERR, "The selection document must use schema_version 1, an array of selected_paths, and mode full or targeted.\n");
         exit(2);
     }
     foreach ($selection['selected_paths'] as $path) {
