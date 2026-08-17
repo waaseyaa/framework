@@ -50,7 +50,11 @@ final class CiSingleExecutionProofTest extends TestCase
         // symlinks, records a SHA-256, and publishes a run-scoped artifact
         // that both the ci-test-shards matrix and the random-order shard
         // matrix consume instead of each running their own network install.
-        self::assertStringContainsString('composer install --no-interaction --prefer-dist --no-progress', $prepareJob);
+        // It is also the single highest-consequence install in the run
+        // (round 2 review, item 1), so it is retry-wrapped like every other
+        // install in this file, not a bare `run: composer install`.
+        self::assertStringContainsString('uses: ./.github/actions/composer-install-retry', $prepareJob);
+        self::assertStringContainsString("args: '--no-interaction --prefer-dist --no-progress'", $prepareJob);
         self::assertStringContainsString('tar --create --file build/ci/vendor.tar vendor', $prepareJob);
         self::assertStringContainsString('sha256sum build/ci/vendor.tar', $prepareJob);
         self::assertStringContainsString('installed.sha256', $prepareJob);

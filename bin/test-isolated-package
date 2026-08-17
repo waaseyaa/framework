@@ -3,14 +3,73 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PACKAGE="${1:-}"
+MODE="${2:-}"
+
+usage() {
+  echo "Usage: bin/test-isolated-package access [--install-only|--run-tests=<dir>]" >&2
+  exit 2
+}
 
 if [[ "$PACKAGE" != "access" ]]; then
-  echo "Usage: bin/test-isolated-package access" >&2
-  exit 2
+  usage
+fi
+
+install_only=0
+run_tests_dir=""
+case "$MODE" in
+  "") ;;
+  --install-only) install_only=1 ;;
+  --run-tests=*) run_tests_dir="${MODE#--run-tests=}" ;;
+  *) usage ;;
+esac
+
+isolation_root_pattern() {
+  case "$1" in
+    "${TMPDIR:-/tmp}/waaseyaa-${PACKAGE}-isolation."*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# --run-tests=<dir>: phase 2 of the two-phase split (CI's #2404 round-2 seam).
+# Runs the previously-installed isolated suite exactly once, unretried, then
+# always cleans up — the network-touching phase (--install-only, below) is
+# the only one CI wraps in bounded retry. Retrying a full test run, not just
+# the network install, would give a deterministic failure three attempts and
+# let a flaky or order-dependent test mask real signal.
+if [[ -n "$run_tests_dir" ]]; then
+  TMP_ROOT="$run_tests_dir"
+  if ! isolation_root_pattern "$TMP_ROOT"; then
+    echo "Refusing to use unexpected isolation path: $TMP_ROOT" >&2
+    exit 2
+  fi
+  cleanup() {
+    case "$TMP_ROOT" in
+      "${TMPDIR:-/tmp}/waaseyaa-${PACKAGE}-isolation."*) rm -rf -- "$TMP_ROOT" ;;
+      *) echo "Refusing to remove unexpected isolation path: $TMP_ROOT" >&2 ;;
+    esac
+  }
+  trap cleanup EXIT
+
+  cd "$TMP_ROOT/repository/packages/$PACKAGE"
+  php vendor/bin/phpunit \
+    --no-configuration \
+    --bootstrap vendor/autoload.php \
+    --do-not-cache-result \
+    tests
+  exit 0
 fi
 
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-${PACKAGE}-isolation.XXXXXX")"
+# Cleanup always fires on exit UNLESS --install-only reaches its successful
+# hand-off point (HANDED_OFF=1 below) — at that point ownership of the
+# directory passes to a later --run-tests=<dir> invocation. Any failure
+# before hand-off (tar, composer install) still cleans up here, exactly as
+# the pre-#2404-round-2 default-mode behaviour always did.
+HANDED_OFF=0
 cleanup() {
+  if [[ "$HANDED_OFF" -eq 1 ]]; then
+    return 0
+  fi
   case "$TMP_ROOT" in
     "${TMPDIR:-/tmp}/waaseyaa-${PACKAGE}-isolation."*) rm -rf -- "$TMP_ROOT" ;;
     *) echo "Refusing to remove unexpected isolation path: $TMP_ROOT" >&2 ;;
@@ -36,6 +95,12 @@ COMPOSER_ROOT_VERSION=dev-main composer install \
   --no-interaction \
   --no-progress \
   --prefer-dist
+
+if [[ "$install_only" -eq 1 ]]; then
+  HANDED_OFF=1
+  echo "$TMP_ROOT"
+  exit 0
+fi
 
 php vendor/bin/phpunit \
   --no-configuration \

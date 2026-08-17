@@ -309,12 +309,16 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # Exact key only, everywhere in this file (round 3 harmonization): a
+      # download-cache prefix hit cannot hand a job a wrong dependency tree
+      # (it's keyed by package name+version, not a resolved vendor/ tree),
+      # but this file settled on one consistent no-restore-keys rule for
+      # every Composer cache tier rather than reasoning about two policies.
       - name: Cache Composer downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/composer/files
           key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-php-8.5-composer-
 
       # Single install authority (#2404 revision): every downstream test job
       # (ci-test-shards, ci-random-order-shard) consumes this exact-head
@@ -323,9 +327,14 @@ jobs:
       # PR #2406 failed on repeated HTTP/2 429s from three independent
       # installs (this job, ci/test-shard-1, ci/skeleton-create-project) —
       # collapsing the first two into one authority removes two of the
-      # three failure points outright.
+      # three failure points outright. This install is now the single
+      # highest-consequence one in the run (round 2 review, item 1): both
+      # shard matrices transitively depend on it, so it is retry-wrapped
+      # like every other install in this file, not left bare.
       - name: Install dependencies (single authority for this run)
-        run: composer install --no-interaction --prefer-dist --no-progress
+        uses: ./.github/actions/composer-install-retry
+        with:
+          args: '--no-interaction --prefer-dist --no-progress'
 
       - name: Prepare the run-scoped dependency archive
         run: |
@@ -381,12 +390,13 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: pcov
 
+      # Exact key only — see prepare-test-plan's identical block for the
+      # file-wide rationale.
       - name: Cache Composer downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/composer/files
           key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-php-8.5-composer-
 
       - name: Download the run-scoped dependency archive
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -399,10 +409,29 @@ jobs:
       # job falls back to a locked `composer install` rather than force
       # artifact use. See bin/verify-random-order-vendor-archive for the
       # digest/extraction/symlink checks (fixture-tested in
-      # tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php).
+      # tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php). The
+      # fallback install itself is retry-wrapped (round 2 review, item 2):
+      # this path triggers precisely when something is already wrong, and
+      # network flakiness is a plausible cause, so the two failure modes
+      # can compound without it.
       - name: Restore dependencies with integrity proof
         run: |
           set -euo pipefail
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
           restore_failed=0
           bin/verify-random-order-vendor-archive build/ci . || restore_failed=1
           if test "$restore_failed" -eq 0; then
@@ -411,7 +440,7 @@ jobs:
           if test "$restore_failed" -ne 0; then
             echo "::warning title=Dependency archive rejected::falling back to a locked install"
             rm -rf vendor
-            composer install --no-interaction --prefer-dist --no-progress
+            composer_retry composer install --no-interaction --prefer-dist --no-progress
           fi
 
       - name: Download exact shard plan
@@ -538,10 +567,27 @@ jobs:
       # bin/verify-random-order-vendor-archive (extracted so they are
       # fixture-testable — see tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php)
       # — check-platform-reqs stays inline here since it depends on this
-      # runner's real PHP/extension profile, not on the archive itself.
+      # runner's real PHP/extension profile, not on the archive itself. The
+      # fallback install itself is retry-wrapped (round 2 review, item 2) —
+      # same rationale as ci-test-shards's identical block.
       - name: Restore dependencies with integrity proof
         run: |
           set -euo pipefail
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
           restore_failed=0
           bin/verify-random-order-vendor-archive build/ci . || restore_failed=1
           if test "$restore_failed" -eq 0; then
@@ -550,7 +596,7 @@ jobs:
           if test "$restore_failed" -ne 0; then
             echo "::warning title=Dependency archive rejected::falling back to a locked install"
             rm -rf vendor
-            composer install --no-interaction --prefer-dist --no-progress
+            composer_retry composer install --no-interaction --prefer-dist --no-progress
           fi
 
       - name: Execute the shard in replayable random order
@@ -612,24 +658,34 @@ jobs:
           path: ~/.cache/composer/files
           key: ${{ runner.os }}-php-8.5-split-package-composer-${{ hashFiles('packages/access/composer.json', 'packages/testing/composer.json', 'packages/user/composer.json') }}
 
-      - name: Prove the access package install and suite in isolation
+      # Two-phase split (#2404 revision, round 3, item 3): retry covers only
+      # the network-touching install phase (--install-only), never the test
+      # run. Retrying a whole test run would give a deterministic failure
+      # three attempts and let a flaky or order-dependent test mask real
+      # signal — a materially different risk than retrying a network call.
+      # --run-tests=<dir> then runs the isolated suite exactly once,
+      # unretried, and owns cleanup of the directory --install-only handed
+      # off (see bin/test-isolated-package's HANDED_OFF ownership comment).
+      - name: Install the isolated access package (retry with backoff)
         run: |
           set -euo pipefail
-          # Bounded retry with backoff around bin/test-isolated-package's own
-          # network-touching `composer install` (#2404 revision, round 2).
           attempt=1
           max_attempts=3
           delay=5
-          until bash bin/test-isolated-package access; do
+          until isolation_dir="$(bash bin/test-isolated-package access --install-only)"; do
             exit_code=$?
             if [ "$attempt" -ge "$max_attempts" ]; then
               exit "$exit_code"
             fi
-            echo "::warning title=test-isolated-package failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+            echo "::warning title=test-isolated-package install failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
             sleep "$delay"
             attempt=$((attempt + 1))
             delay=$((delay * 2))
           done
+          echo "ISOLATION_DIR=$isolation_dir" >> "$GITHUB_ENV"
+
+      - name: Run the isolated access package suite (unretried)
+        run: bash bin/test-isolated-package access --run-tests="$ISOLATION_DIR"
 
   ci-coverage:
     name: ci/coverage
