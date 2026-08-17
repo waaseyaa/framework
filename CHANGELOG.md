@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Single-execution PHPUnit proof (#2404):** Blocking CI now assigns the
+  configured PHP test inventory exactly once across four timing-balanced,
+  package-safe shards. Each execution emits both JUnit and Clover evidence;
+  the existing `ci/unit-tests` and `ci/coverage` required contexts attest and
+  merge those artifacts instead of rerunning nearly 13,700 tests independently.
+  Committed timing evidence has a deterministic median fallback for new files,
+  Composer download caches are PHP/lock scoped, and superseded pull-request
+  runs cancel immediately without cancelling main-line proof.
+
 - **Security — unified internal-field visibility authority (#2113):** Admin
   form schemas and detail projections now consume the same boot-scoped
   `InternalFieldVisibilityPolicy` as generic JSON:API serialization and

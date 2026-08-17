@@ -7,8 +7,10 @@ target.
 
 ## PHP
 
-The dedicated `ci/coverage` job runs the complete PHPUnit suite once with PCOV
-and publishes:
+Four timing-balanced, package-safe CI shards execute the complete PHPUnit
+inventory once with PCOV. Each shard publishes JUnit plus Clover evidence; the
+dedicated `ci/coverage` job executes no tests, merges those Clover reports, and
+publishes:
 
 - `build/logs/clover.xml`, for tooling and line-level review;
 - `build/logs/coverage.txt`, for a human-readable run summary;
@@ -22,13 +24,30 @@ covered and executable counts, while the artifact preserves visibility into
 every other package without turning a first measurement into an arbitrary
 target.
 
+Shard assignment is deterministic longest-processing-time scheduling over
+whole packages (and whole top-level root test domains), using the committed
+`tools/phpunit-timings.json`. New tests receive a deterministic median fallback
+until `bin/refresh-phpunit-timings` refreshes the evidence from retained JUnit
+artifacts. Package grouping preserves package-local fixture classes while
+recorded timings balance hosted work.
+
+After a representative green run, download its `php-test-shard-*` artifacts
+and refresh the committed weights with:
+
+```bash
+php bin/refresh-phpunit-timings --output=tools/phpunit-timings.json \
+  --run-id=<run-id> --head-sha=<40-hex-head> build/logs/junit-*.xml
+```
+
+Review the source identity and weight changes like any other governed CI input.
+
 The first clean PHP measurement covered 50,127 of 68,960 executable lines
 (72.69 percent). On the GitHub-hosted PHP 8.5 runner, the PCOV suite took 4
 minutes 6 seconds and the complete coverage job took 4 minutes 25 seconds. The
 coverage-free local suite used during this change took 3 minutes 47 seconds.
 These are different runners rather than a controlled benchmark, so the durable
-decision is structural: coverage remains one parallel CI lane and is not part
-of the default local test command.
+decision is structural: coverage evidence is produced by the same execution
+that proves the test result and is not part of the default local test command.
 
 Pull requests and ordinary pushes must cover at least 80 percent of executable
 PHP source lines added or replaced by the diff. Deletions, comments, signatures,

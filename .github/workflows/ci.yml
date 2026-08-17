@@ -16,6 +16,10 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   support-contract:
     name: support/s1-contract
@@ -283,59 +287,97 @@ jobs:
           path: tmp/phpstan-dead-code
           key: phpstan-dead-code-cache-${{ hashFiles('tools/phpstan/WaaseyaaEntrypointProvider.php', 'phpstan-dead-code.neon', 'phpstan-dead-code-baseline.neon', 'phpstan.neon') }}-${{ github.run_id }}
 
-  ci-unit-tests:
-    name: ci/unit-tests
+  prepare-test-plan:
+    name: Prepare timing-balanced PHPUnit plan
     runs-on: ubuntu-24.04
-    # Fast contracts gate the long jobs (governed-gates.md §5): a stale
-    # recorded roster fails once in support/s1-contract (~30s) instead of
-    # re-reporting through unit/random-order/coverage minutes later (#2400).
     needs: [support-contract, spec-drift]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
-      - name: Set up PHP
+      - name: Build deterministic shard plan
+        run: |
+          mkdir -p build/ci
+          php bin/build-phpunit-shards --shards=4 --timings=tools/phpunit-timings.json > build/ci/phpunit-shards.json
+          php -r '$p = json_decode(file_get_contents("build/ci/phpunit-shards.json"), true, 512, JSON_THROW_ON_ERROR); foreach ($p["include"] as $s) { printf("shard %d: %d files, %.2fs recorded, %d fallback%s", $s["id"], $s["test_files"], $s["expected_seconds"], $s["fallback_files"], PHP_EOL); }'
+
+      - name: Retain exact shard plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phpunit-shard-plan
+          path: build/ci/phpunit-shards.json
+          retention-days: 30
+
+  ci-test-shards:
+    name: ci/test-shard-${{ matrix.id }}
+    runs-on: ubuntu-24.04
+    needs: [support-contract, spec-drift, prepare-test-plan]
+    strategy:
+      fail-fast: false
+      matrix:
+        id: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP with PCOV
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: pcov
 
-      - name: Cache Composer dependencies
+      - name: Cache Composer downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: ${{ runner.os }}-php-8.5-composer-
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Run unit tests
-        run: ./vendor/bin/phpunit --testsuite Unit --no-coverage --log-junit build/logs/junit-unit.xml
+      - name: Download exact shard plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: phpunit-shard-plan
+          path: build/ci
 
-      - name: Run architecture tests
-        run: ./vendor/bin/phpunit --testsuite Architecture --no-coverage --log-junit build/logs/junit-architecture.xml
+      - name: Execute shard once with test and coverage evidence
+        env:
+          SHARD_ID: ${{ matrix.id }}
+        run: |
+          mkdir -p build/logs
+          php -r '$p = json_decode(file_get_contents("build/ci/phpunit-shards.json"), true, 512, JSON_THROW_ON_ERROR); $id = (int) getenv("SHARD_ID"); foreach ($p["include"] as $s) { if ($s["id"] === $id) { file_put_contents("build/ci/test-paths", $s["paths"] . PHP_EOL); exit(0); } } fwrite(STDERR, "Shard id is absent from the exact plan." . PHP_EOL); exit(2);'
+          mapfile -t test_paths < build/ci/test-paths
+          test "${#test_paths[@]}" -gt 0
+          php -d memory_limit=1G vendor/bin/phpunit "${test_paths[@]}" \
+            --coverage-clover build/logs/clover-${{ matrix.id }}.xml \
+            --log-junit build/logs/junit-${{ matrix.id }}.xml
 
-      # Production cutover invariant (#1985): this runs inside the required
-      # ci/unit-tests context, not as an optional standalone job.
-      - name: Run blocking fresh-install cutover smoke
-        run: ./vendor/bin/phpunit tests/Integration/FreshInstall/CutoverFreshInstallSmokeTest.php --no-coverage
-
-      - name: Run integration tests
-        run: ./vendor/bin/phpunit --testsuite Integration --exclude-group fresh-install-cutover --no-coverage --log-junit build/logs/junit-integration.xml
-
-      - name: Upload test artifacts
+      - name: Upload shard evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: test-results
+          name: php-test-shard-${{ matrix.id }}
           path: |
-            build/logs/junit-unit.xml
-            build/logs/junit-architecture.xml
-            build/logs/junit-integration.xml
+            build/logs/junit-${{ matrix.id }}.xml
+            build/logs/clover-${{ matrix.id }}.xml
+          if-no-files-found: error
           retention-days: 30
+
+  ci-unit-tests:
+    name: ci/unit-tests
+    runs-on: ubuntu-24.04
+    needs: [ci-test-shards]
+    if: always()
+    steps:
+      - name: Require every timing-balanced shard
+        env:
+          SHARD_RESULT: ${{ needs.ci-test-shards.result }}
+        run: test "$SHARD_RESULT" = success
 
   ci-random-order:
     name: ci/random-order
@@ -398,40 +440,39 @@ jobs:
   ci-coverage:
     name: ci/coverage
     runs-on: ubuntu-24.04
-    # See ci-unit-tests: fast contracts gate the long jobs (#2400).
-    needs: [support-contract, spec-drift]
+    needs: [ci-test-shards]
+    if: always()
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
           fetch-depth: 0
 
-      - name: Set up PHP with PCOV
+      - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
-          extensions: pdo_sqlite, sqlite3, mbstring, xml
-          coverage: pcov
+          extensions: xml
+          coverage: none
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Download shard evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          path: vendor
-          key: composer-v2-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-v2-
+          pattern: php-test-shard-*
+          path: build/logs/shards
+          merge-multiple: true
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
-
-      - name: Measure PHP coverage
+      - name: Require successful shards and merge coverage
+        env:
+          SHARD_RESULT: ${{ needs.ci-test-shards.result }}
         run: |
-          mkdir -p build/logs
-          time php -d memory_limit=1G vendor/bin/phpunit \
-            --coverage-clover build/logs/clover.xml \
-            --coverage-text=build/logs/coverage.txt
+          test "$SHARD_RESULT" = success
+          php bin/merge-clover-coverage --output=build/logs/clover.xml build/logs/shards/clover-*.xml
 
       - name: Summarize package coverage
-        run: php bin/summarize-php-coverage build/logs/clover.xml > build/logs/coverage-summary.json
+        run: |
+          php bin/summarize-php-coverage build/logs/clover.xml > build/logs/coverage-summary.json
+          cat build/logs/coverage-summary.json > build/logs/coverage.txt
 
       - name: Enforce PHP coverage baselines
         run: php bin/check-php-coverage-baseline build/logs/coverage-summary.json

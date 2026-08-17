@@ -28,7 +28,8 @@ final class CiReleaseWorkflowParityTest extends TestCase
     {
         $ci = $this->read('.github/workflows/ci.yml');
 
-        self::assertStringContainsString('--testsuite Architecture', $ci);
+        self::assertStringContainsString('php bin/build-phpunit-shards', $ci);
+        self::assertStringContainsString('tests/Architecture', (string) file_get_contents($this->repoRoot . '/phpunit.xml.dist'));
         self::assertStringContainsString('check-package-layers-pl008-self-test', $ci);
     }
 

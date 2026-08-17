@@ -1,0 +1,85 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$output = null;
+$runId = null;
+$headSha = null;
+$inputs = [];
+foreach (array_slice($_SERVER['argv'], 1) as $argument) {
+    if (str_starts_with($argument, '--output=')) {
+        $output = substr($argument, 9);
+    } elseif (str_starts_with($argument, '--run-id=')) {
+        $runId = substr($argument, 9);
+    } elseif (str_starts_with($argument, '--head-sha=')) {
+        $headSha = substr($argument, 11);
+    } else {
+        $inputs[] = $argument;
+    }
+}
+
+if (!is_string($output) || $output === '' || $inputs === [] || !is_string($runId) || $runId === '' || !is_string($headSha) || preg_match('/^[0-9a-f]{40}$/', $headSha) !== 1) {
+    fwrite(STDERR, "Usage: php bin/refresh-phpunit-timings --output=<json> --run-id=<id> --head-sha=<40hex> <junit.xml>...\n");
+    exit(2);
+}
+
+/** @var array<string, float> $timings */
+$timings = [];
+foreach ($inputs as $input) {
+    if (!is_file($input) || is_link($input)) {
+        fwrite(STDERR, "JUnit timing input is unavailable or unsafe: {$input}.\n");
+        exit(2);
+    }
+    $previous = libxml_use_internal_errors(true);
+    $xml = simplexml_load_file($input, options: LIBXML_NONET | LIBXML_NOBLANKS);
+    libxml_use_internal_errors($previous);
+    if (!$xml instanceof SimpleXMLElement) {
+        fwrite(STDERR, "Unable to parse JUnit timing input: {$input}.\n");
+        exit(2);
+    }
+    foreach ($xml->xpath('//testcase') ?: [] as $testcase) {
+        $file = str_replace('\\', '/', (string) $testcase['file']);
+        if (preg_match('#(?:^|/)(packages/[^/]+/.+\.php|tests/.+\.php)$#', $file, $matches) !== 1) {
+            fwrite(STDERR, "JUnit testcase has a non-repository test path: {$file}.\n");
+            exit(2);
+        }
+        $seconds = (string) $testcase['time'];
+        if (!is_numeric($seconds) || (float) $seconds < 0.0) {
+            fwrite(STDERR, "JUnit testcase has invalid timing for {$matches[1]}.\n");
+            exit(2);
+        }
+        $timings[$matches[1]] = ($timings[$matches[1]] ?? 0.0) + (float) $seconds;
+    }
+}
+
+if ($timings === []) {
+    fwrite(STDERR, "JUnit timing inputs contained no repository testcases.\n");
+    exit(2);
+}
+ksort($timings);
+foreach ($timings as &$seconds) {
+    $seconds = round($seconds, 6);
+}
+unset($seconds);
+
+$document = [
+    'schema_version' => 1,
+    'source' => [
+        'run_id' => $runId,
+        'head_sha' => $headSha,
+    ],
+    'files' => $timings,
+];
+$directory = dirname($output);
+if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+    fwrite(STDERR, "Unable to create timing output directory: {$directory}.\n");
+    exit(2);
+}
+$encoded = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+if (file_put_contents($output, $encoded, LOCK_EX) === false) {
+    fwrite(STDERR, "Unable to write PHPUnit timing evidence: {$output}.\n");
+    exit(2);
+}
+
+printf("phpunit-timings: wrote %d test-file timings to %s.\n", count($timings), $output);
