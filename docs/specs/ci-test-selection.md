@@ -85,9 +85,12 @@ seconds.
 
 **The shipped selector's measured yield.** Replayed against the 40 most
 recent merge commits to `origin/main`, weighted by real PHPUnit timing
-evidence: mean 87–89% of the inventory selected, median 100% (most merges
-touched enough self-protection or unclassifiable surface to force a full
-run), full-suite fallback on 19 of 40 runs (48%).
+evidence: mean 87% of the inventory selected — this is the figure the
+shipped selector itself recorded in the spec this section replaces; an
+independent recomputation using a slightly different `tests/` attribution
+method gave 89%, so treat the figure as accurate to about two points —
+median 100% (most merges touched enough self-protection or unclassifiable
+surface to force a full run), full-suite fallback on 19 of 40 runs (48%).
 
 **The decisive finding.** `packages/*/tests` carried undeclared cross-package
 test references that the selector's `require`/`require-dev` consumer-closure
@@ -99,18 +102,51 @@ same revision — `bin/check-package-layers`). The selector's measured yield
 above rested on a dependency graph that did not contain these edges, which
 means the closure it computed was smaller — and the "saving" it reported
 larger — than the real reachability of a change through the *actual* test
-suite. Declaring the graph honestly collapsed the modelled closure size from
-a median of 4 to 64 of 76 packages, and modelled mean selection from roughly
-89% down to roughly 96% of the inventory — a real saving near **4%**, not the
-13% the unsound graph reported. `packages/foundation` alone accounts for 20
-of the 73 declared edges, all upward test-only references (to `api`, `cli`,
-`graphql`, `mcp`, `ssr`, and others). Because every package in the framework
-depends on `foundation` (it is the Layer 0 base), any change that reaches
-`foundation` pulls in essentially the whole consumer graph once those edges
-are honest — which is most of why the closure ballooned. That 20-edge upward
-coupling is recorded here as a known layering smell for a future issue, not
-fixed by this revision: declaring it made CI honest about test coupling that
-already existed, it did not endorse the coupling itself.
+suite.
+
+**Measured, 2026-08-17.** Once the 73 edges were declared, the closure
+effect was recomputed directly rather than modelled: build the reverse
+dependency graph over internal `require` + `require-dev` edges, once from
+`git show d69445f60:packages/*/composer.json` (the commit before PL010 —
+the unsound graph the selector was actually measured against) and once from
+the current worktree (the sound graph with the 73 edges declared), then
+compute the transitive consumer closure for every one of the 76 packages:
+
+| | mean closure | median closure | packages closing over >50% of the graph |
+|---|---|---|---|
+| before (pre-PL010, unsound) | 21.2 | 4 of 76 | 21 / 76 |
+| after (73 edges declared) | 44.4 | **64 of 76** | 52 / 76 |
+
+This is not that the hub packages got worse: `foundation` and `entity` were
+already hubs, closing over 63 of 76 packages *before* the declarations, and
+move only to 64 after. What changed is the **median** package — from 4 to
+64 — meaning packages that looked bounded under the old, undeclared-edge
+graph turn out to be hubs once their real test dependencies are visible.
+`genealogy` staying at 1 both before and after shows genuine leaves remain
+leaves; the shift is not indiscriminate, it is specifically the packages
+whose tests reach outward that moved. `packages/foundation` alone accounts
+for 20 of the 73 declared edges, all upward test-only references (to `api`,
+`cli`, `graphql`, `mcp`, `ssr`, and others); because every package in the
+framework depends on `foundation` (it is the Layer 0 base), any change
+reaching a package `foundation`'s tests reference now pulls `foundation`
+into the closure, which then pulls in essentially the whole consumer graph —
+this is most of why the median moved so far. That 20-edge upward coupling is
+recorded here as a known layering smell for a future issue, not fixed by
+this revision: declaring it made CI honest about test coupling that already
+existed, it did not endorse the coupling itself.
+
+**What this implies for selection yield is modelled, and cannot be
+re-measured.** The selector itself was deleted in this same revision (§2),
+so there is no tool left to re-run against the 40-merge window with the
+sound graph — the 87%/89% figures above are the last real measurements this
+selector will ever produce. Applying the same closure-to-selection-fraction
+relationship the pre-revision spec used, a median closure of 64 of 76
+packages implies mean selection of roughly **96%** of the inventory — a real
+saving near **4%**, not the 13% the unsound graph reported. That 96% is a
+**modelled** projection from the measured closure numbers above, not an
+independently measured selection fraction; it is an order-of-magnitude
+estimate of what the selector would have yielded had it run against the
+sound graph, not a source of truth on its own.
 
 **Two grouping alternatives were also measured and rejected**, independent
 of the graph-soundness problem above:
