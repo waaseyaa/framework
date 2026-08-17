@@ -26,18 +26,38 @@ use PHPUnit\Framework\TestCase;
  * The hand-off itself was a round-3 regression (round 4 fix): the
  * workflow originally captured the script's whole stdout via command
  * substitution to get the isolation path, but Composer's own stdout is
- * never redirected inside the script, and Composer prints a PHP 8.5
- * deprecation notice from its bundled react/promise on every invocation —
+ * never redirected inside the script, and Composer prints a startup
+ * deprecation notice from its bundled react/promise on every invocation
+ * (on some PHP/Composer version combinations — see round 5 note below) —
  * that chatter rode along with the path and produced a multi-line value
  * that broke GITHUB_ENV's parser. The fix moved the hand-off to a
  * dedicated file the script writes only at its own successful hand-off
- * point; installOnlyHandOffFileIsImmuneToComposerStdoutNoise() proves it
- * against the REAL Composer binary's authentic noise, not a fabricated
- * string, per the round-4 review's request.
+ * point.
+ *
+ * Round 5: installOnlyHandOffFileIsImmuneToComposerStdoutNoise() originally
+ * asserted against the real `composer` binary's authentic startup noise as
+ * vacuity proof (round 4). That broke on GitHub's runners: local Composer
+ * 2.8.8 on PHP 8.5 emits the react/promise deprecation notice, but CI
+ * resolved Composer 2.10.2, which no longer does — the assertion was
+ * unintentionally keyed to one Composer version. The property under test
+ * (stdout carries noise; the hand-off file still contains exactly the
+ * isolation path) does not depend on Composer at all, so the noise is now
+ * synthetic and fully self-controlled: the stub emits a deterministic
+ * marker line that cannot drift with any Composer or PHP upgrade.
  */
 #[CoversNothing]
 final class IsolatedPackageInstallOnlyModeTest extends TestCase
 {
+    /**
+     * Deterministic, self-defined stdout noise (round 5 fix): stands in for
+     * "whatever a subprocess during the install phase happens to print" —
+     * originally the real Composer binary's own startup chatter, which
+     * turned out to vary by Composer version (present on 2.8.8, absent on
+     * 2.10.2) and broke the vacuity guard in CI. A literal constant this
+     * file owns cannot drift with any third-party tool's version.
+     */
+    private const NOISE_MARKER = 'SYNTHETIC-STDOUT-NOISE-MARKER-2404';
+
     private string $repoRoot;
 
     /** @var list<string> */
@@ -146,47 +166,43 @@ final class IsolatedPackageInstallOnlyModeTest extends TestCase
      * script's stdout via `isolation_dir="$(bash bin/test-isolated-package
      * access --install-only)"`. Composer's own stdout was never
      * redirected, so any noise it printed rode along ahead of the path.
-     * Proven here against the REAL `composer` binary's authentic output —
-     * not a fabricated string — per the round-4 review's request: the
-     * stub's `install` branch shells out to the real composer executable
-     * (found on the ORIGINAL PATH, before the stub directory is
-     * prepended) for a cheap, network-free call that reliably reproduces
-     * its real stdout chatter (a blank line and a PHP 8.5 deprecation
-     * notice from Composer's bundled react/promise — confirmed present in
-     * this repository's own Composer invocations), left unredirected so it
-     * flows to this process's stdout exactly like the real `composer
-     * install` step does. The assertion is on the HAND-OFF FILE, which
-     * must contain the isolation path and nothing else, while the
-     * process's own stdout is independently asserted to actually contain
-     * the real noise — proving the test is not vacuously passing because
-     * nothing was ever printed.
+     *
+     * Round 4 proved this against the real `composer` binary's startup
+     * chatter; that broke in CI (local Composer 2.8.8 on PHP 8.5 emits a
+     * react/promise deprecation notice, CI's Composer 2.10.2 does not) —
+     * the vacuity guard was unintentionally keyed to one Composer version.
+     * The property under test has nothing to do with Composer specifically:
+     * it is "arbitrary stdout noise during the install phase must not reach
+     * the hand-off file". Round 5 makes the noise deterministic and
+     * self-generated instead — the stub emits its own guaranteed marker
+     * line, unrelated to any real Composer output — so this assertion
+     * cannot break on a Composer or PHP upgrade: nothing about it depends
+     * on what any third-party tool prints or which version is installed,
+     * only on a string this test file itself defines and controls.
      */
     #[Test]
-    public function installOnlyHandOffFileIsImmuneToComposerStdoutNoise(): void
+    public function installOnlyHandOffFileIsImmuneToStdoutNoise(): void
     {
-        $realComposer = trim((string) shell_exec('command -v composer 2>/dev/null'));
-        if ($realComposer === '') {
-            self::markTestSkipped('No real `composer` binary resolvable on PATH.');
-        }
-
         $marker = $this->markerPath();
         $handoff = $this->handoffPath();
         $result = $this->runScript(
             ['access', '--install-only=' . $handoff],
             $marker,
-            noisyRealComposerBinary: $realComposer,
+            emitSyntheticStdoutNoise: true,
         );
 
         self::assertSame(0, $result['exit_code'], $result['output']);
 
-        // The process's own stdout+stderr genuinely carried noise from the
-        // real Composer binary — this is what makes the test meaningful
-        // rather than a silent stub that could never have caught the
-        // regression in the first place.
+        // The process's own stdout genuinely carried noise — this is what
+        // makes the test meaningful rather than a silent stub that could
+        // never have caught the regression in the first place. The marker
+        // is synthetic and defined entirely by this test (self::NOISE_MARKER
+        // below), so this can never depend on a third party's version or
+        // behaviour.
         self::assertStringContainsString(
-            'Deprecated',
+            self::NOISE_MARKER,
             $result['output'],
-            'The real composer binary must actually have printed its known startup chatter for this test to prove anything.',
+            'The stub must actually have printed its synthetic noise for this test to prove anything.',
         );
 
         self::assertFileExists($handoff);
@@ -204,9 +220,9 @@ final class IsolatedPackageInstallOnlyModeTest extends TestCase
         self::assertMatchesRegularExpression(
             '#^' . preg_quote(sys_get_temp_dir(), '#') . '/waaseyaa-access-isolation\.#',
             $isolationDir,
-            'The single line in the hand-off file must be exactly the isolation path, with no Composer chatter mixed in.',
+            'The single line in the hand-off file must be exactly the isolation path, with no stdout noise mixed in.',
         );
-        self::assertStringNotContainsString('Deprecated', $handoffContents);
+        self::assertStringNotContainsString(self::NOISE_MARKER, $handoffContents);
     }
 
     private function markerPath(): string
@@ -227,7 +243,7 @@ final class IsolatedPackageInstallOnlyModeTest extends TestCase
 
     /** @param list<string> $args */
     /** @return array{exit_code: int, output: string} */
-    private function runScript(array $args, string $markerFile, ?string $noisyRealComposerBinary = null): array
+    private function runScript(array $args, string $markerFile, bool $emitSyntheticStdoutNoise = false): array
     {
         $stubBin = sys_get_temp_dir() . '/waaseyaa_composer_stub_' . uniqid('', true);
         mkdir($stubBin, 0o777, true);
@@ -239,15 +255,23 @@ final class IsolatedPackageInstallOnlyModeTest extends TestCase
         // $markerFile instead of running real tests, so tests here can
         // assert "did the suite run" without depending on real PHPUnit.
         //
-        // When $noisyRealComposerBinary is given, the stub first shells
-        // out to the REAL composer binary for a cheap, network-free
-        // `--version` call, deliberately left unredirected so its
-        // authentic stdout noise (confirmed above: a blank line then
-        // "Deprecated: ..." on stdout, ahead of the version line) flows
-        // through — exactly what installOnlyHandOffFileIsImmuneToComposerStdoutNoise()
-        // needs.
-        $noisyPreamble = $noisyRealComposerBinary !== null
-            ? escapeshellarg($noisyRealComposerBinary) . ' --version || true'
+        // When $emitSyntheticStdoutNoise is true, the stub prints a blank
+        // line plus self::NOISE_MARKER before fabricating vendor/,
+        // deliberately unredirected so it flows through to this process's
+        // stdout exactly like the real `composer install` step's own
+        // output does. This used to shell out to the real `composer`
+        // binary for authentic startup chatter, but that chatter turned
+        // out to be Composer-version-dependent (present on 2.8.8, absent
+        // on 2.10.2) and broke in CI — see the round-5 note on
+        // installOnlyHandOffFileIsImmuneToStdoutNoise(). A synthetic,
+        // self-defined marker exercises the identical property (stdout
+        // noise during install must never reach the hand-off file)
+        // without depending on any third party's version or behaviour, so
+        // invoking the real binary added no assertion value once the
+        // marker was self-controlled — dropped rather than kept for
+        // flavour alone.
+        $noisyPreamble = $emitSyntheticStdoutNoise
+            ? 'echo ""; echo ' . escapeshellarg(self::NOISE_MARKER)
             : ': no-op';
         file_put_contents(
             $stubBin . '/composer',
