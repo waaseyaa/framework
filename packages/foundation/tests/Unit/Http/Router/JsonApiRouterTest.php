@@ -7,9 +7,12 @@ namespace Waaseyaa\Foundation\Tests\Unit\Http\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\Controller\BroadcastStorage;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\Router\JsonApiRouter;
 
@@ -18,10 +21,22 @@ final class JsonApiRouterTest extends TestCase
 {
     private function createRouter(): JsonApiRouter
     {
+        return $this->createRouterFixture()['router'];
+    }
+
+    /**
+     * @return array{router: JsonApiRouter, database: \Waaseyaa\Database\DBALDatabase}
+     */
+    private function createRouterFixture(?InternalFieldVisibilityPolicy $internalFieldVisibility = null): array
+    {
         $etm = new EntityTypeManager(new EventDispatcher());
         $accessHandler = new EntityAccessHandler();
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
-        return new JsonApiRouter($etm, $accessHandler, $db);
+
+        return [
+            'router' => new JsonApiRouter($etm, $accessHandler, $db, internalFieldVisibility: $internalFieldVisibility),
+            'database' => $db,
+        ];
     }
 
     #[Test]
@@ -40,6 +55,26 @@ final class JsonApiRouterTest extends TestCase
         $request = Request::create('/api/node');
         $request->attributes->set('_controller', 'App\\Controller\\NodeJsonApiController::index');
         self::assertTrue($router->supports($request));
+    }
+
+    #[Test]
+    public function getDispatchesWithTheInjectedInternalVisibilityPolicy(): void
+    {
+        $fixture = $this->createRouterFixture(new InternalFieldVisibilityPolicy([
+            'node' => ['legacy_origin'],
+        ]));
+        $router = $fixture['router'];
+        $database = $fixture['database'];
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($database);
+        $request = Request::create('/api/missing');
+        $request->attributes->set('_controller', 'Waaseyaa\\Api\\JsonApiController::index');
+        $request->attributes->set('_entity_type', 'missing');
+        $request->attributes->set('_account', new AuthorizationPrincipal(1, true, [], [], 'test'));
+        $request->attributes->set('_broadcast_storage', new BroadcastStorage($database));
+
+        $response = $router->handle($request);
+
+        self::assertSame(404, $response->getStatusCode());
     }
 
     #[Test]

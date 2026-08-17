@@ -18,16 +18,17 @@ use Waaseyaa\AdminSurface\AdminSurfaceServiceProvider;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
-use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
+use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldReadLevel;
-use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
@@ -179,10 +180,12 @@ final class AdminSurfaceServiceProviderTest extends TestCase
 
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
         $provider = new AdminSurfaceServiceProvider();
-        $provider->setKernelServices(new class ($registry, $accessHandler) implements KernelServicesInterface {
+        $internalFieldVisibility = new InternalFieldVisibilityPolicy();
+        $provider->setKernelServices(new class ($registry, $accessHandler, $internalFieldVisibility) implements KernelServicesInterface {
             public function __construct(
                 private readonly FieldDefinitionRegistryInterface $registry,
                 private readonly EntityAccessHandler $accessHandler,
+                private readonly InternalFieldVisibilityPolicy $internalFieldVisibility,
             ) {}
 
             public function get(string $abstract): ?object
@@ -190,6 +193,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
                 return match ($abstract) {
                     FieldDefinitionRegistryInterface::class => $this->registry,
                     EntityAccessHandler::class => $this->accessHandler,
+                    InternalFieldVisibilityPolicy::class => $this->internalFieldVisibility,
                     default => null,
                 };
             }
@@ -450,7 +454,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function adminSpaFallbackIsReturnedWhenIndexHtmlMissing(): void
     {
         $tempDir = sys_get_temp_dir() . '/waaseyaa_test_spa_' . uniqid();
-        mkdir($tempDir . '/public', 0777, true);
+        mkdir($tempDir . '/public', 0o777, true);
 
         try {
             $response = AdminSpaFallback::htmlResponse('TestApp');
@@ -469,7 +473,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function adminSpaServesIndexHtmlWhenPresent(): void
     {
         $tempDir = sys_get_temp_dir() . '/waaseyaa_test_spa_' . uniqid();
-        mkdir($tempDir . '/public/admin', 0777, true);
+        mkdir($tempDir . '/public/admin', 0o777, true);
         file_put_contents($tempDir . '/public/admin/index.html', '<html><body>Admin SPA</body></html>');
 
         try {
@@ -489,7 +493,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function adminSpaServesVendorDistWhenPublicAdminMissing(): void
     {
         $tempDir = sys_get_temp_dir() . '/waaseyaa_test_spa_' . uniqid();
-        mkdir($tempDir . '/public', 0777, true);
+        mkdir($tempDir . '/public', 0o777, true);
 
         try {
             $result = AdminSurfaceServiceProvider::resolveAdminIndex($tempDir, '<html>Vendor</html>');
@@ -505,7 +509,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function adminSpaServesPublicOverVendorDist(): void
     {
         $tempDir = sys_get_temp_dir() . '/waaseyaa_test_spa_' . uniqid();
-        mkdir($tempDir . '/public/admin', 0777, true);
+        mkdir($tempDir . '/public/admin', 0o777, true);
         file_put_contents($tempDir . '/public/admin/index.html', '<html>App Override</html>');
 
         try {
@@ -524,7 +528,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function adminSpaReturnsNullWhenNeitherExists(): void
     {
         $tempDir = sys_get_temp_dir() . '/waaseyaa_test_spa_' . uniqid();
-        mkdir($tempDir . '/public', 0777, true);
+        mkdir($tempDir . '/public', 0o777, true);
 
         try {
             $result = AdminSurfaceServiceProvider::resolveAdminIndex($tempDir, null);

@@ -34,6 +34,36 @@ final class InternalFieldVisibilityPolicyTest extends TestCase
         self::assertSame(['legacy_origin'], $policy->internalFields('event'));
     }
 
+    #[Test]
+    public function itLoadsApplicationMetadataFromConfig(): void
+    {
+        $policy = InternalFieldVisibilityPolicy::fromConfig([
+            'entity' => [
+                'internal_fields_by_type' => ['event' => ['legacy_origin']],
+            ],
+        ]);
+
+        self::assertSame(['legacy_origin'], $policy->internalFields('event'));
+    }
+
+    #[Test]
+    public function itRejectsMalformedEntityConfig(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        InternalFieldVisibilityPolicy::fromConfig(['entity' => 'invalid']);
+    }
+
+    #[Test]
+    public function itRejectsMalformedInternalFieldMapConfig(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        InternalFieldVisibilityPolicy::fromConfig([
+            'entity' => ['internal_fields_by_type' => 'invalid'],
+        ]);
+    }
+
     /** @return iterable<string, array{array<mixed>}> */
     public static function malformedMetadata(): iterable
     {
