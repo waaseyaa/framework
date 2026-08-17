@@ -197,7 +197,11 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
                     }
                 }
 
-                return new JsonResponse(($this->controller)(...$args));
+                $result = ($this->controller)(...$args);
+
+                // Honour the same `statusCode`/`body` contract ControllerDispatcher
+                // applies in production (ControllerDispatcher::handleCallable()).
+                return new JsonResponse($result['body'] ?? $result, $result['statusCode'] ?? 200);
             }
         });
 

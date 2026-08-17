@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Admin-surface refusals carry their status on the wire (#2161):** Every
+  `admin_surface.*` endpoint answered a refusal with `HTTP 200` and reported the
+  real status only inside the response envelope
+  (`{"ok": false, "error": {"status": 403, …}}`), so clients and monitoring that
+  key on the status line read a denied write as a success. The defect was never
+  action-specific: all five `AbstractAdminSurfaceHost::handle*` methods return
+  the same flat envelope, every one can emit `ok:false`, and all five landed on
+  the same `ControllerDispatcher::handleCallable()` default of
+  `$result['statusCode'] ?? 200`. `AdminSurfaceServiceProvider::registerRoutes()`
+  now wraps each of the five controller closures so a refusal is returned in the
+  dispatcher's existing `statusCode`/`body` contract, moving the status to the
+  status line while leaving the JSON envelope byte-identical. Only a genuine
+  400–599 integer is promoted — `handle*` is overridable, and an absent, string,
+  or out-of-range status would otherwise reach the `Response` constructor and
+  turn a clean refusal into a 500, so anything unrecognised keeps the prior
+  behaviour. Unauthenticated requests to `admin_surface.session` now return a
+  real `401`, which the SPA already tolerates: `AdminSurfaceTransportAdapter`
+  branches on `!response.ok || !json.ok` and prefers `error.status`, and the
+  bootstrap plugin passes `ignoreResponseError: true` so its
+  `error.status === 401 → /login` redirect still runs. `admin_surface.page_builder.*`
+  is unchanged; those routes use a different host interface and are tracked
+  separately.
+
 - **Retire misleading Framework deployment environments:** Recast the manual
   `release.yml` workflow as exact-SHA **Release Readiness** verification. It
   now builds a candidate and runs the full browser sweep without GitHub
