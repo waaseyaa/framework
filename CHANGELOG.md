@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Security — unified internal-field visibility authority (#2113):** Admin
+  form schemas and detail projections now consume the same boot-scoped
+  `InternalFieldVisibilityPolicy` as generic JSON:API serialization and
+  filter/sort validation. Applications declare operational fields once under
+  `entity.internal_fields_by_type`; field-definition `settings.internal`
+  converges through the same policy, while credential-name deny floors remain
+  independent defense in depth.
+
 - **Security — cookie-aware final cache policy (#2150):** The HTTP pipeline now
   has one outer response-cache authority. Any session-bound or `Set-Cookie`
   response is normalized to `private, no-store`, replacing contradictory

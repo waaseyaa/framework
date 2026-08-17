@@ -16,6 +16,7 @@ use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\Markdown\EntityMarkdownPresenter;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DatabaseInterface;
@@ -83,6 +84,7 @@ final class SsrPageHandler
         private readonly ?\Waaseyaa\Access\EntityAccessHandler $accessHandler = null,
         private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
         private readonly ?AccountPrincipalFactoryInterface $principalFactory = null,
+        private readonly ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->languageResolver = $languageResolver ?? new LanguageResolver(serviceResolver: $this->serviceResolver);
@@ -1215,7 +1217,7 @@ final class SsrPageHandler
         }
 
         $presenter = new EntityMarkdownPresenter(
-            new ResourceSerializer($this->entityTypeManager),
+            new ResourceSerializer($this->entityTypeManager, internalFieldVisibility: $this->internalFieldVisibility),
             $this->entityTypeManager,
             $viewModeConfig,
         );

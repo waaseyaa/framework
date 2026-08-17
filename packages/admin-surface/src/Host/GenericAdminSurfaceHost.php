@@ -13,6 +13,7 @@ use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Api\Controller\SchemaController;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\JsonApiResource;
@@ -40,19 +41,6 @@ use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
  */
 class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 {
-    /**
-     * Shipped migration bookkeeping that is never part of node authoring.
-     *
-     * This floor belongs to the generic host rather than its service provider:
-     * applications may own the admin routes and construct this host directly.
-     * Host-supplied additions are merged with it below.
-     *
-     * @var array<string, list<string>>
-     */
-    private const array DEFAULT_INTERNAL_FIELDS_BY_TYPE = [
-        'node' => ['source_status', 'wp_status'],
-    ];
-
     /**
      * Structural filter/sort floor, mirrored from
      * {@see \Waaseyaa\Api\ResourceSerializer::ALWAYS_INTERNAL_FIELDS} and
@@ -89,13 +77,14 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     private readonly EntityClockInterface $clock;
 
+    private readonly InternalFieldVisibilityPolicy $internalFieldVisibility;
+
     /** @var list<string> */
     private readonly array $capabilityAllowlist;
 
     /**
      * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
      * @param array<string, bool> $features Installed capabilities exposed to the SPA session
-     * @param array<string, list<string>> $internalFieldsByType Additional host-owned migration or operational fields omitted from forms
      * @param list<string> $capabilityAllowlist Explicit permission identifiers to project into the
      *   session as `capabilities` (each evaluated via hasPermission() on the resolved principal).
      *   Only these identifiers are ever serialized; the list is deduplicated, sorted, and bounded
@@ -112,12 +101,13 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly array $readOnlyTypes = [],
         private readonly ?WorkflowBindingResolver $workflowBindingResolver = null,
         private readonly array $features = [],
-        private readonly array $internalFieldsByType = [],
+        ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
         ?EntityClockInterface $clock = null,
         array $capabilityAllowlist = [],
         private readonly ?AdminPublicationFieldReaderInterface $publicationFieldReader = null,
     ) {
         $this->clock = $clock ?? new UtcEntityClock();
+        $this->internalFieldVisibility = $internalFieldVisibility ?? new InternalFieldVisibilityPolicy();
         $this->capabilityAllowlist = self::normalizeCapabilityAllowlist($capabilityAllowlist);
     }
 
@@ -771,7 +761,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         $keys = $this->entityTypeManager->getDefinition($type)->getKeys();
         $internalFields = [];
         foreach ($fieldDefinitions as $name => $definition) {
-            if ($definition->getSetting('internal') === true) {
+            if ($this->internalFieldVisibility->isInternal($type, $name, $definition)) {
                 $internalFields[$name] = true;
             }
         }
@@ -786,7 +776,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         foreach ($constrainedBundles as $bundle) {
             $resolved = $this->entityTypeManager->resolveFieldDefinitions($type, $bundle);
             foreach ($resolved as $name => $definition) {
-                if ($definition->getSetting('internal') === true) {
+                if ($this->internalFieldVisibility->isInternal($type, $name, $definition)) {
                     $internalFields[$name] = true;
                 }
             }
@@ -943,10 +933,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(500, 'Internal error', 'Schema payload missing.');
         }
 
-        $internalFields = array_values(array_unique(array_merge(
-            self::DEFAULT_INTERNAL_FIELDS_BY_TYPE[$type] ?? [],
-            $this->internalFieldsByType[$type] ?? [],
-        )));
+        $internalFields = $this->internalFieldVisibility->internalFields($type);
         foreach ($internalFields as $internalField) {
             if ($internalField === '') {
                 continue;
@@ -1245,6 +1232,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $this->serializer(),
             $this->accessHandler,
             $this->currentAccount,
+            internalFieldVisibility: $this->internalFieldVisibility,
         );
     }
 
@@ -1339,7 +1327,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     private function serializer(): ResourceSerializer
     {
-        return new ResourceSerializer($this->entityTypeManager);
+        return new ResourceSerializer($this->entityTypeManager, internalFieldVisibility: $this->internalFieldVisibility);
     }
 
     /**

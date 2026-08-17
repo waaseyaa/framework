@@ -16,6 +16,7 @@ use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheConfiguration;
@@ -669,12 +670,17 @@ final class HttpKernel extends AbstractKernel
         $exposurePolicy = $resolvedExposurePolicy instanceof EntityTypeApiExposurePolicy
             ? $resolvedExposurePolicy
             : null;
+        $resolvedInternalFieldVisibility = $this->getHttpServiceResolver()->resolve(InternalFieldVisibilityPolicy::class);
+        $internalFieldVisibility = $resolvedInternalFieldVisibility instanceof InternalFieldVisibilityPolicy
+            ? $resolvedInternalFieldVisibility
+            : null;
         $foundationRouters = [
-            new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler, $exposurePolicy),
+            new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler, $exposurePolicy, $internalFieldVisibility),
             new HttpRouter\JsonApiRouter(
                 $this->entityTypeManager,
                 $this->accessHandler,
                 exposurePolicy: $exposurePolicy,
+                internalFieldVisibility: $internalFieldVisibility,
             ),
             new HttpRouter\EntityTypeLifecycleRouter($this->entityTypeManager, $this->lifecycleManager),
             new HttpRouter\SchemaRouter($this->entityTypeManager, $this->accessHandler, $this->fieldRegistry, $exposurePolicy),
@@ -685,6 +691,7 @@ final class HttpKernel extends AbstractKernel
                 $this->entityTypeManager,
                 $this->accessHandler,
                 $this->secretResolverRegistry(),
+                internalFieldVisibility: $internalFieldVisibility,
             ),
         ];
 

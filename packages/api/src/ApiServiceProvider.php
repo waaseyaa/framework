@@ -171,6 +171,10 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             return EntityTypeApiExposurePolicy::fromConfig($manager, $this->config);
         });
 
+        $this->singleton(InternalFieldVisibilityPolicy::class, function (): InternalFieldVisibilityPolicy {
+            return InternalFieldVisibilityPolicy::fromConfig($this->config);
+        });
+
         // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF WP03).
         // Bind the api-local read-model interface to the adapter that bridges
         // L0 audit contracts (AuditQueryInterface) into L4 DTOs.
@@ -210,6 +214,7 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         // Resolve after every provider/app entity registration has completed so
         // strict allowlist validation fails during kernel boot, before routing.
         $this->resolve(EntityTypeApiExposurePolicy::class);
+        $this->resolve(InternalFieldVisibilityPolicy::class);
         $this->apiCatalog = $this->buildApiCatalog();
         $this->aiCatalog = $this->buildAiCatalog();
     }

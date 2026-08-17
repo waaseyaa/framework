@@ -1,4 +1,6 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-16 - #2113: HttpKernel resolves the boot-scoped InternalFieldVisibilityPolicy and threads the same instance into JSON:API, translation, and search routers. Every ResourceSerializer created by those infrastructure adapters therefore consumes application `entity.internal_fields_by_type` metadata consistently; routing and controller dispatch semantics are unchanged. -->
+
 
 <!-- Spec reviewed 2026-08-16 - #2150: the outer ResponseCacheControlMiddleware owns final HTTP cache reconciliation. SessionMiddleware disables PHP's cache limiter before session startup and marks stateful requests; after every cookie writer unwinds, any session-bound or Set-Cookie response becomes private, no-store with the complete Cache-Control field replaced. Cookie-free stateless public SSR caching is unchanged. -->
 

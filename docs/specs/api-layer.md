@@ -850,7 +850,11 @@ final class ResourceSerializer
 2. Iterates the resolved field names, drops keys that map to entity keys `id` and `uuid` (storage column names from `EntityType::getKeys()`), and reads each remaining value through `EntityInterface::get()`, so `EntityBase::$casts` apply (#1181 ST-7 / ST-9). If the activated accessor denies a Protected read (or no read context is available), that field is omitted without reading its value. This accessor check is the final authority when the legacy field policy is Neutral and cannot turn an otherwise authorized entity response into a 500. See `docs/specs/jsonapi.md` for the pipeline diagram.
 3. **Filters internal/credential fields** (#1531). Two layers, both applied **before** the per-account access handler so credentials never reach policy code:
    - `ResourceSerializer::ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash']` — dropped unconditionally even when no `FieldDefinition` exists. Covers raw `_data` keys that hold credential material (e.g. `User::$pass` is set via `setRawPassword()` with no `#[Field]` attribute).
-   - Any `FieldDefinition` whose `getSetting('internal') === true` is dropped (e.g. `User::two_factor_secret`, `User::two_factor_recovery_codes_hash`). New sensitive fields opt in via `#[Field(... settings: ['internal' => true])]`.
+   - `InternalFieldVisibilityPolicy` is the single boot-scoped metadata authority
+     shared with Admin schema/detail and JSON:API query validation. It combines
+     `FieldDefinition.settings.internal`, the framework migration floor, and
+     application declarations under `entity.internal_fields_by_type`. The
+     credential-name floor above deliberately remains independent.
 4. When access handler + account are provided, calls `$accessHandler->filterFields($entity, array_keys($attributes), 'view', $account)` to remove view-denied fields.
 5. Applies field-definition coercions (`boolean`, `timestamp` / `datetime`, `text_long`): timestamps accept integers or `DateTimeInterface` (e.g. after a `datetime_immutable` cast); a `text_long` value is run through `RichTextSanitizer` (see "Richtext Sanitization" below).
 6. Normalizes values to JSON-serializable shapes via **`EntityValues::normalizeValueForJson()`** (backed enums → backing value, `DateTimeInterface` → ISO-8601 `ATOM`, `JsonSerializable` → `jsonSerialize()` then recurse, arrays → recurse) — shared with `EntityValues::toJsonReadyMap()` for other presentation sinks (#1181 ST-10).

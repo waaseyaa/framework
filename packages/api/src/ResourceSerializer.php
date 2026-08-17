@@ -45,17 +45,21 @@ final class ResourceSerializer
 
     private readonly RichTextSanitizer $richTextSanitizer;
 
+    private readonly InternalFieldVisibilityPolicy $internalFieldVisibility;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
         ?RichTextSanitizer $richTextSanitizer = null,
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
+        ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {
         // PHP 8.4 constructor-default gotcha (see CLAUDE.md): resolve the
         // default in the body rather than as a parameter default, so every
         // existing `new ResourceSerializer($manager)` callsite keeps working
         // and still gets sanitization for free.
         $this->richTextSanitizer = $richTextSanitizer ?? new RichTextSanitizer();
+        $this->internalFieldVisibility = $internalFieldVisibility ?? new InternalFieldVisibilityPolicy();
     }
 
     /**
@@ -100,7 +104,7 @@ final class ResourceSerializer
         // reading every value first would activate the guard before filterFields()
         // had a chance to conceal the field.
         $fieldNames = EntityValues::ordinaryFieldNames($entity);
-        $fieldNames = array_keys($this->filterInternalFields(array_fill_keys($fieldNames, true), $fieldDefinitions));
+        $fieldNames = array_keys($this->filterInternalFields($entityTypeId, array_fill_keys($fieldNames, true), $fieldDefinitions));
         $fieldNames = array_values(array_filter(
             $fieldNames,
             fn(string $fieldName): bool => !$this->referencesUnexposedType($fieldDefinitions[$fieldName] ?? null),
@@ -249,7 +253,7 @@ final class ResourceSerializer
      * @param array<string, FieldDefinitionInterface> $fieldDefinitions
      * @return array<string, mixed>
      */
-    private function filterInternalFields(array $attributes, array $fieldDefinitions): array
+    private function filterInternalFields(string $entityTypeId, array $attributes, array $fieldDefinitions): array
     {
         foreach (array_keys($attributes) as $name) {
             if (in_array($name, self::ALWAYS_INTERNAL_FIELDS, true)) {
@@ -258,7 +262,7 @@ final class ResourceSerializer
             }
 
             $definition = $fieldDefinitions[$name] ?? null;
-            if ($definition !== null && $definition->getSetting('internal') === true) {
+            if ($this->internalFieldVisibility->isInternal($entityTypeId, $name, $definition)) {
                 unset($attributes[$name]);
             }
         }

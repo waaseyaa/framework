@@ -11,6 +11,7 @@ use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Event\EntityEvent;
@@ -182,6 +183,8 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
         if ($this->renderCache === null) {
             return;
         }
+        $internalFieldVisibility = $this->resolveOptional(InternalFieldVisibilityPolicy::class);
+
 
         $this->ssrPageHandler = new SsrPageHandler(
             entityTypeManager: $kernel->getEntityTypeManager(),
@@ -204,6 +207,9 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             accessHandler: $kernel->getAccessHandler(),
             fieldReadScope: $this->resolve(AccountFieldReadScopeInterface::class),
             principalFactory: $this->resolve(AccountPrincipalFactoryInterface::class),
+            internalFieldVisibility: $internalFieldVisibility instanceof InternalFieldVisibilityPolicy
+                ? $internalFieldVisibility
+                : InternalFieldVisibilityPolicy::fromConfig($this->config),
         );
     }
 

@@ -16,6 +16,7 @@ use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
 use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceRequest;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
@@ -120,6 +121,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $fieldDefinitionRegistry = $this->resolveOptional(FieldDefinitionRegistryInterface::class);
         $workflowBindingResolver = $this->resolveOptional(WorkflowBindingResolver::class);
         $publicationFieldReader = $this->resolveOptional(AdminPublicationFieldReaderInterface::class);
+        $internalFieldVisibility = $this->resolveOptional(InternalFieldVisibilityPolicy::class);
         $host = new GenericAdminSurfaceHost(
             entityTypeManager: $entityTypeManager,
             accessHandler: $this->discoverAccessHandler(),
@@ -128,6 +130,9 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
                     ? $fieldDefinitionRegistry
                     : null,
             ),
+            internalFieldVisibility: $internalFieldVisibility instanceof InternalFieldVisibilityPolicy
+                ? $internalFieldVisibility
+                : InternalFieldVisibilityPolicy::fromConfig($this->config),
             workflowBindingResolver: $workflowBindingResolver instanceof WorkflowBindingResolver
                 ? $workflowBindingResolver
                 : null,
