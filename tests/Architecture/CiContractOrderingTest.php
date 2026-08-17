@@ -72,6 +72,27 @@ final class CiContractOrderingTest extends TestCase
         }
     }
 
+    #[Test]
+    public function both_shard_matrices_wait_for_the_single_install_authority(): void
+    {
+        $ci = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+
+        // prepare-test-plan is the sole authoritative `composer install` for
+        // the run (#2404 revision: codeload 429s were caused by every job
+        // installing independently). ci-test-shards already needed
+        // prepare-test-plan for its shard plan; it must keep that edge.
+        // ci-random-order-shard did not previously need prepare-test-plan at
+        // all — it must gain the edge to consume the shared vendor archive.
+        $this->assertStringContainsString(
+            'needs: [support-contract, spec-drift, prepare-test-plan]',
+            $this->job($ci, 'ci-test-shards'),
+        );
+        $this->assertStringContainsString(
+            'needs: [prepare-random-order-plan, prepare-test-plan]',
+            $this->job($ci, 'ci-random-order-shard'),
+        );
+    }
+
     private function job(string $workflow, string $id): string
     {
         $matched = preg_match(

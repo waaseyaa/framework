@@ -296,6 +296,38 @@ jobs:
         with:
           ref: ${{ inputs.sha }}
 
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: ${{ runner.os }}-php-8.5-composer-
+
+      # Single install authority (#2404 revision): every downstream test job
+      # (ci-test-shards, ci-random-order-shard) consumes this exact-head
+      # install as a run-scoped artifact instead of each running its own
+      # `composer install` against codeload.github.com. Three CI reruns on
+      # PR #2406 failed on repeated HTTP/2 429s from three independent
+      # installs (this job, ci/test-shard-1, ci/skeleton-create-project) —
+      # collapsing the first two into one authority removes two of the
+      # three failure points outright.
+      - name: Install dependencies (single authority for this run)
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare the run-scoped dependency archive
+        run: |
+          mkdir -p build/ci
+          tar --create --file build/ci/vendor.tar vendor
+          sha256sum build/ci/vendor.tar > build/ci/vendor.tar.sha256
+          php -r '$h = hash_file("sha256", "vendor/composer/installed.php"); file_put_contents("build/ci/installed.sha256", $h . PHP_EOL);'
+
       - name: Build deterministic shard plan
         run: |
           mkdir -p build/ci
@@ -307,6 +339,20 @@ jobs:
         with:
           name: phpunit-shard-plan
           path: build/ci/phpunit-shards.json
+          retention-days: 30
+
+      # Consumed by both ci-test-shards and ci-random-order-shard via
+      # bin/verify-random-order-vendor-archive, with a locked `composer
+      # install` fallback on verification failure in each consumer.
+      - name: Retain the run-scoped dependency archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vendor-archive
+          path: |
+            build/ci/vendor.tar
+            build/ci/vendor.tar.sha256
+            build/ci/installed.sha256
+          if-no-files-found: error
           retention-days: 30
 
   ci-test-shards:
@@ -336,8 +382,31 @@ jobs:
           key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
           restore-keys: ${{ runner.os }}-php-8.5-composer-
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Download the run-scoped dependency archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: vendor-archive
+          path: build/ci
+
+      # Same fail-closed integrity gate ci-random-order-shard uses: a
+      # wrong-head or tampered archive is discarded, never trusted, and the
+      # job falls back to a locked `composer install` rather than force
+      # artifact use. See bin/verify-random-order-vendor-archive for the
+      # digest/extraction/symlink checks (fixture-tested in
+      # tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php).
+      - name: Restore dependencies with integrity proof
+        run: |
+          set -euo pipefail
+          restore_failed=0
+          bin/verify-random-order-vendor-archive build/ci . || restore_failed=1
+          if test "$restore_failed" -eq 0; then
+            composer check-platform-reqs --no-interaction || restore_failed=1
+          fi
+          if test "$restore_failed" -ne 0; then
+            echo "::warning title=Dependency archive rejected::falling back to a locked install"
+            rm -rf vendor
+            composer install --no-interaction --prefer-dist --no-progress
+          fi
 
       - name: Download exact shard plan
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -384,10 +453,13 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [support-contract, spec-drift]
     steps:
+      # fetch-depth: 0 is not needed here: the plan is built from the
+      # current checkout's test inventory and timings, not a diff against
+      # the PR base (the changed-package selector that needed history was
+      # removed — #2404).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
-          fetch-depth: 0
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -396,43 +468,36 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
+      # Single install authority (#2404 revision): this job no longer
+      # installs dependencies itself — prepare-test-plan is the one
+      # authoritative install per run, and its vendor archive is what
+      # ci-random-order-shard consumes (needs: prepare-test-plan below).
+      # bin/build-phpunit-shards works without vendor/ present; it only
+      # soft-detects the PHPUnit version for provenance when vendor exists.
       - name: Build the deterministic shard plan
         run: |
           mkdir -p build/ci
           seed=$(( (GITHUB_RUN_ID % 2147483647) + 1 ))
           echo "::notice title=PHPUnit random-order seed::$seed"
-          php bin/build-phpunit-shards --shards=3 --timings=tools/phpunit-timings.json \
+          php bin/build-phpunit-shards --shards=2 --timings=tools/phpunit-timings.json \
             --seed="$seed" > build/ci/random-order-plan.json
 
-      - name: Prepare the run-scoped dependency archive
-        run: |
-          tar --create --file build/ci/vendor.tar vendor
-          sha256sum build/ci/vendor.tar > build/ci/vendor.tar.sha256
-          php -r '$h = hash_file("sha256", "vendor/composer/installed.php"); file_put_contents("build/ci/installed.sha256", $h . PHP_EOL);'
-
-      - name: Retain the exact plan and dependencies
+      - name: Retain the exact plan
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: random-order-plan
-          path: |
-            build/ci/random-order-plan.json
-            build/ci/vendor.tar
-            build/ci/vendor.tar.sha256
-            build/ci/installed.sha256
+          path: build/ci/random-order-plan.json
           if-no-files-found: error
           retention-days: 30
 
   ci-random-order-shard:
     name: ci/random-order-shard-${{ matrix.id }}
     runs-on: ubuntu-24.04
-    needs: [prepare-random-order-plan]
+    needs: [prepare-random-order-plan, prepare-test-plan]
     strategy:
       fail-fast: false
       matrix:
-        id: [1, 2, 3]
+        id: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -445,10 +510,19 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
-      - name: Download the exact plan and dependencies
+      - name: Download the exact plan
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: random-order-plan
+          path: build/ci
+
+      # The single install authority's run-scoped archive (prepare-test-plan)
+      # — same artifact ci-test-shards consumes, so this job stops being an
+      # independent codeload.github.com failure point.
+      - name: Download the run-scoped dependency archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: vendor-archive
           path: build/ci
 
       # Exact-checkout binding: a wrong-head or tampered archive is discarded,
@@ -486,14 +560,19 @@ jobs:
       # aggregator asserts planning succeeded and the shard matrix's
       # aggregate result is success (GitHub sets needs.<matrix-job>.result to
       # success only when every leg of a fail-fast:false matrix succeeded —
-      # any failed, cancelled, or skipped leg makes it non-success).
+      # any failed, cancelled, or skipped leg makes it non-success). This also
+      # covers ci-random-order-shard's own dependency on prepare-test-plan
+      # (the single install authority, #2404 revision): if that job fails or
+      # is cancelled, the shard matrix is skipped rather than run, so its
+      # aggregate result is non-success and this gate still fails closed.
       #
-      # Matrix *width* (exactly three legs) is not something this runtime
+      # Matrix *width* (exactly two legs) is not something this runtime
       # check can express — GitHub's aggregate result answers "did every leg
       # that ran succeed", not "how many legs ran". Width is pinned instead
       # by tests/Architecture/CiSingleExecutionProofTest.php asserting
-      # `id: [1, 2, 3]` on the ci-random-order-shard job. Keep that assertion
-      # and this comment in sync if the matrix ever changes.
+      # `id: [1, 2]` on the ci-random-order-shard job. Keep that assertion
+      # and this comment in sync if the matrix ever changes. Three shards is
+      # a later decision gated on measurement (docs/specs/ci-test-selection.md).
       - name: Require complete random-order evidence
         env:
           PLAN_RESULT: ${{ needs.prepare-random-order-plan.result }}
@@ -637,6 +716,21 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
+      # This job is a separate consumer from prepare-test-plan's run-scoped
+      # vendor archive: it builds a fresh skeleton project, not this repo's
+      # own vendor/ tree, so it cannot reuse that artifact. Key exactly on
+      # OS, PHP version, and composer.lock hash — no broad restore keys — so
+      # a stale cache entry is never silently reused across dependency
+      # graphs (docs/specs/ci-test-selection.md §7.3 names this the
+      # persistent-cache hazard). This is Composer's package download cache
+      # (~/.cache/composer/files), not a vendor/ tree cache: safe to reuse
+      # across the multiple composer installs this job runs.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
       - name: create-project (path skeleton) and audit-site
         env:
           # A release commit reaches main before its package graph can be
@@ -645,6 +739,24 @@ jobs:
           SOURCE_SKELETON: "${{ startsWith(github.ref_name, 'release-cut/') || (github.event_name == 'push' && github.ref_name == 'main' && startsWith(github.event.head_commit.message, 'chore: release ')) }}"
         run: |
           set -euo pipefail
+          # Bounded retry with backoff around network-touching Composer
+          # commands: PR #2406 hit repeated HTTP/2 429s from
+          # codeload.github.com in this exact job. 3 attempts, 5s/10s delay.
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
           trap cleanup EXIT
@@ -654,7 +766,7 @@ jobs:
             # against this exact checkout instead of creating a circular
             # dependency on the not-yet-published tag.
             git -C "$GITHUB_WORKSPACE" checkout -B main
-            composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
+            composer_retry composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
               --repository='{"type":"path","url":"skeleton"}' \
               --stability=dev \
               --no-install --no-scripts \
@@ -662,12 +774,12 @@ jobs:
             composer config --working-dir="$work/skel-proj" repositories.framework path "$GITHUB_WORKSPACE"
             composer config --working-dir="$work/skel-proj" repositories.packages path "$GITHUB_WORKSPACE/packages/*"
             composer require --working-dir="$work/skel-proj" waaseyaa/framework:dev-main --no-update --no-interaction
-            composer install --working-dir="$work/skel-proj" --no-interaction
+            composer_retry composer install --working-dir="$work/skel-proj" --no-interaction
             composer run-script --working-dir="$work/skel-proj" post-create-project-cmd
           else
             # Ordinary PR/main CI proves the latest committed skeleton floor is
             # resolvable from the already-published release line.
-            composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
+            composer_retry composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
               --repository='{"type":"path","url":"skeleton"}' \
               --stability=dev \
               --no-interaction
@@ -677,6 +789,21 @@ jobs:
       - name: Fresh skeleton preserves the complete discovery set without classmap optimization
         run: |
           set -euo pipefail
+          composer_retry() {
+            local attempt=1
+            local max_attempts=3
+            local delay=5
+            until "$@"; do
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return "$exit_code"
+              fi
+              echo "::warning title=Composer command failed (attempt ${attempt}/${max_attempts})::retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
           git -C "$GITHUB_WORKSPACE" checkout -B main
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
@@ -686,7 +813,7 @@ jobs:
           composer config --working-dir="$work" repositories.framework path "$GITHUB_WORKSPACE"
           composer config --working-dir="$work" repositories.packages path "$GITHUB_WORKSPACE/packages/*"
           composer require --working-dir="$work" waaseyaa/framework:dev-main --no-update --no-interaction
-          composer install --working-dir="$work" --no-interaction --no-scripts --no-plugins
+          composer_retry composer install --working-dir="$work" --no-interaction --no-scripts --no-plugins
           test "$(php -r '$m=require $argv[1]; echo count(array_filter(array_keys($m), static fn(string $c): bool => str_starts_with($c, "Waaseyaa\\")));' "$work/vendor/composer/autoload_classmap.php")" = 0
           php "$GITHUB_WORKSPACE/tools/policy-discovery-smoke.php" "$work"
 

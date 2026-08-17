@@ -40,19 +40,71 @@ final class CiSingleExecutionProofTest extends TestCase
     }
 
     #[Test]
-    public function randomOrderPreparesOnceAndFansOutToThreeShards(): void
+    public function prepareTestPlanIsTheSingleComposerInstallAuthorityForTheRun(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        $prepareJob = $this->job($workflow, 'prepare-test-plan', 'ci-test-shards');
+
+        // prepare-test-plan is the one authoritative `composer install` per
+        // run: it installs for the exact head, tars vendor/ preserving
+        // symlinks, records a SHA-256, and publishes a run-scoped artifact
+        // that both the ci-test-shards matrix and the random-order shard
+        // matrix consume instead of each running their own network install.
+        self::assertStringContainsString('composer install --no-interaction --prefer-dist --no-progress', $prepareJob);
+        self::assertStringContainsString('tar --create --file build/ci/vendor.tar vendor', $prepareJob);
+        self::assertStringContainsString('sha256sum build/ci/vendor.tar', $prepareJob);
+        self::assertStringContainsString('installed.sha256', $prepareJob);
+        self::assertStringContainsString('name: vendor-archive', $prepareJob);
+    }
+
+    #[Test]
+    public function testShardsConsumeTheSharedVendorArchiveInsteadOfInstallingDirectly(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        $testShardsJob = $this->job($workflow, 'ci-test-shards', 'ci-unit-tests');
+
+        self::assertStringContainsString('name: vendor-archive', $testShardsJob);
+        self::assertStringContainsString('bin/verify-random-order-vendor-archive', $testShardsJob);
+        self::assertStringContainsString('composer check-platform-reqs', $testShardsJob);
+        // The locked install is the fallback safety net, not the primary
+        // path — it must stay, guarded behind verification failure.
+        self::assertStringContainsString('falling back to a locked install', $testShardsJob);
+    }
+
+    #[Test]
+    public function randomOrderPreparesOnceAndFansOutToTwoShards(): void
     {
         $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
 
         self::assertStringContainsString('prepare-random-order-plan:', $workflow);
-        self::assertStringContainsString('php bin/build-phpunit-shards --shards=3', $workflow);
+        self::assertStringContainsString('php bin/build-phpunit-shards --shards=2', $workflow);
         // GitHub's needs.<matrix-job>.result aggregate can prove "every leg
-        // that ran succeeded" but cannot express "there were exactly three
+        // that ran succeeded" but cannot express "there were exactly two
         // legs" — so this assertion on the matrix declaration itself is the
-        // only guard against the shard count silently drifting from 3. Keep
+        // only guard against the shard count silently drifting from 2. Keep
         // it in sync with the aggregator's comment in ci.yml.
-        self::assertStringContainsString('id: [1, 2, 3]', $workflow);
+        self::assertStringContainsString('id: [1, 2]', $workflow);
         self::assertStringContainsString('bin/test-random-order --plan=', $workflow);
+
+        // The shard matrix now also depends on the single install authority
+        // (prepare-test-plan) to consume the shared vendor archive, in
+        // addition to prepare-random-order-plan for the replay plan itself.
+        $shardJob = $this->job($workflow, 'ci-random-order-shard', 'ci-random-order');
+        self::assertStringContainsString('needs: [prepare-random-order-plan, prepare-test-plan]', $shardJob);
+        self::assertStringContainsString('name: vendor-archive', $shardJob);
+    }
+
+    #[Test]
+    public function prepareRandomOrderPlanNoLongerInstallsDependenciesItself(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        $planJob = $this->job($workflow, 'prepare-random-order-plan', 'ci-random-order-shard');
+
+        // Single install authority: prepare-random-order-plan builds the
+        // replay plan only. It no longer runs its own `composer install` —
+        // that network call, and the vendor archive it produces, live
+        // solely in prepare-test-plan now.
+        self::assertStringNotContainsString('composer install', $planJob);
     }
 
     #[Test]
