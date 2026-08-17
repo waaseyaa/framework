@@ -21,6 +21,16 @@
         {"path": ".github/", "rationale": "workflow shape is proven by tests/Architecture, which is always run; ci.yml and nightly.yml are in protected"},
         {"path": "tools/", "rationale": "repo tooling is proven by tests/Architecture, which is always run; selector inputs are in protected"},
         {"path": "bin/", "rationale": "gate scripts are proven by tests/Architecture, which is always run; selector scripts are in protected"},
-        {"path": "bin/waaseyaa", "rationale": "the CLI entry point is additionally exercised by the cli package suite", "seeds": ["cli"]}
+        {"path": "bin/waaseyaa", "rationale": "the CLI entry point is additionally exercised by the cli package suite", "seeds": ["cli"]},
+        {"path": "CHANGELOG.md", "rationale": "documentation cannot change PHP behaviour; a changelog entry is mandated on every PR, so leaving it unclassified would make the selector inert. Repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": "README.md", "rationale": "documentation cannot change PHP behaviour; repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": "AGENTS.md", "rationale": "documentation cannot change PHP behaviour; repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": "CLAUDE.md", "rationale": "documentation cannot change PHP behaviour; repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": "MAINTAINERS.md", "rationale": "documentation cannot change PHP behaviour; repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": "SECURITY.md", "rationale": "documentation cannot change PHP behaviour; repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": "SUCCESSION.md", "rationale": "documentation cannot change PHP behaviour; repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": "UPGRADING.md", "rationale": "documentation cannot change PHP behaviour; repo-state contracts that read this file live in tests/Architecture, which is always run"},
+        {"path": ".symfony-import-allowlist.json", "rationale": "input to bin/check-symfony-imports, a repo-state gate that always runs via tests/Architecture; no PHP runtime effect"},
+        {"path": "packages/admin/", "rationale": "the Nuxt admin SPA has no composer.json by design (CLAUDE.md, Project Structure); its tests are Vitest/Playwright, not PHPUnit, and the PHP-side coupling (built-dist freshness) is gated by bin/check-admin-dist-fresh inside always-run tests/Architecture"}
     ]
 }

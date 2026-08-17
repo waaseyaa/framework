@@ -128,6 +128,27 @@ function ros_parse_name_status(string $raw): array
 }
 
 /**
+ * Finds the longest manifest prefix matching a changed path (directory
+ * prefixes ending `/` match by `str_starts_with`; exact-file entries match
+ * literally). Shared by `ros_classify()`'s package-manifest fallback (R9)
+ * and its catch-all prefix lookup, so both use one matching rule.
+ *
+ * @param array<string, list<string>> $prefixes
+ */
+function ros_match_prefix(array $prefixes, string $path): ?string
+{
+    $matched = null;
+    foreach ($prefixes as $prefix => $prefixSeeds) {
+        $hit = str_ends_with($prefix, '/') ? str_starts_with($path, $prefix) : $path === $prefix;
+        if ($hit && ($matched === null || strlen($prefix) > strlen($matched))) {
+            $matched = $prefix;
+        }
+    }
+
+    return $matched;
+}
+
+/**
  * Classifies changed paths per docs/specs/ci-test-selection.md §3.3: first
  * match wins, and anything the selector cannot prove bounded forces the
  * complete inventory (`full_reason` non-null).
@@ -155,13 +176,25 @@ function ros_classify(array $paths, array $manifest, string $root): array
             $declared = is_file($manifestPath)
                 ? json_decode((string) @file_get_contents($manifestPath), true)
                 : null;
-            if (!is_array($declared) || !is_string($declared['name'] ?? null)) {
+            if (is_array($declared) && is_string($declared['name'] ?? null)) {
+                $seeds[$package] = true;
+                continue;
+            }
+
+            // No parsable package manifest (e.g. packages/admin/, a Nuxt SPA
+            // with no composer.json by design): fall back to a manifest
+            // prefix match instead of forcing full outright. A package with
+            // no manifest AND no manifest-declared prefix still forces full.
+            $matchedPrefix = ros_match_prefix($manifest['prefixes'], $path);
+            if ($matchedPrefix === null) {
                 return [
                     'seeds' => [],
                     'full_reason' => "package is absent from the dependency graph: {$package}",
                 ];
             }
-            $seeds[$package] = true;
+            foreach ($manifest['prefixes'][$matchedPrefix] as $seed) {
+                $seeds[$seed] = true;
+            }
             continue;
         }
 
@@ -171,13 +204,7 @@ function ros_classify(array $paths, array $manifest, string $root): array
             continue;
         }
 
-        $matched = null;
-        foreach ($manifest['prefixes'] as $prefix => $prefixSeeds) {
-            $hit = str_ends_with($prefix, '/') ? str_starts_with($path, $prefix) : $path === $prefix;
-            if ($hit && ($matched === null || strlen($prefix) > strlen($matched))) {
-                $matched = $prefix;
-            }
-        }
+        $matched = ros_match_prefix($manifest['prefixes'], $path);
         if ($matched === null) {
             return ['seeds' => [], 'full_reason' => "unclassified path: {$path}"];
         }
@@ -435,6 +462,41 @@ function ros_digest(string ...$paths): string
     return 'sha256:' . hash_final($context);
 }
 
+/**
+ * The canonical selection-document shape (docs/specs/ci-test-selection.md
+ * §4). `ros_select()`'s success document and the CLI's `catch (Throwable)`
+ * failure document both build from this, so the two are structurally
+ * identical — same keys, same order — regardless of which path produced
+ * them.
+ *
+ * @param array<string, mixed> $overrides
+ * @return array<string, mixed>
+ */
+function ros_document(string $mode, ?string $reason, string $base, string $head, array $overrides = []): array
+{
+    $document = [
+        'schema_version' => 1,
+        'mode' => $mode,
+        'fallback_reason' => $reason,
+        'base_sha' => $base,
+        'head_sha' => $head,
+        'digests' => [],
+        'seed_packages' => [],
+        'closure_packages' => [],
+        'always_run_groups' => [],
+        'selected_groups' => [],
+        'selected_paths' => [],
+        'selected_files' => 0,
+        'inventory_files' => 0,
+    ];
+
+    foreach ($overrides as $key => $value) {
+        $document[$key] = $value;
+    }
+
+    return $document;
+}
+
 /** @return array<string, mixed> the selection document of docs/specs/ci-test-selection.md §4 */
 function ros_select(string $root, string $base, string $head, ?string $forcedReason): array
 {
@@ -518,12 +580,7 @@ function ros_select(string $root, string $base, string $head, ?string $forcedRea
 
     $packageManifests = glob($root . '/packages/*/composer.json') ?: [];
 
-    return [
-        'schema_version' => 1,
-        'mode' => $reason === null ? 'targeted' : 'full',
-        'fallback_reason' => $reason,
-        'base_sha' => $base,
-        'head_sha' => $head,
+    return ros_document($reason === null ? 'targeted' : 'full', $reason, $base, $head, [
         'digests' => [
             'manifest' => ros_digest($root . '/tools/random-order-scope-manifest.json'),
             'composer_graph' => ros_digest($root . '/composer.json', ...$packageManifests),
@@ -540,7 +597,7 @@ function ros_select(string $root, string $base, string $head, ?string $forcedRea
         'selected_paths' => $selectedPaths,
         'selected_files' => count($selectedPaths),
         'inventory_files' => count($inventory),
-    ];
+    ]);
 }
 
 function ros_diff(string $root, string $base, string $head): string

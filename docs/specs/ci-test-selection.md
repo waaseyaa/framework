@@ -22,21 +22,47 @@ Selection is **fail-closed**: the selector's job is to identify what is
 
 ### Measured value, recorded honestly
 
-Replay of the selector against the last 40 merges to `main`:
+These figures are the **shipped selector** replayed against the 40 most
+recent merge commits to `origin/main` as of 2026-08-16, weighted by
+`tools/phpunit-timings.json` (1,812 of 1,840 inventory files timed; untimed
+files contribute 0s, a negligible skew). Each merge is classified with
+`ros_select($root, "<merge>^1", "<merge>", null)` using the **current**
+manifest, package graph, and `phpunit.xml.dist` against that merge's real
+`git diff`; this does not check out each historical commit, so it measures
+"the selector as it exists today, given historical change shapes" rather than
+a true historical replay:
 
 | Quantity | Value |
 |---|---|
 | always-run floor | 68% of recorded inventory seconds |
-| mean selected | 85% |
+| mean selected | 87% |
 | median selected | 100% |
-| full-suite fallback | 17 of 40 runs (42%) |
+| full-suite fallback | 19 of 40 runs (48%) |
 
 The floor is high because `tests/Architecture` (143.0s, 40% of the inventory)
 is repo-state contract testing that shells out to `bin/` scripts and cannot be
 attributed to any package, and because atomic-group expansion (§3.4) pins a
 whole group when any one member is unattributable.
 
-**Selection therefore buys roughly 15% of compute. The 3-way shard matrix
+These replace the pre-implementation model's numbers (68% / 85% / 100% / 17
+of 40), which this repository's own drift-prevention discipline forbids
+publishing as measured once a real implementation exists to measure. The
+model was close on floor and median but underestimated the full-suite
+fallback rate. Before three manifest fixes — bounding the mandatory-per-PR
+root docs (`CHANGELOG.md`, `README.md`, `AGENTS.md`, `CLAUDE.md`,
+`MAINTAINERS.md`, `SECURITY.md`, `SUCCESSION.md`, `UPGRADING.md`), letting
+`packages/<p>/**` fall back to a manifest prefix match when
+`packages/<p>/composer.json` is absent by design instead of forcing `full`
+outright (`packages/admin/`, the Nuxt admin SPA, has no `composer.json`), and
+bounding `.symfony-import-allowlist.json` — the shipped selector actually
+fell back to `full` on 36 of these same 40 merges — the model's rules and the
+shipped manifest's rules were never the same rules. After the fixes, 19 of 40
+remain `full`, all of them either genuine self-protection triggers
+(`composer.json`, `composer.lock`, `phpunit.xml.dist`, `.github/workflows/ci.yml`,
+a `packages/*/composer.json`) or a path this manifest genuinely does not
+recognize (`scripts/deploy.sh`), not a manifest gap.
+
+**Selection therefore buys roughly 13% of compute. The 3-way shard matrix
 (§5) buys the wall-clock reduction.** Both are specified here because #2404
 slice 3 requires evidence-based selection regardless of its standalone yield,
 and because the selection document is the input that later slices consume.
@@ -120,7 +146,7 @@ Applied in order; first match wins.
 |---|---|
 | any §3.1 self-protection path | **full** |
 | `packages/<p>/**` where `packages/<p>/composer.json` parses and declares a `name` | seed package `<p>` |
-| `packages/<p>/**` otherwise | **full** — package absent from the graph |
+| `packages/<p>/**` where `packages/<p>/composer.json` is absent or unparsable | bounded if a manifest prefix matches, otherwise **full** — package absent from the graph |
 | `tests/**` resolvable to packages by §3.5 import mapping | seed those packages |
 | `tests/**` not resolvable | no seed; the file's group is already in the always-run set |
 | a prefix declared in `tools/random-order-scope-manifest.json` | bounded; seeds whatever that entry declares |
@@ -141,9 +167,14 @@ exist, or contains an entry without a rationale.
    repository permits upward dev edges (`bin/audit-require-dev-layers`), so a
    lower-layer package's tests can exercise a higher-layer fixture.
 2. **Graph integrity.** Force `full` on any unparsable `packages/*/composer.json`,
-   any package directory without a manifest, any duplicate package `name`, or
-   an internal `waaseyaa/*` constraint naming a package absent from the
-   monorepo. Cycles are permitted — the repository has five accepted same-layer
+   any duplicate package `name`, or an internal `waaseyaa/*` constraint naming
+   a package absent from the monorepo. A package directory without a manifest
+   is excluded from the dependency graph outright (it can seed and close
+   nothing); at the classification layer (§3.3) a changed path under such a
+   directory falls back to a manifest prefix match, and only forces `full`
+   when no prefix bounds it — this is how `packages/admin/` (the Nuxt admin
+   SPA, no `composer.json` by design) stays out of the always-`full` set.
+   Cycles are permitted — the repository has five accepted same-layer
    2-cycles (`tools/package-layers-cycle-baseline.txt`) — and the traversal is
    visited-set bounded, so a cycle is not an error.
 3. **File selection.** Select every inventory file in a closure package, every
@@ -165,8 +196,15 @@ Attribution of a `tests/**` file maps each `use Waaseyaa\…` import to the
 longest matching PSR-4 prefix from `autoload` and `autoload-dev` across all
 `packages/*/composer.json`. Mapping fails closed — the file is treated as
 unattributable, pinning its group into the always-run set — when the file is
-unreadable, when a `Waaseyaa\…` import matches no declared PSR-4 prefix, or
-when two prefixes of equal length match.
+unreadable or when a `Waaseyaa\…` import matches no declared PSR-4 prefix.
+
+`ros_attribute()` also carries a guard for two prefixes of equal length
+matching the same import. The guard is defensive, not reachable: PSR-4
+prefixes are unique PHP array keys (`$psr4[$namespace] = $package`), so two
+*different* namespace strings can never both be same-length literal prefixes
+of one import string — a longer or shorter match always exists, or the two
+candidate namespaces are identical. The check costs nothing and fails safe,
+so it stays, but it is not a condition this selector can currently produce.
 
 ## 4. Selection document
 

@@ -143,7 +143,16 @@ final class RandomOrderScopeSelectorTest extends TestCase
     {
         $manifest = ros_load_manifest($this->repoRoot);
 
-        foreach (['scripts/deploy.sh', '.gitignore', 'public/index.php', 'defaults/ingestion.yaml'] as $path) {
+        foreach ([
+            'scripts/deploy.sh',
+            '.gitignore',
+            'public/index.php',
+            'defaults/ingestion.yaml',
+            // A root file resembling the newly bounded doc files, but not one
+            // of them: no general *.md suffix rule was added, so this still
+            // fails closed (R8 must stay exact-file, not suffix-based).
+            'NOTICES.md',
+        ] as $path) {
             $result = ros_classify([$path], $manifest, $this->repoRoot);
             self::assertSame("unclassified path: {$path}", $result['full_reason']);
         }
@@ -162,6 +171,22 @@ final class RandomOrderScopeSelectorTest extends TestCase
     }
 
     #[Test]
+    public function the_admin_spa_has_no_composer_manifest_by_design_and_is_bounded_via_the_prefix(): void
+    {
+        // packages/admin/ is the Nuxt admin SPA and carries no composer.json
+        // by design (CLAUDE.md, Project Structure). R9: a package directory
+        // without a parsable manifest falls back to a manifest prefix match
+        // before forcing full.
+        self::assertFileDoesNotExist($this->repoRoot . '/packages/admin/composer.json');
+
+        $manifest = ros_load_manifest($this->repoRoot);
+        $result = ros_classify(['packages/admin/app/pages/index.vue'], $manifest, $this->repoRoot);
+
+        self::assertNull($result['full_reason']);
+        self::assertSame([], $result['seeds']);
+    }
+
+    #[Test]
     public function bounded_prefixes_seed_only_what_they_declare(): void
     {
         $manifest = ros_load_manifest($this->repoRoot);
@@ -169,6 +194,30 @@ final class RandomOrderScopeSelectorTest extends TestCase
         self::assertSame([], ros_classify(['docs/specs/api-layer.md'], $manifest, $this->repoRoot)['seeds']);
         self::assertSame([], ros_classify(['bin/check-dead-code'], $manifest, $this->repoRoot)['seeds']);
         self::assertSame(['cli'], ros_classify(['bin/waaseyaa'], $manifest, $this->repoRoot)['seeds']);
+    }
+
+    #[Test]
+    public function root_documentation_and_gate_input_files_are_bounded_not_full(): void
+    {
+        // R8/R10: mandatory-per-PR documentation and gate-input files must not
+        // make the selector permanently inert.
+        $manifest = ros_load_manifest($this->repoRoot);
+
+        foreach ([
+            'CHANGELOG.md',
+            'README.md',
+            'AGENTS.md',
+            'CLAUDE.md',
+            'MAINTAINERS.md',
+            'SECURITY.md',
+            'SUCCESSION.md',
+            'UPGRADING.md',
+            '.symfony-import-allowlist.json',
+        ] as $path) {
+            $result = ros_classify([$path], $manifest, $this->repoRoot);
+            self::assertNull($result['full_reason'], "{$path} must be bounded, not full.");
+            self::assertSame([], $result['seeds'], "{$path} declares no seeds.");
+        }
     }
 
     /** @param array{prefixes: list<array<string, mixed>>} $document */
@@ -365,6 +414,50 @@ final class RandomOrderScopeSelectorTest extends TestCase
         self::assertSame('the diff is empty', $document['fallback_reason']);
     }
 
+    #[Test]
+    public function a_real_diff_produces_a_genuine_targeted_decision_with_atomic_expansion(): void
+    {
+        $fixture = $this->targetedFixtureRoot();
+
+        $document = ros_select($fixture['root'], $fixture['base'], $fixture['head'], null);
+
+        self::assertSame('targeted', $document['mode'], (string) ($document['fallback_reason'] ?? ''));
+        self::assertSame(['leaf'], $document['seed_packages']);
+        self::assertContains('leaf', $document['closure_packages']);
+        self::assertContains('mid', $document['closure_packages']);
+        self::assertNotContains('unrelated', $document['closure_packages']);
+        self::assertContains('packages/leaf', $document['selected_groups']);
+        self::assertContains('packages/mid', $document['selected_groups']);
+        self::assertNotContains('packages/unrelated', $document['selected_groups']);
+        self::assertLessThan($document['inventory_files'], $document['selected_files']);
+    }
+
+    #[Test]
+    public function the_throwable_failure_document_has_the_same_shape_as_a_success_document(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('rosbroken', true);
+        $this->fixtureRoots[] = $root;
+        mkdir($root . '/packages/broken', 0o777, true);
+        // A string where composer.json's "require" object belongs: array_merge()
+        // deep inside ros_package_graph() raises TypeError, which only the
+        // CLI's catch (Throwable) — not ros_select()'s catch (RosScopeFailure) —
+        // converts into a `mode: full` decision instead of a crashed lane.
+        file_put_contents(
+            $root . '/packages/broken/composer.json',
+            json_encode(['name' => 'waaseyaa/broken', 'require' => 'oops'], JSON_THROW_ON_ERROR),
+        );
+
+        $result = $this->runSelector(['--root=' . $root, '--base=HEAD']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        $failureDocument = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('full', $failureDocument['mode']);
+        self::assertStringContainsString('selector failure:', (string) $failureDocument['fallback_reason']);
+
+        $successDocument = ros_select($this->repoRoot, 'HEAD', 'HEAD', null);
+        self::assertSame(array_keys($successDocument), array_keys($failureDocument));
+    }
+
     /**
      * @param list<string> $arguments
      * @return array{exit_code: int, output: string}
@@ -379,5 +472,97 @@ final class RandomOrderScopeSelectorTest extends TestCase
         fclose($pipes[2]);
 
         return ['exit_code' => proc_close($process), 'output' => $output];
+    }
+
+    /**
+     * A synthetic repo with a real git history: three packages (`leaf`,
+     * `mid` requires `leaf`, `unrelated` requires nothing), one Unit test
+     * each. Commit 1 is the baseline; commit 2 touches only
+     * `packages/leaf/src/Marker.php`. Exercises `ros_select()`'s
+     * closure-intersection and atomic-expansion branches, which an empty or
+     * unreachable diff never reaches.
+     *
+     * @return array{root: string, base: string, head: string}
+     */
+    private function targetedFixtureRoot(): array
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('rostargeted', true);
+        $this->fixtureRoots[] = $root;
+
+        mkdir($root . '/bin', 0o777, true);
+        mkdir($root . '/tools', 0o777, true);
+        mkdir($root . '/packages/leaf/src', 0o777, true);
+        mkdir($root . '/packages/leaf/tests/Unit', 0o777, true);
+        mkdir($root . '/packages/mid/tests/Unit', 0o777, true);
+        mkdir($root . '/packages/unrelated/tests/Unit', 0o777, true);
+
+        // ros_diff() shells out to <root>/bin/git; give the fixture its own
+        // thin wrapper over the system git so it does not depend on this
+        // repository's stash-forbidding bin/git.
+        file_put_contents($root . '/bin/git', "#!/usr/bin/env bash\nexec git \"\$@\"\n");
+        chmod($root . '/bin/git', 0o755);
+
+        file_put_contents(
+            $root . '/phpunit.xml.dist',
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<phpunit><testsuites><testsuite name="Unit">'
+            . '<directory>packages/*/tests/Unit</directory>'
+            . '</testsuite></testsuites></phpunit>',
+        );
+
+        file_put_contents(
+            $root . '/tools/random-order-scope-manifest.json',
+            json_encode([
+                'schema_version' => 1,
+                'protected' => [],
+                'prefixes' => [
+                    ['path' => 'docs/', 'rationale' => 'fixture placeholder prefix'],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        file_put_contents(
+            $root . '/packages/leaf/composer.json',
+            json_encode(['name' => 'waaseyaa/leaf'], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $root . '/packages/mid/composer.json',
+            json_encode(['name' => 'waaseyaa/mid', 'require' => ['waaseyaa/leaf' => '^1.0']], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $root . '/packages/unrelated/composer.json',
+            json_encode(['name' => 'waaseyaa/unrelated'], JSON_THROW_ON_ERROR),
+        );
+
+        file_put_contents($root . '/packages/leaf/src/Marker.php', "<?php\n// v1\n");
+        file_put_contents($root . '/packages/leaf/tests/Unit/LeafTest.php', "<?php\nfinal class LeafTest {}\n");
+        file_put_contents($root . '/packages/mid/tests/Unit/MidTest.php', "<?php\nfinal class MidTest {}\n");
+        file_put_contents(
+            $root . '/packages/unrelated/tests/Unit/UnrelatedTest.php',
+            "<?php\nfinal class UnrelatedTest {}\n",
+        );
+
+        $this->fixtureGit($root, 'init --quiet');
+        $this->fixtureGit($root, 'config user.email test@example.com');
+        $this->fixtureGit($root, 'config user.name "Ros Fixture"');
+        $this->fixtureGit($root, 'add .');
+        $this->fixtureGit($root, 'commit --quiet -m baseline');
+        $base = trim($this->fixtureGit($root, 'rev-parse HEAD'));
+
+        file_put_contents($root . '/packages/leaf/src/Marker.php', "<?php\n// v2\n");
+        $this->fixtureGit($root, 'add packages/leaf/src/Marker.php');
+        $this->fixtureGit($root, 'commit --quiet -m "touch leaf"');
+        $head = trim($this->fixtureGit($root, 'rev-parse HEAD'));
+
+        return ['root' => $root, 'base' => $base, 'head' => $head];
+    }
+
+    private function fixtureGit(string $root, string $command): string
+    {
+        exec('cd ' . escapeshellarg($root) . ' && git ' . $command . ' 2>&1', $output, $exitCode);
+        $joined = implode("\n", $output);
+        self::assertSame(0, $exitCode, $joined);
+
+        return $joined;
     }
 }

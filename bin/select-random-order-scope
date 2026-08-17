@@ -24,21 +24,7 @@ try {
     $document = ros_select($root, $base, $head, $forced);
 } catch (Throwable $exception) {
     // Never fail the lane on a selector defect: emit a complete-inventory decision.
-    $document = [
-        'schema_version' => 1,
-        'mode' => 'full',
-        'fallback_reason' => 'selector failure: ' . $exception->getMessage(),
-        'base_sha' => $base,
-        'head_sha' => $head,
-        'digests' => [],
-        'seed_packages' => [],
-        'closure_packages' => [],
-        'always_run_groups' => [],
-        'selected_groups' => [],
-        'selected_paths' => [],
-        'selected_files' => 0,
-        'inventory_files' => 0,
-    ];
+    $document = ros_document('full', 'selector failure: ' . $exception->getMessage(), $base, $head);
 }
 
 echo json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT), "\n";
