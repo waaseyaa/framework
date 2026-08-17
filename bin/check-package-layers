@@ -48,7 +48,8 @@ declare(strict_types=1);
  *            fail-closed finding, not a skip — see the `Waaseyaa\Tests\`
  *            root-tests-tree exemption below for the one deliberate carve-out.
  *            Fail-on-new, baselined in tools/package-layers-test-edge-baseline.txt
- *            (ships empty; mandatory inline rationale per entry — see file header).
+ *            (ships with 6 reviewed entries; see the file header for why each
+ *            is unfixable — mandatory inline rationale per entry).
  */
 
 $rootEnv = getenv('WAASEYAA_LAYER_ROOT');

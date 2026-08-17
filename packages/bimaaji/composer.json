@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/bimaaji",
-    "description": "Bimaaji \u2014 application graph introspection and agent-safe mutation for Waaseyaa",
+    "description": "Bimaaji — application graph introspection and agent-safe mutation for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {

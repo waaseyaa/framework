@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/audit",
-    "description": "OCAP append-only audit log substrate \u2014 unified event table, writer + query contracts, retention policy.",
+    "description": "OCAP append-only audit log substrate — unified event table, writer + query contracts, retention policy.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
