@@ -191,3 +191,106 @@ function ros_classify(array $paths, array $manifest, string $root): array
 
     return ['seeds' => $seeds, 'full_reason' => null];
 }
+
+/**
+ * Builds the internal dependency graph (docs/specs/ci-test-selection.md
+ * §3.4.1-2): `reverse` maps a package to its direct consumers over `require`
+ * **and** `require-dev` (this repository permits upward dev edges), and
+ * `psr4` maps a namespace prefix to the package directory that declares it.
+ * Graph integrity problems (unparsable/unreadable manifest, no declared
+ * name, duplicate name, or an internal requirement naming an absent
+ * package) are fail-closed `RosScopeFailure`s.
+ *
+ * @return array{reverse: array<string, list<string>>, psr4: array<string, string>}
+ */
+function ros_package_graph(string $root): array
+{
+    $byName = [];
+    $manifests = [];
+    foreach (glob($root . '/packages/*/composer.json') ?: [] as $path) {
+        $directory = basename(dirname($path));
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            throw new RosScopeFailure("package manifest is unreadable: packages/{$directory}/composer.json");
+        }
+        try {
+            $document = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RosScopeFailure(
+                "package manifest is unparsable: packages/{$directory}/composer.json — {$exception->getMessage()}",
+            );
+        }
+        if (!is_array($document) || !is_string($document['name'] ?? null)) {
+            throw new RosScopeFailure("package manifest declares no name: packages/{$directory}/composer.json");
+        }
+        if (isset($byName[$document['name']])) {
+            throw new RosScopeFailure("duplicate package name: {$document['name']}");
+        }
+        $byName[$document['name']] = $directory;
+        $manifests[$directory] = $document;
+    }
+
+    $reverse = [];
+    $psr4 = [];
+    foreach ($manifests as $directory => $document) {
+        $reverse[$directory] ??= [];
+        foreach (array_merge($document['require'] ?? [], $document['require-dev'] ?? []) as $name => $_constraint) {
+            if (!str_starts_with((string) $name, 'waaseyaa/')) {
+                continue;
+            }
+            if (!isset($byName[$name])) {
+                throw new RosScopeFailure(
+                    "packages/{$directory}/composer.json requires an absent internal package: {$name}",
+                );
+            }
+            $reverse[$byName[$name]][] = $directory;
+        }
+        foreach (array_merge(
+            $document['autoload']['psr-4'] ?? [],
+            $document['autoload-dev']['psr-4'] ?? [],
+        ) as $namespace => $_target) {
+            $psr4[rtrim((string) $namespace, '\\')] = $directory;
+        }
+    }
+
+    foreach ($reverse as $package => $consumers) {
+        $consumers = array_values(array_unique($consumers));
+        sort($consumers, SORT_STRING);
+        $reverse[$package] = $consumers;
+    }
+    ksort($reverse);
+    ksort($psr4);
+
+    return ['reverse' => $reverse, 'psr4' => $psr4];
+}
+
+/**
+ * Transitively closes the seed set over reversed internal dependency edges
+ * (docs/specs/ci-test-selection.md §3.4.1). The visited set bounds the walk,
+ * so the five accepted same-layer 2-cycles (tools/package-layers-cycle-baseline.txt)
+ * terminate instead of erroring (§3.4.2).
+ *
+ * @param array<string, list<string>> $reverse
+ * @param list<string> $seeds
+ * @return list<string>
+ */
+function ros_closure(array $reverse, array $seeds): array
+{
+    $seen = [];
+    $queue = $seeds;
+    while ($queue !== []) {
+        $package = array_pop($queue);
+        if (isset($seen[$package])) {
+            continue; // visited-set bound: accepted 2-cycles terminate here
+        }
+        $seen[$package] = true;
+        foreach ($reverse[$package] ?? [] as $consumer) {
+            $queue[] = $consumer;
+        }
+    }
+
+    $closure = array_keys($seen);
+    sort($closure, SORT_STRING);
+
+    return $closure;
+}

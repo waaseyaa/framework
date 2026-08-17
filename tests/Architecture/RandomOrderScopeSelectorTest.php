@@ -13,10 +13,31 @@ final class RandomOrderScopeSelectorTest extends TestCase
 {
     private string $repoRoot;
 
+    /** @var list<string> */
+    private array $fixtureRoots = [];
+
     protected function setUp(): void
     {
         $this->repoRoot = dirname(__DIR__, 2);
         require_once $this->repoRoot . '/bin/lib/random-order-scope.php';
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->fixtureRoots as $root) {
+            if (!is_dir($root)) {
+                continue;
+            }
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST,
+            );
+            foreach ($iterator as $entry) {
+                $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
+            }
+            rmdir($root);
+        }
+        $this->fixtureRoots = [];
     }
 
     #[Test]
@@ -165,6 +186,78 @@ final class RandomOrderScopeSelectorTest extends TestCase
             json_encode(['schema_version' => 1, 'protected' => [], ...$document], JSON_THROW_ON_ERROR),
         );
 
+        $this->fixtureRoots[] = $root;
+
         return $root;
+    }
+
+    #[Test]
+    public function closure_follows_consumers_transitively(): void
+    {
+        $graph = ros_package_graph($this->repoRoot);
+
+        $leaf = ros_closure($graph['reverse'], ['genealogy']);
+        self::assertSame(['genealogy'], $leaf);
+
+        $hub = ros_closure($graph['reverse'], ['entity']);
+        self::assertContains('entity', $hub);
+        self::assertContains('node', $hub);
+        self::assertContains('api', $hub);
+        self::assertGreaterThan(50, count($hub), 'entity is a hub; its consumer closure is large.');
+    }
+
+    #[Test]
+    public function closure_includes_require_dev_consumers(): void
+    {
+        $graph = ros_package_graph($this->repoRoot);
+        $closure = ros_closure($graph['reverse'], ['testing']);
+
+        self::assertContains('testing', $closure);
+        self::assertGreaterThan(1, count($closure), 'packages/testing is consumed via require-dev.');
+    }
+
+    #[Test]
+    public function closure_terminates_on_the_accepted_two_cycles(): void
+    {
+        $baseline = (string) file_get_contents($this->repoRoot . '/tools/package-layers-cycle-baseline.txt');
+        self::assertStringContainsString('access', $baseline);
+
+        $graph = ros_package_graph($this->repoRoot);
+        $closure = ros_closure($graph['reverse'], ['access']);
+
+        self::assertContains('access', $closure);
+        self::assertContains('entity', $closure);
+        self::assertSame($closure, array_values(array_unique($closure)));
+    }
+
+    #[Test]
+    public function a_malformed_package_manifest_is_a_scope_failure(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('rosg', true);
+        $this->fixtureRoots[] = $root;
+        mkdir($root . '/packages/broken', 0o777, true);
+        file_put_contents($root . '/packages/broken/composer.json', '{ not json');
+
+        $this->expectException(\RosScopeFailure::class);
+        $this->expectExceptionMessageMatches('/packages\/broken\/composer\.json/');
+        ros_package_graph($root);
+    }
+
+    #[Test]
+    public function a_duplicate_package_name_is_a_scope_failure(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('rosd', true);
+        $this->fixtureRoots[] = $root;
+        foreach (['one', 'two'] as $dir) {
+            mkdir($root . '/packages/' . $dir, 0o777, true);
+            file_put_contents(
+                $root . '/packages/' . $dir . '/composer.json',
+                json_encode(['name' => 'waaseyaa/same'], JSON_THROW_ON_ERROR),
+            );
+        }
+
+        $this->expectException(\RosScopeFailure::class);
+        $this->expectExceptionMessageMatches('/duplicate package name/');
+        ros_package_graph($root);
     }
 }
