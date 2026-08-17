@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **CI test-selection scope manifest (#2404):** Added
+  `tools/random-order-scope-manifest.json` and its fail-closed loader
+  (`bin/lib/random-order-scope.php`, `ros_load_manifest()`), the first
+  building block of the selector described in
+  [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md) §3.3.
+  The loader force-fails closed (`RosScopeFailure`) on an unreadable or
+  unparsable manifest, a prefix entry missing a `rationale`, an ambiguous
+  (self-shadowing) directory prefix, or a `seeds` entry naming a package
+  absent from `packages/*/composer.json`. The selector CLI that consumes
+  this manifest lands in a follow-up change.
+
 - **CI test-selection contract (#2404):** Added
   [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md), the
   design contract for fail-closed changed-package selection and random-order

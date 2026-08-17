@@ -1,0 +1,26 @@
+{
+    "schema_version": 1,
+    "_comment": "Fail-closed path classification for bin/select-random-order-scope (docs/specs/ci-test-selection.md §3.3). A changed path matching no entry here and no packages/*/ or tests/** rule selects the complete inventory. Every prefixes entry needs a rationale; protected entries force the complete inventory.",
+    "protected": [
+        "bin/select-random-order-scope",
+        "bin/build-phpunit-shards",
+        "bin/test-random-order",
+        "bin/lib/random-order-scope.php",
+        "tools/random-order-scope-manifest.json",
+        "tools/phpunit-timings.json",
+        "phpunit.xml.dist",
+        "phpunit.xml",
+        "composer.json",
+        "composer.lock",
+        ".github/workflows/ci.yml",
+        ".github/workflows/nightly.yml"
+    ],
+    "prefixes": [
+        {"path": "docs/", "rationale": "documentation cannot change PHP behaviour; spec drift is gated separately"},
+        {"path": "kitty-specs/", "rationale": "read-only historical mission artifacts"},
+        {"path": ".github/", "rationale": "workflow shape is proven by tests/Architecture, which is always run; ci.yml and nightly.yml are in protected"},
+        {"path": "tools/", "rationale": "repo tooling is proven by tests/Architecture, which is always run; selector inputs are in protected"},
+        {"path": "bin/", "rationale": "gate scripts are proven by tests/Architecture, which is always run; selector scripts are in protected"},
+        {"path": "bin/waaseyaa", "rationale": "the CLI entry point is additionally exercised by the cli package suite", "seeds": ["cli"]}
+    ]
+}
