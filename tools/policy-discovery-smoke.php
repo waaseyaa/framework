@@ -28,7 +28,7 @@ $expected = [
     'policies' => 18,
     'agent_tools' => 11,
     'formatters' => 6,
-    'middleware' => 16,
+    'middleware' => 17,
     'schedule_entries' => 4,
 ];
 

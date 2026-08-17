@@ -108,6 +108,28 @@ final class CsrfCookieSecurePolicyIntegrationTest extends TestCase
         );
     }
 
+    #[Test]
+    public function cookieBearingAnonymousHtmlCannotRemainPubliclyCacheable(): void
+    {
+        $result = $this->dispatch([
+            'method' => 'GET',
+            'uri'    => '/test/protected',
+        ]);
+
+        $this->assertSame(200, $result['status'], 'GET /test/protected must return 200. Body: ' . $result['body']);
+        $this->assertNotNull(
+            $this->findSetCookieHeader('XSRF-TOKEN', $result['headers']),
+            'The full-kernel anonymous HTML response must exercise the cookie-bearing boundary.',
+        );
+
+        $cacheControl = $this->findHeaderValues('cache-control', $result['headers']);
+        $this->assertSame(
+            ['no-store, private'],
+            $cacheControl,
+            'A response carrying Set-Cookie must have one final private Cache-Control policy (#2150).',
+        );
+    }
+
     // -----------------------------------------------------------------------
     // Harness (mirrors InertiaMultipartCsrfIntegrationTest)
     // -----------------------------------------------------------------------
@@ -179,6 +201,23 @@ final class CsrfCookieSecurePolicyIntegrationTest extends TestCase
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $headers
+     * @return list<string>
+     */
+    private function findHeaderValues(string $name, array $headers): array
+    {
+        $prefix = strtolower($name) . ':';
+        $values = [];
+        foreach ($headers as $header) {
+            if (str_starts_with(strtolower($header), $prefix)) {
+                $values[] = trim(substr($header, strlen($prefix)));
+            }
+        }
+
+        return $values;
     }
 
     private function assertCookieAttribute(string $cookieString, string $attribute, string $message): void

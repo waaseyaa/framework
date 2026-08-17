@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Security — cookie-aware final cache policy (#2150):** The HTTP pipeline now
+  has one outer response-cache authority. Any session-bound or `Set-Cookie`
+  response is normalized to `private, no-store`, replacing contradictory
+  `public`/`s-maxage` directives, while cookie-free stateless SSR responses keep
+  their shared-cache policy. `SessionMiddleware` disables PHP's independent
+  session cache limiter before `session_start()`, preventing a second raw
+  `Cache-Control` field outside the Symfony response.
+
 - **Governed-gate preflight (#2400):** One local command now mirrors every
   fast repo-state gate hosted CI blocks merge on: `bin/check-pr-preflight`
   runs the full roster (~10s) with accumulator semantics — every gate runs,

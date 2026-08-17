@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-08-16 - #2150: the outer ResponseCacheControlMiddleware owns final HTTP cache reconciliation. SessionMiddleware disables PHP's cache limiter before session startup and marks stateful requests; after every cookie writer unwinds, any session-bound or Set-Cookie response becomes private, no-store with the complete Cache-Control field replaced. Cookie-free stateless public SSR caching is unchanged. -->
+
 <!-- Spec reviewed 2026-08-16 - S1-FW-DB-03: scheduler overlap protection uses renewable database leases with generation/nonce/expiry read-back, monotonic safety margins, and fail-closed ambiguity handling. Fenced effects reject stale owners and distinguish exact replay from conflicting equal-fence work. Protected cron slots persist deterministic occurrences; queued occurrences commit enqueue intent with the occurrence identity and workers acquire a separate renewable execution lease before effects. The queue envelope/worker occurrence interfaces carry that identity without weakening ordinary queue retry semantics. EntityTypeManagerFactory also wires the aggregate mutation authority described in entity-system.md. Canonical contract: s1-concurrency-fencing.md. -->
 
 <!-- Spec reviewed 2026-08-11 - #2336 S1 upgrade compatibility: Foundation exposes a pure, read-only preflight decision surface. It does not boot the kernel, read configuration or schema state, run migrations, enter maintenance, or perform rollback/restore. Callers must supply the exact versioned observation described by docs/specs/s1-upgrade-compatibility.md; unknown or mixed state is refused, and a ready result authorizes only a separately governed apply phase. Existing configuration and migration mechanisms remain uncertified evidence sources until their independent findings close. -->
@@ -814,6 +816,10 @@ Public SSR routes now expose deterministic HTTP cache profiles aligned with work
   - `public, max-age={cache_max_age}, s-maxage={cache_shared_max_age}, stale-while-revalidate={cache_stale_while_revalidate}, stale-if-error={cache_stale_if_error}`
 - Authenticated SSR responses remain private:
   - `private, no-store`
+- Any response bound to a PHP session or carrying `Set-Cookie` is finalized as
+  `private, no-store`, even for an anonymous account. The final response policy
+  replaces the complete field, so `public`/`s-maxage` cannot coexist with a
+  cookie. Only cookie-free stateless responses remain shared-cache eligible.
 
 Default values when no explicit config is provided:
 

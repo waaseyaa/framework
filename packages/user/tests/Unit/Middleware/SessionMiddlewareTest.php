@@ -17,6 +17,7 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
 use Waaseyaa\User\Session\NativeSession;
 use Waaseyaa\User\User;
 
@@ -338,6 +339,64 @@ final class SessionMiddlewareTest extends TestCase
         $middleware->process($request, $next);
 
         $this->assertInstanceOf(NativeSession::class, $capturedSession);
+    }
+
+    #[Test]
+    public function marks_stateful_requests_for_final_private_cache_reconciliation(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $request = Request::create('/account');
+        $request->attributes->set('_session', []);
+
+        new SessionMiddleware($repository)->process($request, new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('ok');
+            }
+        });
+
+        $this->assertTrue($request->attributes->get(ResponseCacheControlMiddleware::SESSION_BOUND_ATTRIBUTE));
+    }
+
+    #[Test]
+    public function leaves_cookie_free_stateless_requests_public_cache_eligible(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $request = Request::create('/news');
+
+        new SessionMiddleware($repository, statelessPathPrefixes: ['/news'])->process(
+            $request,
+            new class implements HttpHandlerInterface {
+                public function handle(Request $request): Response
+                {
+                    return new Response('ok');
+                }
+            },
+        );
+
+        $this->assertFalse($request->attributes->has(ResponseCacheControlMiddleware::SESSION_BOUND_ATTRIBUTE));
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function disables_php_cache_limiter_before_starting_a_session(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        session_cache_limiter('nocache');
+        ini_set('session.use_cookies', '0');
+
+        new SessionMiddleware($repository)->process(
+            Request::create('/account'),
+            new class implements HttpHandlerInterface {
+                public function handle(Request $request): Response
+                {
+                    return new Response('ok');
+                }
+            },
+        );
+
+        $this->assertSame('', session_cache_limiter(), 'PHP must not emit a second Cache-Control authority.');
+        session_write_close();
     }
 
     #[Test]

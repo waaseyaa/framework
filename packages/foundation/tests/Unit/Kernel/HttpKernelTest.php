@@ -27,6 +27,7 @@ use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\I18n\Language;
@@ -41,6 +42,7 @@ use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
 
 #[CoversClass(HttpKernel::class)]
 final class HttpKernelTest extends TestCase
@@ -472,6 +474,11 @@ final class HttpKernelTest extends TestCase
         $classes = array_map(static fn(object $item): string => $item::class, $middleware);
 
         self::assertContains(CommunityMiddleware::class, $classes);
+        self::assertContains(ResponseCacheControlMiddleware::class, $classes);
+        self::assertLessThan(
+            array_search(SecurityHeadersMiddleware::class, $classes, true),
+            array_search(ResponseCacheControlMiddleware::class, $classes, true),
+        );
         self::assertLessThan(
             array_search(CommunityMiddleware::class, $classes, true),
             array_search(SessionMiddleware::class, $classes, true),
