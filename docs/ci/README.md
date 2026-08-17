@@ -117,26 +117,23 @@ cd packages/admin && npx playwright test --grep @smoke
 - Any baseline diff must be reviewed as a first-class code-review item and justified in the PR description.
 - Preferred end-state remains a minimal baseline (or no baseline) as packages mature.
 
-## Release Pipeline (`.github/workflows/release.yml`)
+## Release Readiness (`.github/workflows/release.yml`)
 
-Triggers on every push to `main`:
+This manual-only workflow verifies an exact SHA reachable from `main`:
 
 ```
-main push → Deploy staging → Full Playwright sweep → [Approval gate] → Deploy production → Post-deploy smoke
+explicit SHA → build release candidate → full Playwright sweep
 ```
 
-### Stages
+It does not use GitHub Environments and has no publication, deployment,
+rollback, or incident authority. The Framework is a library; real application
+promotion belongs in consumer and infrastructure repositories.
 
-1. **Deploy to staging** — runs `scripts/deploy.sh staging`, uploads metadata artifact
-2. **Full Playwright sweep** — runs entire Playwright suite (not just @smoke)
-3. **Promote to production** — requires approval via GitHub environment gate, runs `scripts/deploy.sh production`
-4. **Post-deploy smoke** — runs @smoke tests; on failure: attempts rollback via `scripts/rollback.sh`, creates incident issue
+### Evidence (90-day retention)
 
-### Release Artifacts (90-day retention)
-
-- `staging-deploy-metadata` / `production-deploy-metadata` — JSON with SHA, timestamp, actor
-- `playwright-full-sweep` — full test results + HTML report
-- `post-deploy-smoke` — smoke test results after production deploy
+- `release-candidate-evidence` — exact SHA, tag state, timestamp, actor, and run
+- `release-readiness-playwright` — full browser results and HTML report
+- `release-readiness-server-logs` — bounded failure diagnostics
 
 ## Auto-merge (`.github/workflows/auto-merge.yml`)
 
@@ -184,6 +181,5 @@ gate before publication.
 
 | Script | Usage | Purpose |
 |---|---|---|
-| `scripts/release.sh v1.0.1` | Create release | Changelog, annotated tag, push, GitHub release |
-| `scripts/deploy.sh staging` | Deploy | Build + deploy to environment |
-| `scripts/rollback.sh v1.0.0` | Rollback | Checkout tag + redeploy to production |
+| `release-cut.yml` | Create release | Governed changelog/version commit, exact-SHA CI gate, tag, and package fan-out |
+| `scripts/build-release-candidate.sh` | Verify candidate | Fail-closed local dependency and Admin build with bounded metadata; no deployment or publication effects |

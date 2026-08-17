@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Retire misleading Framework deployment environments:** Recast the manual
+  `release.yml` workflow as exact-SHA **Release Readiness** verification. It
+  now builds a candidate and runs the full browser sweep without GitHub
+  Environments, deployment permissions, artifact-promotion transport, rollback, or
+  incident creation. Replaced the non-deploying `scripts/deploy.sh` with the
+  fail-closed `scripts/build-release-candidate.sh` and removed the disposable-
+  runner `scripts/rollback.sh`, which only checked out an older tag and could
+  not restore any external system. Application staging and production remain
+  the authority of consumer and infrastructure repositories.
+
 - **Sharded complete-inventory random-order proof; changed-package targeting
   investigated and dropped (#2404):** Rewrote
   [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md) after a

@@ -1,83 +1,63 @@
-name: Release Pipeline
+name: Release Readiness
 
+# This workflow verifies an exact Framework candidate. It deliberately has no
+# GitHub Environment, deployment permission, artifact-promotion transport,
+# rollback, or publication authority. Application deployment belongs to
+# consumer/infra repositories; Framework publication remains owned by
+# release-cut.yml.
 on:
   workflow_dispatch:
     inputs:
       sha:
-        description: Exact 40-character commit SHA from main to deploy
+        description: Exact 40-character commit SHA from main to verify
         required: true
-        type: string
-      target:
-        description: Stop after staging or request protected production promotion
-        required: true
-        default: staging
-        type: choice
-        options:
-          - staging
-          - production
-      allow_untagged_production:
-        description: Emergency-only production override for an untagged SHA
-        required: false
-        default: false
-        type: boolean
-      emergency_justification:
-        description: Required audit justification when using the emergency override
-        required: false
         type: string
 
 concurrency:
-  group: release-pipeline
+  group: release-readiness
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
-  validate-deploy-request:
-    name: Validate explicit deployment request
-    runs-on: ubuntu-latest
+  validate-readiness-request:
+    name: Validate explicit readiness request
+    runs-on: ubuntu-24.04
     outputs:
-      deploy_sha: ${{ steps.validate.outputs.deploy_sha }}
+      candidate_sha: ${{ steps.validate.outputs.candidate_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Validate exact main SHA and emergency intent
+      - name: Validate exact main SHA
         id: validate
         env:
-          DEPLOY_SHA: ${{ inputs.sha }}
-          DEPLOY_TARGET: ${{ inputs.target }}
-          ALLOW_UNTAGGED: ${{ inputs.allow_untagged_production }}
-          EMERGENCY_JUSTIFICATION: ${{ inputs.emergency_justification }}
+          CANDIDATE_SHA: ${{ inputs.sha }}
         run: |
-          if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+          set -euo pipefail
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::sha must be an exact lowercase 40-character commit SHA"
             exit 1
           fi
           git fetch --no-tags origin main
-          git cat-file -e "$DEPLOY_SHA^{commit}"
-          git merge-base --is-ancestor "$DEPLOY_SHA" origin/main || {
-            echo "::error::deployment SHA must be reachable from origin/main"
+          git cat-file -e "$CANDIDATE_SHA^{commit}"
+          git merge-base --is-ancestor "$CANDIDATE_SHA" origin/main || {
+            echo "::error::candidate SHA must be reachable from origin/main"
             exit 1
           }
-          if [[ "$ALLOW_UNTAGGED" == "true" ]]; then
-            if [[ "$DEPLOY_TARGET" != "production" || ${#EMERGENCY_JUSTIFICATION} -lt 20 ]]; then
-              echo "::error::untagged override requires production target and a 20+ character justification"
-              exit 1
-            fi
-          fi
-          echo "deploy_sha=$DEPLOY_SHA" >> "$GITHUB_OUTPUT"
+          echo "candidate_sha=$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
 
-  deploy-staging:
-    name: Deploy to staging
-    runs-on: ubuntu-latest
-    needs: [validate-deploy-request]
-    environment: staging
-    outputs:
-      deploy_sha: ${{ needs.validate-deploy-request.outputs.deploy_sha }}
+  build-release-candidate:
+    name: Build exact release candidate
+    runs-on: ubuntu-24.04
+    needs: [validate-readiness-request]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ needs.validate-deploy-request.outputs.deploy_sha }}
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -86,45 +66,34 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: packages/admin/package-lock.json
 
-      - name: Deploy to staging
-        run: |
-          if [ -f scripts/deploy.sh ]; then
-            bash scripts/deploy.sh staging
-          else
-            echo "::warning::scripts/deploy.sh not found — recording metadata only"
-          fi
+      - name: Build candidate without deployment side effects
+        env:
+          RELEASE_ACTOR: ${{ github.actor }}
+          RELEASE_RUN_ID: ${{ github.run_id }}
+        run: bash scripts/build-release-candidate.sh
 
-      - name: Record deployment metadata
-        run: |
-          mkdir -p build/deploy
-          jq -n \
-            --arg env "staging" \
-            --arg sha "${{ needs.validate-deploy-request.outputs.deploy_sha }}" \
-            --arg ref "refs/heads/main" \
-            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg actor "${{ github.actor }}" \
-            --arg run_id "${{ github.run_id }}" \
-            '{environment: $env, sha: $sha, ref: $ref, timestamp: $ts, actor: $actor, run_id: $run_id}' \
-            > build/deploy/staging-metadata.json
-
-      - name: Upload deployment metadata
+      - name: Upload candidate evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: staging-deploy-metadata
-          path: build/deploy/
+          name: release-candidate-evidence
+          path: build/release/
           retention-days: 90
 
   playwright-full-sweep:
-    name: Full Playwright sweep (staging)
-    runs-on: ubuntu-latest
-    needs: [deploy-staging]
+    name: Full Playwright release-readiness sweep
+    runs-on: ubuntu-24.04
+    needs: [validate-readiness-request, build-release-candidate]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.deploy-staging.outputs.deploy_sha }}
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -134,7 +103,9 @@ jobs:
           coverage: none
 
       - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist
+        uses: ./.github/actions/composer-install-retry
+        with:
+          args: '--no-interaction --prefer-dist --no-progress'
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -161,11 +132,11 @@ jobs:
         if: always()
         run: cd packages/admin && npm run test:e2e:summary
 
-      - name: Upload Playwright artifacts
+      - name: Upload Playwright evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: playwright-full-sweep
+          name: release-readiness-playwright
           path: |
             packages/admin/test-results/
             packages/admin/playwright-report/
@@ -175,158 +146,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: staging-server-logs
-          path: |
-            /tmp/php-server.log
-            /tmp/nuxt-server.log
+          name: release-readiness-server-logs
+          path: /tmp/php-server.log
           retention-days: 7
-
-  promote-production:
-    name: Promote to production
-    runs-on: ubuntu-latest
-    needs: [playwright-full-sweep]
-    if: inputs.target == 'production'
-    environment: production
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.sha }}
-
-      - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
-        with:
-          php-version: '8.5'
-          extensions: pdo_sqlite, sqlite3, mbstring, xml
-          coverage: none
-
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
-
-      - name: Deploy to production
-        env:
-          ALLOW_UNTAGGED_PRODUCTION: ${{ inputs.allow_untagged_production && '1' || '0' }}
-          DEPLOY_EMERGENCY_JUSTIFICATION: ${{ inputs.emergency_justification }}
-        run: |
-          if [ -f scripts/deploy.sh ]; then
-            bash scripts/deploy.sh production
-          else
-            echo "::warning::scripts/deploy.sh not found — recording metadata only"
-          fi
-
-      - name: Record deployment metadata
-        run: |
-          mkdir -p build/deploy
-          jq -n \
-            --arg env "production" \
-            --arg sha "${{ inputs.sha }}" \
-            --arg ref "refs/heads/main" \
-            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg actor "${{ github.actor }}" \
-            --arg run_id "${{ github.run_id }}" \
-            '{environment: $env, sha: $sha, ref: $ref, timestamp: $ts, actor: $actor, run_id: $run_id}' \
-            > build/deploy/production-metadata.json
-
-      - name: Upload deployment metadata
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: production-deploy-metadata
-          path: build/deploy/
-          retention-days: 90
-
-  post-deploy-smoke:
-    name: Post-deploy smoke tests
-    runs-on: ubuntu-latest
-    needs: [promote-production]
-    if: inputs.target == 'production'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.sha }}
-
-      - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
-        with:
-          php-version: '8.5'
-          extensions: pdo_sqlite, sqlite3, mbstring, xml
-          coverage: none
-
-      - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-          cache-dependency-path: packages/admin/package-lock.json
-
-      - name: Install dependencies and Playwright
-        run: cd packages/admin && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
-
-      - name: Start PHP backend
-        run: |
-          php -S 127.0.0.1:8080 -t public/ > /tmp/php-server.log 2>&1 &
-          for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:8080/ > /dev/null 2>&1 && break
-            sleep 1
-          done
-
-      - name: Run post-deploy smoke tests
-        run: cd packages/admin && npx playwright test --project=chromium
-
-      - name: Summarize Playwright retries
-        if: always()
-        run: cd packages/admin && npm run test:e2e:summary
-
-      - name: Upload smoke test artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: post-deploy-smoke
-          path: |
-            packages/admin/test-results/
-            packages/admin/playwright-report/
-          retention-days: 90
-
-      - name: Attempt rollback on failure
-        if: failure()
-        run: |
-          echo "::error::Post-deploy smoke tests FAILED"
-          PREV_TAG=$(git tag --sort=-v:refname | head -1)
-          if [ -n "$PREV_TAG" ] && [ -f scripts/rollback.sh ]; then
-            echo "Rolling back to $PREV_TAG..."
-            bash scripts/rollback.sh "$PREV_TAG"
-          else
-            echo "::error::Automatic rollback unavailable — manual intervention required"
-          fi
-
-      - name: Create incident issue on failure
-        if: failure()
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-            await github.rest.issues.create({
-              owner, repo,
-              title: `[INCIDENT] Post-deploy smoke failure — run ${context.runId}`,
-              body: [
-                '## Incident: Post-deploy smoke test failure',
-                '',
-                `| Field | Value |`,
-                `|---|---|`,
-                `| Commit | \`${context.sha}\` |`,
-                `| Run | [${context.runId}](${runUrl}) |`,
-                `| Actor | @${context.actor} |`,
-                '',
-                'Automatic rollback was attempted. Verify it succeeded.',
-                '',
-                '### Checklist',
-                '- [ ] Verify rollback succeeded',
-                '- [ ] Review Playwright artifacts',
-                '- [ ] Root-cause the failure',
-                '- [ ] Deploy fix',
-              ].join('\n'),
-              labels: ['incident', 'production'],
-            });
