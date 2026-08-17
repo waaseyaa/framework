@@ -206,6 +206,7 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         $create = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/create', 'POST', [
             'attributes' => ['vid' => 'bypass', 'name' => 'Bypass'],
         ]);
+        $createStatus = $this->lastStatusCode;
         $loaded = $this->request($router, '/admin/_surface/taxonomy_vocabulary/renamed', 'GET');
         $schema = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/schema', 'POST', [
             'id' => 'renamed',
@@ -237,6 +238,7 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
             'id' => 'occupied',
             'mutation_token' => $byId['occupied']['mutation_token'] ?? null,
         ]);
+        $occupiedDeleteStatus = $this->lastStatusCode;
 
         $body = [
             'catalog' => $entry,
@@ -254,6 +256,9 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         self::assertTrue($body['catalog']['capabilities']['delete'] ?? false, json_encode($body));
         self::assertContains('delete', array_column($body['catalog']['actions'] ?? [], 'id'));
         self::assertFalse($body['create']['ok'], json_encode($body));
+        // #2161: a refused write must carry its status on the wire, not only in
+        // the envelope, so monitoring and clients cannot read a denial as a 200.
+        self::assertSame(403, $createStatus, json_encode($body));
         self::assertSame('', $body['loaded']['data']['attributes']['bundle'] ?? null, json_encode($body));
         self::assertArrayNotHasKey('bundle', $body['schema']['data']['properties'] ?? [], json_encode($body));
         self::assertTrue($body['updated']['ok'], json_encode($body));
@@ -270,6 +275,7 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         self::assertTrue($body['emptyDelete']['ok'], json_encode($body));
         self::assertFalse($body['emptyRemaining']);
         self::assertFalse($body['occupiedDelete']['ok'], json_encode($body));
+        self::assertSame(403, $occupiedDeleteStatus, json_encode($body));
         self::assertStringContainsString('contains terms', $body['occupiedDelete']['error']['detail'] ?? '');
         self::assertTrue($body['occupiedRemaining']);
 
@@ -295,6 +301,9 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    /** HTTP status of the most recent {@see request()} call, for wire-level assertions (#2161). */
+    private int $lastStatusCode = 0;
+
     private function request(WaaseyaaRouter $router, string $path, string $method, array $payload = []): array
     {
         $request = Request::create(
@@ -328,9 +337,20 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
                     }
                 }
 
-                return new \Symfony\Component\HttpFoundation\JsonResponse(($this->controller)(...$args));
+                $result = ($this->controller)(...$args);
+
+                // Honour the same `statusCode`/`body` contract ControllerDispatcher
+                // applies in production (ControllerDispatcher::handleCallable()).
+                // Without this the handler flattens an admin-surface refusal into a
+                // 200 carrying a `statusCode` key, which is the #2161 defect itself.
+                return new \Symfony\Component\HttpFoundation\JsonResponse(
+                    $result['body'] ?? $result,
+                    $result['statusCode'] ?? 200,
+                );
             }
         });
+
+        $this->lastStatusCode = $response->getStatusCode();
 
         return json_decode((string) $response->getContent(), true, flags: JSON_THROW_ON_ERROR);
     }

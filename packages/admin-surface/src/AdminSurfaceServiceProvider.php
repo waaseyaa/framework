@@ -245,38 +245,74 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     public static function registerRoutes(WaaseyaaRouter $router, AbstractAdminSurfaceHost $host): void
     {
         // Session endpoint uses requireSession (not requireAuthentication) so the
-        // SPA can distinguish "not logged in" (SurfaceResult with ok:false) from
-        // "endpoint not available" (network error). The host's resolveSession()
-        // checks the account and returns null for unauthorized users.
+        // SPA can distinguish "not logged in" from "endpoint not available"
+        // (network error). The host's resolveSession() checks the account and
+        // returns null for unauthorized users, which surfaces as a refusal
+        // envelope AND — since #2161 — a real 401 on the status line.
         $router->addRoute('admin_surface.session', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_SESSION)
             ->methods('GET')
             ->requireSession()
-            ->controller(fn($request) => $host->handleSession($request))
+            ->controller(fn($request) => self::promoteRefusalStatus($host->handleSession($request)))
             ->build());
 
         $router->addRoute('admin_surface.catalog', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_CATALOG)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request) => $host->handleCatalog($request))
+            ->controller(fn($request) => self::promoteRefusalStatus($host->handleCatalog($request)))
             ->build());
 
         $router->addRoute('admin_surface.list', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_LIST)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $type) => $host->handleList($request, $type))
+            ->controller(fn($request, $type) => self::promoteRefusalStatus($host->handleList($request, $type)))
             ->build());
 
         $router->addRoute('admin_surface.get', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_GET)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $type, $id) => $host->handleGet($request, $type, $id))
+            ->controller(fn($request, $type, $id) => self::promoteRefusalStatus($host->handleGet($request, $type, $id)))
             ->build());
 
         $router->addRoute('admin_surface.action', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_ACTION)
             ->methods('POST')
             ->requireAuthentication()
-            ->controller(fn($request, $type, $action) => $host->handleAction($request, $type, $action))
+            ->controller(fn($request, $type, $action) => self::promoteRefusalStatus($host->handleAction($request, $type, $action)))
             ->build());
+    }
+
+    /**
+     * Carry an admin-surface refusal's `error.status` onto the HTTP status line.
+     *
+     * Every `AbstractAdminSurfaceHost::handle*` method returns a flat
+     * `{ok, data, error, meta}` envelope, which `ControllerDispatcher` emits
+     * with its default `$result['statusCode'] ?? 200`. A denied write therefore
+     * left the wire as `200 OK` carrying `error.status: 403` in the body, and
+     * any client or monitor keying on the status line read it as a success
+     * (#2161). Wrapping the envelope in the dispatcher's existing
+     * `statusCode`/`body` contract moves the status without touching the body.
+     *
+     * Only a genuine 400-599 integer is promoted. `handle*` is overridable, so a
+     * host subclass can return a hand-built envelope whose status is absent, a
+     * string, or out of range; handing that to the dispatcher would reach the
+     * `Response` constructor and turn a clean refusal into a 500. Anything
+     * unrecognised falls through to the prior behaviour instead.
+     *
+     * @param  array<string, mixed> $envelope
+     * @return array<string, mixed>
+     */
+    private static function promoteRefusalStatus(array $envelope): array
+    {
+        if (($envelope['ok'] ?? null) !== false) {
+            return $envelope;
+        }
+
+        $status = $envelope['error']['status'] ?? null;
+
+        if (!is_int($status) || $status < 400 || $status > 599) {
+            return $envelope;
+        }
+
+        return ['statusCode' => $status, 'body' => $envelope];
     }
 
     public static function registerPageBuilderRoutes(
