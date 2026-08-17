@@ -438,7 +438,7 @@ jobs:
           retention-days: 30
 
   ci-random-order-shard:
-    name: random-order shard ${{ matrix.id }}
+    name: ci/random-order-shard-${{ matrix.id }}
     runs-on: ubuntu-24.04
     needs: [prepare-random-order-plan]
     strategy:
@@ -501,15 +501,23 @@ jobs:
     if: always()
     steps:
       # `if: always()` alone would publish success after skipped shards, so the
-      # aggregator asserts planning, shard count, and every shard result.
+      # aggregator asserts planning succeeded and the shard matrix's
+      # aggregate result is success (GitHub sets needs.<matrix-job>.result to
+      # success only when every leg of a fail-fast:false matrix succeeded —
+      # any failed, cancelled, or skipped leg makes it non-success).
+      #
+      # Matrix *width* (exactly three legs) is not something this runtime
+      # check can express — GitHub's aggregate result answers "did every leg
+      # that ran succeed", not "how many legs ran". Width is pinned instead
+      # by tests/Architecture/CiSingleExecutionProofTest.php asserting
+      # `id: [1, 2, 3]` on the ci-random-order-shard job. Keep that assertion
+      # and this comment in sync if the matrix ever changes.
       - name: Require complete random-order evidence
         env:
           PLAN_RESULT: ${{ needs.prepare-random-order-plan.result }}
           SHARD_RESULT: ${{ needs.ci-random-order-shard.result }}
-          SHARD_COUNT: 3
         run: |
           test "$PLAN_RESULT" = success
-          test "$SHARD_COUNT" -eq 3
           test "$SHARD_RESULT" = success
 
   ci-package-isolation:

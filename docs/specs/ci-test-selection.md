@@ -307,9 +307,11 @@ prepare-random-order-plan   needs: [support-contract, spec-drift]
   checkout fetch-depth: 0
   pull_request → --base=${{ github.event.pull_request.base.sha }}
   push / dispatch → --mode=full
-  → bin/build-phpunit-shards --shards=3 --only=…
+  → bin/build-phpunit-shards --shards=3 --only=… --seed=…
   → composer install, tar vendor, record sha256
-  → artifacts: random-order-plan, random-order-vendor
+  → single artifact `random-order-plan` bundling scope, plan, vendor tar,
+    and both sha256 files — one upload, not two, so plan and vendor
+    cannot desync across independently-uploaded artifacts
   → ::notice mode, fallback_reason, selected_files/inventory_files
 
 ci-random-order-shard (matrix id: [1,2,3])   needs: [prepare-random-order-plan]
@@ -368,13 +370,24 @@ PHP version, extension profile, Composer version, and the hashes of both
 
 `ci/random-order` publishes the required context. `if: always()` alone is
 insufficient — it would publish success after skipped shards. The job fails
-unless all of:
+unless both of:
 
 - `needs.prepare-random-order-plan.result == 'success'`
-- exactly three shard results are present
-- every shard result is `success`
+- `needs.ci-random-order-shard.result == 'success'` — GitHub's aggregate
+  result for a `fail-fast: false` matrix job, which is `success` only when
+  every leg that ran succeeded. Any `skipped`, `cancelled`, or `failure` leg
+  makes the aggregate non-`success`, which fails the context.
 
-Any `skipped`, `cancelled`, absent, or `failure` shard fails the context.
+This proves "every leg that ran, succeeded." It does **not** prove "there
+were exactly three legs" — GitHub's `needs.<matrix-job>.result` aggregate has
+no way to express leg count, only leg outcome, so a runtime check for shard
+count would be comparing the workflow to itself and could never fail. Matrix
+width is pinned instead at the workflow-definition level: an Architecture
+test (`CiSingleExecutionProofTest::randomOrderPreparesOnceAndFansOutToThreeShards`)
+asserts `id: [1, 2, 3]` on the `ci-random-order-shard` matrix declaration. If
+that matrix is ever resized, both the test and this note must change
+together — there is no automated cross-check between the declared width and
+this text.
 
 ## 8. Test matrix
 

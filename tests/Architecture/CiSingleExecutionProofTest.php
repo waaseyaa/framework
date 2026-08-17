@@ -41,6 +41,11 @@ final class CiSingleExecutionProofTest extends TestCase
         self::assertStringContainsString('prepare-random-order-plan:', $workflow);
         self::assertStringContainsString('php bin/select-random-order-scope', $workflow);
         self::assertStringContainsString('--shards=3', $workflow);
+        // GitHub's needs.<matrix-job>.result aggregate can prove "every leg
+        // that ran succeeded" but cannot express "there were exactly three
+        // legs" — so this assertion on the matrix declaration itself is the
+        // only guard against the shard count silently drifting from 3. Keep
+        // it in sync with the aggregator's comment in ci.yml.
         self::assertStringContainsString('id: [1, 2, 3]', $workflow);
         self::assertStringContainsString('name: ci/random-order', $workflow);
         self::assertStringContainsString('bin/test-random-order --plan=', $workflow);
@@ -53,11 +58,15 @@ final class CiSingleExecutionProofTest extends TestCase
         $job = $this->job($workflow, 'ci-random-order', 'ci-package-isolation');
 
         self::assertStringContainsString('needs: [prepare-random-order-plan, ci-random-order-shard]', $job);
+        // `if: always()` alone would publish success after skipped shards —
+        // it must be paired with the PLAN_RESULT/SHARD_RESULT checks below.
+        // Pinned here because nothing else in this suite asserts it, and
+        // spec §7.4 names it explicitly.
+        self::assertStringContainsString('if: always()', $job);
         self::assertStringContainsString('PLAN_RESULT', $job);
         self::assertStringContainsString('SHARD_RESULT', $job);
         self::assertStringContainsString('test "$PLAN_RESULT" = success', $job);
         self::assertStringContainsString('test "$SHARD_RESULT" = success', $job);
-        self::assertStringContainsString('test "$SHARD_COUNT" -eq 3', $job);
     }
 
     #[Test]
