@@ -65,6 +65,11 @@ The behavioral taxonomy is:
 - **Pre-commit:** the tracked project hook runs the code-style check when PHP is staged.
 - **Pre-push:** the tracked project hook runs Composer policy, Symfony import, and package-layer gates sequentially. Spec drift is advisory locally and blocking in CI.
 - **Full gate:** `composer verify` is the canonical complete local gate. CI is authoritative for published revisions.
+- **Hosted PHPUnit:** CI assigns every configured test file exactly once to
+  timing-balanced package-safe shards. The same execution emits JUnit and
+  Clover evidence; the required unit and coverage checks aggregate that shared
+  evidence rather than rerunning the suite. Superseded pull-request runs cancel
+  immediately, while main runs are never cancelled.
 - **Installation:** `composer hooks:install` installs small worktree-aware shims; `composer hooks:doctor` verifies them. Unknown user hooks are never overwritten.
 - **Inventory:** `composer test:inventory` reports Git-tracked-only PHP,
   PHPUnit, Vitest, Playwright, nondeterminism, and helper-adoption signals.
@@ -81,8 +86,9 @@ The behavioral taxonomy is:
   needs.
 - Publish real PHP and Vitest coverage artifacts before enforcing baselines;
   never advertise an artifact produced by a `--no-coverage` run.
-- Introduce random-order execution with a logged replayable seed before
-  enabling PHP test parallelization.
+- Preserve package-local fixture loading when parallelizing PHP tests; shard
+  whole packages, retain a logged replayable random-order lane, and keep the
+  complete suite authoritative on main.
 - Pilot mutation testing on bounded security/editorial packages. Blocking MSI
   thresholds follow stable evidence; they are not guessed in advance.
 - Track first-attempt browser failures even when Playwright retry succeeds.

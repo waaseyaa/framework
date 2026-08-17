@@ -17,14 +17,14 @@ The repository ruleset is authoritative. Its required checks are:
 | `Security defaults` | Scans default manifests and structural secret guards | ~20 sec |
 | `check-dead-code` | Rejects new PHPStan dead-code findings | ~20 sec |
 | `ci/core-only-boot` | Proves the minimal framework boot boundary | ~20 sec |
-| `ci/coverage` | Produces PCOV reports and enforces baseline and changed-line ratchets | ~4.5 min |
+| `ci/coverage` | Merges the shared PHPUnit shard evidence and enforces baseline and changed-line ratchets | shard critical path + ~20 sec |
 | `ci/lint` | PHP syntax, CS Fixer (dry-run), and PHPStan | ~2.5 min |
 | `ci/mutation-pilot` | Enforces the stable 84% Infection floors on bounded critical boundaries | ~1.25 min |
 | `ci/package-isolation` | Clean-installs and runs declared split-package suites without root dev autoload | ~30 sec |
 | `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
 | `ci/random-order` | Replays each PHP suite in an isolated process with one logged random seed | ~3.5 min |
 | `ci/skeleton-create-project` | Installs and boots the exact consumer skeleton | ~45 sec |
-| `ci/unit-tests` | Runs PHPUnit unit, architecture, and integration suites | ~4.75 min |
+| `ci/unit-tests` | Attests that every timing-balanced PHPUnit package shard passed | shard critical path |
 | `ci/verify-gates` | Runs the fast repository invariant gates | ~40 sec |
 | `composer-policy` | Enforces dependency and package-layer policy | ~10 sec |
 | `packaged-form` | Verifies the distributable framework shape | ~15 sec |
@@ -43,7 +43,8 @@ The repository ruleset is authoritative. Its required checks are:
 
 | Artifact | Location | Retention |
 |---|---|---|
-| `test-results` | `build/logs/junit-unit.xml`, `build/logs/junit-architecture.xml`, `build/logs/junit-integration.xml` | 30 days |
+| `php-test-shard-*` | Per-shard JUnit and Clover evidence from one PHPUnit execution | 30 days |
+| `phpunit-shard-plan` | Exact timing-balanced package assignment used by the run | 30 days |
 | `php-coverage` | Clover, text, and package-summary coverage reports | 30 days |
 | `mutation-pilot` | Infection summary JSON and surviving-mutant text report | 30 days |
 | `frontend-coverage` | V8/Istanbul JSON, JSON summary, text, and LCOV reports | 30 days |
@@ -60,14 +61,16 @@ find packages/*/src -name '*.php' -print0 | xargs -0 -n1 php -l
 composer cs-check
 composer phpstan
 
-# Unit + integration tests (matches ci/unit-tests)
-./vendor/bin/phpunit --testsuite Unit --no-coverage
-./vendor/bin/phpunit --testsuite Integration --no-coverage
+# Complete local test suite (CI assigns the same files to package-safe shards)
+./vendor/bin/phpunit --no-coverage
+
+# Inspect the deterministic CI assignment
+php bin/build-phpunit-shards --timings=tools/phpunit-timings.json --shards=4 --pretty
 
 # Frontend build + tests
 cd packages/admin && npm ci && npm run build && npm test
 
-# Coverage (PCOV or Xdebug is required for PHP)
+# Unsharded local coverage (PCOV or Xdebug is required for PHP)
 php -d memory_limit=1G vendor/bin/phpunit --coverage-clover build/logs/clover.xml
 cd packages/admin && npm run test:coverage
 

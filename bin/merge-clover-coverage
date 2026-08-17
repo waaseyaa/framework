@@ -1,0 +1,124 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$output = null;
+$inputs = [];
+foreach (array_slice($_SERVER['argv'], 1) as $argument) {
+    if (str_starts_with($argument, '--output=')) {
+        $output = substr($argument, 9);
+    } else {
+        $inputs[] = $argument;
+    }
+}
+
+if (!is_string($output) || $output === '' || count($inputs) < 2) {
+    fwrite(STDERR, "Usage: php bin/merge-clover-coverage --output=<clover.xml> <shard.xml> <shard.xml>...\n");
+    exit(2);
+}
+if (count(array_unique($inputs)) !== count($inputs)) {
+    fwrite(STDERR, "Clover merge inputs must be unique shard artifacts.\n");
+    exit(2);
+}
+
+/** @var array<string, array<int, array{count: int, name: string}>> $coverage */
+$coverage = [];
+foreach ($inputs as $input) {
+    if (!is_file($input) || is_link($input)) {
+        fwrite(STDERR, "Clover shard input is unavailable or unsafe: {$input}.\n");
+        exit(2);
+    }
+    $previous = libxml_use_internal_errors(true);
+    $xml = simplexml_load_file($input, options: LIBXML_NONET | LIBXML_NOBLANKS);
+    libxml_use_internal_errors($previous);
+    if (!$xml instanceof SimpleXMLElement) {
+        fwrite(STDERR, "Unable to parse Clover shard input: {$input}.\n");
+        exit(2);
+    }
+    foreach ($xml->xpath('//file') ?: [] as $file) {
+        $name = str_replace('\\', '/', (string) $file['name']);
+        if ($name === '') {
+            fwrite(STDERR, "Clover shard contains a file without an identity: {$input}.\n");
+            exit(2);
+        }
+        foreach ($file->line as $line) {
+            if ((string) $line['type'] !== 'stmt') {
+                continue;
+            }
+            $number = (int) $line['num'];
+            $count = (int) $line['count'];
+            if ($number < 1 || $count < 0) {
+                fwrite(STDERR, "Clover shard contains an invalid statement line: {$input}.\n");
+                exit(2);
+            }
+            $coverage[$name][$number] = [
+                'count' => max($coverage[$name][$number]['count'] ?? 0, $count),
+                'name' => (string) $line['name'],
+            ];
+        }
+    }
+}
+
+if ($coverage === []) {
+    fwrite(STDERR, "Clover shard inputs contained no executable statement lines.\n");
+    exit(2);
+}
+ksort($coverage);
+
+$document = new DOMDocument('1.0', 'UTF-8');
+$document->formatOutput = true;
+$root = $document->appendChild($document->createElement('coverage'));
+$root->setAttribute('generated', '0');
+$project = $root->appendChild($document->createElement('project'));
+$project->setAttribute('name', 'merged-phpunit-shards');
+$project->setAttribute('timestamp', '0');
+$statements = 0;
+$coveredStatements = 0;
+foreach ($coverage as $name => $lines) {
+    ksort($lines, SORT_NUMERIC);
+    $file = $project->appendChild($document->createElement('file'));
+    $file->setAttribute('name', $name);
+    $fileStatements = 0;
+    $fileCoveredStatements = 0;
+    foreach ($lines as $number => $lineData) {
+        $line = $file->appendChild($document->createElement('line'));
+        $line->setAttribute('num', (string) $number);
+        $line->setAttribute('type', 'stmt');
+        $line->setAttribute('count', (string) $lineData['count']);
+        if ($lineData['name'] !== '') {
+            $line->setAttribute('name', $lineData['name']);
+        }
+        ++$fileStatements;
+        ++$statements;
+        if ($lineData['count'] > 0) {
+            ++$fileCoveredStatements;
+            ++$coveredStatements;
+        }
+    }
+    $metrics = $file->appendChild($document->createElement('metrics'));
+    $metrics->setAttribute('statements', (string) $fileStatements);
+    $metrics->setAttribute('coveredstatements', (string) $fileCoveredStatements);
+}
+$metrics = $project->appendChild($document->createElement('metrics'));
+$metrics->setAttribute('files', (string) count($coverage));
+$metrics->setAttribute('statements', (string) $statements);
+$metrics->setAttribute('coveredstatements', (string) $coveredStatements);
+
+$directory = dirname($output);
+if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+    fwrite(STDERR, "Unable to create Clover output directory: {$directory}.\n");
+    exit(2);
+}
+if ($document->save($output) === false) {
+    fwrite(STDERR, "Unable to write merged Clover output: {$output}.\n");
+    exit(2);
+}
+
+printf(
+    "clover-merge: %d shard(s), %d/%d executable lines covered, output %s.\n",
+    count($inputs),
+    $coveredStatements,
+    $statements,
+    $output,
+);

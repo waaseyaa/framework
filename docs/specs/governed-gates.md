@@ -94,11 +94,13 @@ recorded here, in the manifest, and in the hook's output, not implicit.
 ### 5. CI ordering — fast contracts gate the long jobs
 
 The `support/s1-contract` job (~30s: support contract + all four S1 roster gates) and `spec-drift`
-job are `needs:` prerequisites of the three long test jobs (`ci/unit-tests`, `ci/random-order`,
-`ci/coverage`). A stale roster or spec therefore fails in its owning fast job, and the long jobs
-never start or re-report the same failure three more times. On non-PR events `spec-drift` completes
+job are `needs:` prerequisites of the PHPUnit shard plan/execution and the random-order job.
+The required `ci/unit-tests` and `ci/coverage` contexts aggregate the same shard result and Clover
+evidence without executing PHPUnit again. A stale roster or spec therefore fails in its owning
+fast job, and the long jobs never start or re-report the same failure. On non-PR events `spec-drift` completes
 with an explicit no-PR-diff result, so push and dispatch runs retain the same dependency graph.
-Job names and required-check rules remain unchanged — this adds edges and commands, not renames.
+Required-check names remain unchanged. Pull-request concurrency cancels superseded revisions;
+push/main evidence is never cancelled.
 
 ### 6. Recorded-roster identity: semantic, not positional
 

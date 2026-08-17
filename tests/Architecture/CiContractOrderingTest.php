@@ -11,9 +11,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * Pins the fast-contracts-gate-the-long-jobs ordering
  * (docs/specs/governed-gates.md §5): the ~30s support/s1-contract job is a
- * `needs:` prerequisite of the three long test jobs, so a stale recorded
+ * `needs:` prerequisite of the shard execution and random-order job, so a stale recorded
  * roster is one fast red job with a precise message — never the same failure
- * re-reported by unit, random-order, and coverage minutes later (the PR #2399
+ * re-reported by test, random-order, and coverage minutes later (the PR #2399
  * failure shape).
  */
 #[CoversNothing]
@@ -48,11 +48,11 @@ final class CiContractOrderingTest extends TestCase
     }
 
     #[Test]
-    public function long_test_jobs_wait_for_fast_contract_and_spec_drift_jobs(): void
+    public function test_execution_waits_for_fast_contracts_and_aggregators_wait_for_shards(): void
     {
         $ci = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
 
-        foreach (['ci-unit-tests', 'ci-random-order', 'ci-coverage'] as $job) {
+        foreach (['prepare-test-plan', 'ci-test-shards', 'ci-random-order'] as $job) {
             $this->assertSame(
                 1,
                 preg_match(
@@ -60,6 +60,14 @@ final class CiContractOrderingTest extends TestCase
                     $ci,
                 ),
                 sprintf('Job %s must wait for support-contract and spec-drift so governance failures fail fast.', $job),
+            );
+        }
+
+        foreach (['ci-unit-tests', 'ci-coverage'] as $job) {
+            $this->assertStringContainsString(
+                'needs: [ci-test-shards]',
+                $this->job($ci, $job),
+                sprintf('Job %s must consume the shared shard result rather than execute tests.', $job),
             );
         }
     }
