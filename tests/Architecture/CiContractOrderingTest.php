@@ -52,7 +52,7 @@ final class CiContractOrderingTest extends TestCase
     {
         $ci = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
 
-        foreach (['prepare-test-plan', 'ci-test-shards', 'ci-random-order'] as $job) {
+        foreach (['prepare-test-plan', 'ci-test-shards', 'prepare-random-order-plan'] as $job) {
             $this->assertSame(
                 1,
                 preg_match(

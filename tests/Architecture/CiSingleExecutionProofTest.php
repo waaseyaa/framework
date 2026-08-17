@@ -33,6 +33,49 @@ final class CiSingleExecutionProofTest extends TestCase
         self::assertStringContainsString('needs: [ci-test-shards]', $unitGate);
     }
 
+    #[Test]
+    public function randomOrderPreparesOnceAndFansOutToThreeShards(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+
+        self::assertStringContainsString('prepare-random-order-plan:', $workflow);
+        self::assertStringContainsString('php bin/select-random-order-scope', $workflow);
+        self::assertStringContainsString('--shards=3', $workflow);
+        self::assertStringContainsString('id: [1, 2, 3]', $workflow);
+        self::assertStringContainsString('name: ci/random-order', $workflow);
+        self::assertStringContainsString('bin/test-random-order --plan=', $workflow);
+    }
+
+    #[Test]
+    public function theRandomOrderAggregatorRefusesIncompleteShardEvidence(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        $job = $this->job($workflow, 'ci-random-order', 'ci-package-isolation');
+
+        self::assertStringContainsString('needs: [prepare-random-order-plan, ci-random-order-shard]', $job);
+        self::assertStringContainsString('PLAN_RESULT', $job);
+        self::assertStringContainsString('SHARD_RESULT', $job);
+        self::assertStringContainsString('test "$PLAN_RESULT" = success', $job);
+        self::assertStringContainsString('test "$SHARD_RESULT" = success', $job);
+        self::assertStringContainsString('test "$SHARD_COUNT" -eq 3', $job);
+    }
+
+    #[Test]
+    public function shardsVerifyTheRunScopedDependencyArtifact(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        // Scoped to the random-order jobs only: `restore-keys: composer-v2-`
+        // legitimately appears elsewhere in ci.yml (ci-test-shards,
+        // ci-package-isolation, etc.) — spec §7.3's broad-restore-key
+        // prohibition binds the random-order lane's dependency preparation,
+        // not the whole workflow file.
+        $randomOrderJobs = $this->job($workflow, 'prepare-random-order-plan', 'ci-package-isolation');
+
+        self::assertStringContainsString('sha256sum --check', $randomOrderJobs);
+        self::assertStringContainsString('composer check-platform-reqs', $randomOrderJobs);
+        self::assertStringNotContainsString('restore-keys: composer-v2-', $randomOrderJobs);
+    }
+
     private function job(string $workflow, string $name, string $next): string
     {
         $start = strpos($workflow, "  {$name}:");

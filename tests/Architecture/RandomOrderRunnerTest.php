@@ -47,12 +47,16 @@ final class RandomOrderRunnerTest extends TestCase
     #[Test]
     public function ci_derives_and_logs_a_replayable_seed_for_a_dedicated_lane(): void
     {
+        // The seed is now derived once in prepare-random-order-plan and baked
+        // into the plan document (Task 7, #2404 slice 3+); shards replay it
+        // via bin/test-random-order --plan=… rather than TEST_RANDOM_SEED +
+        // composer test:random.
         $workflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/ci.yml');
 
         self::assertStringContainsString('name: ci/random-order', $workflow);
         self::assertStringContainsString('GITHUB_RUN_ID', $workflow);
-        self::assertStringContainsString('TEST_RANDOM_SEED', $workflow);
-        self::assertStringContainsString('composer test:random', $workflow);
+        self::assertStringContainsString('--seed="$seed"', $workflow);
+        self::assertStringContainsString('bin/test-random-order --plan=', $workflow);
     }
 
     #[Test]
