@@ -52,6 +52,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Composer download caches are PHP/lock scoped, and superseded pull-request
   runs cancel immediately without cancelling main-line proof.
 
+- **Enforce cross-package test-reference declarations (#2404):**
+  `bin/check-package-layers` gained **PL010**, a fail-on-new rule requiring
+  every `Waaseyaa\…` reference inside `packages/<p>/tests/**` or
+  `packages/<p>/testing/**` that resolves to another package to be declared in
+  that package's `composer.json` `require` or `require-dev` (both count, unlike
+  PL004/PL006/PL007 which read `require` only — confirmed require-dev additions
+  cannot trip layer-order or same-layer-cycle checks). A reference resolving to
+  no known PSR-4 package root fails closed instead of being silently skipped,
+  with one deliberate carve-out: the repo-root `Waaseyaa\Tests\` tree (a real
+  PSR-4 root registered in root `composer.json` `autoload-dev`, not a package).
+  Extraction is tokenizer-based (mirrors PL008): plain/`function`/`const`/
+  grouped `use` statements plus inline fully-qualified references, with
+  comments excluded so docblock `@see` prose never trips the gate. 73 real
+  cross-package test edges — found by hand-verifying a sample of the raw scan
+  hits against real code before editing any manifest — are now declared as
+  `require-dev` across 26 package manifests (with matching `repositories` path
+  entries for composer policy CP007); `foundation` alone gained 20 upward
+  test-only edges (to `api`, `cli`, `graphql`, `mcp`, `ssr`, and others), a
+  layering smell worth its own follow-up. The fail-on-new baseline
+  (`tools/package-layers-test-edge-baseline.txt`) ships with 6 reviewed
+  entries — deliberately fabricated `Waaseyaa\…`-namespaced fixtures inside
+  `PackageManifestCompilerTest` that exercise the compiler's own
+  always-scanned `Waaseyaa\` discovery prefix, plus one real repo-root
+  `benchmarks/` class loaded via manual `require_once` rather than PSR-4 — not
+  every finding could be safely renamed away without changing what the fixture
+  proves.
+
 - **Security — unified internal-field visibility authority (#2113):** Admin
   form schemas and detail projections now consume the same boot-scoped
   `InternalFieldVisibilityPolicy` as generic JSON:API serialization and

@@ -27,6 +27,10 @@
         {
             "type": "path",
             "url": "../user"
+        },
+        {
+            "type": "path",
+            "url": "../oidc"
         }
     ],
     "require": {
@@ -44,7 +48,8 @@
         "waaseyaa/oidc": "Provides optional OpenID Connect issuer routes"
     },
     "require-dev": {
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/oidc": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

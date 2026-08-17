@@ -51,6 +51,26 @@
         {
             "type": "path",
             "url": "../testing"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../note"
+        },
+        {
+            "type": "path",
+            "url": "../taxonomy"
+        },
+        {
+            "type": "path",
+            "url": "../user"
         }
     ],
     "require": {
@@ -69,8 +89,13 @@
         "phpunit/phpunit": "^13.0",
         "waaseyaa/config": "^0.1.0-alpha.293",
         "waaseyaa/database-legacy": "^0.1.0-alpha.293",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.293",
+        "waaseyaa/field": "^0.1.0-alpha.293",
         "waaseyaa/node": "^0.1.0-alpha.293",
-        "waaseyaa/testing": "^0.1.0-alpha.293"
+        "waaseyaa/note": "^0.1.0-alpha.293",
+        "waaseyaa/taxonomy": "^0.1.0-alpha.293",
+        "waaseyaa/testing": "^0.1.0-alpha.293",
+        "waaseyaa/user": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

@@ -31,6 +31,10 @@
         {
             "type": "path",
             "url": "../api"
+        },
+        {
+            "type": "path",
+            "url": "../user"
         }
     ],
     "require": {
@@ -46,7 +50,8 @@
         "phpunit/phpunit": "^13.0",
         "waaseyaa/access": "^0.1.0-alpha.293",
         "waaseyaa/api": "^0.1.0-alpha.293",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.293"
+        "waaseyaa/database-legacy": "^0.1.0-alpha.293",
+        "waaseyaa/user": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

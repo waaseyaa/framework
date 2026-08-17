@@ -19,6 +19,22 @@
         {
             "type": "path",
             "url": "../mail"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../ssr"
         }
     ],
     "require": {
@@ -31,7 +47,11 @@
         "twig/twig": "^3.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.293",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.293",
+        "waaseyaa/field": "^0.1.0-alpha.293",
+        "waaseyaa/ssr": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

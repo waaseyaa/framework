@@ -10,12 +10,17 @@
         "waaseyaa/database-legacy": "^0.1.0-alpha.293"
     },
     "require-dev": {
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/entity": "^0.1.0-alpha.293"
     },
     "repositories": [
         {
             "type": "path",
             "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
         }
     ],
     "autoload": {

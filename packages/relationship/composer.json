@@ -56,6 +56,18 @@
         {
             "type": "path",
             "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../ai-tools"
+        },
+        {
+            "type": "path",
+            "url": "../api"
         }
-    ]
+    ],
+    "require-dev": {
+        "waaseyaa/ai-tools": "^0.1.0-alpha.293",
+        "waaseyaa/api": "^0.1.0-alpha.293"
+    }
 }

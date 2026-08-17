@@ -31,6 +31,18 @@
         {
             "type": "path",
             "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../cli"
+        },
+        {
+            "type": "path",
+            "url": "../node"
+        },
+        {
+            "type": "path",
+            "url": "../taxonomy"
         }
     ],
     "require": {
@@ -47,7 +59,10 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "symfony/event-dispatcher": "^7.0"
+        "symfony/event-dispatcher": "^7.0",
+        "waaseyaa/cli": "^0.1.0-alpha.293",
+        "waaseyaa/node": "^0.1.0-alpha.293",
+        "waaseyaa/taxonomy": "^0.1.0-alpha.293"
     },
     "autoload": {
         "psr-4": {

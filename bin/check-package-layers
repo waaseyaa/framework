@@ -37,6 +37,18 @@ declare(strict_types=1);
  *                  new \Waaseyaa\Node\Foo(), instanceof, type hints. Added
  *                  audit-remediation WP7; broadened from `::class`-only to any
  *                  usage shape in the same WP's adversarial-review fix round.
+ *   PL010 – packages/<p>/tests/** or packages/<p>/testing/** references a
+ *            waaseyaa/<dep> FQCN (plain `use`, `use function`/`use const`,
+ *            grouped `use X\{A, B}`, or an inline fully-qualified reference —
+ *            same tokenizer-based extraction as PL008) without <dep> declared
+ *            in <p>'s composer.json `require` OR `require-dev` (test-only
+ *            upward edges are permitted policy here, unlike PL004/PL006/PL007
+ *            which read `require` only). A reference that resolves to no known
+ *            PSR-4 package root (an unmapped namespace segment) is a distinct
+ *            fail-closed finding, not a skip — see the `Waaseyaa\Tests\`
+ *            root-tests-tree exemption below for the one deliberate carve-out.
+ *            Fail-on-new, baselined in tools/package-layers-test-edge-baseline.txt
+ *            (ships empty; mandatory inline rationale per entry — see file header).
  */
 
 $rootEnv = getenv('WAASEYAA_LAYER_ROOT');
@@ -403,6 +415,178 @@ $loadStringLiteralBaseline = static function (string $baselinePath): array {
 };
 $stringLiteralBaseline = $loadStringLiteralBaseline($stringLiteralBaselinePath);
 
+// PL010 test-edge baseline. Mirrors the PL007 <source> <token> format exactly
+// (see loader below), but the token space is wider than a package short: an
+// "undeclared" finding uses the resolved dep short (e.g. "queue"); an "unknown"
+// finding (no PSR-4 root resolves the namespace segment) uses the raw unmapped
+// segment text (e.g. "TestFixtures", or "AI\Foo" for an unmapped AI sub-package)
+// since there is no package short to key on. Both share one file/dict because
+// PL010 emits both under the same rule ID with the same suppress-by-declaring
+// escape valve (declare a real dep; baseline only a genuinely unfixable one).
+$testEdgeBaselineEnv = getenv('WAASEYAA_LAYER_TEST_EDGE_BASELINE');
+$testEdgeBaselinePath = is_string($testEdgeBaselineEnv) && $testEdgeBaselineEnv !== ''
+    ? $testEdgeBaselineEnv
+    : $root . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'package-layers-test-edge-baseline.txt';
+
+/** @return array<string, array<string, true>> source-short => token => true */
+$loadTestEdgeBaseline = static function (string $path): array {
+    $baseline = [];
+    if (!is_file($path)) {
+        return $baseline;
+    }
+    foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $rawLine) {
+        $line = trim($rawLine);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        // Format: "<source> <token>  # mandatory rationale" (token: dep short or
+        // unmapped namespace segment — see PL010 doc block for the distinction).
+        $parts = preg_split('/\s+/', $line) ?: [];
+        if (count($parts) < 2) {
+            continue;
+        }
+        $baseline[$parts[0]][$parts[1]] = true;
+    }
+    return $baseline;
+};
+$testEdgeBaseline = $loadTestEdgeBaseline($testEdgeBaselinePath);
+
+/**
+ * Scan a package's tests/ and testing/ trees for cross-package Waaseyaa\…
+ * references (PL010). Combines PL005's `use`-statement extraction (plain,
+ * `use function`/`use const`, grouped `use X\{A, B}` — the shared first/second
+ * segment capture already tolerates the `\{` grouped-brace form) with PL008's
+ * tokenizer-based inline/string-scalar extraction (comments excluded by
+ * construction, so docblock @see / prose mentions never fire — verified against
+ * real fixtures during PL010's design: several apparent cross-package hits in
+ * this repo turned out to be `@see \Waaseyaa\Foo\Bar` prose, not code).
+ *
+ * Classification per candidate segment:
+ *   - first segment "Tests" (the repo-root `Waaseyaa\Tests\` tree, registered
+ *     in the ROOT composer.json `autoload-dev`, not any package) is exempt —
+ *     it is a real, known PSR-4 root, just not a `packages/*` package.
+ *   - unresolved segment (no PSR-4 root maps it) => 'unknown', fails closed.
+ *   - resolves to the containing package itself => not a cross-package edge, skip.
+ *   - resolves to another known package not in `require` or `require-dev`
+ *     (require-dev counts here, unlike PL007) => 'undeclared'.
+ *
+ * @param array<string, true> $declaredShortsAll dep shorts in require + require-dev
+ * @return list<array{relative: string, token: string, kind: 'undeclared'|'unknown', depLayer: ?int}>
+ */
+$scanTestEdges = static function (string $packageDirectory, string $selfShort, array $declaredShortsAll) use (
+    $root,
+    $layerByShort,
+    $shortForNamespace,
+): array {
+    $findings = [];
+
+    foreach (['tests', 'testing'] as $sub) {
+        $dir = $packageDirectory . DIRECTORY_SEPARATOR . $sub;
+        if (!is_dir($dir)) {
+            continue;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file instanceof SplFileInfo || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR)));
+
+            $rawText = @file_get_contents($file->getPathname());
+            if (!is_string($rawText)) {
+                continue;
+            }
+
+            /** @var list<array{string, string|null}> $candidateSegments */
+            $candidateSegments = [];
+
+            foreach (token_get_all($rawText) as $token) {
+                if (!is_array($token)) {
+                    continue;
+                }
+                [$id, $text] = $token;
+
+                if ($id === T_COMMENT || $id === T_DOC_COMMENT) {
+                    continue;
+                }
+
+                if ($id === T_NAME_FULLY_QUALIFIED) {
+                    if (preg_match('#^\\\\Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?#', $text, $m) === 1) {
+                        $candidateSegments[] = [$m[1], $m[2] ?? null];
+                    }
+                    continue;
+                }
+
+                if ($id === T_CONSTANT_ENCAPSED_STRING || $id === T_ENCAPSED_AND_WHITESPACE) {
+                    preg_match_all(
+                        '#\\\\{0,2}Waaseyaa\\\\{1,2}([A-Z][A-Za-z0-9]*)(?:\\\\{1,2}([A-Z][A-Za-z0-9]*))?#',
+                        $text,
+                        $stringMatches,
+                        PREG_SET_ORDER,
+                    );
+                    foreach ($stringMatches as $m) {
+                        $candidateSegments[] = [$m[1], $m[2] ?? null];
+                    }
+                }
+            }
+
+            // Plain / function / const / grouped `use` imports (raw-text regex,
+            // same shape as PL005/PL007 — see that scanner's doc comment for the
+            // leading-backslash rationale). Grouped `use X\{A, B};` is captured
+            // for free: the second-segment character class stops at `{`, so only
+            // the shared prefix (package + optional AI sub-segment) is captured,
+            // which is all PL010 needs to attribute the edge.
+            preg_match_all(
+                '/^\s*use(?:\s+function|\s+const)?\s+\\\\?Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?/m',
+                $rawText,
+                $useMatches,
+                PREG_SET_ORDER,
+            );
+            foreach ($useMatches as $m) {
+                $candidateSegments[] = [$m[1], $m[2] ?? null];
+            }
+
+            $seen = [];
+            foreach ($candidateSegments as [$first, $second]) {
+                if ($first === 'Tests') {
+                    continue; // repo-root Waaseyaa\Tests\… tree — see doc block above
+                }
+
+                $depShort = $shortForNamespace($first, $second);
+                $token = $depShort ?? ($first === 'AI' ? 'AI\\' . ($second ?? '?') : $first);
+
+                if (isset($seen[$token])) {
+                    continue;
+                }
+                $seen[$token] = true;
+
+                if ($depShort === null) {
+                    $findings[] = ['relative' => $relative, 'token' => $token, 'kind' => 'unknown', 'depLayer' => null];
+                    continue;
+                }
+
+                if ($depShort === $selfShort || isset($declaredShortsAll[$depShort])) {
+                    continue;
+                }
+
+                $findings[] = [
+                    'relative' => $relative,
+                    'token' => $depShort,
+                    'kind' => 'undeclared',
+                    'depLayer' => $layerByShort[$depShort] ?? null,
+                ];
+            }
+        }
+    }
+
+    return $findings;
+};
+
 /**
  * Scan a package's src/ for FQCNs referencing packages at higher
  * layers, hidden from PL005 (which only sees plain `use` imports).
@@ -691,6 +875,29 @@ foreach ($packageDirectories as $packageDirectory) {
 
     $selfLayer = $layerByShort[$short];
     $requires = $data['require'] ?? [];
+    // PL010's declared set: require + require-dev (upward/lower test-only edges via
+    // require-dev are permitted policy — see bin/audit-require-dev-layers). This is
+    // intentionally separate from $declaredShorts below, which stays require-only so
+    // PL004/PL006/PL007 (layer order, same-layer cycle, undeclared-src-edge) are
+    // provably unaffected by require-dev additions.
+    /** @var array<string, true> $declaredShortsAll dep shorts declared in require or require-dev */
+    $declaredShortsAll = [];
+    $requireDev = $data['require-dev'] ?? [];
+    foreach ([$requires, $requireDev] as $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+        foreach ($section as $depName => $_version) {
+            if (!is_string($depName)) {
+                continue;
+            }
+            $depShort = $shortFromPackageName($depName);
+            if ($depShort !== null) {
+                $declaredShortsAll[$depShort] = true;
+            }
+        }
+    }
+
     /** @var array<string, true> $declaredShorts dep shorts declared in this package's require */
     $declaredShorts = [];
     if (is_array($requires)) {
@@ -788,6 +995,48 @@ foreach ($packageDirectories as $packageDirectory) {
             . "with a mandatory rationale comment.",
         );
         $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'string-literal'];
+    }
+
+    // PL010: cross-package tests/** and testing/** reference declarations.
+    // One error per (kind, token), but list EVERY violating file (mirrors PL008's
+    // fix for the "only the first example" pitfall).
+    $testEdgeFindings = [];
+    foreach ($scanTestEdges($packageDirectory, $short, $declaredShortsAll) as $finding) {
+        $testEdgeFindings[$finding['kind']][$finding['token']]['files'][$finding['relative']] = true;
+        $testEdgeFindings[$finding['kind']][$finding['token']]['depLayer'] = $finding['depLayer'];
+    }
+    foreach (['undeclared', 'unknown'] as $kind) {
+        foreach ($testEdgeFindings[$kind] ?? [] as $token => $data2) {
+            if (isset($testEdgeBaseline[$short][$token])) {
+                continue; // reviewed baseline entry — see tools/package-layers-test-edge-baseline.txt
+            }
+
+            ++$errors;
+            $fileList = implode(', ', array_map(
+                static fn(string $rel): string => "packages/{$rel}",
+                array_keys($data2['files']),
+            ));
+
+            if ($kind === 'undeclared') {
+                $depLayer = $data2['depLayer'];
+                $emit(
+                    "FAIL [PL010] {$fileList}: undeclared test-edge dependency - "
+                    . "{$short} imports waaseyaa/{$token} (layer {$depLayer}) from tests/ or testing/ "
+                    . "but does not declare it in composer.json require or require-dev. Add it to "
+                    . "require-dev (or require), or baseline the pair in "
+                    . "tools/package-layers-test-edge-baseline.txt with a mandatory rationale comment.",
+                );
+            } else {
+                $emit(
+                    "FAIL [PL010] {$fileList}: unmapped test-edge reference - "
+                    . "{$short} references a Waaseyaa\\{$token}\\… FQCN in tests/ or testing/ that does "
+                    . "not resolve to any known PSR-4 package root. Fix the reference if it is a typo/stale "
+                    . "namespace, or baseline it in tools/package-layers-test-edge-baseline.txt with a "
+                    . "mandatory rationale comment if it is deliberate fixture data.",
+                );
+            }
+            $violations[] = ['source' => $short, 'target' => $token, 'edge' => 'test-edge-' . $kind];
+        }
     }
 }
 

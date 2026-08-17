@@ -1,0 +1,50 @@
+# Package-layers test-edge baseline (PL010) — see bin/check-package-layers.
+# Format: "<source-package> <token>  # <mandatory rationale>"
+# Meaning: <source>'s tests/** or testing/** references waaseyaa/<token> (or, if
+#   <token> is not a real package short, an unmapped namespace segment that
+#   resolved to no known PSR-4 root) without a declared composer.json require or
+#   require-dev edge. The correct fix is almost always to DECLARE the edge in
+#   composer.json require-dev, not to add a line here — this file is meant to stay
+#   as close to empty as possible and grow only for genuinely unfixable cases.
+#   New PL010 findings NOT in this list fail CI (fail-on-new). Every entry below
+#   MUST carry an inline rationale comment; entries without one are a review-time
+#   hazard, not a valid escape hatch.
+#
+# All 6 entries below are foundation/testing fixtures that plant a fake
+# "Waaseyaa\…"-namespaced class specifically to exercise
+# Waaseyaa\Foundation\Discovery\PackageManifestCompiler's own classmap/PSR-4
+# attribute-discovery scan, which — by design (see
+# PackageManifestCompiler::discoveryScanPrefixes()) — always scans the "Waaseyaa\"
+# namespace prefix regardless of the host project's own composer.json. Renaming
+# these fixtures to a non-"Waaseyaa\" namespace (the fix applied to the 3 other
+# PL010 unknown-attribution findings this baseline once carried — see git history)
+# would silently stop the compiler from discovering them, changing what the test
+# proves rather than just its label. They resolve to no real package on purpose.
+
+# ConditionalAgentTool (attribute-discovery via classmap) and NodePolicy
+# (attribute-discovery via classmap) both rely on the default "Waaseyaa\" scan
+# prefix with no root composer.json psr-4 override in the fixture tempDir.
+foundation TestFixtures  # packages/foundation/tests/Unit/Discovery/PackageManifestCompilerTest.php (compile_discovers_conditional_agent_tools_only_with_their_package, compile_discovers_policy_classes)
+
+# Policy discovery via the PSR-4 fallback path (no classmap entry) — same
+# "Waaseyaa\" default-scan-prefix dependency as above.
+foundation TestFixturesPsr4  # packages/foundation/tests/Unit/Discovery/PackageManifestCompilerTest.php (compile_discovers_policies_via_psr4_fallback)
+
+# Policy-manifest mismatch detection (missing/undeclared policy) for a package
+# literally named "waaseyaa/security-fixture", asserted via PSR-4 discovery.
+foundation SecurityFixture  # packages/foundation/tests/Unit/Discovery/PackageManifestCompilerTest.php (compile_refuses_to_boot_when_declared_policy_manifest_is_incomplete, compile_refuses_an_installed_package_policy_omitted_from_the_inventory)
+
+# Classmap-over-PSR4 precedence — classmap entry must win when both are present.
+foundation TestFixturesClassmap  # packages/foundation/tests/Unit/Discovery/PackageManifestCompilerTest.php (compile_prefers_classmap_over_psr4)
+
+# Field formatter attribute discovery via classmap.
+foundation TestFixturesFormatter  # packages/foundation/tests/Unit/Discovery/PackageManifestCompilerTest.php (compile_discovers_field_formatters_via_attribute)
+
+# testing: Waaseyaa\Benchmarks\FieldReadBenchmark is real code (repo-root
+# benchmarks/ directory, see benchmarks/FieldReadBenchmark.php) but is loaded via
+# a manual require_once, not PSR-4 autoloading — it is not registered in any
+# composer.json autoload/autoload-dev map, so it has no PSR-4 root to declare a
+# dependency edge against. Wiring benchmarks/ into root composer.json
+# autoload-dev (making this a real, declarable root, the way Waaseyaa\Tests\ is)
+# is a reasonable follow-up but out of scope for this task.
+testing Benchmarks  # packages/testing/tests/Unit/FieldReadPerformanceDiagnosticsTest.php
