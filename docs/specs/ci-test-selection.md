@@ -1,339 +1,267 @@
-# CI test selection and random-order sharding
+# CI random-order sharding and the rejected selection design
 
-Status: LIVE. Anchor: #2404 slice 1 (final bullet) and slice 3.
+Status: LIVE. Anchor: #2404. The issue stays open — its original changed-package
+selection proposal was investigated, measured, and rejected; §3 preserves that
+investigation as architectural evidence rather than deleting it.
 
-This spec owns how blocking CI decides *which* PHPUnit files run in the
-`ci/random-order` proof, how that selection is sharded, and what evidence the
-decision must publish. It does not own the single-execution coverage proof
-(`ci/unit-tests`, `ci/coverage`) landed by #2405 — that contract lives in
-[governed-gates.md](governed-gates.md) §4 and `bin/build-phpunit-shards`.
+This spec owns how blocking CI shards the `ci/random-order` proof, how the
+single run-scoped Composer dependency artifact both PHPUnit matrices consume
+is prepared and verified, and what the nightly unsharded proof restores. It
+does not own the single-execution coverage proof (`ci/unit-tests`,
+`ci/coverage`) — that contract lives in
+[governed-gates.md](governed-gates.md) §4 and `bin/build-phpunit-shards`'s
+`--shards=4` plan for `ci-test-shards`, which this file shares the planner
+with but does not itself govern.
 
-## 1. Why selection exists
+## 1. Why sharding exists
 
-`ci/random-order` executed the complete configured inventory on every pull
-request and, after #2405 removed suite triplication, became the measured
-critical path at 4m50. Random order proves order-independence; it does not
-prove coverage, which the shard matrix already establishes independently.
-That asymmetry is what makes bounded selection admissible here and nowhere
-else.
+`ci/random-order` executes the **complete** configured PHPUnit inventory
+(currently ~1,840 files across 74 package-safe groups, per
+`phpunit.xml.dist`) split across shards so wall time stays bounded, then
+replays each shard with `--order-by=random` under one shared, logged seed.
+Random order proves order-independence; it does not prove coverage, which the
+`ci-test-shards` matrix already establishes independently via JUnit/Clover
+evidence.
 
-Selection is **fail-closed**: the selector's job is to identify what is
-*provably* bounded. Everything it cannot prove runs the complete inventory.
+An earlier design (#2404's original proposal) additionally tried to reduce
+compute by selecting a *subset* of the inventory based on which packages a
+pull request's changed paths touched. That selector was built, measured
+against real merge history, and ultimately removed after the measurement
+itself was found to rest on an unsound dependency graph. **§3** preserves the
+investigation in full because it is real architectural evidence — a
+considered, evidence-based "no" — not something to quietly delete. What ships
+today shards the complete inventory unconditionally; there is no subset, no
+selection document, and no changed-path classification anywhere in this
+pipeline.
 
-### Measured value, recorded honestly
+Two independent PHPUnit matrices exist in `ci.yml`, sharing one planner
+(`bin/build-phpunit-shards`) and one dependency artifact (§7.3), but serving
+different purposes:
 
-These figures are the **shipped selector** replayed against the 40 most
-recent merge commits to `origin/main` as of 2026-08-16, weighted by
-`tools/phpunit-timings.json` (1,812 of 1,840 inventory files timed; untimed
-files contribute 0s, a negligible skew). Each merge is classified with
-`ros_select($root, "<merge>^1", "<merge>", null)` using the **current**
-manifest, package graph, and `phpunit.xml.dist` against that merge's real
-`git diff`; this does not check out each historical commit, so it measures
-"the selector as it exists today, given historical change shapes" rather than
-a true historical replay:
-
-| Quantity | Value |
-|---|---|
-| always-run floor | 68% of recorded inventory seconds |
-| mean selected | 87% |
-| median selected | 100% |
-| full-suite fallback | 19 of 40 runs (48%) |
-
-The floor is high because `tests/Architecture` (143.0s, 40% of the inventory)
-is repo-state contract testing that shells out to `bin/` scripts and cannot be
-attributed to any package, and because atomic-group expansion (§3.4) pins a
-whole group when any one member is unattributable.
-
-These replace the pre-implementation model's numbers (68% / 85% / 100% / 17
-of 40), which this repository's own drift-prevention discipline forbids
-publishing as measured once a real implementation exists to measure. The
-model was close on floor and median but underestimated the full-suite
-fallback rate. Before three manifest fixes — bounding the mandatory-per-PR
-root docs (`CHANGELOG.md`, `README.md`, `AGENTS.md`, `CLAUDE.md`,
-`MAINTAINERS.md`, `SECURITY.md`, `SUCCESSION.md`, `UPGRADING.md`), letting
-`packages/<p>/**` fall back to a manifest prefix match when
-`packages/<p>/composer.json` is absent by design instead of forcing `full`
-outright (`packages/admin/`, the Nuxt admin SPA, has no `composer.json`), and
-bounding `.symfony-import-allowlist.json` — the shipped selector actually
-fell back to `full` on 36 of these same 40 merges — the model's rules and the
-shipped manifest's rules were never the same rules. After the fixes, 19 of 40
-remain `full`, all of them either genuine self-protection triggers
-(`composer.json`, `composer.lock`, `phpunit.xml.dist`, `.github/workflows/ci.yml`,
-a `packages/*/composer.json`) or a path this manifest genuinely does not
-recognize (`scripts/deploy.sh`), not a manifest gap.
-
-That residual characterization is scoped to the measured 40-merge window.
-Replaying the same shipped selector over the 150 most recent merges to
-`origin/main` surfaces a wider tail of genuinely unclassified paths the
-40-merge window does not contain:
-
-| Path | Occurrences (of 150) |
-|---|---|
-| `.gitignore` | 13 |
-| `skeleton/**` (`skeleton/composer.lock`, `skeleton/.dockerignore`, `skeleton/.claude/rules/waaseyaa-framework.md`, `skeleton/tests/Integration/.gitkeep`) | 6 |
-| `phpstan-baseline.neon` | 3 |
-| `scripts/deploy.sh` | 1 |
-| `scripts/release.sh` | 1 |
-| `.spectral.yaml` | 1 |
-| `lefthook.yml` | 1 |
-| `.githooks/pre-push` | 1 |
-| `ci/packagist/validate-composer.yml` | 1 |
-
-This is a **yield** gap, not a safety gap: fail-closed means an unclassified
-path costs a full run, never a correctness failure. Widening the manifest to
-cover these paths is deliberately deferred rather than done inside this fix
-loop, so each new bounded entry gets its own considered rationale (what does
-and does not read it, whether `tests/Architecture` already proves it) instead
-of being added reactively to shrink a residual list.
-
-**Selection therefore buys roughly 13% of compute. The 3-way shard matrix
-(§5) buys the wall-clock reduction.** Both are specified here because #2404
-slice 3 requires evidence-based selection regardless of its standalone yield,
-and because the selection document is the input that later slices consume.
-
-Do not re-litigate this by widening selection. Two alternatives were measured
-and rejected:
-
-- **File-level intersection without atomic expansion** — floor 45%, mean 77%.
-  Rejected: a selected file can then land in a process without the group
-  fixtures whose state it shares.
-- **Atomic groups computed as reference-connected components** over
-  test-support class references — viable within `tests/` (77 directories to 54
-  components) but degenerate globally: including `packages/` ↔ `tests/` edges
-  collapses 1140 files into one component. Rejected as unstable.
-
-The atomic group is the group `bin/build-phpunit-shards` already uses:
-`packages/<name>`, `tests/<TopDir>`, or `tests`.
+- **`ci-test-shards`** (4 shards, deterministic order, JUnit + Clover
+  evidence) — the single-execution coverage proof, owned by
+  [governed-gates.md](governed-gates.md), not this file.
+- **`ci-random-order-shard`** (2 shards, `--order-by=random`, one shared
+  seed) — the order-independence proof this file specifies.
 
 ## 2. Invariants
 
-1. `main` pushes and the nightly proof always run the complete inventory.
-2. The nightly proof runs **unsharded**, restoring the cross-shard interaction
-   coverage that a matrix necessarily drops.
-3. Any ambiguity, parse failure, unknown path, or absent evidence selects the
-   complete inventory.
-4. A change that can influence selection selects the complete inventory (§3.1).
-5. `ci/random-order` remains a single required status context. Its name is
+1. `ci/random-order` executes the complete configured inventory on every run
+   — pull request, `main` push, and dispatch alike. There is no narrower
+   mode.
+2. The nightly proof (§7.2) runs the same complete inventory **unsharded**,
+   restoring the cross-shard interaction coverage a matrix necessarily drops.
+3. `ci/random-order` remains a single required status context. Its name is
    fixed by the `main-protection` ruleset and must not change.
+4. Package-safe grouping: no atomic group's files
+   (`packages/<name>`, `tests/<TopDir>`, or `tests`) are ever split across
+   shards or across the per-suite processes within a shard, so a group's
+   shared fixture/setup state is never divided.
+5. Suite assignment is total and unique: every discovered test file resolves
+   to exactly one `phpunit.xml.dist` testsuite, or planning fails closed
+   (exit 2) — see §5.
 6. Coverage, security, architecture, governance, and spec-drift gates are
    untouched by this spec and remain unconditional.
 
-## 3. Selector — `bin/select-random-order-scope`
+## 3. Rejected design: changed-package selection
+
+This section is not an apology; it is the record of a real investigation
+that should inform anyone tempted to re-propose targeting.
+
+**Modelled saving.** Before any selector existed, a pre-implementation model
+predicted a 23% compute saving from changed-package targeting. Once atomic
+group expansion was folded into the model — the rule that selecting one file
+pulls its whole package/test-group along, so a group's shared fixture state
+is never split across processes — the modelled saving revised down to 13%.
+That 13% is also what the shipped selector then measured.
+
+**The always-run floor was structurally high.** `tests/Architecture`
+(143.0s, 40% of the inventory at the time of measurement) is repo-state
+contract testing that shells out to `bin/` scripts and cannot be attributed
+to any single package, so it — and every group atomic-expansion pinned
+alongside an unattributable file — was always run regardless of what
+changed. That alone put the always-run floor at 68% of recorded inventory
+seconds.
+
+**The shipped selector's measured yield.** Replayed against the 40 most
+recent merge commits to `origin/main`, weighted by real PHPUnit timing
+evidence: mean 87–89% of the inventory selected, median 100% (most merges
+touched enough self-protection or unclassifiable surface to force a full
+run), full-suite fallback on 19 of 40 runs (48%).
+
+**The decisive finding.** `packages/*/tests` carried undeclared cross-package
+test references that the selector's `require`/`require-dev` consumer-closure
+computation never saw — a raw scan first estimated 53 such pairs; a
+tokenizer-based re-derivation, hand-verified against real code before
+touching any manifest, corrected that to **73 real pairs across 26
+packages** (the enforcement that now keeps this honest, PL010, ships in this
+same revision — `bin/check-package-layers`). The selector's measured yield
+above rested on a dependency graph that did not contain these edges, which
+means the closure it computed was smaller — and the "saving" it reported
+larger — than the real reachability of a change through the *actual* test
+suite. Declaring the graph honestly collapsed the modelled closure size from
+a median of 4 to 64 of 76 packages, and modelled mean selection from roughly
+89% down to roughly 96% of the inventory — a real saving near **4%**, not the
+13% the unsound graph reported. `packages/foundation` alone accounts for 20
+of the 73 declared edges, all upward test-only references (to `api`, `cli`,
+`graphql`, `mcp`, `ssr`, and others). Because every package in the framework
+depends on `foundation` (it is the Layer 0 base), any change that reaches
+`foundation` pulls in essentially the whole consumer graph once those edges
+are honest — which is most of why the closure ballooned. That 20-edge upward
+coupling is recorded here as a known layering smell for a future issue, not
+fixed by this revision: declaring it made CI honest about test coupling that
+already existed, it did not endorse the coupling itself.
+
+**Two grouping alternatives were also measured and rejected**, independent
+of the graph-soundness problem above:
+
+- **File-level intersection without atomic expansion** — floor 45%, mean
+  77%. Rejected: a selected file can land in a process without the group
+  fixtures whose state it shares.
+- **Atomic groups computed as reference-connected components** over
+  test-support class references — viable within `tests/` alone (77
+  directories collapse to 54 components) but degenerate globally: including
+  `packages/` ↔ `tests/` edges collapses 1,140 files into one component.
+  Rejected as unstable.
+
+**Conclusion.** A real saving near 4% is smaller than ordinary CI wall-clock
+variance and does not earn a fail-closed selector's implementation
+complexity, its ongoing risk of under-selecting as the graph drifts, or the
+trust burden of a gate whose entire safety case depends on a dependency graph
+staying exhaustively declared forever. `ci/random-order` now shards the
+complete inventory unconditionally instead.
+
+## 4. The measurement gate: two shards versus three
+
+`ci-random-order-shard` ships at two shards (`id: [1, 2]`). A move to three
+shards is a **later, separate decision**, not a pending default. It is
+decided by the same ≥10-comparable-run measurement discipline this spec
+already required for the (now-removed) selector, but the question it answers
+has changed: it no longer validates whether targeting works — there is no
+targeting — it decides shard count for the complete-inventory proof, and it
+measures **total compute**, not selection yield.
+
+The criterion: **three shards is adopted only if measurement shows the
+shared-artifact overhead of a third leg (a third download, extraction, and
+integrity-gate pass of the same `vendor-archive`) reduces *both* wall-clock
+critical-path time *and* total runner-minutes** relative to two shards. A
+third shard that improves wall time while increasing total runner-minutes
+(or vice versa) does not clear the bar — both must move in the right
+direction. See `.github/workflows/ci.yml`'s `ci-random-order` aggregator
+comment and `tests/Architecture/CiSingleExecutionProofTest.php`'s
+`randomOrderPreparesOnceAndFansOutToTwoShards()`, which pins the matrix at
+`id: [1, 2]` until that measurement changes it.
+
+## 5. Shard planner — `bin/build-phpunit-shards`
 
 ```
-php bin/select-random-order-scope --base=<sha> [--head=<sha>] [--root=<dir>]
-php bin/select-random-order-scope --mode=full
+php bin/build-phpunit-shards --timings=<json> [--shards=N] [--seed=N] [--root=<dir>] [--pretty]
 ```
 
-Emits a selection document (§4) on stdout. Exit 0 on a decision of either
-mode; exit 2 only on usage error. **An internal failure is never an error
-exit — it is a `full` decision with a recorded reason.**
+No `--only` and no embedded selection document — both were removed with the
+selector. The planner always operates over the complete inventory.
 
-### 3.1 Self-protection
+1. **Discovery.** Parses `phpunit.xml.dist`'s `<testsuites>`, resolving each
+   `<directory>` glob and `<file>` entry to real, non-symlinked `*Test.php`
+   paths. An empty discovered inventory is fatal (exit 2).
+2. **Suite assignment — total and unique.** `ros_inventory()`
+   (`bin/lib/phpunit-inventory.php`) maps every discovered path to exactly
+   one suite name; a path resolving to two suites is fatal (exit 2, naming
+   both). This guards a live hazard: `packages/analytics/tests` and
+   `packages/oauth-provider/tests` are whole-tree `Unit` directories, so
+   either package gaining a `tests/Integration/` subdirectory would
+   double-assign against `packages/*/tests/Integration`. The planner's own
+   discovery loop cross-checks its file set against `ros_inventory()`'s —
+   defensive, not currently reachable, since both parse the same config with
+   the same filters.
+3. **Atomic grouping.** `ros_group_of()` assigns each path to
+   `packages/<name>`, `tests/<TopDir>`, or `tests`. Timing weight is summed
+   per group from `tools/phpunit-timings.json` (missing entries fall back to
+   the median of known timings in this run, or 1.0s if none are known).
+4. **Greedy bin-packing.** Groups are sorted by descending total seconds and
+   assigned whole to whichever shard currently holds the least expected
+   time. A group's files are never split across shards — this is what keeps
+   shared package/test-group fixture state together.
+5. **Output.** A `schema_version: 1` document: `source`, `fallback_seconds`,
+   `test_files`, `test_groups`, `timed_files`, `fallback_files`, `seed`
+   (nullable), `phpunit_version` (soft-detected via `vendor/bin/phpunit
+   --version` when `vendor/` exists), and `include[]` — one entry per shard
+   with `id`, `paths` (newline-joined), `suites` (map of suite name to its
+   paths within that shard), `empty` (explicit boolean), `test_files`,
+   `expected_seconds`, `fallback_files`. A shard with no assigned paths is
+   still emitted, with `empty: true`, so a matrix leg is never silently
+   dropped.
 
-The selector must not be able to narrow the testing of a change that could
-alter the selector. The following changed paths force `mode: full` before any
-other classification runs:
+The same command builds both matrices' plans — `--shards=4` for
+`ci-test-shards`, `--shards=2 --seed=<run-derived>` for the random-order
+matrix — differing only in shard count and the presence of a seed.
 
-- `bin/select-random-order-scope`, `bin/build-phpunit-shards`,
-  `bin/test-random-order`, `bin/lib/random-order-scope.php`
-- `tools/random-order-scope-manifest.json`, `tools/phpunit-timings.json`
-- `phpunit.xml.dist`, `phpunit.xml`
-- root `composer.json`, `composer.lock`
-- any `packages/*/composer.json`
-- `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
+## 6. Runner — `bin/test-random-order`
 
-This list is itself part of the manifest, and an architecture test
-(`selector_inputs_force_the_complete_inventory`) asserts every entry on it
-still forces `full`, so a regression that stops enforcing an already-listed
-entry fails CI. That test walks a *fixed* enumeration of the paths above; it
-cannot detect the different failure of a new file becoming a genuine selector
-input (e.g. a new file `require`d by `bin/select-random-order-scope`) without
-someone adding it to this list and the manifest's `protected` array by hand —
-there is no automated check that the protected set is complete, only that the
-recorded set is enforced.
-
-`bin/git`, which `ros_diff()` (§3.2) shells out to in order to compute the
-changed-path diff, is a de-facto selector input that this list does not name
-and that is bounded only by the generic `bin/` manifest prefix, not by
-`protected`. This is benign by construction rather than by test coverage:
-`ros_diff()`'s only use of `bin/git` is to run `git diff`, so a change that
-broke it would make that invocation fail, and a failed `git diff` is already
-one of the conditions in §3.2 that forces `full` — a broken selector input
-here degrades to the safe default instead of silently mis-selecting.
-
-### 3.2 Diff acquisition
-
-Changed paths come from `git diff --name-status -z <base>...<head>`, parsed
-as NUL-delimited records. Rename (`R<score>`) and copy (`C<score>`) records
-carry two paths; **both the old and the new path are classified**, and the
-union of their effects applies. A rename that moves a file across a group
-boundary therefore seeds both groups.
-
-Deletion (`D`) records classify the deleted path. A deleted
-`packages/<p>/composer.json` forces `full` — the dependency graph the closure
-would be computed from no longer describes the parent commit.
-
-Forces `full`: absent or empty base, a base that is not an ancestor reachable
-in the local clone, a non-zero `git diff` exit, unparsable `-z` output, or an
-empty changed-path set.
-
-### 3.3 Path classification
-
-Applied in order; first match wins.
-
-| Changed path | Effect |
-|---|---|
-| any §3.1 self-protection path | **full** |
-| `packages/<p>/**` where `packages/<p>/composer.json` parses and declares a `name` | seed package `<p>` |
-| `packages/<p>/**` where `packages/<p>/composer.json` is absent or unparsable | bounded if a manifest prefix matches, otherwise **full** — package absent from the graph |
-| `tests/**` resolvable to packages by §3.5 import mapping | seed those packages |
-| `tests/**` not resolvable | no seed; the file's group is already in the always-run set |
-| a prefix declared in `tools/random-order-scope-manifest.json` | bounded; seeds whatever that entry declares |
-| anything else | **full**, recording the offending path |
-
-`tools/random-order-scope-manifest.json` declares bounded prefixes with a
-mandatory `rationale` and an optional `seeds` list, following the discipline
-of `tools/getquery-bindings-baseline.txt`. The selector forces `full` when the
-manifest is absent, unparsable, declares a prefix that is a proper prefix of
-another declared prefix (ambiguous), declares a seed package that does not
-exist, or contains an entry without a rationale.
-
-### 3.4 Closure and expansion
-
-1. **Consumer closure.** Transitively close the seed set over reversed
-   internal `require` **and** `require-dev` edges from every
-   `packages/*/composer.json`. `require-dev` is included because this
-   repository permits upward dev edges (`bin/audit-require-dev-layers`), so a
-   lower-layer package's tests can exercise a higher-layer fixture.
-2. **Graph integrity.** Force `full` on any unparsable `packages/*/composer.json`,
-   any duplicate package `name`, or an internal `waaseyaa/*` constraint naming
-   a package absent from the monorepo. A package directory without a manifest
-   is excluded from the dependency graph outright (it can seed and close
-   nothing); at the classification layer (§3.3) a changed path under such a
-   directory falls back to a manifest prefix match, and only forces `full`
-   when no prefix bounds it — this is how `packages/admin/` (the Nuxt admin
-   SPA, no `composer.json` by design) stays out of the always-`full` set.
-   Cycles are permitted — the repository has five accepted same-layer
-   2-cycles (`tools/package-layers-cycle-baseline.txt`) — and the traversal is
-   visited-set bounded, so a cycle is not an error.
-3. **File selection.** Select every inventory file in a closure package, every
-   always-run file, and every mapped `tests/**` file whose packages intersect
-   the closure.
-4. **Atomic expansion.** Expand each selected file to its **complete group**
-   (`packages/<name>`, `tests/<TopDir>`, `tests`). Selection is therefore
-   group-granular, and a group's fixture state can never be split across
-   processes. This is what raises the floor from 45% to 68%, and it is
-   deliberate.
-
-### 3.5 Always-run set and import mapping
-
-The always-run set is **computed, never recorded**, so it cannot go stale: any
-inventory group containing a file that cannot be attributed to a package is
-always run.
-
-Attribution of a `tests/**` file maps each `use Waaseyaa\…` import to the
-longest matching PSR-4 prefix from `autoload` and `autoload-dev` across all
-`packages/*/composer.json`. Mapping fails closed — the file is treated as
-unattributable, pinning its group into the always-run set — when the file is
-unreadable or when a `Waaseyaa\…` import matches no declared PSR-4 prefix.
-
-`ros_attribute()` also carries a guard for two prefixes of equal length
-matching the same import. The guard is defensive, not reachable: PSR-4
-prefixes are unique PHP array keys (`$psr4[$namespace] = $package`), so two
-*different* namespace strings can never both be same-length literal prefixes
-of one import string — a longer or shorter match always exists, or the two
-candidate namespaces are identical. The check costs nothing and fails safe,
-so it stays, but it is not a condition this selector can currently produce.
-
-## 4. Selection document
-
-```jsonc
-{
-  "schema_version": 1,
-  "mode": "full" | "targeted",
-  "fallback_reason": null | "<path or condition that forced full>",
-  "base_sha": "<40-hex>",
-  "head_sha": "<40-hex>",
-  "digests": {
-    "manifest": "sha256:…",        // tools/random-order-scope-manifest.json
-    "composer_graph": "sha256:…",  // root + every packages/*/composer.json, sorted
-    "phpunit_config": "sha256:…",  // phpunit.xml.dist
-    "selector": "sha256:…"         // bin/select-random-order-scope
-  },
-  "changed_paths": ["…"],
-  "seed_packages": ["…"],
-  "closure_packages": ["…"],
-  "always_run_groups": ["…"],
-  "selected_groups": ["…"],
-  "selected_paths": ["…"],
-  "selected_files": 1560,
-  "inventory_files": 1839
-}
+```
+bin/test-random-order --plan=<plan.json> --shard=<id> [-- <extra phpunit args>]
+bin/test-random-order [--seed=<n>] [-- <extra phpunit args>]     # unsharded, plan-less
 ```
 
-Output is deterministic: every list sorted, byte-identical across repeated runs
-on an unchanged tree.
+**Plan mode** (`--plan`/`--shard`, used by `ci-random-order-shard`) reads the
+**saved plan**, never a freshly computed inventory, so a replay after the
+working tree changes reproduces the original file set exactly:
 
-## 5. Plan — `bin/build-phpunit-shards --only=<selection.json>`
+- Refuses (exit 2) a plan that isn't `schema_version: 1`, a shard id absent
+  from the plan, a missing/non-numeric/out-of-range seed, or a shard whose
+  `empty` flag disagrees with its `suites` map (declared empty but carrying
+  real suites, or declared non-empty with no valid suites — both are
+  rejected rather than silently falling through to an unsharded run).
+- An empty shard succeeds without invoking PHPUnit at all.
+- Otherwise, for each suite with paths, runs one PHPUnit process with
+  `--order-by=random --random-order-seed=<plan seed>`, passing that suite's
+  explicit paths (unless the caller passed a list/discovery flag, which
+  PHPUnit rejects alongside explicit file arguments).
 
-Extends the #2405 planner. Behaviour with `--only`:
+**Plan-less mode** (used by `nightly.yml`) derives a seed from `--seed`,
+`TEST_RANDOM_SEED`, or a random default, then runs three sequential PHPUnit
+processes — `Unit`, `Integration`, `Architecture` — each a fresh-process
+memory-isolation boundary, unless the caller passed an explicit selection
+flag (then a single unsplit run).
 
-- Load the selection document; refuse (exit 2) on a schema mismatch, or on a
-  `selected_paths` entry absent from the discovered inventory.
-- Restrict the inventory to `selected_paths`, then **re-expand to complete
-  groups** before balancing. The planner, not the selector, is the authority
-  on group membership.
-- **Suite assignment is total and unique.** Every retained path is resolved to
-  exactly one `phpunit.xml.dist` testsuite. A path in zero suites, or in two,
-  is fatal. This is currently satisfiable — 1839 configured files, 0 multiply
-  assigned — and guards a live hazard: `packages/analytics/tests` and
-  `packages/oauth-provider/tests` are whole-tree `Unit` directories, so either
-  gaining a `tests/Integration/` subdirectory would double-assign against
-  `packages/*/tests/Integration`.
-- Set `mode: "targeted"`; without `--only`, `mode: "full"` as today.
-
-The plan document gains `selection` (the embedded selection document),
-`seed`, `phpunit_version`, and per-shard `suites` — the shard's paths grouped
-by resolved suite. Shards are declared for every matrix leg; a leg with no
-paths is emitted with an empty `paths` list and an explicit
-`"empty": true`, so a matrix leg is never silently dropped.
-
-## 6. Runner — `bin/test-random-order --plan=<plan.json> --shard=<id>`
-
-Replay reads the **saved plan**, never a freshly computed selection, so a
-replay after the working tree changes reproduces the original file set.
-
-For the named shard, the runner executes one PHPUnit process per suite that
-has paths, in fixed suite order, passing that suite's explicit paths with
-`--order-by=random --random-order-seed=<plan seed>`. Per-suite processes are
-retained for the memory reason documented in the existing runner. An empty
-shard succeeds without invoking PHPUnit and says so.
-
-The shared seed gives **deterministic shard replay**. It is explicitly *not*
-equivalent to one global randomized ordering over the whole inventory — no
-sharded run can be. The nightly unsharded proof (§7.2) supplies that.
+Either mode prints the seed and a literal replay command before running
+anything. The shared seed gives **deterministic shard replay**; it is
+explicitly *not* equivalent to one global randomized ordering over the whole
+inventory — no sharded run can be, since each shard only shuffles its own
+subset. §7.2's nightly proof supplies that.
 
 ## 7. Workflows
 
 ### 7.1 `ci.yml`
 
 ```
-prepare-random-order-plan   needs: [support-contract, spec-drift]
-  checkout fetch-depth: 0
-  pull_request → --base=${{ github.event.pull_request.base.sha }}
-  push / dispatch → --mode=full
-  → bin/build-phpunit-shards --shards=3 --only=… --seed=…
-  → composer install, tar vendor, record sha256
-  → single artifact `random-order-plan` bundling scope, plan, vendor tar,
-    and both sha256 files — one upload, not two, so plan and vendor
-    cannot desync across independently-uploaded artifacts
-  → ::notice mode, fallback_reason, selected_files/inventory_files
+prepare-test-plan          needs: [support-contract, spec-drift]
+  composer install (single authority for this run, retry-wrapped)
+  tar vendor/ -> build/ci/vendor.tar; sha256(tar) and sha256(installed.php)
+  -> artifact "vendor-archive": vendor.tar, vendor.tar.sha256, installed.sha256
+  build-phpunit-shards --shards=4 -> artifact "phpunit-shard-plan"
 
-ci-random-order-shard (matrix id: [1,2,3])   needs: [prepare-random-order-plan]
-  → download the bundled random-order-plan artifact, verify vendor tarball sha256, extract
-  → integrity gate (§7.3); on failure, locked composer install instead
-  → bin/test-random-order --plan=… --shard=${{ matrix.id }}
+ci-test-shards (matrix id: [1,2,3,4])   needs: [support-contract, spec-drift, prepare-test-plan]
+  download "vendor-archive"; verify-random-order-vendor-archive + check-platform-reqs;
+  on failure, retried locked `composer install` instead
+  download "phpunit-shard-plan"; run this shard's paths in one phpunit
+  process, deterministic order, --coverage-clover + --log-junit
+  -> artifact "php-test-shard-<id>"
+
+ci-unit-tests / ci-coverage   needs: [ci-test-shards]   (owned by governed-gates.md)
+
+prepare-random-order-plan   needs: [support-contract, spec-drift]
+  no install of its own — consumes prepare-test-plan's archive downstream
+  seed = (GITHUB_RUN_ID % 2147483647) + 1; logged as a workflow ::notice
+  build-phpunit-shards --shards=2 --seed=<seed> -> artifact "random-order-plan"
+  (JSON plan only; the dependency archive is the separate "vendor-archive"
+  artifact above, not bundled with this one)
+
+ci-random-order-shard (matrix id: [1,2])   needs: [prepare-random-order-plan, prepare-test-plan]
+  download "random-order-plan" and "vendor-archive"
+  verify-random-order-vendor-archive + check-platform-reqs; on failure,
+  retried locked `composer install` instead
+  bin/test-random-order --plan=… --shard=${{ matrix.id }}
 
 ci/random-order    needs: [prepare-random-order-plan, ci-random-order-shard]
                    if: always()
@@ -341,161 +269,193 @@ ci/random-order    needs: [prepare-random-order-plan, ci-random-order-shard]
 
 ### 7.2 `nightly.yml`
 
-Daily `schedule` plus `workflow_dispatch` with an optional `seed` input for
-manual replay. One job runs the complete **unsharded** `composer test:random`.
-The seed is date-derived when not supplied, and always logged — both as a
-workflow notice and as a self-contained banner written into the uploaded log
-itself, so a failure remains replayable even if the run's own step log has
-expired. `composer test:random`'s non-plan path runs three sequential
-PHPUnit processes (Unit, then Integration, then Architecture); a single
+Daily `schedule` (05:00 UTC) plus `workflow_dispatch` with an optional
+`seed` input for manual replay. One job, `nightly/random-order-full`, runs
+the complete **unsharded** `composer test:random` (`bin/test-random-order`'s
+plan-less path) against a fresh, independent `composer install` — this
+workflow does not consume `ci.yml`'s `vendor-archive`, since it is a
+separate scheduled run with no shared artifact to download. The seed is
+date-derived when not supplied and always logged, both as a workflow notice
+and as a self-contained banner written into the uploaded log itself, so a
+failure remains replayable even if the run's own step log has expired.
+`composer test:random`'s plan-less path runs three sequential PHPUnit
+processes (Unit, then Integration, then Architecture); a single
 `--log-junit` path would be silently overwritten by each process in turn, so
 the job instead captures full console output to a plain-text log
-(`build/logs/nightly-random-order.log`), not JUnit XML. The workflow
-declares its own `concurrency` group so overlapping nightlies do not stack,
-uploads that log as failure evidence, and holds **no deployment, release,
-split, or external-state authority** of any kind.
+(`build/logs/nightly-random-order.log`) via `tee` under `set -o pipefail`,
+not JUnit XML. The workflow declares its own `concurrency` group so
+overlapping nightlies do not stack, uploads that log as failure-only
+evidence, and holds **no deployment, release, split, or external-state
+authority** of any kind.
 
-### 7.3 Dependency preparation
+### 7.3 Dependency preparation — the single run-scoped artifact
 
-A persistent `vendor/` cache is rejected. Evidence: `vendor/waaseyaa/*` is a
-tree of relative symlinks into `packages/*`, and a working tree can accumulate
-dangling entries for renamed or removed packages (`admin-bridge`,
-`agent-output`, `northcloud` were all observed dangling against 75 linked
-entries for 77 packages). Today's `ci-random-order` job compounds this with
-`restore-keys: composer-v2-`, a broad prefix that can restore a `vendor/` tree
-built from a *different* `composer.lock`; it is safe only because the job then
-runs `composer install`. Dropping that install while keeping the prefix would
-ship a stale autoload map.
+Three re-runs of the predecessor PR (#2406) failed on repeated `HTTP/2 429`
+from `codeload.github.com`, in three independent installs: the old
+`prepare-random-order-plan`'s own install, `ci/test-shard-1`'s install, and
+`ci/skeleton-create-project`'s install. Consolidating the first two into one
+authority removes two of those three failure points outright.
 
-Instead, dependencies are prepared **once per run** in
-`prepare-random-order-plan` and passed as a run-scoped artifact:
+`prepare-test-plan` is now that single authority:
 
-- `composer install --no-interaction --prefer-dist` from the exact checkout.
-- `tar` the `vendor/` tree preserving symlinks; record the archive SHA-256 in
-  a sidecar file, `build/ci/vendor.tar.sha256` (not in the plan document —
-  §7.1 shows it as a member of the bundled `random-order-plan` artifact,
-  alongside `installed.sha256`).
-- Each shard verifies the SHA-256 before extraction and refuses a mismatch.
+- `composer install --no-interaction --prefer-dist --no-progress`
+  (retry-wrapped via `.github/actions/composer-install-retry`) from the
+  exact checkout, once per run.
+- `tar` the `vendor/` tree (preserving symlinks — plain `tar` does not
+  dereference by default); record the archive's SHA-256 to
+  `build/ci/vendor.tar.sha256`, and `vendor/composer/installed.php`'s
+  SHA-256 to `build/ci/installed.sha256`.
+- Uploads both plus the tar itself as one artifact, `vendor-archive`.
 
-After extraction each shard runs an integrity gate
-(`bin/verify-random-order-vendor-archive`, extracted for fixture testing —
-see the covering test in §8), and on any failure discards the artifact and
-performs a locked `composer install` instead:
+Both `ci-test-shards` and `ci-random-order-shard` download that same
+`vendor-archive` and run the identical integrity gate before use
+(`bin/verify-random-order-vendor-archive <archive-dir> <work-dir>`, extracted
+from an inline `ci.yml` step specifically so it is fixture-testable — see
+`tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php`):
 
-- `composer check-platform-reqs` passes (PHP version and extension profile).
-- `vendor/composer/installed.php` hashes to the value recorded by the
-  preparing job. This proves the extracted archive is internally
-  self-consistent — the tar was not truncated or tampered with in transit —
-  **not** that it matches this checkout; the archive ships inside the same
-  bundle as the manifest describing it, so a self-consistency check can only
-  ever prove the archive agrees with itself.
-- every `vendor/waaseyaa/*` symlink resolves to a `packages/*/composer.json`
-  present in **this** checkout. This, not the `installed.php` hash, is the
-  actual exact-checkout binding: the real guarantee is structural, not
-  cryptographic — the artifact is run-scoped (uploaded and downloaded within
-  one workflow run under one `random-order-plan` name) and produced by
-  `prepare-random-order-plan` from the same `inputs.sha` the shard jobs
-  themselves check out, so there is no code path by which a shard could see
-  an archive built from a different commit. The symlink-resolution check
-  exists to catch the case a persistent cache is specifically rejected for —
-  a *stale* archive whose relative symlinks point at packages this checkout
-  no longer has — not to establish the binding itself.
+- The digest file and archive both exist; `sha256sum --check` against
+  `vendor.tar.sha256` passes (this check must run from the repo root, not
+  after `cd`-ing into the archive directory — the recorded path in the
+  digest file is relative to where `sha256sum` originally ran).
+- `vendor/composer/installed.php` extracts and hashes to the value recorded
+  in `installed.sha256`. This proves the extracted archive is internally
+  self-consistent — not truncated or corrupted in transit — **not** that it
+  matches this exact checkout; it is a self-consistency check of the archive
+  against itself.
+- Every `vendor/waaseyaa/*` symlink resolves to a directory containing a
+  `composer.json` present in **this** checkout. This is the check that
+  catches a *stale* archive whose relative symlinks point at packages this
+  checkout no longer has — the exact failure mode a persistent cache
+  produced historically (`admin-bridge`, `agent-output`, `northcloud` were
+  all observed dangling against 75 linked entries for 77 packages).
 
-If a persistent cache is ever reintroduced, its key must pin runner image,
-PHP version, extension profile, Composer version, and the hashes of both
-`composer.json` and `composer.lock`, with **no broad restore keys**.
+`composer check-platform-reqs` runs as a separate step immediately after,
+outside the script, because it depends on the real runner's PHP binary and
+extension profile rather than on the archive's contents.
+
+The real exact-checkout binding is **structural, not cryptographic**: GitHub
+Actions artifacts are run-scoped — `vendor-archive` is uploaded within this
+run by `prepare-test-plan` from the same `inputs.sha`/`github.sha` the shard
+jobs themselves check out, and downloaded only within that same run. There
+is no code path by which a shard could see an archive built from a different
+commit; the checks above exist to catch corruption and staleness, not to
+establish the binding itself.
+
+On any check failure, the consuming job discards the archive, removes
+`vendor/`, and falls back to its own retried, locked `composer install`
+(same 3-attempt, 5s/10s-backoff pattern as the composite action) — the
+fallback is the safety net, not a degraded mode CI treats as success.
+
+**No persistent `vendor/` cache anywhere in this file.** Every Composer
+dependency cache in `ci.yml` is keyed exactly on runner OS, PHP version, and
+`composer.lock` hash (or a fixture-specific lockfile for `ci-package-isolation`
+/ `packaged-form`), with **no broad `restore-keys`**: a prefix match can hand
+a job a `vendor/` tree built from a *different* lock file, which was safe
+only when every job then unconditionally reinstalled. Jobs that install
+independently of `prepare-test-plan` — `composer-deps-audit`, `ci-lint`,
+`check-dead-code`, `mutation-pilot`, `security-defaults`, `verify-gates`,
+`ci-playwright-smoke`, `ci-package-isolation`, `core-only-boot`,
+`packaged-form`, `skeleton-create-project` — get bounded retry with backoff
+instead, via the shared `.github/actions/composer-install-retry` composite
+action (or an equivalent hand-rolled loop where the job's `run:` shape
+cannot cleanly call a composite action mid-script).
 
 ### 7.4 Aggregator contract
 
-`ci/random-order` publishes the required context. `if: always()` alone is
-insufficient — it would publish success after skipped shards. The job fails
-unless both of:
+`ci/random-order` publishes the required status context. `if: always()`
+alone is insufficient — it would publish success after skipped shards. The
+job fails unless both of:
 
 - `needs.prepare-random-order-plan.result == 'success'`
 - `needs.ci-random-order-shard.result == 'success'` — GitHub's aggregate
   result for a `fail-fast: false` matrix job, which is `success` only when
   every leg that ran succeeded. Any `skipped`, `cancelled`, or `failure` leg
-  makes the aggregate non-`success`, which fails the context.
+  makes the aggregate non-`success`, which fails the context. This also
+  covers `ci-random-order-shard`'s own dependency on `prepare-test-plan`
+  (the single install authority): if that job fails or is cancelled, the
+  shard matrix is skipped rather than run, and the aggregate is non-`success`.
 
 This proves "every leg that ran, succeeded." It does **not** prove "there
-were exactly three legs" — GitHub's `needs.<matrix-job>.result` aggregate has
+were exactly two legs" — GitHub's `needs.<matrix-job>.result` aggregate has
 no way to express leg count, only leg outcome, so a runtime check for shard
 count would be comparing the workflow to itself and could never fail. Matrix
 width is pinned instead at the workflow-definition level: an Architecture
-test (`CiSingleExecutionProofTest::randomOrderPreparesOnceAndFansOutToThreeShards`)
-asserts `id: [1, 2, 3]` on the `ci-random-order-shard` matrix declaration. If
-that matrix is ever resized, both the test and this note must change
+test (`CiSingleExecutionProofTest::randomOrderPreparesOnceAndFansOutToTwoShards`)
+asserts `id: [1, 2]` on the `ci-random-order-shard` matrix declaration. If
+that matrix is ever resized (§4), both the test and this spec must change
 together — there is no automated cross-check between the declared width and
 this text.
 
 ## 8. Test matrix
 
-Selector (`tests/Architecture/RandomOrderScopeSelectorTest.php`):
+Planner (`tests/Architecture/PhpUnitShardPlannerTest.php`):
 
-- selector, manifest, shard planner, runner, `phpunit.xml.dist`, root and
-  package `composer.json`, `composer.lock`, `ci.yml`, `nightly.yml` — each
-  forces `full`
-- rename within a package; rename across package boundary; rename between a
-  package and the repository root — both paths classified
-- deleted file; deleted `packages/*/composer.json`
-- unknown root path; empty diff; absent base; unreachable base
-- docs-only change
-- hub closure (`entity` → 63 packages) and leaf closure (`genealogy` → 1)
-- malformed `composer.json`; duplicate package `name`; internal constraint on
-  an absent package; accepted 2-cycle traverses without error
-- ambiguous manifest prefix; manifest entry lacking a rationale; manifest
-  seed naming an absent package
-- `tests/**` import mapping: attributed, unattributable, equal-length
-  ambiguous prefixes
-- atomic expansion pulls a group's shared-fixture members in with a selected
-  member
-- byte-identical output on repeated runs
+- deterministic, timing-balanced, no duplication across shards
+- missing timing evidence uses a deterministic median fallback
+- committed timing evidence is refreshed from retained JUnit by repository
+  file
+- every path resolves to exactly one suite; a multiply assigned path is
+  fatal (the `packages/analytics`/`packages/oauth-provider` live hazard)
+- an empty shard is declared explicitly, not dropped
+- the plan records its own provenance (`seed`, `phpunit_version`)
 
-Planner (extend `PhpUnitShardPlannerTest`):
+Runner (`tests/Architecture/RandomOrderRunnerTest.php`):
 
-- `--only` restricts, then re-expands to complete groups
-- refusal on a selected path absent from the inventory
-- multiply assigned path is fatal
-- the zero-suite guard is defensive, not reachable: the planner's own
-  discovery loop and `ros_inventory()` parse the same `phpunit.xml.dist`
-  with the same `Test.php`-suffix and skip-link filters, so their key sets
-  are identical by construction. The check costs nothing and fails safe, so
-  it stays, but it is not a condition the planner can currently produce,
-  and it carries no test.
-- empty matrix leg is emitted explicitly, not dropped
-- determinism; `mode: targeted`
+- an invalid replay seed is rejected; a fixed seed is logged and PHPUnit
+  arguments are forwarded
+- `ci` derives and logs a replayable seed for a dedicated lane
+- plan mode replays a saved plan shard per suite; an empty shard succeeds
+  without invoking PHPUnit; an unknown shard id or malformed plan is
+  rejected
+- a shard missing `suites`, carrying a malformed suite entry, or declared
+  empty with a non-empty `suites` map is rejected rather than silently
+  falling through to an unsharded run
+- a null or non-numeric plan seed is rejected; a missing plan file is
+  rejected cleanly
+- plan mode prints a plan-scoped replay hint instead of the `composer`
+  shortcut
 
-Runner (extend `RandomOrderRunnerTest`):
+Vendor-archive integrity (`tests/Architecture/RandomOrderVendorArchiveIntegrityTest.php`):
 
-- `--plan`/`--shard` partitions by suite and propagates the plan seed
-- replay from a saved plan after the working tree changes reproduces the
-  original file set
-- empty shard succeeds without invoking PHPUnit
-- refusal on unknown shard id or malformed plan
+- a good archive is verified and extracted
+- a missing archive, a missing digest file, a corrupt digest, and a
+  dangling wrong-checkout symlink each fall back (exit 1) rather than being
+  trusted
 
-Workflow (extend `CiSingleExecutionProofTest`, `CiContractOrderingTest`; new
-`NightlyRandomOrderProofTest`):
+Workflow shape (`tests/Architecture/CiSingleExecutionProofTest.php`,
+`CiContractOrderingTest.php`, `NightlyRandomOrderProofTest.php`):
 
-- job graph and `needs:` ordering; `ci/random-order` name preserved
-- aggregator fails on skipped, cancelled, absent, and failed shards
-- vendor artifact: missing, corrupt digest, and wrong-checkout symlink each
-  fall back to a locked install
+- `prepare-test-plan` is the single Composer install authority for the run;
+  both shard matrices consume its `vendor-archive` instead of installing
+  directly, with the integrity-gate-then-fallback shape present in both
+- `ci-test-shards` fans out to `id: [1, 2, 3, 4]`; `ci-random-order-shard`
+  fans out to `id: [1, 2]`; `prepare-random-order-plan` no longer installs
+  dependencies itself
+- the `ci/random-order` aggregator refuses on incomplete shard evidence and
+  requires both `needs` results to be `success`
+- fast-contract jobs run every S1 roster gate; the `spec-drift` job
+  completes (rather than running) on non-pull-request events; test
+  execution waits on the fast contracts, and both aggregators wait on their
+  shards; both shard matrices wait for the single install authority
 - nightly is unsharded, complete, seed-overridable, concurrency-guarded,
-  uploads failure artifacts, and holds no deployment authority
+  uploads failure-only evidence, and holds no deployment authority
 
 ## 9. Evidence
 
-`prepare-random-order-plan` publishes mode, fallback reason, seed packages,
-closure size, selected-vs-inventory counts, shard membership, timing inputs,
-and the plan digest as job notices and a retained artifact — satisfying
-#2404 slice 3's evidence requirement.
+`prepare-test-plan` and `prepare-random-order-plan` publish shard counts,
+expected seconds, fallback-file counts, the random-order seed, and the plan
+documents themselves as retained artifacts and workflow `::notice`s.
 
-Acceptance for the slice requires median and p95 critical-path time plus
-runner-minutes from at least 10 comparable runs, one green pull-request run,
+Acceptance for a future shard-count change (§4) requires median and p95
+critical-path time plus runner-minutes from at least 10 comparable runs
+showing both metrics improve at three shards, one green pull-request run,
 one green post-merge `main` run, and one green complete nightly proof.
 
 ## 10. Non-goals
 
-Exact-head archive reuse (#2404 slice 2), immutable artifact promotion
-(slice 5), and any change to coverage thresholds or the required-check roster
-are out of scope. No release, split, or deployment behaviour is touched.
+Reducing dependency-install redundancy further than the single run-scoped
+artifact already shipped here (for example, reusing an archive across
+separate workflow runs for the same exact head), immutable artifact
+promotion, and any change to coverage thresholds or the required-check
+roster are out of scope for this spec. No release, split, or deployment
+behaviour is touched.

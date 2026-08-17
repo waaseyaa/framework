@@ -22,7 +22,7 @@ The repository ruleset is authoritative. Its required checks are:
 | `ci/mutation-pilot` | Enforces the stable 84% Infection floors on bounded critical boundaries | ~1.25 min |
 | `ci/package-isolation` | Clean-installs and runs declared split-package suites without root dev autoload | ~30 sec |
 | `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
-| `ci/random-order` | Aggregates a fail-closed changed-package selection (`bin/select-random-order-scope`) planned into 3 timing-balanced shards and replayed in isolated per-suite processes with one logged random seed; unclassified changes fall back to the complete inventory. See [docs/specs/ci-test-selection.md](../specs/ci-test-selection.md) | ~3.5 min |
+| `ci/random-order` | Runs the **complete** configured PHPUnit inventory across 2 package-safe, timing-balanced shards, replayed in isolated per-suite processes with one logged, replayable random seed. There is no subset selection — a prior changed-package selector was measured, found to rest on an undeclared dependency graph, and removed. See [docs/specs/ci-test-selection.md](../specs/ci-test-selection.md) | shard critical path |
 | `ci/skeleton-create-project` | Installs and boots the exact consumer skeleton | ~45 sec |
 | `ci/unit-tests` | Attests that every timing-balanced PHPUnit package shard passed | shard critical path |
 | `ci/verify-gates` | Runs the fast repository invariant gates | ~40 sec |
@@ -45,7 +45,8 @@ The repository ruleset is authoritative. Its required checks are:
 |---|---|---|
 | `php-test-shard-*` | Per-shard JUnit and Clover evidence from one PHPUnit execution | 30 days |
 | `phpunit-shard-plan` | Exact timing-balanced package assignment used by the run | 30 days |
-| `random-order-plan` | `ci/random-order`'s bundled selection document, shard plan, dependency archive (`vendor.tar`), and both sha256 sidecar files — one artifact, so plan and vendor cannot desync (see [docs/specs/ci-test-selection.md](../specs/ci-test-selection.md) §7.1, §7.3) | 30 days |
+| `vendor-archive` | `prepare-test-plan`'s single run-scoped Composer install: tarred `vendor/` plus its own and `vendor/composer/installed.php`'s SHA-256 sidecars — the one dependency authority both `ci-test-shards` and the random-order shard matrix verify (`bin/verify-random-order-vendor-archive`) and consume, falling back to a locked install on any integrity-gate failure (see [docs/specs/ci-test-selection.md](../specs/ci-test-selection.md) §7.3) | 30 days |
+| `random-order-plan` | `prepare-random-order-plan`'s 2-shard, timing-balanced plan document with its run-derived random-order seed (JSON plan only — the dependency archive is the separate `vendor-archive` artifact above) | 30 days |
 | `nightly-random-order-evidence` | `nightly.yml`'s complete-suite console log, uploaded only on failure | 30 days |
 | `php-coverage` | Clover, text, and package-summary coverage reports | 30 days |
 | `mutation-pilot` | Infection summary JSON and surviving-mutant text report | 30 days |
@@ -58,13 +59,13 @@ The repository ruleset is authoritative. Its required checks are:
 
 Runs daily at 05:00 UTC plus manual `workflow_dispatch` (with an optional
 `seed` input for replay). One job, `nightly/random-order-full`, runs the
-**complete, unsharded** `composer test:random` — the cross-shard ordering
-coverage that `ci/random-order`'s 3-way matrix necessarily drops (each shard
-only shuffles its own paths, never the whole inventory together). The seed is
-date-derived when not supplied and always logged, both as a workflow notice
-and inside the uploaded log itself, so a failure stays replayable even after
-the run's own step log expires. It holds no deployment, release, split, or
-other external-state authority. See
+**complete, unsharded** `composer test:random` against a fresh, independent
+Composer install — the cross-shard ordering coverage that `ci/random-order`'s
+2-way matrix necessarily drops (each shard only shuffles its own paths, never
+the whole inventory together). The seed is date-derived when not supplied and
+always logged, both as a workflow notice and inside the uploaded log itself,
+so a failure stays replayable even after the run's own step log expires. It
+holds no deployment, release, split, or other external-state authority. See
 [docs/specs/ci-test-selection.md](../specs/ci-test-selection.md) §7.2.
 
 ### Running Tests Locally

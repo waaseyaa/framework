@@ -7,41 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **Targeted, sharded random-order proof (#2404):** Added
-  [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md), the
-  design contract for fail-closed changed-package selection and random-order
-  sharding — the selection document, self-protection inputs, consumer closure
-  over `require` and `require-dev`, atomic group expansion, total-and-unique
-  PHPUnit suite assignment, run-scoped dependency artifacts, and the
-  aggregator contract that keeps `ci/random-order` a single required context
-  — and implemented it end to end. `tools/random-order-scope-manifest.json`
-  plus its fail-closed loader (`bin/lib/random-order-scope.php`,
-  `ros_load_manifest()`) force-fail closed (`RosScopeFailure`) on an
-  unreadable or unparsable manifest, a prefix entry missing a `rationale`, an
-  ambiguous (self-shadowing) directory prefix, or a `seeds` entry naming a
-  package absent from `packages/*/composer.json`. On pull requests,
-  `ci/random-order` now selects a fail-closed bounded scope instead of the
-  complete inventory: changed packages plus their consumer closure over
-  `require` and `require-dev` edges, expanded to complete test groups, unioned
-  with an always-run set of groups that contain a file which cannot be
-  attributed to a package. The bounded scope is planned into three
-  timing-balanced shards (`bin/build-phpunit-shards --only`) and replayed with
-  a shared random-order seed (`bin/test-random-order --plan/--shard`). Any
-  unclassified changed path, a change to a selector-input file (the selector,
-  planner, runner, scope manifest, timing data, `phpunit.xml.dist`, any
-  `composer.json`/`composer.lock`, or the CI workflow files), or a malformed
-  or ambiguous dependency graph forces the complete inventory instead; an
-  unattributable test file only pins its own group into the always-run set,
-  it does not by itself force a full run. `main` pushes keep running the
-  complete inventory unconditionally, and a new `nightly.yml` workflow runs
-  the complete suite unsharded once a day (with optional seed-specified manual
-  replay) to restore the cross-shard ordering coverage a matrix necessarily
-  drops — it holds no deployment, release, or publication authority.
-  Dependencies for the shard matrix are installed once in a
-  `prepare-random-order-plan` job and archived; each shard verifies the
-  archive's checksum, platform requirements, and per-package symlink
-  integrity against its own checkout before extracting it, falling back to a
-  locked `composer install` on any mismatch.
+- **Sharded complete-inventory random-order proof; changed-package targeting
+  investigated and dropped (#2404):** Rewrote
+  [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md) after a
+  targeting investigation found the selector's own dependency graph unsound:
+  `packages/*/tests` carried 73 real, undeclared cross-package test
+  references its consumer-closure computation never saw (see the PL010 entry
+  below). Declaring that graph honestly collapsed the measured saving from
+  roughly 13% to under 4% — below ordinary CI variance, and not worth a
+  fail-closed selector's complexity or trust burden. `ci/random-order` now
+  shards the **complete** configured PHPUnit inventory unconditionally, the
+  same as `main` pushes always did; `bin/select-random-order-scope`,
+  `tools/random-order-scope-manifest.json`, and the whole changed-package
+  selection subsystem (classification, consumer closure, attribution, the
+  always-run set, the selection document, `--only`) are removed. Composer
+  installation is consolidated into one run-scoped authority:
+  `prepare-test-plan` performs the single authoritative `composer install`,
+  tars `vendor/`, and publishes a `vendor-archive` artifact that both
+  `ci-test-shards` and the random-order shard matrix verify
+  (`bin/verify-random-order-vendor-archive` — digest, `installed.php`
+  self-consistency, and per-package symlink resolution) before use, falling
+  back to a retried locked install on any integrity-gate failure — removing
+  two of the three independent `codeload.github.com` failure points that
+  caused repeated `HTTP/2 429`s on PR #2406. The random-order matrix drops
+  from three shards to two (`id: [1, 2]`); a later move to three shards is
+  its own measurement decision, gated on the existing ≥10-comparable-run
+  discipline showing both wall-clock critical-path time and total
+  runner-minutes improve, not on whether targeting works. Every other
+  independently-installing job in `ci.yml` moved to an exactly-keyed
+  Composer cache (no broad `restore-keys`) with bounded retry via the new
+  `.github/actions/composer-install-retry` composite action.
+  `nightly.yml`'s complete unsharded proof is unchanged. The rejected
+  changed-package-selection design — the undeclared-edge finding, the two
+  grouping alternatives measured and rejected, and why a ~4% saving doesn't
+  earn the complexity — is preserved as architectural evidence in the spec's
+  "Rejected design" section rather than deleted.
 
 - **Single-execution PHPUnit proof (#2404):** Blocking CI now assigns the
   configured PHP test inventory exactly once across four timing-balanced,
