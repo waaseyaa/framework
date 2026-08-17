@@ -6,7 +6,7 @@ PACKAGE="${1:-}"
 MODE="${2:-}"
 
 usage() {
-  echo "Usage: bin/test-isolated-package access [--install-only|--run-tests=<dir>]" >&2
+  echo "Usage: bin/test-isolated-package access [--install-only=<file>|--run-tests=<dir>]" >&2
   exit 2
 }
 
@@ -14,14 +14,22 @@ if [[ "$PACKAGE" != "access" ]]; then
   usage
 fi
 
-install_only=0
+install_only_given=0
+install_only_file=""
 run_tests_dir=""
 case "$MODE" in
   "") ;;
-  --install-only) install_only=1 ;;
+  --install-only=*)
+    install_only_given=1
+    install_only_file="${MODE#--install-only=}"
+    ;;
   --run-tests=*) run_tests_dir="${MODE#--run-tests=}" ;;
   *) usage ;;
 esac
+
+if [[ "$install_only_given" -eq 1 && -z "$install_only_file" ]]; then
+  usage
+fi
 
 isolation_root_pattern() {
   case "$1" in
@@ -32,10 +40,10 @@ isolation_root_pattern() {
 
 # --run-tests=<dir>: phase 2 of the two-phase split (CI's #2404 round-2 seam).
 # Runs the previously-installed isolated suite exactly once, unretried, then
-# always cleans up — the network-touching phase (--install-only, below) is
-# the only one CI wraps in bounded retry. Retrying a full test run, not just
-# the network install, would give a deterministic failure three attempts and
-# let a flaky or order-dependent test mask real signal.
+# always cleans up — the network-touching phase (--install-only=<file>,
+# below) is the only one CI wraps in bounded retry. Retrying a full test
+# run, not just the network install, would give a deterministic failure
+# three attempts and let a flaky or order-dependent test mask real signal.
 if [[ -n "$run_tests_dir" ]]; then
   TMP_ROOT="$run_tests_dir"
   if ! isolation_root_pattern "$TMP_ROOT"; then
@@ -60,11 +68,11 @@ if [[ -n "$run_tests_dir" ]]; then
 fi
 
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-${PACKAGE}-isolation.XXXXXX")"
-# Cleanup always fires on exit UNLESS --install-only reaches its successful
-# hand-off point (HANDED_OFF=1 below) — at that point ownership of the
-# directory passes to a later --run-tests=<dir> invocation. Any failure
-# before hand-off (tar, composer install) still cleans up here, exactly as
-# the pre-#2404-round-2 default-mode behaviour always did.
+# Cleanup always fires on exit UNLESS --install-only=<file> reaches its
+# successful hand-off point (HANDED_OFF=1 below) — at that point ownership
+# of the directory passes to a later --run-tests=<dir> invocation. Any
+# failure before hand-off (tar, composer install) still cleans up here,
+# exactly as the pre-#2404-round-2 default-mode behaviour always did.
 HANDED_OFF=0
 cleanup() {
   if [[ "$HANDED_OFF" -eq 1 ]]; then
@@ -91,14 +99,25 @@ cd "$TMP_ROOT/repository/packages/$PACKAGE"
 # The access/entity package graph already contains a reviewed runtime cycle.
 # A split-package checkout has no VCS-derived root version, so declare the
 # canonical development line explicitly for Composer's root self-resolution.
+#
+# Composer's own stdout (progress noise, deprecation notices — e.g. its
+# bundled react/promise emits a "Case statements followed by a semicolon"
+# PHP 8.5 deprecation on every invocation) is NOT redirected here: this
+# process's stdout is the job log, same as any other CI step. The
+# --install-only=<file> hand-off below never reads this stdout — it writes
+# the isolation path to a dedicated file instead, precisely so a caller
+# capturing "the path" can never also capture Composer's chatter (#2404
+# revision, round 4: capturing this script's stdout via command
+# substitution silently included that chatter ahead of the path, producing
+# a multi-line value that broke GITHUB_ENV's parser).
 COMPOSER_ROOT_VERSION=dev-main composer install \
   --no-interaction \
   --no-progress \
   --prefer-dist
 
-if [[ "$install_only" -eq 1 ]]; then
+if [[ "$install_only_given" -eq 1 ]]; then
   HANDED_OFF=1
-  echo "$TMP_ROOT"
+  printf '%s\n' "$TMP_ROOT" > "$install_only_file"
   exit 0
 fi
 

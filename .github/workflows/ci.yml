@@ -659,20 +659,31 @@ jobs:
           key: ${{ runner.os }}-php-8.5-split-package-composer-${{ hashFiles('packages/access/composer.json', 'packages/testing/composer.json', 'packages/user/composer.json') }}
 
       # Two-phase split (#2404 revision, round 3, item 3): retry covers only
-      # the network-touching install phase (--install-only), never the test
-      # run. Retrying a whole test run would give a deterministic failure
-      # three attempts and let a flaky or order-dependent test mask real
-      # signal — a materially different risk than retrying a network call.
-      # --run-tests=<dir> then runs the isolated suite exactly once,
+      # the network-touching install phase (--install-only=<file>), never
+      # the test run. Retrying a whole test run would give a deterministic
+      # failure three attempts and let a flaky or order-dependent test mask
+      # real signal — a materially different risk than retrying a network
+      # call. --run-tests=<dir> then runs the isolated suite exactly once,
       # unretried, and owns cleanup of the directory --install-only handed
       # off (see bin/test-isolated-package's HANDED_OFF ownership comment).
+      #
+      # The isolation path is handed off through a dedicated file, NOT this
+      # step's stdout (round 4 fix): Composer's own stdout — progress
+      # noise, a PHP 8.5 deprecation notice from its bundled react/promise
+      # on every invocation — is never redirected inside the script, so
+      # capturing the script's whole stdout via command substitution
+      # silently prepended that chatter ahead of the path, producing a
+      # multi-line value that broke GITHUB_ENV's parser. A file the script
+      # writes to only at its own successful hand-off point cannot be
+      # polluted by anything a subprocess prints.
       - name: Install the isolated access package (retry with backoff)
         run: |
           set -euo pipefail
+          isolation_file="$(mktemp)"
           attempt=1
           max_attempts=3
           delay=5
-          until isolation_dir="$(bash bin/test-isolated-package access --install-only)"; do
+          until bash bin/test-isolated-package access --install-only="$isolation_file"; do
             exit_code=$?
             if [ "$attempt" -ge "$max_attempts" ]; then
               exit "$exit_code"
@@ -682,7 +693,8 @@ jobs:
             attempt=$((attempt + 1))
             delay=$((delay * 2))
           done
-          echo "ISOLATION_DIR=$isolation_dir" >> "$GITHUB_ENV"
+          echo "ISOLATION_DIR=$(cat "$isolation_file")" >> "$GITHUB_ENV"
+          rm -f "$isolation_file"
 
       - name: Run the isolated access package suite (unretried)
         run: bash bin/test-isolated-package access --run-tests="$ISOLATION_DIR"
