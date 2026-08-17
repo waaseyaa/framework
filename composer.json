@@ -533,7 +533,10 @@
             "Composer\\Config::disableProcessTimeout",
             "php -d memory_limit=1G vendor/bin/phpunit --no-coverage"
         ],
-        "test:random": "php bin/test-random-order",
+        "test:random": [
+            "Composer\\Config::disableProcessTimeout",
+            "php bin/test-random-order"
+        ],
         "verify": [
             "@cs-check",
             "@phpstan",
