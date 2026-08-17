@@ -107,6 +107,129 @@ final class RandomOrderRunnerTest extends TestCase
         self::assertStringContainsString('plan', $result['output']);
     }
 
+    #[Test]
+    public function it_forwards_the_shards_explicit_paths_to_phpunit(): void
+    {
+        $plan = $this->writePlan(1, 2241, [
+            1 => ['Architecture' => ['tests/Architecture/CiContractOrderingTest.php']],
+        ]);
+
+        $result = $this->runCommand(['--plan=' . $plan, '--shard=1']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        // Only a real run of exactly this one file produces this count. If
+        // the shard's explicit paths stop being forwarded, PHPUnit falls
+        // back to the full configured suite and this assertion fails.
+        self::assertStringContainsString('OK (3 tests, 17 assertions)', $result['output']);
+    }
+
+    #[Test]
+    public function plan_mode_prints_a_plan_scoped_replay_hint_instead_of_the_composer_shortcut(): void
+    {
+        $plan = $this->writePlan(1, 2241, [
+            1 => ['Architecture' => ['tests/Architecture/CiContractOrderingTest.php']],
+        ]);
+
+        $result = $this->runCommand(['--plan=' . $plan, '--shard=1']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString("Replay: bin/test-random-order --plan={$plan} --shard=1", $result['output']);
+        self::assertStringNotContainsString('composer test:random', $result['output']);
+    }
+
+    #[Test]
+    public function a_shard_missing_suites_is_rejected_not_silently_run_unsharded(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+        file_put_contents($path, json_encode([
+            'schema_version' => 1,
+            'mode' => 'targeted',
+            'seed' => 2241,
+            'include' => [
+                ['id' => 1, 'paths' => '', 'empty' => false, 'test_files' => 0, 'expected_seconds' => 0.0, 'fallback_files' => 0],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = $this->runCommand(['--plan=' . $path, '--shard=1']);
+
+        self::assertSame(2, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('suites', $result['output']);
+        // The regression this guards against: falling through to the
+        // unsharded default loop, which lists (or runs) the entire
+        // Unit/Integration/Architecture inventory and exits 0.
+        self::assertStringNotContainsString('Available test suite', $result['output']);
+    }
+
+    #[Test]
+    public function a_shard_with_a_malformed_suite_entry_is_rejected(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+        file_put_contents($path, json_encode([
+            'schema_version' => 1,
+            'mode' => 'targeted',
+            'seed' => 2241,
+            'include' => [
+                ['id' => 1, 'paths' => '', 'suites' => ['Unit' => []], 'empty' => false, 'test_files' => 0, 'expected_seconds' => 0.0, 'fallback_files' => 0],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = $this->runCommand(['--plan=' . $path, '--shard=1']);
+
+        self::assertSame(2, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('malformed suite entry', $result['output']);
+    }
+
+    #[Test]
+    public function a_plan_with_a_null_seed_is_rejected(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+        file_put_contents($path, json_encode([
+            'schema_version' => 1,
+            'mode' => 'targeted',
+            'seed' => null,
+            'include' => [
+                ['id' => 1, 'paths' => '', 'suites' => [], 'empty' => true, 'test_files' => 0, 'expected_seconds' => 0.0, 'fallback_files' => 0],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = $this->runCommand(['--plan=' . $path, '--shard=1']);
+
+        self::assertSame(2, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('no seed', $result['output']);
+    }
+
+    #[Test]
+    public function a_plan_with_a_non_numeric_seed_is_rejected(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+        file_put_contents($path, json_encode([
+            'schema_version' => 1,
+            'mode' => 'targeted',
+            'seed' => 'not-an-integer',
+            'include' => [
+                ['id' => 1, 'paths' => '', 'suites' => [], 'empty' => true, 'test_files' => 0, 'expected_seconds' => 0.0, 'fallback_files' => 0],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = $this->runCommand(['--plan=' . $path, '--shard=1']);
+
+        self::assertSame(2, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('positive integer', $result['output']);
+    }
+
+    #[Test]
+    public function a_missing_plan_file_is_rejected_cleanly(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+
+        $result = $this->runCommand(['--plan=' . $path, '--shard=1']);
+
+        self::assertSame(2, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('missing or unreadable', $result['output']);
+        self::assertStringNotContainsString('Warning', $result['output']);
+        self::assertStringNotContainsString('failed to open stream', $result['output']);
+    }
+
     /** @param array<int, array<string, list<string>>> $shards */
     private function writePlan(int $count, int $seed, array $shards): string
     {

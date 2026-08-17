@@ -44,6 +44,10 @@ if (preg_match('/^[1-9][0-9]*$/', $seed) !== 1 || (int) $seed > 2_147_483_647) {
 
 $planSuites = null;
 if ($planPath !== null) {
+    if (!is_file($planPath) || !is_readable($planPath)) {
+        fwrite(STDERR, "The shard plan file is missing or unreadable: {$planPath}\n");
+        exit(2);
+    }
     try {
         $plan = json_decode((string) file_get_contents($planPath), true, 512, JSON_THROW_ON_ERROR);
     } catch (Throwable $exception) {
@@ -54,10 +58,24 @@ if ($planPath !== null) {
         fwrite(STDERR, "The shard plan must use schema_version 1.\n");
         exit(2);
     }
-    $seed = (string) ($plan['seed'] ?? $seed);
+
+    // One seed for every shard is the determinism guarantee: a missing or
+    // non-numeric plan seed must fail closed, never fall back to a
+    // locally-derived seed that would desynchronize shards from each other.
+    $planSeed = $plan['seed'] ?? null;
+    if ($planSeed === null) {
+        fwrite(STDERR, "The shard plan has no seed; plan mode requires one seed for every shard.\n");
+        exit(2);
+    }
+    $seed = (string) $planSeed;
+    if (preg_match('/^[1-9][0-9]*$/', $seed) !== 1 || (int) $seed > 2_147_483_647) {
+        fwrite(STDERR, "The random-order seed must be a positive integer no greater than 2147483647.\n");
+        exit(2);
+    }
+
     $shard = null;
     foreach ($plan['include'] as $candidate) {
-        if (($candidate['id'] ?? null) === $shardId) {
+        if (is_array($candidate) && ($candidate['id'] ?? null) === $shardId) {
             $shard = $candidate;
             break;
         }
@@ -71,11 +89,37 @@ if ($planPath !== null) {
         echo "shard {$shardId} is empty; no PHPUnit process is required.\n";
         exit(0);
     }
-    $planSuites = $shard['suites'];
+
+    // A truncated artifact must not produce a half-valid run: every suite
+    // must resolve to a non-empty list of non-empty path strings, or the
+    // shard is rejected instead of silently falling through to the
+    // unsharded default loop below (the fail-open this guards against).
+    $shardSuites = $shard['suites'] ?? null;
+    if (!is_array($shardSuites) || $shardSuites === []) {
+        fwrite(STDERR, "Shard {$shardId} has no valid \"suites\" map in the plan.\n");
+        exit(2);
+    }
+    foreach ($shardSuites as $suiteName => $suitePaths) {
+        if (!is_string($suiteName) || $suiteName === '' || !is_array($suitePaths) || $suitePaths === []) {
+            fwrite(STDERR, "Shard {$shardId} has a malformed suite entry in the plan.\n");
+            exit(2);
+        }
+        foreach ($suitePaths as $suitePath) {
+            if (!is_string($suitePath) || $suitePath === '') {
+                fwrite(STDERR, "Shard {$shardId} has a malformed suite entry in the plan.\n");
+                exit(2);
+            }
+        }
+    }
+    $planSuites = $shardSuites;
 }
 
 echo "PHPUnit random-order seed: {$seed}\n";
-echo "Replay: TEST_RANDOM_SEED={$seed} composer test:random\n";
+if ($planPath !== null) {
+    echo "Replay: bin/test-random-order --plan={$planPath} --shard={$shardId}\n";
+} else {
+    echo "Replay: TEST_RANDOM_SEED={$seed} composer test:random\n";
+}
 flush();
 
 $path = getenv('PATH');
