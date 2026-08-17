@@ -260,4 +260,124 @@ final class RandomOrderScopeSelectorTest extends TestCase
         $this->expectExceptionMessageMatches('/duplicate package name/');
         ros_package_graph($root);
     }
+
+    #[Test]
+    public function groups_follow_the_shard_planner(): void
+    {
+        self::assertSame('packages/api', ros_group_of('packages/api/tests/Unit/ATest.php'));
+        self::assertSame('tests/Integration', ros_group_of('tests/Integration/PhaseN/BTest.php'));
+        self::assertSame('tests/Architecture', ros_group_of('tests/Architecture/CTest.php'));
+    }
+
+    #[Test]
+    public function unattributable_files_pin_their_group_into_the_always_run_set(): void
+    {
+        $document = ros_select($this->repoRoot, 'HEAD', 'HEAD', null);
+
+        self::assertContains('tests/Architecture', $document['always_run_groups']);
+        self::assertContains('tests/Integration', $document['always_run_groups']);
+    }
+
+    #[Test]
+    public function attribution_is_ambiguity_intolerant(): void
+    {
+        $graph = ros_package_graph($this->repoRoot);
+
+        $attributed = ros_attribute(
+            'tests/Integration/GraphQL/GraphQlSchemaValidationTest.php',
+            $graph['psr4'],
+            $this->repoRoot,
+        );
+        self::assertNotNull($attributed);
+        self::assertNotSame([], $attributed);
+
+        self::assertNull(
+            ros_attribute('tests/Architecture/CiContractOrderingTest.php', $graph['psr4'], $this->repoRoot),
+            'A repo-state contract test imports no package namespace and must be unattributable.',
+        );
+    }
+
+    #[Test]
+    public function a_selected_file_expands_to_its_complete_group(): void
+    {
+        $document = ros_select($this->repoRoot, 'HEAD', 'HEAD', null);
+        $inventory = ros_inventory($this->repoRoot);
+
+        foreach ($document['selected_groups'] as $group) {
+            $expected = array_values(array_filter(
+                array_keys($inventory),
+                static fn(string $path): bool => ros_group_of($path) === $group,
+            ));
+            foreach ($expected as $path) {
+                self::assertContains(
+                    $path,
+                    $document['selected_paths'],
+                    "Group {$group} was selected, so {$path} must be selected with it.",
+                );
+            }
+        }
+    }
+
+    #[Test]
+    public function the_document_records_its_inputs_and_is_deterministic(): void
+    {
+        $first = ros_select($this->repoRoot, 'HEAD', 'HEAD', null);
+        $second = ros_select($this->repoRoot, 'HEAD', 'HEAD', null);
+
+        self::assertSame($first, $second);
+        foreach (['manifest', 'composer_graph', 'phpunit_config', 'selector'] as $key) {
+            self::assertMatchesRegularExpression('/^sha256:[0-9a-f]{64}$/', $first['digests'][$key]);
+        }
+        self::assertSame(1, $first['schema_version']);
+        self::assertGreaterThan(0, $first['inventory_files']);
+    }
+
+    #[Test]
+    public function an_absent_base_selects_the_complete_inventory_without_erroring(): void
+    {
+        $result = $this->runSelector(['--base=']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        $document = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('full', $document['mode']);
+        self::assertNotNull($document['fallback_reason']);
+        self::assertSame($document['inventory_files'], $document['selected_files']);
+    }
+
+    #[Test]
+    public function an_unreachable_base_selects_the_complete_inventory(): void
+    {
+        $result = $this->runSelector(['--base=0000000000000000000000000000000000000000']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        $document = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('full', $document['mode']);
+    }
+
+    #[Test]
+    public function an_empty_diff_selects_the_complete_inventory(): void
+    {
+        $result = $this->runSelector(['--base=HEAD']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        $document = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('full', $document['mode']);
+        self::assertSame('the diff is empty', $document['fallback_reason']);
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @return array{exit_code: int, output: string}
+     */
+    private function runSelector(array $arguments): array
+    {
+        $command = [PHP_BINARY, $this->repoRoot . '/bin/select-random-order-scope', ...$arguments];
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->repoRoot);
+        self::assertIsResource($process);
+        $output = (string) stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return ['exit_code' => proc_close($process), 'output' => $output];
+    }
 }

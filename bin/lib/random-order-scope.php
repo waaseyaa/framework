@@ -294,3 +294,276 @@ function ros_closure(array $reverse, array $seeds): array
 
     return $closure;
 }
+
+/**
+ * The atomic group a path belongs to (docs/specs/ci-test-selection.md §1,
+ * "the atomic group is the group `bin/build-phpunit-shards` already uses"):
+ * `packages/<name>`, `tests/<TopDir>`, or `tests`.
+ */
+function ros_group_of(string $path): string
+{
+    if (preg_match('#^packages/([^/]+)/#', $path, $matches) === 1) {
+        return 'packages/' . $matches[1];
+    }
+    if (preg_match('#^tests/([^/]+)/#', $path, $matches) === 1) {
+        return 'tests/' . $matches[1];
+    }
+
+    return 'tests';
+}
+
+/**
+ * Discovers the configured test inventory from phpunit.xml.dist. Fail-closed:
+ * an unparsable config or an empty discovered inventory is a RosScopeFailure.
+ *
+ * @return array<string, string> inventory path => suite name
+ */
+function ros_inventory(string $root): array
+{
+    $previous = libxml_use_internal_errors(true);
+    $config = simplexml_load_file($root . '/phpunit.xml.dist', options: LIBXML_NONET | LIBXML_NOBLANKS);
+    libxml_use_internal_errors($previous);
+    if (!$config instanceof SimpleXMLElement) {
+        throw new RosScopeFailure('phpunit.xml.dist is unparsable');
+    }
+
+    $inventory = [];
+    foreach ($config->testsuites->testsuite ?? [] as $suite) {
+        $name = (string) $suite['name'];
+        foreach ($suite->directory as $directory) {
+            foreach (glob($root . '/' . trim((string) $directory), GLOB_ONLYDIR) ?: [] as $matched) {
+                $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($matched, FilesystemIterator::SKIP_DOTS),
+                );
+                foreach ($iterator as $candidate) {
+                    if (!$candidate instanceof SplFileInfo
+                        || !$candidate->isFile()
+                        || $candidate->isLink()
+                        || !str_ends_with($candidate->getPathname(), 'Test.php')
+                    ) {
+                        continue;
+                    }
+                    $relative = substr(str_replace('\\', '/', $candidate->getPathname()), strlen($root) + 1);
+                    if (isset($inventory[$relative]) && $inventory[$relative] !== $name) {
+                        throw new RosScopeFailure(
+                            "test file is assigned to more than one suite: {$relative}",
+                        );
+                    }
+                    $inventory[$relative] = $name;
+                }
+            }
+        }
+        foreach ($suite->file as $file) {
+            $relative = trim((string) $file);
+            if (isset($inventory[$relative]) && $inventory[$relative] !== $name) {
+                throw new RosScopeFailure("test file is assigned to more than one suite: {$relative}");
+            }
+            $inventory[$relative] = $name;
+        }
+    }
+
+    if ($inventory === []) {
+        throw new RosScopeFailure('phpunit.xml.dist discovered no test files');
+    }
+    ksort($inventory);
+
+    return $inventory;
+}
+
+/**
+ * Attributes a `tests/**` file to the packages it imports (docs/specs/ci-test-selection.md
+ * §3.5): each `use Waaseyaa\…` import is mapped to the longest matching PSR-4
+ * prefix. Fails closed to `null` — pinning the file's group into the
+ * always-run set — when the file is unreadable, declares no `Waaseyaa\…`
+ * import, an import matches no declared prefix, or two prefixes of equal
+ * length match.
+ *
+ * @param array<string, string> $psr4
+ * @return list<string>|null null when the file cannot be attributed
+ */
+function ros_attribute(string $path, array $psr4, string $root): ?array
+{
+    $source = @file_get_contents($root . '/' . $path);
+    if ($source === false) {
+        return null;
+    }
+
+    preg_match_all('/^use\s+(Waaseyaa\\\\[A-Za-z0-9_\\\\]+)/m', $source, $matches);
+    if ($matches[1] === []) {
+        return null;
+    }
+
+    $packages = [];
+    foreach ($matches[1] as $import) {
+        $best = null;
+        $bestLength = -1;
+        $tied = false;
+        foreach ($psr4 as $namespace => $package) {
+            if ($import !== $namespace && !str_starts_with($import, $namespace . '\\')) {
+                continue;
+            }
+            $length = strlen($namespace);
+            if ($length > $bestLength) {
+                $best = $package;
+                $bestLength = $length;
+                $tied = false;
+            } elseif ($length === $bestLength && $package !== $best) {
+                $tied = true;
+            }
+        }
+        if ($best === null || $tied) {
+            return null; // unmatched or ambiguous import: fail closed
+        }
+        $packages[$best] = true;
+    }
+
+    $packages = array_keys($packages);
+    sort($packages, SORT_STRING);
+
+    return $packages;
+}
+
+function ros_digest(string ...$paths): string
+{
+    $context = hash_init('sha256');
+    sort($paths, SORT_STRING);
+    foreach ($paths as $path) {
+        hash_update($context, $path);
+        hash_update($context, (string) @file_get_contents($path));
+    }
+
+    return 'sha256:' . hash_final($context);
+}
+
+/** @return array<string, mixed> the selection document of docs/specs/ci-test-selection.md §4 */
+function ros_select(string $root, string $base, string $head, ?string $forcedReason): array
+{
+    $inventory = ros_inventory($root);
+    $graph = ros_package_graph($root);
+
+    $groupPaths = [];
+    $groupPackages = [];
+    $alwaysRun = [];
+    foreach (array_keys($inventory) as $path) {
+        $group = ros_group_of($path);
+        $groupPaths[$group][] = $path;
+        if (preg_match('#^packages/([^/]+)/#', $path, $matches) === 1) {
+            $groupPackages[$group][$matches[1]] = true;
+            continue;
+        }
+        $attributed = ros_attribute($path, $graph['psr4'], $root);
+        if ($attributed === null) {
+            $alwaysRun[$group] = true;
+            continue;
+        }
+        foreach ($attributed as $package) {
+            $groupPackages[$group][$package] = true;
+        }
+    }
+
+    $reason = $forcedReason;
+    $seeds = [];
+    $closure = [];
+    if ($reason === null) {
+        try {
+            $manifest = ros_load_manifest($root);
+            $changed = ros_parse_name_status(ros_diff($root, $base, $head));
+            if ($changed === []) {
+                $reason = 'the diff is empty';
+            } else {
+                $classified = ros_classify($changed, $manifest, $root);
+                $reason = $classified['full_reason'];
+                $seeds = $classified['seeds'];
+                foreach ($changed as $path) {
+                    if (str_starts_with($path, 'tests/')) {
+                        $attributed = ros_attribute($path, $graph['psr4'], $root);
+                        foreach ($attributed ?? [] as $package) {
+                            $seeds[] = $package;
+                        }
+                    }
+                }
+                $seeds = array_values(array_unique($seeds));
+                sort($seeds, SORT_STRING);
+            }
+        } catch (RosScopeFailure $failure) {
+            $reason = $failure->getMessage();
+        }
+    }
+
+    if ($reason === null) {
+        $closure = ros_closure($graph['reverse'], $seeds);
+        $selectedGroups = array_keys($alwaysRun);
+        foreach ($groupPackages as $group => $packages) {
+            if (array_intersect(array_keys($packages), $closure) !== []) {
+                $selectedGroups[] = $group;
+            }
+        }
+    } else {
+        $selectedGroups = array_keys($groupPaths);
+    }
+
+    $selectedGroups = array_values(array_unique($selectedGroups));
+    sort($selectedGroups, SORT_STRING);
+
+    $selectedPaths = [];
+    foreach ($selectedGroups as $group) {
+        foreach ($groupPaths[$group] as $path) {
+            $selectedPaths[] = $path; // atomic expansion: the whole group travels together
+        }
+    }
+    sort($selectedPaths, SORT_STRING);
+
+    $alwaysRunGroups = array_keys($alwaysRun);
+    sort($alwaysRunGroups, SORT_STRING);
+
+    $packageManifests = glob($root . '/packages/*/composer.json') ?: [];
+
+    return [
+        'schema_version' => 1,
+        'mode' => $reason === null ? 'targeted' : 'full',
+        'fallback_reason' => $reason,
+        'base_sha' => $base,
+        'head_sha' => $head,
+        'digests' => [
+            'manifest' => ros_digest($root . '/tools/random-order-scope-manifest.json'),
+            'composer_graph' => ros_digest($root . '/composer.json', ...$packageManifests),
+            'phpunit_config' => ros_digest($root . '/phpunit.xml.dist'),
+            'selector' => ros_digest(
+                $root . '/bin/select-random-order-scope',
+                $root . '/bin/lib/random-order-scope.php',
+            ),
+        ],
+        'seed_packages' => $seeds,
+        'closure_packages' => $closure,
+        'always_run_groups' => $alwaysRunGroups,
+        'selected_groups' => $selectedGroups,
+        'selected_paths' => $selectedPaths,
+        'selected_files' => count($selectedPaths),
+        'inventory_files' => count($inventory),
+    ];
+}
+
+function ros_diff(string $root, string $base, string $head): string
+{
+    if (trim($base) === '') {
+        throw new RosScopeFailure('no diff base was supplied');
+    }
+
+    $process = proc_open(
+        [$root . '/bin/git', '-C', $root, 'diff', '--name-status', '-z', $base . '...' . $head],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+    );
+    if (!is_resource($process)) {
+        throw new RosScopeFailure('git diff could not be started');
+    }
+    $output = (string) stream_get_contents($pipes[1]);
+    $error = trim((string) stream_get_contents($pipes[2]));
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    if (proc_close($process) !== 0) {
+        throw new RosScopeFailure('git diff failed: ' . ($error !== '' ? $error : 'unreachable base'));
+    }
+
+    return $output;
+}

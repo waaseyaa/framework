@@ -1,0 +1,45 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/lib/random-order-scope.php';
+
+$options = getopt('', ['base::', 'head::', 'root::', 'mode::']);
+$root = is_string($options['root'] ?? null) && $options['root'] !== ''
+    ? rtrim((string) $options['root'], '/')
+    : dirname(__DIR__);
+$head = is_string($options['head'] ?? null) && $options['head'] !== '' ? (string) $options['head'] : 'HEAD';
+$mode = $options['mode'] ?? null;
+
+if ($mode !== null && $mode !== 'full') {
+    fwrite(STDERR, "Usage: php bin/select-random-order-scope [--base=<sha>] [--head=<sha>] [--mode=full]\n");
+    exit(2);
+}
+
+$forced = $mode === 'full' ? 'the complete inventory was requested' : null;
+$base = is_string($options['base'] ?? null) ? (string) $options['base'] : '';
+
+try {
+    $document = ros_select($root, $base, $head, $forced);
+} catch (Throwable $exception) {
+    // Never fail the lane on a selector defect: emit a complete-inventory decision.
+    $document = [
+        'schema_version' => 1,
+        'mode' => 'full',
+        'fallback_reason' => 'selector failure: ' . $exception->getMessage(),
+        'base_sha' => $base,
+        'head_sha' => $head,
+        'digests' => [],
+        'seed_packages' => [],
+        'closure_packages' => [],
+        'always_run_groups' => [],
+        'selected_groups' => [],
+        'selected_paths' => [],
+        'selected_files' => 0,
+        'inventory_files' => 0,
+    ];
+}
+
+echo json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT), "\n";
+exit(0);
