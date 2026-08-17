@@ -90,6 +90,10 @@
         },
         {
             "type": "path",
+            "url": "../seo"
+        },
+        {
+            "type": "path",
             "url": "../ssr"
         },
         {
@@ -140,6 +144,7 @@
         "waaseyaa/node": "^0.1.0-alpha.293",
         "waaseyaa/routing": "^0.1.0-alpha.293",
         "waaseyaa/scheduler": "^0.1.0-alpha.293",
+        "waaseyaa/seo": "^0.1.0-alpha.293",
         "waaseyaa/ssr": "^0.1.0-alpha.293",
         "waaseyaa/taxonomy": "^0.1.0-alpha.293",
         "waaseyaa/user": "^0.1.0-alpha.293",

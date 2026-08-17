@@ -25,12 +25,25 @@ final class ManifestBootstrapperTest extends TestCase
         mkdir($this->tempDir . '/storage/framework', 0o755, true);
 
         // Root project declares an app provider (compile() reads this; the stale
-        // cache does not contain it).
+        // cache does not contain it). This MUST be a real, autoload-reachable
+        // Waaseyaa\... class, not a fabricated fixture string: load()'s cached
+        // path (production_uses_the_compiled_cache) merges the root manifest's
+        // declared providers into the cached manifest via
+        // mergeRootWaaseyaaIntoManifest() and then class_exists()-checks every
+        // provider in validateCachedProviders()/assertProvidersExist(). A
+        // non-existent class here throws StaleManifestException and forces a
+        // fresh recompile, silently bypassing the stale-cache trust path this
+        // fixture exists to exercise (found the hard way — a "fabricated
+        // fixture string" rename to App\Seo\SeoServiceProvider broke
+        // production_uses_the_compiled_cache; do not repeat that mistake, and
+        // do not rename this one the way ManifestBootstrapperTest's own
+        // vendor-provider fixture (Waaseyaa\Node\NodeServiceProvider, below)
+        // is not renamed either).
         file_put_contents(
             $this->tempDir . '/composer.json',
             json_encode([
                 'name' => 'app/app',
-                'extra' => ['waaseyaa' => ['providers' => ['App\\Seo\\SeoServiceProvider']]],
+                'extra' => ['waaseyaa' => ['providers' => ['Waaseyaa\\Seo\\SeoServiceProvider']]],
             ], \JSON_THROW_ON_ERROR),
         );
 
@@ -89,7 +102,7 @@ final class ManifestBootstrapperTest extends TestCase
 
         // Fresh compile reads installed.json + root composer, NOT the stale cache.
         self::assertContains('Waaseyaa\\Node\\NodeServiceProvider', $manifest->providers, 'dev must discover vendor providers fresh');
-        self::assertContains('App\\Seo\\SeoServiceProvider', $manifest->providers, 'dev must read root/app providers fresh');
+        self::assertContains('Waaseyaa\\Seo\\SeoServiceProvider', $manifest->providers, 'dev must read root/app providers fresh');
         self::assertArrayNotHasKey('stale_cached_sentinel', $manifest->permissions, 'dev must NOT use the stale cache');
     }
 
