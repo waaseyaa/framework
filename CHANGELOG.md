@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Reconnect the release cut to the current proof system:** `release-cut.yml`
+  last changed on 2026-08-15 and had drifted out of contact with the work that
+  followed it. It still functioned, because `bin/wait-for-green-ci` waits on the
+  whole `ci.yml` workflow rather than on job names that the sharding revision
+  renamed, but it gated a tag on strictly less proof than the repository can
+  produce. Three defects are fixed. The job ran `bin/check-changelog-shape` and
+  `bin/sync-internal-versions` with **no `setup-php` step at all**, inheriting
+  whatever interpreter `ubuntu-latest` happened to ship, while a comment claimed
+  a setup step ran "above"; PHP 8.5 and the `pdo_sqlite, sqlite3, mbstring, xml`
+  extension set are now provisioned explicitly, matching every other release
+  workflow, so a cut cannot run on a different interpreter than the CI that
+  gated it. Release Readiness was never dispatched, so the candidate build and
+  full Playwright sweep played no part in whether a tag could be created; it is
+  now Gate 3 on the exact release SHA. And the release commit now also gets the
+  complete inventory replayed in **one unsharded** random-order process as Gate
+  4: `ci/random-order` shards for wall-clock and a shard only randomises within
+  itself, so the sharded proof cannot observe a cross-shard ordering dependency,
+  and a tag is cheap to gate but expensive to retract. Resolving these required
+  `release.yml` to accept a candidate that is not yet on `main`: release-cut
+  builds and gates its commit on `release-cut/<version>` *before* advancing
+  `main`, so main-reachability made the readiness sweep unable to verify the one
+  commit it most needs to. Acceptance now also allows the **tip** of a
+  `release-cut/*` branch, a namespace only `release-cut.yml` creates and which
+  it deletes on the way out; an arbitrary unmerged commit is still refused.
+  Readiness checkouts additionally moved from the raw dispatch input to the
+  validated `candidate_sha` output, making the validation job load-bearing
+  rather than decorative. `bin/wait-for-green-ci` gained an optional third
+  argument naming the workflow to poll, defaulting to `ci.yml` so every existing
+  call site is unchanged. Every pre-existing control is preserved: exact-SHA CI
+  on both the base and the release commit, the throwaway gate branch, the atomic
+  `main` plus tag push, split fan-out, and no publication until all gates pass.
+  `CiReleaseWorkflowParityTest` pins each new gate and asserts all of them
+  precede the irreversible tag step.
+
 - **Admin-surface refusals carry their status on the wire (#2161):** Every
   `admin_surface.*` endpoint answered a refusal with `HTTP 200` and reported the
   real status only inside the response envelope

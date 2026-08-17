@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: Exact 40-character commit SHA from main to verify
+        description: Exact 40-char SHA to verify (on main, or a release-cut/* gate tip)
         required: true
         type: string
 
@@ -42,11 +42,27 @@ jobs:
             exit 1
           fi
           git fetch --no-tags origin main
+          # Also fetch the release-cut gate namespace. release-cut.yml builds
+          # its release commit on release-cut/<version> and gates it BEFORE
+          # advancing main, so a candidate that is legitimately under test is
+          # by definition not yet reachable from main. Requiring main
+          # reachability made this workflow unable to verify the one commit it
+          # most needs to verify: the exact commit about to be tagged.
+          git fetch --no-tags origin '+refs/heads/release-cut/*:refs/remotes/origin/release-cut/*' || true
           git cat-file -e "$CANDIDATE_SHA^{commit}"
-          git merge-base --is-ancestor "$CANDIDATE_SHA" origin/main || {
-            echo "::error::candidate SHA must be reachable from origin/main"
+
+          if git merge-base --is-ancestor "$CANDIDATE_SHA" origin/main; then
+            echo "::notice::Candidate $CANDIDATE_SHA is reachable from origin/main."
+          elif git for-each-ref --format='%(objectname)' 'refs/remotes/origin/release-cut/*' \
+               | grep -qx "$CANDIDATE_SHA"; then
+            # Deliberately narrow: only the TIP of a release-cut/* branch, a
+            # namespace created solely by release-cut.yml and deleted on the way
+            # out. An arbitrary unmerged commit is still refused.
+            echo "::notice::Candidate $CANDIDATE_SHA is a release-cut gate-branch tip."
+          else
+            echo "::error::candidate SHA must be reachable from origin/main or be the tip of a release-cut/* gate branch"
             exit 1
-          }
+          fi
           echo "candidate_sha=$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
 
   build-release-candidate:
@@ -57,7 +73,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ inputs.sha }}
+          # The validated output, not the raw input: validate-readiness-request
+          # is the job that proves this SHA exists and is an accepted candidate.
+          ref: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -93,7 +111,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.sha }}
+          # The validated output, not the raw input: validate-readiness-request
+          # is the job that proves this SHA exists and is an accepted candidate.
+          ref: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2

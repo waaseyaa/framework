@@ -78,7 +78,12 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertStringContainsString('bash bin/wait-for-green-ci "${SHA}" 2700', $gate);
 
         $greenCiGate = $this->read('bin/wait-for-green-ci');
-        self::assertStringContainsString('actions/workflows/ci.yml/runs?head_sha=${SHA}', $greenCiGate);
+        // The polled workflow is now a parameter so release-cut.yml can also gate
+        // on Release Readiness. The property this guards is unchanged: the run is
+        // selected by EXACT head_sha, and the default is still ci.yml, so every
+        // pre-existing two-argument call site keeps its original meaning.
+        self::assertStringContainsString('WORKFLOW="${3:-ci.yml}"', $greenCiGate);
+        self::assertStringContainsString('actions/workflows/${WORKFLOW}/runs?head_sha=${SHA}', $greenCiGate);
         self::assertStringContainsString('if [ "$conclusion" = "success" ]', $greenCiGate);
         self::assertStringContainsString('if [ "$TIMEOUT" = "0" ]', $greenCiGate);
 
@@ -114,6 +119,56 @@ final class CiReleaseWorkflowParityTest extends TestCase
         );
     }
 
+    /**
+     * The cut must gate on every proof the repository has, at the exact commit.
+     *
+     * `release-cut.yml` predates the sharded CI and Release Readiness work and
+     * had drifted out of contact with both: it waited only on `ci.yml`, never
+     * dispatched the readiness sweep, and ran PHP with no `setup-php` step at
+     * all while a stale comment claimed one existed. Each assertion below marks
+     * a way a tag could previously be created with less proof than the
+     * repository is capable of producing.
+     */
+    #[Test]
+    public function release_cut_gates_the_exact_commit_on_every_available_proof(): void
+    {
+        $release = $this->read('.github/workflows/release-cut.yml');
+
+        // PHP is provisioned explicitly, not inherited from the runner image.
+        self::assertStringContainsString('uses: shivammathur/setup-php@', $release);
+        self::assertStringContainsString("php-version: '8.5'", $release);
+        self::assertStringNotContainsString('after the setup-php steps above', $release);
+
+        // Gate 2: the suite, on the exact release SHA.
+        self::assertStringContainsString('gh workflow run ci.yml --ref "release-cut/${VERSION}"', $release);
+        self::assertStringContainsString('bash bin/wait-for-green-ci "$RELEASE_SHA" 2700', $release);
+
+        // Gate 3: Release Readiness, on that same exact SHA.
+        self::assertStringContainsString('gh workflow run release.yml --ref "release-cut/${VERSION}" -f sha="$RELEASE_SHA"', $release);
+        self::assertStringContainsString('bash bin/wait-for-green-ci "$RELEASE_SHA" 3600 release.yml', $release);
+
+        // Gate 4: the complete inventory in ONE unsharded random-order process.
+        // A shard only randomises within itself, so the sharded proof cannot
+        // observe a cross-shard ordering dependency.
+        self::assertStringContainsString('php bin/test-random-order', $release);
+        self::assertStringNotContainsString('php bin/test-random-order --plan', $release);
+
+        // Every gate precedes the irreversible step.
+        $tagStep = strpos($release, 'Tag the gated commit and fast-forward main');
+        self::assertIsInt($tagStep);
+        foreach ([
+            'gh workflow run ci.yml',
+            'gh workflow run release.yml',
+            'php bin/test-random-order',
+        ] as $gate) {
+            self::assertLessThan(
+                $tagStep,
+                strpos($release, $gate),
+                "$gate must run before the tag is created",
+            );
+        }
+    }
+
     #[Test]
     public function release_readiness_is_exact_sha_manual_and_has_no_deployment_authority(): void
     {
@@ -126,7 +181,14 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertStringContainsString('Validate explicit readiness request', $workflow);
         self::assertStringContainsString('^[0-9a-f]{40}$', $workflow);
         self::assertStringContainsString('git merge-base --is-ancestor "$CANDIDATE_SHA" origin/main', $workflow);
-        self::assertStringContainsString('ref: ${{ inputs.sha }}', $workflow);
+        // Acceptance widened to a release-cut/* gate tip so the readiness sweep can
+        // verify the exact commit BEFORE main advances. Narrow by construction: only
+        // a branch tip in that namespace, which only release-cut.yml creates.
+        self::assertStringContainsString('refs/remotes/origin/release-cut/*', $workflow);
+        // Checkout uses the VALIDATED sha, not the raw dispatch input, so the
+        // validation job is load-bearing rather than decorative.
+        self::assertStringContainsString('ref: ${{ needs.validate-readiness-request.outputs.candidate_sha }}', $workflow);
+        self::assertStringNotContainsString('ref: ${{ inputs.sha }}', $workflow);
         self::assertStringContainsString('bash scripts/build-release-candidate.sh', $workflow);
         self::assertStringContainsString('permissions:', $workflow);
         self::assertStringContainsString('contents: read', $workflow);

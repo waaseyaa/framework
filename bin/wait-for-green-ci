@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Release gate helper: block until the CI workflow (ci.yml) has a completed,
-# successful run at the EXACT commit given, or fail.
+# Release gate helper: block until the named workflow (ci.yml by default) has a
+# completed, successful run at the EXACT commit given, or fail.
 #
 # This is the systemic fix for alpha.200–202 shipping red-at-tag: a release
 # tag may only be created on a SHA whose Linux CI run is green. Local
 # (Windows) runs of any gate are advisory only — this helper consults the
 # GitHub Actions API, never the local machine.
 #
-# Usage: wait-for-green-ci <sha> [timeout-seconds]
+# Usage: wait-for-green-ci <sha> [timeout-seconds] [workflow-file]
 #   timeout-seconds: 0 = check once and exit (no polling). Default 1800.
+#   workflow-file:   workflow to poll. Default ci.yml; release-cut.yml also
+#                    passes release.yml to gate on Release Readiness.
 #
 # Auth: uses `gh`, honouring GH_TOKEN/GITHUB_TOKEN. Needs actions:read.
 # Repo: from GITHUB_REPOSITORY (set on Actions runners), else `gh repo view`.
@@ -16,8 +18,12 @@
 # the script also works from Git Bash on Windows for scripts/release.sh.
 set -euo pipefail
 
-SHA="${1:?usage: wait-for-green-ci <sha> [timeout-seconds]}"
+SHA="${1:?usage: wait-for-green-ci <sha> [timeout-seconds] [workflow-file]}"
 TIMEOUT="${2:-1800}"
+# Which workflow must be green. Defaults to ci.yml so every existing call site
+# is unchanged; release-cut.yml also gates on release.yml (Release Readiness)
+# at the exact release commit, and that needs the same exact-SHA polling.
+WORKFLOW="${3:-ci.yml}"
 REPO="${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
 POLL_INTERVAL=20
 
@@ -28,12 +34,12 @@ while :; do
     # Transient API failures are treated as "no answer yet" and polled
     # through; in single-check mode they fail closed.
     run_line=$(gh api \
-        "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=1" \
+        "repos/${REPO}/actions/workflows/${WORKFLOW}/runs?head_sha=${SHA}&per_page=1" \
         --jq 'if (.workflow_runs | length) == 0 then "" else .workflow_runs[0] | [.status, (.conclusion // "pending"), .html_url] | @tsv end' \
         2>/dev/null || true)
 
     if [ -z "$run_line" ]; then
-        echo "wait-for-green-ci: no CI run found yet for ${SHA}"
+        echo "wait-for-green-ci: no ${WORKFLOW} run found yet for ${SHA}"
     else
         IFS=$'\t' read -r run_status conclusion url <<<"$run_line"
 
