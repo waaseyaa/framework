@@ -87,6 +87,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (consumer metapackages) | `docs/roadmap/packagist-publishing-plan.md`, `docs/adr/004-framework-package-collapse.md`, `tests/PackagedForm/README.md` |
 
 | Workflow, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md` |
+| `bin/select-random-order-scope`, `bin/build-phpunit-shards`, `bin/test-random-order`, `tools/random-order-scope-manifest.json`, `.github/workflows/nightly.yml`, the `ci/random-order` lane in `.github/workflows/ci.yml` (changed-package selection, shard planning, random-order proof) | — | `docs/specs/ci-test-selection.md`, `docs/specs/governed-gates.md` |
 | `skills/waaseyaa/app-development/*` | — | — |
 | `skills/waaseyaa/framework-extraction/*` | — | `docs/specs/extraction-log.md` |
 | `docs/audits/*` | — | — |

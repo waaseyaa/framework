@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **CI test-selection contract (#2404):** Added
+  [docs/specs/ci-test-selection.md](docs/specs/ci-test-selection.md), the
+  design contract for fail-closed changed-package selection and random-order
+  sharding. It specifies the selection document, self-protection inputs,
+  consumer closure over `require` and `require-dev`, atomic group expansion,
+  total-and-unique PHPUnit suite assignment, run-scoped dependency artifacts
+  with exact-checkout binding, and the aggregator contract that keeps
+  `ci/random-order` a single required context. Documentation only; no
+  behaviour change yet.
+
 - **Single-execution PHPUnit proof (#2404):** Blocking CI now assigns the
   configured PHP test inventory exactly once across four timing-balanced,
   package-safe shards. Each execution emits both JUnit and Clover evidence;
