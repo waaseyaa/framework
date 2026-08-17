@@ -55,6 +55,87 @@ final class RandomOrderRunnerTest extends TestCase
         self::assertStringContainsString('composer test:random', $workflow);
     }
 
+    #[Test]
+    public function it_replays_a_saved_plan_shard_per_suite(): void
+    {
+        $plan = $this->writePlan(3, 2241, [
+            1 => ['Unit' => ['packages/genealogy/tests/Unit/OneTest.php'], 'Architecture' => ['tests/Architecture/CiContractOrderingTest.php']],
+            2 => [],
+            3 => [],
+        ]);
+
+        $result = $this->runCommand(['--plan=' . $plan, '--shard=1', '--list-suites']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('PHPUnit random-order seed: 2241', $result['output']);
+        self::assertStringContainsString('PHPUnit random-order suite: Unit', $result['output']);
+        self::assertStringContainsString('PHPUnit random-order suite: Architecture', $result['output']);
+    }
+
+    #[Test]
+    public function an_empty_shard_succeeds_without_invoking_phpunit(): void
+    {
+        $plan = $this->writePlan(3, 2241, [1 => ['Unit' => ['packages/genealogy/tests/Unit/OneTest.php']], 2 => [], 3 => []]);
+
+        $result = $this->runCommand(['--plan=' . $plan, '--shard=2']);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('shard 2 is empty', $result['output']);
+        self::assertStringNotContainsString('Available test suite', $result['output']);
+    }
+
+    #[Test]
+    public function an_unknown_shard_is_rejected(): void
+    {
+        $plan = $this->writePlan(3, 2241, [1 => [], 2 => [], 3 => []]);
+
+        $result = $this->runCommand(['--plan=' . $plan, '--shard=9']);
+
+        self::assertSame(2, $result['exit_code']);
+        self::assertStringContainsString('absent from the exact plan', $result['output']);
+    }
+
+    #[Test]
+    public function a_malformed_plan_is_rejected(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+        file_put_contents($path, '{ not json');
+
+        $result = $this->runCommand(['--plan=' . $path, '--shard=1']);
+
+        self::assertSame(2, $result['exit_code']);
+        self::assertStringContainsString('plan', $result['output']);
+    }
+
+    /** @param array<int, array<string, list<string>>> $shards */
+    private function writePlan(int $count, int $seed, array $shards): string
+    {
+        $include = [];
+        for ($id = 1; $id <= $count; ++$id) {
+            $suites = $shards[$id] ?? [];
+            $paths = [];
+            foreach ($suites as $suitePaths) {
+                array_push($paths, ...$suitePaths);
+            }
+            $include[] = [
+                'id' => $id,
+                'paths' => implode("\n", $paths),
+                'suites' => $suites,
+                'empty' => $paths === [],
+                'test_files' => count($paths),
+                'expected_seconds' => 0.0,
+                'fallback_files' => 0,
+            ];
+        }
+        $path = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid('plan', true) . '.json';
+        file_put_contents($path, json_encode(
+            ['schema_version' => 1, 'mode' => 'targeted', 'seed' => $seed, 'include' => $include],
+            JSON_THROW_ON_ERROR,
+        ));
+
+        return $path;
+    }
+
     /** @param list<string> $arguments
      *  @return array{exit_code: int, output: string}
      */

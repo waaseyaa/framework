@@ -6,6 +6,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $seed = null;
 $phpunitArguments = [];
+$planPath = null;
+$shardId = null;
 
 foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
     if (str_starts_with($argument, '--seed=')) {
@@ -14,6 +16,14 @@ foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
             exit(2);
         }
         $seed = substr($argument, strlen('--seed='));
+        continue;
+    }
+    if (str_starts_with($argument, '--plan=')) {
+        $planPath = substr($argument, strlen('--plan='));
+        continue;
+    }
+    if (str_starts_with($argument, '--shard=')) {
+        $shardId = (int) substr($argument, strlen('--shard='));
         continue;
     }
 
@@ -32,6 +42,38 @@ if (preg_match('/^[1-9][0-9]*$/', $seed) !== 1 || (int) $seed > 2_147_483_647) {
     exit(2);
 }
 
+$planSuites = null;
+if ($planPath !== null) {
+    try {
+        $plan = json_decode((string) file_get_contents($planPath), true, 512, JSON_THROW_ON_ERROR);
+    } catch (Throwable $exception) {
+        fwrite(STDERR, "The shard plan is unreadable: {$exception->getMessage()}\n");
+        exit(2);
+    }
+    if (!is_array($plan) || ($plan['schema_version'] ?? null) !== 1 || !is_array($plan['include'] ?? null)) {
+        fwrite(STDERR, "The shard plan must use schema_version 1.\n");
+        exit(2);
+    }
+    $seed = (string) ($plan['seed'] ?? $seed);
+    $shard = null;
+    foreach ($plan['include'] as $candidate) {
+        if (($candidate['id'] ?? null) === $shardId) {
+            $shard = $candidate;
+            break;
+        }
+    }
+    if ($shard === null) {
+        fwrite(STDERR, "Shard id {$shardId} is absent from the exact plan.\n");
+        exit(2);
+    }
+    if (($shard['empty'] ?? false) === true) {
+        echo "PHPUnit random-order seed: {$seed}\n";
+        echo "shard {$shardId} is empty; no PHPUnit process is required.\n";
+        exit(0);
+    }
+    $planSuites = $shard['suites'];
+}
+
 echo "PHPUnit random-order seed: {$seed}\n";
 echo "Replay: TEST_RANDOM_SEED={$seed} composer test:random\n";
 flush();
@@ -45,6 +87,30 @@ $hasExplicitSelection = array_any(
     static fn(string $argument): bool => str_starts_with($argument, '--testsuite')
         || in_array($argument, $selectionArguments, true),
 );
+
+if ($planSuites !== null) {
+    foreach ($planSuites as $suite => $paths) {
+        echo "PHPUnit random-order suite: {$suite}\n";
+        $command = [
+            PHP_BINARY, '-d', 'memory_limit=1G', $root . '/vendor/bin/phpunit',
+            '--no-coverage', '--order-by=random', '--random-order-seed=' . $seed,
+        ];
+        // PHPUnit rejects explicit file arguments together with a
+        // list/discovery command (assertion failure inside
+        // ListTestSuitesCommand). When the caller passed one through,
+        // forward it alone so discovery still succeeds.
+        if (!$hasExplicitSelection) {
+            array_push($command, ...$paths);
+        }
+        array_push($command, ...$phpunitArguments);
+        flush();
+        passthru(implode(' ', array_map(escapeshellarg(...), $command)), $exitCode);
+        if ($exitCode !== 0) {
+            exit($exitCode);
+        }
+    }
+    exit(0);
+}
 
 // A single shuffled process retained every suite's fixtures until exit and
 // exceeded hosted-runner memory for some valid seeds. PHPUnit suites are
