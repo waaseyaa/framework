@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
@@ -31,6 +32,7 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -569,6 +571,145 @@ final class AdminSurfaceServiceProviderTest extends TestCase
             ['mcp' => false, 'wayfinding' => true],
             AdminSurfaceServiceProvider::defaultFeatures(mcpInstalled: false, wayfindingInstalled: true),
         );
+    }
+
+    /**
+     * #2161: a refused admin-surface operation must carry its status on the
+     * status line, not only inside the response envelope.
+     *
+     * The end-to-end matrix lives in
+     * `tests/Integration/AdminSurface/AdminSurfaceRefusalWireStatusTest`, but
+     * integration tests are `#[CoversNothing]` by repository convention and so
+     * contribute no coverage. These cases keep the promotion branch covered by a
+     * test that carries real coverage metadata.
+     */
+    #[Test]
+    public function refusedActionsCarryTheirStatusOnTheWire(): void
+    {
+        $host = $this->createRefusingHost(AdminSurfaceResultData::error(403, 'Access denied', 'Not yours.'));
+
+        $response = $this->dispatchRoute($host, 'admin_surface.action', ['type' => 'article', 'action' => 'create'], 'POST');
+
+        self::assertSame(403, $response->getStatusCode());
+
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse($body['ok']);
+        self::assertSame(403, $body['error']['status']);
+        self::assertSame('Not yours.', $body['error']['detail']);
+        self::assertArrayNotHasKey('statusCode', $body, 'The transport key must not leak into the envelope');
+    }
+
+    #[Test]
+    public function unauthenticatedSessionRequestsReturnARealUnauthorizedStatus(): void
+    {
+        $response = $this->dispatchRoute($this->createTestHost(null), 'admin_surface.session');
+
+        self::assertSame(401, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function successfulOperationsAreLeftAtHttpOk(): void
+    {
+        $response = $this->dispatchRoute($this->host, 'admin_surface.action', ['type' => 'article', 'action' => 'create'], 'POST');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertTrue(json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR)['ok']);
+    }
+
+    /**
+     * `handle*` is overridable, so a host subclass can return an envelope whose
+     * `error.status` is not a promotable 400-599 integer. Passing that through
+     * would reach the `Response` constructor and turn a clean refusal into a
+     * 500, so it must retain the prior behaviour instead.
+     */
+    #[Test]
+    public function refusalsWithAnUnpromotableStatusRetainTheirPreviousBehaviour(): void
+    {
+        $envelope = ['ok' => false, 'error' => ['status' => '403', 'title' => 'Access denied']];
+        $host = $this->createRefusingHost(null, $envelope);
+
+        $response = $this->dispatchRoute($host, 'admin_surface.action', ['type' => 'article', 'action' => 'create'], 'POST');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(
+            $envelope,
+            json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * Drive a registered route closure through a real `ControllerDispatcher`,
+     * the same composition the kernel runs.
+     *
+     * @param array<string, string> $routeParams
+     */
+    private function dispatchRoute(
+        AbstractAdminSurfaceHost $host,
+        string $routeName,
+        array $routeParams = [],
+        string $method = 'GET',
+    ): Response {
+        $router = new WaaseyaaRouter(new RequestContext('', $method));
+        AdminSurfaceServiceProvider::registerRoutes($router, $host);
+
+        $route = $router->getRouteCollection()->get($routeName);
+        self::assertNotNull($route);
+
+        $request = Request::create('/', $method);
+        $request->attributes->set('_controller', $route->getDefault('_controller'));
+        foreach ($routeParams as $name => $value) {
+            $request->attributes->set($name, $value);
+        }
+
+        return new ControllerDispatcher([])->dispatch($request);
+    }
+
+    /**
+     * @param array<string, mixed>|null $rawActionEnvelope Bypasses AdminSurfaceResultData so a
+     *   malformed envelope — reachable when a subclass overrides handleAction — can be exercised.
+     */
+    private function createRefusingHost(
+        ?AdminSurfaceResultData $outcome,
+        ?array $rawActionEnvelope = null,
+    ): AbstractAdminSurfaceHost {
+        return new class ($this->session, $outcome, $rawActionEnvelope) extends AbstractAdminSurfaceHost {
+            /** @param array<string, mixed>|null $rawActionEnvelope */
+            public function __construct(
+                private readonly AdminSurfaceSessionData $session,
+                private readonly ?AdminSurfaceResultData $outcome,
+                private readonly ?array $rawActionEnvelope,
+            ) {}
+
+            public function resolveSession(Request $request): ?AdminSurfaceSessionData
+            {
+                return $this->session;
+            }
+
+            public function buildCatalog(AdminSurfaceSessionData $session): CatalogBuilder
+            {
+                return new CatalogBuilder();
+            }
+
+            public function list(string $type, \Waaseyaa\AdminSurface\Query\SurfaceQuery|array $query = []): AdminSurfaceResultData
+            {
+                return $this->outcome ?? AdminSurfaceResultData::success([]);
+            }
+
+            public function get(string $type, string $id): AdminSurfaceResultData
+            {
+                return $this->outcome ?? AdminSurfaceResultData::success([]);
+            }
+
+            public function action(string $type, string $action, array $payload = []): AdminSurfaceResultData
+            {
+                return $this->outcome ?? AdminSurfaceResultData::success([]);
+            }
+
+            public function handleAction(Request $request, string $type, string $action): array
+            {
+                return $this->rawActionEnvelope ?? parent::handleAction($request, $type, $action);
+            }
+        };
     }
 
     private function createTestHost(?AdminSurfaceSessionData $session): AbstractAdminSurfaceHost
