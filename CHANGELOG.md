@@ -28,6 +28,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ci/random-order` a single required context. Documentation only; no
   behaviour change yet.
 
+- **Targeted, sharded random-order proof (#2404):** On pull requests,
+  `ci/random-order` now selects a fail-closed bounded scope instead of the
+  complete inventory: changed packages plus their consumer closure over
+  `require` and `require-dev` edges, expanded to complete test groups, unioned
+  with an always-run set of groups that contain a file which cannot be
+  attributed to a package. The bounded scope is planned into three
+  timing-balanced shards (`bin/build-phpunit-shards --only`) and replayed with
+  a shared random-order seed (`bin/test-random-order --plan/--shard`). Any
+  unclassified changed path, a change to a selector-input file (the selector,
+  planner, runner, scope manifest, timing data, `phpunit.xml.dist`, any
+  `composer.json`/`composer.lock`, or the CI workflow files), or a malformed
+  or ambiguous dependency graph forces the complete inventory instead; an
+  unattributable test file only pins its own group into the always-run set,
+  it does not by itself force a full run. `main` pushes keep running the
+  complete inventory unconditionally, and a new `nightly.yml` workflow runs
+  the complete suite unsharded once a day (with optional seed-specified manual
+  replay) to restore the cross-shard ordering coverage a matrix necessarily
+  drops — it holds no deployment, release, or publication authority.
+  Dependencies for the shard matrix are installed once in a
+  `prepare-random-order-plan` job and archived; each shard verifies the
+  archive's checksum, platform requirements, and per-package symlink
+  integrity against its own checkout before extracting it, falling back to a
+  locked `composer install` on any mismatch.
+
 - **Single-execution PHPUnit proof (#2404):** Blocking CI now assigns the
   configured PHP test inventory exactly once across four timing-balanced,
   package-safe shards. Each execution emits both JUnit and Clover evidence;
