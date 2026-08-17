@@ -399,24 +399,13 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Select the bounded random-order scope
-        env:
-          SELECTION_BASE: ${{ github.event.pull_request.base.sha || '' }}
-        run: |
-          mkdir -p build/ci
-          if test "${{ github.event_name }}" = pull_request; then
-            php bin/select-random-order-scope --base="$SELECTION_BASE" > build/ci/random-order-scope.json
-          else
-            php bin/select-random-order-scope --mode=full > build/ci/random-order-scope.json
-          fi
-          php -r '$d = json_decode(file_get_contents("build/ci/random-order-scope.json"), true, 512, JSON_THROW_ON_ERROR); printf("::notice title=Random-order scope::%s %d/%d files%s%s", $d["mode"], $d["selected_files"], $d["inventory_files"], $d["fallback_reason"] === null ? "" : " — " . $d["fallback_reason"], PHP_EOL);'
-
       - name: Build the deterministic shard plan
         run: |
+          mkdir -p build/ci
           seed=$(( (GITHUB_RUN_ID % 2147483647) + 1 ))
           echo "::notice title=PHPUnit random-order seed::$seed"
           php bin/build-phpunit-shards --shards=3 --timings=tools/phpunit-timings.json \
-            --only=build/ci/random-order-scope.json --seed="$seed" > build/ci/random-order-plan.json
+            --seed="$seed" > build/ci/random-order-plan.json
 
       - name: Prepare the run-scoped dependency archive
         run: |
@@ -429,7 +418,6 @@ jobs:
         with:
           name: random-order-plan
           path: |
-            build/ci/random-order-scope.json
             build/ci/random-order-plan.json
             build/ci/vendor.tar
             build/ci/vendor.tar.sha256

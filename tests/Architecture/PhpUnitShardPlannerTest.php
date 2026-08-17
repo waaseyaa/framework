@@ -133,30 +133,6 @@ final class PhpUnitShardPlannerTest extends TestCase
     }
 
     #[Test]
-    public function onlyRestrictsThenReexpandsToCompleteGroups(): void
-    {
-        $selection = $this->writeSelection(['packages/genealogy/tests/Unit/GenealogyContentAccessPolicyTest.php']);
-        $plan = $this->plan(['--only=' . $selection]);
-
-        self::assertSame('targeted', $plan['mode']);
-        $paths = $this->allPaths($plan);
-        foreach ($paths as $path) {
-            self::assertStringStartsWith('packages/genealogy/', $path);
-        }
-        self::assertGreaterThan(1, count($paths), 'The planner re-expands to the complete group.');
-    }
-
-    #[Test]
-    public function onlyRefusesAPathAbsentFromTheInventory(): void
-    {
-        $selection = $this->writeSelection(['packages/genealogy/tests/Unit/GhostTest.php']);
-        $result = $this->runOnly(['--only=' . $selection]);
-
-        self::assertSame(2, $result['exit']);
-        self::assertStringContainsString('absent from the discovered inventory', $result['error']);
-    }
-
-    #[Test]
     public function everyPathResolvesToExactlyOneSuite(): void
     {
         $plan = $this->plan([]);
@@ -175,8 +151,20 @@ final class PhpUnitShardPlannerTest extends TestCase
     #[Test]
     public function anEmptyShardIsDeclaredRatherThanDropped(): void
     {
-        $selection = $this->writeSelection(['packages/genealogy/tests/Unit/GenealogyContentAccessPolicyTest.php']);
-        $plan = $this->plan(['--only=' . $selection, '--shards=3']);
+        // The fixture root's phpunit.xml.dist discovers exactly two groups
+        // (packages/demo, packages/other); requesting three shards against
+        // only two groups guarantees at least one shard receives nothing,
+        // without needing a selection document to narrow the inventory.
+        $timings = $this->fixtureRoot . '/empty-shard-timings.json';
+        file_put_contents($timings, json_encode(['schema_version' => 1, 'files' => []], JSON_THROW_ON_ERROR));
+
+        $result = $this->runPlannerRaw([
+            '--root=' . $this->fixtureRoot,
+            '--timings=' . $timings,
+            '--shards=3',
+        ]);
+        self::assertSame(0, $result['exit'], $result['error']);
+        $plan = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
 
         self::assertCount(3, $plan['include'], 'Every matrix leg must be present.');
         $empty = array_values(array_filter($plan['include'], static fn(array $s): bool => $s['empty'] === true));
@@ -194,28 +182,6 @@ final class PhpUnitShardPlannerTest extends TestCase
 
         self::assertSame(2241, $plan['seed']);
         self::assertMatchesRegularExpression('/^\d+\.\d+/', $plan['phpunit_version']);
-        self::assertSame(1, $plan['selection']['schema_version']);
-        self::assertSame(
-            'no selection document supplied to the planner',
-            $plan['selection']['fallback_reason'],
-            'The synthetic no-`--only` selection must never look like a real full decision with a blank reason.',
-        );
-    }
-
-    #[Test]
-    public function onlyRefusesAGarbledMode(): void
-    {
-        $selection = $this->fixtureRoot . '/garbled-mode-selection.json';
-        file_put_contents($selection, json_encode([
-            'schema_version' => 1,
-            'mode' => 'sideways',
-            'selected_paths' => [],
-        ], JSON_THROW_ON_ERROR));
-
-        $result = $this->runOnly(['--only=' . $selection]);
-
-        self::assertSame(2, $result['exit']);
-        self::assertStringContainsString('mode full or targeted', $result['error']);
     }
 
     #[Test]
@@ -299,13 +265,13 @@ final class PhpUnitShardPlannerTest extends TestCase
 
     /**
      * Runs the planner against the real repository root (not the fixture
-     * root), so `--only` tests exercise the actual phpunit.xml.dist
-     * inventory and the real random-order-scope library.
+     * root) and its committed `tools/phpunit-timings.json`, so tests can
+     * assert against the actual phpunit.xml.dist inventory.
      *
      * @param list<string> $extraArgs
      * @return array{exit: int, output: string, error: string}
      */
-    private function runOnly(array $extraArgs): array
+    private function runAgainstRealRepo(array $extraArgs): array
     {
         $command = array_merge([
             PHP_BINARY,
@@ -329,35 +295,9 @@ final class PhpUnitShardPlannerTest extends TestCase
      */
     private function plan(array $extraArgs): array
     {
-        $result = $this->runOnly($extraArgs);
+        $result = $this->runAgainstRealRepo($extraArgs);
         self::assertSame(0, $result['exit'], $result['error']);
 
         return json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
-    }
-
-    /** @param list<string> $selectedPaths */
-    private function writeSelection(array $selectedPaths): string
-    {
-        $path = $this->fixtureRoot . '/only-selection.json';
-        file_put_contents($path, json_encode([
-            'schema_version' => 1,
-            'mode' => 'targeted',
-            'selected_paths' => $selectedPaths,
-        ], JSON_THROW_ON_ERROR));
-
-        return $path;
-    }
-
-    /** @param array<string, mixed> $plan @return list<string> */
-    private function allPaths(array $plan): array
-    {
-        $paths = [];
-        foreach ($plan['include'] as $shard) {
-            if ($shard['paths'] !== '') {
-                array_push($paths, ...explode("\n", $shard['paths']));
-            }
-        }
-
-        return $paths;
     }
 }

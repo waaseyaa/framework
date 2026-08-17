@@ -133,10 +133,10 @@ final class RandomOrderRunnerTest extends TestCase
         );
         // If the shard's explicit paths stop being forwarded, PHPUnit falls
         // back to the complete configured Architecture suite, which would
-        // additionally run RandomOrderScopeSelectorTest (and every other
+        // additionally run PhpUnitShardPlannerTest (and every other
         // Architecture file) — its presence is the regression signal.
         self::assertStringNotContainsString(
-            'Waaseyaa\Tests\Architecture\RandomOrderScopeSelector',
+            'Waaseyaa\Tests\Architecture\PhpUnitShardPlanner',
             $result['output'],
             'Only the forwarded file may run; the fallback-to-full-suite regression would pull in other files too.',
         );

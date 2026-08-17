@@ -4,7 +4,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$options = getopt('', ['root::', 'timings:', 'shards::', 'pretty', 'only::', 'seed::']);
+$options = getopt('', ['root::', 'timings:', 'shards::', 'pretty', 'seed::']);
 if (is_string($options['root'] ?? null) && $options['root'] !== '') {
     $root = rtrim((string) $options['root'], '/');
 }
@@ -95,70 +95,12 @@ if ($files === []) {
     exit(2);
 }
 
-require_once __DIR__ . '/lib/random-order-scope.php';
-
-$mode = 'full';
-// Synthetic default for the no-`--only` case: there is no real selection
-// decision to embed, so this is not a document ros_select() could ever
-// produce itself (a genuine full document's fallback_reason is always
-// non-null — ros_select() sets mode to 'full' exactly when it has a
-// reason). Giving it an explicit reason instead of `null` keeps that
-// pairing intact, so a consumer reading `mode`/`fallback_reason` out of
-// the plan (spec §9 CI evidence-publishing) can't mistake this for a real
-// selector decision with a blank rationale.
-$selection = ros_document(
-    'full',
-    'no selection document supplied to the planner',
-    '',
-    '',
-    ['inventory_files' => count($files)],
-);
-$onlyPath = $options['only'] ?? '';
-if (is_string($onlyPath) && $onlyPath !== '') {
-    try {
-        $selection = json_decode((string) file_get_contents($onlyPath), true, 512, JSON_THROW_ON_ERROR);
-    } catch (Throwable $exception) {
-        fwrite(STDERR, "Unable to read the selection document: {$exception->getMessage()}\n");
-        exit(2);
-    }
-    if (!is_array($selection)
-        || ($selection['schema_version'] ?? null) !== 1
-        || !is_array($selection['selected_paths'] ?? null)
-        || !in_array($selection['mode'] ?? null, ['full', 'targeted'], true)
-    ) {
-        fwrite(STDERR, "The selection document must use schema_version 1, an array of selected_paths, and mode full or targeted.\n");
-        exit(2);
-    }
-    foreach ($selection['selected_paths'] as $path) {
-        if (!isset($files[$path])) {
-            fwrite(STDERR, "Selected path is absent from the discovered inventory: {$path}\n");
-            exit(2);
-        }
-    }
-    if ($selection['mode'] === 'targeted') {
-        $mode = 'targeted';
-        // Re-expand to complete groups: the planner owns group membership.
-        $selectedGroups = [];
-        foreach ($selection['selected_paths'] as $path) {
-            $selectedGroups[ros_group_of($path)] = true;
-        }
-        foreach (array_keys($files) as $path) {
-            if (!isset($selectedGroups[ros_group_of($path)])) {
-                unset($files[$path]);
-            }
-        }
-    }
-}
-
-if ($files === []) {
-    fwrite(STDERR, "Selection retained no test files.\n");
-    exit(2);
-}
+require_once __DIR__ . '/lib/phpunit-inventory.php';
 
 // Suite assignment must be total and unique.
 try {
     $suiteOf = ros_inventory($root);
-} catch (RosScopeFailure $failure) {
+} catch (PhpUnitInventoryFailure $failure) {
     fwrite(STDERR, "Unable to resolve the PHPUnit suite inventory: {$failure->getMessage()}\n");
     exit(2);
 }
@@ -181,13 +123,7 @@ $fallbackSeconds = $known === [] ? 1.0 : max(0.001, $known[intdiv(count($known),
 /** @var array<string, array{paths: list<string>, seconds: float, fallback_files: int}> $groups */
 $groups = [];
 foreach (array_keys($files) as $path) {
-    if (preg_match('#^packages/([^/]+)/#', $path, $matches) === 1) {
-        $group = 'packages/' . $matches[1];
-    } elseif (preg_match('#^tests/([^/]+)/#', $path, $matches) === 1) {
-        $group = 'tests/' . $matches[1];
-    } else {
-        $group = 'tests';
-    }
+    $group = ros_group_of($path);
     $groups[$group] ??= ['paths' => [], 'seconds' => 0.0, 'fallback_files' => 0];
     $groups[$group]['paths'][] = $path;
     $groups[$group]['seconds'] += $timings[$path] ?? $fallbackSeconds;
@@ -240,14 +176,12 @@ if ($phpunitVersionOutput !== '' && preg_match('/PHPUnit\s+(\S+)/', $phpunitVers
 
 $document = [
     'schema_version' => 1,
-    'mode' => $mode,
     'source' => $timingDocument['source'] ?? null,
     'fallback_seconds' => round($fallbackSeconds, 6),
     'test_files' => count($files),
     'test_groups' => count($groups),
     'timed_files' => count($known),
     'fallback_files' => count($files) - count($known),
-    'selection' => $selection,
     'seed' => isset($options['seed']) ? (int) $options['seed'] : null,
     'phpunit_version' => $phpunitVersion,
     'include' => $matrix,

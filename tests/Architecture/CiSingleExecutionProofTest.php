@@ -45,8 +45,7 @@ final class CiSingleExecutionProofTest extends TestCase
         $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
 
         self::assertStringContainsString('prepare-random-order-plan:', $workflow);
-        self::assertStringContainsString('php bin/select-random-order-scope', $workflow);
-        self::assertStringContainsString('--shards=3', $workflow);
+        self::assertStringContainsString('php bin/build-phpunit-shards --shards=3', $workflow);
         // GitHub's needs.<matrix-job>.result aggregate can prove "every leg
         // that ran succeeded" but cannot express "there were exactly three
         // legs" — so this assertion on the matrix declaration itself is the
