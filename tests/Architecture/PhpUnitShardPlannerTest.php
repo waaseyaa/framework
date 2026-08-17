@@ -132,6 +132,71 @@ final class PhpUnitShardPlannerTest extends TestCase
         ], $document['files']);
     }
 
+    #[Test]
+    public function onlyRestrictsThenReexpandsToCompleteGroups(): void
+    {
+        $selection = $this->writeSelection(['packages/genealogy/tests/Unit/GenealogyContentAccessPolicyTest.php']);
+        $plan = $this->plan(['--only=' . $selection]);
+
+        self::assertSame('targeted', $plan['mode']);
+        $paths = $this->allPaths($plan);
+        foreach ($paths as $path) {
+            self::assertStringStartsWith('packages/genealogy/', $path);
+        }
+        self::assertGreaterThan(1, count($paths), 'The planner re-expands to the complete group.');
+    }
+
+    #[Test]
+    public function onlyRefusesAPathAbsentFromTheInventory(): void
+    {
+        $selection = $this->writeSelection(['packages/genealogy/tests/Unit/GhostTest.php']);
+        $result = $this->runOnly(['--only=' . $selection]);
+
+        self::assertSame(2, $result['exit']);
+        self::assertStringContainsString('absent from the discovered inventory', $result['error']);
+    }
+
+    #[Test]
+    public function everyPathResolvesToExactlyOneSuite(): void
+    {
+        $plan = $this->plan([]);
+        foreach ($plan['include'] as $shard) {
+            $fromSuites = [];
+            foreach ($shard['suites'] as $paths) {
+                array_push($fromSuites, ...$paths);
+            }
+            sort($fromSuites);
+            $declared = $shard['paths'] === '' ? [] : explode("\n", $shard['paths']);
+            sort($declared);
+            self::assertSame($declared, $fromSuites, 'Suite partition must be total and disjoint.');
+        }
+    }
+
+    #[Test]
+    public function anEmptyShardIsDeclaredRatherThanDropped(): void
+    {
+        $selection = $this->writeSelection(['packages/genealogy/tests/Unit/GenealogyContentAccessPolicyTest.php']);
+        $plan = $this->plan(['--only=' . $selection, '--shards=3']);
+
+        self::assertCount(3, $plan['include'], 'Every matrix leg must be present.');
+        $empty = array_values(array_filter($plan['include'], static fn(array $s): bool => $s['empty'] === true));
+        self::assertNotSame([], $empty);
+        foreach ($empty as $shard) {
+            self::assertSame('', $shard['paths']);
+            self::assertSame(0, $shard['test_files']);
+        }
+    }
+
+    #[Test]
+    public function thePlanRecordsItsProvenance(): void
+    {
+        $plan = $this->plan(['--seed=2241']);
+
+        self::assertSame(2241, $plan['seed']);
+        self::assertMatchesRegularExpression('/^\d+\.\d+/', $plan['phpunit_version']);
+        self::assertSame(1, $plan['selection']['schema_version']);
+    }
+
     /** @return array{exit: int, output: string} */
     private function runPlanner(string $timings, int $shards): array
     {
@@ -152,5 +217,69 @@ final class PhpUnitShardPlannerTest extends TestCase
         self::assertSame('', $error);
 
         return ['exit' => $exit, 'output' => (string) $output];
+    }
+
+    /**
+     * Runs the planner against the real repository root (not the fixture
+     * root), so `--only` tests exercise the actual phpunit.xml.dist
+     * inventory and the real random-order-scope library.
+     *
+     * @param list<string> $extraArgs
+     * @return array{exit: int, output: string, error: string}
+     */
+    private function runOnly(array $extraArgs): array
+    {
+        $command = array_merge([
+            PHP_BINARY,
+            dirname(__DIR__, 2) . '/bin/build-phpunit-shards',
+            '--timings=' . dirname(__DIR__, 2) . '/tools/phpunit-timings.json',
+        ], $extraArgs);
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        self::assertIsResource($process);
+        $output = stream_get_contents($pipes[1]);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+
+        return ['exit' => $exit, 'output' => (string) $output, 'error' => (string) $error];
+    }
+
+    /**
+     * @param list<string> $extraArgs
+     * @return array<string, mixed>
+     */
+    private function plan(array $extraArgs): array
+    {
+        $result = $this->runOnly($extraArgs);
+        self::assertSame(0, $result['exit'], $result['error']);
+
+        return json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    /** @param list<string> $selectedPaths */
+    private function writeSelection(array $selectedPaths): string
+    {
+        $path = $this->fixtureRoot . '/only-selection.json';
+        file_put_contents($path, json_encode([
+            'schema_version' => 1,
+            'mode' => 'targeted',
+            'selected_paths' => $selectedPaths,
+        ], JSON_THROW_ON_ERROR));
+
+        return $path;
+    }
+
+    /** @param array<string, mixed> $plan @return list<string> */
+    private function allPaths(array $plan): array
+    {
+        $paths = [];
+        foreach ($plan['include'] as $shard) {
+            if ($shard['paths'] !== '') {
+                array_push($paths, ...explode("\n", $shard['paths']));
+            }
+        }
+
+        return $paths;
     }
 }

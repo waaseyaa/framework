@@ -4,7 +4,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$options = getopt('', ['root::', 'timings:', 'shards::', 'pretty']);
+$options = getopt('', ['root::', 'timings:', 'shards::', 'pretty', 'only::', 'seed::']);
 if (is_string($options['root'] ?? null) && $options['root'] !== '') {
     $root = rtrim((string) $options['root'], '/');
 }
@@ -95,6 +95,65 @@ if ($files === []) {
     exit(2);
 }
 
+require_once __DIR__ . '/lib/random-order-scope.php';
+
+$mode = 'full';
+$selection = ros_document('full', null, '', '', ['inventory_files' => count($files)]);
+$onlyPath = $options['only'] ?? '';
+if (is_string($onlyPath) && $onlyPath !== '') {
+    try {
+        $selection = json_decode((string) file_get_contents($onlyPath), true, 512, JSON_THROW_ON_ERROR);
+    } catch (Throwable $exception) {
+        fwrite(STDERR, "Unable to read the selection document: {$exception->getMessage()}\n");
+        exit(2);
+    }
+    if (!is_array($selection)
+        || ($selection['schema_version'] ?? null) !== 1
+        || !is_array($selection['selected_paths'] ?? null)
+    ) {
+        fwrite(STDERR, "The selection document must use schema_version 1.\n");
+        exit(2);
+    }
+    foreach ($selection['selected_paths'] as $path) {
+        if (!isset($files[$path])) {
+            fwrite(STDERR, "Selected path is absent from the discovered inventory: {$path}\n");
+            exit(2);
+        }
+    }
+    if ($selection['mode'] === 'targeted') {
+        $mode = 'targeted';
+        // Re-expand to complete groups: the planner owns group membership.
+        $selectedGroups = [];
+        foreach ($selection['selected_paths'] as $path) {
+            $selectedGroups[ros_group_of($path)] = true;
+        }
+        foreach (array_keys($files) as $path) {
+            if (!isset($selectedGroups[ros_group_of($path)])) {
+                unset($files[$path]);
+            }
+        }
+    }
+}
+
+if ($files === []) {
+    fwrite(STDERR, "Selection retained no test files.\n");
+    exit(2);
+}
+
+// Suite assignment must be total and unique.
+try {
+    $suiteOf = ros_inventory($root);
+} catch (RosScopeFailure $failure) {
+    fwrite(STDERR, "Unable to resolve the PHPUnit suite inventory: {$failure->getMessage()}\n");
+    exit(2);
+}
+foreach (array_keys($files) as $path) {
+    if (!isset($suiteOf[$path])) {
+        fwrite(STDERR, "Test file resolves to no PHPUnit suite: {$path}\n");
+        exit(2);
+    }
+}
+
 ksort($files);
 $known = array_values(array_intersect_key($timings, $files));
 sort($known, SORT_NUMERIC);
@@ -117,7 +176,7 @@ foreach (array_keys($files) as $path) {
 }
 uksort($groups, static fn(string $left, string $right): int => ($groups[$right]['seconds'] <=> $groups[$left]['seconds']) ?: ($left <=> $right));
 
-$actualShardCount = min($shardCount, count($groups));
+$actualShardCount = $shardCount;
 /** @var list<array{id: int, paths: list<string>, expected_seconds: float, fallback_files: int}> $shards */
 $shards = [];
 for ($id = 1; $id <= $actualShardCount; ++$id) {
@@ -134,24 +193,44 @@ usort($shards, static fn(array $left, array $right): int => $left['id'] <=> $rig
 $matrix = [];
 foreach ($shards as $shard) {
     sort($shard['paths'], SORT_STRING);
+
+    $suites = [];
+    foreach ($shard['paths'] as $path) {
+        $suites[$suiteOf[$path]][] = $path;
+    }
+    ksort($suites);
+
     $matrix[] = [
         'id' => $shard['id'],
         'paths' => implode("\n", $shard['paths']),
+        'suites' => $suites,
+        'empty' => $shard['paths'] === [],
         'test_files' => count($shard['paths']),
         'expected_seconds' => round($shard['expected_seconds'], 6),
         'fallback_files' => $shard['fallback_files'],
     ];
 }
 
+$phpunitVersionOutput = trim((string) shell_exec(
+    escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/vendor/bin/phpunit') . ' --version 2>/dev/null',
+));
+$phpunitVersion = 'unknown';
+if ($phpunitVersionOutput !== '' && preg_match('/PHPUnit\s+(\S+)/', $phpunitVersionOutput, $versionMatches) === 1) {
+    $phpunitVersion = $versionMatches[1];
+}
+
 $document = [
     'schema_version' => 1,
-    'mode' => 'full',
+    'mode' => $mode,
     'source' => $timingDocument['source'] ?? null,
     'fallback_seconds' => round($fallbackSeconds, 6),
     'test_files' => count($files),
     'test_groups' => count($groups),
     'timed_files' => count($known),
     'fallback_files' => count($files) - count($known),
+    'selection' => $selection,
+    'seed' => isset($options['seed']) ? (int) $options['seed'] : null,
+    'phpunit_version' => $phpunitVersion,
     'include' => $matrix,
 ];
 
