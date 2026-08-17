@@ -115,26 +115,36 @@ final class CiReleaseWorkflowParityTest extends TestCase
     }
 
     #[Test]
-    public function deployment_requires_explicit_exact_sha_dispatch_and_protected_production_intent(): void
+    public function release_readiness_is_exact_sha_manual_and_has_no_deployment_authority(): void
     {
         $workflow = $this->read('.github/workflows/release.yml');
-        $deployScript = $this->read('scripts/deploy.sh');
+        $candidateScript = $this->read('scripts/build-release-candidate.sh');
 
         self::assertStringNotContainsString('  push:', $workflow);
         self::assertStringContainsString('  workflow_dispatch:', $workflow);
         self::assertStringContainsString('sha:', $workflow);
-        self::assertStringContainsString('target:', $workflow);
-        self::assertStringContainsString('allow_untagged_production:', $workflow);
-        self::assertStringContainsString('Validate explicit deployment request', $workflow);
+        self::assertStringContainsString('Validate explicit readiness request', $workflow);
         self::assertStringContainsString('^[0-9a-f]{40}$', $workflow);
-        self::assertStringContainsString('git merge-base --is-ancestor "$DEPLOY_SHA" origin/main', $workflow);
-        self::assertStringContainsString("if: inputs.target == 'production'", $workflow);
-        self::assertStringContainsString('environment: production', $workflow);
+        self::assertStringContainsString('git merge-base --is-ancestor "$CANDIDATE_SHA" origin/main', $workflow);
         self::assertStringContainsString('ref: ${{ inputs.sha }}', $workflow);
+        self::assertStringContainsString('bash scripts/build-release-candidate.sh', $workflow);
+        self::assertStringContainsString('permissions:', $workflow);
+        self::assertStringContainsString('contents: read', $workflow);
+        self::assertStringNotContainsString('environment:', $workflow);
+        self::assertStringNotContainsString('scripts/deploy.sh', $workflow);
+        self::assertStringNotContainsString('scripts/rollback.sh', $workflow);
+        self::assertStringNotContainsString('Promote to production', $workflow);
+        self::assertStringNotContainsString('Create incident issue', $workflow);
+        self::assertFileDoesNotExist($this->repoRoot . '/scripts/deploy.sh');
+        self::assertFileDoesNotExist($this->repoRoot . '/scripts/rollback.sh');
 
-        self::assertStringContainsString('[ "$ENV" = "production" ] && [ "$TAG" = "untagged" ]', $deployScript);
-        self::assertStringContainsString('ALLOW_UNTAGGED_PRODUCTION', $deployScript);
-        self::assertStringContainsString('DEPLOY_EMERGENCY_JUSTIFICATION', $deployScript);
+        self::assertStringContainsString('composer install', $candidateScript);
+        self::assertStringContainsString('--no-dev', $candidateScript);
+        self::assertStringContainsString('required_node_major=', $candidateScript);
+        self::assertStringContainsString('deployment_performed', $candidateScript);
+        self::assertStringContainsString('npm run build', $candidateScript);
+        self::assertStringNotContainsString('|| true', $candidateScript);
+        self::assertStringNotContainsString('|| echo', $candidateScript);
     }
 
     #[Test]

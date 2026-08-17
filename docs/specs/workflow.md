@@ -165,22 +165,24 @@ The workflow:
 
 Failure recovery is clean by construction: if either gate fails, main is untouched and no tag exists. Fix main (normal commits, normal CI), then re-run the cut with the same version. If the final atomic push is rejected because main advanced during the gate, nothing was tagged — re-run the cut.
 
-## Deployment promotion and freezes
+## Release readiness is not deployment
 
-Merging to `main` proves deployability through CI; it is not a deployment.
-`.github/workflows/release.yml` is manual-dispatch only and requires the exact
-40-character SHA of a commit reachable from `origin/main`. A `staging` target
-stops after the staging build and full browser sweep. A `production` target
-must pass the same staging proof and then enter the separately protected GitHub
-production environment before promotion.
+Merging to `main` proves the Framework candidate through CI; it does not deploy
+an application. `.github/workflows/release.yml` is a manual, read-only
+**Release Readiness** verifier. It accepts only an exact 40-character commit
+SHA reachable from `origin/main`, builds that candidate, records bounded
+metadata, and runs the full browser suite. It has no GitHub Environment,
+deployment permission, artifact-promotion transport, rollback action, or
+publication
+authority, or production incident path.
 
-Production normally requires the checked-out commit to carry an exact release
-tag. An emergency untagged promotion is fail-closed unless the operator selects
-the explicit override and supplies an audit justification of at least 20
-characters. The deployment script enforces the same rule independently of the
-workflow. A deployment freeze is therefore verified by the absence of manual
-`Release Pipeline` dispatches; ordinary CI, PR merges, and non-release package
-splits create no staging or production environment record.
+The Framework is a library. Tagging and package publication remain owned by
+the separately governed `release-cut.yml`, split, and Packagist workflows.
+Application staging, production promotion, rollback, and operator recovery
+belong to the consuming application and infrastructure repositories where a
+real immutable artifact and external target exist. A Framework workflow must
+not claim those operations merely because it builds on a hosted runner or
+writes metadata.
 
 The push must use the `SPLIT_GITHUB_TOKEN` PAT, not the default `GITHUB_TOKEN`, because tag pushes by `GITHUB_TOKEN` do **not** trigger downstream workflows — and `split.yml` + `packagist-update.yml` are exactly what we need to fire.
 
