@@ -62,6 +62,14 @@ return [
     'jwt_secret' => getenv('WAASEYAA_JWT_SECRET') ?: '',
     // API key map: raw key => uid. Example: ['dev-machine-key' => 1].
     'api_keys' => [],
+    // Optional application-declared operational fields that must stay absent
+    // from every generic Admin and JSON:API read/query surface. Framework
+    // migration bookkeeping is already included; applications add exact
+    // entity-type/field names here rather than configuring each surface.
+    // 'entity' => [
+    //     'internal_fields_by_type' => ['node' => ['legacy_origin']],
+    // ],
+
 
     // Optional closed-world generic JSON:API entity-type policy. When this key
     // is absent, package/app `api: true` declarations retain their current

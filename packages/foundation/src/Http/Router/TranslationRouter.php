@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\TranslationController;
 use Waaseyaa\Api\EntityTypeApiExposurePolicy;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
@@ -35,6 +36,7 @@ final class TranslationRouter implements DomainRouterInterface
         private readonly EntityTypeManager $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
+        private readonly ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -54,7 +56,7 @@ final class TranslationRouter implements DomainRouterInterface
     {
         $ctx = WaaseyaaContext::fromRequest($request);
         $params = $request->attributes->all();
-        $serializer = new ResourceSerializer($this->entityTypeManager, exposurePolicy: $this->exposurePolicy);
+        $serializer = new ResourceSerializer($this->entityTypeManager, exposurePolicy: $this->exposurePolicy, internalFieldVisibility: $this->internalFieldVisibility);
 
         $translationController = new TranslationController(
             $this->entityTypeManager,

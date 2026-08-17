@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\EntityTypeApiExposurePolicy;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
@@ -26,6 +27,7 @@ final class JsonApiRouter implements DomainRouterInterface
         private readonly EntityAccessHandler $accessHandler,
         ?DatabaseInterface $database = null,
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
+        private readonly ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {
         // Retained for positional compatibility with existing construction
         // sites; JSON:API storage is resolved through EntityTypeManager.
@@ -78,7 +80,7 @@ final class JsonApiRouter implements DomainRouterInterface
 
         $ctx = WaaseyaaContext::fromRequest($request);
         $params = $request->attributes->all();
-        $serializer = new ResourceSerializer($this->entityTypeManager, exposurePolicy: $this->exposurePolicy);
+        $serializer = new ResourceSerializer($this->entityTypeManager, exposurePolicy: $this->exposurePolicy, internalFieldVisibility: $this->internalFieldVisibility);
 
         $jsonApiController = new JsonApiController(
             $this->entityTypeManager,
@@ -86,6 +88,7 @@ final class JsonApiRouter implements DomainRouterInterface
             $this->accessHandler,
             $ctx->principal,
             exposurePolicy: $this->exposurePolicy,
+            internalFieldVisibility: $this->internalFieldVisibility,
         );
 
         $entityTypeId = $params['_entity_type'] ?? '';

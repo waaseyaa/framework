@@ -1,4 +1,6 @@
 # App controller invocation (SSR `Class::method`)
+<!-- Spec reviewed 2026-08-16 - #2113: SsrServiceProvider threads the boot-scoped InternalFieldVisibilityPolicy into SsrPageHandler's Markdown ResourceSerializer. This only unifies field projection metadata with Admin/JSON:API; application-controller discovery, argument resolution, invocation, and error behavior are unchanged. -->
+
 
 <!-- Spec reviewed 2026-08-07 - #2291: app controllers gain an opt-in,
 request-scoped redirect surface. Plain controllers may inject

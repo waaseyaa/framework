@@ -42,6 +42,8 @@ final class JsonApiController
      */
     private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
+    private readonly InternalFieldVisibilityPolicy $internalFieldVisibility;
+
     /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -49,7 +51,10 @@ final class JsonApiController
         private readonly ?EntityAccessHandler $accessHandler = null,
         private readonly ?AccountInterface $account = null,
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
-    ) {}
+        ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
+    ) {
+        $this->internalFieldVisibility = $internalFieldVisibility ?? new InternalFieldVisibilityPolicy();
+    }
 
     /**
      * GET collection — list entities of a given type.
@@ -1192,7 +1197,7 @@ final class JsonApiController
         $allowedFields = array_fill_keys(array_keys($fieldDefinitions), true)
             + array_fill_keys(array_values($keys), true);
 
-        $isRejected = static function (string $field) use ($allowedFields, $fieldDefinitions): bool {
+        $isRejected = function (string $field) use ($allowedFields, $fieldDefinitions, $entityTypeId): bool {
             if (!isset($allowedFields[$field])) {
                 return true;
             }
@@ -1201,7 +1206,7 @@ final class JsonApiController
             }
             $definition = $fieldDefinitions[$field] ?? null;
 
-            return $definition !== null && $definition->getSetting('internal') === true;
+            return $this->internalFieldVisibility->isInternal($entityTypeId, $field, $definition);
         };
 
         foreach ($parsedQuery->filters as $filter) {

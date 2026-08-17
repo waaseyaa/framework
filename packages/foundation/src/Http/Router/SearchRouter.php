@@ -10,6 +10,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -29,6 +30,7 @@ final class SearchRouter implements DomainRouterInterface
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
         private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
+        private readonly ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -68,7 +70,7 @@ final class SearchRouter implements DomainRouterInterface
         $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config, $this->secretResolverRegistry);
         assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
         $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
-        $serializer = new ResourceSerializer($this->entityTypeManager);
+        $serializer = new ResourceSerializer($this->entityTypeManager, internalFieldVisibility: $this->internalFieldVisibility);
 
         $searchController = new SearchController(
             entityTypeManager: $this->entityTypeManager,

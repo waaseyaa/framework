@@ -14,28 +14,29 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
+use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceUiPayload;
-use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
+use Waaseyaa\AdminSurface\Query\SurfaceQuery;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\FieldReadLevel;
-use Waaseyaa\Testing\Factory\EntityTypeFactory;
-use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
-use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostTest extends TestCase
@@ -43,7 +44,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function config_entity_lists_use_bounded_hydrated_access_and_keep_rows_read_only(): void
     {
-        $configClass = get_class(new class(['type' => 'page', 'name' => 'Page']) extends ConfigEntityBase {
+        $configClass = get_class(new class (['type' => 'page', 'name' => 'Page']) extends ConfigEntityBase {
             public function __construct(array $values = [])
             {
                 parent::__construct($values, 'test_config', ['id' => 'type', 'label' => 'name']);
@@ -329,7 +330,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
 
-        $host = new class($this->createStub(EntityTypeManagerInterface::class)) extends GenericAdminSurfaceHost {
+        $host = new class ($this->createStub(EntityTypeManagerInterface::class)) extends GenericAdminSurfaceHost {
             protected function buildAdminUi(AccountInterface $account): ?AdminSurfaceUiPayload
             {
                 return AdminSurfaceUiPayload::fromArrays(
@@ -475,7 +476,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     public function build_catalog_marks_config_entities_read_only(): void
     {
         // Use a class that extends ConfigEntityBase
-        $configClass = get_class(new class(['type' => 'test']) extends ConfigEntityBase {
+        $configClass = get_class(new class (['type' => 'test']) extends ConfigEntityBase {
             public function __construct(array $values = [])
             {
                 parent::__construct($values, 'test_config', ['id' => 'type']);
@@ -625,7 +626,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         $host = new GenericAdminSurfaceHost(
             $etm,
-            internalFieldsByType: ['node' => ['wp_status']],
+            internalFieldVisibility: new InternalFieldVisibilityPolicy(['node' => ['wp_status']]),
         );
         $result = $host->action('node', 'schema');
 
@@ -661,7 +662,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         // Mirrors the application-owned host that serves the real browser
         // route: direct construction, with no provider-owned exclusion list.
-        $result = (new GenericAdminSurfaceHost($etm))->action('node', 'schema');
+        $result = new GenericAdminSurfaceHost($etm)->action('node', 'schema');
 
         self::assertTrue($result->ok);
         self::assertArrayNotHasKey('source_status', $result->data['properties']);
@@ -673,7 +674,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->expects(self::once())->method('hasDefinition')->with('node')->willReturn(true);
 
-        $result = (new GenericAdminSurfaceHost($etm))->action('node', 'generate-slug', [
+        $result = new GenericAdminSurfaceHost($etm)->action('node', 'generate-slug', [
             'value' => 'Anishinaabemowin Ākí ᐊᓂᔑᓈᐯᒧᐎᓐ',
         ]);
 
@@ -756,7 +757,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $entity = $this->createStub(EntityInterface::class);
         $entity->method('toArray')->willReturn(['id' => '1']);
         $entity->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'id' => '1', default => null },
+            fn(string $field) => match ($field) {
+                'id' => '1', default => null
+            },
         );
 
         $storage = $this->createStub(EntityStorageInterface::class);
@@ -1106,7 +1109,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $high->method('id')->willReturn(1);
         $high->method('toArray')->willReturn(['id' => 1, 'code' => 'zzz']);
         $high->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'code' => 'zzz', default => null },
+            fn(string $field) => match ($field) {
+                'code' => 'zzz', default => null
+            },
         );
 
         $low = $this->createStub(EntityInterface::class);
@@ -1115,7 +1120,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $low->method('id')->willReturn(2);
         $low->method('toArray')->willReturn(['id' => 2, 'code' => 'aaa']);
         $low->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'code' => 'aaa', default => null },
+            fn(string $field) => match ($field) {
+                'code' => 'aaa', default => null
+            },
         );
 
         $storage = $this->createStub(EntityStorageInterface::class);
@@ -1161,7 +1168,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $ten->method('id')->willReturn(1);
         $ten->method('toArray')->willReturn(['id' => 1, 'n' => '10']);
         $ten->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'n' => '10', default => null },
+            fn(string $field) => match ($field) {
+                'n' => '10', default => null
+            },
         );
 
         $two = $this->createStub(EntityInterface::class);
@@ -1170,7 +1179,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $two->method('id')->willReturn(2);
         $two->method('toArray')->willReturn(['id' => 2, 'n' => '2']);
         $two->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'n' => '2', default => null },
+            fn(string $field) => match ($field) {
+                'n' => '2', default => null
+            },
         );
 
         $storage = $this->createStub(EntityStorageInterface::class);
@@ -1215,7 +1226,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $lead->method('id')->willReturn(1);
         $lead->method('toArray')->willReturn(['id' => 1, 'name' => 'Alice', 'stage' => 'lead']);
         $lead->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'stage' => 'lead', 'name' => 'Alice', default => null },
+            fn(string $field) => match ($field) {
+                'stage' => 'lead', 'name' => 'Alice', default => null
+            },
         );
 
         $qualified = $this->createStub(EntityInterface::class);
@@ -1224,7 +1237,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $qualified->method('id')->willReturn(2);
         $qualified->method('toArray')->willReturn(['id' => 2, 'name' => 'Bob', 'stage' => 'qualified']);
         $qualified->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'stage' => 'qualified', 'name' => 'Bob', default => null },
+            fn(string $field) => match ($field) {
+                'stage' => 'qualified', 'name' => 'Bob', default => null
+            },
         );
 
         $closed = $this->createStub(EntityInterface::class);
@@ -1233,7 +1248,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $closed->method('id')->willReturn(3);
         $closed->method('toArray')->willReturn(['id' => 3, 'name' => 'Carol', 'stage' => 'closed']);
         $closed->method('get')->willReturnCallback(
-            fn(string $field) => match ($field) { 'stage' => 'closed', 'name' => 'Carol', default => null },
+            fn(string $field) => match ($field) {
+                'stage' => 'closed', 'name' => 'Carol', default => null
+            },
         );
 
         $storage = $this->createStub(EntityStorageInterface::class);
@@ -1363,7 +1380,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         );
         $etm->expects(self::never())->method('getRepository');
 
-        $result = (new GenericAdminSurfaceHost($etm))->list('article', new SurfaceQuery(
+        $result = new GenericAdminSurfaceHost($etm)->list('article', new SurfaceQuery(
             filters: [['field' => 'type', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'private']],
             sortField: 'bundle_secret',
         ));
@@ -1472,7 +1489,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     {
         $expectedResult = AdminSurfaceResultData::success(['custom' => true]);
 
-        $handler = new class($expectedResult) implements SurfaceActionHandlerInterface {
+        $handler = new class ($expectedResult) implements SurfaceActionHandlerInterface {
             public function __construct(private readonly AdminSurfaceResultData $result) {}
 
             public function handle(string $type, array $payload): AdminSurfaceResultData
@@ -1485,7 +1502,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
 
         // Use a test subclass to set the protected $actions property
-        $host = new class($etm, $handler) extends GenericAdminSurfaceHost {
+        $host = new class ($etm, $handler) extends GenericAdminSurfaceHost {
             public function __construct(EntityTypeManagerInterface $etm, SurfaceActionHandlerInterface $handler)
             {
                 parent::__construct($etm);
@@ -1542,14 +1559,14 @@ final class GenericAdminSurfaceHostTest extends TestCase
         );
 
         // Register a custom action to confirm it doesn't interfere with built-ins
-        $handler = new class() implements SurfaceActionHandlerInterface {
+        $handler = new class implements SurfaceActionHandlerInterface {
             public function handle(string $type, array $payload): AdminSurfaceResultData
             {
                 return AdminSurfaceResultData::success(['should_not_see' => true]);
             }
         };
 
-        $host = new class($etm, $handler) extends GenericAdminSurfaceHost {
+        $host = new class ($etm, $handler) extends GenericAdminSurfaceHost {
             public function __construct(EntityTypeManagerInterface $etm, SurfaceActionHandlerInterface $handler)
             {
                 parent::__construct($etm);
