@@ -315,7 +315,7 @@ prepare-random-order-plan   needs: [support-contract, spec-drift]
   → ::notice mode, fallback_reason, selected_files/inventory_files
 
 ci-random-order-shard (matrix id: [1,2,3])   needs: [prepare-random-order-plan]
-  → download both artifacts, verify vendor tarball sha256, extract
+  → download the bundled random-order-plan artifact, verify vendor tarball sha256, extract
   → integrity gate (§7.3); on failure, locked composer install instead
   → bin/test-random-order --plan=… --shard=${{ matrix.id }}
 

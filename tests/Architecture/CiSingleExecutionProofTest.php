@@ -47,7 +47,6 @@ final class CiSingleExecutionProofTest extends TestCase
         // only guard against the shard count silently drifting from 3. Keep
         // it in sync with the aggregator's comment in ci.yml.
         self::assertStringContainsString('id: [1, 2, 3]', $workflow);
-        self::assertStringContainsString('name: ci/random-order', $workflow);
         self::assertStringContainsString('bin/test-random-order --plan=', $workflow);
     }
 
@@ -57,6 +56,14 @@ final class CiSingleExecutionProofTest extends TestCase
         $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
         $job = $this->job($workflow, 'ci-random-order', 'ci-package-isolation');
 
+        // Scoped to the aggregator job and matched with a trailing newline:
+        // the shard job's `name: ci/random-order-shard-${{ matrix.id }}`
+        // line shares `name: ci/random-order` as a literal prefix, so a
+        // whole-file or prefix-only match would keep passing even if the
+        // aggregator's own name: line were deleted — the exact regression
+        // this assertion exists to catch on the repo's protected required
+        // context.
+        self::assertStringContainsString("name: ci/random-order\n", $job);
         self::assertStringContainsString('needs: [prepare-random-order-plan, ci-random-order-shard]', $job);
         // `if: always()` alone would publish success after skipped shards —
         // it must be paired with the PLAN_RESULT/SHARD_RESULT checks below.
