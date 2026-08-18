@@ -1124,6 +1124,7 @@ jobs:
   ci-playwright-smoke:
     name: ci/playwright-smoke
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs: [frontend-build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1165,10 +1166,18 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('packages/admin/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/admin/package-lock.json') }}
 
-      - name: Install dependencies and Playwright
-        run: cd packages/admin && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium firefox
+      - name: Install Node dependencies
+        timeout-minutes: 5
+        run: cd packages/admin && npm ci --no-audit --no-fund
+
+      # The hosted Ubuntu image already carries Chromium/Firefox runtime
+      # libraries. Avoid Playwright's --with-deps apt path: a stalled Ubuntu
+      # mirror would otherwise hold this required context for hours.
+      - name: Install Playwright browsers
+        timeout-minutes: 5
+        run: cd packages/admin && npx playwright install chromium firefox
 
       - name: Start PHP backend
         run: |

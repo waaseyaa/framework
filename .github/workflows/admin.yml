@@ -108,6 +108,7 @@ jobs:
   integration:
     name: admin/integration
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -136,8 +137,19 @@ jobs:
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
-      - name: Install dependencies and Playwright
-        run: cd packages/admin && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/admin/package-lock.json') }}
+
+      - name: Install Node dependencies
+        timeout-minutes: 5
+        run: cd packages/admin && npm ci --no-audit --no-fund
+
+      - name: Install Playwright browsers
+        timeout-minutes: 5
+        run: cd packages/admin && npx playwright install chromium
 
       - name: Run Playwright integration tests
         run: cd packages/admin && npx playwright test --project=chromium

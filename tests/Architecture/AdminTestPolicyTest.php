@@ -56,6 +56,29 @@ final class AdminTestPolicyTest extends TestCase
     }
 
     #[Test]
+    public function playwright_jobs_do_not_depend_on_live_os_package_mirrors(): void
+    {
+        $expectations = [
+            'ci.yml' => 'npx playwright install chromium firefox',
+            'admin.yml' => 'npx playwright install chromium',
+            'release.yml' => 'npx playwright install chromium',
+        ];
+
+        foreach ($expectations as $filename => $browserInstall) {
+            $workflow = (string) file_get_contents($this->root . '/.github/workflows/' . $filename);
+
+            self::assertStringNotContainsString('playwright install --with-deps', $workflow, $filename);
+            self::assertStringContainsString($browserInstall, $workflow, $filename);
+            self::assertStringContainsString('path: ~/.cache/ms-playwright', $workflow, $filename);
+            self::assertMatchesRegularExpression(
+                '/name: Install Playwright browsers\R\s+timeout-minutes: 5\R\s+run: cd packages\/admin && npx playwright install/',
+                $workflow,
+                $filename,
+            );
+        }
+    }
+
+    #[Test]
     public function nuxt_developer_tools_are_never_enabled_in_production(): void
     {
         $config = (string) file_get_contents($this->root . '/packages/admin/nuxt.config.ts');
