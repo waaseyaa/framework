@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.294] - 2026-08-18
+
 - **Authenticate the release push as the release App:** The alpha.294 attempt
   (run 32090841133) passed all four gates, minted the App token successfully,
   and was still refused with `GH013`. The App's `always` bypass was correctly
