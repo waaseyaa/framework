@@ -1,0 +1,1 @@
+function e(e){let t=e?.bundle;return typeof t==`string`&&t!==``?t:void 0}export{e as t};

@@ -8,6 +8,12 @@ import { normalizeListMetadata, type ListColumnMetadata } from '~/runtime/normal
 
 const props = defineProps<{
   entityType: string
+  /**
+   * Bundle requested by a deep link (#2418). Applied as a list filter only if
+   * the schema advertises it, so an unknown, stale, or unauthorized value
+   * degrades to the unscoped listing instead of an empty table.
+   */
+  initialBundle?: string
 }>()
 
 const { t } = useLanguage()
@@ -482,9 +488,21 @@ function getEntityLabel(entity: JsonApiResource): string {
   return entity.id
 }
 
+// Seeded after the schema resolves, because bundleOptions is what decides
+// whether the requested value is real. Setting the visible control rather than
+// a hidden filter keeps the scope apparent and reversible: the operator can see
+// they are in a scoped listing and widen it.
+function applyRequestedBundle() {
+  const requested = props.initialBundle
+  if (!requested || !bundleKey.value) return
+  if (!bundleOptions.value?.includes(requested)) return
+  bundleFilter.value = requested
+}
+
 onMounted(async () => {
   await fetchSchema()
   initializeListControls()
+  applyRequestedBundle()
   await fetchEntities()
   if (realtimeEnabled) {
     connect()

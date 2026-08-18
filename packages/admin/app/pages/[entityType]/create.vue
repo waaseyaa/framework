@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
 import { useSchema } from '~/composables/useSchema'
+import { readBundleScope } from '~/runtime/bundleScope'
 
 const route = useRoute()
 const router = useRouter()
 const { t, entityLabel: translateEntityLabel } = useLanguage()
 
 const entityType = computed(() => route.params.entityType as string)
+// A consumer may deep-link "create a post" rather than only "create a node"
+// (#2418). An unusable value degrades to the unscoped create form; whether the
+// bundle is permitted is settled by the schema request SchemaForm makes.
+const requestedBundle = computed(() => readBundleScope(route.query))
 const { schema, fetch: fetchSchema } = useSchema(entityType.value)
 onMounted(() => fetchSchema())
 const entityLabel = computed(() => translateEntityLabel(entityType.value, schema.value?.title ?? entityType.value))
@@ -41,6 +46,7 @@ function onError(message: string) {
 
     <SchemaForm
       :entity-type="entityType"
+      :initial-bundle="requestedBundle"
       @saved="onSaved"
       @error="onError"
     />

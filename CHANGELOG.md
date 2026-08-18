@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Bundle-scoped Admin destinations, generated rather than hand-built:** the
+  framework had no canonical way to address an Admin SPA *page*.
+  `AdminSurfaceRoutePaths` covers only the `_surface` HTTP API, so every
+  consumer linking into the SPA concatenated its own strings and nothing failed
+  when the SPA's routes moved. New `AdminDestinationPaths` generates the list,
+  create, edit, and pipeline destinations, handles its own encoding, and refuses
+  an empty entity type or record id. A test pins each destination to the SPA
+  page file that serves it, so moving a page breaks the build instead of every
+  consumer's links. (#2420)
+- **Admin SPA create and list pages accept a bundle scope:**
+  `/admin/{type}/create?bundle=post` preselects the bundle and
+  `/admin/{type}?bundle=post` filters the listing, so a consumer can address
+  "create a post" and "list only job_posting" rather than only their
+  entity-type-wide equivalents. Both degrade to today's unscoped view when the
+  value is repeated, empty, or not advertised by the schema — the create form
+  drops an unadvertised bundle before requesting it, rather than issuing a
+  scoped schema request the server will refuse, and the listing seeds the
+  visible bundle control so the scope is apparent and reversible rather than
+  applied as a hidden filter. A stale or hand-edited link therefore lands on a
+  working page instead of dead-ending. The query parameter is one contract
+  shared by both halves: `AdminDestinationPaths::QUERY_BUNDLE` and the SPA's
+  `BUNDLE_QUERY_PARAM` are pinned to each other by test. (#2418)
+
 - **Consumer-supplied Admin Surface host registration:**
   `AdminSurfaceServiceProvider::routes()` always constructed a
   `GenericAdminSurfaceHost`, so an application needing custom admin behaviour
