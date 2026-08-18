@@ -243,7 +243,9 @@ final class CiReleaseWorkflowParityTest extends TestCase
 
         $gate4 = strpos($release, 'php bin/test-random-order');
         $mint = strpos($release, 'uses: actions/create-github-app-token@');
-        $push = strpos($release, 'push --atomic origin');
+        // Anchored on `push --atomic`, not `origin`: the release push now targets
+        // an explicit URL so it can carry the App credential.
+        $push = strpos($release, 'push --atomic');
         self::assertIsInt($gate4);
         self::assertIsInt($mint);
         self::assertIsInt($push);
@@ -253,6 +255,22 @@ final class CiReleaseWorkflowParityTest extends TestCase
         // BEFORE the push, never at job start.
         self::assertLessThan($mint, $gate4, 'The token must be minted after the gates, not before them.');
         self::assertLessThan($push, $mint, 'The token must be minted before the atomic push.');
+
+        // The push must actually AUTHENTICATE as the App, which is a separate
+        // thing from minting its token. actions/checkout writes its PAT
+        // credential to the URL-scoped key `http.https://github.com/.extraheader`.
+        // Overriding the unscoped `http.extraheader` leaves that value winning,
+        // so the push goes out as the PAT and the App's bypass is never
+        // exercised. That produced a GH013 rejection that looked exactly like a
+        // bypass misconfiguration (run 32090841133).
+        self::assertStringContainsString('git -c "http.https://github.com/.extraheader="', $release);
+        self::assertStringNotContainsString('-c http.extraheader=', $release);
+        // Credential carried in the push URL, since the scoped header is reset
+        // to the empty list rather than replaced (the key is multi-valued, so
+        // supplying a second value would append another Authorization header).
+        self::assertStringContainsString('https://x-access-token:${RELEASE_TOKEN}@github.com/${REPO}.git', $release);
+        // `origin` stays PAT-authenticated so gate-branch cleanup still works.
+        self::assertStringContainsString('git push origin --delete', $release);
 
         // Missing credentials must fail fast rather than after an hour of gates.
         self::assertStringContainsString('Verify release-identity App credentials', $release);
