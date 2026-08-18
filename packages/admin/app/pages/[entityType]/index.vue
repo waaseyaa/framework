@@ -3,6 +3,7 @@ import { useLanguage } from '~/composables/useLanguage'
 import { useSchema } from '~/composables/useSchema'
 import { useAdmin } from '~/composables/useAdmin'
 import { useApi } from '~/composables/useApi'
+import { readBundleScope } from '~/runtime/bundleScope'
 
 const route = useRoute()
 const { apiFetch } = useApi()
@@ -10,6 +11,9 @@ const { t, entityLabel: translateEntityLabel } = useLanguage()
 const { catalog, getEntity, hasCapability } = useAdmin()
 
 const entityType = computed(() => route.params.entityType as string)
+// A consumer may deep-link "list only job_posting" rather than only "list
+// nodes" (#2418). An unusable value degrades to the unscoped listing.
+const requestedBundle = computed(() => readBundleScope(route.query))
 const { schema, loading, error, fetch: fetchSchema } = useSchema(entityType.value)
 const canCreate = computed(() => hasCapability(entityType.value, 'create'))
 const typeInfo = computed(() => getEntity(entityType.value) ?? null)
@@ -126,7 +130,7 @@ useHead({ title: computed(() => `${entityLabel.value} | ${appName}`) })
 
       <div v-if="actionError" class="error">{{ actionError }}</div>
 
-      <SchemaList :entity-type="entityType" />
+      <SchemaList :entity-type="entityType" :initial-bundle="requestedBundle" />
     </template>
   </div>
 

@@ -37,6 +37,7 @@ client. -->
 <!-- Spec reviewed 2026-07-16 - #2053: one --admin-target-size token gives ordinary authenticated-admin links, buttons, inputs, selects, date controls, autocomplete controls/options, rich-text controls, toggle labels, disclosures, actions, and pagination effective 44 by 44 CSS-pixel targets. Autocomplete clear is an adjacent non-overlapping control; the toggle label owns the effective target while focus and state remain on its native checkbox. Geometry is pinned at 360/768/1024/1440 and 200% text enlargement. -->
 <!-- Spec reviewed 2026-07-16 - #2051: schema listings retain one semantic table/action set, adapt that markup to labelled cards below 600px, contain wider tables in a named scroll region, and use bounded semantic pagination. Generic ordinary controls use 44px targets. Closed mobile navigation is inert/aria-hidden/pointer-disabled; open navigation manages focus, Escape, scroll, backdrop, route, and breakpoint cleanup. Shell boundaries shrink/wrap long content without document overflow. -->
 
+<!-- Spec reviewed 2026-08-18 - #2418 + #2420 bundle-scoped Admin destinations: new Waaseyaa\AdminSurface\AdminDestinationPaths is the canonical generator for Admin SPA page destinations (list/create/edit/pipeline), companion to AdminSurfaceRoutePaths which covers only the _surface HTTP API. It owns its own encoding, refuses an empty entity type or record id, omits an empty bundle rather than emitting `?bundle=`, and makes no access decision. pages/[entityType]/create.vue and index.vue read the scope through app/runtime/bundleScope.ts, whose BUNDLE_QUERY_PARAM is pinned by test to the PHP QUERY_BUNDLE constant, as is each destination's correspondence to its SPA page file. Degradation is contractual: a repeated or blank parameter yields no scope; SchemaForm drops a bundle absent from the base schema's x-bundle-key enum before requesting it, so a stale link degrades to the unscoped create form instead of a refused scoped schema request; SchemaList seeds the visible bundle control (not a hidden filter) only when the value appears in bundleOptions. Per-record History remains without a destination pending #2419/#2421. -->
 <!-- Spec reviewed 2026-08-18 - #2422 consumer-supplied Admin Surface host registration: AdminSurfaceServiceProvider::routes() no longer hardcodes GenericAdminSurfaceHost. It resolves an optional AdminSurfaceHostFactoryInterface binding and registers the canonical admin_surface.* routes against the host the factory returns, falling back to the generic host when none is bound. A factory rather than a host binding because routes() runs after every provider's register(), so an application host may depend on sibling bindings. Paths, HTTP methods, authentication requirements, and the #2161 refusal-status promotion are unchanged and now inherited by application hosts instead of privately reimplemented. Registration happens exactly once; WaaseyaaRouter's duplicate-route-name refusal is retained so an accidental second registration still fails at boot. No SPA-side change. -->
 <!-- Spec reviewed 2026-08-17 - #2161: admin-surface refusals now carry their status on the wire. Every `admin_surface.*` endpoint previously answered a refusal with HTTP 200 and reported the real status only inside the envelope (`{"ok": false, "error": {"status": 403, ...}}`), because all five `AbstractAdminSurfaceHost::handle*` methods return the same flat envelope and all five land on `ControllerDispatcher::handleCallable()`'s `$result['statusCode'] ?? 200` default. `AdminSurfaceServiceProvider::registerRoutes()` wraps each of the five controller closures in the dispatcher's existing `statusCode`/`body` contract, so the status moves to the status line and the JSON envelope is byte-identical. Only a genuine 400-599 integer is promoted: `handle*` is overridable, and an absent, string, or out-of-range status handed to the dispatcher would reach the `Response` constructor and convert a clean refusal into a 500, so anything unrecognised retains the prior behaviour. `admin_surface.session` therefore returns a real 401 when unauthenticated — `AdminSurfaceTransportAdapter.request()` already branches on `!response.ok || !json.ok` and prefers `error.status`, and `plugins/admin.ts` passes `ignoreResponseError: true` so its `error.status === 401` login redirect still runs rather than falling into the bare catch. `admin_surface.page_builder.*` is out of scope: those routes go through `PageBuilderSurfaceHostInterface`, whose handlers are typed as bare `array<string, mixed>`. -->
 
@@ -480,6 +481,49 @@ renders dashboard/custom/catalog navigation plus shell-owned session, locale, an
 logout controls, but omits those static sections. Unknown values normalize to
 `full`. This changes presentation only: route access and every controller policy
 remain unchanged.
+
+**Bundle-scoped destinations (#2418 / #2420).** `AdminSurfaceRoutePaths` is the
+single source for the `_surface` HTTP API; its companion
+`Waaseyaa\AdminSurface\AdminDestinationPaths` is the single source for the SPA's
+own **pages** — the destinations a consumer links to from outside the SPA:
+
+| Generator | Destination | SPA page |
+|---|---|---|
+| `list($type, $bundle = null)` | `/admin/{type}` · `?bundle={b}` | `pages/[entityType]/index.vue` |
+| `create($type, $bundle = null)` | `/admin/{type}/create` · `?bundle={b}` | `pages/[entityType]/create.vue` |
+| `edit($type, $id)` | `/admin/{type}/{id}` | `pages/[entityType]/[id].vue` |
+| `pipeline($type)` | `/admin/{type}/pipeline` | `pages/[entityType]/pipeline.vue` |
+
+Encoding is the generator's job, and an empty entity type or record id is
+refused rather than producing a malformed path. Generating a destination is
+**not** an access decision — callers keep performing their own capability checks,
+exactly as they do today.
+
+The bundle query parameter is one contract spanning PHP and the SPA:
+`AdminDestinationPaths::QUERY_BUNDLE` and `app/runtime/bundleScope.ts`'s
+`BUNDLE_QUERY_PARAM` are pinned to each other by test, as is each destination's
+correspondence to the page file that serves it — moving a page breaks the build
+rather than every consumer's links.
+
+**Degradation is the contract, not a nicety.** A bundle-scoped link can go stale
+or be hand-edited, so both pages fall back to the unscoped view rather than
+erroring:
+
+- `readBundleScope()` accepts only a non-empty string. A repeated parameter
+  arrives as an array and a blank one as an empty string; both mean "no usable
+  scope".
+- `SchemaForm` drops a bundle the base schema does not advertise in its
+  `x-bundle-key` enum **before** requesting it. Issuing a scoped schema request
+  the server will refuse would turn a stale link into an error page, which is
+  the opposite of the requirement. Schemas advertising no enum keep the prior
+  behaviour, there being nothing to check against.
+- `SchemaList` seeds the **visible** bundle control rather than a hidden filter,
+  so a scoped listing is apparent and the operator can widen it. A value outside
+  `bundleOptions`, or an entity type that is not bundle-shaped, lists unscoped.
+
+Per-record **History** has no destination here: it waits on the surface in
+#2419 and its generator entry in #2421. Pointing it at the record editor or the
+type-wide pipeline would promise something neither delivers.
 
 **Consumer-supplied host registration (#2422).** An application replaces the
 default `GenericAdminSurfaceHost` by binding an

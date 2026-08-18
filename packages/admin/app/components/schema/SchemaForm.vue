@@ -94,9 +94,21 @@ onMounted(async () => {
     // content type without duplicating any field/widget implementation.
     await fetchSchema()
     const requestedBundleKey = schema.value?.['x-bundle-key']
-    const requestedBundle = props.initialBundle ?? (requestedBundleKey
+    const candidateBundle = props.initialBundle ?? (requestedBundleKey
       ? props.initialValues?.[requestedBundleKey]
       : undefined)
+    // A bundle-scoped create link (#2418) can go stale or be hand-edited. When
+    // the base schema advertises its registered bundles, a value outside that
+    // set is dropped here rather than sent: requesting a scope the server will
+    // refuse turns a stale link into an error page, where the contract is to
+    // degrade to the unscoped create form. Schemas that advertise no enum keep
+    // the previous behaviour, since there is nothing to check the value against.
+    const advertisedBundles = requestedBundleKey
+      ? schema.value?.properties?.[requestedBundleKey]?.enum
+      : undefined
+    const requestedBundle = advertisedBundles && !advertisedBundles.includes(candidateBundle)
+      ? undefined
+      : candidateBundle
     if (typeof requestedBundle === 'string' && requestedBundle !== '') {
       await fetchSchema({ bundle: requestedBundle })
     }
