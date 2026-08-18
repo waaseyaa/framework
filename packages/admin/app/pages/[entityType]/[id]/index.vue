@@ -159,6 +159,13 @@ function closePreview() {
         >
           {{ t('delete') }}
         </button>
+        <NuxtLink
+          :to="`/${entityType}/${entityId}/history`"
+          class="btn"
+          :data-anchor="`action:${entityType}:history`"
+        >
+          {{ t('history_view') }}
+        </NuxtLink>
         <NuxtLink :to="`/${entityType}`" class="btn">
           {{ t('back_to_list') }}
         </NuxtLink>

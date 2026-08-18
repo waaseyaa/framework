@@ -136,7 +136,6 @@
   "nav_group_other": "Autre",
   "nav_group_custom": "Raccourcis",
   "topbar_links": "Liens rapides",
-
   "entity_type_user": "Utilisateur",
   "entity_type_node": "Contenu",
   "entity_type_node_type": "Type de contenu",
@@ -149,7 +148,6 @@
   "entity_type_path_alias": "Alias de chemin",
   "entity_type_workflow": "Flux de travail",
   "entity_type_pipeline": "Pipeline",
-
   "field_title": "Titre",
   "field_machine_name": "Nom machine",
   "field_published": "Publié",
@@ -164,7 +162,6 @@
   "field_authored_on": "Date de création",
   "field_last_updated": "Dernière mise à jour",
   "field_system_path": "Chemin système",
-
   "create_entity": "Créer {type}",
   "edit_entity": "Modifier {type}",
   "view_entity": "Détails {type}",
@@ -172,7 +169,6 @@
   "no": "Non",
   "field_not_set": "Non défini",
   "close": "Fermer",
-
   "bundle_filter_label": "Faisceau :",
   "bundle_filter_all": "Tous les faisceaux",
   "list_filter_all": "Tous",
@@ -272,5 +268,16 @@
   "page_builder_section_duplicated": "La section a été dupliquée dans une nouvelle révision.",
   "page_builder_section_removed": "La section a été supprimée dans une nouvelle révision.",
   "page_builder_secure_id_unavailable": "Ce navigateur ne peut pas créer un identifiant de contenu sécurisé.",
-  "form_other_details": "Autres détails"
+  "form_other_details": "Autres détails",
+  "history_title": "Historique",
+  "history_for": "Historique de {type}",
+  "history_back_to_record": "Retour à la fiche",
+  "history_unavailable": "L'historique de cette fiche ne vous est pas accessible.",
+  "history_empty": "Aucune révision enregistrée pour le moment.",
+  "history_by": "par",
+  "history_current": "Publiée",
+  "history_latest": "Dernier brouillon",
+  "history_unattributed": "non attribuée",
+  "history_unknown_time": "Heure inconnue",
+  "history_view": "Historique"
 }

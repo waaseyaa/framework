@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Per-record History surface in the Admin SPA:** there was no way to ask "what
+  happened to THIS record". `pages/[entityType]/[id]` is the record editor and
+  `pipeline.vue` answers for the whole entity type, so a History affordance had
+  nowhere to point that would not mislabel one as the other. A new
+  `history` action on `GenericAdminSurfaceHost` returns a record's revisions
+  with their actors, timestamps, and logs, gated by the record's **own view
+  access** and failing closed exactly as `get()` does. It returns revision
+  **metadata only** — never field values — so history cannot become a side
+  channel around the field-access rules the record's read path enforces. A
+  principal who may not view the record receives a refusal and the page renders
+  no history at all, rather than an empty timeline that would itself disclose
+  the record exists. A non-revisionable entity type has no history surface
+  instead of raising. The published revision and the latest draft are reported
+  separately, because they differ whenever a forward draft is in flight — the
+  case an editor most often opens history to understand — and an unattributed
+  revision stays unattributed rather than being reported as the anonymous
+  account. The record page moved from `pages/[entityType]/[id].vue` to
+  `pages/[entityType]/[id]/index.vue` so the history route can be a sibling; its
+  URL is unchanged. (#2419)
+- **History destination in the canonical Admin generator:**
+  `AdminDestinationPaths::history($type, $id)` emits `/admin/{type}/{id}/history`,
+  pinned by test to the SPA page that serves it. Generating the URL grants
+  nothing — the surface is gated server-side. (#2421)
+
 - **Bundle-scoped Admin destinations, generated rather than hand-built:** the
   framework had no canonical way to address an Admin SPA *page*.
   `AdminSurfaceRoutePaths` covers only the `_surface` HTTP API, so every
