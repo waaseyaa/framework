@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Give the release cut a scoped identity and honest push diagnostics:** The
+  alpha.294 attempt (run 32085555641) passed all four gates, including the first
+  live runs of Release Readiness gating and the complete unsharded random-order
+  proof, and was then refused at the final push with
+  `GH013: Repository rule violations found for refs/heads/main`. The
+  `main-protection` ruleset requires pull requests for `main` and its only
+  role-based bypass carries `bypass_mode: "pull_request"`, so no direct push is
+  permitted for any actor. The cut must push directly: the design tags the exact
+  four-gate-tested SHA, and every GitHub merge mode (squash, rebase, merge
+  commit) would rewrite it, so routing through a pull request would mean tagging
+  a commit no gate ever ran against. The final atomic push is now made by a
+  dedicated **Waaseyaa Release Bot** GitHub App, installed only on this
+  repository with `Contents: write` and `Actions: write`, and the only actor
+  granted `always` bypass. Its installation token is minted immediately before
+  the push rather than at job start, because App tokens expire after one hour
+  and Gates 2-4 routinely exceed that. The built-in `GITHUB_TOKEN` is
+  deliberately not used and is now asserted absent: pushes made with it do not
+  trigger downstream workflows, so `split.yml` and `packagist-update.yml` would
+  never fire and a release would tag without publishing. Missing App credentials
+  now fail in the first seconds instead of after an hour of gates. The push
+  failure message, which previously claimed "main likely advanced" for every
+  rejection and actively misdirected this investigation, is replaced by three
+  distinct diagnostics for ruleset rejection, genuine main advancement, and
+  anything else, each stating that nothing was tagged and `main` is untouched.
+  `CiReleaseWorkflowParityTest` pins the release identity, its scoping, the
+  mint-after-gates ordering, and all three diagnostics, and the SHA-pinning
+  audit now covers `actions/create-github-app-token` as the most
+  security-sensitive action in the repository.
+
 - **Carry the S1 dependency-byte authority through the release version sweep:**
   The first alpha.294 cut attempt (run 32081734087) failed at Gate 2, safely and
   by design: no tag was created, `main` was untouched, and nothing split or
