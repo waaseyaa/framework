@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Consumer-supplied Admin Surface host registration:**
+  `AdminSurfaceServiceProvider::routes()` always constructed a
+  `GenericAdminSurfaceHost`, so an application needing custom admin behaviour
+  could not replace it. `registerRoutes()` was public for that purpose, but
+  calling it from a consumer provider *added* a second registration rather than
+  replacing the first, leaving the application to shadow all five canonical
+  paths under different names at a winning priority and to privately
+  reimplement the refusal-status promotion. Bind an
+  `AdminSurfaceHostFactoryInterface` in your provider's `register()` and the
+  framework now registers the canonical `admin_surface.*` routes against your
+  host instead — same paths, methods, and authentication requirements, through
+  the framework's own `promoteRefusalStatus()`, exactly once. A factory rather
+  than the host itself because `routes()` runs after every provider is
+  registered, so the host may depend on sibling bindings. An install that binds
+  no factory keeps the generic host and is unchanged, and the router's
+  duplicate-route refusal is untouched, so an accidental second registration
+  still fails loudly. (#2422)
+
 ## [0.1.0-alpha.294] - 2026-08-18
 
 - **Authenticate the release push as the release App:** The alpha.294 attempt

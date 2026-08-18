@@ -19,6 +19,7 @@ use Waaseyaa\AdminSurface\AdminSurfaceServiceProvider;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
+use Waaseyaa\AdminSurface\Host\AdminSurfaceHostFactoryInterface;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
@@ -59,6 +60,51 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         );
 
         $this->host = $this->createTestHost($this->session);
+    }
+
+    #[Test]
+    public function routesRegistersTheCanonicalRoutesAgainstAnApplicationSuppliedHost(): void
+    {
+        $applicationHost = $this->createTestHost($this->session);
+        $router = $this->routesWithHostFactory(new class ($applicationHost) implements AdminSurfaceHostFactoryInterface {
+            public function __construct(private readonly AbstractAdminSurfaceHost $host) {}
+
+            public function createAdminSurfaceHost(): AbstractAdminSurfaceHost
+            {
+                return $this->host;
+            }
+        });
+
+        $route = $router->getRouteCollection()->get('admin_surface.session');
+        self::assertNotNull($route, 'The canonical session route must still be registered.');
+
+        $request = Request::create('/', 'GET');
+        $request->attributes->set('_controller', $route->getDefault('_controller'));
+        $response = new ControllerDispatcher([])->dispatch($request);
+
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(
+            $this->session->accountName,
+            $body['data']['account']['name'],
+            'A bound factory must supply the host the canonical routes are registered against.',
+        );
+    }
+
+    #[Test]
+    public function routesFallsBackToTheGenericHostWhenNoFactoryIsBound(): void
+    {
+        $router = $this->routesWithHostFactory(null);
+
+        self::assertNotNull(
+            $router->getRouteCollection()->get('admin_surface.session'),
+            'Without a factory the generic host must still serve the canonical routes.',
+        );
+
+        $request = Request::create('/', 'GET');
+        $request->attributes->set('_controller', $router->getRouteCollection()->get('admin_surface.session')?->getDefault('_controller'));
+        $response = new ControllerDispatcher([])->dispatch($request);
+
+        self::assertSame(401, $response->getStatusCode());
     }
 
     #[Test]
@@ -710,6 +756,36 @@ final class AdminSurfaceServiceProviderTest extends TestCase
                 return $this->rawActionEnvelope ?? parent::handleAction($request, $type, $action);
             }
         };
+    }
+
+    /**
+     * Run the real `routes()` entry point with an optional application host factory bound.
+     */
+    private function routesWithHostFactory(?AdminSurfaceHostFactoryInterface $factory): WaaseyaaRouter
+    {
+        $provider = new AdminSurfaceServiceProvider();
+        $provider->setKernelContext(projectRoot: sys_get_temp_dir(), config: [], manifestFormatters: []);
+        $provider->setKernelServices(new class ($factory) implements KernelServicesInterface {
+            public function __construct(private readonly ?AdminSurfaceHostFactoryInterface $factory) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === AdminSurfaceHostFactoryInterface::class ? $this->factory : null;
+            }
+        });
+
+        $entityTypeManager = new \Waaseyaa\Entity\EntityTypeManager(new \Symfony\Component\EventDispatcher\EventDispatcher());
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        ));
+
+        $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
+        $provider->routes($router, $entityTypeManager);
+
+        return $router;
     }
 
     private function createTestHost(?AdminSurfaceSessionData $session): AbstractAdminSurfaceHost
