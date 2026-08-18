@@ -374,16 +374,30 @@ jobs:
 
           ${TAG_MSG}"
 
-          # Push as the release App. actions/checkout installed an
-          # http.extraheader credential for SPLIT_GITHUB_TOKEN, which would
-          # otherwise win over any remote URL credentials, so the header is
-          # overridden for this single command rather than rewritten globally.
-          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$RELEASE_TOKEN" | base64 -w0)"
-
-          # Atomic: main fast-forward + tag land together or not at all.
+          # Push as the release App.
+          #
+          # actions/checkout writes its SPLIT_GITHUB_TOKEN credential to the
+          # URL-SCOPED key `http.https://github.com/.extraheader`. An earlier
+          # attempt set the unscoped `http.extraheader`, which git resolves
+          # separately: the scoped value still won, the push authenticated as the
+          # PAT, and the App's `always` bypass was never exercised. The rejection
+          # looked like a bypass misconfiguration but was a credential-scope bug
+          # (alpha.294 attempt, run 32090841133).
+          #
+          # Two git behaviours make the correct form non-obvious, both documented
+          # under http.extraHeader:
+          #   1. the key is multi-valued, so supplying another value APPENDS a
+          #      second Authorization header rather than replacing the first;
+          #   2. "an empty value will reset the extra headers to the empty list",
+          #      and -c values resolve last, so an empty scoped value clears
+          #      everything checkout set.
+          # Hence: reset the scoped header, then carry the App credential in the
+          # push URL. `origin` is left untouched so the gate-branch cleanup below
+          # still authenticates with the PAT.
           set +e
-          push_output=$(git -c http.extraheader="$auth_header" \
-            push --atomic origin "HEAD:refs/heads/main" "refs/tags/${VERSION}" 2>&1)
+          push_output=$(git -c "http.https://github.com/.extraheader=" \
+            push --atomic "https://x-access-token:${RELEASE_TOKEN}@github.com/${REPO}.git" \
+            "HEAD:refs/heads/main" "refs/tags/${VERSION}" 2>&1)
           push_status=$?
           set -e
           printf '%s\n' "$push_output"

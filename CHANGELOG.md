@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Authenticate the release push as the release App:** The alpha.294 attempt
+  (run 32090841133) passed all four gates, minted the App token successfully,
+  and was still refused with `GH013`. The App's `always` bypass was correctly
+  configured and never exercised: the push authenticated as the PAT instead.
+  `actions/checkout` writes its credential to the URL-scoped key
+  `http.https://github.com/.extraheader`, and the previous change overrode the
+  unscoped `http.extraheader`, which git resolves as a separate setting, so
+  checkout's value still won. Two documented behaviours of `http.extraHeader`
+  make the correct form non-obvious: the key is multi-valued, so supplying
+  another value appends a second `Authorization` header rather than replacing
+  the first, and "an empty value will reset the extra headers to the empty
+  list". The push now resets the scoped header and carries the App credential in
+  the push URL, leaving `origin` PAT-authenticated so gate-branch cleanup still
+  works. Verified on the wire against a local server that challenges with `401`
+  exactly as GitHub does: the old form sent the checkout PAT, the new form sends
+  the App token. `CiReleaseWorkflowParityTest` now pins the scoped reset, the
+  credential-bearing push URL, and the absence of the unscoped override.
+
 - **Give the release cut a scoped identity and honest push diagnostics:** The
   alpha.294 attempt (run 32085555641) passed all four gates, including the first
   live runs of Release Readiness gating and the complete unsharded random-order
