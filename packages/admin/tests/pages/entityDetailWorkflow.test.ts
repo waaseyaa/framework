@@ -53,7 +53,7 @@ const baseSchema = {
 } satisfies EntitySchema
 
 async function mountPage() {
-  const { default: EntityDetailPage } = await import('~/pages/[entityType]/[id].vue')
+  const { default: EntityDetailPage } = await import('~/pages/[entityType]/[id]/index.vue')
   const wrapper = await mountSuspended(EntityDetailPage, {
     global: {
       stubs: {

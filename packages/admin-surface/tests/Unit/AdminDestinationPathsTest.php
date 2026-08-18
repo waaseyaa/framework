@@ -32,6 +32,39 @@ final class AdminDestinationPathsTest extends TestCase
     }
 
     #[Test]
+    public function historyDestinationAddressesOneRecord(): void
+    {
+        self::assertSame('/admin/node/42/history', AdminDestinationPaths::history('node', '42'));
+    }
+
+    /**
+     * History answers for a record; the pipeline answers for the type. Linking
+     * one at the other is precisely the mislabelling #2419 refused to ship.
+     */
+    #[Test]
+    public function historyIsNotThePipelineAndNotTheEditor(): void
+    {
+        $history = AdminDestinationPaths::history('node', '42');
+
+        self::assertNotSame(AdminDestinationPaths::pipeline('node'), $history);
+        self::assertNotSame(AdminDestinationPaths::edit('node', '42'), $history);
+    }
+
+    #[Test]
+    public function historyRefusesAnEmptyRecordId(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        AdminDestinationPaths::history('node', '');
+    }
+
+    #[Test]
+    public function historyEncodesItsPathSegments(): void
+    {
+        self::assertSame('/admin/node/a%20b%2Fc/history', AdminDestinationPaths::history('node', 'a b/c'));
+    }
+
+    #[Test]
     public function pipelineDestinationAddressesTheEntityType(): void
     {
         self::assertSame('/admin/node/pipeline', AdminDestinationPaths::pipeline('node'));
@@ -128,7 +161,8 @@ final class AdminDestinationPathsTest extends TestCase
     {
         yield 'list' => [AdminDestinationPaths::list('node'), '[entityType]/index.vue'];
         yield 'create' => [AdminDestinationPaths::create('node'), '[entityType]/create.vue'];
-        yield 'edit' => [AdminDestinationPaths::edit('node', '1'), '[entityType]/[id].vue'];
+        yield 'edit' => [AdminDestinationPaths::edit('node', '1'), '[entityType]/[id]/index.vue'];
+        yield 'history' => [AdminDestinationPaths::history('node', '1'), '[entityType]/[id]/history.vue'];
         yield 'pipeline' => [AdminDestinationPaths::pipeline('node'), '[entityType]/pipeline.vue'];
     }
 

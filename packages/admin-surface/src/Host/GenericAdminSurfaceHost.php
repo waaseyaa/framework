@@ -23,9 +23,11 @@ use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\DateTime\UtcEntityClock;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Foundation\SlugGenerator;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
@@ -893,8 +895,104 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             'update' => $this->handleUpdate($type, $payload),
             'delete' => $this->handleDelete($type, $payload),
             'generate-slug' => $this->handleGenerateSlug($payload),
+            'history' => $this->handleHistory($type, $payload),
             default => AdminSurfaceResultData::error(400, 'Unknown action', "Action '{$action}' is not supported."),
         };
+    }
+
+    /**
+     * Per-record revision history (#2419).
+     *
+     * Answers "what happened to THIS record", which neither `get()` (the record
+     * editor) nor the type-wide pipeline answers. Two properties are load-bearing:
+     *
+     * - Gated by the record's OWN view access, and fail-closed like `get()`. A
+     *   principal who may not view the record receives a refusal, not an empty
+     *   list: an empty history is itself a disclosure ("this record exists and
+     *   has never been touched").
+     * - **Metadata only.** A revision row carries the record's field values, and
+     *   echoing them here would let history bypass the field-access rules the
+     *   record's own read path enforces. Only revision identity, timestamp,
+     *   actor, log, and current-revision status cross the boundary.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function handleHistory(string $type, array $payload = []): AdminSurfaceResultData
+    {
+        $id = $payload['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            return AdminSurfaceResultData::error(400, 'Missing id', 'A record id is required to read history.');
+        }
+
+        $entity = $this->findByIdOrUuid($type, $id);
+        if ($entity === null) {
+            return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");
+        }
+
+        if (
+            $this->accessHandler === null
+            || $this->currentAccount === null
+            || !$this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed()
+        ) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to view this entity.');
+        }
+
+        try {
+            $revisions = $this->entityTypeManager->getRepository($type)->listRevisions((string) $entity->id());
+        } catch (\LogicException) {
+            // A non-revisionable type has no history surface at all. The
+            // repository raises rather than returning an empty list, and that
+            // must not reach the client as a 500.
+            return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
+        }
+
+        return AdminSurfaceResultData::success([
+            'entityType' => $type,
+            'entityId' => (string) $entity->id(),
+            'revisions' => array_map(self::projectRevision(...), $revisions),
+        ]);
+    }
+
+    /**
+     * Project one revision to metadata.
+     *
+     * `author` stays null when the revision was written without an acting
+     * context and 0 only when the anonymous account acted — collapsing null to
+     * 0 would attribute an unattributed revision to a real account.
+     *
+     * `isCurrent` and `isLatest` are read from the hydrated entity structure
+     * rather than from `isCurrentRevision()`, which reports the *tip* only.
+     * The two differ whenever a forward draft is in flight — the published
+     * revision is not the newest one — and a history view that conflated them
+     * would mislabel exactly the case an editor opens history to understand.
+     *
+     * @return array{revisionId: int|string|null, createdAt: string|null, author: int|null, log: string|null, isCurrent: bool, isLatest: bool}
+     */
+    private static function projectRevision(EntityInterface $revision): array
+    {
+        $revisionable = $revision instanceof RevisionableEntityInterface ? $revision : null;
+        $metadata = $revisionable?->revisionMetadata();
+        $hydrated = $revision instanceof EntityBase && $revision->_hasEntityStructure();
+
+        if ($hydrated) {
+            $structure = $revision->entityStructure();
+            $revisionId = $structure->revisionId;
+            $isCurrent = $structure->defaultRevision;
+            $isLatest = $structure->revisionTip;
+        } else {
+            $revisionId = $revisionable?->revisionId();
+            $isCurrent = false;
+            $isLatest = $revisionable?->isCurrentRevision() ?? false;
+        }
+
+        return [
+            'revisionId' => $revisionId,
+            'createdAt' => $metadata?->revisionCreatedAt->format(\DateTimeInterface::ATOM),
+            'author' => $metadata?->revisionAuthor,
+            'log' => $metadata?->revisionLog,
+            'isCurrent' => $isCurrent,
+            'isLatest' => $isLatest,
+        ];
     }
 
     /**

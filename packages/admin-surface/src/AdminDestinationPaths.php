@@ -75,10 +75,30 @@ final class AdminDestinationPaths
     }
 
     /**
+     * One record's own history surface (#2419).
+     *
+     * Answers for the record, not for the entity type — unlike
+     * {@see self::pipeline()}. Pointing a History affordance at the pipeline or
+     * at the record editor promises something neither delivers, which is why
+     * the affordance was withheld downstream until this destination existed.
+     *
+     * Generating the URL grants nothing: the surface is gated server-side by
+     * the record's own view access, and a principal who may not view the record
+     * gets no history rather than an empty one.
+     *
+     * @param non-empty-string $entityType
+     * @param non-empty-string $id
+     */
+    public static function history(string $entityType, string $id): string
+    {
+        return self::edit($entityType, $id) . '/history';
+    }
+
+    /**
      * The type-wide editorial workflow pipeline.
      *
-     * Answers for the entity type, not for one record. A per-record history
-     * destination is #2421, and waits on the surface in #2419.
+     * Answers for the entity type, not for one record. The per-record
+     * equivalent is {@see self::history()}.
      *
      * @param non-empty-string $entityType
      */
