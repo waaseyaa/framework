@@ -12,6 +12,7 @@ use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
+use Waaseyaa\AdminSurface\Host\AdminSurfaceHostFactoryInterface;
 use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
@@ -33,10 +34,18 @@ use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
  * Works out of the box: auto-discovers entity types and provides full
  * admin CRUD without any app-level configuration.
  *
- * To customize, either:
- * - Extend GenericAdminSurfaceHost and override methods
- * - Implement AbstractAdminSurfaceHost directly
- * Then call registerRoutes() from your own service provider.
+ * To customize, supply your own host:
+ * - Extend GenericAdminSurfaceHost and override methods, or implement
+ *   AbstractAdminSurfaceHost directly.
+ * - Bind an {@see AdminSurfaceHostFactoryInterface} returning it, in your
+ *   service provider's `register()`.
+ *
+ * This provider then registers the canonical `admin_surface.*` routes against
+ * your host instead of the generic one — same paths, same methods, same
+ * authentication requirements, same refusal-status promotion, registered
+ * exactly once. Do not register those paths yourself: the router refuses a
+ * duplicate route name, and shadowing them under different names to win on
+ * priority forks the refusal contract (#2422).
  */
 final class AdminSurfaceServiceProvider extends ServiceProvider
 {
@@ -53,6 +62,58 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
                 $capabilities,
             );
         });
+    }
+
+    /**
+     * The application's own host, when one is supplied.
+     *
+     * Resolved here rather than in `register()` because `routes()` runs after
+     * every provider has registered, so a factory may safely depend on sibling
+     * bindings. Absent a factory the framework keeps the generic host, so an
+     * install that supplies none is unaffected.
+     */
+    private function resolveApplicationHost(): ?AbstractAdminSurfaceHost
+    {
+        $factory = $this->resolveOptional(AdminSurfaceHostFactoryInterface::class);
+
+        return $factory instanceof AdminSurfaceHostFactoryInterface
+            ? $factory->createAdminSurfaceHost()
+            : null;
+    }
+
+    /** The framework default: full admin CRUD with no app-level configuration. */
+    private function buildGenericHost(EntityTypeManagerInterface $entityTypeManager): GenericAdminSurfaceHost
+    {
+        $fieldDefinitionRegistry = $this->resolveOptional(FieldDefinitionRegistryInterface::class);
+        $workflowBindingResolver = $this->resolveOptional(WorkflowBindingResolver::class);
+        $publicationFieldReader = $this->resolveOptional(AdminPublicationFieldReaderInterface::class);
+        $internalFieldVisibility = $this->resolveOptional(InternalFieldVisibilityPolicy::class);
+
+        return new GenericAdminSurfaceHost(
+            entityTypeManager: $entityTypeManager,
+            accessHandler: $this->discoverAccessHandler(),
+            schemaPresenter: new SchemaPresenter(
+                $fieldDefinitionRegistry instanceof FieldDefinitionRegistryInterface
+                    ? $fieldDefinitionRegistry
+                    : null,
+            ),
+            internalFieldVisibility: $internalFieldVisibility instanceof InternalFieldVisibilityPolicy
+                ? $internalFieldVisibility
+                : InternalFieldVisibilityPolicy::fromConfig($this->config),
+            workflowBindingResolver: $workflowBindingResolver instanceof WorkflowBindingResolver
+                ? $workflowBindingResolver
+                : null,
+            publicationFieldReader: $publicationFieldReader instanceof AdminPublicationFieldReaderInterface
+                ? $publicationFieldReader
+                : null,
+            features: self::defaultFeatures(
+                mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
+                wayfindingInstalled: class_exists('Waaseyaa\\Wayfinding\\WayfindingServiceProvider'),
+            ),
+            capabilityAllowlist: self::defaultCapabilityAllowlist(
+                mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
+            ),
+        );
     }
 
     /**
@@ -118,35 +179,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
      */
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
-        $fieldDefinitionRegistry = $this->resolveOptional(FieldDefinitionRegistryInterface::class);
-        $workflowBindingResolver = $this->resolveOptional(WorkflowBindingResolver::class);
-        $publicationFieldReader = $this->resolveOptional(AdminPublicationFieldReaderInterface::class);
-        $internalFieldVisibility = $this->resolveOptional(InternalFieldVisibilityPolicy::class);
-        $host = new GenericAdminSurfaceHost(
-            entityTypeManager: $entityTypeManager,
-            accessHandler: $this->discoverAccessHandler(),
-            schemaPresenter: new SchemaPresenter(
-                $fieldDefinitionRegistry instanceof FieldDefinitionRegistryInterface
-                    ? $fieldDefinitionRegistry
-                    : null,
-            ),
-            internalFieldVisibility: $internalFieldVisibility instanceof InternalFieldVisibilityPolicy
-                ? $internalFieldVisibility
-                : InternalFieldVisibilityPolicy::fromConfig($this->config),
-            workflowBindingResolver: $workflowBindingResolver instanceof WorkflowBindingResolver
-                ? $workflowBindingResolver
-                : null,
-            publicationFieldReader: $publicationFieldReader instanceof AdminPublicationFieldReaderInterface
-                ? $publicationFieldReader
-                : null,
-            features: self::defaultFeatures(
-                mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
-                wayfindingInstalled: class_exists('Waaseyaa\\Wayfinding\\WayfindingServiceProvider'),
-            ),
-            capabilityAllowlist: self::defaultCapabilityAllowlist(
-                mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
-            ),
-        );
+        $host = $this->resolveApplicationHost() ?? $this->buildGenericHost($entityTypeManager);
 
         $pageBuilderHost = $this->resolveOptional(PageBuilderSurfaceHostInterface::class);
         if ($pageBuilderHost instanceof PageBuilderSurfaceHostInterface) {
@@ -237,10 +270,13 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register admin surface routes with a custom host.
+     * Register admin surface routes against a given host.
      *
-     * Call this from your application's service provider if you need
-     * custom admin behavior beyond what GenericAdminSurfaceHost provides.
+     * Called by {@see self::routes()} with either the application's host (see
+     * {@see AdminSurfaceHostFactoryInterface}) or the generic default. Prefer
+     * binding a factory over calling this yourself: `routes()` has already run
+     * by the time an application provider does, so a second call registers the
+     * same names twice and the router refuses it.
      */
     public static function registerRoutes(WaaseyaaRouter $router, AbstractAdminSurfaceHost $host): void
     {

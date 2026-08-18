@@ -37,6 +37,7 @@ client. -->
 <!-- Spec reviewed 2026-07-16 - #2053: one --admin-target-size token gives ordinary authenticated-admin links, buttons, inputs, selects, date controls, autocomplete controls/options, rich-text controls, toggle labels, disclosures, actions, and pagination effective 44 by 44 CSS-pixel targets. Autocomplete clear is an adjacent non-overlapping control; the toggle label owns the effective target while focus and state remain on its native checkbox. Geometry is pinned at 360/768/1024/1440 and 200% text enlargement. -->
 <!-- Spec reviewed 2026-07-16 - #2051: schema listings retain one semantic table/action set, adapt that markup to labelled cards below 600px, contain wider tables in a named scroll region, and use bounded semantic pagination. Generic ordinary controls use 44px targets. Closed mobile navigation is inert/aria-hidden/pointer-disabled; open navigation manages focus, Escape, scroll, backdrop, route, and breakpoint cleanup. Shell boundaries shrink/wrap long content without document overflow. -->
 
+<!-- Spec reviewed 2026-08-18 - #2422 consumer-supplied Admin Surface host registration: AdminSurfaceServiceProvider::routes() no longer hardcodes GenericAdminSurfaceHost. It resolves an optional AdminSurfaceHostFactoryInterface binding and registers the canonical admin_surface.* routes against the host the factory returns, falling back to the generic host when none is bound. A factory rather than a host binding because routes() runs after every provider's register(), so an application host may depend on sibling bindings. Paths, HTTP methods, authentication requirements, and the #2161 refusal-status promotion are unchanged and now inherited by application hosts instead of privately reimplemented. Registration happens exactly once; WaaseyaaRouter's duplicate-route-name refusal is retained so an accidental second registration still fails at boot. No SPA-side change. -->
 <!-- Spec reviewed 2026-08-17 - #2161: admin-surface refusals now carry their status on the wire. Every `admin_surface.*` endpoint previously answered a refusal with HTTP 200 and reported the real status only inside the envelope (`{"ok": false, "error": {"status": 403, ...}}`), because all five `AbstractAdminSurfaceHost::handle*` methods return the same flat envelope and all five land on `ControllerDispatcher::handleCallable()`'s `$result['statusCode'] ?? 200` default. `AdminSurfaceServiceProvider::registerRoutes()` wraps each of the five controller closures in the dispatcher's existing `statusCode`/`body` contract, so the status moves to the status line and the JSON envelope is byte-identical. Only a genuine 400-599 integer is promoted: `handle*` is overridable, and an absent, string, or out-of-range status handed to the dispatcher would reach the `Response` constructor and convert a clean refusal into a 500, so anything unrecognised retains the prior behaviour. `admin_surface.session` therefore returns a real 401 when unauthenticated — `AdminSurfaceTransportAdapter.request()` already branches on `!response.ok || !json.ok` and prefers `error.status`, and `plugins/admin.ts` passes `ignoreResponseError: true` so its `error.status === 401` login redirect still runs rather than falling into the bare catch. `admin_surface.page_builder.*` is out of scope: those routes go through `PageBuilderSurfaceHostInterface`, whose handlers are typed as bare `array<string, mixed>`. -->
 
 <!-- Spec reviewed 2026-08-03 - #2177 F1 C1c prerequisite: server-authoritative session capability projection. AdminSurfaceSession gains optional `capabilities: Record<string, boolean>` (always emitted by the PHP host, `{}` when empty), computed in GenericAdminSurfaceHost::resolveSession() from the resolved immutable principal via hasPermission() over an explicit constructor `$capabilityAllowlist` (strict identifier validation, deduplicated, sorted, hard caps CAPABILITY_ALLOWLIST_MAX=32 / CAPABILITY_IDENTIFIER_MAX_LENGTH=128; malformed or oversized lists throw at construction — never a silent broadening, never permission enumeration). AdminSurfaceServiceProvider::defaultCapabilityAllowlist() projects exactly McpApprovalCapabilities::PERMISSION_VIEW/PERMISSION_DECIDE when the MCP package is installed and nothing on slim installs; `features.mcp` stays installation-wide while `capabilities` is per-account. SPA: the admin plugin threads session capabilities into AdminRuntime.capabilities and useAdmin() exposes the canonical fail-closed `can(permission)` helper (true only for exact boolean true; no role fallback). Server middleware/route permissions remain the enforcement boundary — this is a UI affordance signal only. -->
@@ -479,6 +480,28 @@ renders dashboard/custom/catalog navigation plus shell-owned session, locale, an
 logout controls, but omits those static sections. Unknown values normalize to
 `full`. This changes presentation only: route access and every controller policy
 remain unchanged.
+
+**Consumer-supplied host registration (#2422).** An application replaces the
+default `GenericAdminSurfaceHost` by binding an
+`AdminSurfaceHostFactoryInterface` in its service provider's `register()`.
+`AdminSurfaceServiceProvider::routes()` resolves that factory and registers the
+canonical `admin_surface.*` routes against the host it returns — same paths,
+methods, and authentication requirements, through the framework's own
+`promoteRefusalStatus()`, registered **exactly once**. An install that binds no
+factory keeps the generic host, unchanged.
+
+It is a *factory*, not the host itself, because `routes()` runs after every
+provider has registered (`BuiltinRouteRegistrar`), so a host built there may
+depend on sibling bindings; a host constructed during `register()` cannot.
+Exactly one factory is supported.
+
+Applications must not register those paths themselves. `WaaseyaaRouter::addRoute()`
+refuses a duplicate route name, and the workaround that refusal used to force —
+shadowing all five paths under application-specific names at `->priority(100)`
+and privately reimplementing the refusal-status promotion — forks the refusal
+contract that #2161 established, leaving two implementations only one of which
+framework tests see. That duplicate-route refusal is deliberately retained: an
+accidental second registration still fails loudly at boot.
 
 **Host extension typing (mission #824 WP04 surface C).** `GenericAdminSurfaceHost` and `AdminSurfaceServiceProvider::routes()` accept `Waaseyaa\Entity\EntityTypeManagerInterface`, never the concrete `EntityTypeManager`. Subclasses extending the host receive the interface and must not narrow that parameter. The acceptance gate is `grep -rn 'EntityTypeManager[^I]' packages/admin*` returning no results — re-run it whenever you touch admin-surface code or its tests.
 
