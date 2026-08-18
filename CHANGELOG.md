@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Carry the S1 dependency-byte authority through the release version sweep:**
+  The first alpha.294 cut attempt (run 32081734087) failed at Gate 2, safely and
+  by design: no tag was created, `main` was untouched, and nothing split or
+  published. The cause is structural rather than incidental.
+  `bin/sync-internal-versions` rewrites every `packages/*/composer.json`
+  internal constraint at release time (70 files for alpha.294), which changes
+  the exact package bytes the S1 artifact contracts digest, so the recorded
+  authority in `support/s1-sqlite-dependency-bytes.json` no longer matched and
+  both `S1SqliteTopologyContractTest::exact_candidate_contract_survives_an_installed_artifact_boundary`
+  and `S1SchemaAuthorityContractTest::exact_installed_artifact_reproduces_the_schema_authority_contract_offline`
+  failed on the release commit. Neither the sweep nor the contracts are wrong:
+  the sweep is supposed to change those bytes and the contracts are supposed to
+  notice. The release commit simply has to carry the regenerated authority.
+  alpha.293 predates those contracts, so alpha.294 was the first cut to meet
+  them and every future cut would have failed the same way. `release-cut.yml`
+  now installs dependencies **before** the sweep (the regeneration builds an
+  installed artifact and needs `vendor/`), regenerates the authority **after**
+  the sweep and after `VERSION` is stamped, and stages
+  `support/s1-sqlite-dependency-bytes.json` into the release commit. Staging is
+  load-bearing rather than tidiness: the schema contract "refuses dirty package,
+  lock, dependency-authority, or probe bytes", so an unstaged regeneration fails
+  a different way. `CiReleaseWorkflowParityTest` pins all three orderings and
+  the staging. Verified by simulating the exact step sequence on a throwaway
+  worktree: the swept, regenerated, committed release commit passes both
+  affected contracts and the full Architecture suite, with no tag or
+  publication.
+
 - **Reconnect the release cut to the current proof system:** `release-cut.yml`
   last changed on 2026-08-15 and had drifted out of contact with the work that
   followed it. It still functioned, because `bin/wait-for-green-ci` waits on the

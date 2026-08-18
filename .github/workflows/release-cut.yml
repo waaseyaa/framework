@@ -126,7 +126,7 @@ jobs:
             exit 1
           fi
 
-      - name: "Gate 1/2: require green CI on the release base (main HEAD)"
+      - name: "Gate 1/4: require green CI on the release base (main HEAD)"
         # Fail fast before mutating anything if main is red — this is how the
         # b1 interface stub and the integration-test misses rode into tagged
         # releases (alpha.201/202). Waits out an in-flight run.
@@ -175,6 +175,15 @@ jobs:
           fi
           echo "::notice::[Unreleased] has content."
 
+      - name: Install dependencies
+        # Must run BEFORE the version sweep: the S1 dependency-authority
+        # regeneration below builds an installed artifact and needs vendor/,
+        # and Gate 4 later runs PHPUnit from the same tree. This job previously
+        # installed nothing because it only did git orchestration.
+        uses: ./.github/actions/composer-install-retry
+        with:
+          args: '--no-interaction --prefer-dist --no-progress'
+
       - name: Sync internal waaseyaa/* version constraints
         # bin/sync-internal-versions is produced by WP01 (composer-internal-version-sweep).
         # The script is pure PHP (no composer autoloader required) — only `php` is
@@ -211,6 +220,28 @@ jobs:
             echo "RELEASE_TAG_MSG_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Regenerate the S1 dependency-byte authority for the swept tree
+        # bin/sync-internal-versions rewrites every packages/*/composer.json
+        # internal constraint (70 files for alpha.294), which changes the exact
+        # package bytes the S1 artifact contracts digest. The recorded authority
+        # in support/s1-sqlite-dependency-bytes.json then no longer matches, and
+        # BOTH S1SqliteTopologyContractTest::exact_candidate_contract_survives_an_installed_artifact_boundary
+        # and S1SchemaAuthorityContractTest::exact_installed_artifact_reproduces_the_schema_authority_contract_offline
+        # fail on the release commit, taking Gate 2 down with them.
+        #
+        # This is not a version-sweep bug and not a gate bug: the sweep is
+        # supposed to change those bytes, and the gate is supposed to notice.
+        # The release commit simply has to carry the regenerated authority. The
+        # alpha.294 attempt (run 32081734087) was the first cut since these
+        # contracts landed, which is why no earlier release hit it.
+        #
+        # Runs AFTER the sweep and after VERSION is stamped, so the authority is
+        # computed from the exact bytes being tagged. The regenerated file must
+        # also be COMMITTED: the schema contract "refuses dirty package, lock,
+        # dependency-authority, or probe bytes", so regenerating without staging
+        # fails a different way. See the git add list below.
+        run: bash tests/PackagedForm/check-s1-sqlite-artifact --write-dependency-authority
+
       - name: Commit release and push the gate branch
         id: relcommit
         env:
@@ -224,7 +255,7 @@ jobs:
           # whose manifests disagree with its install or consumer metadata.
           # See alpha.178 (unstaged packages) and alpha.287 gate attempt 1
           # (unstaged skeleton and stale root-lock metadata).
-          git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json
+          git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json
           git commit -m "chore: release ${VERSION}"
           # The release commit goes to a throwaway gate branch FIRST. Main is
           # only fast-forwarded after Gate 2 proves CI green on this exact SHA.
@@ -257,13 +288,6 @@ jobs:
         run: |
           gh workflow run release.yml --ref "release-cut/${VERSION}" -f sha="$RELEASE_SHA"
           bash bin/wait-for-green-ci "$RELEASE_SHA" 3600 release.yml
-
-      - name: Install dependencies for the release-commit proof
-        # This job previously never installed dependencies because it only did
-        # git orchestration. Gate 4 runs PHPUnit, so it needs vendor/.
-        uses: ./.github/actions/composer-install-retry
-        with:
-          args: '--no-interaction --prefer-dist --no-progress'
 
       - name: "Gate 4/4: complete unsharded random-order proof on the release commit"
         # ci/random-order shards the complete inventory for wall-clock. A tag is

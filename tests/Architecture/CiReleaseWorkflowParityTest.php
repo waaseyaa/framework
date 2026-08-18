@@ -114,9 +114,52 @@ final class CiReleaseWorkflowParityTest extends TestCase
         $release = $this->read('.github/workflows/release-cut.yml');
 
         self::assertStringContainsString(
-            'git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json',
+            'git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json',
             $release,
         );
+    }
+
+    /**
+     * The version sweep invalidates the S1 dependency-byte authority, so the
+     * release commit must regenerate and carry it.
+     *
+     * `bin/sync-internal-versions` rewrites every `packages/*` internal
+     * constraint, which changes the exact bytes the S1 artifact contracts
+     * digest. Without regeneration the release commit fails
+     * `S1SqliteTopologyContractTest` and `S1SchemaAuthorityContractTest`, and
+     * Gate 2 fails with it. That is exactly how the first alpha.294 attempt
+     * (run 32081734087) failed: safely, with no tag and main untouched.
+     *
+     * Three orderings are load-bearing and each is asserted:
+     *   install BEFORE the sweep  — the regeneration builds an installed
+     *                               artifact and needs vendor/;
+     *   regenerate AFTER the sweep — otherwise it records pre-sweep bytes;
+     *   regenerate BEFORE the commit — the schema contract "refuses dirty
+     *                               ... dependency-authority ... bytes", so an
+     *                               unstaged regeneration fails a different way.
+     */
+    #[Test]
+    public function release_commit_regenerates_and_stages_the_s1_dependency_authority(): void
+    {
+        $release = $this->read('.github/workflows/release-cut.yml');
+
+        $install = strpos($release, 'uses: ./.github/actions/composer-install-retry');
+        $sweep = strpos($release, 'bin/sync-internal-versions "$SEMVER"');
+        $regen = strpos($release, 'check-s1-sqlite-artifact --write-dependency-authority');
+        $commit = strpos($release, 'git commit -m "chore: release');
+
+        self::assertIsInt($install, 'The cut must install dependencies.');
+        self::assertIsInt($sweep, 'The cut must sweep internal versions.');
+        self::assertIsInt($regen, 'The cut must regenerate the S1 dependency-byte authority.');
+        self::assertIsInt($commit, 'The cut must create the release commit.');
+
+        self::assertLessThan($sweep, $install, 'Dependencies must install before the version sweep.');
+        self::assertLessThan($regen, $sweep, 'The authority must be regenerated AFTER the version sweep.');
+        self::assertLessThan($commit, $regen, 'The authority must be regenerated BEFORE the release commit.');
+
+        // Staged, not merely regenerated: an uncommitted authority is rejected
+        // as dirty by the schema contract.
+        self::assertStringContainsString('support/s1-sqlite-dependency-bytes.json', $release);
     }
 
     /**
