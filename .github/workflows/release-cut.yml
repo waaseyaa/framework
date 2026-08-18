@@ -33,11 +33,26 @@ name: Cut Release
 # untouched and no tag exists — fix the problem and re-run the cut with the
 # same version. The gate branch is deleted on the way out either way.
 #
-# Push uses SPLIT_GITHUB_TOKEN (the existing PAT used by split.yml to fan
-# out to per-package repos). This is required because tags pushed by the
-# default `GITHUB_TOKEN` do NOT trigger downstream workflows
-# (split.yml + packagist-update.yml), and the whole point of automating
-# this is to keep the existing pipeline firing.
+# TWO IDENTITIES, deliberately:
+#
+#   SPLIT_GITHUB_TOKEN  — checkout, gate-branch push, workflow dispatches, and
+#                         gate-branch cleanup. The existing PAT split.yml uses.
+#   Waaseyaa Release Bot — the final atomic main + tag push ONLY, via a fresh
+#                         installation token minted immediately before it.
+#
+# Neither may be the built-in `GITHUB_TOKEN`: pushes made with it do not trigger
+# downstream workflows, so split.yml and packagist-update.yml would silently
+# never fire and the release would tag without publishing.
+#
+# The App exists because `main-protection` requires pull requests for
+# refs/heads/main and its only role-based bypass is bypass_mode "pull_request",
+# so no direct push is permitted for anyone. The cut MUST push the gated commit
+# to main directly: the design tags the EXACT four-gate-tested SHA, and every
+# GitHub merge mode (squash, rebase, merge commit) would rewrite it, which would
+# mean tagging a commit no gate ever ran against. The App is scoped to this one
+# repository with Contents:write + Actions:write and is the only actor holding
+# `always` bypass. Installation tokens expire after one hour, and Gates 2-4
+# routinely exceed that, so the token is minted at the point of use.
 
 on:
   workflow_dispatch:
@@ -67,6 +82,21 @@ jobs:
             echo "::error::SPLIT_GITHUB_TOKEN secret is not configured."
             echo "::error::Without a PAT, downstream workflows (split.yml,"
             echo "::error::packagist-update.yml) will NOT fire on the tag push."
+            exit 1
+          fi
+
+      - name: Verify release-identity App credentials
+        # Fail fast. Without this the missing secret only surfaces at the very
+        # last step, after Gates 2-4 have burned the better part of an hour.
+        env:
+          RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+          RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "${RELEASE_APP_ID}" ] || [ -z "${RELEASE_APP_PRIVATE_KEY}" ]; then
+            echo "::error::RELEASE_APP_ID / RELEASE_APP_PRIVATE_KEY are not configured."
+            echo "::error::The final atomic push to main is made by the Waaseyaa Release Bot App,"
+            echo "::error::the only actor with 'always' bypass on the main-protection ruleset."
+            echo "::error::Without it the push is refused by repository rule (GH013) after every gate has run."
             exit 1
           fi
 
@@ -307,23 +337,78 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Mint the release-identity token
+        # Minted HERE, immediately before the only push that needs it, NOT at
+        # job start: App installation tokens expire after one hour and Gates
+        # 2-4 routinely exceed that (the alpha.294 attempt spent ~28 minutes in
+        # Gate 3 alone). A token minted earlier would be expired by now.
+        #
+        # The `main-protection` ruleset requires pull requests for refs/heads/main
+        # and its only bypass actor is a repository role with bypass_mode
+        # "pull_request", i.e. bypass via PR, never a direct push. The release cut
+        # must push the gated commit to main directly, because the whole design
+        # rests on tagging the EXACT four-gate-tested SHA and every GitHub merge
+        # mode would rewrite it. The Waaseyaa Release Bot App is the only actor
+        # granted `always` bypass, scoped to this repository.
+        #
+        # Deliberately NOT the built-in GITHUB_TOKEN: pushes made with it do not
+        # trigger downstream workflows, which would silently break split.yml and
+        # packagist-update.yml fan-out — the exact failure this workflow's
+        # SPLIT_GITHUB_TOKEN comment already warns about.
+        id: release_identity
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
       - name: Tag the gated commit and fast-forward main (atomic)
         env:
           VERSION: ${{ inputs.version }}
           TAG_MSG: ${{ steps.changelog.outputs.tag_msg }}
+          RELEASE_TOKEN: ${{ steps.release_identity.outputs.token }}
+          REPO: ${{ github.repository }}
         run: |
           git tag -a "$VERSION" -m "Release ${VERSION}
 
           ${TAG_MSG}"
-          # Atomic: main fast-forward + tag land together or not at all. A
-          # non-FF rejection means main advanced while the gate ran — nothing
-          # is tagged; re-run the cut against the new main.
-          if ! git push --atomic origin "HEAD:refs/heads/main" "refs/tags/${VERSION}"; then
-            echo "::error::Atomic push of main + tag rejected (main likely advanced during the gate)."
-            echo "::error::No tag was created and main is untouched. Re-run the cut."
+
+          # Push as the release App. actions/checkout installed an
+          # http.extraheader credential for SPLIT_GITHUB_TOKEN, which would
+          # otherwise win over any remote URL credentials, so the header is
+          # overridden for this single command rather than rewritten globally.
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$RELEASE_TOKEN" | base64 -w0)"
+
+          # Atomic: main fast-forward + tag land together or not at all.
+          set +e
+          push_output=$(git -c http.extraheader="$auth_header" \
+            push --atomic origin "HEAD:refs/heads/main" "refs/tags/${VERSION}" 2>&1)
+          push_status=$?
+          set -e
+          printf '%s\n' "$push_output"
+
+          if [ "$push_status" -ne 0 ]; then
+            # Three distinct causes, three distinct diagnostics. The previous
+            # single message asserted "main likely advanced" for every failure,
+            # which actively misdirected the alpha.294 investigation: main had
+            # not moved at all, the push was refused by a repository rule.
+            if printf '%s' "$push_output" | grep -qE 'GH013|rule violations'; then
+              echo "::error::RULESET_REJECTED: refs/heads/main refused the release push by repository rule."
+              echo "::error::main was NOT advanced and no tag was created."
+              echo "::error::The release identity must hold 'always' bypass on the main ruleset."
+              echo "::error::Check https://github.com/${REPO}/rules?ref=refs%2Fheads%2Fmain and that"
+              echo "::error::RELEASE_APP_ID / RELEASE_APP_PRIVATE_KEY point at the installed release App."
+            elif printf '%s' "$push_output" | grep -qiE 'non-fast-forward|fetch first|behind its remote'; then
+              echo "::error::MAIN_ADVANCED: main moved while the gates ran, so the fast-forward was refused."
+              echo "::error::Nothing is tagged and main is untouched. Re-run the cut against the new main."
+            else
+              echo "::error::PUSH_REJECTED: the atomic push failed for a reason above."
+              echo "::error::Nothing is tagged and main is untouched. Read the git output before re-running."
+            fi
             exit 1
           fi
-          echo "::notice::Pushed main + tag $VERSION to origin (CI-gated at $(git rev-parse HEAD))."
+          echo "::notice::Pushed main + tag $VERSION to origin (four-gate-tested at $(git rev-parse HEAD))."
 
       - name: Clean up gate branch
         if: always()

@@ -43,7 +43,10 @@ final class CiReleaseWorkflowParityTest extends TestCase
         foreach ($workflows as $workflow) {
             $contents = (string) file_get_contents($workflow);
             preg_match_all(
-                '/uses:\s+(shivammathur\/setup-php|softprops\/action-gh-release)@([^\s#]+)/',
+                // create-github-app-token mints the identity that can bypass main's
+                // ruleset, so an unpinned reference there is the most security
+                // sensitive of the three.
+                '/uses:\s+(shivammathur\/setup-php|softprops\/action-gh-release|actions\/create-github-app-token)@([^\s#]+)/',
                 $contents,
                 $references,
                 PREG_SET_ORDER,
@@ -210,6 +213,80 @@ final class CiReleaseWorkflowParityTest extends TestCase
                 "$gate must run before the tag is created",
             );
         }
+    }
+
+    /**
+     * The final push is made by the scoped release App, minted at the point of use.
+     *
+     * `main-protection` requires pull requests for refs/heads/main and its only
+     * role bypass is bypass_mode "pull_request", so no direct push is permitted
+     * for anyone. The alpha.294 attempt passed all four gates and was then
+     * refused with GH013. The cut must push directly, because tagging the exact
+     * four-gate-tested SHA is the invariant the whole design rests on and every
+     * GitHub merge mode would rewrite it.
+     */
+    #[Test]
+    public function the_release_identity_is_a_scoped_app_token_minted_at_the_point_of_use(): void
+    {
+        $release = $this->read('.github/workflows/release-cut.yml');
+
+        self::assertStringContainsString('uses: actions/create-github-app-token@', $release);
+        self::assertStringContainsString('app-id: ${{ secrets.RELEASE_APP_ID }}', $release);
+        self::assertStringContainsString('private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}', $release);
+        // Scoped to this repository, not the whole installation.
+        self::assertStringContainsString('repositories: ${{ github.event.repository.name }}', $release);
+
+        // The push must use the App token. GITHUB_TOKEN would not trigger
+        // split.yml or packagist-update.yml, tagging without publishing.
+        self::assertStringContainsString('RELEASE_TOKEN: ${{ steps.release_identity.outputs.token }}', $release);
+        self::assertStringNotContainsString('secrets.GITHUB_TOKEN', $release);
+
+        $gate4 = strpos($release, 'php bin/test-random-order');
+        $mint = strpos($release, 'uses: actions/create-github-app-token@');
+        $push = strpos($release, 'push --atomic origin');
+        self::assertIsInt($gate4);
+        self::assertIsInt($mint);
+        self::assertIsInt($push);
+
+        // Installation tokens expire after one hour and Gates 2-4 routinely
+        // exceed that, so minting must come AFTER the gates and immediately
+        // BEFORE the push, never at job start.
+        self::assertLessThan($mint, $gate4, 'The token must be minted after the gates, not before them.');
+        self::assertLessThan($push, $mint, 'The token must be minted before the atomic push.');
+
+        // Missing credentials must fail fast rather than after an hour of gates.
+        self::assertStringContainsString('Verify release-identity App credentials', $release);
+        $verify = strpos($release, 'Verify release-identity App credentials');
+        self::assertIsInt($verify);
+        self::assertLessThan($gate4, $verify, 'App credentials must be verified before the gates run.');
+    }
+
+    /**
+     * A rejected release push must say which of three things happened.
+     *
+     * The previous single message asserted "main likely advanced" for every
+     * failure. During the alpha.294 attempt main had not moved at all: the push
+     * was refused by a repository rule, and the message actively misdirected the
+     * investigation.
+     */
+    #[Test]
+    public function a_rejected_release_push_reports_its_actual_cause(): void
+    {
+        $release = $this->read('.github/workflows/release-cut.yml');
+
+        self::assertStringContainsString('GH013|rule violations', $release);
+        self::assertStringContainsString('RULESET_REJECTED', $release);
+        self::assertStringContainsString('non-fast-forward|fetch first|behind its remote', $release);
+        self::assertStringContainsString('MAIN_ADVANCED', $release);
+        self::assertStringContainsString('PUSH_REJECTED', $release);
+
+        // Every branch must state that nothing was tagged, so an operator never
+        // has to guess whether a partial release landed.
+        self::assertSame(
+            3,
+            preg_match_all('/(main is untouched|main was NOT advanced)/', $release),
+            'Each rejection branch must state that main is untouched and nothing was tagged.',
+        );
     }
 
     #[Test]
