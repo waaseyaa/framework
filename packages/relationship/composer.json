@@ -15,10 +15,10 @@
     },
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.294",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.294",
-        "waaseyaa/entity": "^0.1.0-alpha.294",
-        "waaseyaa/foundation": "^0.1.0-alpha.294"
+        "waaseyaa/access": "^0.1.0-alpha.295",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.295",
+        "waaseyaa/entity": "^0.1.0-alpha.295",
+        "waaseyaa/foundation": "^0.1.0-alpha.295"
     },
     "extra": {
         "waaseyaa": {
@@ -67,7 +67,7 @@
         }
     ],
     "require-dev": {
-        "waaseyaa/ai-tools": "^0.1.0-alpha.294",
-        "waaseyaa/api": "^0.1.0-alpha.294"
+        "waaseyaa/ai-tools": "^0.1.0-alpha.295",
+        "waaseyaa/api": "^0.1.0-alpha.295"
     }
 }

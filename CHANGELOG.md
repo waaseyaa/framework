@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.295] - 2026-08-18
+
 - **Per-record History surface in the Admin SPA:** there was no way to ask "what
   happened to THIS record". `pages/[entityType]/[id]` is the record editor and
   `pipeline.vue` answers for the whole entity type, so a History affordance had
