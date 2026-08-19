@@ -12,9 +12,11 @@ use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
 use Waaseyaa\Config\Manifest\ConfigManifestEd25519Signer;
 use Waaseyaa\Config\Manifest\ConfigManifestEd25519Verifier;
+use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeVerifier;
 use Waaseyaa\Config\Manifest\ConfigManifestSignatureVerifierInterface;
 use Waaseyaa\Config\Manifest\ConfigManifestSignerInterface;
 use Waaseyaa\Config\Manifest\ConfigManifestTrustPolicy;
+use Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface;
 use Waaseyaa\Config\Manifest\Ed25519ManifestSigningOperation;
 use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
@@ -23,7 +25,10 @@ use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
 use Waaseyaa\Config\Schema\ConfigPackageContract;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
+use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
+use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
+use Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
@@ -86,6 +91,46 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
         $this->singleton(ConfigSyncBundleValidator::class, fn(): ConfigSyncBundleValidator => new ConfigSyncBundleValidator(
             $this->resolve(ConfigSchemaRegistry::class),
         ));
+        // CFG-03 (#2430): the production import gate. Before this binding
+        // existed, config:import resolved nothing here and always received
+        // RefusingConfigImportPreflight, so the verified path was unreachable in
+        // every environment.
+        //
+        // Composition only — no verification happens at registration time.
+        // Reading replay state needs the database, and a verification failure
+        // must surface as an actionable refusal from config:import rather than a
+        // kernel that will not boot.
+        $this->singleton(ConfigImportPreflightInterface::class, function (): ConfigImportPreflightInterface {
+            $replayState = $this->resolveOptional(ConfigReplayStateReaderInterface::class);
+            if (!$replayState instanceof ConfigReplayStateReaderInterface) {
+                // Without replay state a previously committed bundle could be
+                // reinstated silently. Refuse rather than verify partially: a
+                // gate missing one of its checks is not a weaker gate, it is a
+                // different one.
+                return new RefusingConfigImportPreflight();
+            }
+
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            $registry = $this->resolve(ConfigSchemaRegistry::class);
+            $validator = $this->resolve(ConfigSyncBundleValidator::class);
+            $compatibility = $this->resolve(ConfigPackageCompatibility::class);
+            $signatureVerifier = $this->resolve(ConfigManifestSignatureVerifierInterface::class);
+            assert($context instanceof ConfigurationAuthorityContext);
+            assert($registry instanceof ConfigSchemaRegistry);
+            assert($validator instanceof ConfigSyncBundleValidator);
+            assert($compatibility instanceof ConfigPackageCompatibility);
+            assert($signatureVerifier instanceof ConfigManifestSignatureVerifierInterface);
+
+            return new SignedEnvelopeConfigImportPreflight(
+                syncPath: $context->syncPath,
+                bundleValidator: $validator,
+                registry: $registry,
+                compatibility: $compatibility,
+                envelopeVerifier: new ConfigManifestEnvelopeVerifier(),
+                signatureVerifier: $signatureVerifier,
+                replayState: $replayState,
+            );
+        });
         $this->singleton(UnsignedConfigPolicy::class, function (): UnsignedConfigPolicy {
             $context = $this->resolve(ConfigurationAuthorityContext::class);
             assert($context instanceof ConfigurationAuthorityContext);

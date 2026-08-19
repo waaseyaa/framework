@@ -1570,7 +1570,12 @@ contract and is refused. See
 [`config-management.md`](config-management.md) "CFG-03 production composition"
 for the full producer/consumer trust boundary. The same root binds
 `ConfigSyncBundleValidator` on that one frozen schema registry, so strict bundle
-validation always runs against the schemas the site actually has installed.
+validation always runs against the schemas the site actually has installed, and
+publishes `ConfigImportPreflightInterface` as
+`SignedEnvelopeConfigImportPreflight` — the binding whose absence made
+`config:import` refuse in every environment. When replay state is unavailable it
+publishes `RefusingConfigImportPreflight` instead, so a gate is never composed
+with one of its checks missing.
 
 **Construction is side-effect free; refusal happens at access (#2426).**
 `DatabaseActiveConfigurationBridge` builds its `DatabaseActiveConfigurationStorage`

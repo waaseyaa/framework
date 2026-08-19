@@ -14,13 +14,17 @@ use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
+use Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface;
 use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
 use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
+use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
+use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
+use Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncFileSourceInterface;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
@@ -124,7 +128,48 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         self::assertFalse($result->isValid(), 'The validator reports on the real filesystem, not a private copy.');
     }
 
-    private function providerWithManifest(?PackageManifest $manifest): ConfigurationAuthorityServiceProvider
+    /**
+     * CFG-03 (#2430): the binding whose absence made config:import refuse in
+     * every environment. Publishing it here is what lets the CLI provider find
+     * a real gate on the kernel-services bus instead of falling back to
+     * RefusingConfigImportPreflight.
+     */
+    #[Test]
+    public function itPublishesTheSignedEnvelopeImportGate(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest(), [
+            ConfigReplayStateReaderInterface::class => new class implements ConfigReplayStateReaderInterface {
+                public function lastCommittedSequence(string $bundleScope, string $trustKeyReference): ?int
+                {
+                    return null;
+                }
+            },
+        ]);
+
+        self::assertInstanceOf(
+            SignedEnvelopeConfigImportPreflight::class,
+            $provider->resolve(ConfigImportPreflightInterface::class),
+        );
+    }
+
+    /**
+     * Without replay state a committed bundle could be reinstated silently. A
+     * gate missing one of its checks is not a weaker gate, it is a different
+     * one, so the composition refuses instead of verifying partially.
+     */
+    #[Test]
+    public function theImportGateRefusesWhenReplayStateIsUnavailable(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest());
+
+        self::assertInstanceOf(
+            RefusingConfigImportPreflight::class,
+            $provider->resolve(ConfigImportPreflightInterface::class),
+        );
+    }
+
+    /** @param array<string, object> $extraServices */
+    private function providerWithManifest(?PackageManifest $manifest, array $extraServices = []): ConfigurationAuthorityServiceProvider
     {
         $services = [
             DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
@@ -134,6 +179,7 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         if ($manifest instanceof PackageManifest) {
             $services[PackageManifest::class] = $manifest;
         }
+        $services = [...$services, ...$extraServices];
 
         $provider = new ConfigurationAuthorityServiceProvider();
         $provider->setKernelContext($this->root, ['environment' => 'testing'], []);

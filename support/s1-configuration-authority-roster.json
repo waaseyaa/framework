@@ -760,6 +760,20 @@
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "authority-root",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 14
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "authority-root",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 15
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
             "pattern": "canonical_selector",
             "class": "authority-root",
             "match_sha256": "b3c4bb8a603c5d04c888fe6c72092b1dd64cd858836b575375646a88ecb169a7",
@@ -798,6 +812,27 @@
             "pattern": "factory_compatibility",
             "class": "authority-root",
             "match_sha256": "d1a2019907f9e523e061ce96bc5508c497c5be4a8278914f0acd071637d8f537",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "pattern": "import_preflight",
+            "class": "authority-root",
+            "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "pattern": "import_preflight",
+            "class": "authority-root",
+            "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "pattern": "import_preflight",
+            "class": "authority-root",
+            "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
             "occurrence": 3
         },
         {
@@ -1250,6 +1285,13 @@
         },
         {
             "path": "packages/config/src/Sync/RefusingConfigImportPreflight.php",
+            "pattern": "import_preflight",
+            "class": "authority-contract",
+            "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Sync/SignedEnvelopeConfigImportPreflight.php",
             "pattern": "import_preflight",
             "class": "authority-contract",
             "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",

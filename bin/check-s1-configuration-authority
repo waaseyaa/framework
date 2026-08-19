@@ -90,6 +90,7 @@ function s1ConfigClass(string $path): string
         'packages/config/src/Sync/ConfigSyncFileSourceInterface.php' => 'authority-contract',
         'packages/config/src/Sync/ConfigSyncRepository.php' => 'sync-adapter',
         'packages/config/src/Sync/RefusingConfigImportPreflight.php' => 'authority-contract',
+        'packages/config/src/Sync/SignedEnvelopeConfigImportPreflight.php' => 'authority-contract',
         'packages/config/src/Sync/VerifiedConfigImportPreflight.php' => 'authority-contract',
         'packages/config/src/Testing/AllowingConfigImportPreflight.php' => 'explicit-testing-profile',
         'packages/config/src/TranslatableConfigFactory.php' => 'legacy-compatibility',

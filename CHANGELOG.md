@@ -26,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refused, because something present and untrustworthy must never be mistaken
   for nothing being present.
 
+- **Fixed — `config:import` can reach the verified path (#2430, 3/6):** the
+  configuration composition root now publishes a real
+  `ConfigImportPreflightInterface`, so `config:import` stops receiving
+  `RefusingConfigImportPreflight` in every environment. The gate reads the
+  signed envelope beside the sync directory, verifies its signature against
+  public trust keys and its sequence against replay state, then binds it to a
+  freshly revalidated directory whose manifest must match byte for byte.
+  Verification runs at import time, not at container composition, so a failure
+  is an actionable refusal rather than a kernel that will not boot. An absent
+  envelope, an untrusted key, config bytes edited after signing, an
+  incompatible package contract, a replayed sequence, and a malformed sidecar
+  each refuse. Without replay state the gate refuses outright rather than
+  verifying partially.
+
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path
   to creating one required a generation to already exist. The activator refuses

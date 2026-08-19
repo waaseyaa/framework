@@ -98,6 +98,16 @@ built only from `extra.waaseyaa.config-contract` declarations discovered at boot
 (`PackageManifest::$configContracts`), never from the bundle under import — a
 bundle that could name its own contract version would be authorizing itself.
 
+`Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight` is the importing
+host's gate and the binding published for `ConfigImportPreflightInterface`. It
+reads the sidecar, verifies signature and replay sequence, then delegates to
+`VerifiedConfigImportPreflight`. Verification happens at import time rather than
+at container composition for two reasons: replay state needs the database, and a
+verification failure must surface as a refusal from `config:import` rather than a
+kernel that cannot boot. When replay state is unavailable the composition falls
+back to `RefusingConfigImportPreflight` — a gate missing one of its checks is not
+a weaker gate, it is a different one.
+
 **Unsigned stays refused.** `UnsignedConfigPolicy` remains `refusing()` pending a
 sealed CFG-01 bootstrap identity. The sealed-unsigned policy is not a shortcut
 around this work.
