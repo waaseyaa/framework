@@ -52,6 +52,7 @@ function s1ConfigClass(string $path): string
         'config/waaseyaa.php' => 'bootstrap-declaration',
         'packages/ai-agent/src/Mcp/McpServiceProvider.php' => 'optional-consumer',
         'packages/cli/src/Command/Config/ConfigImportCommand.php' => 'command-adapter',
+        'packages/cli/src/Command/Config/ConfigManifestSignCommand.php' => 'command-adapter',
         'packages/cli/src/Handler/AboutHandler.php' => 'diagnostic-consumer',
         'packages/cli/src/Handler/ConfigExportHandler.php' => 'command-adapter',
         'packages/cli/src/Handler/ConfigImportHandler.php' => 'command-adapter',
@@ -175,7 +176,7 @@ function s1ConfigAssertContract(array $actual): void
         'capability_version' => 1,
         'authority_provider' => 'Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider',
         'active_bridge' => 'Waaseyaa\\EntityStorage\\Config\\DatabaseActiveConfigurationBridge',
-        'commands' => ['config:export', 'config:import', 'config:diff', 'config:status', 'config:validate', 'config:reset'],
+        'commands' => ['config:export', 'config:import', 'config:manifest:sign', 'config:diff', 'config:status', 'config:validate', 'config:reset'],
         'canonical_sync_setting' => 'config.sync_path',
         'canonical_sync_environment' => 'WAASEYAA_CONFIG_SYNC_PATH',
         'canonical_sync_default' => 'storage/config-sync',
@@ -302,7 +303,7 @@ try {
         s1ConfigRequireContains($root, $consumer, "CapabilityRequirement::exact('configuration.authority.v1', 1)");
     }
 
-    fwrite(STDOUT, sprintf("S1 configuration authority contract passed: %d classified boundaries, 6 commands, one authority.\n", count($live['candidates'])));
+    fwrite(STDOUT, sprintf("S1 configuration authority contract passed: %d classified boundaries, %d commands, one authority.\n", count($live['candidates']), count($contract['commands'])));
 } catch (Throwable $exception) {
     fwrite(STDERR, 'S1 configuration authority contract failed: ' . $exception->getMessage() . "\n");
     exit(1);

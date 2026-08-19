@@ -40,6 +40,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each refuse. Without replay state the gate refuses outright rather than
   verifying partially.
 
+- **Added — `config:manifest:sign` (#2430, 4/6):** the CFG-03 authoring command.
+  It runs on a host holding signing custody, validates the authored sync
+  directory, derives the required package contracts and checks them against the
+  installed cohort, builds the canonical manifest, signs it, and writes the
+  envelope beside the directory. It reads no active configuration and activates
+  nothing. Signing is reproducible — identical inputs yield an identical
+  envelope, and producer evidence carries no timestamp or hostname — so a
+  sidecar can be reviewed by rebuilding it. A profile without
+  `config_manifest_signing.signing_key` composes no signer and the command
+  refuses there: a verifier-only host is not a signing host.
+
+  **Contract change:** the reserved `config:*` namespace grows from six verbs to
+  seven. `ConfigCommand::RESERVED_VERBS`, `RESERVED_FULL_VERBS`, and
+  `RESERVED_FQCNS` now include `manifest:sign`. An application that had
+  registered its own `config:manifest:sign` will now fail boot with
+  `ConfigCommandCollisionException`; rename it. Reserving the verb is
+  deliberate — an app-owned command of that name could shadow the one command
+  that mints signing evidence.
+
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path
   to creating one required a generation to already exist. The activator refuses

@@ -155,7 +155,7 @@ Pre-v1 beta trains (`0.x-beta.N`).
 2. **Two clean alpha trains.** Two consecutive alpha trains have shipped without an undeprecated stable-surface break — *enforced by the surface-parity gate (§8.1), not asserted by hand*.
 3. **Deprecation budget under threshold.** Active deprecations carrying shim debt do not exceed 10. (Forcing function: if the list grows, the framework must spend a cycle paying it down before entering beta.)
 4. **CI enforcement live & green.** The checks in §8 are wired and green on `main`, and `composer verify` — the full gate set — passes on `main`.
-5. **No unresolved critical mission gaps.** No `❌` entries in [`drupal-comparison-matrix.md`](drupal-comparison-matrix.md) §3 ("Mission-critical gaps") remain in `unknown` or `unresolved` state. `intentional-gap` decisions documented via ADR are acceptable; undecided gaps are not. **Per-field translation (matrix §3.2) — SATISFIED** by M-006 (`entity-storage-translations-v1`) shipping the single-axis translation substrate per ADR 017; see §5.3 for the stable surface. **CMI config sync (matrix §3.5) — SATISFIED** by M-003 (`config-management-v1-01KRCDEC`) shipping the active/sync store split per ADR 018; see §5.5 for the stable surface (`ConfigDependencyInterface`, sync-store YAML format, six `config:*` commands, `config.audit` log channel, backend restriction).
+5. **No unresolved critical mission gaps.** No `❌` entries in [`drupal-comparison-matrix.md`](drupal-comparison-matrix.md) §3 ("Mission-critical gaps") remain in `unknown` or `unresolved` state. `intentional-gap` decisions documented via ADR are acceptable; undecided gaps are not. **Per-field translation (matrix §3.2) — SATISFIED** by M-006 (`entity-storage-translations-v1`) shipping the single-axis translation substrate per ADR 017; see §5.3 for the stable surface. **CMI config sync (matrix §3.5) — SATISFIED** by M-003 (`config-management-v1-01KRCDEC`) shipping the active/sync store split per ADR 018; see §5.5 for the stable surface (`ConfigDependencyInterface`, sync-store YAML format, seven `config:*` commands, `config.audit` log channel, backend restriction).
 
 The stable surfaces for the listing pipeline (§5.6, §5.9) and revisions (ADR 016, `RevisionableEntityInterface`) are already ratified by their missions; beta entry does **not** additionally require a production-consumer demonstration of them.
 
@@ -436,7 +436,7 @@ The "until usage reaches zero" grant from the previous draft applies specificall
 **Allowed under deprecation cycle:**
 - Renames of config keys, env vars, audit-channel event names (old name continues working, emits `config.deprecation`).
 - Type tightening (e.g. boolean now required where string-coerced before).
-- Renames of any sync-store key in `_meta`, any of the six reserved `config:*` sub-verbs, or any of the six exception classes / their codes.
+- Renames of any sync-store key in `_meta`, any of the seven reserved `config:*` sub-verbs, or any of the six exception classes / their codes.
 
 **Allowed without deprecation:**
 - New keys with safe defaults.

@@ -16,6 +16,7 @@ use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
 use Waaseyaa\CLI\Command\Config\ConfigExportCommand;
 use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
+use Waaseyaa\CLI\Command\Config\ConfigManifestSignCommand;
 use Waaseyaa\CLI\Command\Config\ConfigResetCommand;
 use Waaseyaa\CLI\Command\Config\ConfigStatusCommand;
 use Waaseyaa\CLI\Command\Config\ConfigValidateCommand;
@@ -214,6 +215,7 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
         }
         $this->assertSame([
             'config:export' => ConfigExportCommand::class,
+            'config:manifest:sign' => ConfigManifestSignCommand::class,
             'config:import' => ConfigImportCommand::class,
             'config:diff' => ConfigDiffCommand::class,
             'config:status' => ConfigStatusCommand::class,

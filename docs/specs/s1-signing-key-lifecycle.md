@@ -102,8 +102,16 @@ bytes. Verification
 accepts only the envelope's exact Ed25519 algorithm and trust reference, and a
 revoked, unknown, malformed, or tampered envelope fails closed. A verifier-only
 profile requires no signing provider and publishes no signing authority. This
-slice publishes the CFG-03 interface bindings; it adds no operational signing
-command or key ceremony.
+slice published the CFG-03 interface bindings only; the operational signing
+command arrived with #2430 as `config:manifest:sign`
+(`Waaseyaa\Config\Manifest\ConfigManifestBundleSigner`). Key ceremony —
+generation, distribution, rotation scheduling — remains out of scope here and is
+governed by the sections above. The command consumes custody; it never creates
+it, and it refuses outright on a profile that composes no signer. Its result
+object (`ConfigManifestSigningResult`) carries only public evidence: envelope
+path, manifest hash, scope, sequence, trust-key reference, and the required
+contract cohort. No provider identifier and no private bytes appear on it or on
+any surface derived from it.
 
 **Where the two profiles physically sit (#2430).** The signer profile belongs on
 an authoring host — a maintainer machine or a protected CI environment — and the

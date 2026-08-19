@@ -76,7 +76,21 @@ the caller's current working directory.
 The reserved `config:*` namespace is owned by the framework CLI. Provider
 discovery rejects both third-party collisions and duplicate framework handlers
 for those verbs. The canonical command set is `config:export`, `config:import`,
-`config:diff`, `config:status`, `config:validate`, and `config:reset`.
+`config:manifest:sign`, `config:diff`, `config:status`, `config:validate`, and
+`config:reset`.
+
+`config:manifest:sign` (#2430) is the CFG-03 authoring command and the only one
+of the seven that belongs on a different host from the rest. It runs where
+signing custody lives — a maintainer machine or a protected CI environment —
+validates the authored sync directory, and writes the signed envelope beside it.
+It reads no active configuration and activates nothing. A profile without
+`config_manifest_signing.signing_key` composes no signer, so the command refuses
+there rather than degrading: a verifier-only host is not a signing host. The
+importing consumer receives the sync directory, the envelope, and the public
+trust keys only; the signing secret must never reach a pull-request workflow or
+ordinary production runtime. It is reserved (rather than left to apps) because
+an app-owned `config:manifest:sign` could shadow the one command that mints
+signing evidence.
 
 Every command resolves the same `configuration.authority.v1` capability and
 `ConfigurationAuthorityContext` as the HTTP kernel. Export, diff, status,

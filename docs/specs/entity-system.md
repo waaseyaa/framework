@@ -1575,7 +1575,11 @@ publishes `ConfigImportPreflightInterface` as
 `SignedEnvelopeConfigImportPreflight` — the binding whose absence made
 `config:import` refuse in every environment. When replay state is unavailable it
 publishes `RefusingConfigImportPreflight` instead, so a gate is never composed
-with one of its checks missing.
+with one of its checks missing. The CLI provider composes
+`ConfigManifestBundleSigner` lazily for `config:manifest:sign`, so a
+verifier-only profile — one with no `config_manifest_signing.signing_key` —
+registers normally and the command refuses there rather than the provider
+failing to boot.
 
 **Construction is side-effect free; refusal happens at access (#2426).**
 `DatabaseActiveConfigurationBridge` builds its `DatabaseActiveConfigurationStorage`

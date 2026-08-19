@@ -90,6 +90,23 @@ actionable refusal; malformed, unreadable, or symlinked bytes throw, because
 something present and untrustworthy must never be mistaken for nothing being
 present.
 
+`Waaseyaa\Config\Manifest\ConfigManifestBundleSigner` is the authoring host's
+producer, driven by `config:manifest:sign`. It validates the directory, derives
+the required package contracts from the authored files, checks them against the
+installed cohort (so a file cannot name a contract into existence), builds the
+canonical manifest, signs it, and writes the sidecar. It reads no active
+configuration and activates nothing — producing an envelope is an authoring act,
+not a deployment. Signing is reproducible: identical bytes, cohort, scope,
+sequence, and producer evidence yield an identical envelope, so a sidecar can be
+reviewed by comparing it to what a rebuild produces. Producer evidence is
+therefore deterministic (`producer`, `authority_id`) and carries no timestamp,
+hostname, or operator name.
+
+Bundle scope and sequence default from the existing sidecar, so an operator
+continues a lineage rather than silently starting a second one. Sequence is not
+read from the consumer's database: replay is the importing side's check, and
+reaching for it here would put the two hosts back together.
+
 **Nothing self-attests.** `VerifiedConfigBundle::bind()` recomputes the manifest
 from the freshly validated sync directory and requires byte identity with the
 manifest carried inside the signed envelope. A signature therefore covers exactly

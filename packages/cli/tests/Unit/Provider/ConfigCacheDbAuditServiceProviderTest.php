@@ -84,6 +84,7 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
 
         self::assertSame([
             'config:export' => \Waaseyaa\CLI\Command\Config\ConfigExportCommand::class,
+            'config:manifest:sign' => \Waaseyaa\CLI\Command\Config\ConfigManifestSignCommand::class,
             'config:import' => \Waaseyaa\CLI\Command\Config\ConfigImportCommand::class,
             'config:diff' => \Waaseyaa\CLI\Command\Config\ConfigDiffCommand::class,
             'config:status' => \Waaseyaa\CLI\Command\Config\ConfigStatusCommand::class,

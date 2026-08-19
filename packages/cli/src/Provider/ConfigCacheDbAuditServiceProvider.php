@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Provider;
 use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
 use Waaseyaa\CLI\Command\Config\ConfigExportCommand;
 use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
+use Waaseyaa\CLI\Command\Config\ConfigManifestSignCommand;
 use Waaseyaa\CLI\Command\Config\ConfigResetCommand;
 use Waaseyaa\CLI\Command\Config\ConfigStatusCommand;
 use Waaseyaa\CLI\Command\Config\ConfigValidateCommand;
@@ -22,12 +23,17 @@ use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
+use Waaseyaa\Config\Manifest\ConfigManifestBundleSigner;
+use Waaseyaa\Config\Manifest\ConfigManifestSignerInterface;
+use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigExporter;
 use Waaseyaa\Config\Sync\ConfigImporter;
 use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\ConfigResetter;
 use Waaseyaa\Config\Sync\ConfigStatusReporter;
+use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
 use Waaseyaa\Config\Sync\ConfigSyncValidator;
 use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
@@ -114,6 +120,32 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
         $this->singleton(ConfigExportCommand::class, fn(): ConfigExportCommand => new ConfigExportCommand(
             $this->resolve(ConfigExporter::class),
         ));
+        // CFG-03 authoring (#2430). The signer binding exists only on a profile
+        // that supplies config_manifest_signing.signing_key, so this resolves
+        // lazily and the command refuses on a verifier-only host rather than the
+        // provider failing to register there.
+        $this->singleton(ConfigManifestSignCommand::class, function (): ConfigManifestSignCommand {
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            assert($context instanceof ConfigurationAuthorityContext);
+
+            return new ConfigManifestSignCommand(
+                function (): ?ConfigManifestBundleSigner {
+                    $signer = $this->resolveOptional(ConfigManifestSignerInterface::class);
+                    if (!$signer instanceof ConfigManifestSignerInterface) {
+                        return null;
+                    }
+                    $registry = $this->resolve(ConfigSchemaRegistry::class);
+                    $validator = $this->resolve(ConfigSyncBundleValidator::class);
+                    $compatibility = $this->resolve(ConfigPackageCompatibility::class);
+                    assert($registry instanceof ConfigSchemaRegistry);
+                    assert($validator instanceof ConfigSyncBundleValidator);
+                    assert($compatibility instanceof ConfigPackageCompatibility);
+
+                    return new ConfigManifestBundleSigner($validator, $registry, $compatibility, $signer);
+                },
+                $context,
+            );
+        });
         $this->singleton(ConfigImportCommand::class, function (): ConfigImportCommand {
             $importer = $this->resolve(ConfigImporter::class);
             $bridge = $this->resolve(ActiveConfigurationBridgeInterface::class);
@@ -151,6 +183,16 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                 new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Preview without writing sync files.'),
             ],
             handler: [ConfigExportCommand::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'config:manifest:sign',
+            description: 'Sign the authored configuration bundle and write its envelope (authoring hosts holding signing custody only)',
+            options: [
+                new HandlerOption('scope', mode: HandlerOptionMode::Required, description: 'Bundle scope identifying the authoring authority; defaults to the existing envelope lineage.'),
+                new HandlerOption('sequence', mode: HandlerOptionMode::Required, description: 'Monotonic bundle sequence; defaults to one past the existing envelope.'),
+            ],
+            handler: [ConfigManifestSignCommand::class, 'execute'],
         );
 
         yield new HandlerCommand(
