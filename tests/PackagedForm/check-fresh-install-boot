@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+# Fresh-install boot proof (#2426).
+#
+# Builds a disposable consumer from the EXACT candidate tree using path
+# repositories — no Packagist, no tag — installs the full framework the way the
+# skeleton does, and boots it through the real initialization path.
+#
+# Why this exists alongside Skeleton Smoke: Skeleton Smoke resolves the
+# published artifact from Packagist and therefore cannot run until after the tag
+# is pushed. Two releases (v0.1.0-alpha.294, v0.1.0-alpha.295) shipped over a red
+# Skeleton Smoke because a post-publication proof cannot block a publication.
+# This proof runs pre-tag, so the release cut can depend on it.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-fresh-install-boot.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+
+mkdir -p "$source_root" "$consumer"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+# Mirror the skeleton app: its config, its entity types, its front controller.
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+# Resolve every waaseyaa/* — including the waaseyaa/framework metapackage at the
+# repository root — from the candidate tree rather than Packagist.
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*"],
+        ["type" => "path", "url" => $argv[2]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    // The merge plugin only matters for per-developer overrides that this
+    // disposable consumer does not have, and it is not installed here.
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/fresh-install.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    exit 1
+fi
+
+# The probe asserts the property; keep it outside the consumer's autoload roots.
+cp "$source_root/tests/FreshInstallBoot/boot.php" "$consumer/boot.php"
+
+if ! php "$consumer/boot.php" >"$work/boot.out" 2>&1; then
+    cat "$work/boot.out" >&2
+    echo 'A fresh packaged-form install could not boot.' >&2
+    exit 1
+fi
+grep -Fq 'fresh-install kernel boot OK' "$work/boot.out"
+
+printf 'Fresh-install boot proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"
