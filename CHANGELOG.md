@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — release announcements are gated on a consumable release:** the
+  Discord notification triggered on tag creation and waited only for a run named
+  `CI`, so it fired while `Split Monorepo` was still pushing package repos,
+  before Packagist had crawled them, and before the published artifact had been
+  installed by anyone. v0.1.0-alpha.296 was announced while its Skeleton Smoke
+  was failing. The workflow is now chained behind `Split Monorepo` and
+  additionally requires an exact-SHA `Skeleton Smoke (Packaged-form CI)` success;
+  a missing, queued-past-budget, skipped, failed, cancelled, timed-out, or
+  neutral result refuses to announce, and a rejected webhook now fails the job
+  instead of logging a warning. Milestone progress is no longer published:
+  the footer printed the first three open milestones sorted by due date, and
+  since no milestone carries a due date, that selection was arbitrary — it
+  surfaced a deferred architecture backlog beside a release as though it were
+  release progress.
+
 ## [0.1.0-alpha.296] - 2026-08-19
 
 - **Fixed — a fresh packaged-form install could not boot (#2426):**
