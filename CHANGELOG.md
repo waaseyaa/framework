@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — configuration contracts are discovered (#2430, 1/6):** packages
+  declaring `extra.waaseyaa.config-contract` now reach `PackageManifest` as
+  `configContracts`, and the configuration composition root builds
+  `ConfigPackageCompatibility` from them. Compatibility decides whether authored
+  configuration may be staged; it is built only from boot-time declarations,
+  never from the bundle under import, and a malformed declaration is omitted
+  rather than approximated. First of six changes restoring the CFG-03 verified
+  import path, which has never been reachable in production.
+
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path
   to creating one required a generation to already exist. The activator refuses

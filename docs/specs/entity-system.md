@@ -1561,6 +1561,15 @@ consumes that same context and emits generation-bound rebuildable derived state.
 Production-equivalent environments refuse capability publication when the
 active generation is absent.
 
+The same composition root binds `ConfigPackageCompatibility` (CFG-03, #2430),
+built from `PackageManifest::$configContracts` — the declarations discovered at
+boot, never the bundle under import. Absent manifest means the authority is
+unavailable (a typed `ConfigurationAuthorityUnavailableException`) rather than an
+empty-and-permissive compatibility; an undeclared package likewise has no
+contract and is refused. See
+[`config-management.md`](config-management.md) "CFG-03 production composition"
+for the full producer/consumer trust boundary.
+
 **Construction is side-effect free; refusal happens at access (#2426).**
 `DatabaseActiveConfigurationBridge` builds its `DatabaseActiveConfigurationStorage`
 on demand, and neither constructor asserts that a generation has been activated.

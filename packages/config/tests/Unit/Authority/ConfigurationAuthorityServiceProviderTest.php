@@ -9,11 +9,13 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
 use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
+use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
@@ -21,6 +23,7 @@ use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncFileSourceInterface;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 final class ConfigurationAuthorityServiceProviderTest extends TestCase
@@ -36,6 +39,83 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
     protected function tearDown(): void
     {
         @rmdir($this->root);
+    }
+
+    /**
+     * CFG-03 (#2430): compatibility is the authority that decides whether
+     * authored content may be staged. It is composed here, in the sole
+     * production composition root, from discovered package declarations —
+     * never recomputed from the authored bundle itself, which would let a
+     * bundle authorize its own contract.
+     */
+    #[Test]
+    public function itComposesPackageCompatibilityFromDiscoveredContracts(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest(
+            configContracts: [
+                'waaseyaa/config' => [
+                    'schema-provider' => 'Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider',
+                    'version' => 1,
+                    'readable_versions' => [1],
+                ],
+            ],
+        ));
+
+        $compatibility = $provider->resolve(ConfigPackageCompatibility::class);
+
+        self::assertInstanceOf(ConfigPackageCompatibility::class, $compatibility);
+        $compatibility->assertWritableCohort(['waaseyaa/config' => 1]);
+
+        $this->expectException(\RuntimeException::class);
+        $compatibility->assertWritableCohort(['waaseyaa/config' => 2]);
+    }
+
+    /**
+     * An undeclared package must not be staged. Absence is a refusal, not an
+     * implicit allow.
+     */
+    #[Test]
+    public function compatibilityRefusesAPackageThatDeclaresNoContract(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest());
+
+        $compatibility = $provider->resolve(ConfigPackageCompatibility::class);
+        assert($compatibility instanceof ConfigPackageCompatibility);
+
+        $this->expectException(\RuntimeException::class);
+        $compatibility->assertWritableCohort(['waaseyaa/config' => 1]);
+    }
+
+    /**
+     * Without a package manifest there is no basis for a compatibility verdict,
+     * so the authority is unavailable rather than empty-and-permissive.
+     */
+    #[Test]
+    public function compatibilityIsUnavailableWithoutAPackageManifest(): void
+    {
+        $provider = $this->providerWithManifest(null);
+
+        $this->expectException(ConfigurationAuthorityUnavailableException::class);
+        $provider->resolve(ConfigPackageCompatibility::class);
+    }
+
+    private function providerWithManifest(?PackageManifest $manifest): ConfigurationAuthorityServiceProvider
+    {
+        $services = [
+            DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
+            ActiveConfigurationBridgeInterface::class => new TestActiveConfigurationBridge(),
+            \Waaseyaa\Foundation\Event\EventDispatcherInterface::class => new \Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter(),
+        ];
+        if ($manifest instanceof PackageManifest) {
+            $services[PackageManifest::class] = $manifest;
+        }
+
+        $provider = new ConfigurationAuthorityServiceProvider();
+        $provider->setKernelContext($this->root, ['environment' => 'testing'], []);
+        $provider->setKernelServices(new TestKernelServices($services));
+        $provider->register();
+
+        return $provider;
     }
 
     #[Test]

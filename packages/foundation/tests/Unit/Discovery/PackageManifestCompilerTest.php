@@ -31,6 +31,81 @@ final class PackageManifestCompilerTest extends TestCase
         $this->removeDir($this->tempDir);
     }
 
+    /**
+     * CFG-03 (#2430): package configuration contracts are a discovery
+     * convention like providers and policies. The compatibility authority that
+     * gates a verified import is built from these declarations, so a package
+     * that owns configuration must be visible here or its content can never be
+     * staged.
+     */
+    #[Test]
+    public function compile_collects_declared_configuration_contracts(): void
+    {
+        $installed = [
+            'packages' => [
+                [
+                    'name' => 'waaseyaa/config',
+                    'extra' => ['waaseyaa' => ['config-contract' => [
+                        'schema-provider' => 'Acme\\Example\\SchemaProvider',
+                        'version' => 2,
+                        'readable_versions' => [1, 2],
+                    ]]],
+                ],
+                [
+                    'name' => 'waaseyaa/node',
+                    'extra' => ['waaseyaa' => ['providers' => ['Waaseyaa\\Node\\NodeServiceProvider']]],
+                ],
+            ],
+        ];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installed, JSON_THROW_ON_ERROR),
+        );
+
+        $manifest = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+
+        self::assertSame(
+            [
+                'waaseyaa/config' => [
+                    'schema-provider' => 'Acme\\Example\\SchemaProvider',
+                    'version' => 2,
+                    'readable_versions' => [1, 2],
+                ],
+            ],
+            $manifest->configContracts,
+            'Only packages declaring extra.waaseyaa.config-contract appear, verbatim.',
+        );
+    }
+
+    /**
+     * A malformed declaration must not silently become a usable contract:
+     * compatibility decides whether content may be staged, so a package whose
+     * declaration cannot be trusted is absent rather than approximated.
+     */
+    #[Test]
+    public function compile_omits_malformed_configuration_contracts(): void
+    {
+        $installed = [
+            'packages' => [
+                ['name' => 'waaseyaa/broken', 'extra' => ['waaseyaa' => ['config-contract' => ['version' => 1]]]],
+                ['name' => 'waaseyaa/listy', 'extra' => ['waaseyaa' => ['config-contract' => [1, 2, 3]]]],
+                ['name' => 'waaseyaa/typed', 'extra' => ['waaseyaa' => ['config-contract' => [
+                    'schema-provider' => 'Some\\Provider',
+                    'version' => '1',
+                    'readable_versions' => [1],
+                ]]]],
+            ],
+        ];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installed, JSON_THROW_ON_ERROR),
+        );
+
+        $manifest = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+
+        self::assertSame([], $manifest->configContracts);
+    }
+
     #[Test]
     public function compile_reads_installed_json_manifest(): void
     {

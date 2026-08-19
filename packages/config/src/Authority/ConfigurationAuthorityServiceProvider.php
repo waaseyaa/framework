@@ -19,9 +19,12 @@ use Waaseyaa\Config\Manifest\Ed25519ManifestSigningOperation;
 use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Config\Schema\Ai\ProvidersConfig;
+use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
+use Waaseyaa\Config\Schema\ConfigPackageContract;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretReference;
@@ -52,6 +55,29 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
         $this->singleton(ConfigSchemaRegistry::class, fn(): ConfigSchemaRegistry => new ConfigSchemaRegistry(
             $this->resolve(ConfigSchemaValidator::class),
         ));
+        // CFG-03 (#2430): the compatibility authority. Built only from package
+        // declarations discovered at boot, never from the authored bundle under
+        // import — a bundle that could name its own contract version would be
+        // authorizing itself. An undeclared package has no contract and is
+        // refused by ConfigPackageCompatibility, which is the intended verdict.
+        $this->singleton(ConfigPackageCompatibility::class, function (): ConfigPackageCompatibility {
+            $manifest = $this->kernelServices?->get(PackageManifest::class);
+            if (!$manifest instanceof PackageManifest) {
+                throw new ConfigurationAuthorityUnavailableException(
+                    'CFG-03 package compatibility requires the discovered package manifest.',
+                );
+            }
+
+            $contracts = [];
+            foreach ($manifest->configContracts as $package => $declaration) {
+                $contracts[] = ConfigPackageContract::fromComposerManifest([
+                    'name' => $package,
+                    'extra' => ['waaseyaa' => ['config-contract' => $declaration]],
+                ]);
+            }
+
+            return new ConfigPackageCompatibility($contracts);
+        });
         $this->singleton(UnsignedConfigPolicy::class, function (): UnsignedConfigPolicy {
             $context = $this->resolve(ConfigurationAuthorityContext::class);
             assert($context instanceof ConfigurationAuthorityContext);

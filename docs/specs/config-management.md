@@ -48,6 +48,55 @@ boundary, and snapshot-consistent drift contract are defined in
 Production continues to refuse unsigned activation until CFG-04 supplies
 independent key custody and trust policy.
 
+#### CFG-03 production composition (#2430)
+
+The verification types existed from the start but were never composed, so
+`config:import` always received `RefusingConfigImportPreflight` and always
+refused. Three of `VerifiedConfigImportPreflight`'s five dependencies had no
+production producer at all: `ConfigSyncBundleValidator` and
+`ConfigPackageCompatibility` were bound nowhere, and nothing could produce or
+load a `VerifiedConfigManifest` because no code signed a bundle manifest or read
+an envelope back. Restoring the path is one unit of work, because a producer
+without a verifier is unusable and a verifier without a producer is falsely
+reassuring.
+
+**The trust boundary is a split between two hosts.** Signing is an authoring
+action performed where custody lives — a maintainer machine or a protected CI
+environment. Importing is performed by the consumer, which holds public
+`trust_keys` and never the signing key. The signing secret must never be exposed
+to pull-request workflows or to ordinary production runtime.
+
+| Side | Holds | Does |
+|---|---|---|
+| Authoring host | signing key (via the secret registry), authored `config/sync` | validates the bundle, builds the canonical manifest, signs the envelope, writes it |
+| Importing host | public `trust_keys` only | recomputes the manifest, verifies byte identity, signature, compatibility, and replay, then imports |
+
+**Envelope location.** The envelope is a *sibling* of the sync directory, named
+from the same governed selector: `config/sync` yields `config/sync.envelope.json`.
+It cannot live inside the bundle — `ConfigSyncBundleValidator` is strict and
+complete, so every file in the sync directory must be a valid versioned config
+sync file and a JSON envelope there would fail the bundle. Deriving the path from
+`ConfigurationAuthorityContext::$syncPath` also means the envelope inherits the
+existing sync selector and its provenance rules rather than introducing a second,
+separately governed selector.
+
+**Nothing self-attests.** `VerifiedConfigBundle::bind()` recomputes the manifest
+from the freshly validated sync directory and requires byte identity with the
+manifest carried inside the signed envelope. A signature therefore covers exactly
+the authored bytes on the importing host at import time. Package compatibility is
+built only from `extra.waaseyaa.config-contract` declarations discovered at boot
+(`PackageManifest::$configContracts`), never from the bundle under import — a
+bundle that could name its own contract version would be authorizing itself.
+
+**Unsigned stays refused.** `UnsignedConfigPolicy` remains `refusing()` pending a
+sealed CFG-01 bootstrap identity. The sealed-unsigned policy is not a shortcut
+around this work.
+
+**Genesis is separate.** `install:init` activates only the canonical empty
+generation (#2428). It can express no content, claims no CFG-03 verification, and
+is unaffected by any of the above. A freshly installed site is bootable but
+unconfigured until a verified import runs.
+
 ---
 
 ## 1. What ships

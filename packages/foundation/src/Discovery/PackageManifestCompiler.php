@@ -129,6 +129,7 @@ final class PackageManifestCompiler
         $installedPackageNames = array_fill_keys(array_filter(array_column($packages, 'name'), 'is_string'), true);
 
         $packageDeclarations = $this->collectPackageDeclarations($packages);
+        $configContracts = $this->collectConfigContracts($packages);
 
         $this->warnIfLegacyComposerCommandsOrRoutes($packages);
 
@@ -268,6 +269,7 @@ final class PackageManifestCompiler
             permissions: $permissions,
             policies: $policies,
             packageDeclarations: $packageDeclarations,
+            configContracts: $configContracts,
             attributeEntityTypes: $attributeEntityTypes,
             consoleCommandProviders: $consoleCommandProviders,
             agentTools: $agentTools,
@@ -871,6 +873,62 @@ final class PackageManifestCompiler
      * @param array<int, array<string, mixed>> $packages
      * @return array<string, array{surface: 'aggregate'|'implementation'|'tooling', activation: 'discovery'|'none'|'provider'}>
      */
+    /**
+     * Collect CFG-03 configuration-contract declarations (#2430).
+     *
+     * A package owning configuration declares
+     * `extra.waaseyaa.config-contract` with an integer contract version, a
+     * schema-provider identity, and the readable version set.
+     * `ConfigPackageCompatibility` is built from the result and decides whether
+     * authored content may be staged, so a declaration whose shape or types are
+     * wrong is omitted entirely: an approximated contract would silently widen
+     * what a verified import is allowed to write.
+     *
+     * @param list<array<string, mixed>> $packages
+     *
+     * @return array<string, array{schema-provider: string, version: int, readable_versions: list<int>}>
+     */
+    private function collectConfigContracts(array $packages): array
+    {
+        $contracts = [];
+
+        foreach ($packages as $package) {
+            $name = $package['name'] ?? null;
+            $declaration = $package['extra']['waaseyaa']['config-contract'] ?? null;
+            if (!is_string($name) || $name === '' || !is_array($declaration) || array_is_list($declaration)) {
+                continue;
+            }
+
+            $keys = array_keys($declaration);
+            sort($keys, \SORT_STRING);
+            if ($keys !== ['readable_versions', 'schema-provider', 'version']) {
+                continue;
+            }
+
+            $provider = $declaration['schema-provider'];
+            $version = $declaration['version'];
+            $readable = $declaration['readable_versions'];
+            if (!is_string($provider) || !is_int($version) || !is_array($readable) || !array_is_list($readable)) {
+                continue;
+            }
+            foreach ($readable as $readableVersion) {
+                if (!is_int($readableVersion)) {
+                    continue 2;
+                }
+            }
+
+            $contracts[$name] = [
+                'schema-provider' => $provider,
+                'version' => $version,
+                'readable_versions' => $readable,
+            ];
+        }
+
+        ksort($contracts, \SORT_STRING);
+
+        return $contracts;
+    }
+
     private function collectPackageDeclarations(array $packages): array
     {
         $declarations = [];
