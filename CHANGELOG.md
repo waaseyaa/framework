@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — a fresh packaged-form install could not boot (#2426):**
+  `DatabaseActiveConfigurationBridge` built its active-configuration storage
+  eagerly, and `DatabaseActiveConfigurationStorage`'s constructor asserted that
+  a CFG-02 generation was already activated. Access-policy discovery resolves
+  that bridge during `AbstractKernel::boot()`, so a fresh install threw
+  `ConfigurationAuthorityUnavailableException` before it could ever activate a
+  generation — the remedy the exception named required the boot it prevented.
+  The bridge now builds its storage on demand and construction is side-effect
+  free; every read and mutation path still calls `requireActiveGenerationId()`,
+  so a missing activation continues to fail closed where configuration is
+  actually touched, and is still never served from a file fallback.
+
+
 ## [0.1.0-alpha.295] - 2026-08-18
 
 - **Per-record History surface in the Admin SPA:** there was no way to ask "what

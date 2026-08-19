@@ -110,9 +110,16 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         $context = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
         self::assertNull($context->activeGenerationId);
 
+        // #2426 moved this refusal from construction to first read: boot
+        // constructs the bridge while discovering access policies, so an
+        // eager assertion made a fresh install unbootable. The guarantee this
+        // test exists for is unchanged — a missing activation must refuse, and
+        // must never silently serve configuration from a file fallback.
+        $storage = new DatabaseActiveConfigurationBridge($this->database, $context)->activeStorage();
+
         $this->expectException(ConfigurationAuthorityUnavailableException::class);
         $this->expectExceptionMessage('Active configuration generation is unavailable');
-        new DatabaseActiveConfigurationBridge($this->database, $context);
+        $storage->read('system.site');
     }
 
     #[Test]
@@ -408,4 +415,90 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
 
         return $provider;
     }
+
+    /**
+     * #2426: a fresh install has migrated schema but no activated generation,
+     * and — before `migrate` runs at all — not even the authority tables. Boot
+     * constructs this bridge while discovering access policies, so construction
+     * must be side-effect free. A pristine database with NO migration applied
+     * proves both halves at once: construction cannot have issued a query,
+     * because any query would fail against the absent table.
+     */
+    #[Test]
+    public function bridgeAndStorageConstructWithoutActivationTablesOrActiveGeneration(): void
+    {
+        $pristine = DBALDatabase::createSqlite(':memory:', 'testing');
+        self::assertFalse($pristine->schema()->tableExists('waaseyaa_config_generation'));
+        self::assertNull($this->baseContext->activeGenerationId);
+
+        $bridge = new DatabaseActiveConfigurationBridge($pristine, $this->baseContext);
+
+        self::assertSame($this->baseContext, $bridge->authorityContext());
+        self::assertInstanceOf(DatabaseActiveConfigurationStorage::class, $bridge->activeStorage());
+    }
+
+    #[Test]
+    public function readPathsRefuseWithoutAnActiveGeneration(): void
+    {
+        $storage = new DatabaseActiveConfigurationBridge($this->database, $this->baseContext)->activeStorage();
+
+        foreach ([
+            'read' => static fn(): mixed => $storage->read('system.site'),
+            'exists' => static fn(): mixed => $storage->exists('system.site'),
+            'readMultiple' => static fn(): mixed => $storage->readMultiple(['system.site']),
+            'listAll' => static fn(): mixed => $storage->listAll(),
+            'getAllCollectionNames' => static fn(): mixed => $storage->getAllCollectionNames(),
+        ] as $label => $call) {
+            try {
+                $call();
+                self::fail(sprintf('%s() must refuse without an active generation.', $label));
+            } catch (ConfigurationAuthorityUnavailableException $expected) {
+                self::assertStringContainsString('Active configuration generation is unavailable', $expected->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function mutationPathsRefuseWithoutAnActiveGeneration(): void
+    {
+        $bridge = new DatabaseActiveConfigurationBridge($this->database, $this->baseContext);
+        $storage = $bridge->activeStorage();
+
+        foreach ([
+            'write' => static fn(): mixed => $storage->write('system.site', ['name' => 'x']),
+            'delete' => static fn(): mixed => $storage->delete('system.site'),
+            'rename' => static fn(): mixed => $storage->rename('system.site', 'system.other'),
+            'deleteAll' => static fn(): mixed => $storage->deleteAll(),
+            'bridge delete' => static fn(): mixed => $bridge->delete('system.site'),
+        ] as $label => $call) {
+            try {
+                $call();
+                self::fail(sprintf('%s() must refuse without an active generation.', $label));
+            } catch (ConfigurationAuthorityUnavailableException $expected) {
+                self::assertNotSame('', $expected->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function readsResumeNormallyOnceAGenerationIsActivated(): void
+    {
+        $bridge = new DatabaseActiveConfigurationBridge($this->database, $this->baseContext);
+
+        try {
+            $bridge->activeStorage()->read('system.site');
+            self::fail('read() must refuse before activation.');
+        } catch (ConfigurationAuthorityUnavailableException) {
+            // expected: the install has not activated a generation yet
+        }
+
+        $this->seedActiveGeneration(['name' => 'Waaseyaa', 'slogan' => 'Living knowledge']);
+        $activated = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
+
+        self::assertSame(
+            ['name' => 'Waaseyaa', 'slogan' => 'Living knowledge'],
+            new DatabaseActiveConfigurationBridge($this->database, $activated)->activeStorage()->read('system.site'),
+        );
+    }
+
 }

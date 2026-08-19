@@ -20,7 +20,11 @@ final class DatabaseActiveConfigurationStorage implements StorageInterface
         private readonly ConfigurationAuthorityContext $context,
         private readonly string $collection = '',
     ) {
-        $this->context->requireActiveGenerationId();
+        // #2426: deliberately no active-generation assertion here. Construction
+        // must be side-effect free so a fresh install can boot far enough to
+        // apply and activate its configuration. Every read and mutation path
+        // below still calls requireActiveGenerationId(), so the fail-closed
+        // guarantee lives where a caller actually touches configuration.
     }
 
     public function exists(string $name): bool

@@ -13,14 +13,12 @@ use Waaseyaa\Database\DatabaseInterface;
 
 final class DatabaseActiveConfigurationBridge implements ActiveConfigurationBridgeInterface
 {
-    private readonly DatabaseActiveConfigurationStorage $storage;
+    private ?DatabaseActiveConfigurationStorage $storage = null;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly ConfigurationAuthorityContext $context,
-    ) {
-        $this->storage = new DatabaseActiveConfigurationStorage($database, $context);
-    }
+    ) {}
 
     public function authorityContext(): ConfigurationAuthorityContext
     {
@@ -29,7 +27,10 @@ final class DatabaseActiveConfigurationBridge implements ActiveConfigurationBrid
 
     public function activeStorage(): StorageInterface
     {
-        return $this->storage;
+        // #2426: built on demand. Access-policy discovery resolves this bridge
+        // during AbstractKernel::boot(); eager construction made a fresh
+        // install unbootable before it could activate a generation.
+        return $this->storage ??= new DatabaseActiveConfigurationStorage($this->database, $this->context);
     }
 
     public function iterate(): iterable
