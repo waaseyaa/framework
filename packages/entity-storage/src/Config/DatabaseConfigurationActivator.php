@@ -17,6 +17,7 @@ use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepRequest;
+use Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
 use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
 use Waaseyaa\Config\Activation\RefusingConfigurationCandidateSweepAuthorizer;
@@ -27,7 +28,7 @@ use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Database\DatabaseInterface;
 
 /** Transactional DML authority for immutable configuration generations. */
-final class DatabaseConfigurationActivator implements ConfigurationActivatorInterface, ConfigurationCandidateMaintenanceInterface
+final class DatabaseConfigurationActivator implements ConfigurationActivatorInterface, ConfigurationCandidateMaintenanceInterface, ConfigurationGenesisActivatorInterface
 {
     public function __construct(
         private readonly DatabaseInterface $database,
@@ -61,10 +62,20 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
 
     private function activateTransactional(ConfigurationActivationRequest $request): ConfigurationActivationResult
     {
-        ($this->authorizer)->authorize(
-            $request,
-            $request->tombstones() !== [] || $request->completeReplacement,
-        );
+        // Genesis (#2428) is not operator-authorized, and deliberately so.
+        // It runs during installation, before any account exists, so there is
+        // nobody to hold a permission; and it can express no content — the
+        // request type refuses files, tombstones, expectations, bundles,
+        // tokens, and target generations — so there is nothing to authorize
+        // over. Its boundary is the restricted `install:init` lifecycle plus
+        // the currentToken() === null precondition, both enforced above. Every
+        // other operation still requires the bound authorizer.
+        if (!$request->isGenesis) {
+            ($this->authorizer)->authorize(
+                $request,
+                $request->tombstones() !== [] || $request->completeReplacement,
+            );
+        }
         $inputHash = $request->inputHash();
         $existing = $this->candidate($request->requestId);
         if ($existing !== null) {
@@ -134,7 +145,14 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
             }
         }
         ksort($nextEntries, SORT_STRING);
-        if ($request->operation === 'activate') {
+        if ($request->isGenesis) {
+            // Deterministic per site and content-free: the genesis generation
+            // has no entries, so its identity can only be derived from the
+            // authority it belongs to. A retry therefore resolves to the same
+            // generation rather than a competing one.
+            $generationId = self::genesisGenerationId($this->context);
+            $manifestHash = $generationId;
+        } elseif ($request->operation === 'activate') {
             $verifiedBundle = $request->verifiedBundle
                 ?? throw new \LogicException('Verified activation bundle disappeared after request validation.');
             $generationId = $verifiedBundle->effectiveManifest->generationId;
@@ -179,8 +197,8 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
 
             $this->database->query(
                 'INSERT INTO waaseyaa_config_activation_v2 '
-                . '(authority_id, activation_sequence, activation_request_id, generation_id, previous_generation_id, previous_activation_sequence, plan_hash, operation, target_generation_id, activated_at) '
-                . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                . '(authority_id, activation_sequence, activation_request_id, generation_id, previous_generation_id, previous_activation_sequence, plan_hash, operation, target_generation_id, activated_at, is_genesis) '
+                . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $this->context->authorityId,
                     $sequence,
@@ -192,9 +210,12 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                     $request->operation,
                     $request->targetGenerationId,
                     gmdate('c'),
+                    $request->isGenesis ? 1 : 0,
                 ],
             );
-            if ($request->operation === 'activate') {
+            // Genesis claims no CFG-03 verification, so there is no manifest
+            // provenance to record. Every other activation still records it.
+            if ($request->operation === 'activate' && !$request->isGenesis) {
                 $this->recordVerifiedManifest($request, $generationId, $sequence);
             }
             $candidateUpdated = $this->database->update('waaseyaa_config_candidate')
@@ -228,6 +249,32 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
             $request->expectedToken,
             $request->requestId,
         );
+    }
+
+    public function activateGenesis(string $requestId): ConfigurationActivationResult
+    {
+        $active = $this->currentToken();
+        if ($active !== null) {
+            $committed = $this->committedResult($requestId);
+            if ($committed !== null) {
+                // This exact installation request already succeeded. Replay its
+                // result so an interrupted install is safe to run again.
+                return $committed;
+            }
+
+            throw new ConfigurationActivationConflictException(sprintf(
+                'Configuration generation %s is already active; genesis must not create a competing generation.',
+                $active->generationId,
+            ));
+        }
+
+        return $this->activate(ConfigurationActivationRequest::genesis($requestId));
+    }
+
+    /** Content-free identity of the canonical empty generation for one authority. */
+    public static function genesisGenerationId(ConfigurationAuthorityContext $context): string
+    {
+        return hash('sha256', 'configuration.genesis.empty.v1|' . $context->authorityId);
     }
 
     public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult
@@ -616,7 +663,9 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                         ],
                     );
                 }
-                if ($request->operation === 'activate') {
+                // Genesis stages no entries and carries no bundle, so there is
+                // no per-entry contract metadata to write.
+                if ($request->operation === 'activate' && !$request->isGenesis) {
                     $bundle = $request->verifiedBundle
                         ?? throw new \LogicException('Verified entry metadata disappeared before staging.');
                     foreach ($bundle->entries() as $entry) {
@@ -643,8 +692,8 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
             }
             $this->database->query(
                 'INSERT INTO waaseyaa_config_candidate '
-                . '(authority_id, activation_request_id, input_hash, expected_generation_id, expected_activation_sequence, generation_id, plan_hash, operation, target_generation_id, lifecycle_state, created_at) '
-                . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                . '(authority_id, activation_request_id, input_hash, expected_generation_id, expected_activation_sequence, generation_id, plan_hash, operation, target_generation_id, lifecycle_state, created_at, is_genesis) '
+                . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $this->context->authorityId,
                     $request->requestId,
@@ -657,6 +706,7 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                     $request->targetGenerationId,
                     'staged',
                     $now,
+                    $request->isGenesis ? 1 : 0,
                 ],
             );
             $transaction->commit();

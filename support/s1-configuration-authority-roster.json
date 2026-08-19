@@ -178,6 +178,27 @@
             "occurrence": 2
         },
         {
+            "path": "packages/cli/src/Handler/InstallInitHandler.php",
+            "pattern": "authority_context",
+            "class": "command-adapter",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/Handler/InstallInitHandler.php",
+            "pattern": "authority_context",
+            "class": "command-adapter",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/src/Handler/InstallInitHandler.php",
+            "pattern": "authority_context",
+            "class": "command-adapter",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 3
+        },
+        {
             "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
             "pattern": "active_bridge",
             "class": "command-composition",
@@ -295,6 +316,20 @@
             "class": "command-composition",
             "match_sha256": "8a2de28d8fbf6c3ea69e7f9148d3afb654501e865735a66f71443a326653a099",
             "occurrence": 3
+        },
+        {
+            "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "command-adapter",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "command-adapter",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 2
         },
         {
             "path": "packages/cli/src/Provider/MiscAServiceProvider.php",
@@ -1478,6 +1513,13 @@
             "class": "higher-layer-bridge",
             "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
             "occurrence": 2
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "pattern": "authority_context",
+            "class": "higher-layer-bridge",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 3
         },
         {
             "path": "packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php",

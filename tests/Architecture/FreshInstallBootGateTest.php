@@ -39,19 +39,39 @@ final class FreshInstallBootGateTest extends TestCase
         self::assertTrue(is_executable($harness), self::HARNESS . ' must be executable.');
         self::assertFileExists($this->repoRoot . '/tests/FreshInstallBoot/boot.php');
 
-        // The probe must cross the schema-transition boundary and then boot an
-        // ordinary runtime kernel; asserting only one of the two would let the
-        // regression back in.
+        // The governed installation phase belongs to the harness — it runs
+        // `waaseyaa install:init` exactly as a deployment does — so the probe
+        // proves only what a consumer gets afterwards: ordinary runtime boot
+        // with no privileged setup of its own.
+        $harnessSource = (string) file_get_contents($harness);
+        self::assertStringContainsString('waaseyaa install:init', $harnessSource);
+        self::assertStringContainsString('Installation is complete.', $harnessSource);
+        // Running it twice must stay successful and must not mint a second
+        // generation; that idempotence is part of what the gate proves.
+        self::assertStringContainsString('Configuration already initialized', $harnessSource);
+
         $probe = (string) file_get_contents($this->repoRoot . '/tests/FreshInstallBoot/boot.php');
-        self::assertStringContainsString('bootForSchemaSync', $probe);
+        self::assertStringNotContainsString(
+            'bootForSchemaSync',
+            $probe,
+            'The probe must not perform privileged setup the governed install path owns.',
+        );
         self::assertStringContainsString('HttpKernel', $probe);
         self::assertStringContainsString('fresh-install kernel boot OK', $probe);
+
+        // Boot alone is not the property. v0.1.0-alpha.296 booted a fresh
+        // install and still could not save, because the PRE_SAVE listener
+        // resolves workflow configuration. The gate went green over that while
+        // Skeleton Smoke went red on the same commit, so the write is pinned
+        // here explicitly.
+        self::assertStringContainsString('->save(', $probe);
+        self::assertStringContainsString('->find(', $probe);
+        self::assertStringContainsString('fresh-install entity round-trip OK', $probe);
 
         // Path repositories, not the published artifact — that is what makes
         // the proof runnable before a tag exists. The word "Packagist" appears
         // in the harness's own comments explaining exactly this, so assert the
         // behaviour instead: no registry fetch, no create-project.
-        $harnessSource = (string) file_get_contents($harness);
         self::assertStringContainsString('"type" => "path"', $harnessSource);
         self::assertStringNotContainsString('repo.packagist.org', $harnessSource);
         self::assertStringNotContainsString('create-project', $harnessSource);

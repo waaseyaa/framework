@@ -8,6 +8,7 @@ use Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface;
+use Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
 use Waaseyaa\Config\Activation\RefusingConfigurationActivationAuthorizer;
 use Waaseyaa\Config\Activation\RefusingConfigurationCandidateSweepAuthorizer;
@@ -50,6 +51,16 @@ final class ConfigurationStorageServiceProvider extends ServiceProvider implemen
 
             return new DatabaseActiveConfigurationBridge($database, $context);
         });
+        // #2428: the same activator instance, reachable only by asking for the
+        // genesis seam by name. Ordinary activation consumers resolve
+        // ConfigurationActivatorInterface and cannot see activateGenesis().
+        $this->singleton(ConfigurationGenesisActivatorInterface::class, function (): ConfigurationGenesisActivatorInterface {
+            $activator = $this->resolve(ConfigurationActivatorInterface::class);
+            assert($activator instanceof ConfigurationGenesisActivatorInterface);
+
+            return $activator;
+        });
+
         $this->singleton(ConfigurationActivatorInterface::class, function (): ConfigurationActivatorInterface {
             $database = $this->resolve(DatabaseInterface::class);
             $context = $this->resolve(ConfigurationAuthorityContext::class);

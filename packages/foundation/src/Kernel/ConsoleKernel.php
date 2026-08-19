@@ -84,6 +84,9 @@ final class ConsoleKernel extends AbstractKernel
                 'migrate:rollback',
                 'migrate:status',
                 'site:init',
+                // #2428: the installation phase must not construct runtime
+                // consumers that require the generation it is about to create.
+                'install:init',
             ], true)) {
                 $this->bootForSchemaSync();
             } else {

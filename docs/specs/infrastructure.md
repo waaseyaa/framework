@@ -171,6 +171,23 @@ Authoritative dispositions are in `docs/public-surface-map.php`, verified by `Pu
 | ingestion | `PayloadValidatorInterface`, `MessageEnvelopeValidator` | Ingestion validation internals |
 | testing | `WaaseyaaTestCase`, `AbstractGraphQlSchemaContractTestCase` | Test base classes, not consumer API |
 
+## Console boot modes and the installation phase
+
+`ConsoleKernel::handle()` selects a boot mode per command. Most commands take
+ordinary `bootForCli()`. A small, explicit set — `schema:sync`, `migrate`,
+`migrate:rollback`, `migrate:status`, `site:init`, and `install:init` — takes
+`bootForSchemaSync()`, which sets `restrictedDiscoveryOnly` and therefore skips
+`bootProviders()`, `discoverAccessPolicies()`, the field-read runtime, schedule
+entries, and `finalizeBoot()`.
+
+That restriction is what makes an installation phase possible at all (#2428).
+Access-policy discovery resolves configuration, so a command that had to create
+the first configuration generation could not run under ordinary boot: it would
+require the very state it exists to produce. Commands added to this list must be
+genuinely pre-runtime; anything needing policies, schedules, or the field-read
+runtime does not belong in it.
+
+
 ## Packages
 
 | Package | Namespace | Layer | Purpose |

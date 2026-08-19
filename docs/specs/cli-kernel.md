@@ -100,6 +100,26 @@ active generation, sync path, and selector provenance. They do not print secret
 values. An unavailable or divergent authority is a boot/composition failure,
 not a diagnostic warning.
 
+## Installation lifecycle
+
+`install:init` is the governed installation phase (#2428) and belongs to the
+restricted pre-boot command set alongside `schema:sync`, `migrate*`, and
+`site:init`. `ConsoleKernel::handle()` routes it through `bootForSchemaSync()`,
+so it never constructs a runtime consumer that would require the configuration
+generation it is producing, and it exits without entering ordinary runtime boot.
+
+It applies migrations, synchronizes entity schema, and activates the canonical
+empty configuration generation through the genesis seam described in
+[entity-system.md](entity-system.md). It is idempotent: a site that already has
+an active generation reports it and exits successfully, a repeated installation
+request replays its committed result, and contradictory partial state is refused
+rather than resolved by minting a second generation.
+
+It is distinct from `install`, which seeds site content and an admin account
+through ordinary runtime boot. A fresh site runs `install:init` first; `install`
+could not previously succeed on a new site at all, because it writes
+configuration and no generation existed to write into.
+
 ## Site initialization
 
 `SiteServiceProvider` registers `site:init [--answers=PATH] [--project-root=PATH]

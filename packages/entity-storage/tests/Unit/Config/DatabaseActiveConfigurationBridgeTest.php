@@ -74,6 +74,8 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         $migration->up(new SchemaBuilder($this->database->getConnection()));
         $manifestMigration = require dirname(__DIR__, 3) . '/migrations/2026_08_15_000004_configuration_manifest_replay.php';
         $manifestMigration->up(new SchemaBuilder($this->database->getConnection()));
+        $genesisMigration = require dirname(__DIR__, 3) . '/migrations/2026_08_19_000005_configuration_genesis_marker.php';
+        $genesisMigration->up(new SchemaBuilder($this->database->getConnection()));
         $authorizer = new class implements ConfigurationActivationAuthorizerInterface {
             public function authorize(ConfigurationActivationRequest $request, bool $deletes): void {}
         };

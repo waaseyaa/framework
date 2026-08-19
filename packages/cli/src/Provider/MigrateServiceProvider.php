@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\InstallInitHandler;
 use Waaseyaa\CLI\Handler\MigrateDefaultsHandler;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
@@ -51,6 +52,39 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
      */
     public function register(): void
     {
+        // install:init (#2428) reuses this provider's migration runtime because
+        // its first two steps ARE migrate + schema sync; the activation step
+        // then closes the lifecycle transition a fresh site was missing.
+        // install:init (#2428) reuses this provider's migration runtime because
+        // preparing schema IS migrate + schema sync; the handler itself only
+        // sequences that and the initial activation.
+        $this->singleton(InstallInitHandler::class, function (): InstallInitHandler {
+            [$migrator, , $loader, ] = $this->migrationRuntime();
+            $entityTypeManager = $this->resolve(\Waaseyaa\Entity\EntityTypeManager::class);
+            $database = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
+            assert($entityTypeManager instanceof \Waaseyaa\Entity\EntityTypeManager);
+            assert($database instanceof \Waaseyaa\Database\DatabaseInterface);
+            $activator = $this->resolve(\Waaseyaa\Config\Activation\ConfigurationActivatorInterface::class);
+            $genesis = $this->resolve(\Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface::class);
+            $authority = $this->resolve(\Waaseyaa\Config\Authority\ConfigurationAuthorityContext::class);
+            assert($activator instanceof \Waaseyaa\Config\Activation\ConfigurationActivatorInterface);
+            assert($genesis instanceof \Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface);
+            assert($authority instanceof \Waaseyaa\Config\Authority\ConfigurationAuthorityContext);
+
+            return new InstallInitHandler(
+                prepareSchema: static function () use ($migrator, $loader, $entityTypeManager, $database): void {
+                    $migrator->run($loader->loadAll(), $loader->loadAllV2());
+                    new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
+                        $database,
+                        $entityTypeManager->getFieldRegistry(),
+                    )->run($entityTypeManager->getDefinitions());
+                },
+                activator: $activator,
+                genesis: $genesis,
+                authority: $authority,
+            );
+        });
+
         $this->singleton(MigrateHandler::class, function (): MigrateHandler {
             [$migrator, $repository, $loader, $connection] = $this->migrationRuntime();
 
@@ -137,6 +171,12 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
 
     public function consoleCommands(): iterable
     {
+        yield new HandlerCommand(
+            name: 'install:init',
+            description: 'Initialize a fresh installation: apply migrations, synchronize schema, and activate the initial configuration generation',
+            handler: [InstallInitHandler::class, 'execute'],
+        );
+
         yield new HandlerCommand(
             name: 'migrate',
             description: 'Run pending database migrations (use --dry-run to preview, --verify to audit)',

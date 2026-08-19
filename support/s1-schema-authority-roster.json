@@ -2996,6 +2996,27 @@
             "occurrence": 3
         },
         {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 2
+        },
+        {
             "path": "packages/entity-storage/src/Backend/SqlColumnSchemaBuilder.php",
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
@@ -3637,6 +3658,13 @@
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/Config/ConfigurationGenesisMarkerMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
             "occurrence": 1
         },
         {

@@ -37,6 +37,7 @@ foreach ([
     '2026_08_12_000002_configuration_authority.php',
     '2026_08_12_000003_configuration_activation.php',
     '2026_08_15_000004_configuration_manifest_replay.php',
+    '2026_08_19_000005_configuration_genesis_marker.php',
 ] as $migrationFile) {
     $migration = require __DIR__ . '/vendor/waaseyaa/entity-storage/migrations/' . $migrationFile;
     $migration->up(new SchemaBuilder($database->getConnection()));
