@@ -880,13 +880,29 @@ final class PackageManifestCompiler
      * `extra.waaseyaa.config-contract` with an integer contract version, a
      * schema-provider identity, and the readable version set.
      * `ConfigPackageCompatibility` is built from the result and decides whether
-     * authored content may be staged, so a declaration whose shape or types are
-     * wrong is omitted entirely: an approximated contract would silently widen
-     * what a verified import is allowed to write.
+     * authored content may be staged.
+     *
+     * Three states, deliberately distinguished:
+     *
+     *  - **No declaration** — the package intentionally contributes no
+     *    configuration contract. It is absent from the result, and any authored
+     *    file claiming it as owner is refused downstream.
+     *  - **Valid declaration** — recorded verbatim.
+     *  - **Malformed declaration** — refused here, naming the package and the
+     *    invalid field.
+     *
+     * The third case previously fell back to the first. That was wrong: a
+     * package that declares a contract and gets it wrong is not the same as one
+     * that declares nothing, and silently demoting it produces an
+     * under-specified compatibility cohort that both the signer and the verifier
+     * would accept. A declaration nobody can read is evidence that the installed
+     * cohort is not what it claims to be, so it fails closed.
      *
      * @param list<array<string, mixed>> $packages
      *
      * @return array<string, array{schema-provider: string, version: int, readable_versions: list<int>}>
+     *
+     * @throws MalformedConfigContractException
      */
     private function collectConfigContracts(array $packages): array
     {
@@ -894,26 +910,46 @@ final class PackageManifestCompiler
 
         foreach ($packages as $package) {
             $name = $package['name'] ?? null;
-            $declaration = $package['extra']['waaseyaa']['config-contract'] ?? null;
-            if (!is_string($name) || $name === '' || !is_array($declaration) || array_is_list($declaration)) {
+            if (!is_string($name) || $name === '') {
                 continue;
+            }
+            if (!array_key_exists('config-contract', $package['extra']['waaseyaa'] ?? [])) {
+                // No declaration: this package contributes no configuration
+                // contract, which is an ordinary and complete answer.
+                continue;
+            }
+
+            $declaration = $package['extra']['waaseyaa']['config-contract'];
+            if (!is_array($declaration) || array_is_list($declaration)) {
+                throw MalformedConfigContractException::forField($name, 'config-contract', 'must be a JSON object');
             }
 
             $keys = array_keys($declaration);
             sort($keys, \SORT_STRING);
             if ($keys !== ['readable_versions', 'schema-provider', 'version']) {
-                continue;
+                throw MalformedConfigContractException::forField(
+                    $name,
+                    'config-contract',
+                    'must declare exactly schema-provider, version, and readable_versions (found: '
+                        . ($keys === [] ? 'nothing' : implode(', ', $keys)) . ')',
+                );
             }
 
             $provider = $declaration['schema-provider'];
             $version = $declaration['version'];
             $readable = $declaration['readable_versions'];
-            if (!is_string($provider) || !is_int($version) || !is_array($readable) || !array_is_list($readable)) {
-                continue;
+            if (!is_string($provider) || $provider === '') {
+                throw MalformedConfigContractException::forField($name, 'schema-provider', 'must be a non-empty string');
+            }
+            if (!is_int($version)) {
+                throw MalformedConfigContractException::forField($name, 'version', 'must be an integer');
+            }
+            if (!is_array($readable) || !array_is_list($readable)) {
+                throw MalformedConfigContractException::forField($name, 'readable_versions', 'must be a list');
             }
             foreach ($readable as $readableVersion) {
                 if (!is_int($readableVersion)) {
-                    continue 2;
+                    throw MalformedConfigContractException::forField($name, 'readable_versions', 'must contain only integers');
                 }
             }
 

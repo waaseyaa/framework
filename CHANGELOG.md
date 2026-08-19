@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `configContracts`, and the configuration composition root builds
   `ConfigPackageCompatibility` from them. Compatibility decides whether authored
   configuration may be staged; it is built only from boot-time declarations,
-  never from the bundle under import, and a malformed declaration is omitted
-  rather than approximated. First of six changes restoring the CFG-03 verified
-  import path, which has never been reachable in production.
+  never from the bundle under import. Discovery distinguishes three states: no
+  declaration (the package contributes nothing), a valid declaration (recorded
+  verbatim), and a malformed declaration (refused, naming the package and the
+  invalid field). First of six changes restoring the CFG-03 verified import
+  path, which has never been reachable in production.
 
 - **Fixed — the signed configuration envelope has a home (#2430, 2/6):** a
   bundle manifest envelope is now read and written atomically as a sibling of

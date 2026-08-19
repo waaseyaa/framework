@@ -113,7 +113,9 @@ manifest carried inside the signed envelope. A signature therefore covers exactl
 the authored bytes on the importing host at import time. Package compatibility is
 built only from `extra.waaseyaa.config-contract` declarations discovered at boot
 (`PackageManifest::$configContracts`), never from the bundle under import — a
-bundle that could name its own contract version would be authorizing itself.
+bundle that could name its own contract version would be authorizing itself. A package whose declaration is malformed fails discovery outright
+rather than being skipped, so an under-specified cohort can never reach the
+signer or the verifier.
 
 `Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight` is the importing
 host's gate and the binding published for `ConfigImportPreflightInterface`. It
