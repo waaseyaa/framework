@@ -20,6 +20,7 @@ use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
+use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncFileSourceInterface;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
@@ -97,6 +98,30 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
 
         $this->expectException(ConfigurationAuthorityUnavailableException::class);
         $provider->resolve(ConfigPackageCompatibility::class);
+    }
+
+    /**
+     * CFG-03 (#2430): strict bundle validation is part of the verified import
+     * chain and had no production binding, so the preflight that needs it could
+     * not be constructed. It must share the one frozen schema registry — a
+     * second registry would validate against schemas the running site does not
+     * actually have.
+     */
+    #[Test]
+    public function itComposesTheStrictBundleValidatorOnTheOneSchemaRegistry(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest());
+
+        $validator = $provider->resolve(ConfigSyncBundleValidator::class);
+
+        self::assertInstanceOf(ConfigSyncBundleValidator::class, $validator);
+        self::assertSame($validator, $provider->resolve(ConfigSyncBundleValidator::class));
+
+        $registry = $provider->resolve(ConfigSchemaRegistry::class);
+        assert($registry instanceof ConfigSchemaRegistry);
+        $registry->freeze();
+        $result = $validator->validate($this->root . '/absent-sync');
+        self::assertFalse($result->isValid(), 'The validator reports on the real filesystem, not a private copy.');
     }
 
     private function providerWithManifest(?PackageManifest $manifest): ConfigurationAuthorityServiceProvider

@@ -23,6 +23,7 @@ use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
 use Waaseyaa\Config\Schema\ConfigPackageContract;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
+use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
@@ -78,6 +79,13 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
 
             return new ConfigPackageCompatibility($contracts);
         });
+        // CFG-03 (#2430): strict, complete, read-only validation of the authored
+        // sync directory. Bound on the one frozen schema registry — a second
+        // registry would validate content against schemas this site does not
+        // actually have installed.
+        $this->singleton(ConfigSyncBundleValidator::class, fn(): ConfigSyncBundleValidator => new ConfigSyncBundleValidator(
+            $this->resolve(ConfigSchemaRegistry::class),
+        ));
         $this->singleton(UnsignedConfigPolicy::class, function (): UnsignedConfigPolicy {
             $context = $this->resolve(ConfigurationAuthorityContext::class);
             assert($context instanceof ConfigurationAuthorityContext);

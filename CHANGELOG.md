@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than approximated. First of six changes restoring the CFG-03 verified
   import path, which has never been reachable in production.
 
+- **Fixed — the signed configuration envelope has a home (#2430, 2/6):** a
+  bundle manifest envelope is now read and written atomically as a sibling of
+  the authored sync directory (`config/sync` is authorized by
+  `config/sync.envelope.json`), and `ConfigSyncBundleValidator` is bound in the
+  configuration composition root. The envelope cannot live inside the bundle:
+  strict validation requires every file there to be a versioned config sync
+  file. An absent envelope reads as absent; malformed or symlinked bytes are
+  refused, because something present and untrustworthy must never be mistaken
+  for nothing being present.
+
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path
   to creating one required a generation to already exist. The activator refuses

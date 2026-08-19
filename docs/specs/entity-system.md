@@ -1568,7 +1568,9 @@ unavailable (a typed `ConfigurationAuthorityUnavailableException`) rather than a
 empty-and-permissive compatibility; an undeclared package likewise has no
 contract and is refused. See
 [`config-management.md`](config-management.md) "CFG-03 production composition"
-for the full producer/consumer trust boundary.
+for the full producer/consumer trust boundary. The same root binds
+`ConfigSyncBundleValidator` on that one frozen schema registry, so strict bundle
+validation always runs against the schemas the site actually has installed.
 
 **Construction is side-effect free; refusal happens at access (#2426).**
 `DatabaseActiveConfigurationBridge` builds its `DatabaseActiveConfigurationStorage`

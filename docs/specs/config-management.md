@@ -80,6 +80,16 @@ sync file and a JSON envelope there would fail the bundle. Deriving the path fro
 existing sync selector and its provenance rules rather than introducing a second,
 separately governed selector.
 
+`Waaseyaa\Config\Manifest\ConfigManifestEnvelopeFile` owns that path
+(`pathFor()`, `read()`, `write()`) and moves bytes only — it never verifies a
+signature, so reading an envelope grants nothing on its own. Writes are
+temp-then-rename: a partially written sidecar would fail verification in a way
+indistinguishable from tampering. An absent envelope reads as `null`, because a
+site may legitimately hold none yet and the preflight turns that into an
+actionable refusal; malformed, unreadable, or symlinked bytes throw, because
+something present and untrustworthy must never be mistaken for nothing being
+present.
+
 **Nothing self-attests.** `VerifiedConfigBundle::bind()` recomputes the manifest
 from the freshly validated sync directory and requires byte identity with the
 manifest carried inside the signed envelope. A signature therefore covers exactly

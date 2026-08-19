@@ -105,6 +105,17 @@ profile requires no signing provider and publishes no signing authority. This
 slice publishes the CFG-03 interface bindings; it adds no operational signing
 command or key ceremony.
 
+**Where the two profiles physically sit (#2430).** The signer profile belongs on
+an authoring host — a maintainer machine or a protected CI environment — and the
+verifier-only profile is what a consumer runs. A consumer receives the authored
+sync directory, the signed envelope beside it
+(`Waaseyaa\Config\Manifest\ConfigManifestEnvelopeFile`, so `config/sync` is
+authorized by `config/sync.envelope.json`), and the public `trust_keys`; it never
+receives the signing key. The signing secret must never be exposed to
+pull-request workflows or to ordinary production runtime. Moving the envelope
+between hosts moves no custody: the sidecar carries only signed public bytes, and
+reading it grants nothing until the verifier checks it against a trusted key.
+
 ## Schema and verification
 
 All lifecycle columns, version authority, indexes, and append-only revocation
