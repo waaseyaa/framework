@@ -1561,6 +1561,23 @@ consumes that same context and emits generation-bound rebuildable derived state.
 Production-equivalent environments refuse capability publication when the
 active generation is absent.
 
+**Construction is side-effect free; refusal happens at access (#2426).**
+`DatabaseActiveConfigurationBridge` builds its `DatabaseActiveConfigurationStorage`
+on demand, and neither constructor asserts that a generation has been activated.
+The refusal lives on the access paths — `read()`, `readMultiple()`, `exists()`,
+`listAll()`, and `getAllCollectionNames()` each call `requireActiveGenerationId()`
+per query, and every mutation path refuses unconditionally — so a missing
+activation still fails closed and is never served from a file fallback.
+
+This boundary is load-bearing rather than stylistic. Access-policy discovery runs
+inside `AbstractKernel::boot()`, and resolving a policy can pull
+`ConfigFactoryInterface` and therefore this bridge. While the assertion sat in
+the constructor, a fresh install could not boot at all: it had migrated schema
+but no activated generation, and activating one requires a booted kernel. Two
+releases shipped unbootable for new installs before this was corrected. A
+constructor on this path must therefore stay free of state assertions; put new
+guards on the methods that touch configuration.
+
 **Transactional activation:** Production writes through
 `ConfigurationActivatorInterface`, which stages a complete immutable successor
 generation and compares both the content generation ID and monotonic activation
