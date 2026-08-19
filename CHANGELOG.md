@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.296] - 2026-08-19
+
 - **Fixed — a fresh packaged-form install could not boot (#2426):**
   `DatabaseActiveConfigurationBridge` built its active-configuration storage
   eagerly, and `DatabaseActiveConfigurationStorage`'s constructor asserted that
