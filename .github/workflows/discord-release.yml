@@ -1,66 +1,108 @@
 name: Discord Release Notification
 
+# Announces a release only once the release is actually consumable.
+#
+# The previous design triggered on tag creation and waited up to five minutes
+# for a workflow named "CI". That is not a publication proof: it fired while
+# Split Monorepo was still pushing package repos, before Packagist had crawled
+# anything, and before Skeleton Smoke had installed the published artifact. On
+# v0.1.0-alpha.296 it announced a release whose Skeleton Smoke then failed —
+# the announcement was, in effect, unverified.
+#
+# Now it is chained behind Split Monorepo (so every package repo has been
+# pushed) and additionally requires an exact-SHA Skeleton Smoke success (so the
+# published artifact has been installed and exercised as a consumer). Anything
+# short of a success — missing, queued past budget, skipped, failed, cancelled,
+# timed out, neutral — refuses to announce.
+
 on:
-  push:
-    tags: ['v*']
+  workflow_run:
+    workflows: ['Split Monorepo']
+    types: [completed]
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  wait-for-ci:
-    name: Wait for CI
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for CI to complete
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const sha = context.sha;
-            const maxWait = 300000; // 5 minutes
-            const interval = 15000; // 15 seconds
-            let elapsed = 0;
-
-            while (elapsed < maxWait) {
-              const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                head_sha: sha,
-                per_page: 10,
-              });
-
-              const ciRun = runs.workflow_runs.find(r => r.name === 'CI');
-              if (ciRun) {
-                if (ciRun.conclusion === 'success') {
-                  core.info('CI passed — proceeding with notification');
-                  return;
-                }
-                if (ciRun.conclusion === 'failure' || ciRun.conclusion === 'cancelled') {
-                  core.setFailed(`CI ${ciRun.conclusion} — skipping Discord notification`);
-                  return;
-                }
-              }
-
-              core.info(`CI still running... waiting ${interval / 1000}s (${elapsed / 1000}s elapsed)`);
-              await new Promise(r => setTimeout(r, interval));
-              elapsed += interval;
-            }
-
-            core.setFailed('CI did not complete within 5 minutes — skipping notification');
-
   notify:
     name: Send Discord notification
-    needs: wait-for-ci
+    # Split must itself have succeeded, and this must be a tag build — Split
+    # also runs on non-release refs, which are not releases to announce.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
     runs-on: ubuntu-latest
     steps:
+      - name: Require exact-SHA Skeleton Smoke success
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          script: |
+            const releaseSha = process.env.RELEASE_SHA;
+            const smokeName = 'Skeleton Smoke (Packaged-form CI)';
+            // Skeleton Smoke waits on the Packagist crawl of every sibling
+            // (30 x 60s budget per package), so it can legitimately run well
+            // past Split's completion. Wait generously, then fail closed.
+            const maxWait = 45 * 60 * 1000;
+            const interval = 30 * 1000;
+            const started = Date.now();
+
+            while (true) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head_sha: releaseSha,
+                per_page: 100,
+              });
+
+              // Same commit, same workflow — the exact-SHA binding. Take the
+              // newest run so a re-dispatch supersedes an earlier attempt.
+              const runs = data.workflow_runs
+                .filter(r => r.name === smokeName)
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+              if (runs.length > 0) {
+                const run = runs[0];
+                if (run.status === 'completed') {
+                  if (run.conclusion === 'success') {
+                    core.info(`Skeleton Smoke succeeded for ${releaseSha} (run ${run.id}) — announcing`);
+                    return;
+                  }
+                  // failure, cancelled, skipped, timed_out, neutral,
+                  // action_required, stale — none of these prove a consumable
+                  // release, so none of them may announce one.
+                  core.setFailed(
+                    `Skeleton Smoke concluded "${run.conclusion}" for ${releaseSha} (run ${run.id}) — refusing to announce.`,
+                  );
+                  return;
+                }
+                core.info(`Skeleton Smoke ${run.status} for ${releaseSha}; waiting.`);
+              } else {
+                core.info(`No Skeleton Smoke run yet for ${releaseSha}; waiting.`);
+              }
+
+              if (Date.now() - started >= maxWait) {
+                core.setFailed(
+                  `No successful Skeleton Smoke for ${releaseSha} within ${maxWait / 60000} minutes — refusing to announce.`,
+                );
+                return;
+              }
+              await new Promise(r => setTimeout(r, interval));
+            }
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
 
       - name: Generate changelog
         id: changelog
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
-          TAG="${{ github.ref_name }}"
+          set -euo pipefail
           TAG_SHA=$(git rev-parse "${TAG}")
 
           # Walk back through tags to find the first one pointing to a different commit
@@ -96,17 +138,16 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Send Discord notification
-        if: ${{ !cancelled() }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ github.event.workflow_run.head_branch }}
           REPO_NAME: ${{ github.repository }}
         with:
           script: |
             const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
             if (!webhookUrl) {
-              core.warning('DISCORD_WEBHOOK_URL secret not set — skipping notification');
+              core.setFailed('DISCORD_WEBHOOK_URL secret not set — cannot announce.');
               return;
             }
 
@@ -115,35 +156,17 @@ jobs:
             const changelog = process.env.CHANGELOG || 'No changes recorded';
             const prevTag = process.env.PREV_TAG || 'none';
 
-            // Fetch active milestones for footer
-            let milestoneText = '';
-            try {
-              const { data: milestones } = await github.rest.issues.listMilestones({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open',
-                sort: 'due_on',
-                per_page: 3,
-              });
-              if (milestones.length > 0) {
-                milestoneText = milestones.map(m => {
-                  const open = m.open_issues;
-                  const closed = m.closed_issues;
-                  const total = open + closed;
-                  const pct = total > 0 ? Math.round((closed / total) * 100) : 0;
-                  return `${m.title}: ${pct}%`;
-                }).join(' · ');
-              }
-            } catch (e) {
-              core.warning(`Failed to fetch milestones: ${e.message}`);
-            }
-
+            // Deliberately no milestone progress. The previous footer printed
+            // the first three OPEN milestones sorted by due date — and since no
+            // milestone carries a due date, "first three" was arbitrary. It
+            // surfaced a deferred architecture backlog beside a release
+            // announcement as though it were release progress.
             const embed = {
               title: `🚀 ${tag}`,
               description: `\`\`\`\n${changelog}\n\`\`\``,
               url: `https://github.com/${repo}/releases/tag/${tag}`,
               color: 0x2ecc71,
-              footer: { text: milestoneText || 'Waaseyaa Framework' },
+              footer: { text: 'Waaseyaa Framework' },
               timestamp: new Date().toISOString(),
             };
 
@@ -155,22 +178,16 @@ jobs:
               }];
             }
 
-            const payload = {
-              username: 'Waaseyaa Releases',
-              embeds: [embed],
-            };
+            const response = await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: 'Waaseyaa Releases', embeds: [embed] }),
+            });
 
-            try {
-              const response = await fetch(webhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-              });
-              if (!response.ok) {
-                core.warning(`Discord webhook returned ${response.status}: ${await response.text()}`);
-              } else {
-                core.info(`Discord notification sent for ${tag}`);
-              }
-            } catch (e) {
-              core.warning(`Failed to send Discord notification: ${e.message}`);
+            // A silent non-delivery is indistinguishable from success in the
+            // run log, so a rejected webhook fails the job.
+            if (!response.ok) {
+              core.setFailed(`Discord webhook returned ${response.status}: ${await response.text()}`);
+              return;
             }
+            core.info(`Discord notification sent for ${tag}`);
