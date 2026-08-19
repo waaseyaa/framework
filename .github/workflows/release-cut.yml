@@ -14,7 +14,7 @@ name: Cut Release
 #
 # RELEASE GATE (alpha.200–202 red-at-tag post-mortem): a tag cannot be
 # created unless the repository's proofs are green on the EXACT commit being
-# tagged. Four gates enforce this:
+# tagged. Five gates enforce this:
 #   Gate 1 — the release base (main HEAD) must already have green CI;
 #   Gate 2 — the release commit itself is pushed to a throwaway branch
 #            (release-cut/<version>) and ci.yml is dispatched on it;
@@ -27,7 +27,14 @@ name: Cut Release
 #            shard only randomises within itself, so the sharded proof cannot
 #            see a cross-shard ordering dependency. A tag is cheap to gate and
 #            expensive to retract.
-# Only after all four does main fast-forward to the gated SHA and the tag push
+#   Gate 5 — a fresh packaged-form consumer, built from the release commit's
+#            own bytes via path repositories, must boot. #2426: v0.1.0-alpha.294
+#            and v0.1.0-alpha.295 both shipped unbootable for new installs
+#            because the only proof of that property (Skeleton Smoke) resolves
+#            the artifact from Packagist and therefore cannot run until AFTER
+#            the tag exists. A proof that cannot fail a release did not prevent
+#            two, so this one runs pre-tag on the exact swept tree.
+# Only after all five does main fast-forward to the gated SHA and the tag push
 # in one atomic push.
 # Failure recovery is clean by construction: if either gate fails, main is
 # untouched and no tag exists — fix the problem and re-run the cut with the
@@ -156,7 +163,7 @@ jobs:
             exit 1
           fi
 
-      - name: "Gate 1/4: require green CI on the release base (main HEAD)"
+      - name: "Gate 1/5: require green CI on the release base (main HEAD)"
         # Fail fast before mutating anything if main is red — this is how the
         # b1 interface stub and the integration-test misses rode into tagged
         # releases (alpha.201/202). Waits out an in-flight run.
@@ -292,7 +299,7 @@ jobs:
           git push --force origin "HEAD:refs/heads/release-cut/${VERSION}"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: "Gate 2/4: require green CI on the exact commit being tagged"
+      - name: "Gate 2/5: require green CI on the exact commit being tagged"
         env:
           GH_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
@@ -304,7 +311,7 @@ jobs:
           gh workflow run ci.yml --ref "release-cut/${VERSION}"
           bash bin/wait-for-green-ci "$RELEASE_SHA" 2700
 
-      - name: "Gate 3/4: require green Release Readiness on the exact commit"
+      - name: "Gate 3/5: require green Release Readiness on the exact commit"
         # ci.yml proves the suite; Release Readiness additionally builds the
         # candidate and runs the full Playwright sweep. Before this gate the
         # cut ignored it entirely, so a release could be tagged without the
@@ -319,7 +326,7 @@ jobs:
           gh workflow run release.yml --ref "release-cut/${VERSION}" -f sha="$RELEASE_SHA"
           bash bin/wait-for-green-ci "$RELEASE_SHA" 3600 release.yml
 
-      - name: "Gate 4/4: complete unsharded random-order proof on the release commit"
+      - name: "Gate 4/5: complete unsharded random-order proof on the release commit"
         # ci/random-order shards the complete inventory for wall-clock. A tag is
         # cheap to gate and expensive to retract, so the release commit also gets
         # the whole inventory in ONE process: sharding is the thing most likely
@@ -334,6 +341,31 @@ jobs:
             echo
             echo '```'
             grep -E 'Replay:|seed' /tmp/random-order-proof.log | head -5 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "Gate 5/5: fresh packaged-form install boots on the release commit"
+        # #2426. Builds a disposable consumer from THIS commit's bytes using
+        # path repositories — no Packagist, no tag — and runs the real
+        # initialization path a new site performs: explicit schema transition,
+        # then an ordinary runtime boot. Access-policy discovery happens inside
+        # AbstractKernel::boot(), so a policy whose dependencies demand
+        # post-activation state makes a brand-new install permanently
+        # unbootable: activating configuration itself requires a booted kernel.
+        #
+        # This runs AFTER the version sweep, the governance-artifact
+        # regeneration, and the release commit, so the bytes proven here are the
+        # bytes tagged. It runs BEFORE the release-identity token is minted, so
+        # it precedes every irreversible action — the tag, the main
+        # fast-forward, and everything split publication triggers off them.
+        run: |
+          set -euo pipefail
+          bash tests/PackagedForm/check-fresh-install-boot | tee /tmp/fresh-install-boot.log
+          {
+            echo "### Fresh-install boot proof"
+            echo
+            echo '```'
+            tail -3 /tmp/fresh-install-boot.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

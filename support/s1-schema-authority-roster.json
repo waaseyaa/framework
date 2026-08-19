@@ -3647,6 +3647,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseActiveConfigurationBridgeTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "848452b59be362b1d974e7eba2f687f559b5d8214154e372ba5603ec7787c6a2",
+            "occurrence": 2
+        },
+        {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
