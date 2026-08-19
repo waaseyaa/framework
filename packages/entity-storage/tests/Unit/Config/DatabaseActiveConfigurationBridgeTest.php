@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -392,6 +394,24 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
             ownerPackage: 'waaseyaa/config',
             ownerConfigContractVersion: 1,
         );
+    }
+
+    /**
+     * #2428: install:init resolves the genesis seam by name. If this binding
+     * regresses the command fails only on a fresh install, which is precisely
+     * where nobody is looking — so the wiring is asserted here rather than left
+     * to the packaged-form proof alone.
+     */
+    #[Test]
+    public function theGenesisSeamIsBoundToTheSameActivatorInstance(): void
+    {
+        $provider = $this->providerFor('production', $this->baseContext);
+
+        $genesis = $provider->resolve(ConfigurationGenesisActivatorInterface::class);
+        $ordinary = $provider->resolve(ConfigurationActivatorInterface::class);
+
+        self::assertInstanceOf(ConfigurationGenesisActivatorInterface::class, $genesis);
+        self::assertSame($ordinary, $genesis, 'Genesis must be the same authority, reached by a different name.');
     }
 
     private function providerFor(string $environment, ConfigurationAuthorityContext $context): ConfigurationStorageServiceProvider

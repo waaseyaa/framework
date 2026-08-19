@@ -53,11 +53,9 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
     public function register(): void
     {
         // install:init (#2428) reuses this provider's migration runtime because
-        // its first two steps ARE migrate + schema sync; the activation step
-        // then closes the lifecycle transition a fresh site was missing.
-        // install:init (#2428) reuses this provider's migration runtime because
         // preparing schema IS migrate + schema sync; the handler itself only
-        // sequences that and the initial activation.
+        // sequences that and the initial activation, which closes the lifecycle
+        // transition a fresh site was missing.
         $this->singleton(InstallInitHandler::class, function (): InstallInitHandler {
             [$migrator, , $loader, ] = $this->migrationRuntime();
             $entityTypeManager = $this->resolve(\Waaseyaa\Entity\EntityTypeManager::class);
