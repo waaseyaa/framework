@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -74,6 +76,8 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         $migration->up(new SchemaBuilder($this->database->getConnection()));
         $manifestMigration = require dirname(__DIR__, 3) . '/migrations/2026_08_15_000004_configuration_manifest_replay.php';
         $manifestMigration->up(new SchemaBuilder($this->database->getConnection()));
+        $genesisMigration = require dirname(__DIR__, 3) . '/migrations/2026_08_19_000005_configuration_genesis_marker.php';
+        $genesisMigration->up(new SchemaBuilder($this->database->getConnection()));
         $authorizer = new class implements ConfigurationActivationAuthorizerInterface {
             public function authorize(ConfigurationActivationRequest $request, bool $deletes): void {}
         };
@@ -390,6 +394,24 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
             ownerPackage: 'waaseyaa/config',
             ownerConfigContractVersion: 1,
         );
+    }
+
+    /**
+     * #2428: install:init resolves the genesis seam by name. If this binding
+     * regresses the command fails only on a fresh install, which is precisely
+     * where nobody is looking — so the wiring is asserted here rather than left
+     * to the packaged-form proof alone.
+     */
+    #[Test]
+    public function theGenesisSeamIsBoundToTheSameActivatorInstance(): void
+    {
+        $provider = $this->providerFor('production', $this->baseContext);
+
+        $genesis = $provider->resolve(ConfigurationGenesisActivatorInterface::class);
+        $ordinary = $provider->resolve(ConfigurationActivatorInterface::class);
+
+        self::assertInstanceOf(ConfigurationGenesisActivatorInterface::class, $genesis);
+        self::assertSame($ordinary, $genesis, 'Genesis must be the same authority, reached by a different name.');
     }
 
     private function providerFor(string $environment, ConfigurationAuthorityContext $context): ConfigurationStorageServiceProvider

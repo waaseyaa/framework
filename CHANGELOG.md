@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — a fresh install can now be installed (#2428):** a site that had
+  never been installed had no CFG-02 configuration generation, and every path
+  to creating one required a generation to already exist. The activator refuses
+  without a verified CFG-03 bundle plus a CAS token; every import caller
+  assembles its baseline by reading the active store. A new deployment could
+  migrate and still never boot in production nor write in any environment —
+  v0.1.0-alpha.296 booted and could not save.
+
+  `waaseyaa install:init` is the missing lifecycle transition. It runs under
+  restricted discovery, so it never constructs a runtime consumer that needs the
+  result it is producing, applies migrations, synchronizes entity schema, and
+  activates the canonical empty generation through a narrowly constrained
+  genesis seam. Genesis carries no files, tombstones, expectations, bundle,
+  token, or target generation — it can express no content, so it claims no
+  CFG-03 verification and manufactures none. Every later change goes through the
+  ordinary verified import path. It is valid only when no generation is active,
+  replays its committed result on retry via a deterministic per-site request id,
+  and refuses rather than creating a competing generation.
+
+  Genesis is recorded honestly and additively: `operation` remains `activate`,
+  because genesis truthfully is one, and a new `is_genesis` column marks the
+  one-time empty activation. The ledger's existing CHECK is not widened and the
+  two triggered, foreign-keyed ledger tables are not rebuilt, so none of the
+  eight security triggers are dropped or recreated; new narrowly scoped guards
+  enforce the cross-column invariant instead. Pre-existing rows default to 0.
+
+
 - **Fixed — release announcements are gated on a consumable release:** the
   Discord notification triggered on tag creation and waited only for a run named
   `CI`, so it fired while `Split Monorepo` was still pushing package repos,

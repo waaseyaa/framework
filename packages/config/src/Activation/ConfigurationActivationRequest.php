@@ -18,6 +18,27 @@ final class ConfigurationActivationRequest
     private array $tombstones;
 
     /**
+     * The one activation that may exist without CFG-03 verification (#2428).
+     *
+     * A site that has never been installed has no generation, and every
+     * verified path needs one to already exist. This creates the canonical
+     * EMPTY generation and nothing else — it carries no files, no manifest, and
+     * no configurable payload, so there is nothing it could attest to. Every
+     * subsequent change must go through the ordinary verified import path.
+     *
+     * @api
+     */
+    public static function genesis(string $requestId): self
+    {
+        return new self(
+            requestId: $requestId,
+            expectedToken: null,
+            files: [],
+            isGenesis: true,
+        );
+    }
+
+    /**
      * @param array<string, string> $tombstones
      * @param array<string, string> $expectedEntryHashes
      */
@@ -51,6 +72,7 @@ final class ConfigurationActivationRequest
         array $expectedEntryHashes = [],
         public readonly bool $completeReplacement = false,
         public readonly string $operation = 'activate',
+        public readonly bool $isGenesis = false,
         public readonly ?string $targetGenerationId = null,
         public readonly ?VerifiedConfigBundle $verifiedBundle = null,
     ) {
@@ -90,13 +112,32 @@ final class ConfigurationActivationRequest
         if (!in_array($operation, ['activate', 'rollback'], true)) {
             throw new \InvalidArgumentException('Unknown configuration activation operation.');
         }
+        // Genesis (#2428) is truthfully an activation — it activates the
+        // canonical EMPTY generation — so it keeps operation 'activate' rather
+        // than inventing a verb. What it must never be able to do is carry
+        // content, because it claims no CFG-03 verification: anything that
+        // could express a payload is refused outright rather than ignored.
+        if ($isGenesis
+            && ($operation !== 'activate'
+                || $this->files !== []
+                || $tombstones !== []
+                || $expectedEntryHashes !== []
+                || $verifiedBundle !== null
+                || $expectedToken !== null
+                || $targetGenerationId !== null
+                || $completeReplacement)
+        ) {
+            throw new \InvalidArgumentException(
+                'Genesis activation accepts no files, tombstones, expectations, bundle, token, or target generation.',
+            );
+        }
         if (($operation === 'rollback') !== ($targetGenerationId !== null)) {
             throw new \InvalidArgumentException('Rollback activation must bind exactly one target generation.');
         }
         if ($targetGenerationId !== null && preg_match('/^[a-f0-9]{64}$/D', $targetGenerationId) !== 1) {
             throw new \InvalidArgumentException('Rollback target generation must be a SHA-256 identity.');
         }
-        if ($operation === 'activate') {
+        if ($operation === 'activate' && !$isGenesis) {
             if (!$verifiedBundle instanceof VerifiedConfigBundle) {
                 throw new \InvalidArgumentException('Ordinary configuration activation requires a verified CFG-03 bundle.');
             }

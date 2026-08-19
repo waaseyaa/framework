@@ -98,6 +98,7 @@ function s1SchemaClass(string $path): string
         'packages/entity-storage/migrations/2026_08_12_000002_configuration_authority.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/migrations/2026_08_15_000004_configuration_manifest_replay.php' => 'coordinator-plan-or-executor',
+        'packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/src/Driver/InMemoryStorageDriverV2.php' => 'explicit-exclusion',
         'packages/entity-storage/src/Driver/RevisionableStorageDriverV2.php' => 'explicit-exclusion',
         'packages/entity-storage/src/Driver/SqlStorageDriverV2.php' => 'explicit-exclusion',

@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\CLI\Handler\InstallInitHandler;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
@@ -51,6 +52,34 @@ final class MigrateServiceProviderTest extends TestCase
         } finally {
             @unlink($databasePath);
         }
+    }
+
+    /**
+     * #2428: install:init is the governed installation phase. It runs only on a
+     * fresh site, so a lost declaration or a rebound handler would surface to
+     * the first person installing the framework and to nobody before them.
+     */
+    #[Test]
+    public function it_declares_install_init_bound_to_its_handler(): void
+    {
+        $provider = new MigrateServiceProvider();
+        $provider->setKernelContext('', [], []);
+        $provider->register();
+
+        $commands = [];
+        foreach ($provider->consoleCommands() as $command) {
+            $commands[$command->name] = $command;
+        }
+
+        self::assertArrayHasKey('install:init', $commands);
+        self::assertSame(InstallInitHandler::class, $commands['install:init']->sourceClass());
+        self::assertStringContainsString('initial configuration generation', $commands['install:init']->description);
+
+        // Bound lazily, like the migrate handlers: registering the provider must
+        // not open a database or resolve the configuration authority.
+        $bindings = $provider->getBindings();
+        self::assertArrayHasKey(InstallInitHandler::class, $bindings);
+        self::assertIsCallable($bindings[InstallInitHandler::class]['concrete']);
     }
 
     #[Test]

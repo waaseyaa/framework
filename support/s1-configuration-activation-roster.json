@@ -150,6 +150,20 @@
             "occurrence": 2
         },
         {
+            "path": "packages/cli/src/Handler/InstallInitHandler.php",
+            "pattern": "activator_contract",
+            "class": "command-adapter",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/Handler/InstallInitHandler.php",
+            "pattern": "activator_contract",
+            "class": "command-adapter",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 2
+        },
+        {
             "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
             "pattern": "activation_command_option",
             "class": "command-composition",
@@ -232,6 +246,20 @@
             "class": "command-composition",
             "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
             "occurrence": 5
+        },
+        {
+            "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
+            "pattern": "activator_contract",
+            "class": "command-adapter",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
+            "pattern": "activator_contract",
+            "class": "command-adapter",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 2
         },
         {
             "path": "packages/config/src/Activation/ConfigurationActivationAuthorizerInterface.php",
@@ -371,6 +399,13 @@
             "pattern": "candidate_sweep",
             "class": "request-contract",
             "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationGenesisActivatorInterface.php",
+            "pattern": "activator_contract",
+            "class": "activation-contract",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
             "occurrence": 1
         },
         {
@@ -934,6 +969,48 @@
             "occurrence": 1
         },
         {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php",
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "occurrence": 3
+        },
+        {
             "path": "packages/entity-storage/src/Config/ConfigurationRuntimeEpoch.php",
             "pattern": "activator_contract",
             "class": "epoch-provider",
@@ -1037,6 +1114,20 @@
             "class": "authority-composition",
             "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
             "occurrence": 6
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "occurrence": 8
         },
         {
             "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
@@ -1380,6 +1471,13 @@
             "class": "activation-authority",
             "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
             "occurrence": 6
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "pattern": "activation_request",
+            "class": "activation-authority",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "occurrence": 7
         },
         {
             "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",

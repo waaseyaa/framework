@@ -57,6 +57,8 @@ function s1ConfigClass(string $path): string
         'packages/cli/src/Handler/ConfigImportHandler.php' => 'command-adapter',
         'packages/cli/src/Handler/HealthCheckHandler.php' => 'diagnostic-consumer',
         'packages/cli/src/Handler/HealthReportHandler.php' => 'diagnostic-consumer',
+        'packages/cli/src/Handler/InstallInitHandler.php' => 'command-adapter',
+        'packages/cli/src/Provider/MigrateServiceProvider.php' => 'command-adapter',
         'packages/cli/src/Handler/InstallHandler.php' => 'legacy-compatibility',
         'packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php' => 'command-composition',
         'packages/cli/src/Provider/HealthSchemaServiceProvider.php' => 'diagnostic-composition',

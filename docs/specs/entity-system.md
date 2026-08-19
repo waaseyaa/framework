@@ -1578,6 +1578,30 @@ releases shipped unbootable for new installs before this was corrected. A
 constructor on this path must therefore stay free of state assertions; put new
 guards on the methods that touch configuration.
 
+**Genesis: the one activation without CFG-03 verification (#2428).** A site
+that has never been installed has no generation, and every verified path to
+creating one requires a generation to already exist — the activator refuses
+without a verified bundle plus a CAS token, and import callers assemble their
+baseline by reading the active store. `ConfigurationGenesisActivatorInterface`
+closes that loop and is deliberately kept off `ConfigurationActivatorInterface`,
+so ordinary activation consumers cannot reach it. It is reachable in practice
+only from the restricted `install:init` lifecycle.
+
+Genesis produces exactly one thing: the canonical empty generation, whose id is
+derived from the authority alone. `ConfigurationActivationRequest::genesis()`
+refuses files, tombstones, expectations, bundles, tokens, and target
+generations, so there is nothing it could attest to and no verification it could
+claim. It is valid only when `currentToken() === null`, replays its committed
+result for a repeated installation request id, and refuses a competing
+generation otherwise. It is not operator-authorized because it runs before any
+account exists; its boundary is the lifecycle plus that precondition. Every
+configuration change after it uses the ordinary verified import path.
+
+In the ledger, genesis keeps `operation = 'activate'` — it truthfully is an
+activation — and is marked by an additive `is_genesis` column rather than a new
+verb, so the existing CHECK is not widened and the ledger's security triggers
+are neither dropped nor recreated.
+
 **Transactional activation:** Production writes through
 `ConfigurationActivatorInterface`, which stages a complete immutable successor
 generation and compares both the content generation ID and monotonic activation

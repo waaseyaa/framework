@@ -1,0 +1,204 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\CLI\Tests\Unit\Handler;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Waaseyaa\CLI\Handler\InstallInitHandler;
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivationResult;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+
+/**
+ * The installation phase's decision table (#2428).
+ *
+ * The activation itself is proven against a real database in
+ * DatabaseConfigurationActivatorTest; what matters here is that the handler
+ * never mints a second generation, replays a completed install, and refuses
+ * contradictory partial state instead of resolving it.
+ */
+#[CoversClass(InstallInitHandler::class)]
+final class InstallInitHandlerTest extends TestCase
+{
+    private ConfigurationAuthorityContext $authority;
+
+    protected function setUp(): void
+    {
+        $this->authority = new ConfigurationAuthorityContext(
+            authorityId: str_repeat('a', 64),
+            databaseIdentity: 'database:v1:test',
+            syncPath: '/tmp/config-sync',
+            selectorProvenance: ['default'],
+        );
+    }
+
+    #[Test]
+    public function it_activates_the_initial_generation_on_a_fresh_site(): void
+    {
+        $prepared = false;
+        $genesis = $this->genesisActivator($this->token());
+        [$io, $output] = $this->io();
+
+        $exit = new InstallInitHandler(
+            prepareSchema: static function () use (&$prepared): void { $prepared = true; },
+            activator: $this->activator(null, null),
+            genesis: $genesis,
+            authority: $this->authority,
+        )->execute($io);
+
+        self::assertSame(0, $exit);
+        self::assertTrue($prepared, 'Schema preparation must run before activation.');
+        self::assertSame([InstallInitHandler::requestId($this->authority)], $genesis->requests);
+        $text = $output->fetch();
+        self::assertStringContainsString('Activated generation', $text);
+        self::assertStringContainsString('Installation is complete.', $text);
+    }
+
+    #[Test]
+    public function it_is_idempotent_when_a_generation_is_already_active(): void
+    {
+        $genesis = $this->genesisActivator($this->token());
+        [$io, $output] = $this->io();
+
+        $exit = new InstallInitHandler(
+            prepareSchema: static function (): void {},
+            activator: $this->activator($this->token(), null),
+            genesis: $genesis,
+            authority: $this->authority,
+        )->execute($io);
+
+        self::assertSame(0, $exit);
+        self::assertSame([], $genesis->requests, 'A second install must not activate anything.');
+        self::assertStringContainsString('Configuration already initialized', $output->fetch());
+    }
+
+    #[Test]
+    public function it_refuses_a_committed_request_with_no_active_generation(): void
+    {
+        $committed = new ConfigurationActivationResult(
+            status: 'committed',
+            token: $this->token(),
+            requestId: InstallInitHandler::requestId($this->authority),
+            planHash: str_repeat('d', 64),
+        );
+        $genesis = $this->genesisActivator($this->token());
+        [$io, $output] = $this->io();
+
+        $exit = new InstallInitHandler(
+            prepareSchema: static function (): void {},
+            activator: $this->activator(null, $committed),
+            genesis: $genesis,
+            authority: $this->authority,
+        )->execute($io);
+
+        self::assertSame(1, $exit, 'Contradictory partial state must refuse, not activate.');
+        self::assertSame([], $genesis->requests);
+        self::assertStringContainsString('Refusing', $output->fetch());
+    }
+
+    #[Test]
+    public function the_request_id_is_stable_per_site_and_differs_between_sites(): void
+    {
+        $other = new ConfigurationAuthorityContext(
+            authorityId: str_repeat('b', 64),
+            databaseIdentity: 'database:v1:other',
+            syncPath: '/tmp/config-sync',
+            selectorProvenance: ['default'],
+        );
+
+        self::assertSame(
+            InstallInitHandler::requestId($this->authority),
+            InstallInitHandler::requestId($this->authority),
+            'A retry must correlate with its own prior attempt.',
+        );
+        self::assertNotSame(
+            InstallInitHandler::requestId($this->authority),
+            InstallInitHandler::requestId($other),
+        );
+        self::assertMatchesRegularExpression(
+            '/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/D',
+            InstallInitHandler::requestId($this->authority),
+            'The id must satisfy ConfigurationActivationRequest.',
+        );
+    }
+
+    /** @return array{SymfonyCommandIO, BufferedOutput} */
+    private function io(): array
+    {
+        $output = new BufferedOutput();
+
+        return [new SymfonyCommandIO(new ArrayInput([]), $output), $output];
+    }
+
+    private function token(): ConfigurationActiveToken
+    {
+        return new ConfigurationActiveToken(str_repeat('c', 64), 1);
+    }
+
+    private function activator(?ConfigurationActiveToken $current, ?ConfigurationActivationResult $committed): ConfigurationActivatorInterface
+    {
+        return new class ($current, $committed) implements ConfigurationActivatorInterface {
+            public function __construct(
+                private readonly ?ConfigurationActiveToken $current,
+                private readonly ?ConfigurationActivationResult $committed,
+            ) {}
+
+            public function activate(ConfigurationActivationRequest $request): ConfigurationActivationResult
+            {
+                throw new \LogicException('install:init must never use ordinary activation.');
+            }
+
+            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult
+            {
+                throw new \LogicException('install:init must never roll back.');
+            }
+
+            public function committedResult(string $requestId): ?ConfigurationActivationResult
+            {
+                return $this->committed;
+            }
+
+            public function currentToken(): ?ConfigurationActiveToken
+            {
+                return $this->current;
+            }
+
+            public function readGeneration(ConfigurationActiveToken $token): iterable
+            {
+                return [];
+            }
+        };
+    }
+
+    private function genesisActivator(ConfigurationActiveToken $token): ConfigurationGenesisActivatorInterface
+    {
+        return new class ($token) implements ConfigurationGenesisActivatorInterface {
+            /** @var list<string> */
+            public array $requests = [];
+
+            public function __construct(private readonly ConfigurationActiveToken $token) {}
+
+            public function activateGenesis(string $requestId): ConfigurationActivationResult
+            {
+                $this->requests[] = $requestId;
+
+                return new ConfigurationActivationResult(
+                    status: 'committed',
+                    token: $this->token,
+                    requestId: $requestId,
+                    planHash: str_repeat('e', 64),
+                );
+            }
+        };
+    }
+}

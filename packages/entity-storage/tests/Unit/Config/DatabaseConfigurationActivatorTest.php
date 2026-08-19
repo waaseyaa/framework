@@ -56,6 +56,7 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             '2026_08_12_000002_configuration_authority.php',
             '2026_08_12_000003_configuration_activation.php',
             '2026_08_15_000004_configuration_manifest_replay.php',
+            '2026_08_19_000005_configuration_genesis_marker.php',
         ] as $migrationFile) {
             $migration = require dirname(__DIR__, 3) . '/migrations/' . $migrationFile;
             $migration->up(new SchemaBuilder($database->getConnection()));
@@ -386,6 +387,7 @@ final class DatabaseConfigurationActivatorTest extends TestCase
                 '2026_08_12_000002_configuration_authority.php',
                 '2026_08_12_000003_configuration_activation.php',
                 '2026_08_15_000004_configuration_manifest_replay.php',
+                '2026_08_19_000005_configuration_genesis_marker.php',
             ] as $migrationFile) {
                 $migration = require dirname(__DIR__, 3) . '/migrations/' . $migrationFile;
                 $migration->up(new SchemaBuilder($firstDatabase->getConnection()));
@@ -939,6 +941,71 @@ final class DatabaseConfigurationActivatorTest extends TestCase
 
         self::fail('Scalar query returned no row.');
     }
+
+
+    /**
+     * Genesis (#2428): the one activation that claims no CFG-03 verification.
+     * It exists because a site that has never been installed has no generation,
+     * and every verified path to creating one needs one to already exist.
+     */
+    #[Test]
+    public function genesisActivatesTheCanonicalEmptyGenerationOnAnUninstalledSite(): void
+    {
+        $activator = new DatabaseConfigurationActivator($this->database, $this->context, $this->authorizer);
+        self::assertNull($activator->currentToken(), 'Fixture must start with no active generation.');
+
+        $result = $activator->activateGenesis('install-init-fixture');
+
+        self::assertSame(
+            DatabaseConfigurationActivator::genesisGenerationId($this->context),
+            $result->token->generationId,
+            'The genesis generation identity is derived from the authority alone.',
+        );
+        self::assertSame(1, $result->token->activationSequence);
+        self::assertSame($result->token->generationId, $activator->currentToken()?->generationId);
+        self::assertSame([], iterator_to_array($activator->readGeneration($result->token)), 'Genesis carries no entries.');
+    }
+
+    #[Test]
+    public function genesisIsRecordedAsAnActivationAndMarkedInTheLedger(): void
+    {
+        new DatabaseConfigurationActivator($this->database, $this->context, $this->authorizer)
+            ->activateGenesis('install-init-fixture');
+
+        $rows = iterator_to_array($this->database->query(
+            'SELECT operation, is_genesis, activation_sequence FROM waaseyaa_config_activation_v2 WHERE authority_id = ?',
+            [$this->context->authorityId],
+        ));
+
+        self::assertCount(1, $rows);
+        // Genesis truthfully IS an activation, so the verb is unchanged; the
+        // additive marker carries the fact that needed recording.
+        self::assertSame('activate', (string) $rows[0]['operation']);
+        self::assertSame(1, (int) $rows[0]['is_genesis']);
+        self::assertSame(1, (int) $rows[0]['activation_sequence']);
+    }
+
+    #[Test]
+    public function genesisReplaysItsCommittedResultAndRefusesACompetingGeneration(): void
+    {
+        $activator = new DatabaseConfigurationActivator($this->database, $this->context, $this->authorizer);
+        $first = $activator->activateGenesis('install-init-fixture');
+
+        // Same installation request: an interrupted install is safe to retry.
+        $replayed = $activator->activateGenesis('install-init-fixture');
+        self::assertSame($first->token->generationId, $replayed->token->generationId);
+        self::assertSame($first->requestId, $replayed->requestId);
+
+        // A different request against an installed site must refuse rather than
+        // mint a second generation.
+        try {
+            $activator->activateGenesis('install-init-other');
+            self::fail('Genesis accepted a competing generation.');
+        } catch (ConfigurationActivationConflictException $expected) {
+            self::assertStringContainsString('already active', $expected->getMessage());
+        }
+    }
+
 
     private function stringScalar(string $sql): string
     {

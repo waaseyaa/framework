@@ -11,6 +11,10 @@
 # is pushed. Two releases (v0.1.0-alpha.294, v0.1.0-alpha.295) shipped over a red
 # Skeleton Smoke because a post-publication proof cannot block a publication.
 # This proof runs pre-tag, so the release cut can depend on it.
+#
+# It proves boot AND a day-one write. An earlier revision stopped at boot, and
+# v0.1.0-alpha.296 shipped through this gate green while Skeleton Smoke — which
+# saves an entity — went red on the same commit.
 
 set -euo pipefail
 
@@ -68,6 +72,23 @@ if ! "$composer_bin" install --working-dir="$consumer" \
     exit 1
 fi
 
+# The governed installation phase, run exactly as a deployment runs it (#2428).
+# Everything the probe then does is ordinary runtime.
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install.out" 2>&1; then
+    cat "$work/install.out" >&2
+    echo 'The governed installation phase failed on a fresh consumer.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/install.out"
+
+# Re-running must be idempotent: no competing generation, still successful.
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-retry.out" 2>&1; then
+    cat "$work/install-retry.out" >&2
+    echo 'A second installation run must succeed idempotently.' >&2
+    exit 1
+fi
+grep -Fq 'Configuration already initialized' "$work/install-retry.out"
+
 # The probe asserts the property; keep it outside the consumer's autoload roots.
 cp "$source_root/tests/FreshInstallBoot/boot.php" "$consumer/boot.php"
 
@@ -77,6 +98,9 @@ if ! php "$consumer/boot.php" >"$work/boot.out" 2>&1; then
     exit 1
 fi
 grep -Fq 'fresh-install kernel boot OK' "$work/boot.out"
+# Booting is necessary but not sufficient — alpha.296 booted and could not
+# write. Require the day-one round-trip too.
+grep -Fq 'fresh-install entity round-trip OK' "$work/boot.out"
 
 printf 'Fresh-install boot proof passed.\n'
 printf 'Candidate: %s\n' "$candidate"

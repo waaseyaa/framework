@@ -427,6 +427,7 @@ return [
     'Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationActivatorInterface' => 'public',
+    'Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface' => 'public',
     'Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface' => 'public',
