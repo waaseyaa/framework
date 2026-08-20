@@ -16,8 +16,12 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SensitiveParameter;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\SqliteDriverMiddleware;
 use Waaseyaa\Database\SqliteTopology;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\EntitySchemaSync;
+use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\SchemaMutationCoordinator;
 
@@ -85,13 +89,55 @@ final class SchemaAuthoritySteadyStateConcurrencyTest extends TestCase
     #[Test]
     public function an_unchanged_synchronization_does_not_acquire_schema_authority(): void
     {
-        self::markTestIncomplete(
-            '#2446 repair 2 is not implemented. EntitySchemaSync::syncAll() still enters the '
-            . 'coordinator unconditionally, so an unchanged boot becomes a writer with nothing '
-            . 'to write. Closing that requires a read-only plan phase across SqlSchemaHandler '
-            . 'and TranslationSchemaHandler, whose ensure*() methods currently decide and apply '
-            . 'DDL in one step. Repair 1 removes the hard failure; this removes the contention.',
+        $this->databasePath = $this->freshDatabasePath();
+        $entityType = new EntityType(
+            id: 'widget',
+            label: 'Widget',
+            class: TestStorageEntity::class,
+            keys: [
+                'id' => 'id',
+                'uuid' => 'uuid',
+                'bundle' => 'bundle',
+                'label' => 'label',
+                'langcode' => 'langcode',
+            ],
         );
+
+        $seed = $this->productionConnection();
+        new EntitySchemaSync(new DBALDatabase($seed))->syncAll([$entityType]);
+        $seed->executeStatement('CREATE TABLE concurrency_probe (id INTEGER PRIMARY KEY, n INTEGER)');
+        $seed->executeStatement('INSERT INTO concurrency_probe (id, n) VALUES (1, 0)');
+        $generationBefore = (int) $seed->fetchOne(
+            'SELECT generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
+        );
+        self::assertSame(1, $generationBefore, 'The real schema change must acquire authority exactly once.');
+        self::assertContains('widget', $seed->createSchemaManager()->listTableNames());
+        $seed->close();
+
+        $competingAttempts = 0;
+        $competingWrites = 0;
+        $steady = $this->productionConnection(
+            hook: 'sqlite_master',
+            onHook: function () use (&$competingAttempts, &$competingWrites): void {
+                if ($competingAttempts > 0) {
+                    return;
+                }
+                ++$competingAttempts;
+                $competingWrites += $this->commitCompetingWriteOrFailFast() ? 1 : 0;
+            },
+        );
+        new EntitySchemaSync(new DBALDatabase($steady))->syncAll([$entityType]);
+
+        self::assertSame(1, $competingAttempts, 'The deterministic schema-inspection hook must run once.');
+        self::assertSame(1, $competingWrites, 'An unchanged schema inspection must not hold the writer position.');
+        self::assertSame(
+            $generationBefore,
+            (int) $steady->fetchOne(
+                'SELECT generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
+            ),
+            'An unchanged synchronization must not acquire or advance schema authority.',
+        );
+        $steady->close();
     }
 
     private function freshDatabasePath(): string

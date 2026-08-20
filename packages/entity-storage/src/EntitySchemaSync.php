@@ -55,9 +55,17 @@ final class EntitySchemaSync
      */
     public function syncAll(iterable $entityTypes): void
     {
-        new CoordinatedEntitySchemaExecutor($this->database)->execute(
-            fn() => $this->doSyncAll($entityTypes),
-        );
+        $definitions = [];
+        foreach ($entityTypes as $entityType) {
+            $definitions[] = $entityType;
+        }
+
+        $executor = new CoordinatedEntitySchemaExecutor($this->database);
+        if (!$executor->requiresMutation(fn() => $this->doSyncAll($definitions))) {
+            return;
+        }
+
+        $executor->execute(fn() => $this->doSyncAll($definitions));
     }
 
     /** @param iterable<EntityTypeInterface> $entityTypes */

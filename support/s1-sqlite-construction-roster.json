@@ -2932,6 +2932,20 @@
         },
         {
             "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "test",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "test",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "618f21ee07e809a24aedfbe8a777fdefc368cf99fd3e36f5ac2e1c8c8557e2c7",

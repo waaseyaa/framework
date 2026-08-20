@@ -49,6 +49,32 @@ final class EntitySchemaSyncTest extends TestCase
     }
 
     #[Test]
+    public function a_one_shot_generator_is_replayed_when_the_plan_finds_a_change(): void
+    {
+        $definitions = (function (): \Generator {
+            yield $this->makeEntityType('widget', 'Widget');
+        })();
+
+        (new EntitySchemaSync($this->database))->syncAll($definitions);
+
+        $this->assertTrue($this->database->schema()->tableExists('widget'));
+        $this->assertSame(0, (int) $this->database->getConnection()->fetchOne('PRAGMA query_only'));
+    }
+
+    #[Test]
+    public function an_unchanged_plan_preserves_a_callers_query_only_mode(): void
+    {
+        $widget = $this->makeEntityType('widget', 'Widget');
+        $sync = new EntitySchemaSync($this->database);
+        $sync->syncAll([$widget]);
+        $this->database->getConnection()->executeStatement('PRAGMA query_only = ON');
+
+        $sync->syncAll([$widget]);
+
+        $this->assertSame(1, (int) $this->database->getConnection()->fetchOne('PRAGMA query_only'));
+    }
+
+    #[Test]
     public function it_does_not_create_a_translations_sibling_for_sql_blob_translatable(): void
     {
         $article = $this->makeTranslatableEntityType('trans_widget', 'Trans Widget');

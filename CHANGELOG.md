@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **Fixed — concurrent boots no longer fail to acquire schema authority
-  (#2446, 1/2):** `MigrationRepository::acquireSchemaAuthority()` now claims the
+- **Fixed — concurrent and unchanged boots no longer contend for schema authority
+  (#2446):** `MigrationRepository::acquireSchemaAuthority()` now claims the
   SQLite writer position with its first statement, before any read. DBAL opens a
   deferred transaction, and `CREATE TABLE IF NOT EXISTS` against an existing
   table reads `sqlite_schema` without writing, so the manifest-column
@@ -21,8 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first statement, where the configured busy timeout applies and a competing
   claim waits instead of failing; first install still takes it via the `CREATE`.
   Raising the busy timeout was rejected as a repair: a failed snapshot upgrade is
-  not waitable. Remaining for #2446: an unchanged `EntitySchemaSync::syncAll()`
-  still enters the coordinator and becomes a writer with nothing to write.
+  not waitable.
+
+  `EntitySchemaSync::syncAll()` now performs its first pass with SQLite
+  `query_only` enabled. The ordinary schema handlers inspect the real database,
+  but SQLite refuses the first attempted DDL or DML before it can mutate
+  anything. A pass that completes is therefore a proven no-op and returns
+  without opening the schema-authority transaction; a refused write restores
+  the connection mode and replays the materialized entity definitions through
+  the coordinator. The replay preserves generator inputs, and non-SQLite
+  databases keep the prior coordinated path. Deterministic interleaving proves
+  an unchanged inspection admits a competing commit and leaves the authority
+  generation unchanged, while a real first-install change still acquires
+  authority exactly once and creates the requested table.
 
 - **Fixed — an OpenAI-compatible endpoint that never finishes connecting is now
   bounded at 5s instead of 120s (#2445):** `OpenAiCompatibleProvider` set one

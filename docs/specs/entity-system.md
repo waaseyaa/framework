@@ -945,7 +945,17 @@ Constructor: `(DatabaseInterface $database)`
 Key methods:
 - `syncAll(iterable $entityTypes): void` -- iterates `EntityTypeInterface` instances and calls `SqlSchemaHandler::ensureTable()` on each
 
-Thin wrapper around `SqlSchemaHandler` so application migrations and install commands can materialize tables for many registered entity types in one call without repeating construction boilerplate. Idempotent by delegation (`ensureTable()` is a no-op when the table exists).
+Thin wrapper around `SqlSchemaHandler` so application migrations and install
+commands can materialize tables for many registered entity types in one call
+without repeating construction boilerplate. Inputs are materialized once so a
+generator can be replayed. On SQLite, the first traversal runs with
+`PRAGMA query_only` enabled and with nested handler coordination suppressed: a
+completed traversal proves the entire operation is read-only and returns
+without acquiring schema authority; the first attempted write is refused before
+mutation and causes one replay through `SchemaMutationCoordinator`. This is the
+same ensure path in both phases, not a second shallow table-existence planner.
+Non-SQLite databases keep the coordinated path. Full writer-position and
+read-only-plan invariants: `docs/specs/infrastructure.md` “MigrationRepository”.
 
 Default table schema (from `buildTableSpec()`):
 - `{idKey}` -- `serial NOT NULL` (auto-increment primary key)

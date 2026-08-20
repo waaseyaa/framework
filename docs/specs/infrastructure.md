@@ -1126,6 +1126,32 @@ rather than converges. Regression coverage is
 `SchemaAuthorityConcurrencyTest` exercises only first install, where the
 `CREATE` genuinely creates and so takes the lock on its own.
 
+#### Read-only entity-schema plan (SQLite, #2446)
+
+`EntitySchemaSync::syncAll()` must not enter `SchemaMutationCoordinator` merely
+to discover that every registered entity shape is already materialized. Its
+SQLite path first materializes the supplied iterable, then replays the ordinary
+schema-handler traversal while `PRAGMA query_only` is enabled. The same
+`ensure*()` decisions therefore inspect the real catalog and data, but the first
+attempted DDL or DML raises DBAL's `ReadOnlyException` before SQLite mutates the
+database. `CoordinatedEntitySchemaExecutor` marks that connection as planning so
+nested handlers do not acquire schema authority during this pass.
+
+- A plan that completes attempted no write and returns immediately. It opens no
+  schema-authority transaction, leaves the authority generation unchanged, and
+  may coexist with another WAL writer.
+- A read-only refusal means mutation is required. The executor restores the
+  connection's prior `query_only` mode and replays the materialized definitions
+  once through the coordinator.
+- An already-active coordinator skips planning; nested schema work remains in
+  its caller's transaction. Non-SQLite databases retain the prior coordinated
+  apply path until they have an equivalent fail-before-write planning boundary.
+
+Do not replace this with a hand-maintained shallow table-existence check. Entity
+schema synchronization also owns additive columns, indexes, foreign keys,
+translation/revision tables, bundle subtables, and guarded data transitions; a
+second partial definition of “unchanged” would drift from the apply path.
+
 ### MigrationResult
 
 File: `packages/foundation/src/Migration/MigrationResult.php`
