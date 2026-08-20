@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Composer\InstalledVersions;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Api\ApiDiscoveryController;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
@@ -116,8 +117,20 @@ $invokeSurfaceRoute = static function (string $path, string $expectedRouteName) 
     if ($adminPrincipal !== null) {
         $request->attributes->set('_authorization_principal', $adminPrincipal);
     }
-    $payload = $controller($request);
-    $assert(is_array($payload), sprintf('admin surface route %s returned no payload', $path));
+    $result = $controller($request);
+    $assert($result instanceof Response, sprintf('admin surface route %s returned no response', $path));
+    if (!$result instanceof Response) {
+        return [];
+    }
+    $assert($result->getStatusCode() === 200, sprintf('admin surface route %s returned HTTP %d', $path, $result->getStatusCode()));
+    $assert($result->headers->get('Content-Type') === 'application/json', sprintf('admin surface route %s returned the wrong media type', $path));
+
+    try {
+        $payload = json_decode((string) $result->getContent(), true, flags: JSON_THROW_ON_ERROR);
+    } catch (JsonException) {
+        $payload = null;
+    }
+    $assert(is_array($payload), sprintf('admin surface route %s returned no JSON envelope', $path));
 
     return is_array($payload) ? $payload : [];
 };
