@@ -92,7 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the timing by explicit CLI execution; the authorizer manufactures neither.
   Deletions, rollback, candidate sweep, unsigned verification, and genesis all
   keep refusing — each is a separate policy decision, not a wiring gap. An
-  application may bind its own authorizer to narrow this further.
+  application may bind its own authorizer to narrow this further. Destructive
+  import is tracked by #2432; rollback and candidate sweep by #2433.
 
 - **Fixed — `config/sync` is created at installation (#2430):** the skeleton
   shipped `config/sync/.gitkeep`, which strict CFG-03 validation refuses as a
