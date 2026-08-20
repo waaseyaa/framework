@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   event containing only the server-confirmed resulting state and whether the
   served public projection changed. The API derives that refresh signal from
   before/after served snapshots; the browser does not infer it from transition
-  intent. Denials, conflicts, failures, and malformed responses emit no success
-  event. Existing lifecycle events continue under the unchanged v1 envelope and
-  are also available to v2 hosts during the compatibility interval.
+  intent. Denials, conflicts, failures, and malformed required members emit no
+  success event. An omitted additive `public_changed` field remains a committed
+  success. Each ordinary lifecycle event is delivered once on the v1 envelope;
+  `transitioned` is v2-only. Historical entity-editor saved/deleted messages
+  remain a separate compatibility channel.
 
 - **Fixed — page-builder config save emits dirty:false before saved (#2455):**
   a successful block-config apply now clears `configDirty` before the host

@@ -47,9 +47,24 @@ registerEndpoint('/api/node/5/workflow/transition', {
   handler: () => ({ data: { transition: 'publish', from: 'review', to: 'published', public_changed: true } }),
 })
 
-registerEndpoint('/api/node/malformed/workflow/transition', {
+registerEndpoint('/api/node/private/workflow/transition', {
+  method: 'POST',
+  handler: () => ({ data: { transition: 'submit_for_review', from: 'draft', to: 'review', public_changed: false } }),
+})
+
+registerEndpoint('/api/node/legacy/workflow/transition', {
   method: 'POST',
   handler: () => ({ data: { transition: 'publish', from: 'review', to: 'published' } }),
+})
+
+registerEndpoint('/api/node/malformed/workflow/transition', {
+  method: 'POST',
+  handler: () => ({ data: { transition: 'publish', from: 'review' } }),
+})
+
+registerEndpoint('/api/node/bad-flag/workflow/transition', {
+  method: 'POST',
+  handler: () => ({ data: { transition: 'publish', from: 'review', to: 'published', public_changed: 'yes' } }),
 })
 
 registerEndpoint('/api/node/7/workflow/transition', {
@@ -130,17 +145,47 @@ describe('useWorkflowTransitions', () => {
     expect(classifyWorkflowTransitionError(new TypeError('Network connection failed'), 0)).toBe('network')
   })
 
-  it('applyTransition posts to the transition endpoint and returns the result', async () => {
+  it('applyTransition posts to the transition endpoint and returns an explicit public change', async () => {
     const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
     const { applyTransition } = useWorkflowTransitions()
     const result = await applyTransition('node', '5', 'publish')
     expect(result).toEqual({ transition: 'publish', from: 'review', to: 'published', public_changed: true })
   })
 
-  it('applyTransition rejects a response that omits the authoritative public-change flag', async () => {
+  it('applyTransition preserves an explicit false public-change flag', async () => {
+    const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
+    const { applyTransition } = useWorkflowTransitions()
+    const result = await applyTransition('node', 'private', 'submit_for_review')
+    expect(result).toEqual({
+      transition: 'submit_for_review',
+      from: 'draft',
+      to: 'review',
+      public_changed: false,
+    })
+  })
+
+  it('treats a committed transition that omits public_changed as success, not operator-visible failure', async () => {
+    const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
+    const { applyTransition } = useWorkflowTransitions()
+    const result = await applyTransition('node', 'legacy', 'publish')
+    expect(result).toEqual({
+      transition: 'publish',
+      from: 'review',
+      to: 'published',
+      public_changed: true,
+    })
+  })
+
+  it('applyTransition still rejects a success document that omits a required member', async () => {
     const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
     const { applyTransition } = useWorkflowTransitions()
     await expect(applyTransition('node', 'malformed', 'publish')).rejects.toThrow()
+  })
+
+  it('applyTransition still rejects a present non-boolean public_changed value', async () => {
+    const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
+    const { applyTransition } = useWorkflowTransitions()
+    await expect(applyTransition('node', 'bad-flag', 'publish')).rejects.toThrow()
   })
 
   it('applyTransition rejects with the raw error on a 403 permission denial', async () => {

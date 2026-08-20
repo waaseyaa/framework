@@ -139,6 +139,7 @@ describe('admin plugin degraded bootstrap paths', () => {
       const plugin = (await import('~/plugins/admin')).default as () => Promise<{ provide: { admin: AdminRuntime | null } }>
       await plugin()
 
+      expect(postMessage).toHaveBeenCalledTimes(1)
       expect(postMessage).toHaveBeenCalledWith({
         schema: 'waaseyaa.admin.embed.lifecycle.v1',
         event: 'failure',

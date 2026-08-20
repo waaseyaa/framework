@@ -108,12 +108,14 @@ export function postEmbedLifecycle(payload: EmbedLifecyclePayload, target: Windo
           }
         : { schema, event: payload.event, ...identity }
 
-  // Existing hosts continue to receive the unchanged v1 vocabulary. V2 hosts
-  // select the v2 schema and receive the same lifecycle plus transitions.
-  if (payload.event !== 'transitioned') {
-    target.parent.postMessage(message(EMBED_LIFECYCLE_SCHEMA), target.location.origin)
+  // One versioned delivery per logical event. Ordinary events stay on the v1
+  // envelope so existing hosts do not have to deduplicate a parallel v2 copy.
+  // `transitioned` is additive and exists only in v2.
+  if (payload.event === 'transitioned') {
+    target.parent.postMessage(message(EMBED_LIFECYCLE_SCHEMA_V2), target.location.origin)
+    return
   }
-  target.parent.postMessage(message(EMBED_LIFECYCLE_SCHEMA_V2), target.location.origin)
+  target.parent.postMessage(message(EMBED_LIFECYCLE_SCHEMA), target.location.origin)
 }
 
 function decodePathSegment(value: string): string | null {

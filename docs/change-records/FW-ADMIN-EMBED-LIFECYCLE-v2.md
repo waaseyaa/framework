@@ -23,18 +23,27 @@ accepted transition. It carries the authoritative resulting workflow state and
 one boolean indicating whether the served public projection changed. It carries
 no content, policy reason, permission, token, response body, or command.
 
-The API owns the boolean. It compares the served entity projection immediately
-before and after transition persistence and reports true only when at least one
-projection is public and its public status, workflow state, served revision, or
-published-revision pointer differs. Identifier comparisons are representation
-stable across integer and string hydration. A private working-copy transition
-that leaves the public projection unchanged reports false.
+The current framework API owns the boolean. It compares the served entity
+projection immediately before and after transition persistence and reports true
+only when at least one projection is public and its public status, workflow
+state, served revision, or published-revision pointer differs. Identifier
+comparisons are representation stable across integer and string hydration. A
+private working-copy transition that leaves the public projection unchanged
+reports false.
 
-The browser validates the entire transition result before emitting. Permission
-denial, optimistic conflict, server or network failure, and malformed success
-documents emit no `transitioned` event. Existing v1 hosts receive the unchanged
-v1 event vocabulary; ordinary lifecycle events are dual-emitted under v1 and v2
-during the compatibility interval, while `transitioned` exists only in v2.
+The browser requires string `transition`, `from`, and `to` before emitting.
+`public_changed` is additive: an explicit boolean is preserved; a missing field
+is compatible and must not turn a committed transition into an operator-visible
+failure. When the field is absent the client reports `publicChanged: true` so
+hosts refresh public rendering as they did before the signal existed. A present
+non-boolean value, missing required member, permission denial, optimistic
+conflict, or transport failure emits no `transitioned` event.
+
+Each logical lifecycle observation is delivered once on the versioned protocol.
+Ordinary events stay on the v1 envelope so an existing v1 host receives exactly
+one versioned message and is not required to deduplicate. `transitioned` exists
+only in v2. Historical `waaseyaa.entity-editor.saved` / `.deleted` messages
+remain a separate compatibility channel and are not extra versioned deliveries.
 
 ## External interlock
 
@@ -50,25 +59,27 @@ reconciled, and the exact Framework cohort passes Sheguiandah acceptance.
 
 ## Framework candidate checkpoint
 
-- source and contract commit: `8f2ac93d6`;
-- governed distribution commit: `3eb7c527b`;
+- compatibility follow-up source, contract, and tests on this candidate;
+- governed distribution rebuilt after source tests passed;
 - Admin distribution source signature:
-  `101c5a56b1b41e5f35b08b85a2a1002f81884093c8549cb73845bc01c67f1049`;
-- two consecutive normalized Node 24.19.0 builds produced the same complete
+  `faa6096ea67c3dd366d3bd05d7b52926836d0cbf03418b1e47286343e35dafe0`;
+- two consecutive normalized Node 24.16.0 builds produced the same complete
   distribution tree digest:
-  `f28821ae0e28f41041e71f7317b2347e8fe22f2ed22d9ceb0e6f2f89914b0a48`.
+  `10788769ad7a765fbe6de7764d9025a640cfe08a93bc43aa8de8665fdf3fafe2`.
 
-Verification on PHP 8.5.9 and Node 24.19.0:
+Verification on PHP 8.5.9 and Node 24.16.0:
 
-- transition API integration: 19 tests, 61 assertions, green;
-- focused Admin lifecycle path: 5 files, 39 tests, green;
-- full Admin Vitest: 90 files, 627 tests, green;
+- transition API unit + integration: 30 tests, 94 assertions, green;
+- focused Admin lifecycle path plus related embed/workflow tests: 7 files,
+  58 tests, green;
+- full Admin Vitest: 90 files, 634 tests, green;
 - Admin typecheck: green;
 - Admin lint: zero errors, repository warning baseline retained;
 - Admin Surface Unit: 232 tests, 1,053 assertions, green;
-- first full preflight pass: 32 gates green, including PHPStan and dead-code;
-  the sole refusal was the expected `api-layer.md` drift-review trailer, carried
-  by the checkpoint commit that records this evidence.
+- API + Admin Surface PHP packages: 1,055 tests, 3,776 assertions, green;
+- two consecutive dist rebuilds: identical complete tree digest;
+- `php bin/check-admin-dist-fresh`: in sync with the source signature above;
+- full governed preflight: 33/33 gates green, including PHPStan and dead-code.
 
 The Framework-only candidate still requires a clean post-checkpoint preflight,
 hosted review, and exact-cohort Sheguiandah acceptance. No integration or

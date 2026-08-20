@@ -5,32 +5,137 @@ import {
   classifyEmbedFailure,
   embedIdentityFromPath,
   postEmbedLifecycle,
+  type EmbedLifecyclePayload,
 } from '~/runtime/embedLifecycle'
 
+function framedChild() {
+  const postMessage = vi.fn()
+  const child = {
+    parent: { postMessage },
+    location: { origin: 'https://example.test' },
+  } as unknown as Window
+  return { child, postMessage }
+}
+
 describe('embed lifecycle protocol', () => {
-  it('posts a versioned identity-only envelope to the exact origin', () => {
-    const postMessage = vi.fn()
-    const child = {
-      parent: { postMessage },
-      location: { origin: 'https://example.test' },
-    } as unknown as Window
-
-    postEmbedLifecycle({
-      event: 'dirty',
-      surface: 'entity-editor',
-      entityType: 'node',
-      entityId: '42',
-      dirty: true,
-    }, child)
-
-    expect(postMessage).toHaveBeenCalledWith({
+  it.each([
+    {
+      name: 'ready',
+      payload: {
+        event: 'ready' as const,
+        surface: 'entity-editor' as const,
+        entityType: 'node',
+        entityId: '42',
+      },
       schema: EMBED_LIFECYCLE_SCHEMA,
-      event: 'dirty',
-      surface: 'entity-editor',
-      entityType: 'node',
-      entityId: '42',
-      dirty: true,
-    }, 'https://example.test')
+      expected: {
+        schema: EMBED_LIFECYCLE_SCHEMA,
+        event: 'ready',
+        surface: 'entity-editor',
+        entityType: 'node',
+        entityId: '42',
+      },
+    },
+    {
+      name: 'dirty',
+      payload: {
+        event: 'dirty' as const,
+        surface: 'entity-editor' as const,
+        entityType: 'node',
+        entityId: '42',
+        dirty: true,
+      },
+      schema: EMBED_LIFECYCLE_SCHEMA,
+      expected: {
+        schema: EMBED_LIFECYCLE_SCHEMA,
+        event: 'dirty',
+        surface: 'entity-editor',
+        entityType: 'node',
+        entityId: '42',
+        dirty: true,
+      },
+    },
+    {
+      name: 'saved',
+      payload: {
+        event: 'saved' as const,
+        surface: 'entity-editor' as const,
+        entityType: 'node',
+        entityId: '42',
+      },
+      schema: EMBED_LIFECYCLE_SCHEMA,
+      expected: {
+        schema: EMBED_LIFECYCLE_SCHEMA,
+        event: 'saved',
+        surface: 'entity-editor',
+        entityType: 'node',
+        entityId: '42',
+      },
+    },
+    {
+      name: 'deleted',
+      payload: {
+        event: 'deleted' as const,
+        surface: 'entity-editor' as const,
+        entityType: 'node',
+        entityId: '42',
+      },
+      schema: EMBED_LIFECYCLE_SCHEMA,
+      expected: {
+        schema: EMBED_LIFECYCLE_SCHEMA,
+        event: 'deleted',
+        surface: 'entity-editor',
+        entityType: 'node',
+        entityId: '42',
+      },
+    },
+    {
+      name: 'failure',
+      payload: {
+        event: 'failure' as const,
+        surface: 'entity-editor' as const,
+        entityType: 'node',
+        entityId: '42',
+        failure: { kind: 'permission-denied' as const, status: 403 },
+      },
+      schema: EMBED_LIFECYCLE_SCHEMA,
+      expected: {
+        schema: EMBED_LIFECYCLE_SCHEMA,
+        event: 'failure',
+        surface: 'entity-editor',
+        entityType: 'node',
+        entityId: '42',
+        failure: { kind: 'permission-denied', status: 403 },
+      },
+    },
+    {
+      name: 'transitioned',
+      payload: {
+        event: 'transitioned' as const,
+        surface: 'entity-editor' as const,
+        entityType: 'node',
+        entityId: '42',
+        transition: { state: 'published', publicChanged: true },
+      },
+      schema: EMBED_LIFECYCLE_SCHEMA_V2,
+      expected: {
+        schema: EMBED_LIFECYCLE_SCHEMA_V2,
+        event: 'transitioned',
+        surface: 'entity-editor',
+        entityType: 'node',
+        entityId: '42',
+        transition: { state: 'published', publicChanged: true },
+      },
+    },
+  ])('delivers one $name message with the compatibility schema and payload', ({ payload, schema, expected }) => {
+    const { child, postMessage } = framedChild()
+
+    postEmbedLifecycle(payload as EmbedLifecyclePayload, child)
+
+    expect(postMessage).toHaveBeenCalledTimes(1)
+    expect(postMessage).toHaveBeenCalledWith(expected, 'https://example.test')
+    expect(postMessage.mock.calls[0]?.[0].schema).toBe(schema)
+    expect(postMessage.mock.calls.map((call) => call[0].schema)).toEqual([schema])
   })
 
   it('does nothing outside a frame', () => {
@@ -44,11 +149,7 @@ describe('embed lifecycle protocol', () => {
   })
 
   it('reconstructs the envelope so accidental content cannot cross the boundary', () => {
-    const postMessage = vi.fn()
-    const child = {
-      parent: { postMessage },
-      location: { origin: 'https://example.test' },
-    } as unknown as Window
+    const { child, postMessage } = framedChild()
 
     postEmbedLifecycle({
       event: 'saved',
@@ -58,33 +159,8 @@ describe('embed lifecycle protocol', () => {
       attributes: { title: 'private content' },
     } as never, child)
 
-    expect(postMessage.mock.calls[0]?.[0]).not.toHaveProperty('attributes')
-  })
-
-  it('emits an authoritative transition only in the v2 observation envelope', () => {
-    const postMessage = vi.fn()
-    const child = {
-      parent: { postMessage },
-      location: { origin: 'https://example.test' },
-    } as unknown as Window
-
-    postEmbedLifecycle({
-      event: 'transitioned',
-      surface: 'entity-editor',
-      entityType: 'node',
-      entityId: '42',
-      transition: { state: 'published', publicChanged: true },
-    }, child)
-
     expect(postMessage).toHaveBeenCalledTimes(1)
-    expect(postMessage).toHaveBeenCalledWith({
-      schema: EMBED_LIFECYCLE_SCHEMA_V2,
-      event: 'transitioned',
-      surface: 'entity-editor',
-      entityType: 'node',
-      entityId: '42',
-      transition: { state: 'published', publicChanged: true },
-    }, 'https://example.test')
+    expect(postMessage.mock.calls[0]?.[0]).not.toHaveProperty('attributes')
   })
 
   it.each([

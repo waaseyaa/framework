@@ -1525,29 +1525,38 @@ content values and policy decisions never move through `postMessage`.
 ### Same-origin embed lifecycle protocol
 
 Both shell-free editor routes expose versioned lifecycle messages to a
-same-origin parent. Existing lifecycle events are emitted under both
-`waaseyaa.admin.embed.lifecycle.v1` and
-`waaseyaa.admin.embed.lifecycle.v2` during the compatibility interval. The v1
-closed event vocabulary remains byte-for-byte limited to `ready`, `dirty`,
-`saved`, `deleted`, and `failure`; v2 adds `transitioned`. The surface is
-`entity-editor` or `page-builder`. Identity fields are limited to the applicable
-entity type, surface id, and entity id. A dirty event contains one boolean. A
-failure contains only a closed kind (`session-expired`, `permission-denied`,
-`conflict`, `validation`, `network`, or `server`) and an optional HTTP status.
-Content values, field names, validation details, policy reasons, response
-bodies, credentials, and tokens are forbidden.
+same-origin parent. Each logical lifecycle observation is delivered **once** on
+the versioned protocol. Ordinary events use
+`waaseyaa.admin.embed.lifecycle.v1`; the closed v1 vocabulary remains
+byte-for-byte limited to `ready`, `dirty`, `saved`, `deleted`, and `failure`.
+The v2 envelope `waaseyaa.admin.embed.lifecycle.v2` is used only for the
+additive `transitioned` event. An existing v1 host that already accepted origin,
+source, and the v1 vocabulary therefore receives exactly one versioned message
+per ordinary event and is not required to deduplicate a parallel v2 copy. A v2
+host consumes those same v1 ordinary events plus the v2 `transitioned` event.
+The surface is `entity-editor` or `page-builder`. Identity fields are limited to
+the applicable entity type, surface id, and entity id. A dirty event contains
+one boolean. A failure contains only a closed kind (`session-expired`,
+`permission-denied`, `conflict`, `validation`, `network`, or `server`) and an
+optional HTTP status. Content values, field names, validation details, policy
+reasons, response bodies, credentials, and tokens are forbidden.
 
 The entity editor emits a v2 `transitioned` event only after the workflow API
 accepts a transition and returns a structurally valid authoritative result. Its
 bounded `transition` member contains exactly the resulting workflow `state` and
 the boolean `publicChanged`. The state comes from the accepted transition
-result, not the clicked button or any client-side inference. The API computes
-`publicChanged` by comparing the served projection before and after the
-transition: it is true only when either projection is public and its public
-status, workflow state, served revision, or published-revision pointer changed.
-A denied, conflicted, failed, or malformed response emits no transitioned
-event. Hosts may use `publicChanged` to decide whether a public-content view
-needs refreshing; they must not interpret it as an access decision.
+result, not the clicked button or any client-side inference. The current
+framework API computes `publicChanged` by comparing the served projection before
+and after the transition: it is true only when either projection is public and
+its public status, workflow state, served revision, or published-revision
+pointer changed. The Admin client requires string `transition`, `from`, and
+`to` members; a present `public_changed` value must be boolean. An omitted
+`public_changed` member is compatible, not malformed: the committed transition
+is reported as success and `publicChanged` is true so hosts refresh public
+rendering the same way they did before the signal existed. A denied,
+conflicted, failed, or malformed required response emits no transitioned event.
+Hosts may use `publicChanged` to decide whether a public-content view needs
+refreshing; they must not interpret it as an access decision.
 
 The child posts only to `window.parent` with `window.location.origin`, and only
 when it is framed. A host must accept a lifecycle event only when both
@@ -1570,9 +1579,11 @@ not infer access from readiness or inspect the iframe DOM.
 
 During the compatibility interval the entity editor also emits the historical
 `waaseyaa.entity-editor.saved` and `waaseyaa.entity-editor.deleted` identity-only
-messages. Existing hosts may continue consuming v1 unchanged; hosts that need
-authoritative post-transition presentation select v2. No new legacy message
-types may be added.
+messages as a **separate** channel. Those historical messages are not additional
+versioned-lifecycle deliveries; an existing host that already consumed both the
+v1 envelope and the legacy saved/deleted types continues to see that same pair
+and is not required to start deduplicating versioned messages. No new legacy
+message types may be added.
 
 Role-focused shells such as Anokii may supply navigation, branding, list views,
 and content-type shortcuts around this route. They must not reimplement the
@@ -1607,4 +1618,4 @@ Block configuration is also recovered server-side after a short idle delay. The 
 <!-- Spec reviewed 2026-07-10 - CW-v1 WP-4 (#1920): workflow transition UI. New useWorkflowTransitions composable (apiFetch over GET /api/{type}/{id}/workflow/transitions + POST .../workflow/transition; a GET 404 is absorbed into an empty list per the R8 oracle contract — missing/unviewable renders no buttons, not an error). New components/workflow/TransitionControls.vue (<WorkflowTransitionControls>, nested-dir prefix) mounted in pages/[entityType]/[id].vue page-header-actions: one button per available transition, pending-disable, inline errors[0].detail on denial, emits `transitioned` (page re-fetches SchemaView via a refresh key + success message). SchemaList renders workflow_state as a status-pill badge (inside the schema column, or a synthetic trailing column when entities carry the attribute but the schema column set omits it). i18n keys workflow_transitioned / workflow_transition_error_generic / workflow_state_column_label in en+fr. -->
 <!-- Spec reviewed 2026-08-13 - #2344 shared client adapter: authenticated shell-free /page-builder-embed route mounts the exact PageBuilderWorkspace for same-origin Anokii integration while SAMEORIGIN framing protection remains active. -->
 <!-- Spec reviewed 2026-08-13 - shared structured editor: authenticated shell-free /entity-editor-embed route mounts the exact schema widgets and workflow controls for same-origin role-focused shells; create bundle selection remains server-schema-driven and parent notifications carry identity only. -->
-<!-- Spec reviewed 2026-08-20 - #2461 authoritative embedded transition presentation: v2 adds a success-only transitioned event carrying the API-confirmed destination state and server-derived public projection change flag; v1 vocabulary remains unchanged. -->
+<!-- Spec reviewed 2026-08-20 - #2461 authoritative embedded transition presentation: v2 adds a success-only transitioned event carrying the API-confirmed destination state and server-derived public projection change flag; ordinary events remain one v1 delivery; omitted public_changed is compatible. -->

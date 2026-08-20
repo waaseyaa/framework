@@ -34,8 +34,15 @@ export interface WorkflowTransitionApplyResult {
   public_changed: boolean
 }
 
+interface WorkflowTransitionApplyData {
+  transition: string
+  from: string
+  to: string
+  public_changed?: boolean
+}
+
 interface WorkflowTransitionApplyResponse {
-  data: WorkflowTransitionApplyResult
+  data: WorkflowTransitionApplyData
 }
 
 export type WorkflowTransitionErrorKind =
@@ -113,7 +120,16 @@ export function useWorkflowTransitions() {
     if (!isWorkflowTransitionApplyResponse(response)) {
       throw new WorkflowTransitionResponseError()
     }
-    return response.data
+    return {
+      transition: response.data.transition,
+      from: response.data.from,
+      to: response.data.to,
+      // Older API packages and application-provided controllers may omit the
+      // additive refresh signal after a committed transition. Absence is not
+      // failure; hosts then refresh public rendering as they did before the
+      // signal existed.
+      public_changed: response.data.public_changed ?? true,
+    }
   }
 
   return { transitions, state, history, loading, error, errorKind, fetchTransitions, applyTransition }
@@ -122,12 +138,16 @@ export function useWorkflowTransitions() {
 function isWorkflowTransitionApplyResponse(value: unknown): value is WorkflowTransitionApplyResponse {
   if (typeof value !== 'object' || value === null) return false
   const data = (value as { data?: unknown }).data
-  return typeof data === 'object'
-    && data !== null
-    && typeof (data as WorkflowTransitionApplyResult).transition === 'string'
-    && typeof (data as WorkflowTransitionApplyResult).from === 'string'
-    && typeof (data as WorkflowTransitionApplyResult).to === 'string'
-    && typeof (data as WorkflowTransitionApplyResult).public_changed === 'boolean'
+  if (typeof data !== 'object' || data === null) return false
+  const record = data as Record<string, unknown>
+  if (
+    typeof record.transition !== 'string'
+    || typeof record.from !== 'string'
+    || typeof record.to !== 'string'
+  ) {
+    return false
+  }
+  return record.public_changed === undefined || typeof record.public_changed === 'boolean'
 }
 
 class WorkflowTransitionResponseError extends Error {}
