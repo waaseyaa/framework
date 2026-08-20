@@ -77,6 +77,56 @@ final class AdminDestinationPathsTest extends TestCase
     }
 
     #[Test]
+    public function filteredListOwnsTheSpaDeclaredFilterQueryShape(): void
+    {
+        self::assertSame(
+            '/admin/node?filter%5Bworkflow_state%5D%5Boperator%5D=EQUALS&filter%5Bworkflow_state%5D%5Bvalue%5D=draft',
+            AdminDestinationPaths::filteredList('node', [
+                'workflow_state' => ['operator' => 'EQUALS', 'value' => 'draft'],
+            ]),
+        );
+    }
+
+    #[Test]
+    public function filteredListIsStableAndRfc3986Encoded(): void
+    {
+        $expected = '/admin/odd%20type'
+            .'?filter%5Ba%20field%5D%5Boperator%5D=CONTAINS'
+            .'&filter%5Ba%20field%5D%5Bvalue%5D=a%20b%26c'
+            .'&filter%5Bz%5D%5Boperator%5D=EQUALS'
+            .'&filter%5Bz%5D%5Bvalue%5D=0';
+
+        self::assertSame($expected, AdminDestinationPaths::filteredList('odd type', [
+            'z' => ['operator' => 'EQUALS', 'value' => '0'],
+            'a field' => ['operator' => 'CONTAINS', 'value' => 'a b&c'],
+        ]));
+    }
+
+    /** @param array<mixed> $filters */
+    #[Test]
+    #[DataProvider('invalidListFilters')]
+    public function filteredListRefusesAnEmptyOrMalformedTuple(array $filters): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        AdminDestinationPaths::filteredList('node', $filters);
+    }
+
+    /** @return iterable<string, array{array<mixed>}> */
+    public static function invalidListFilters(): iterable
+    {
+        yield 'no filters' => [[]];
+        yield 'empty field' => [['' => ['operator' => 'EQUALS', 'value' => 'draft']]];
+        yield 'numeric field' => [[0 => ['operator' => 'EQUALS', 'value' => 'draft']]];
+        yield 'not a tuple' => [['state' => 'draft']];
+        yield 'missing operator' => [['state' => ['value' => 'draft']]];
+        yield 'empty operator' => [['state' => ['operator' => '', 'value' => 'draft']]];
+        yield 'missing value' => [['state' => ['operator' => 'EQUALS']]];
+        yield 'empty value' => [['state' => ['operator' => 'EQUALS', 'value' => '']]];
+        yield 'non-string value' => [['state' => ['operator' => 'EQUALS', 'value' => false]]];
+    }
+
+    #[Test]
     public function createAcceptsABundleScope(): void
     {
         self::assertSame('/admin/node/create?bundle=job_posting', AdminDestinationPaths::create('node', 'job_posting'));
@@ -186,6 +236,17 @@ final class AdminDestinationPathsTest extends TestCase
             $source,
             'The admin SPA must name the bundle query parameter exactly as this generator emits it.',
         );
+    }
+
+    #[Test]
+    public function theAdminSpaRestoresTheSameFilteredListQueryShape(): void
+    {
+        $source = file_get_contents(\dirname(__DIR__, 3) . '/admin/app/components/schema/SchemaList.vue');
+        self::assertIsString($source);
+
+        self::assertStringContainsString('params.get(`filter[${filter.field}][value]`)', $source);
+        self::assertStringContainsString('url.searchParams.set(`filter[${filter.field}][operator]`, filter.operator)', $source);
+        self::assertStringContainsString('url.searchParams.set(`filter[${filter.field}][value]`, String(value))', $source);
     }
 
     /**
