@@ -1,6 +1,6 @@
 # Save advisories and candidate-bound acknowledgement
 
-Status: proposed for `S1-FW-ADV-01`
+Status: implemented on the `S1-FW-ADV-01` review branch
 
 Issue mirror: `waaseyaa/framework#2467`
 
@@ -60,7 +60,7 @@ messages are serialized as data only.
 
 ### 3.1 Candidate binding
 
-`SaveAdvisory::forCandidate()` derives the token from a domain-separated
+`SaveAdvisory::forEntityField()` derives the token from a domain-separated
 canonical form containing:
 
 1. contract version;

@@ -48,3 +48,21 @@ backup, restore, or recovery action. GitHub is only a tracking/review adapter;
 the versioned contract, exact Git objects, and local verification are the
 portable authorities.
 
+## Verification evidence
+
+- `composer verify` at implementation commit `31c84163a` completed successfully:
+  formatting, PHPStan (2,402 files), repository architecture/policy/security
+  gates, OpenAPI (0 errors; 9 existing warnings), generated Admin distribution
+  freshness, and PHPUnit (14,033 tests, 265,183 assertions, 1 skip).
+- Governed Admin production build completed with 263 artifacts and distribution
+  signature
+  `60dffea4f60fb51934c650edad2958374ae27afbcb81ceec81ba8300c89ca4a8`.
+- Admin PHP regression coverage completed with 1,053 tests and 3,817
+  assertions; focused Admin frontend advisory coverage completed with 33 tests.
+- Publishing and MCP coverage completed with 238 tests and 904 assertions;
+  migration coverage completed with 439 tests and 202,223 assertions.
+- One intermediate full-suite attempt exposed a stale test-only call to the
+  renamed advisory payload accessor; commit `31c84163a` corrected it. A later
+  attempt hit an unrelated wall-clock transport assertion once; the exact test
+  passed five consecutive focused runs and the final uncontended full run above
+  was green.
