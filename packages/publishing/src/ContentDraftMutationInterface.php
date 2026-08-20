@@ -6,7 +6,18 @@ namespace Waaseyaa\Publishing;
 
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
-/** @internal Adapter seam for governed composite authoring services. */
+/**
+ * Adapter seam for governed composite authoring services.
+ *
+ * This signature is frozen: applications implement it directly (page-builder
+ * gateways, id-resolving decorators), so adding a parameter here — even an
+ * optional one — is a load-time fatal for every existing implementor. Save
+ * advisory acknowledgements therefore live on
+ * {@see AdvisoryAwareContentDraftMutationInterface}, which extends this
+ * contract instead of altering it.
+ *
+ * @internal Adapter seam for governed composite authoring services.
+ */
 interface ContentDraftMutationInterface
 {
     /** @return array<string, mixed> */
@@ -14,7 +25,6 @@ interface ContentDraftMutationInterface
 
     /**
      * @param array<string, mixed> $values
-     * @param list<string> $saveAdvisoryAcknowledgements
      * @return array<string, mixed>
      */
     public function updateDraft(
@@ -23,6 +33,5 @@ interface ContentDraftMutationInterface
         array $values,
         int $expectedRevisionId,
         string $idempotencyKey,
-        array $saveAdvisoryAcknowledgements = [],
     ): array;
 }

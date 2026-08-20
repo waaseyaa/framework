@@ -193,7 +193,6 @@ final class RecordingContentDraftMutation implements ContentDraftMutationInterfa
         array $values,
         int $expectedRevisionId,
         string $idempotencyKey,
-        array $saveAdvisoryAcknowledgements = [],
     ): array {
         $this->values = $values;
         $this->expectedRevisionId = $expectedRevisionId;

@@ -176,7 +176,25 @@ the pending review. The ordinary Save button never implies acknowledgement.
 `ContentPublisher::createDraft()` and `updateDraft()` accept a trailing optional
 list of acknowledgement tokens. The tokens are included in the idempotency
 request fingerprint and applied to the same `SaveContext` that carries actor
-and revision expectations. The storage exception maps to
+and revision expectations.
+
+`ContentDraftMutationInterface` is frozen at its original five-parameter
+`updateDraft()` shape. Applications implement that seam directly, and PHP
+requires an implementor to declare every parameter its interface declares, so
+adding even an optional parameter to it is a load-time fatal for every existing
+implementor. Acknowledgement support therefore lives on
+`AdvisoryAwareContentDraftMutationInterface`, which extends the frozen contract
+and redeclares `updateDraft()` with the trailing optional token list.
+`ContentPublisher` implements the extended interface.
+
+Callers must not branch on the concrete type. `SaveAdvisoryAcknowledgementDispatcher::updateDraft()`
+is the single decision point: with no tokens it calls the ordinary five-argument
+method, so a legacy implementor is unaffected; with tokens it requires the
+extended interface and otherwise throws
+`UnsupportedSaveAdvisoryAcknowledgementException` (code
+`SAVE_ADVISORY_UNSUPPORTED`) before any write. Receipts are never dropped to
+make a call succeed, and the refusal carries no token, policy, or implementation
+detail. The storage exception maps to
 `ContentSaveAdvisoryException`, a structured `ContentPublishingException` with
 code `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` and advisory data in `meta`.
 
@@ -237,9 +255,17 @@ Third-party destinations do not receive implicit acknowledgement behavior.
 
 ## 9. Compatibility
 
-All new PHP parameters are trailing and optional. `BeforeSaveEvent`'s original
-constructor shape remains valid because the original entity is trailing and
-nullable. Existing `SaveContext`, JSON:API, Admin transport, publishing, MCP,
-and migration callers retain their previous behavior when they provide no
-advisory policy or acknowledgement data. Existing response bodies remain
-unchanged outside the new typed failure path.
+All new PHP parameters are trailing and optional, which makes them safe for
+**callers**. It does not make them safe for **implementors**: PHP checks an
+implementing method against every parameter its interface declares, so a
+trailing optional parameter added to a published interface is still a
+load-time fatal for code that already implements it. Interfaces that
+applications implement are therefore frozen, and new capability arrives as an
+extending sub-interface — see §6 for `AdvisoryAwareContentDraftMutationInterface`.
+
+`BeforeSaveEvent`'s original constructor shape remains valid because the
+original entity is trailing and nullable, and it is constructed by Framework
+rather than implemented by applications. Existing `SaveContext`, JSON:API,
+Admin transport, publishing, MCP, and migration callers retain their previous
+behavior when they provide no advisory policy or acknowledgement data. Existing
+response bodies remain unchanged outside the new typed failure path.

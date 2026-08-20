@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — the draft-mutation seam stays source-compatible for applications
+  (#2467):** a trailing optional parameter is safe for callers but not for
+  implementors — PHP checks an implementing method against every parameter its
+  interface declares — so adding `$saveAdvisoryAcknowledgements` to
+  `ContentDraftMutationInterface::updateDraft()` made every application that
+  already implements the seam fail to load, at kernel boot rather than only on
+  the page-builder path. The published contract is restored to its original
+  five-parameter shape and the capability moves to
+  `AdvisoryAwareContentDraftMutationInterface`, which extends it.
+  `ContentPublisher` implements the extension.
+  `SaveAdvisoryAcknowledgementDispatcher::updateDraft()` is the single decision
+  point: with no receipts it calls the ordinary five-argument method, so a
+  legacy implementor is untouched; with receipts it requires the extension and
+  otherwise refuses with `SAVE_ADVISORY_UNSUPPORTED` before any write.
+  Acknowledgement receipts are never dropped to make a call succeed, and the
+  refusal carries no token, policy, or implementation identity.
+
 - **Fixed — Admin `TransportError` keeps the closed save-advisory meta contract
   (#2467):** `TransportError.meta` is `AdminSurfaceErrorMeta`, not
   `Record<string, unknown>`, so the allowlisted `save_advisories` projection
