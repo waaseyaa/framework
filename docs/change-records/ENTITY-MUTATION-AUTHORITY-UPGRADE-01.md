@@ -12,10 +12,11 @@ The supported escape hatch is the explicit restricted command
 boot. No ordinary boot, read, migration, schema synchronization, or fresh-install
 path invokes the repair.
 
-The command validates its audit reason and every repository boundary before its
-first write. It delegates creation to the repository-owned transaction and audit
-event, preserves existing authorities, reports only deterministic per-type
-counts, and reveals no token material. A retry is idempotent.
+The command validates its audit reason, repairs repositories implementing the
+framework boundary, and explicitly reports custom repository types it skips.
+It delegates creation to the repository-owned transaction and audit event,
+preserves existing authorities, reports only deterministic per-type counts and
+skipped type names, and reveals no token material. A retry is idempotent.
 
 ## Proof
 

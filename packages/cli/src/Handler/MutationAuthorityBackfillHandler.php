@@ -33,15 +33,12 @@ final readonly class MutationAuthorityBackfillHandler
 
         /** @var array<string, EntityRepositoryInterface&LegacyMutationAuthorityBackfillRepositoryInterface> $repositories */
         $repositories = [];
+        $skippedEntityTypes = [];
         foreach (array_keys($definitions) as $entityTypeId) {
             $repository = $this->entityTypeManager->getRepository($entityTypeId);
             if (!$repository instanceof LegacyMutationAuthorityBackfillRepositoryInterface) {
-                $io->error(sprintf(
-                    'Entity type "%s" is not backed by the framework mutation-authority repair boundary.',
-                    $entityTypeId,
-                ));
-
-                return 1;
+                $skippedEntityTypes[] = $entityTypeId;
+                continue;
             }
             $repositories[$entityTypeId] = $repository;
         }
@@ -56,6 +53,7 @@ final readonly class MutationAuthorityBackfillHandler
             $io->writeln(json_encode([
                 'created' => $created,
                 'entity_types' => $createdByType,
+                'skipped_entity_types' => $skippedEntityTypes,
             ], JSON_THROW_ON_ERROR));
 
             return 0;
@@ -64,6 +62,9 @@ final readonly class MutationAuthorityBackfillHandler
         $io->writeln(sprintf('Mutation-authority backfill: created=%d', $created));
         foreach ($createdByType as $entityTypeId => $count) {
             $io->writeln(sprintf('  %s: %d', $entityTypeId, $count));
+        }
+        foreach ($skippedEntityTypes as $entityTypeId) {
+            $io->writeln(sprintf('  %s: skipped (repository is outside the framework repair boundary)', $entityTypeId));
         }
 
         return 0;

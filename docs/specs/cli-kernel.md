@@ -125,13 +125,15 @@ explicit pre-runtime upgrade command for aggregates persisted before DB-03.
 correctly refuses a persisted aggregate with no authority row. It never runs
 implicitly during boot, reads, migration, schema sync, or fresh installation.
 
-The command requires a non-empty audit reason, preflights every discovered
-entity repository before its first write, and fails closed when a repository
-does not implement the framework repair seam. Successful output contains only
-the total and deterministic per-entity-type created counts; token material is
-never rendered. Existing authorities are preserved. A completed retry reports
-zero created rows, and each created authority retains the repository's exact
-tenant/type/id binding and emits the backfill audit event inside its transaction.
+The command requires a non-empty audit reason. Repositories implementing the
+framework repair seam are processed; custom repositories outside that boundary
+are skipped and named explicitly rather than invoked through an invented repair
+path or allowed to strand unrelated framework types. Successful output contains
+only the total, deterministic per-entity-type created counts, and skipped type
+names; token material is never rendered. Existing authorities are preserved. A
+completed retry reports zero created rows, and each created authority retains
+the repository's exact tenant/type/id binding and emits the backfill audit event
+inside its transaction.
 
 `install:init` is the governed installation phase (#2428) and belongs to the
 restricted pre-boot command set alongside `schema:sync`, `migrate*`, and

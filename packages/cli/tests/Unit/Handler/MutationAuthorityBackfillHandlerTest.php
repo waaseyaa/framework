@@ -49,6 +49,7 @@ final class MutationAuthorityBackfillHandlerTest extends TestCase
         self::assertSame([
             'created' => 3,
             'entity_types' => ['node' => 2, 'workflow' => 1],
+            'skipped_entity_types' => [],
         ], json_decode(trim($firstJson), true, flags: JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('mutation_tag', $firstJson);
 
@@ -58,23 +59,27 @@ final class MutationAuthorityBackfillHandlerTest extends TestCase
         self::assertSame([
             'created' => 0,
             'entity_types' => ['node' => 0, 'workflow' => 0],
+            'skipped_entity_types' => [],
         ], json_decode(trim($retryJson), true, flags: JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('mutation_tag', $retryJson);
     }
 
     #[Test]
-    public function it_preflights_every_repository_before_the_first_write(): void
+    public function it_repairs_supported_repositories_and_reports_unsupported_types(): void
     {
-        $supported = $this->repository();
-        $supported->expects(self::never())->method('backfillMutationAuthorities');
+        $supported = $this->repository(1);
         $unsupported = $this->createMock(EntityRepositoryInterface::class);
         $manager = $this->manager(['node' => $supported, 'external' => $unsupported]);
-        [$io, , $stderr] = $this->io(['--reason' => 'Upgrade rehearsal']);
+        [$io, $stdout] = $this->io(['--reason' => 'Upgrade rehearsal', '--json' => true]);
 
         $exit = new MutationAuthorityBackfillHandler($manager)->execute($io);
 
-        self::assertSame(1, $exit);
-        self::assertStringContainsString('external', $stderr->fetch());
+        self::assertSame(0, $exit);
+        self::assertSame([
+            'created' => 1,
+            'entity_types' => ['node' => 1],
+            'skipped_entity_types' => ['external'],
+        ], json_decode(trim($stdout->fetch()), true, flags: JSON_THROW_ON_ERROR));
     }
 
     private function repository(int ...$results): EntityRepositoryInterface&LegacyMutationAuthorityBackfillRepositoryInterface
