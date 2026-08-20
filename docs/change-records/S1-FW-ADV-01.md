@@ -40,6 +40,18 @@ six intentional route-backed page slugs: `services`, `employment`, `news`,
 unsaveable. This change provides accept-with-explicit-acknowledgement and lets
 the app distinguish unchanged legacy state from a new collision.
 
+## Exception and wire-contract decisions
+
+- `AbortOperationException` remains `final`. The advisory exception is a
+  sibling `RuntimeException`, not a subclass, so existing abort catches keep
+  their prior semantics.
+- Generic Admin owns an allowlisted projection of JSON:API errors. Ordinary
+  errors stay status/title/detail; only
+  `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` emits `code` and
+  `meta.save_advisories`.
+- Framework still does not ship a first-party `SaveAdvisory` producer. The
+  accepted use case remains one application `BeforeSaveEvent` listener.
+
 ## Interlocks
 
 This record authorizes no merge, tag, release, split-package fan-out,

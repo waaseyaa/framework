@@ -154,11 +154,32 @@ export interface AdminSurfaceResult<T> {
   meta?: Record<string, unknown>
 }
 
+/**
+ * Candidate-bound save advisory projected onto the Admin error envelope.
+ *
+ * Emitted by `AdminSurfaceResultData::fromJsonApiError()` from JSON:API
+ * `error.meta.save_advisories` and consumed by SchemaForm. Extra JSON:API
+ * meta keys never cross this boundary.
+ */
+export interface AdminSurfaceSaveAdvisory {
+  code: string
+  field: string
+  severity: 'warning'
+  message: string
+  acknowledgement: string
+}
+
+export interface AdminSurfaceErrorMeta {
+  save_advisories: AdminSurfaceSaveAdvisory[]
+}
+
 export interface AdminSurfaceError {
   status: number
   title: string
   detail?: string
   source?: Record<string, string>
+  code?: string
+  meta?: AdminSurfaceErrorMeta
 }
 
 // ── List ─────────────────────────────────────────────────────────

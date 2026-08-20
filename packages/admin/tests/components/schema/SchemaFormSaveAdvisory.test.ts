@@ -118,4 +118,41 @@ describe('SchemaForm save advisory acknowledgement', () => {
 
     expect(wrapper.find('[data-testid="save-advisory-review"]').exists()).toBe(false)
   })
+
+  it('does not treat a codeless HTTP 428 as save-advisory review', async () => {
+    registerEndpoint('/admin/_surface/advisory_page_token/action/schema', {
+      method: 'POST',
+      handler: () => ({ ok: true, data: { ...schema, 'x-entity-type': 'advisory_page_token' } }),
+    })
+    registerEndpoint('/admin/_surface/advisory_page_token/action/create', {
+      method: 'POST',
+      handler: () => ({
+        ok: false,
+        error: {
+          status: 428,
+          title: 'Precondition required',
+          detail: 'Reload the entity before attempting this mutation.',
+          meta: {
+            reason: 'policy.internal.reason',
+            token: 'session-secret',
+            save_advisories: [{
+              code: 'RESERVED_ROUTE_VALUE', field: 'title', severity: 'warning',
+              message: 'Must not render without the advisory code.', acknowledgement: TOKEN,
+            }],
+          },
+        },
+      }),
+    })
+
+    vi.resetModules()
+    const { default: SchemaForm } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaForm, { props: { entityType: 'advisory_page_token' } })
+    await flushPromises()
+    await wrapper.get('input[type="text"]').setValue('News')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="save-advisory-review"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Reload the entity before attempting this mutation.')
+  })
 })

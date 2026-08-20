@@ -1709,15 +1709,6 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error($doc->statusCode, 'Error', 'Request failed.');
         }
 
-        $status = (int) $first->status;
-
-        return AdminSurfaceResultData::error(
-            $status,
-            $first->title,
-            $first->detail !== '' ? $first->detail : null,
-            $first->code,
-            $first->source,
-            $first->meta,
-        );
+        return AdminSurfaceResultData::fromJsonApiError($first, $doc->statusCode);
     }
 }

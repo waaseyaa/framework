@@ -1,5 +1,7 @@
 # Entity System
 
+<!-- Spec reviewed 2026-08-20 - #2467 save-advisory exception hierarchy: AbortOperationException remains final. SaveAdvisoryAcknowledgementRequiredException is a sibling RuntimeException, not a subclass, so existing abort catches keep prior semantics while BeforeSaveEvent throws still perform no write. -->
+
 <!-- Spec reviewed 2026-08-20 - #2464: RevisionRestoreChangedFields is the
 canonical copy-forward restore comparison. It excludes revision metadata and values storage
 preserves from the live row (publication pointer, status, credential hashes); current-only
@@ -810,8 +812,10 @@ matrix, and null-current semantics: `docs/specs/revision-system-unified.md`
 `BeforeSaveEvent(entity, context, isNewRevision, originalEntity)` before any
 backend write. Applications may build `SaveAdvisory::forEntityField()` values
 and call `SaveAdvisoryGate::requireAcknowledged()`. Missing exact tokens throw
-the typed `SaveAdvisoryAcknowledgementRequiredException` (an abort), roll back
-the operation, and suppress `AfterSaveEvent`. `SaveContext` validates,
+the typed `SaveAdvisoryAcknowledgementRequiredException` (a sibling
+`RuntimeException` of `AbortOperationException`, not a subclass), roll back
+the operation, and suppress `AfterSaveEvent`. Existing abort catches keep
+their prior semantics. `SaveContext` validates,
 deduplicates, sorts, and preserves at most 32 lowercase 64-hex tokens across all
 builders. The token binds entity type, bundle, stable identity, advisory code,
 field, and canonical candidate value; it is a review receipt, never

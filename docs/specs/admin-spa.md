@@ -1,5 +1,11 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-20 - #2467 save-advisory Admin envelope: Generic Admin
+projects JSON:API errors through AdminSurfaceResultData::fromJsonApiError().
+Ordinary errors keep status/title/detail; only SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED
+emits code plus allowlisted meta.save_advisories. A missing mutation-token 428
+stays codeless so SchemaForm can distinguish the two without parsing prose. -->
+
 <!-- Spec reviewed 2026-08-20 - #2464 generic revision recovery: exact reads compose
 view_revision plus protected/context-aware authority on the historical snapshot; restore uses
 shared RevisionRestoreChangedFields and preserves live pointer/status/credential values; preview
@@ -768,8 +774,9 @@ focusable `role=status` review panel. The explicit confirmation button retries
 the JSON-captured writable candidate with only the returned acknowledgement
 tokens. Any field or bundle edit, or an ordinary new submit, clears the pending
 review; the normal Save button never implies acknowledgement. The Admin surface
-preserves the JSON:API error `code`, `source`, and `meta` so this flow does not
-parse prose.
+projects only the allowlisted advisory `code` and `meta.save_advisories` onto
+the envelope; a missing mutation-token HTTP 428 stays a codeless precondition
+error so the two 428s are distinguishable without parsing prose.
 
 `x-form-sections` is an ordered list of `{id, label, description?, fields,
 collapsible?, collapsed?}` objects. IDs and labels are non-empty strings and

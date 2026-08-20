@@ -35,12 +35,24 @@ This lets policy distinguish an unchanged legacy value from a newly introduced
 collision without an application-owned controller, repository, or migration
 destination.
 
+Framework supplies the advisory DTO, gate, typed exception, and transport
+projection. It does not ship a first-party `SaveAdvisory` producer: the
+accepted use case is an application `BeforeSaveEvent` listener (Sheguiandah
+issue `jonesrussell/sheguiandah-waaseyaa#111` will own the reserved-slug
+roster). Inventing a Framework page-slug policy would collapse that product
+decision into the substrate.
+
 The application listener constructs zero or more `SaveAdvisory` values and
 passes them with the event's context to `SaveAdvisoryGate::requireAcknowledged()`.
 The gate returns normally when the list is empty or every token is present. It
-otherwise throws `SaveAdvisoryAcknowledgementRequiredException`. Throwing from
-`BeforeSaveEvent` aborts the repository transaction before a backend write and
-prevents `AfterSaveEvent`.
+otherwise throws `SaveAdvisoryAcknowledgementRequiredException`, a sibling
+`RuntimeException` of `AbortOperationException` rather than a subclass.
+Throwing from `BeforeSaveEvent` still aborts the repository transaction before
+a backend write and prevents `AfterSaveEvent`. Existing
+`catch (AbortOperationException)` blocks keep their prior semantics and do not
+silently absorb an unacknowledged advisory. Callers that must present the
+review contract catch the typed advisory exception at the intended boundary
+(JSON:API, Generic Admin, publishing, migration).
 
 ## 3. Advisory value
 
@@ -138,14 +150,24 @@ Ordering is deterministic by code, field, then token. The controller catches
 the typed exception on create, plain update, and expectation-stated update.
 Existing validation remains a `422` and has no acknowledgement token.
 
-Generic Admin already delegates create/update to JSON:API. It preserves the
-JSON:API error code and meta in `AdminSurfaceResultData`, and its transport
-supports optional acknowledgement tokens on create/update payloads. The schema
-form displays the returned advisories in an accessible `role=status` review
-panel with one explicit confirmation button. Confirmation resubmits the exact
-captured writable candidate with only the returned tokens. Editing any field,
-changing bundle scope, or starting another submit clears the pending review.
-The ordinary Save button never implies acknowledgement.
+Generic Admin already delegates create/update to JSON:API. It projects the
+JSON:API error into the Admin envelope through
+`AdminSurfaceResultData::fromJsonApiError()`: status, title, and detail remain
+the legacy error shape; `code` and `error.meta` are emitted only for
+`SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED`, and `meta` contains only the
+allowlisted `save_advisories` fields (`code`, `field`, `severity`, `message`,
+`acknowledgement`). Policy reasons, internal identifiers, tokens, nested
+objects, and other JSON:API error.meta keys do not cross the Admin boundary.
+A missing mutation-token HTTP 428 remains a codeless/meta-less precondition
+error, so the schema form can distinguish it from an unacknowledged advisory
+without parsing prose.
+
+The Admin transport supports optional acknowledgement tokens on create/update
+payloads. The schema form displays the returned advisories in an accessible
+`role=status` review panel with one explicit confirmation button. Confirmation
+resubmits the exact captured writable candidate with only the returned tokens.
+Editing any field, changing bundle scope, or starting another submit clears
+the pending review. The ordinary Save button never implies acknowledgement.
 
 ## 6. Publishing and MCP
 

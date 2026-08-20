@@ -67,5 +67,55 @@ final class GenericAdminSurfaceHostSaveAdvisoryTest extends TestCase
         self::assertSame(428, $result->error['status']);
         self::assertSame('SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED', $result->error['code']);
         self::assertSame([$advisory->payload()], $result->error['meta']['save_advisories']);
+        self::assertSame(['save_advisories'], array_keys($result->error['meta']));
+        self::assertSame(
+            ['status', 'title', 'detail', 'code', 'meta'],
+            array_keys($result->error),
+        );
+    }
+
+    #[Test]
+    public function missing_mutation_token_428_is_distinguishable_from_an_unacknowledged_advisory(): void
+    {
+        $entity = new TestEntity(['id' => 1, 'title' => 'News'], 'article');
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($entity);
+        $repository->method('save')->willThrowException(
+            new \RuntimeException('Save must not run without a mutation token.'),
+        );
+
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('hasDefinition')->willReturn(true);
+        $manager->method('getDefinition')->willReturn(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+        ));
+        $manager->method('getRepository')->willReturn($repository);
+
+        $access = $this->createStub(EntityAccessHandler::class);
+        $access->method('check')->willReturn(AccessResult::allowed('ok'));
+        $access->method('checkFieldAccess')->willReturn(AccessResult::neutral('ok'));
+
+        $host = new GenericAdminSurfaceHost($manager, $access);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('id')->willReturn(1);
+        $account->method('hasPermission')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+        $request = Request::create('/admin/surface/session');
+        $request->attributes->set('_account', $account);
+        $host->resolveSession($request);
+
+        $result = $host->action('article', 'update', [
+            'id' => '1',
+            'attributes' => ['title' => 'News'],
+        ]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(428, $result->error['status']);
+        self::assertArrayNotHasKey('code', $result->error);
+        self::assertArrayNotHasKey('meta', $result->error);
+        self::assertSame('Precondition required', $result->error['title']);
     }
 }

@@ -5,10 +5,17 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Exception;
 
 use Waaseyaa\EntityStorage\Advisory\SaveAdvisory;
-use Waaseyaa\EntityStorage\Event\AbortOperationException;
 
-/** Typed no-write outcome carrying advisories the caller must review. @api */
-final class SaveAdvisoryAcknowledgementRequiredException extends AbortOperationException
+/**
+ * Typed no-write outcome carrying advisories the caller must review.
+ *
+ * Sibling of {@see \Waaseyaa\EntityStorage\Event\AbortOperationException}, not a
+ * subclass: throwing from `BeforeSaveEvent` still performs no backend write,
+ * but existing abort catches must not silently absorb an unacknowledged advisory.
+ *
+ * @api
+ */
+final class SaveAdvisoryAcknowledgementRequiredException extends \RuntimeException
 {
     /** @param array<int, mixed> $advisoryValues */
     public function __construct(private readonly array $advisoryValues)
@@ -22,10 +29,7 @@ final class SaveAdvisoryAcknowledgementRequiredException extends AbortOperationE
             }
         }
 
-        parent::__construct(
-            'Review and acknowledge the save advisory before retrying.',
-            self::class,
-        );
+        parent::__construct('Review and acknowledge the save advisory before retrying.');
     }
 
     /** @return non-empty-list<SaveAdvisory> */

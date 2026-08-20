@@ -13,7 +13,13 @@ use Waaseyaa\EntityStorage\SaveContext;
  * Dispatched before any backend write in a save operation.
  *
  * Subscribers may throw {@see AbortOperationException} to halt the save.
- * No backend writes occur after an abort; no {@see AfterSaveEvent} fires.
+ * An unacknowledged save advisory throws
+ * {@see \Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException},
+ * a sibling {@see \RuntimeException}: it also performs no write and suppresses
+ * {@see AfterSaveEvent}, but it is not an AbortOperationException, so existing
+ * abort catches keep their prior semantics.
+ *
+ * No backend writes occur after either exception; no {@see AfterSaveEvent} fires.
  *
  * @see AfterSaveEvent
  * @see AbortOperationException

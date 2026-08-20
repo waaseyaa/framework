@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — `AbortOperationException` stays final; unacknowledged save
+  advisories are a sibling exception (#2467):** the public abort type is not an
+  open hierarchy. `SaveAdvisoryAcknowledgementRequiredException` extends
+  `RuntimeException` directly so existing `catch (AbortOperationException)`
+  blocks keep their prior semantics and cannot silently absorb a review
+  contract. Throwing the typed advisory from `BeforeSaveEvent` still performs
+  no write.
+
+- **Changed — Generic Admin projects save-advisory JSON:API errors through an
+  allowlist (#2467):** `AdminSurfaceResultData` no longer forwards
+  `error.meta` verbatim. Ordinary errors keep the legacy status/title/detail
+  envelope. Only `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` emits `code` and
+  `meta.save_advisories`, and each advisory is reduced to code, field,
+  severity, message, and acknowledgement. A missing mutation-token HTTP 428
+  remains distinguishable because it has neither.
+
 - **Added — candidate-bound save advisories can be acknowledged consistently
   across write surfaces (#2467):** applications can use one bundle-aware
   pre-save policy to warn without misclassifying intentional legacy state as a

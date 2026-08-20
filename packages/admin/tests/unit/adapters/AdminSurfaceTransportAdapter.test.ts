@@ -180,6 +180,11 @@ describe('AdminSurfaceTransportAdapter', () => {
       status: 428,
       title: 'Precondition required',
     })
+    await expect(adapter.update('node', '7', { title: 'Blind write' })).rejects.toEqual(
+      expect.not.objectContaining({
+        code: 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
+      }),
+    )
     expect(fetchFn).not.toHaveBeenCalled()
   })
 

@@ -49,6 +49,9 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
 
         $this->assertFalse($result->ok);
         $this->assertSame(403, $result->error['status']);
+        $this->assertArrayNotHasKey('code', $result->error);
+        $this->assertArrayNotHasKey('meta', $result->error);
+        $this->assertArrayNotHasKey('source', $result->error);
     }
 
     #[Test]
@@ -61,6 +64,9 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
 
         $this->assertFalse($result->ok);
         $this->assertSame(422, $result->error['status']);
+        $this->assertArrayNotHasKey('code', $result->error);
+        $this->assertArrayNotHasKey('meta', $result->error);
+        $this->assertArrayNotHasKey('source', $result->error);
     }
 
     private function runActionWithDeniedSave(string $action, TransitionDeniedException $denial): \Waaseyaa\AdminSurface\Host\AdminSurfaceResultData
