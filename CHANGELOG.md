@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — legacy aggregates can now be repaired before ordinary boot (#2460):**
+  the explicit restricted command `entity:backfill-mutation-authorities` accepts
+  a required audit reason and creates only missing aggregate authorities. It
+  reports deterministic per-type counts without token material, preserves
+  existing authorities, and is safe to retry. Ordinary boot remains fail-closed
+  and performs no implicit repair.
+
 - **Added — canonical filtered Admin list destinations (#2462):**
   `AdminDestinationPaths::filteredList()` now emits the exact deterministic,
   RFC3986-encoded query shape that the schema-driven Admin list already restores
@@ -63,7 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   records it logs are held and emitted once per synchronization — from the plan
   when nothing changed, from the replay when something did — rather than once
   per traversal.
-
 - **Fixed — an OpenAI-compatible endpoint that never finishes connecting is now
   bounded at 5s instead of 120s (#2445):** `OpenAiCompatibleProvider` set one
   fixed `CURLOPT_TIMEOUT` of 120s, with no connect bound and no way for a caller

@@ -102,5 +102,55 @@ grep -Fq 'fresh-install kernel boot OK' "$work/boot.out"
 # write. Require the day-one round-trip too.
 grep -Fq 'fresh-install entity round-trip OK' "$work/boot.out"
 
+# Simulate the exact pre-DB-03 upgrade trap from #2460: a persisted aggregate
+# remains, but its authority row does not. Ordinary provider boot must fail
+# closed until the deliberate restricted command repairs it.
+cp "$source_root/tests/MutationAuthorityUpgrade/simulate-legacy.php" "$consumer/simulate-legacy.php"
+cp "$source_root/tests/MutationAuthorityUpgrade/ordinary-boot.php" "$consumer/ordinary-boot.php"
+cp "$source_root/tests/MutationAuthorityUpgrade/verify-authorities.php" "$consumer/verify-authorities.php"
+
+php "$consumer/simulate-legacy.php" \
+    "$consumer/storage/fresh-install.sqlite" "$work/preserved-authority.json" \
+    >"$work/simulate-legacy.out" 2>&1
+
+if php "$consumer/ordinary-boot.php" >"$work/legacy-boot.out" 2>&1; then
+    cat "$work/legacy-boot.out" >&2
+    echo 'Ordinary boot must fail closed over a legacy aggregate without authority.' >&2
+    exit 1
+fi
+grep -Fq "Persisted entity workflow 'editorial' has no aggregate mutation authority." "$work/legacy-boot.out"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa entity:backfill-mutation-authorities \
+        --reason='Packaged-form legacy upgrade proof' --json ) >"$work/backfill.out" 2>&1; then
+    cat "$work/backfill.out" >&2
+    echo 'The restricted mutation-authority upgrade failed.' >&2
+    exit 1
+fi
+grep -Eq '"created"[[:space:]]*:[[:space:]]*1' "$work/backfill.out"
+grep -Eq '"workflow"[[:space:]]*:[[:space:]]*1' "$work/backfill.out"
+if grep -Fq 'mutation_tag' "$work/backfill.out"; then
+    echo 'The upgrade output exposed mutation-token material.' >&2
+    exit 1
+fi
+
+php "$consumer/verify-authorities.php" \
+    "$consumer/storage/fresh-install.sqlite" "$work/preserved-authority.json" \
+    >"$work/verify-authorities.out" 2>&1
+
+if ! php "$consumer/ordinary-boot.php" >"$work/repaired-boot.out" 2>&1; then
+    cat "$work/repaired-boot.out" >&2
+    echo 'Ordinary boot remained blocked after the supported upgrade.' >&2
+    exit 1
+fi
+grep -Fq 'ordinary boot OK' "$work/repaired-boot.out"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa entity:backfill-mutation-authorities \
+        --reason='Packaged-form idempotency proof' --json ) >"$work/backfill-retry.out" 2>&1; then
+    cat "$work/backfill-retry.out" >&2
+    echo 'The mutation-authority upgrade retry failed.' >&2
+    exit 1
+fi
+grep -Eq '"created"[[:space:]]*:[[:space:]]*0' "$work/backfill-retry.out"
+
 printf 'Fresh-install boot proof passed.\n'
 printf 'Candidate: %s\n' "$candidate"

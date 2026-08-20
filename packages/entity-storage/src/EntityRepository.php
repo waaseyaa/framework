@@ -59,7 +59,7 @@ use Waaseyaa\I18n\LanguageManagerInterface;
  * and language fallback. Delegates raw I/O to a storage driver.
  * @api
  */
-final class EntityRepository implements EntityRepositoryInterface, AggregateMutationRepositoryInterface
+final class EntityRepository implements EntityRepositoryInterface, AggregateMutationRepositoryInterface, LegacyMutationAuthorityBackfillRepositoryInterface
 {
     private readonly EntityStorageDriverV2Interface $driver;
 

@@ -142,6 +142,27 @@ The glob is safe only because of one naming convention: `phpunit.xml.dist` sets 
 5. Confirm the negotiated protocol versions, routed method set, tool descriptors,
    and public/write authentication boundaries remain intentional.
 
+### Playbook A.1: Pre-DB-03 Mutation-Authority Upgrade
+
+Use this only for an installation that may contain aggregates created before
+universal mutation authority. Keep the application quiesced for the sequence.
+
+1. Take and verify the deployment backup required by the governing upgrade plan.
+2. Install the target package cohort and run its supported migrations and
+   `waaseyaa install:init` phase as applicable.
+3. Before any ordinary HTTP, worker, scheduler, or fully booted CLI process,
+   run `php vendor/bin/waaseyaa entity:backfill-mutation-authorities --reason='<change reference>' --json`.
+4. Retain the exit status and per-type count report as upgrade evidence. The
+   output must contain no mutation token; a nonzero exit leaves the application
+   quiesced for investigation.
+5. Retry the same command with a retry-specific reason. A completed prior run
+   reports `created: 0`; a partial prior run repairs only still-missing rows.
+6. Perform ordinary boot and application smoke checks, then leave maintenance
+   mode under Playbook I.
+
+Do not replace step 3 with a normal boot: normal hydration deliberately refuses
+legacy rows that lack authority and performs no repair.
+
 ### Playbook B: Semantic Baseline Refresh
 
 1. Warm semantic index:

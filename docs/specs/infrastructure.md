@@ -175,7 +175,8 @@ Authoritative dispositions are in `docs/public-surface-map.php`, verified by `Pu
 
 `ConsoleKernel::handle()` selects a boot mode per command. Most commands take
 ordinary `bootForCli()`. A small, explicit set — `schema:sync`, `migrate`,
-`migrate:rollback`, `migrate:status`, `site:init`, and `install:init` — takes
+`migrate:rollback`, `migrate:status`, `site:init`, `install:init`, and
+`entity:backfill-mutation-authorities` — takes
 `bootForSchemaSync()`, which sets `restrictedDiscoveryOnly` and therefore skips
 `bootProviders()`, `discoverAccessPolicies()`, the field-read runtime, schedule
 entries, and `finalizeBoot()`.
@@ -186,6 +187,11 @@ the first configuration generation could not run under ordinary boot: it would
 require the very state it exists to produce. Commands added to this list must be
 genuinely pre-runtime; anything needing policies, schedules, or the field-read
 runtime does not belong in it.
+
+The mutation-authority backfill is the sole post-migration data-repair member
+of this set. Its restricted composition is intentional: a pre-DB-03 aggregate
+can make ordinary provider boot unreachable. It is operator-invoked, audited,
+idempotent, and zero-write unless that exact command is dispatched.
 
 
 ## Packages

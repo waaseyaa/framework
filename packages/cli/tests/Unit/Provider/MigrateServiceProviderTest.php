@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Handler\InstallInitHandler;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
+use Waaseyaa\CLI\Handler\MutationAuthorityBackfillHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 
 /**
@@ -80,6 +81,32 @@ final class MigrateServiceProviderTest extends TestCase
         $bindings = $provider->getBindings();
         self::assertArrayHasKey(InstallInitHandler::class, $bindings);
         self::assertIsCallable($bindings[InstallInitHandler::class]['concrete']);
+    }
+
+    #[Test]
+    public function it_declares_the_restricted_legacy_authority_repair_with_an_explicit_reason(): void
+    {
+        $provider = new MigrateServiceProvider();
+        $provider->setKernelContext('', [], []);
+        $provider->register();
+
+        $commands = [];
+        foreach ($provider->consoleCommands() as $command) {
+            $commands[$command->name] = $command;
+        }
+
+        self::assertArrayHasKey('entity:backfill-mutation-authorities', $commands);
+        self::assertSame(MutationAuthorityBackfillHandler::class, $commands['entity:backfill-mutation-authorities']->sourceClass());
+        $options = [];
+        foreach ($commands['entity:backfill-mutation-authorities']->handlerOptions() as $option) {
+            $options[$option->name] = $option;
+        }
+        self::assertSame('', $options['reason']->default);
+        self::assertArrayHasKey('json', $options);
+
+        $bindings = $provider->getBindings();
+        self::assertArrayHasKey(MutationAuthorityBackfillHandler::class, $bindings);
+        self::assertIsCallable($bindings[MutationAuthorityBackfillHandler::class]['concrete']);
     }
 
     #[Test]
