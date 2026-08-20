@@ -248,6 +248,47 @@ describe('AdminSurfaceTransportAdapter', () => {
     })
   })
 
+  it('propagates acknowledgement tokens and structured advisory errors', async () => {
+    const token = 'a'.repeat(64)
+    const advisory = {
+      code: 'RESERVED_ROUTE_VALUE',
+      field: 'title',
+      severity: 'warning',
+      message: 'Review the fallback URL.',
+      acknowledgement: token,
+    }
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 428,
+      json: async () => ({
+        ok: false,
+        error: {
+          status: 428,
+          title: 'Precondition Required',
+          detail: 'Review and acknowledge the save advisory before retrying.',
+          code: 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
+          meta: { save_advisories: [advisory] },
+        },
+      }),
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await expect(adapter.create('node', { title: 'News' }, [token])).rejects.toMatchObject({
+      status: 428,
+      code: 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
+      meta: { save_advisories: [advisory] },
+    })
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/admin/_surface/node/action/create',
+      expect.objectContaining({
+        body: JSON.stringify({
+          attributes: { title: 'News' },
+          save_advisory_acknowledgements: [token],
+        }),
+      }),
+    )
+  })
+
   it('dedupes concurrent GETs of the same record into a single request', async () => {
     let calls = 0
     const fetchFn = vi.fn(async () => {
