@@ -66,7 +66,6 @@ final class GenericAdminSurfaceHostSaveAdvisoryTest extends TestCase
         self::assertFalse($result->ok);
         self::assertSame(428, $result->error['status']);
         self::assertSame('SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED', $result->error['code']);
-        self::assertSame([$advisory->toArray()], $result->error['meta']['save_advisories']);
+        self::assertSame([$advisory->payload()], $result->error['meta']['save_advisories']);
     }
 }
-
