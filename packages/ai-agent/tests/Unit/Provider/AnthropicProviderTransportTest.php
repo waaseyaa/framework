@@ -202,7 +202,7 @@ final class AnthropicProviderTransportTest extends TestCase
         try {
             $server = new StallingTransportServer($mode);
         } catch (\Throwable $failure) {
-            self::markTestSkipped('Local transport peer unavailable: ' . $failure->getMessage());
+            self::markTestSkipped('Local transport server unavailable: ' . $failure->getMessage());
         }
         $this->servers[] = $server;
 
