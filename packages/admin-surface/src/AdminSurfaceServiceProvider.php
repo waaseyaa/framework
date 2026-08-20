@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AdminSurface;
 
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
@@ -288,67 +289,64 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $router->addRoute('admin_surface.session', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_SESSION)
             ->methods('GET')
             ->requireSession()
-            ->controller(fn($request) => self::promoteRefusalStatus($host->handleSession($request)))
+            ->controller(fn($request) => self::surfaceResponse($host->handleSession($request)))
             ->build());
 
         $router->addRoute('admin_surface.catalog', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_CATALOG)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request) => self::promoteRefusalStatus($host->handleCatalog($request)))
+            ->controller(fn($request) => self::surfaceResponse($host->handleCatalog($request)))
             ->build());
 
         $router->addRoute('admin_surface.list', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_LIST)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $type) => self::promoteRefusalStatus($host->handleList($request, $type)))
+            ->controller(fn($request, $type) => self::surfaceResponse($host->handleList($request, $type)))
             ->build());
 
         $router->addRoute('admin_surface.get', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_GET)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $type, $id) => self::promoteRefusalStatus($host->handleGet($request, $type, $id)))
+            ->controller(fn($request, $type, $id) => self::surfaceResponse($host->handleGet($request, $type, $id)))
             ->build());
 
         $router->addRoute('admin_surface.action', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_ACTION)
             ->methods('POST')
             ->requireAuthentication()
-            ->controller(fn($request, $type, $action) => self::promoteRefusalStatus($host->handleAction($request, $type, $action)))
+            ->controller(fn($request, $type, $action) => self::surfaceResponse($host->handleAction($request, $type, $action)))
             ->build());
     }
 
     /**
-     * Carry an admin-surface refusal's `error.status` onto the HTTP status line.
+     * Emit the Admin Surface envelope with its own transport contract.
      *
-     * Every `AbstractAdminSurfaceHost::handle*` method returns a flat
-     * `{ok, data, error, meta}` envelope, which `ControllerDispatcher` emits
-     * with its default `$result['statusCode'] ?? 200`. A denied write therefore
-     * left the wire as `200 OK` carrying `error.status: 403` in the body, and
-     * any client or monitor keying on the status line read it as a success
-     * (#2161). Wrapping the envelope in the dispatcher's existing
-     * `statusCode`/`body` contract moves the status without touching the body.
+     * Every `AbstractAdminSurfaceHost::handle*` method returns the package's
+     * flat `{ok, data, error, meta}` envelope. It is not a JSON:API document,
+     * so handing an array to `ControllerDispatcher` would incorrectly apply
+     * the Foundation JSON:API media type and pretty-printing. Returning a
+     * `JsonResponse` here keeps that package-specific knowledge at the route
+     * boundary and preserves the compact `application/json` contract.
      *
      * Only a genuine 400-599 integer is promoted. `handle*` is overridable, so a
      * host subclass can return a hand-built envelope whose status is absent, a
      * string, or out of range; handing that to the dispatcher would reach the
      * `Response` constructor and turn a clean refusal into a 500. Anything
-     * unrecognised falls through to the prior behaviour instead.
+     * unrecognised keeps HTTP 200 instead.
      *
      * @param  array<string, mixed> $envelope
-     * @return array<string, mixed>
      */
-    private static function promoteRefusalStatus(array $envelope): array
+    private static function surfaceResponse(array $envelope): JsonResponse
     {
-        if (($envelope['ok'] ?? null) !== false) {
-            return $envelope;
-        }
-
         $status = $envelope['error']['status'] ?? null;
-
-        if (!is_int($status) || $status < 400 || $status > 599) {
-            return $envelope;
+        if (($envelope['ok'] ?? null) !== false
+            || !is_int($status)
+            || $status < 400
+            || $status > 599
+        ) {
+            $status = 200;
         }
 
-        return ['statusCode' => $status, 'body' => $envelope];
+        return new JsonResponse($envelope, $status);
     }
 
     public static function registerPageBuilderRoutes(

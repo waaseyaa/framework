@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and are deprecated in 8.5, and the timeout path reached one of them — the
   120s reproduction emitted the deprecation notice before throwing.
 
+- **Fixed — Admin Surface envelopes keep their own JSON wire contract
+  (#2453):** the five canonical `admin_surface.*` route closures now
+  emit compact `application/json` responses directly at the package boundary.
+  Their flat `{ok,data,error,meta}` envelope is not JSON:API; sending the
+  previous `statusCode`/`body` wrapper through Foundation's generic
+  dispatcher mislabeled it `application/vnd.api+json` and pretty-printed the
+  body. Refusal status promotion is unchanged and fail-closed: only integer
+  400–599 values move to the status line, while malformed values remain HTTP
+  200 with the original envelope.
+
 - **Fixed — a stalled Anthropic peer no longer holds a worker for five minutes
   (#2156):** `AnthropicProvider` set one fixed `CURLOPT_TIMEOUT` — 120s for
   `sendMessage`, 300s for `streamMessage` — with no connect bound and no

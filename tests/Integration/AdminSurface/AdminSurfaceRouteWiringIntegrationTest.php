@@ -352,7 +352,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
 
         $baseRequest = Request::create('/admin/_surface/article/action/schema', 'POST', content: '{}');
         $baseRequest->attributes->set('_account', $account);
-        $base = $controller($baseRequest, 'article', 'schema');
+        $base = $this->invoke($controller, $baseRequest, 'article', 'schema');
 
         self::assertTrue($base['ok']);
         self::assertSame('type', $base['data']['x-bundle-key']);
@@ -365,7 +365,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             content: json_encode(['bundle' => 'page'], JSON_THROW_ON_ERROR),
         );
         $pageRequest->attributes->set('_account', $account);
-        $page = $controller($pageRequest, 'article', 'schema');
+        $page = $this->invoke($controller, $pageRequest, 'article', 'schema');
 
         self::assertTrue($page['ok']);
         self::assertArrayHasKey('page_body', $page['data']['properties']);
@@ -380,7 +380,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             content: json_encode(['bundle' => 'post'], JSON_THROW_ON_ERROR),
         );
         $postRequest->attributes->set('_account', $account);
-        $post = $controller($postRequest, 'article', 'schema');
+        $post = $this->invoke($controller, $postRequest, 'article', 'schema');
 
         self::assertTrue($post['ok']);
         self::assertSame(['bound' => false, 'id' => null], $post['data']['x-workflow']);
@@ -446,7 +446,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
 
         $request = Request::create('/admin/_surface/node/action/schema', 'POST', content: '{}');
         $request->attributes->set('_account', $account);
-        $base = $controller($request, 'node', 'schema');
+        $base = $this->invoke($controller, $request, 'node', 'schema');
 
         self::assertTrue($base['ok']);
         self::assertSame('type', $base['data']['x-bundle-key']);
@@ -454,5 +454,14 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             ['announcement', 'job_posting', 'page', 'post', 'tribe_events'],
             $base['data']['properties']['type']['enum'],
         );
+    }
+
+    /** @return array<string, mixed> */
+    private function invoke(callable $controller, Request $request, string ...$arguments): array
+    {
+        $response = $controller($request, ...$arguments);
+        self::assertInstanceOf(\Symfony\Component\HttpFoundation\JsonResponse::class, $response);
+
+        return json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
     }
 }
