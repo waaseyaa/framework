@@ -12,10 +12,12 @@ use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
  * `ConfigCommand` serves two purposes:
  *
  * 1. **Reserved-verb registry (FR-047).** The {@see RESERVED_VERBS} constant
- *    lists the six framework-owned verb names: `export`, `import`, `diff`,
- *    `status`, `validate`, `reset`. With the `config:` prefix they form the
- *    six fully-qualified reserved verbs published in
- *    `contracts/cli-namespace.md`.
+ *    lists the seven framework-owned verb names: `export`, `import`,
+ *    `manifest:sign`, `diff`, `status`, `validate`, `reset`. With the
+ *    `config:` prefix they form the seven fully-qualified reserved verbs
+ *    published in `contracts/cli-namespace.md`. `manifest:sign` joined them in
+ *    #2430, when CFG-03 gained an authoring command; reserving it keeps an app
+ *    from shadowing the one command that mints signing evidence.
  *
  * 2. **Collision-detection hook (FR-048).** The Symfony Console application
  *    factory invokes {@see assertNoCollision()} once per command. App or
@@ -51,6 +53,7 @@ abstract class ConfigCommand
     public const RESERVED_VERBS = [
         'export',
         'import',
+        'manifest:sign',
         'diff',
         'status',
         'validate',
@@ -65,6 +68,7 @@ abstract class ConfigCommand
     public const RESERVED_FULL_VERBS = [
         'config:export',
         'config:import',
+        'config:manifest:sign',
         'config:diff',
         'config:status',
         'config:validate',
@@ -86,12 +90,14 @@ abstract class ConfigCommand
      *  - `config:status`   → ConfigStatusCommand
      *  - `config:validate` → ConfigValidateCommand
      *  - `config:reset`    → ConfigResetCommand
+     *  - `config:manifest:sign` → ConfigManifestSignCommand
      *
      * @var list<class-string>
      */
     public const RESERVED_FQCNS = [
         ConfigExportCommand::class,
         ConfigImportCommand::class,
+        ConfigManifestSignCommand::class,
         ConfigDiffCommand::class,
         ConfigStatusCommand::class,
         ConfigValidateCommand::class,

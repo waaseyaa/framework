@@ -8,6 +8,7 @@
   "commands": [
     "config:export",
     "config:import",
+    "config:manifest:sign",
     "config:diff",
     "config:status",
     "config:validate",

@@ -9,18 +9,26 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
+use Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface;
 use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
+use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
+use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
+use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
+use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
+use Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncFileSourceInterface;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 final class ConfigurationAuthorityServiceProviderTest extends TestCase
@@ -36,6 +44,149 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
     protected function tearDown(): void
     {
         @rmdir($this->root);
+    }
+
+    /**
+     * CFG-03 (#2430): compatibility is the authority that decides whether
+     * authored content may be staged. It is composed here, in the sole
+     * production composition root, from discovered package declarations —
+     * never recomputed from the authored bundle itself, which would let a
+     * bundle authorize its own contract.
+     */
+    #[Test]
+    public function itComposesPackageCompatibilityFromDiscoveredContracts(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest(
+            configContracts: [
+                'waaseyaa/config' => [
+                    'schema-provider' => 'Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider',
+                    'version' => 1,
+                    'readable_versions' => [1],
+                ],
+            ],
+        ));
+
+        $compatibility = $provider->resolve(ConfigPackageCompatibility::class);
+
+        self::assertInstanceOf(ConfigPackageCompatibility::class, $compatibility);
+        $compatibility->assertWritableCohort(['waaseyaa/config' => 1]);
+
+        $this->expectException(\RuntimeException::class);
+        $compatibility->assertWritableCohort(['waaseyaa/config' => 2]);
+    }
+
+    /**
+     * An undeclared package must not be staged. Absence is a refusal, not an
+     * implicit allow.
+     */
+    #[Test]
+    public function compatibilityRefusesAPackageThatDeclaresNoContract(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest());
+
+        $compatibility = $provider->resolve(ConfigPackageCompatibility::class);
+        assert($compatibility instanceof ConfigPackageCompatibility);
+
+        $this->expectException(\RuntimeException::class);
+        $compatibility->assertWritableCohort(['waaseyaa/config' => 1]);
+    }
+
+    /**
+     * Without a package manifest there is no basis for a compatibility verdict,
+     * so the authority is unavailable rather than empty-and-permissive.
+     */
+    #[Test]
+    public function compatibilityIsUnavailableWithoutAPackageManifest(): void
+    {
+        $provider = $this->providerWithManifest(null);
+
+        $this->expectException(ConfigurationAuthorityUnavailableException::class);
+        $provider->resolve(ConfigPackageCompatibility::class);
+    }
+
+    /**
+     * CFG-03 (#2430): strict bundle validation is part of the verified import
+     * chain and had no production binding, so the preflight that needs it could
+     * not be constructed. It must share the one frozen schema registry — a
+     * second registry would validate against schemas the running site does not
+     * actually have.
+     */
+    #[Test]
+    public function itComposesTheStrictBundleValidatorOnTheOneSchemaRegistry(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest());
+
+        $validator = $provider->resolve(ConfigSyncBundleValidator::class);
+
+        self::assertInstanceOf(ConfigSyncBundleValidator::class, $validator);
+        self::assertSame($validator, $provider->resolve(ConfigSyncBundleValidator::class));
+
+        $registry = $provider->resolve(ConfigSchemaRegistry::class);
+        assert($registry instanceof ConfigSchemaRegistry);
+        $registry->freeze();
+        $result = $validator->validate($this->root . '/absent-sync');
+        self::assertFalse($result->isValid(), 'The validator reports on the real filesystem, not a private copy.');
+    }
+
+    /**
+     * CFG-03 (#2430): the binding whose absence made config:import refuse in
+     * every environment. Publishing it here is what lets the CLI provider find
+     * a real gate on the kernel-services bus instead of falling back to
+     * RefusingConfigImportPreflight.
+     */
+    #[Test]
+    public function itPublishesTheSignedEnvelopeImportGate(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest(), [
+            ConfigReplayStateReaderInterface::class => new class implements ConfigReplayStateReaderInterface {
+                public function lastCommittedSequence(string $bundleScope, string $trustKeyReference): ?int
+                {
+                    return null;
+                }
+            },
+        ]);
+
+        self::assertInstanceOf(
+            SignedEnvelopeConfigImportPreflight::class,
+            $provider->resolve(ConfigImportPreflightInterface::class),
+        );
+    }
+
+    /**
+     * Without replay state a committed bundle could be reinstated silently. A
+     * gate missing one of its checks is not a weaker gate, it is a different
+     * one, so the composition refuses instead of verifying partially.
+     */
+    #[Test]
+    public function theImportGateRefusesWhenReplayStateIsUnavailable(): void
+    {
+        $provider = $this->providerWithManifest(new PackageManifest());
+
+        self::assertInstanceOf(
+            RefusingConfigImportPreflight::class,
+            $provider->resolve(ConfigImportPreflightInterface::class),
+        );
+    }
+
+    /** @param array<string, object> $extraServices */
+    private function providerWithManifest(?PackageManifest $manifest, array $extraServices = []): ConfigurationAuthorityServiceProvider
+    {
+        $services = [
+            DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
+            ActiveConfigurationBridgeInterface::class => new TestActiveConfigurationBridge(),
+            \Waaseyaa\Foundation\Event\EventDispatcherInterface::class => new \Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter(),
+        ];
+        if ($manifest instanceof PackageManifest) {
+            $services[PackageManifest::class] = $manifest;
+        }
+        $services = [...$services, ...$extraServices];
+
+        $provider = new ConfigurationAuthorityServiceProvider();
+        $provider->setKernelContext($this->root, ['environment' => 'testing'], []);
+        $provider->setKernelServices(new TestKernelServices($services));
+        $provider->register();
+
+        return $provider;
     }
 
     #[Test]

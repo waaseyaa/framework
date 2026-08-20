@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Command\Config\ConfigCommand;
 use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
 use Waaseyaa\CLI\Command\Config\ConfigExportCommand;
 use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
+use Waaseyaa\CLI\Command\Config\ConfigManifestSignCommand;
 use Waaseyaa\CLI\Command\Config\ConfigResetCommand;
 use Waaseyaa\CLI\Command\Config\ConfigStatusCommand;
 use Waaseyaa\CLI\Command\Config\ConfigValidateCommand;
@@ -23,11 +24,14 @@ final class ConfigCommandTest extends TestCase
     #[Test]
     public function reserved_verbs_match_contract(): void
     {
-        // contracts/cli-namespace.md §"Reserved verb namespace" — six verbs
+        // contracts/cli-namespace.md §"Reserved verb namespace" — seven verbs
         // in canonical order. Iteration order is part of the published
         // contract, so we assert the exact list (not just membership).
+        // `manifest:sign` was added in #2430 when CFG-03 gained an authoring
+        // command; it is reserved so an app cannot shadow the one command that
+        // mints signing evidence.
         self::assertSame(
-            ['export', 'import', 'diff', 'status', 'validate', 'reset'],
+            ['export', 'import', 'manifest:sign', 'diff', 'status', 'validate', 'reset'],
             ConfigCommand::RESERVED_VERBS,
         );
 
@@ -35,6 +39,7 @@ final class ConfigCommandTest extends TestCase
             [
                 'config:export',
                 'config:import',
+                'config:manifest:sign',
                 'config:diff',
                 'config:status',
                 'config:validate',
@@ -58,6 +63,7 @@ final class ConfigCommandTest extends TestCase
             [
                 ConfigExportCommand::class,
                 ConfigImportCommand::class,
+                ConfigManifestSignCommand::class,
                 ConfigDiffCommand::class,
                 ConfigStatusCommand::class,
                 ConfigValidateCommand::class,

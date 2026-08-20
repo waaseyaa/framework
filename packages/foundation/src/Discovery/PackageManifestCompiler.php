@@ -129,6 +129,7 @@ final class PackageManifestCompiler
         $installedPackageNames = array_fill_keys(array_filter(array_column($packages, 'name'), 'is_string'), true);
 
         $packageDeclarations = $this->collectPackageDeclarations($packages);
+        $configContracts = $this->collectConfigContracts($packages);
 
         $this->warnIfLegacyComposerCommandsOrRoutes($packages);
 
@@ -268,6 +269,7 @@ final class PackageManifestCompiler
             permissions: $permissions,
             policies: $policies,
             packageDeclarations: $packageDeclarations,
+            configContracts: $configContracts,
             attributeEntityTypes: $attributeEntityTypes,
             consoleCommandProviders: $consoleCommandProviders,
             agentTools: $agentTools,
@@ -871,6 +873,106 @@ final class PackageManifestCompiler
      * @param array<int, array<string, mixed>> $packages
      * @return array<string, array{surface: 'aggregate'|'implementation'|'tooling', activation: 'discovery'|'none'|'provider'}>
      */
+    /**
+     * Collect CFG-03 configuration-contract declarations (#2430).
+     *
+     * A package owning configuration declares
+     * `extra.waaseyaa.config-contract` with an integer contract version, a
+     * schema-provider identity, and the readable version set.
+     * `ConfigPackageCompatibility` is built from the result and decides whether
+     * authored content may be staged.
+     *
+     * Three states, deliberately distinguished:
+     *
+     *  - **No declaration** — the package intentionally contributes no
+     *    configuration contract. It is absent from the result, and any authored
+     *    file claiming it as owner is refused downstream.
+     *  - **Valid declaration** — recorded verbatim.
+     *  - **Malformed declaration** — refused here, naming the package and the
+     *    invalid field.
+     *
+     * The third case previously fell back to the first. That was wrong: a
+     * package that declares a contract and gets it wrong is not the same as one
+     * that declares nothing, and silently demoting it produces an
+     * under-specified compatibility cohort that both the signer and the verifier
+     * would accept. A declaration nobody can read is evidence that the installed
+     * cohort is not what it claims to be, so it fails closed.
+     *
+     * @param list<array<string, mixed>> $packages
+     *
+     * @return array<string, array{schema-provider: string, version: int, readable_versions: list<int>}>
+     *
+     * @throws MalformedConfigContractException
+     */
+    private function collectConfigContracts(array $packages): array
+    {
+        $contracts = [];
+
+        foreach ($packages as $package) {
+            $name = $package['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+            if (!array_key_exists('config-contract', $package['extra']['waaseyaa'] ?? [])) {
+                // No declaration: this package contributes no configuration
+                // contract, which is an ordinary and complete answer.
+                continue;
+            }
+
+            $declaration = $package['extra']['waaseyaa']['config-contract'];
+            if (!is_array($declaration) || array_is_list($declaration)) {
+                // An empty JSON object decodes to an empty PHP array, which is
+                // indistinguishable from an empty list, so both land here.
+                throw MalformedConfigContractException::forField(
+                    $name,
+                    'config-contract',
+                    'must be a JSON object declaring schema-provider, version, and readable_versions',
+                );
+            }
+
+            $keys = array_keys($declaration);
+            sort($keys, \SORT_STRING);
+            if ($keys !== ['readable_versions', 'schema-provider', 'version']) {
+                throw MalformedConfigContractException::forField(
+                    $name,
+                    'config-contract',
+                    // A non-list array always has at least one key, so there is
+                    // always something to name here.
+                    'must declare exactly schema-provider, version, and readable_versions (found: '
+                        . implode(', ', $keys) . ')',
+                );
+            }
+
+            $provider = $declaration['schema-provider'];
+            $version = $declaration['version'];
+            $readable = $declaration['readable_versions'];
+            if (!is_string($provider) || $provider === '') {
+                throw MalformedConfigContractException::forField($name, 'schema-provider', 'must be a non-empty string');
+            }
+            if (!is_int($version)) {
+                throw MalformedConfigContractException::forField($name, 'version', 'must be an integer');
+            }
+            if (!is_array($readable) || !array_is_list($readable)) {
+                throw MalformedConfigContractException::forField($name, 'readable_versions', 'must be a list');
+            }
+            foreach ($readable as $readableVersion) {
+                if (!is_int($readableVersion)) {
+                    throw MalformedConfigContractException::forField($name, 'readable_versions', 'must contain only integers');
+                }
+            }
+
+            $contracts[$name] = [
+                'schema-provider' => $provider,
+                'version' => $version,
+                'readable_versions' => $readable,
+            ];
+        }
+
+        ksort($contracts, \SORT_STRING);
+
+        return $contracts;
+    }
+
     private function collectPackageDeclarations(array $packages): array
     {
         $declarations = [];

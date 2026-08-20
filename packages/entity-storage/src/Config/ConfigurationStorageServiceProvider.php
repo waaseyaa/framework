@@ -10,9 +10,9 @@ use Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationGenesisActivatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
-use Waaseyaa\Config\Activation\RefusingConfigurationActivationAuthorizer;
 use Waaseyaa\Config\Activation\RefusingConfigurationCandidateSweepAuthorizer;
 use Waaseyaa\Config\Activation\RefusingConfigurationRollbackValidator;
+use Waaseyaa\Config\Activation\VerifiedNonDestructiveConfigurationActivationAuthorizer;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface;
@@ -64,8 +64,13 @@ final class ConfigurationStorageServiceProvider extends ServiceProvider implemen
         $this->singleton(ConfigurationActivatorInterface::class, function (): ConfigurationActivatorInterface {
             $database = $this->resolve(DatabaseInterface::class);
             $context = $this->resolve(ConfigurationAuthorityContext::class);
+            // #2430: the production activation authority. Ordinary activation of
+            // a signed, verified, non-deleting bundle only — rollback and
+            // candidate sweep keep their refusing defaults below, because their
+            // safe policies are separate decisions. An app may still bind its
+            // own authorizer to narrow this further.
             $authorizer = $this->resolveOptional(ConfigurationActivationAuthorizerInterface::class)
-                ?? new RefusingConfigurationActivationAuthorizer();
+                ?? new VerifiedNonDestructiveConfigurationActivationAuthorizer();
             $rollbackValidator = $this->resolveOptional(ConfigurationRollbackValidatorInterface::class)
                 ?? new RefusingConfigurationRollbackValidator();
             $sweepAuthorizer = $this->resolveOptional(ConfigurationCandidateSweepAuthorizerInterface::class)

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Waaseyaa\Foundation\Tests\Unit\Discovery;
 
+use Waaseyaa\Foundation\Discovery\MalformedConfigContractException;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Discovery\PolicyManifestMismatchException;
@@ -16,6 +17,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\ContentEntityBase;
 
 #[CoversClass(PackageManifestCompiler::class)]
+#[CoversClass(MalformedConfigContractException::class)]
 final class PackageManifestCompilerTest extends TestCase
 {
     private string $tempDir;
@@ -29,6 +31,164 @@ final class PackageManifestCompilerTest extends TestCase
     protected function tearDown(): void
     {
         $this->removeDir($this->tempDir);
+    }
+
+    /**
+     * CFG-03 (#2430): package configuration contracts are a discovery
+     * convention like providers and policies. The compatibility authority that
+     * gates a verified import is built from these declarations, so a package
+     * that owns configuration must be visible here or its content can never be
+     * staged.
+     */
+    #[Test]
+    public function compile_collects_declared_configuration_contracts(): void
+    {
+        $installed = [
+            'packages' => [
+                [
+                    'name' => 'waaseyaa/config',
+                    'extra' => ['waaseyaa' => ['config-contract' => [
+                        'schema-provider' => 'Acme\\Example\\SchemaProvider',
+                        'version' => 2,
+                        'readable_versions' => [1, 2],
+                    ]]],
+                ],
+                [
+                    'name' => 'waaseyaa/node',
+                    'extra' => ['waaseyaa' => ['providers' => ['Waaseyaa\\Node\\NodeServiceProvider']]],
+                ],
+            ],
+        ];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installed, JSON_THROW_ON_ERROR),
+        );
+
+        $manifest = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+
+        self::assertSame(
+            [
+                'waaseyaa/config' => [
+                    'schema-provider' => 'Acme\\Example\\SchemaProvider',
+                    'version' => 2,
+                    'readable_versions' => [1, 2],
+                ],
+            ],
+            $manifest->configContracts,
+            'Only packages declaring extra.waaseyaa.config-contract appear, verbatim.',
+        );
+    }
+
+    /**
+     * A malformed declaration is not the same as no declaration. Demoting it to
+     * "contributes nothing" yields an under-specified compatibility cohort that
+     * both the signer and the verifier would accept, so discovery fails closed
+     * and says which package and which field.
+     */
+    #[Test]
+    public function compile_refuses_a_malformed_configuration_contract(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/broken', 'extra' => ['waaseyaa' => ['config-contract' => ['version' => 1]]]],
+        ]);
+
+        try {
+            new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+            self::fail('A malformed configuration contract was accepted.');
+        } catch (MalformedConfigContractException $exception) {
+            self::assertStringContainsString('waaseyaa/broken', $exception->getMessage());
+            self::assertStringContainsString('config-contract', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function compile_names_the_invalid_field_of_a_configuration_contract(): void
+    {
+        $cases = [
+            'schema-provider' => ['schema-provider' => 42, 'version' => 1, 'readable_versions' => [1]],
+            'version' => ['schema-provider' => 'Acme\\Example\\SchemaProvider', 'version' => '1', 'readable_versions' => [1]],
+            'readable_versions' => ['schema-provider' => 'Acme\\Example\\SchemaProvider', 'version' => 1, 'readable_versions' => ['1']],
+        ];
+
+        foreach ($cases as $field => $declaration) {
+            $this->writeInstalled([
+                ['name' => 'waaseyaa/broken', 'extra' => ['waaseyaa' => ['config-contract' => $declaration]]],
+            ]);
+
+            try {
+                new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+                self::fail(sprintf('A contract with an invalid "%s" was accepted.', $field));
+            } catch (MalformedConfigContractException $exception) {
+                self::assertStringContainsString($field, $exception->getMessage());
+                self::assertStringContainsString('waaseyaa/broken', $exception->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function compile_refuses_a_configuration_contract_that_is_not_an_object(): void
+    {
+        foreach ([[1, 2, 3], []] as $declaration) {
+            $this->writeInstalled([
+                ['name' => 'waaseyaa/broken', 'extra' => ['waaseyaa' => ['config-contract' => $declaration]]],
+            ]);
+
+            try {
+                new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+                self::fail('A non-object configuration contract was accepted.');
+            } catch (MalformedConfigContractException $exception) {
+                self::assertStringContainsString('must be a JSON object', $exception->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function compile_refuses_readable_versions_that_are_not_a_list(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/broken', 'extra' => ['waaseyaa' => ['config-contract' => [
+                'schema-provider' => 'Acme\\Example\\SchemaProvider',
+                'version' => 1,
+                'readable_versions' => ['first' => 1],
+            ]]]],
+        ]);
+
+        $this->expectException(MalformedConfigContractException::class);
+        $this->expectExceptionMessageMatches('/readable_versions/');
+        new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+    }
+
+    /** A package with no name cannot own a contract, and is skipped quietly. */
+    #[Test]
+    public function compile_skips_a_package_with_no_name(): void
+    {
+        $this->writeInstalled([
+            ['extra' => ['waaseyaa' => ['config-contract' => ['version' => 1]]]],
+        ]);
+
+        self::assertSame([], new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile()->configContracts);
+    }
+
+    /** A package that declares nothing contributes nothing, which is complete. */
+    #[Test]
+    public function compile_accepts_a_package_that_declares_no_configuration_contract(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['providers' => ['Waaseyaa\\Node\\NodeServiceProvider']]]],
+        ]);
+
+        $manifest = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+
+        self::assertSame([], $manifest->configContracts);
+    }
+
+    /** @param list<array<string, mixed>> $packages */
+    private function writeInstalled(array $packages): void
+    {
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => $packages], JSON_THROW_ON_ERROR),
+        );
     }
 
     #[Test]

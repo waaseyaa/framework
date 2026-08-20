@@ -12,16 +12,25 @@ use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
 use Waaseyaa\Config\Manifest\ConfigManifestEd25519Signer;
 use Waaseyaa\Config\Manifest\ConfigManifestEd25519Verifier;
+use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeVerifier;
 use Waaseyaa\Config\Manifest\ConfigManifestSignatureVerifierInterface;
 use Waaseyaa\Config\Manifest\ConfigManifestSignerInterface;
 use Waaseyaa\Config\Manifest\ConfigManifestTrustPolicy;
+use Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface;
 use Waaseyaa\Config\Manifest\Ed25519ManifestSigningOperation;
 use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Config\Schema\Ai\ProvidersConfig;
+use Waaseyaa\Config\Schema\ConfigPackageCompatibility;
+use Waaseyaa\Config\Schema\ConfigPackageContract;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
+use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
+use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
+use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
+use Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretReference;
@@ -52,6 +61,76 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
         $this->singleton(ConfigSchemaRegistry::class, fn(): ConfigSchemaRegistry => new ConfigSchemaRegistry(
             $this->resolve(ConfigSchemaValidator::class),
         ));
+        // CFG-03 (#2430): the compatibility authority. Built only from package
+        // declarations discovered at boot, never from the authored bundle under
+        // import — a bundle that could name its own contract version would be
+        // authorizing itself. An undeclared package has no contract and is
+        // refused by ConfigPackageCompatibility, which is the intended verdict.
+        $this->singleton(ConfigPackageCompatibility::class, function (): ConfigPackageCompatibility {
+            $manifest = $this->kernelServices?->get(PackageManifest::class);
+            if (!$manifest instanceof PackageManifest) {
+                throw new ConfigurationAuthorityUnavailableException(
+                    'CFG-03 package compatibility requires the discovered package manifest.',
+                );
+            }
+
+            $contracts = [];
+            foreach ($manifest->configContracts as $package => $declaration) {
+                $contracts[] = ConfigPackageContract::fromComposerManifest([
+                    'name' => $package,
+                    'extra' => ['waaseyaa' => ['config-contract' => $declaration]],
+                ]);
+            }
+
+            return new ConfigPackageCompatibility($contracts);
+        });
+        // CFG-03 (#2430): strict, complete, read-only validation of the authored
+        // sync directory. Bound on the one frozen schema registry — a second
+        // registry would validate content against schemas this site does not
+        // actually have installed.
+        $this->singleton(ConfigSyncBundleValidator::class, fn(): ConfigSyncBundleValidator => new ConfigSyncBundleValidator(
+            $this->resolve(ConfigSchemaRegistry::class),
+        ));
+        // CFG-03 (#2430): the production import gate. Before this binding
+        // existed, config:import resolved nothing here and always received
+        // RefusingConfigImportPreflight, so the verified path was unreachable in
+        // every environment.
+        //
+        // Composition only — no verification happens at registration time.
+        // Reading replay state needs the database, and a verification failure
+        // must surface as an actionable refusal from config:import rather than a
+        // kernel that will not boot.
+        $this->singleton(ConfigImportPreflightInterface::class, function (): ConfigImportPreflightInterface {
+            $replayState = $this->resolveOptional(ConfigReplayStateReaderInterface::class);
+            if (!$replayState instanceof ConfigReplayStateReaderInterface) {
+                // Without replay state a previously committed bundle could be
+                // reinstated silently. Refuse rather than verify partially: a
+                // gate missing one of its checks is not a weaker gate, it is a
+                // different one.
+                return new RefusingConfigImportPreflight();
+            }
+
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            $registry = $this->resolve(ConfigSchemaRegistry::class);
+            $validator = $this->resolve(ConfigSyncBundleValidator::class);
+            $compatibility = $this->resolve(ConfigPackageCompatibility::class);
+            $signatureVerifier = $this->resolve(ConfigManifestSignatureVerifierInterface::class);
+            assert($context instanceof ConfigurationAuthorityContext);
+            assert($registry instanceof ConfigSchemaRegistry);
+            assert($validator instanceof ConfigSyncBundleValidator);
+            assert($compatibility instanceof ConfigPackageCompatibility);
+            assert($signatureVerifier instanceof ConfigManifestSignatureVerifierInterface);
+
+            return new SignedEnvelopeConfigImportPreflight(
+                syncPath: $context->syncPath,
+                bundleValidator: $validator,
+                registry: $registry,
+                compatibility: $compatibility,
+                envelopeVerifier: new ConfigManifestEnvelopeVerifier(),
+                signatureVerifier: $signatureVerifier,
+                replayState: $replayState,
+            );
+        });
         $this->singleton(UnsignedConfigPolicy::class, function (): UnsignedConfigPolicy {
             $context = $this->resolve(ConfigurationAuthorityContext::class);
             assert($context instanceof ConfigurationAuthorityContext);

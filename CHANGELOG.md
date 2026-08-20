@@ -7,6 +7,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — configuration contracts are discovered (#2430, 1/6):** packages
+  declaring `extra.waaseyaa.config-contract` now reach `PackageManifest` as
+  `configContracts`, and the configuration composition root builds
+  `ConfigPackageCompatibility` from them. Compatibility decides whether authored
+  configuration may be staged; it is built only from boot-time declarations,
+  never from the bundle under import. Discovery distinguishes three states: no
+  declaration (the package contributes nothing), a valid declaration (recorded
+  verbatim), and a malformed declaration (refused, naming the package and the
+  invalid field). First of six changes restoring the CFG-03 verified import
+  path, which has never been reachable in production.
+
+- **Fixed — the signed configuration envelope has a home (#2430, 2/6):** a
+  bundle manifest envelope is now read and written atomically as a sibling of
+  the authored sync directory (`config/sync` is authorized by
+  `config/sync.envelope.json`), and `ConfigSyncBundleValidator` is bound in the
+  configuration composition root. The envelope cannot live inside the bundle:
+  strict validation requires every file there to be a versioned config sync
+  file. An absent envelope reads as absent; malformed or symlinked bytes are
+  refused, because something present and untrustworthy must never be mistaken
+  for nothing being present.
+
+- **Fixed — `config:import` can reach the verified path (#2430, 3/6):** the
+  configuration composition root now publishes a real
+  `ConfigImportPreflightInterface`, so `config:import` stops receiving
+  `RefusingConfigImportPreflight` in every environment. The gate reads the
+  signed envelope beside the sync directory, verifies its signature against
+  public trust keys and its sequence against replay state, then binds it to a
+  freshly revalidated directory whose manifest must match byte for byte.
+  Verification runs at import time, not at container composition, so a failure
+  is an actionable refusal rather than a kernel that will not boot. An absent
+  envelope, an untrusted key, config bytes edited after signing, an
+  incompatible package contract, a replayed sequence, and a malformed sidecar
+  each refuse. Without replay state the gate refuses outright rather than
+  verifying partially.
+
+- **Added — `config:manifest:sign` (#2430, 4/6):** the CFG-03 authoring command.
+  It runs on a host holding signing custody, validates the authored sync
+  directory, derives the required package contracts and checks them against the
+  installed cohort, builds the canonical manifest, signs it, and writes the
+  envelope beside the directory. It reads no active configuration and activates
+  nothing. Signing is reproducible — identical inputs yield an identical
+  envelope, and producer evidence carries no timestamp or hostname — so a
+  sidecar can be reviewed by rebuilding it. A profile without
+  `config_manifest_signing.signing_key` composes no signer and the command
+  refuses there: a verifier-only host is not a signing host.
+
+  **Contract change:** the reserved `config:*` namespace grows from six verbs to
+  seven. `ConfigCommand::RESERVED_VERBS`, `RESERVED_FULL_VERBS`, and
+  `RESERVED_FQCNS` now include `manifest:sign`. An application that had
+  registered its own `config:manifest:sign` will now fail boot with
+  `ConfigCommandCollisionException`; rename it. Reserving the verb is
+  deliberate — an app-owned command of that name could shadow the one command
+  that mints signing evidence.
+
+- **Fixed — the import wiring is proved on a real kernel (#2430, 5/6):** an
+  integration test boots a real console kernel, installs a site, and asserts
+  `config:import` resolves the verified gate rather than the permanent refusal.
+  The defect was never that verification was wrong — it was that nothing
+  composed it, which only a real container can prove. The same test pins the
+  refusal a freshly installed site sees: it names the sidecar it wants, names
+  the command that authors it, and says unsigned configuration is refused.
+
+- **Added — two-host packaged proof for verified import (#2430, 6/6):**
+  `tests/PackagedForm/check-verified-config-import` builds two physically
+  separate consumers from the candidate tree, keeps the Ed25519 signing key in a
+  third location owned by neither, and moves only the sync directory, the signed
+  envelope, and the public trust key between them. It proves the full chain: sign
+  on the authoring host, install, import under verification and compare-and-swap,
+  ordinary boot, read the imported entry back from the **active store**, and a
+  day-one entity write and read back. It asserts the consumer holds no key file,
+  names no signing custody, declares no `signing_key`, and leaks no key material
+  into output or storage, and that signing leaves the authoring host's active
+  store byte-identical. Adversarial cases — missing envelope, bytes edited after
+  signing, malformed sidecar, untrusted key, replayed sequence — each refuse from
+  a restored pre-import state.
+
+- **Fixed — configuration activation has a production authority (#2430):**
+  `ConfigurationActivationAuthorizerInterface` had no production producer, so
+  every non-genesis activation refused and `config:import` could not complete
+  anywhere. `VerifiedNonDestructiveConfigurationActivationAuthorizer` authorizes
+  exactly one shape: an ordinary activation carrying a genuinely verified signed
+  bundle that deletes nothing. The bytes are authorized by a protected signer,
+  the timing by explicit CLI execution; the authorizer manufactures neither.
+  Deletions, rollback, candidate sweep, unsigned verification, and genesis all
+  keep refusing — each is a separate policy decision, not a wiring gap. An
+  application may bind its own authorizer to narrow this further. Destructive
+  import is tracked by #2432; rollback and candidate sweep by #2433.
+
+- **Fixed — `config/sync` is created at installation (#2430):** the skeleton
+  shipped `config/sync/.gitkeep`, which strict CFG-03 validation refuses as a
+  bundle member, so a skeleton-derived site could not sign or import its own sync
+  directory. `install:init` now creates the directory and leaves it empty rather
+  than validation being loosened: strict-and-complete is what lets a signature
+  cover a whole directory instead of a selection of it.
+
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path
   to creating one required a generation to already exist. The activator refuses

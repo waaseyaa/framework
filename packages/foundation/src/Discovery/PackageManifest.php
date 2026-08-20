@@ -72,6 +72,20 @@ final class PackageManifest
          * @var list<class-string>
          */
         public readonly array $scheduleEntries = [],
+        /**
+         * CFG-03 configuration contracts declared as
+         * `extra.waaseyaa.config-contract` (#2430).
+         *
+         * Verbatim declarations, keyed by package name, for packages that own
+         * configuration content. `ConfigPackageCompatibility` is built from
+         * these, and it decides whether a verified bundle may be staged — so a
+         * declaration that cannot be trusted is omitted here rather than
+         * approximated. Validation of each entry stays with
+         * `ConfigPackageContract::fromComposerManifest()`.
+         *
+         * @var array<string, array{schema-provider: string, version: int, readable_versions: list<int>}>
+         */
+        public readonly array $configContracts = [],
     ) {}
 
     /**
@@ -87,7 +101,7 @@ final class PackageManifest
         unset($data['commands'], $data['routes']);
 
         $requiredKeys = ['providers', 'migrations', 'field_types', 'middleware'];
-        $optionalKeys = ['permissions', 'policies', 'formatters', 'package_declarations', 'attribute_entity_types', 'console_command_providers', 'agent_tools', 'agent_definitions', 'schedule_entries'];
+        $optionalKeys = ['permissions', 'policies', 'formatters', 'package_declarations', 'attribute_entity_types', 'console_command_providers', 'agent_tools', 'agent_definitions', 'schedule_entries', 'config_contracts'];
         $missing = array_diff($requiredKeys, array_keys($data));
 
         if ($missing !== []) {
@@ -121,6 +135,7 @@ final class PackageManifest
             agentTools: $data['agent_tools'] ?? [],
             agentDefinitions: $data['agent_definitions'] ?? [],
             scheduleEntries: $data['schedule_entries'] ?? [],
+            configContracts: $data['config_contracts'] ?? [],
         );
     }
 
@@ -145,6 +160,7 @@ final class PackageManifest
             'agent_tools' => $this->agentTools,
             'agent_definitions' => $this->agentDefinitions,
             'schedule_entries' => $this->scheduleEntries,
+            'config_contracts' => $this->configContracts,
         ];
     }
 }

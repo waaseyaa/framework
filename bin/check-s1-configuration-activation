@@ -72,6 +72,7 @@ function s1ActivationClass(string $path): string
         'packages/config/src/Activation/ConfigurationRollbackRequest.php' => 'request-contract',
         'packages/config/src/Activation/ConfigurationRollbackValidatorInterface.php' => 'authorization-contract',
         'packages/config/src/Activation/RefusingConfigurationActivationAuthorizer.php' => 'refusing-default',
+        'packages/config/src/Activation/VerifiedNonDestructiveConfigurationActivationAuthorizer.php' => 'authorization-contract',
         'packages/config/src/Activation/RefusingConfigurationCandidateSweepAuthorizer.php' => 'refusing-default',
         'packages/config/src/Activation/RefusingConfigurationRollbackValidator.php' => 'refusing-default',
         'packages/config/src/Activation/TransactionalConfigurationStorage.php' => 'legacy-mutation-adapter',

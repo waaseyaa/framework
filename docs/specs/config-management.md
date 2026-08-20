@@ -48,6 +48,106 @@ boundary, and snapshot-consistent drift contract are defined in
 Production continues to refuse unsigned activation until CFG-04 supplies
 independent key custody and trust policy.
 
+#### CFG-03 production composition (#2430)
+
+The verification types existed from the start but were never composed, so
+`config:import` always received `RefusingConfigImportPreflight` and always
+refused. Three of `VerifiedConfigImportPreflight`'s five dependencies had no
+production producer at all: `ConfigSyncBundleValidator` and
+`ConfigPackageCompatibility` were bound nowhere, and nothing could produce or
+load a `VerifiedConfigManifest` because no code signed a bundle manifest or read
+an envelope back. Restoring the path is one unit of work, because a producer
+without a verifier is unusable and a verifier without a producer is falsely
+reassuring.
+
+**The trust boundary is a split between two hosts.** Signing is an authoring
+action performed where custody lives — a maintainer machine or a protected CI
+environment. Importing is performed by the consumer, which holds public
+`trust_keys` and never the signing key. The signing secret must never be exposed
+to pull-request workflows or to ordinary production runtime.
+
+| Side | Holds | Does |
+|---|---|---|
+| Authoring host | signing key (via the secret registry), authored `config/sync` | validates the bundle, builds the canonical manifest, signs the envelope, writes it |
+| Importing host | public `trust_keys` only | recomputes the manifest, verifies byte identity, signature, compatibility, and replay, then imports |
+
+**Envelope location.** The envelope is a *sibling* of the sync directory, named
+from the same governed selector: `config/sync` yields `config/sync.envelope.json`.
+It cannot live inside the bundle — `ConfigSyncBundleValidator` is strict and
+complete, so every file in the sync directory must be a valid versioned config
+sync file and a JSON envelope there would fail the bundle. Deriving the path from
+`ConfigurationAuthorityContext::$syncPath` also means the envelope inherits the
+existing sync selector and its provenance rules rather than introducing a second,
+separately governed selector.
+
+`Waaseyaa\Config\Manifest\ConfigManifestEnvelopeFile` owns that path
+(`pathFor()`, `read()`, `write()`) and moves bytes only — it never verifies a
+signature, so reading an envelope grants nothing on its own. Writes are
+temp-then-rename: a partially written sidecar would fail verification in a way
+indistinguishable from tampering. An absent envelope reads as `null`, because a
+site may legitimately hold none yet and the preflight turns that into an
+actionable refusal; malformed, unreadable, or symlinked bytes throw, because
+something present and untrustworthy must never be mistaken for nothing being
+present.
+
+`Waaseyaa\Config\Manifest\ConfigManifestBundleSigner` is the authoring host's
+producer, driven by `config:manifest:sign`. It validates the directory, derives
+the required package contracts from the authored files, checks them against the
+installed cohort (so a file cannot name a contract into existence), builds the
+canonical manifest, signs it, and writes the sidecar. It reads no active
+configuration and activates nothing — producing an envelope is an authoring act,
+not a deployment. Signing is reproducible: identical bytes, cohort, scope,
+sequence, and producer evidence yield an identical envelope, so a sidecar can be
+reviewed by comparing it to what a rebuild produces. Producer evidence is
+therefore deterministic (`producer`, `authority_id`) and carries no timestamp,
+hostname, or operator name.
+
+Bundle scope and sequence default from the existing sidecar, so an operator
+continues a lineage rather than silently starting a second one. Sequence is not
+read from the consumer's database: replay is the importing side's check, and
+reaching for it here would put the two hosts back together.
+
+**Nothing self-attests.** `VerifiedConfigBundle::bind()` recomputes the manifest
+from the freshly validated sync directory and requires byte identity with the
+manifest carried inside the signed envelope. A signature therefore covers exactly
+the authored bytes on the importing host at import time. Package compatibility is
+built only from `extra.waaseyaa.config-contract` declarations discovered at boot
+(`PackageManifest::$configContracts`), never from the bundle under import — a
+bundle that could name its own contract version would be authorizing itself. A package whose declaration is malformed fails discovery outright
+rather than being skipped, so an under-specified cohort can never reach the
+signer or the verifier.
+
+`Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight` is the importing
+host's gate and the binding published for `ConfigImportPreflightInterface`. It
+reads the sidecar, verifies signature and replay sequence, then delegates to
+`VerifiedConfigImportPreflight`. Verification happens at import time rather than
+at container composition for two reasons: replay state needs the database, and a
+verification failure must surface as a refusal from `config:import` rather than a
+kernel that cannot boot. When replay state is unavailable the composition falls
+back to `RefusingConfigImportPreflight` — a gate missing one of its checks is not
+a weaker gate, it is a different one.
+
+**CFG-02 authorization.** `VerifiedNonDestructiveConfigurationActivationAuthorizer`
+is the production activation authority. It authorizes an ordinary activation
+carrying a verified *signed* bundle that deletes nothing, and refuses everything
+else — deletions, rollback, candidate sweep, unsigned verification, genesis.
+Tombstones are the deletion test rather than the activator's `$deletes` argument,
+which is `tombstones !== [] || completeReplacement` and therefore always true for
+a verified activation; the equivalence holds because a complete replacement must
+carry a content-bound tombstone for every active entry it omits. Ordinary
+activation remains compare-and-swap: the caller states the token it believes
+active, so `config:import` needs `--expected-generation` and `--expected-sequence`
+once a generation exists.
+
+**Unsigned stays refused.** `UnsignedConfigPolicy` remains `refusing()` pending a
+sealed CFG-01 bootstrap identity. The sealed-unsigned policy is not a shortcut
+around this work.
+
+**Genesis is separate.** `install:init` activates only the canonical empty
+generation (#2428). It can express no content, claims no CFG-03 verification, and
+is unaffected by any of the above. A freshly installed site is bootable but
+unconfigured until a verified import runs.
+
 ---
 
 ## 1. What ships

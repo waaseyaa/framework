@@ -1,0 +1,358 @@
+#!/usr/bin/env bash
+
+# Verified configuration import, end to end across two hosts (#2430).
+#
+# CFG-03 is a trust boundary between an authoring host that holds signing
+# custody and an importing consumer that holds public trust keys only. A proof
+# that runs both halves in one directory proves nothing about that boundary, so
+# this builds two physically separate consumers from the same candidate tree and
+# moves exactly three things between them: the authored sync directory, the
+# signed envelope, and the public trust key.
+#
+# The signing key lives in a third location owned by neither project, so "the
+# consumer holds no key material" is a property of the filesystem layout rather
+# than of what the consumer politely declined to read.
+#
+# Proves: sign on the authoring host -> install:init on the consumer ->
+# signed config:import -> ordinary boot -> imported config readable from the
+# active store -> day-one entity write and read back. Then the adversarial
+# matrix, each case a way untrusted or stale content could otherwise land.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-verified-config-import.XXXXXX")"
+source_root="$work/source"
+authoring="$work/authoring"
+consumer="$work/consumer"
+custody="$work/custody"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+
+mkdir -p "$source_root" "$authoring" "$consumer" "$custody"
+chmod 0700 "$custody"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+# --- Custody: one Ed25519 key pair, private half outside both projects --------
+php -r '
+    $pair = sodium_crypto_sign_keypair();
+    file_put_contents($argv[1] . "/manifest-signing.key", sodium_crypto_sign_secretkey($pair));
+    chmod($argv[1] . "/manifest-signing.key", 0600);
+    file_put_contents($argv[1] . "/manifest-signing.pub", base64_encode(sodium_crypto_sign_publickey($pair)));
+' "$custody"
+public_key="$(cat "$custody/manifest-signing.pub")"
+trust_reference='cfg04:packaged-proof-key'
+
+build_consumer() {
+    local target="$1" role="$2"
+
+    cp -R "$source_root/skeleton/." "$target/"
+    rm -f "$target/composer.lock" "$target/composer.local.json.example"
+    mkdir -p "$target/storage/framework" "$target/storage/files"
+
+    php -r '
+        $path = $argv[1];
+        $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $composer["repositories"] = [
+            ["type" => "path", "url" => $argv[2] . "/packages/*"],
+            ["type" => "path", "url" => $argv[2]],
+        ];
+        $composer["require"]["waaseyaa/framework"] = "*";
+        unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+        if ($argv[3] === "authoring") {
+            // Only the authoring host installs signing custody, and it does so
+            // the way a real app would: its own provider, in its own namespace.
+            // Passed as an argument rather than written inline: the FQCN would
+            // otherwise cross a shell string, a PHP string, and JSON encoding,
+            // and pick up a doubled backslash on the way.
+            $composer["extra"]["waaseyaa"]["providers"][] = $argv[4];
+        }
+        file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    ' "$target/composer.json" "$source_root" "$role" 'App\Provider\AuthoringCustodyServiceProvider'
+
+    printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/site.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+        "$target" "$target" > "$target/.env"
+
+    if ! "$composer_bin" install --working-dir="$target" \
+            --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer-$role.out" 2>&1; then
+        tail -100 "$work/composer-$role.out" >&2
+        exit 1
+    fi
+}
+
+# The trust policy both hosts share. The authoring host additionally names the
+# secret reference; the consumer never does.
+#
+# Inserted textually rather than by require-and-var_export: the skeleton config
+# resolves `environment` from getenv() at load time, and re-exporting it would
+# freeze whatever the rewriting process happened to see.
+write_config() {
+    local target="$1" role="$2"
+
+    php -r '
+        [$path, $reference, $publicKey, $role] = array_slice($argv, 1);
+        $source = (string) file_get_contents($path);
+        $signing = "    \x27config_manifest_signing\x27 => [\n"
+            . "        \x27trust_keys\x27 => [\n"
+            . "            \x27" . $reference . "\x27 => [\x27algorithm\x27 => \x27Ed25519\x27, \x27public_key\x27 => \x27" . $publicKey . "\x27],\n"
+            . "        ],\n"
+            . "        \x27revoked_trust_keys\x27 => [],\n";
+        if ($role === "authoring") {
+            $signing .= "        \x27signing_key\x27 => [\n"
+                . "            \x27trust_key_reference\x27 => \x27" . $reference . "\x27,\n"
+                . "            \x27secret_reference\x27 => [\n"
+                . "                \x27provider\x27 => \x27authoring-file\x27,\n"
+                . "                \x27identifier\x27 => \x27manifest-signing\x27,\n"
+                . "                \x27secret_class\x27 => \x27token-signing-private-key\x27,\n"
+                . "                \x27purpose\x27 => \x27waaseyaa.config.manifest-signing.v1\x27,\n"
+                . "            ],\n"
+                . "        ],\n";
+        }
+        $signing .= "    ],\n";
+        $updated = preg_replace("/^return \[\n/m", "return [\n" . $signing, $source, 1);
+        if (!is_string($updated) || $updated === $source) {
+            fwrite(STDERR, "Could not inject manifest signing configuration.\n");
+            exit(1);
+        }
+        file_put_contents($path, $updated);
+    ' "$target/config/waaseyaa.php" "$trust_reference" "$public_key" "$role"
+}
+
+build_consumer "$authoring" authoring
+mkdir -p "$authoring/src/Provider"
+cp "$source_root/tests/PackagedForm/fixtures/app-AuthoringCustodyServiceProvider.php" \
+   "$authoring/src/Provider/AuthoringCustodyServiceProvider.php"
+cp "$source_root/tests/PackagedForm/fixtures/app-FileSigningKeyProvider.php" \
+   "$authoring/src/Provider/FileSigningKeyProvider.php"
+"$composer_bin" dump-autoload --working-dir="$authoring" --no-interaction >/dev/null 2>&1
+write_config "$authoring" authoring
+
+build_consumer "$consumer" consumer
+write_config "$consumer" consumer
+
+# --- Authoring host: a real site that also holds custody ---------------------
+# It installs like any other site. Holding a signing key is an additional
+# capability, not a different kind of installation.
+if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authoring-install.out" 2>&1; then
+    cat "$work/authoring-install.out" >&2
+    echo 'The authoring host could not install.' >&2
+    exit 1
+fi
+
+# The sync directory must exist and be empty: install:init creates it (#2430),
+# and strict CFG-03 validation requires every member to be a versioned config
+# sync file, so any placeholder would make the directory unsignable.
+test -d "$authoring/config/sync"
+test -z "$(ls -A "$authoring/config/sync")"
+
+cp "$source_root/tests/PackagedForm/fixtures/author-config-bundle.php" "$authoring/author-config-bundle.php"
+if ! ( cd "$authoring" && php author-config-bundle.php ) >"$work/author.out" 2>&1; then
+    cat "$work/author.out" >&2
+    echo 'The authoring host could not author a configuration bundle.' >&2
+    exit 1
+fi
+
+# Signing must change no active state. Compare the whole store byte for byte
+# rather than just the active generation id: an authoring act that wrote
+# anything at all would be doing more than authoring.
+active_before="$(sha256sum "$authoring/storage/site.sqlite" | cut -d' ' -f1)"
+
+if ! ( cd "$authoring" \
+        && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/manifest-signing.key" \
+           php vendor/bin/waaseyaa config:manifest:sign --scope=site:packaged-proof ) >"$work/sign.out" 2>&1; then
+    cat "$work/sign.out" >&2
+    echo 'The authoring host could not sign the configuration bundle.' >&2
+    exit 1
+fi
+grep -Fq 'Envelope written to' "$work/sign.out"
+test -f "$authoring/config/sync.envelope.json"
+
+active_after="$(sha256sum "$authoring/storage/site.sqlite" | cut -d' ' -f1)"
+if [[ "$active_before" != "$active_after" ]]; then
+    echo 'Signing mutated the active store on the authoring host.' >&2
+    exit 1
+fi
+
+# The signing output is operator-facing evidence; it must carry no key material.
+if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/sign.out"; then
+    cat "$work/sign.out" >&2
+    echo 'Signing output mentions secret material.' >&2
+    exit 1
+fi
+
+# --- Consumer: install, then import under verification -----------------------
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install.out" 2>&1; then
+    cat "$work/install.out" >&2
+    echo 'The consumer could not complete the governed installation phase.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/install.out"
+
+# install:init created the sync directory and left it empty.
+test -d "$consumer/config/sync"
+test -z "$(ls -A "$consumer/config/sync")"
+
+# Ordinary activation is compare-and-swap: the caller states the token it
+# believes is active. install:init is idempotent and reports the current token,
+# so reading it needs no unsupported surface.
+read_active_token() {
+    ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/token.out" 2>&1
+    active_generation="$(sed -nE 's/.*generation ([a-f0-9]{64}).*/\1/p' "$work/token.out" | head -1)"
+    active_sequence="$(sed -nE 's/.*sequence ([0-9]+).*/\1/p' "$work/token.out" | head -1)"
+    if [[ -z "$active_generation" || -z "$active_sequence" ]]; then
+        cat "$work/token.out" >&2
+        echo 'Could not read the active configuration token.' >&2
+        exit 1
+    fi
+}
+
+# Now move the authored bundle and its envelope across.
+cp -R "$authoring/config/sync/." "$consumer/config/sync/"
+cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
+
+# --- Key hygiene: the consumer holds no private material ---------------------
+private_key_b64="$(php -r 'echo base64_encode((string) file_get_contents($argv[1]));' "$custody/manifest-signing.key")"
+if grep -rqF -- "$private_key_b64" "$consumer" 2>/dev/null; then
+    echo 'The consumer tree contains the private signing key.' >&2
+    exit 1
+fi
+if grep -rq -- 'manifest-signing.key\|WAASEYAA_AUTHORING_SIGNING_KEY_FILE\|authoring-file' "$consumer/config" "$consumer/.env" 2>/dev/null; then
+    echo 'The consumer references authoring signing custody.' >&2
+    exit 1
+fi
+if [[ -n "$(find "$consumer" -name '*.key' -o -name '*signing*' -type f 2>/dev/null)" ]]; then
+    echo 'The consumer tree contains a key file.' >&2
+    exit 1
+fi
+grep -Fq 'signing_key' "$authoring/config/waaseyaa.php"
+if grep -Fq 'signing_key' "$consumer/config/waaseyaa.php"; then
+    echo 'The consumer profile declares a signing key.' >&2
+    exit 1
+fi
+
+# Snapshot the pre-import state so each adversarial case starts from the same
+# place and one failure mode cannot mask the next.
+cp -R "$consumer" "$work/pristine"
+
+read_active_token
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+             --activation-request-id=packaged-proof-import-1 \
+             --expected-generation="$active_generation" \
+             --expected-sequence="$active_sequence" ) >"$work/import.out" 2>&1; then
+    cat "$work/import.out" >&2
+    echo 'The consumer could not import the signed configuration bundle.' >&2
+    exit 1
+fi
+grep -Eq '1 created|1 updated' "$work/import.out"
+
+# The consumer must not have logged key material while importing.
+if grep -rqF -- "$private_key_b64" "$work/import.out" "$work/install.out" "$consumer/storage" 2>/dev/null; then
+    echo 'Key material appeared in consumer output or storage.' >&2
+    exit 1
+fi
+
+cp "$source_root/tests/PackagedForm/fixtures/verified-import-probe.php" "$consumer/verified-import-probe.php"
+if ! ( cd "$consumer" && php verified-import-probe.php ) >"$work/probe.out" 2>&1; then
+    cat "$work/probe.out" >&2
+    echo 'The consumer could not boot, read imported configuration, or write.' >&2
+    exit 1
+fi
+grep -Fq 'consumer ordinary boot OK' "$work/probe.out"
+grep -Fq 'consumer imported-config read OK' "$work/probe.out"
+grep -Fq 'consumer entity round-trip OK' "$work/probe.out"
+
+# Replay: the same envelope, against the site that already committed it.
+read_active_token
+if ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+        --activation-request-id=packaged-proof-replay \
+        --expected-generation="$active_generation" \
+        --expected-sequence="$active_sequence" ) >"$work/refuse-replay.out" 2>&1; then
+    cat "$work/refuse-replay.out" >&2
+    echo 'Import accepted a replayed bundle sequence.' >&2
+    exit 1
+fi
+grep -qi 'sequence' "$work/refuse-replay.out"
+
+rm -rf "$consumer"
+cp -R "$work/pristine" "$consumer"
+read_active_token
+
+# --- Adversarial matrix ------------------------------------------------------
+# Each case must refuse. A pristine copy is restored between cases so one
+# failure mode cannot mask the next.
+cp -R "$consumer" "$work/pristine"
+
+refuse_case() {
+    local label="$1" expect="$2"
+    if ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+            --activation-request-id="adversarial-$label" \
+            --expected-generation="$active_generation" \
+            --expected-sequence="$active_sequence" ) >"$work/refuse-$label.out" 2>&1; then
+        cat "$work/refuse-$label.out" >&2
+        echo "Import accepted a bundle it must refuse: $label" >&2
+        exit 1
+    fi
+    if ! grep -qi -- "$expect" "$work/refuse-$label.out"; then
+        cat "$work/refuse-$label.out" >&2
+        echo "Refusal for $label did not explain itself (expected /$expect/)." >&2
+        exit 1
+    fi
+    rm -rf "$consumer"
+    cp -R "$work/pristine" "$consumer"
+}
+
+# 1. No envelope at all — the state of a site that has never authored one.
+rm -f "$consumer/config/sync.envelope.json"
+refuse_case missing-envelope 'envelope'
+
+# 2. Authored bytes edited after signing.
+php -r '
+    $dir = $argv[1];
+    foreach (scandir($dir) as $name) {
+        if ($name === "." || $name === "..") { continue; }
+        $path = $dir . "/" . $name;
+        file_put_contents($path, str_replace("packaged-proof", "tampered-proof", (string) file_get_contents($path)));
+    }
+' "$consumer/config/sync"
+refuse_case tampered-bytes 'manifest'
+
+# 3. A structurally broken sidecar.
+printf '{"format":"waaseyaa.config-envelope/1"}\n' > "$consumer/config/sync.envelope.json"
+refuse_case malformed-envelope 'envelope'
+
+# 4. A signature from a key the consumer does not trust.
+php -r '
+    $pair = sodium_crypto_sign_keypair();
+    file_put_contents($argv[1] . "/attacker.key", sodium_crypto_sign_secretkey($pair));
+    file_put_contents($argv[1] . "/attacker.pub", base64_encode(sodium_crypto_sign_publickey($pair)));
+' "$custody"
+php -r '
+    [$path, $reference, $publicKey] = array_slice($argv, 1);
+    $source = (string) file_get_contents($path);
+    $source = str_replace("cfg04:packaged-proof-key", $reference, $source);
+    $source = preg_replace("/\x27public_key\x27 => \x27[^\x27]+\x27/", "\x27public_key\x27 => \x27" . $publicKey . "\x27", $source, 1);
+    file_put_contents($path, (string) $source);
+' "$authoring/config/waaseyaa.php" 'cfg04:attacker-key' "$(cat "$custody/attacker.pub")"
+( cd "$authoring" && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/attacker.key" \
+    php vendor/bin/waaseyaa config:manifest:sign --scope=site:packaged-proof --sequence=99 ) >"$work/sign-attacker.out" 2>&1
+cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
+refuse_case untrusted-key 'verification'
+
+printf 'Verified configuration import proof passed.\n'
+printf 'Candidate:  %s\n' "$candidate"
+printf 'Authoring:  held signing custody, activated nothing.\n'
+printf 'Consumer:   public trust key only, no key file, no secret, no key material in output.\n'

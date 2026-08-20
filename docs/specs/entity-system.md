@@ -1561,6 +1561,32 @@ consumes that same context and emits generation-bound rebuildable derived state.
 Production-equivalent environments refuse capability publication when the
 active generation is absent.
 
+The same composition root binds `ConfigPackageCompatibility` (CFG-03, #2430),
+built from `PackageManifest::$configContracts` — the declarations discovered at
+boot, never the bundle under import. Absent manifest means the authority is
+unavailable (a typed `ConfigurationAuthorityUnavailableException`) rather than an
+empty-and-permissive compatibility; an undeclared package likewise has no
+contract and is refused. See
+[`config-management.md`](config-management.md) "CFG-03 production composition"
+for the full producer/consumer trust boundary. The same root binds
+`ConfigSyncBundleValidator` on that one frozen schema registry, so strict bundle
+validation always runs against the schemas the site actually has installed, and
+publishes `ConfigImportPreflightInterface` as
+`SignedEnvelopeConfigImportPreflight` — the binding whose absence made
+`config:import` refuse in every environment. When replay state is unavailable it
+publishes `RefusingConfigImportPreflight` instead, so a gate is never composed
+with one of its checks missing. The CLI provider composes
+`ConfigManifestBundleSigner` lazily for `config:manifest:sign`, so a
+verifier-only profile — one with no `config_manifest_signing.signing_key` —
+registers normally and the command refuses there rather than the provider
+failing to boot.
+
+CFG-02 activation authorization is bound alongside it (#2430):
+`VerifiedNonDestructiveConfigurationActivationAuthorizer` replaces the refusing
+default for ordinary activation, and rollback and candidate sweep keep theirs.
+An application binding its own `ConfigurationActivationAuthorizerInterface`
+still wins, so this widens nothing an app has already narrowed.
+
 **Construction is side-effect free; refusal happens at access (#2426).**
 `DatabaseActiveConfigurationBridge` builds its `DatabaseActiveConfigurationStorage`
 on demand, and neither constructor asserts that a generation has been activated.

@@ -305,7 +305,7 @@ Machine-readable source: `docs/public-surface-map.php`.
 
 #### config — CMI sync substrate (M-003)
 
-Configuration Management v1 — active/sync store split, six `config:*` CLI commands, dependency-ordered import. Charter §5.5; spec [`docs/specs/config-management.md`](specs/config-management.md); cookbook [`docs/cookbook/config-sync.md`](cookbook/config-sync.md); ADR 018.
+Configuration Management v1 — active/sync store split, seven `config:*` CLI commands (`config:manifest:sign` added by #2430), dependency-ordered import. Charter §5.5; spec [`docs/specs/config-management.md`](specs/config-management.md); cookbook [`docs/cookbook/config-sync.md`](cookbook/config-sync.md); ADR 018.
 
 | Element | Type | Purpose |
 |---------|------|---------|
@@ -332,7 +332,7 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 | `Exception\ConfigSerializationException` | exception | Raised on `_meta.entity_type` mismatch or other YAML format errors (M-003, WP02) |
 | `Exception\ConfigImportFailedException` | exception | Raised per-entity during `config:import`; carries entity id + cause (M-003, WP04) |
 | `Exception\ConfigCommandCollisionException` | exception | Raised at boot when an app/extension command claims a reserved `config:*` sub-verb (M-003, WP09) |
-| `Waaseyaa\CLI\Command\Config\ConfigCommand` | abstract class | Base for the six `config:*` commands; exposes `RESERVED_VERBS`, `RESERVED_FULL_VERBS`, `RESERVED_FQCNS` constants for collision checks (M-003, WP09) |
+| `Waaseyaa\CLI\Command\Config\ConfigCommand` | abstract class | Base for the seven `config:*` commands; exposes `RESERVED_VERBS`, `RESERVED_FULL_VERBS`, `RESERVED_FQCNS` constants for collision checks (M-003, WP09) |
 | `Waaseyaa\CLI\Command\Config\ConfigExportCommand` | command | `bin/waaseyaa config:export [--diff] [--dry-run]` (M-003, WP03) |
 | `Waaseyaa\CLI\Command\Config\ConfigImportCommand` | command | `bin/waaseyaa config:import [--dry-run] [--delete-orphans] [--halt-on-error] [--no-dependency-check]` (M-003, WP04) |
 | `Waaseyaa\CLI\Command\Config\ConfigDiffCommand` | command | `bin/waaseyaa config:diff [<entity-type>.<id>]` (M-003, WP05) |
