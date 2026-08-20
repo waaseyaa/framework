@@ -179,9 +179,293 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
         self::assertStringContainsString('revision=2', $result->data['previewUrl']);
     }
 
+    #[Test]
+    public function revision_read_reports_a_type_that_keeps_no_history(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret'));
+        $repository->method('loadRevision')->willThrowException(new \LogicException('article has no revision table'));
+
+        $result = $this->host($repository)->action('article', 'revision', ['id' => '1', 'revision_id' => 1]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('No history', $result->error['title']);
+        self::assertStringNotContainsString('revision table', (string) $result->error['detail']);
+    }
+
+    #[Test]
+    public function revision_read_reports_a_revision_that_does_not_exist(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret'));
+        $repository->method('loadRevision')->willReturn(null);
+
+        $result = $this->host($repository)->action('article', 'revision', ['id' => '1', 'revision_id' => 99]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Revision not found', $result->error['title']);
+    }
+
+    #[Test]
+    public function a_revision_request_without_a_record_id_is_refused(): void
+    {
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects(self::never())->method('loadRevision');
+
+        $result = $this->host($repository)->action('article', 'revision', ['revision_id' => 1]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(400, $result->error['status']);
+        self::assertSame('Missing id', $result->error['title']);
+    }
+
+    #[Test]
+    public function a_preview_request_without_a_positive_revision_id_is_refused(): void
+    {
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects(self::never())->method('loadRevision');
+
+        $result = $this->host($repository)->action('article', 'revision-preview', ['id' => '1', 'revision_id' => 0]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(400, $result->error['status']);
+        self::assertSame('Invalid revision', $result->error['title']);
+    }
+
+    #[Test]
+    public function restoring_an_unknown_record_is_refused_before_storage_is_consulted(): void
+    {
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn(null);
+        $repository->expects(self::never())->method('loadWorkingCopy');
+
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $result = $this->host($repository)->action('article', 'restore-revision', $this->restorePayload($token));
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Not found', $result->error['title']);
+    }
+
+    #[Test]
+    public function restore_refuses_an_actor_who_may_read_but_not_edit_the_record(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret', $token));
+        $repository->expects(self::never())->method('loadWorkingCopy');
+
+        $result = $this->host($repository, deniedOperation: 'update')
+            ->action('article', 'restore-revision', $this->restorePayload($token));
+
+        self::assertFalse($result->ok);
+        self::assertSame(403, $result->error['status']);
+        self::assertStringContainsString('edit', (string) $result->error['detail']);
+    }
+
+    #[Test]
+    public function restore_requires_an_observed_latest_revision_id(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret', $token));
+        $repository->expects(self::never())->method('rollback');
+        $payload = $this->restorePayload($token);
+        unset($payload['expected_latest_revision_id']);
+
+        $result = $this->host($repository)->action('article', 'restore-revision', $payload);
+
+        self::assertFalse($result->ok);
+        self::assertSame(400, $result->error['status']);
+        self::assertSame('Invalid revision fence', $result->error['title']);
+    }
+
+    #[Test]
+    public function restore_requires_a_mutation_token(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret', $token));
+        $repository->expects(self::never())->method('rollback');
+        $payload = $this->restorePayload($token);
+        unset($payload['mutation_token']);
+
+        $result = $this->host($repository)->action('article', 'restore-revision', $payload);
+
+        self::assertFalse($result->ok);
+        self::assertSame(428, $result->error['status']);
+    }
+
+    #[Test]
+    public function restore_reports_a_working_copy_lookup_without_history(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret', $token));
+        $repository->method('loadWorkingCopy')->willThrowException(new \LogicException('article has no revision table'));
+
+        $result = $this->host($repository)->action('article', 'restore-revision', $this->restorePayload($token));
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('No history', $result->error['title']);
+        self::assertStringNotContainsString('revision table', (string) $result->error['detail']);
+    }
+
+    #[Test]
+    public function restore_reports_a_source_revision_lookup_without_history(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $current = $this->revision(3, 'Current', 'secret', $token);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($current);
+        $repository->method('loadWorkingCopy')->willReturn($current);
+        $repository->method('loadRevision')->willThrowException(new \LogicException('article has no revision table'));
+
+        $result = $this->host($repository)->action('article', 'restore-revision', $this->restorePayload($token));
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('No history', $result->error['title']);
+    }
+
+    #[Test]
+    public function restore_reports_a_missing_source_revision(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $current = $this->revision(3, 'Current', 'secret', $token);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($current);
+        $repository->method('loadWorkingCopy')->willReturn($current);
+        $repository->method('loadRevision')->willReturn(null);
+
+        $result = $this->host($repository)->action('article', 'restore-revision', $this->restorePayload($token));
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Revision not found', $result->error['title']);
+    }
+
+    #[Test]
+    public function a_rollback_rejecting_its_target_is_reported_as_a_missing_revision(): void
+    {
+        $result = $this->restoreWithFailingRollback(new \InvalidArgumentException('revision 1 is not stored'));
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Revision not found', $result->error['title']);
+        self::assertStringNotContainsString('not stored', (string) $result->error['detail']);
+    }
+
+    #[Test]
+    public function a_rollback_on_a_type_without_history_is_reported_as_no_history(): void
+    {
+        $result = $this->restoreWithFailingRollback(new \LogicException('article has no revision table'));
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('No history', $result->error['title']);
+    }
+
+    #[Test]
+    public function preview_reports_a_type_that_keeps_no_history(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret'));
+        $repository->method('loadRevision')->willThrowException(new \LogicException('article has no revision table'));
+
+        $result = $this->host($repository, $this->createStub(AdminRevisionPreviewAuthorityInterface::class))
+            ->action('article', 'revision-preview', ['id' => '1', 'revision_id' => 2]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('No history', $result->error['title']);
+    }
+
+    #[Test]
+    public function preview_reports_a_revision_that_does_not_exist(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret'));
+        $repository->method('loadRevision')->willReturn(null);
+
+        $result = $this->host($repository, $this->createStub(AdminRevisionPreviewAuthorityInterface::class))
+            ->action('article', 'revision-preview', ['id' => '1', 'revision_id' => 2]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Revision not found', $result->error['title']);
+    }
+
+    #[Test]
+    public function a_preview_the_authority_declines_to_grant_is_refused(): void
+    {
+        $authority = $this->createStub(AdminRevisionPreviewAuthorityInterface::class);
+        $authority->method('issue')->willReturn(null);
+
+        $result = $this->previewWithAuthority($authority);
+
+        self::assertFalse($result->ok);
+        self::assertSame(403, $result->error['status']);
+        self::assertSame('Preview denied', $result->error['title']);
+    }
+
+    /**
+     * A grant bound to another revision would show the operator content they
+     * did not select, so the host refuses rather than forwarding it.
+     */
+    #[Test]
+    public function a_preview_grant_bound_to_another_revision_is_refused(): void
+    {
+        $authority = $this->createStub(AdminRevisionPreviewAuthorityInterface::class);
+        $authority->method('issue')->willReturn(new AdminRevisionPreviewGrantData(5, '/preview/article/1?revision=5'));
+
+        $result = $this->previewWithAuthority($authority);
+
+        self::assertFalse($result->ok);
+        self::assertSame(500, $result->error['status']);
+        self::assertSame('Invalid preview grant', $result->error['title']);
+    }
+
+    private function restoreWithFailingRollback(\Throwable $failure): AdminSurfaceResultData
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $current = $this->revision(3, 'Current', 'secret', $token);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($current);
+        $repository->method('loadWorkingCopy')->willReturn($current);
+        $repository->method('loadRevision')->willReturn($this->revision(1, 'Historical', 'secret'));
+        $repository->method('rollback')->willThrowException($failure);
+
+        return $this->host($repository)->action('article', 'restore-revision', $this->restorePayload($token));
+    }
+
+    private function previewWithAuthority(AdminRevisionPreviewAuthorityInterface $authority): AdminSurfaceResultData
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret'));
+        $repository->method('loadRevision')->willReturn($this->revision(2, 'Selected', 'secret'));
+
+        return $this->host($repository, $authority)->action('article', 'revision-preview', ['id' => '1', 'revision_id' => 2]);
+    }
+
+    /** @return array<string, mixed> */
+    private function restorePayload(EntityMutationToken $token): array
+    {
+        return [
+            'id' => '1',
+            'revision_id' => 1,
+            'expected_latest_revision_id' => 3,
+            'mutation_token' => $token->toOpaqueString(),
+        ];
+    }
+
     private function host(
         EntityRepositoryInterface $repository,
         ?AdminRevisionPreviewAuthorityInterface $previewAuthority = null,
+        ?string $deniedOperation = null,
     ): RevisionRecoveryHarness
     {
         $manager = $this->createStub(EntityTypeManagerInterface::class);
@@ -192,7 +476,7 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
 
         return new RevisionRecoveryHarness(new GenericAdminSurfaceHost(
             $manager,
-            new EntityAccessHandler([$this->policy(99)]),
+            new EntityAccessHandler([$this->policy(99, $deniedOperation)]),
             revisionPreviewAuthority: $previewAuthority,
         ));
     }
@@ -209,13 +493,20 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
         return $entity;
     }
 
-    private function policy(int $allowedAccountId): AccessPolicyInterface&FieldAccessPolicyInterface
+    private function policy(int $allowedAccountId, ?string $deniedOperation = null): AccessPolicyInterface&FieldAccessPolicyInterface
     {
-        return new class ($allowedAccountId) implements AccessPolicyInterface, FieldAccessPolicyInterface {
-            public function __construct(private readonly int $allowedAccountId) {}
+        return new class ($allowedAccountId, $deniedOperation) implements AccessPolicyInterface, FieldAccessPolicyInterface {
+            public function __construct(
+                private readonly int $allowedAccountId,
+                private readonly ?string $deniedOperation,
+            ) {}
             public function appliesTo(string $entityTypeId): bool { return true; }
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
+                if ($operation === $this->deniedOperation) {
+                    return AccessResult::forbidden('operation denied');
+                }
+
                 return $account->id() === $this->allowedAccountId ? AccessResult::allowed('record access') : AccessResult::forbidden('record denied');
             }
             public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult { return AccessResult::forbidden(); }
