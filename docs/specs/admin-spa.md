@@ -362,8 +362,8 @@ function useEntity(): {
   list(type: string, query?: { page?: { offset: number; limit: number }; sort?: string }):
     Promise<{ data: JsonApiResource[]; meta: Record<string, any>; links: Record<string, string> }>
   get(type: string, id: string): Promise<JsonApiResource>
-  create(type: string, attributes: Record<string, any>): Promise<JsonApiResource>
-  update(type: string, id: string, attributes: Record<string, any>): Promise<JsonApiResource>
+  create(type: string, attributes: Record<string, any>, saveAdvisoryAcknowledgements?: string[]): Promise<JsonApiResource>
+  update(type: string, id: string, attributes: Record<string, any>, saveAdvisoryAcknowledgements?: string[]): Promise<JsonApiResource>
   remove(type: string, id: string): Promise<void>
   search(type: string, labelField: string, query: string, limit?: number): Promise<JsonApiResource[]>
 }
@@ -761,6 +761,15 @@ The form rendering pipeline:
    authority
 4. For each field, `SchemaField` resolves the widget component from `x-widget`
 5. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+
+`SchemaForm` also handles candidate-bound save advisories (#2467). A 428
+`SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` transport failure is rendered in a
+focusable `role=status` review panel. The explicit confirmation button retries
+the JSON-captured writable candidate with only the returned acknowledgement
+tokens. Any field or bundle edit, or an ordinary new submit, clears the pending
+review; the normal Save button never implies acknowledgement. The Admin surface
+preserves the JSON:API error `code`, `source`, and `meta` so this flow does not
+parse prose.
 
 `x-form-sections` is an ordered list of `{id, label, description?, fields,
 collapsible?, collapsed?}` objects. IDs and labels are non-empty strings and

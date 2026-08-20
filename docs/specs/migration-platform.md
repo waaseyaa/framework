@@ -228,9 +228,22 @@ access-denial and rollback-best-effort log lines.
 ### 3.11 `SaveContext::isImport()` extension
 
 `EntityDestination::write()` constructs a `SaveContext` with `isImport: true`.
-Lifecycle subscribers can branch on `$event->context->isImport()` to skip
+Lifecycle subscribers can branch on `$event->saveContext()->isImport` to skip
 expensive non-essential work (cache invalidation, analytics) during imports.
 The new method extends charter §5.3; it is additive (default `false`).
+
+### 3.12 Declared save-advisory acknowledgement
+
+`MigrationDefinition::$acknowledgedSaveAdvisoryCodes` is a version-controlled
+list of at most 32 unique advisory codes; the default is empty. The runner
+applies it only to the canonical `EntityDestination`. Each changed record first
+saves without generated tokens. If every returned advisory code is declared,
+the destination retries the same in-memory candidate exactly once with the
+returned tokens inside the entity/id-map transaction. Undeclared advisories or
+a second refusal fail closed as a typed `DestinationWriteException`.
+Successful acknowledgements become deterministic, value-free
+`SaveAdvisoryEvidence` on the transient `WriteResult` and bounded `RunReport`;
+they are not persisted in the id-map. Hash-match skips emit no new evidence.
 
 ---
 
@@ -413,10 +426,13 @@ non-null, resolves the destination entity type's bundle key
    matches, no-op (idempotent re-run).
 2. If absent, instantiate the entity with a freshly-generated UUIDv7.
 3. Set field values from `DestinationRecord::$fields`.
-4. Construct `SaveContext(isImport: true)`; dispatch `BeforeSaveEvent`; call
-   `EntityStorageCoordinator::save()`; dispatch `AfterSaveEvent`.
+4. Construct `SaveContext(isImport: true)` and call `EntityRepository::save()`;
+   the repository is the single `BeforeSaveEvent` / `AfterSaveEvent` dispatch
+   authority. A fully declared advisory response is retried once as described
+   in §3.12.
 5. `upsert` the id-map row with the new `source_record_hash`.
-6. Return a `WriteResult`.
+6. Return a `WriteResult`, including transient acknowledged-advisory evidence
+   when the one-retry path succeeded.
 
 **Rerun-hash disclosure (G-015).** `source_record_hash` is computed by
 `EntityDestination::computeSourceRecordHash()` over `{values, bundle,

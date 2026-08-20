@@ -111,6 +111,14 @@ through its `AgentToolRegistryBridge`. None of those paths imports
 utility until a future capability-registry integration is deliberately built
 and tested.
 
+The canonical content mutation tools add the optional
+`save_advisory_acknowledgements` input to `createDraft` and `updateDraft`
+(maximum 32 unique lowercase SHA-256 tokens). The schema validator enforces the
+shape before execution. A storage advisory remains the authored structured
+`SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` publishing error, including
+`meta.save_advisories`, so MCP callers can review and retry the same candidate;
+it is not routed through generic internal-error sanitization.
+
 ## Agent Execution
 
 ### AgentInterface

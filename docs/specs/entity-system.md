@@ -805,6 +805,20 @@ conflict branch skipped, zero added queries). Full mechanics, the rejection
 matrix, and null-current semantics: `docs/specs/revision-system-unified.md`
 §3b.
 
+**Candidate-bound save advisories (#2467).** After `preSave()` and the legacy
+`PRE_SAVE` event have produced the final candidate, the repository dispatches
+`BeforeSaveEvent(entity, context, isNewRevision, originalEntity)` before any
+backend write. Applications may build `SaveAdvisory::forEntityField()` values
+and call `SaveAdvisoryGate::requireAcknowledged()`. Missing exact tokens throw
+the typed `SaveAdvisoryAcknowledgementRequiredException` (an abort), roll back
+the operation, and suppress `AfterSaveEvent`. `SaveContext` validates,
+deduplicates, sorts, and preserves at most 32 lowercase 64-hex tokens across all
+builders. The token binds entity type, bundle, stable identity, advisory code,
+field, and canonical candidate value; it is a review receipt, never
+authorization or a validation bypass. `originalEntity()` is storage-loaded for
+updates and null for creates. Full cross-surface contract:
+`docs/specs/save-advisories.md`.
+
 **Pointer-move operations are a separate pre-write choke point (CW-v1 WP-2 task 2.4, #1920).**
 `rollback()`, `setCurrentRevision()`, `setPublishedRevision()`, and the `saveTranslationRevision()` /
 `saveTranslationRevisions()` / `saveTranslation()` trio move the revision pointer (or, for
@@ -2174,7 +2188,7 @@ The coordinator dispatches four lifecycle events:
 
 | Event class             | When dispatched                                      |
 |------------------------ |----------------------------------------------------- |
-| `BeforeSaveEvent`       | Before any backend write; listener may abort via `AbortOperationException` |
+| `BeforeSaveEvent`       | Before any backend write; includes candidate, context, revision intent, and stored original; listener may abort via `AbortOperationException` |
 | `AfterSaveEvent`        | After all backends commit; NOT dispatched on partial failure |
 | `BeforeDeleteEvent`     | Before any backend delete; listener may abort        |
 | `AfterDeleteEvent`      | After all backends confirm delete                    |

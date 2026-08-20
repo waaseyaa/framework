@@ -54,6 +54,16 @@ final readonly class ContentTypeDescriptor {
 
 ### ContentPublisher (the service — the only mutation door)
 
+`createDraft()` and `updateDraft()` accept a trailing optional list of
+candidate-bound save-advisory acknowledgement tokens (#2467). The normalized
+tokens are part of the idempotency request fingerprint and join actor/revision
+state in the same `SaveContext`; changing the token set under a reused key is an
+idempotency conflict. A storage advisory is translated to the structured
+`ContentSaveAdvisoryException` with code
+`SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` and
+`meta.save_advisories`. Publish, unpublish, and rollback do not accept tokens in
+this contract.
+
 `ContentPublisher` also implements the internal composite-authoring mutation
 seam used by the page-builder publishing adapter. The adapter may project only
 its configured canonical layout field, and it must forward the caller's
@@ -113,7 +123,7 @@ Every successful mutation records via `AuditWriterInterface` (best-effort): kind
 
 - Every tool: `#`capability = descriptor's `publishCapability`; mutation tools `destructive: true` → structurally absent from the public `/mcp` registry; reachable only through `/mcp/write` when the capability is on the write-tier allowlist.
 - Input schemas: JSON Schema draft 2020-12, `additionalProperties: false`, derived from the descriptor's writable fields; mutations require `idempotency_key`; update/publish/unpublish require `expected_revision_id`.
-- Errors: structured `{code, message, errors?: [{field, message}]}` in the MCP `isError` envelope — `VALIDATION_FAILED` (field-specific), `REVISION_CONFLICT` (with expected/current), `IDEMPOTENCY_CONFLICT`, `SLUG_TAKEN` (field-level on the slug field), `NOT_FOUND`, `UNAUTHORIZED`.
+- Errors: structured `{code, message, errors?: [{field, message}], meta?: object}` in the MCP `isError` envelope — `VALIDATION_FAILED` (field-specific), `REVISION_CONFLICT` (with expected/current), `IDEMPOTENCY_CONFLICT`, `SLUG_TAKEN` (field-level on the slug field), `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` (candidate-bound advisory metadata), `NOT_FOUND`, `UNAUTHORIZED`.
 - No tool input is ever a filesystem path, SQL, Twig, or executable content; asset bytes are base64 with size caps; responses never include credentials or personal data.
 - `asset.upload {filename, content_base64, alt?}`: media create access for the configured bundle is required before any bytes are written. Accepted bytes go through the media `UploadHandler` contract — fail-closed `finfo` MIME sniffing (client MIME ignored), file-signature/extension agreement, size cap, randomized safe filename — then a `media` entity is created with the authenticated actor recorded in its save context (repository save, revisioned, audited). Returns `{asset_id, url, mime, width, height, size}`. `asset.get` returns the same by id. Approved types: png/jpeg/webp (descriptor-configurable subset of the media allowlist).
 
