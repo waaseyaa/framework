@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — a stalled Anthropic peer no longer holds a worker for five minutes
+  (#2156):** `AnthropicProvider` set one fixed `CURLOPT_TIMEOUT` — 120s for
+  `sendMessage`, 300s for `streamMessage` — with no connect bound and no
+  low-speed abort, and neither value was caller-settable. A provider that
+  accepted the TCP connection and then sent nothing held the PHP worker for the
+  whole timeout. A streaming caller could not compensate: the only bound
+  available to it runs inside the chunk callback, and a stalled stream delivers
+  no chunk to run it. For a consumer with a bounded concurrency pool that is a
+  cheap resource-exhaustion path, and it is invisible to tests because a fake
+  provider returns synchronously.
+
+  The provider now takes a `ProviderTimeouts` profile per call shape. Each
+  profile carries three independent bounds: a connect timeout, so an unreachable
+  or unresponsive peer fails during the connection phase instead of spending the
+  request budget; a total timeout; and a low-speed abort that tears the transfer
+  down once it stops delivering bytes. The low-speed pair is the bound that ends
+  a stalled stream promptly, and it is enabled by default only for streaming —
+  a non-streaming request is legitimately silent while the model generates, so
+  holding it to a byte rate would abort healthy calls.
+
+  Defaults preserve today's ceilings for healthy traffic (120s and 300s totals)
+  and add a 5s connect bound to both, plus a 30s silence bound to streaming:
+  a stalled stream is now released in tens of seconds rather than 300, and a
+  caller with its own budget can configure a transport that honours it. A new
+  `baseUrl` parameter points the provider at an Anthropic-compatible gateway
+  and is what lets the bounds be proven against a local peer that stalls, in
+  both directions — a handshake that never completes and a stream that goes
+  silent after its first delta.
+
 - **Fixed — configuration contracts are discovered (#2430, 1/6):** packages
   declaring `extra.waaseyaa.config-contract` now reach `PackageManifest` as
   `configContracts`, and the configuration composition root builds
