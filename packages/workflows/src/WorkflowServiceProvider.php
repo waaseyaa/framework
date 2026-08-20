@@ -199,10 +199,19 @@ final class WorkflowServiceProvider extends ServiceProvider
         $configSchemas = $this->resolveOptional(ConfigSchemaRegistry::class);
         if ($configSchemas instanceof ConfigSchemaRegistry) {
             $entityTypes = $this->resolveOptional(EntityTypeManagerInterface::class);
-            WorkflowAssignmentsConfig::register(
-                $configSchemas,
-                $entityTypes instanceof EntityTypeManagerInterface ? $entityTypes : null,
-            );
+            if (!$entityTypes instanceof EntityTypeManagerInterface) {
+                // Which bindings are admissible is a fact about the installed
+                // entity types. Without that authority the schema could only be
+                // registered structurally, and every arbitrary string would
+                // acquire a trusted CFG-03 identity. Refuse instead: a
+                // configuration authority we cannot semantically guard is not a
+                // weaker authority, it is a different one.
+                throw new \LogicException(
+                    'waaseyaa/workflows cannot register its CFG-03 assignment schema without the entity type '
+                    . 'manager that its semantic validation requires.',
+                );
+            }
+            WorkflowAssignmentsConfig::register($configSchemas, $entityTypes);
         }
 
         $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);

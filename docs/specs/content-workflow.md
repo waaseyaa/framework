@@ -124,9 +124,16 @@ A transition MAY additionally carry `group_constraint: content_groups` (WP-3): f
 `workflows.assignments`). `waaseyaa/workflows` owns the strict CFG-03 schema
 `workflows.assignments@1` and configuration-contract version 1; its provider
 registers that schema and its deterministic assignment semantic validator on
-the shared authority registry before freeze. The semantic gate enforces
-canonical binding/workflow IDs and the same revisionable, single-axis entity
-constraint the runtime resolver defends. A fresh
+the shared authority registry before freeze. The semantic validator is not
+optional: a host that exposes a configuration schema registry but no entity
+type manager cannot judge which bindings are admissible, so the provider
+refuses to register the schema at all rather than register it structurally.
+The semantic gate enforces canonical binding/workflow IDs and then judges the
+complete assignment map in one pass against the same revisionable, single-axis
+entity constraint the runtime resolver defends, so a rule spanning several
+bindings is expressible. Its declared contract string is bound into the
+schema's canonical hash, so an assignment bundle authored against these
+semantics is refused by a host that does not run them. A fresh
 `install:init` deliberately activates only content-free genesis, so a consumer
 must author, sign, verify, and explicitly activate its assignment entry before
 the resolver can bind content. Boot never copies legacy flat files or writes an

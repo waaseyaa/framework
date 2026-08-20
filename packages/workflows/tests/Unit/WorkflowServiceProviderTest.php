@@ -96,4 +96,32 @@ final class WorkflowServiceProviderTest extends TestCase
 
         self::addToAssertionCount(1);
     }
+
+    #[Test]
+    public function boot_refuses_to_register_the_assignment_schema_without_semantic_authority(): void
+    {
+        $registry = new ConfigSchemaRegistry();
+        $provider = new WorkflowServiceProvider();
+        $provider->setKernelServices(new class ($registry) implements KernelServicesInterface {
+            public function __construct(private readonly ConfigSchemaRegistry $registry) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === ConfigSchemaRegistry::class ? $this->registry : null;
+            }
+        });
+        $provider->register();
+
+        try {
+            $provider->boot();
+            self::fail('Boot must refuse a configuration authority it cannot semantically guard.');
+        } catch (\LogicException $refusal) {
+            self::assertStringContainsString('semantic', $refusal->getMessage());
+        }
+
+        self::assertNull($registry->get(
+            WorkflowAssignmentsConfig::CONFIG_NAME,
+            WorkflowAssignmentsConfig::SCHEMA_VERSION,
+        ), 'A structurally-only schema must never reach the trusted registry.');
+    }
 }

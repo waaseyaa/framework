@@ -18,6 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   zero-write; signing, trust custody, and activation stay explicit deployment
   actions.
 
+  The semantic gate is a fail-closed boundary. A host exposing a configuration
+  schema registry without an entity type manager now refuses to register the
+  assignment schema instead of falling back to structural-only validation that
+  would grant any string a trusted CFG-03 identity. Each semantic validator
+  declares a deterministic contract string that `ConfigSchemaRegistry` binds
+  into `canonical_schema_hash` under a separate digest domain, so content
+  authored under one semantic contract cannot verify on a host running a
+  different contract or none. Registering a second validator of the same class
+  with materially different dependencies is now an explicit conflict rather
+  than a silently ignored no-op, and the canonical assignment validator
+  receives the complete authored map in one pass instead of one binding at a
+  time.
+
 - **Added — the Admin SPA page builder can now review and acknowledge a layout
   save advisory (#2475):** #2473/#2474 completed the HTTP contract, but the
   editor had no affordance for it, so an author editing the layout of a page

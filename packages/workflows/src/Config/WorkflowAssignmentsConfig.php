@@ -27,25 +27,33 @@ final class WorkflowAssignmentsConfig
         ];
     }
 
+    /**
+     * The closed dialect can only say "a map of strings". Which bindings are
+     * admissible depends on the installed entity types, so the semantic
+     * authority is a required argument (#2458): there is no registration of
+     * this schema without it, and no structural-only fallback that would let
+     * an arbitrary string reach the trusted CFG-03 identity.
+     */
     public static function register(
         ConfigSchemaRegistry $registry,
-        ?EntityTypeManagerInterface $entityTypeManager = null,
+        EntityTypeManagerInterface $entityTypeManager,
     ): ConfigSchemaRegistration {
-        $registration = $registry->register(
+        $registry->register(
             self::CONFIG_NAME,
             self::SCHEMA_VERSION,
             self::OWNER_PACKAGE,
             self::OWNER_CONFIG_CONTRACT_VERSION,
             self::schema(),
         );
-        if ($entityTypeManager instanceof EntityTypeManagerInterface) {
-            $registry->registerSemanticValidator(
-                self::CONFIG_NAME,
-                self::SCHEMA_VERSION,
-                new WorkflowAssignmentsSemanticValidator($entityTypeManager),
-            );
-        }
+        $registry->registerSemanticValidator(
+            self::CONFIG_NAME,
+            self::SCHEMA_VERSION,
+            new WorkflowAssignmentsSemanticValidator($entityTypeManager),
+        );
 
-        return $registration;
+        // Read back rather than reuse the pre-semantic registration: binding the
+        // semantic contract re-derives the canonical schema hash.
+        return $registry->get(self::CONFIG_NAME, self::SCHEMA_VERSION)
+            ?? throw new \LogicException('The workflow assignment schema vanished from the registry after registration.');
     }
 }

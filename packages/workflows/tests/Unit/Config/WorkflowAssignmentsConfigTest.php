@@ -65,7 +65,7 @@ final class WorkflowAssignmentsConfigTest extends TestCase
     public function strict_assignment_entry_validates_and_is_writable_by_the_installed_contract(): void
     {
         $registry = new ConfigSchemaRegistry();
-        $registration = WorkflowAssignmentsConfig::register($registry);
+        $registration = WorkflowAssignmentsConfig::register($registry, $this->entityTypes());
         $registry->freeze();
         $file = $this->file($registration, ['node.page' => 'editorial']);
         file_put_contents($this->directory.'/'.$file->filename(), new ConfigSyncSerializer()->toYaml($file));
@@ -92,7 +92,7 @@ final class WorkflowAssignmentsConfigTest extends TestCase
     public function non_string_assignment_value_is_rejected_by_the_closed_schema(): void
     {
         $registry = new ConfigSchemaRegistry();
-        $registration = WorkflowAssignmentsConfig::register($registry);
+        $registration = WorkflowAssignmentsConfig::register($registry, $this->entityTypes());
         $registry->freeze();
         $file = $this->file($registration, ['node.page' => true]);
         file_put_contents($this->directory.'/'.$file->filename(), new ConfigSyncSerializer()->toYaml($file));
@@ -107,7 +107,7 @@ final class WorkflowAssignmentsConfigTest extends TestCase
     public function wrong_package_identity_remains_fail_closed(): void
     {
         $registry = new ConfigSchemaRegistry();
-        $registration = WorkflowAssignmentsConfig::register($registry);
+        $registration = WorkflowAssignmentsConfig::register($registry, $this->entityTypes());
         $registry->freeze();
         $file = ConfigSyncFile::writable(
             entityType: 'workflows',
@@ -169,6 +169,70 @@ final class WorkflowAssignmentsConfigTest extends TestCase
 
         self::assertFalse($result->isValid());
         self::assertStringContainsString('canonical', $result->diagnostics[0]->message);
+    }
+
+    #[Test]
+    public function the_registered_schema_identity_is_bound_to_the_semantic_contract(): void
+    {
+        $guarded = new ConfigSchemaRegistry();
+        $registration = WorkflowAssignmentsConfig::register($guarded, $this->entityTypes());
+
+        $unguarded = new ConfigSchemaRegistry();
+        $structural = $unguarded->register(
+            WorkflowAssignmentsConfig::CONFIG_NAME,
+            WorkflowAssignmentsConfig::SCHEMA_VERSION,
+            WorkflowAssignmentsConfig::OWNER_PACKAGE,
+            WorkflowAssignmentsConfig::OWNER_CONFIG_CONTRACT_VERSION,
+            WorkflowAssignmentsConfig::schema(),
+        );
+
+        self::assertNotSame($structural->canonicalSchemaHash, $registration->canonicalSchemaHash);
+        self::assertSame(
+            new WorkflowAssignmentsSemanticValidator($this->entityTypes())->contract(),
+            $guarded->semanticContract(
+                WorkflowAssignmentsConfig::CONFIG_NAME,
+                WorkflowAssignmentsConfig::SCHEMA_VERSION,
+            ),
+        );
+    }
+
+    #[Test]
+    public function an_assignment_bundle_is_refused_by_a_host_without_the_semantic_contract(): void
+    {
+        $authoring = new ConfigSchemaRegistry();
+        $registration = WorkflowAssignmentsConfig::register($authoring, $this->entityTypes());
+        $authoring->freeze();
+        $file = $this->file($registration, ['node.page' => 'editorial']);
+        file_put_contents($this->directory.'/'.$file->filename(), new ConfigSyncSerializer()->toYaml($file));
+
+        $consumer = new ConfigSchemaRegistry();
+        $consumer->register(
+            WorkflowAssignmentsConfig::CONFIG_NAME,
+            WorkflowAssignmentsConfig::SCHEMA_VERSION,
+            WorkflowAssignmentsConfig::OWNER_PACKAGE,
+            WorkflowAssignmentsConfig::OWNER_CONFIG_CONTRACT_VERSION,
+            WorkflowAssignmentsConfig::schema(),
+        );
+        $consumer->freeze();
+
+        $result = new ConfigSyncBundleValidator($consumer)->validate($this->directory);
+
+        self::assertFalse($result->isValid());
+        self::assertStringContainsString('schema or package identity does not match', $result->diagnostics[0]->message);
+    }
+
+    private function entityTypes(): EntityTypeManager
+    {
+        $manager = new EntityTypeManager(new SymfonyEventDispatcherAdapter());
+        $manager->registerEntityType(new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: \stdClass::class,
+            keys: ['id' => 'nid', 'revision' => 'vid'],
+            revisionable: true,
+        ));
+
+        return $manager;
     }
 
     /** @param array<string, mixed> $fields */
