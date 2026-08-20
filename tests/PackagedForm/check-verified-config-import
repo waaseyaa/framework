@@ -62,7 +62,7 @@ build_consumer() {
 
     cp -R "$source_root/skeleton/." "$target/"
     rm -f "$target/composer.lock" "$target/composer.local.json.example"
-    mkdir -p "$target/storage/framework" "$target/storage/files" "$target/config/sync"
+    mkdir -p "$target/storage/framework" "$target/storage/files"
 
     php -r '
         $path = $argv[1];
@@ -153,12 +153,11 @@ if ! ( cd "$authoring" && php vendor/bin/waaseyaa install:init ) >"$work/authori
     exit 1
 fi
 
-# The skeleton ships config/sync/.gitkeep to keep the directory in git, and
-# strict CFG-03 validation refuses it: every bundle member must be a versioned
-# config sync file. Authoring removes the placeholder, which is what an operator
-# authoring a first bundle has to do today. See the note in the changelog — the
-# skeleton/validation interaction deserves its own decision.
-rm -f "$authoring/config/sync/.gitkeep" "$consumer/config/sync/.gitkeep"
+# The sync directory must exist and be empty: install:init creates it (#2430),
+# and strict CFG-03 validation requires every member to be a versioned config
+# sync file, so any placeholder would make the directory unsignable.
+test -d "$authoring/config/sync"
+test -z "$(ls -A "$authoring/config/sync")"
 
 cp "$source_root/tests/PackagedForm/fixtures/author-config-bundle.php" "$authoring/author-config-bundle.php"
 if ! ( cd "$authoring" && php author-config-bundle.php ) >"$work/author.out" 2>&1; then
@@ -195,7 +194,33 @@ if grep -qiE 'BEGIN [A-Z ]*PRIVATE KEY|secret|private' "$work/sign.out"; then
     exit 1
 fi
 
-# --- Transfer: exactly the sync directory and the envelope -------------------
+# --- Consumer: install, then import under verification -----------------------
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install.out" 2>&1; then
+    cat "$work/install.out" >&2
+    echo 'The consumer could not complete the governed installation phase.' >&2
+    exit 1
+fi
+grep -Fq 'Installation is complete.' "$work/install.out"
+
+# install:init created the sync directory and left it empty.
+test -d "$consumer/config/sync"
+test -z "$(ls -A "$consumer/config/sync")"
+
+# Ordinary activation is compare-and-swap: the caller states the token it
+# believes is active. install:init is idempotent and reports the current token,
+# so reading it needs no unsupported surface.
+read_active_token() {
+    ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/token.out" 2>&1
+    active_generation="$(sed -nE 's/.*generation ([a-f0-9]{64}).*/\1/p' "$work/token.out" | head -1)"
+    active_sequence="$(sed -nE 's/.*sequence ([0-9]+).*/\1/p' "$work/token.out" | head -1)"
+    if [[ -z "$active_generation" || -z "$active_sequence" ]]; then
+        cat "$work/token.out" >&2
+        echo 'Could not read the active configuration token.' >&2
+        exit 1
+    fi
+}
+
+# Now move the authored bundle and its envelope across.
 cp -R "$authoring/config/sync/." "$consumer/config/sync/"
 cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
 
@@ -219,21 +244,20 @@ if grep -Fq 'signing_key' "$consumer/config/waaseyaa.php"; then
     exit 1
 fi
 
-# --- Consumer: install, then import under verification -----------------------
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install.out" 2>&1; then
-    cat "$work/install.out" >&2
-    echo 'The consumer could not complete the governed installation phase.' >&2
-    exit 1
-fi
-grep -Fq 'Installation is complete.' "$work/install.out"
+# Snapshot the pre-import state so each adversarial case starts from the same
+# place and one failure mode cannot mask the next.
+cp -R "$consumer" "$work/pristine"
 
-if ! ( cd "$consumer" \
-        && php vendor/bin/waaseyaa config:import \
-             --activation-request-id=packaged-proof-import-1 ) >"$work/import.out" 2>&1; then
+read_active_token
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+             --activation-request-id=packaged-proof-import-1 \
+             --expected-generation="$active_generation" \
+             --expected-sequence="$active_sequence" ) >"$work/import.out" 2>&1; then
     cat "$work/import.out" >&2
     echo 'The consumer could not import the signed configuration bundle.' >&2
     exit 1
 fi
+grep -Eq '1 created|1 updated' "$work/import.out"
 
 # The consumer must not have logged key material while importing.
 if grep -rqF -- "$private_key_b64" "$work/import.out" "$work/install.out" "$consumer/storage" 2>/dev/null; then
@@ -251,6 +275,22 @@ grep -Fq 'consumer ordinary boot OK' "$work/probe.out"
 grep -Fq 'consumer imported-config read OK' "$work/probe.out"
 grep -Fq 'consumer entity round-trip OK' "$work/probe.out"
 
+# Replay: the same envelope, against the site that already committed it.
+read_active_token
+if ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
+        --activation-request-id=packaged-proof-replay \
+        --expected-generation="$active_generation" \
+        --expected-sequence="$active_sequence" ) >"$work/refuse-replay.out" 2>&1; then
+    cat "$work/refuse-replay.out" >&2
+    echo 'Import accepted a replayed bundle sequence.' >&2
+    exit 1
+fi
+grep -qi 'sequence' "$work/refuse-replay.out"
+
+rm -rf "$consumer"
+cp -R "$work/pristine" "$consumer"
+read_active_token
+
 # --- Adversarial matrix ------------------------------------------------------
 # Each case must refuse. A pristine copy is restored between cases so one
 # failure mode cannot mask the next.
@@ -259,7 +299,9 @@ cp -R "$consumer" "$work/pristine"
 refuse_case() {
     local label="$1" expect="$2"
     if ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
-            --activation-request-id="adversarial-$label" ) >"$work/refuse-$label.out" 2>&1; then
+            --activation-request-id="adversarial-$label" \
+            --expected-generation="$active_generation" \
+            --expected-sequence="$active_sequence" ) >"$work/refuse-$label.out" 2>&1; then
         cat "$work/refuse-$label.out" >&2
         echo "Import accepted a bundle it must refuse: $label" >&2
         exit 1
@@ -292,8 +334,7 @@ refuse_case tampered-bytes 'manifest'
 printf '{"format":"waaseyaa.config-envelope/1"}\n' > "$consumer/config/sync.envelope.json"
 refuse_case malformed-envelope 'envelope'
 
-# 4. A different key's signature: re-sign the same bundle with a key the
-#    consumer does not trust.
+# 4. A signature from a key the consumer does not trust.
 php -r '
     $pair = sodium_crypto_sign_keypair();
     file_put_contents($argv[1] . "/attacker.key", sodium_crypto_sign_secretkey($pair));
@@ -301,19 +342,15 @@ php -r '
 ' "$custody"
 php -r '
     [$path, $reference, $publicKey] = array_slice($argv, 1);
-    $config = require $path;
-    $config["config_manifest_signing"]["trust_keys"][$reference] = ["algorithm" => "Ed25519", "public_key" => $publicKey];
-    $config["config_manifest_signing"]["signing_key"]["trust_key_reference"] = $reference;
-    file_put_contents($path, "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($config, true) . ";\n");
+    $source = (string) file_get_contents($path);
+    $source = str_replace("cfg04:packaged-proof-key", $reference, $source);
+    $source = preg_replace("/\x27public_key\x27 => \x27[^\x27]+\x27/", "\x27public_key\x27 => \x27" . $publicKey . "\x27", $source, 1);
+    file_put_contents($path, (string) $source);
 ' "$authoring/config/waaseyaa.php" 'cfg04:attacker-key' "$(cat "$custody/attacker.pub")"
 ( cd "$authoring" && WAASEYAA_AUTHORING_SIGNING_KEY_FILE="$custody/attacker.key" \
     php vendor/bin/waaseyaa config:manifest:sign --scope=site:packaged-proof --sequence=99 ) >"$work/sign-attacker.out" 2>&1
 cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
 refuse_case untrusted-key 'verification'
-
-# 5. Replay: the exact envelope that already committed.
-cp "$work/pristine/config/sync.envelope.json" "$consumer/config/sync.envelope.json" 2>/dev/null || true
-refuse_case replayed-sequence 'sequence'
 
 printf 'Verified configuration import proof passed.\n'
 printf 'Candidate:  %s\n' "$candidate"

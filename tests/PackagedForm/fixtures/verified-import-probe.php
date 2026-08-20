@@ -12,7 +12,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-use Waaseyaa\Config\ConfigFactoryInterface;
+use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\User\User;
 
@@ -21,23 +21,35 @@ try {
     new ReflectionMethod($kernel, 'boot')->invoke($kernel);
     fwrite(STDOUT, "consumer ordinary boot OK\n");
 
-    $factory = null;
+    // Read the imported entry back from the ACTIVE store through the runtime
+    // authority — never by reading the sync directory, which is authored input
+    // and never runtime state.
+    $bridge = null;
     foreach ($kernel->getProviders() as $provider) {
-        if (isset($provider->getBindings()[ConfigFactoryInterface::class])) {
-            $factory = $provider->resolve(ConfigFactoryInterface::class);
+        if (isset($provider->getBindings()[ActiveConfigurationBridgeInterface::class])) {
+            $bridge = $provider->resolve(ActiveConfigurationBridgeInterface::class);
             break;
         }
     }
-    if (!$factory instanceof ConfigFactoryInterface) {
-        fwrite(STDERR, "::error::the consumer exposes no configuration read API\n");
+    if (!$bridge instanceof ActiveConfigurationBridgeInterface) {
+        fwrite(STDERR, "::error::the consumer exposes no active configuration authority\n");
         exit(1);
     }
 
-    // The imported entry must be readable through the ordinary runtime path,
-    // from the active store — never by reading the sync directory.
-    $providers = $factory->get('config.ai.providers')->get('providers');
+    $found = null;
+    foreach ($bridge->iterate() as $file) {
+        if ($file->ref() === 'config.ai_providers') {
+            $found = $file;
+            break;
+        }
+    }
+    if ($found === null) {
+        fwrite(STDERR, "::error::the imported entry is absent from the active store\n");
+        exit(1);
+    }
+    $providers = $found->fields['providers'] ?? null;
     if (!is_array($providers) || ($providers[0]['id'] ?? null) !== 'packaged-proof') {
-        fwrite(STDERR, "::error::imported configuration is not readable from the active store\n");
+        fwrite(STDERR, "::error::the active entry does not carry the authored content\n");
         exit(1);
     }
     fwrite(STDOUT, "consumer imported-config read OK\n");

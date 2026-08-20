@@ -1581,6 +1581,12 @@ verifier-only profile — one with no `config_manifest_signing.signing_key` —
 registers normally and the command refuses there rather than the provider
 failing to boot.
 
+CFG-02 activation authorization is bound alongside it (#2430):
+`VerifiedNonDestructiveConfigurationActivationAuthorizer` replaces the refusing
+default for ordinary activation, and rollback and candidate sweep keep theirs.
+An application binding its own `ConfigurationActivationAuthorizerInterface`
+still wins, so this widens nothing an app has already narrowed.
+
 **Construction is side-effect free; refusal happens at access (#2426).**
 `DatabaseActiveConfigurationBridge` builds its `DatabaseActiveConfigurationStorage`
 on demand, and neither constructor asserts that a generation has been activated.

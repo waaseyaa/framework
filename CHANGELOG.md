@@ -73,24 +73,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/PackagedForm/check-verified-config-import` builds two physically
   separate consumers from the candidate tree, keeps the Ed25519 signing key in a
   third location owned by neither, and moves only the sync directory, the signed
-  envelope, and the public trust key between them. It asserts the consumer holds
-  no key file, names no signing custody, declares no `signing_key`, and that no
-  key material appears in its output or storage; and that signing leaves the
-  authoring host's active store byte-identical.
+  envelope, and the public trust key between them. It proves the full chain: sign
+  on the authoring host, install, import under verification and compare-and-swap,
+  ordinary boot, read the imported entry back from the **active store**, and a
+  day-one entity write and read back. It asserts the consumer holds no key file,
+  names no signing custody, declares no `signing_key`, and leaks no key material
+  into output or storage, and that signing leaves the authoring host's active
+  store byte-identical. Adversarial cases — missing envelope, bytes edited after
+  signing, malformed sidecar, untrusted key, replayed sequence — each refuse from
+  a restored pre-import state.
 
-  **The proof currently stops before completion**, at a defect it exists to
-  find: `ConfigurationActivationAuthorizerInterface` has no production producer,
-  so `DatabaseConfigurationActivator` receives
-  `RefusingConfigurationActivationAuthorizer` and every non-genesis activation
-  refuses. CFG-03 verification passes end to end — signature, manifest binding,
-  compatibility, and replay all succeed — and CFG-02 activation authorization
-  then refuses. `install:init` is unaffected because genesis is deliberately not
-  operator-authorized. `ConfigurationRollbackValidatorInterface` and
-  `ConfigurationCandidateSweepAuthorizerInterface` are unbound in the same way.
+- **Fixed — configuration activation has a production authority (#2430):**
+  `ConfigurationActivationAuthorizerInterface` had no production producer, so
+  every non-genesis activation refused and `config:import` could not complete
+  anywhere. `VerifiedNonDestructiveConfigurationActivationAuthorizer` authorizes
+  exactly one shape: an ordinary activation carrying a genuinely verified signed
+  bundle that deletes nothing. The bytes are authorized by a protected signer,
+  the timing by explicit CLI execution; the authorizer manufactures neither.
+  Deletions, rollback, candidate sweep, unsigned verification, and genesis all
+  keep refusing — each is a separate policy decision, not a wiring gap. An
+  application may bind its own authorizer to narrow this further.
 
-  Also found: the skeleton ships `config/sync/.gitkeep`, which strict CFG-03
-  validation refuses as a bundle member, so a skeleton-derived site cannot sign
-  its own sync directory until the placeholder is removed.
+- **Fixed — `config/sync` is created at installation (#2430):** the skeleton
+  shipped `config/sync/.gitkeep`, which strict CFG-03 validation refuses as a
+  bundle member, so a skeleton-derived site could not sign or import its own sync
+  directory. `install:init` now creates the directory and leaves it empty rather
+  than validation being loosened: strict-and-complete is what lets a signature
+  cover a whole directory instead of a selection of it.
 
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path

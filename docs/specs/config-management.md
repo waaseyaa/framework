@@ -127,6 +127,18 @@ kernel that cannot boot. When replay state is unavailable the composition falls
 back to `RefusingConfigImportPreflight` — a gate missing one of its checks is not
 a weaker gate, it is a different one.
 
+**CFG-02 authorization.** `VerifiedNonDestructiveConfigurationActivationAuthorizer`
+is the production activation authority. It authorizes an ordinary activation
+carrying a verified *signed* bundle that deletes nothing, and refuses everything
+else — deletions, rollback, candidate sweep, unsigned verification, genesis.
+Tombstones are the deletion test rather than the activator's `$deletes` argument,
+which is `tombstones !== [] || completeReplacement` and therefore always true for
+a verified activation; the equivalence holds because a complete replacement must
+carry a content-bound tombstone for every active entry it omits. Ordinary
+activation remains compare-and-swap: the caller states the token it believes
+active, so `config:import` needs `--expected-generation` and `--expected-sequence`
+once a generation exists.
+
 **Unsigned stays refused.** `UnsignedConfigPolicy` remains `refusing()` pending a
 sealed CFG-01 bootstrap identity. The sealed-unsigned policy is not a shortcut
 around this work.

@@ -549,6 +549,41 @@
             "occurrence": 1
         },
         {
+            "path": "packages/config/src/Activation/VerifiedNonDestructiveConfigurationActivationAuthorizer.php",
+            "pattern": "activation_authorizer",
+            "class": "authorization-contract",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Activation/VerifiedNonDestructiveConfigurationActivationAuthorizer.php",
+            "pattern": "activation_authorizer",
+            "class": "authorization-contract",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/config/src/Activation/VerifiedNonDestructiveConfigurationActivationAuthorizer.php",
+            "pattern": "activation_request",
+            "class": "authorization-contract",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/config/src/Activation/VerifiedNonDestructiveConfigurationActivationAuthorizer.php",
+            "pattern": "activation_request",
+            "class": "authorization-contract",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/config/src/Activation/VerifiedNonDestructiveConfigurationActivationAuthorizer.php",
+            "pattern": "refusing_policy",
+            "class": "authorization-contract",
+            "match_sha256": "c62ed7d6682fdfe9246dbb71454afbe3ded2a1ec881144120fced9bb2c8a7116",
+            "occurrence": 1
+        },
+        {
             "path": "packages/config/src/Authority/ConfigurationActiveToken.php",
             "pattern": "active_token",
             "class": "token-contract",
@@ -1211,20 +1246,6 @@
             "pattern": "refusing_policy",
             "class": "authority-composition",
             "match_sha256": "820b86d396952d928c236464b6882fda369e477107d412072dfa510ab4625885",
-            "occurrence": 2
-        },
-        {
-            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
-            "pattern": "refusing_policy",
-            "class": "authority-composition",
-            "match_sha256": "c62ed7d6682fdfe9246dbb71454afbe3ded2a1ec881144120fced9bb2c8a7116",
-            "occurrence": 1
-        },
-        {
-            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
-            "pattern": "refusing_policy",
-            "class": "authority-composition",
-            "match_sha256": "c62ed7d6682fdfe9246dbb71454afbe3ded2a1ec881144120fced9bb2c8a7116",
             "occurrence": 2
         },
         {
