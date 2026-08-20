@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   120s reproduction emitted the deprecation notice before throwing.
 
 - **Fixed — Admin Surface envelopes keep their own JSON wire contract
-  (#2422 follow-up):** the five canonical `admin_surface.*` route closures now
+  (#2453):** the five canonical `admin_surface.*` route closures now
   emit compact `application/json` responses directly at the package boundary.
   Their flat `{ok,data,error,meta}` envelope is not JSON:API; sending the
   previous `statusCode`/`body` wrapper through Foundation's generic
