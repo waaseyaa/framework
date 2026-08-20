@@ -44,19 +44,27 @@ final readonly class MutationAuthorityBackfillHandler
         }
 
         $createdByType = [];
+        $failedEntityTypes = [];
         foreach ($repositories as $entityTypeId => $repository) {
-            $createdByType[$entityTypeId] = $repository->backfillMutationAuthorities($reason);
+            try {
+                $createdByType[$entityTypeId] = $repository->backfillMutationAuthorities($reason);
+            } catch (\Throwable) {
+                $createdByType[$entityTypeId] = 0;
+                $failedEntityTypes[] = $entityTypeId;
+            }
         }
         $created = array_sum($createdByType);
+        $exitCode = $failedEntityTypes === [] ? 0 : 1;
 
         if ((bool) $io->option('json')) {
             $io->writeln(json_encode([
                 'created' => $created,
                 'entity_types' => $createdByType,
                 'skipped_entity_types' => $skippedEntityTypes,
+                'failed_entity_types' => $failedEntityTypes,
             ], JSON_THROW_ON_ERROR));
 
-            return 0;
+            return $exitCode;
         }
 
         $io->writeln(sprintf('Mutation-authority backfill: created=%d', $created));
@@ -66,7 +74,10 @@ final readonly class MutationAuthorityBackfillHandler
         foreach ($skippedEntityTypes as $entityTypeId) {
             $io->writeln(sprintf('  %s: skipped (repository is outside the framework repair boundary)', $entityTypeId));
         }
+        foreach ($failedEntityTypes as $entityTypeId) {
+            $io->writeln(sprintf('  %s: failed (no authority was established for this type)', $entityTypeId));
+        }
 
-        return 0;
+        return $exitCode;
     }
 }

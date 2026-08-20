@@ -14,9 +14,11 @@ path invokes the repair.
 
 The command validates its audit reason, repairs repositories implementing the
 framework boundary, and explicitly reports custom repository types it skips.
-It delegates creation to the repository-owned transaction and audit event,
-preserves existing authorities, reports only deterministic per-type counts and
-skipped type names, and reveals no token material. A retry is idempotent.
+A supported type that fails is named without leaking exception details, does not
+strand later types, and produces a nonzero exit. The command delegates creation
+to the repository-owned transaction and audit event, preserves existing
+authorities, reports only deterministic per-type counts and type names, and
+reveals no token material. A retry is idempotent.
 
 ## Proof
 

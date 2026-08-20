@@ -128,11 +128,13 @@ implicitly during boot, reads, migration, schema sync, or fresh installation.
 The command requires a non-empty audit reason. Repositories implementing the
 framework repair seam are processed; custom repositories outside that boundary
 are skipped and named explicitly rather than invoked through an invented repair
-path or allowed to strand unrelated framework types. Successful output contains
-only the total, deterministic per-entity-type created counts, and skipped type
+path or allowed to strand unrelated framework types. A failing supported type is
+named without its exception details, does not prevent later types from running,
+and makes the command return nonzero. Successful output contains only the total,
+deterministic per-entity-type created counts, skipped type names, and failed type
 names; token material is never rendered. Existing authorities are preserved. A
-completed retry reports zero created rows, and each created authority retains
-the repository's exact tenant/type/id binding and emits the backfill audit event
+completed retry reports zero created rows, and each created authority retains the
+repository's exact tenant/type/id binding and emits the backfill audit event
 inside its transaction.
 
 `install:init` is the governed installation phase (#2428) and belongs to the

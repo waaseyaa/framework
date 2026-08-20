@@ -50,6 +50,7 @@ final class MutationAuthorityBackfillHandlerTest extends TestCase
             'created' => 3,
             'entity_types' => ['node' => 2, 'workflow' => 1],
             'skipped_entity_types' => [],
+            'failed_entity_types' => [],
         ], json_decode(trim($firstJson), true, flags: JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('mutation_tag', $firstJson);
 
@@ -60,6 +61,7 @@ final class MutationAuthorityBackfillHandlerTest extends TestCase
             'created' => 0,
             'entity_types' => ['node' => 0, 'workflow' => 0],
             'skipped_entity_types' => [],
+            'failed_entity_types' => [],
         ], json_decode(trim($retryJson), true, flags: JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('mutation_tag', $retryJson);
     }
@@ -79,6 +81,29 @@ final class MutationAuthorityBackfillHandlerTest extends TestCase
             'created' => 1,
             'entity_types' => ['node' => 1],
             'skipped_entity_types' => ['external'],
+            'failed_entity_types' => [],
+        ], json_decode(trim($stdout->fetch()), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function it_reports_a_failed_type_and_continues_repairing_other_types(): void
+    {
+        $failed = $this->repository();
+        $failed->expects(self::once())
+            ->method('backfillMutationAuthorities')
+            ->willThrowException(new \LogicException('No database authority boundary.'));
+        $supported = $this->repository(2);
+        $manager = $this->manager(['workflow' => $failed, 'node' => $supported]);
+        [$io, $stdout] = $this->io(['--reason' => 'Upgrade rehearsal', '--json' => true]);
+
+        $exit = new MutationAuthorityBackfillHandler($manager)->execute($io);
+
+        self::assertSame(1, $exit);
+        self::assertSame([
+            'created' => 2,
+            'entity_types' => ['node' => 2, 'workflow' => 0],
+            'skipped_entity_types' => [],
+            'failed_entity_types' => ['workflow'],
         ], json_decode(trim($stdout->fetch()), true, flags: JSON_THROW_ON_ERROR));
     }
 
