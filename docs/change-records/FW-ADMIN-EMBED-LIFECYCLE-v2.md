@@ -59,8 +59,8 @@ reconciled, and the exact Framework cohort passes Sheguiandah acceptance.
 
 ## Framework candidate checkpoint
 
-- compatibility follow-up source, contract, and tests on this candidate;
-- governed distribution rebuilt after source tests passed;
+- compatibility follow-up source and contract commit: `9bd6fa00e`;
+- governed distribution commit: `c39803e5c`;
 - Admin distribution source signature:
   `faa6096ea67c3dd366d3bd05d7b52926836d0cbf03418b1e47286343e35dafe0`;
 - two consecutive normalized Node 24.16.0 builds produced the same complete
