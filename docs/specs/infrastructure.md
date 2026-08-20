@@ -1089,6 +1089,43 @@ Tracks executed migrations in the `waaseyaa_migrations` table:
 - `batch` INTEGER -- batch number
 - `ran_at` TIMESTAMP
 
+#### Writer-position invariant (SQLite, #2446)
+
+`acquireSchemaAuthority()` runs inside the coordinator's transaction, which DBAL
+opens as a **deferred** transaction. A deferred transaction becomes a reader or
+a writer according to whichever kind of statement runs first, and that choice is
+irreversible for the transaction's lifetime in any useful sense:
+
+- If a **write** runs first, the transaction holds the write lock. A competing
+  claim blocks and `busy_timeout` (`SqliteTopology::BUSY_TIMEOUT_MS`) applies,
+  so contention resolves by waiting.
+- If a **read** runs first, the transaction pins a read snapshot. The first
+  later write is then a read-to-write upgrade, and if any other connection has
+  committed in the meantime SQLite fails it with `database is locked`
+  **immediately**. `busy_timeout` is deliberately not applied to that case,
+  because waiting could never resolve it.
+
+The invariant is therefore: **the transaction's first statement must be a
+write.** `acquireSchemaAuthority()` satisfies it via `claimWriterPosition()`,
+which issues the singleton-row `INSERT OR IGNORE` before anything else. That
+statement writes nothing when the row already exists but still takes the lock.
+
+Two traps this closes, both of which produced live 500s:
+
+- `CREATE TABLE IF NOT EXISTS` is **not** a write on an existing table. It must
+  consult `sqlite_schema` to decide whether to act, so it reads. It cannot serve
+  as the writer claim, and ordering it first does not help.
+- Any read before the claim — `PRAGMA table_info` in
+  `ensureSchemaAuthorityManifestColumns()` was the original one — forfeits the
+  waitable path for the whole transaction.
+
+Raising the busy timeout or retrying on busy does not address this: the failed
+upgrade is not waitable, and losers fail in microseconds, so a retry loop spins
+rather than converges. Regression coverage is
+`SchemaAuthoritySteadyStateConcurrencyTest`; note that
+`SchemaAuthorityConcurrencyTest` exercises only first install, where the
+`CREATE` genuinely creates and so takes the lock on its own.
+
 ### MigrationResult
 
 File: `packages/foundation/src/Migration/MigrationResult.php`

@@ -95,11 +95,63 @@ final class MigrationRepository
      * Acquire SQLite writer ownership for one schema transition.
      *
      * This is deliberately the first operation inside the coordinator's outer
-     * transaction. Creating/updating the singleton authority row upgrades the
-     * deferred SQLite transaction to a writer before any ledger or plan read.
+     * transaction, and its statement order is load-bearing (#2446).
+     *
+     * DBAL's `transactional()` opens a deferred transaction, so the connection
+     * becomes a reader or a writer according to whichever kind of statement
+     * runs first. `CREATE TABLE IF NOT EXISTS` against an existing table is a
+     * no-op that takes no write lock, so it cannot serve as the claim. If a
+     * read runs before any write — as the manifest-column `PRAGMA table_info`
+     * did — the transaction pins a read snapshot, and the first write becomes a
+     * read-to-write upgrade. SQLite refuses that upgrade immediately and does
+     * not apply `busy_timeout` to it, because waiting could never resolve it.
+     *
+     * The singleton-row `INSERT OR IGNORE` below is therefore issued *before*
+     * any read. It writes nothing when the row already exists, but it still
+     * claims the writer position, and a concurrent claim waits on the
+     * configured busy timeout instead of failing outright.
      */
     public function acquireSchemaAuthority(): void
     {
+        $this->claimWriterPosition();
+        $this->ensureSchemaAuthorityManifestColumns();
+        $affected = $this->connection->executeStatement(
+            'UPDATE waaseyaa_schema_authority SET generation = generation + 1 WHERE authority_id = 1',
+        );
+        if ($affected !== 1) {
+            throw new \RuntimeException('[S1-DB101] Failed to acquire the schema mutation authority.');
+        }
+    }
+
+    /**
+     * Claim the SQLite writer position as the transaction's very first act.
+     *
+     * The singleton-row `INSERT OR IGNORE` is issued before anything else,
+     * including the `CREATE TABLE IF NOT EXISTS`. That ordering matters:
+     * `CREATE TABLE IF NOT EXISTS` must consult `sqlite_schema` to decide
+     * whether to act, so on an existing table it reads without writing and
+     * pins a read snapshot — after which every later write is a non-waitable
+     * read-to-write upgrade.
+     *
+     * Steady state therefore takes the lock on the first statement, where
+     * `busy_timeout` applies and a concurrent claim waits rather than failing.
+     * First install is the only path that reaches the `CREATE`, and there the
+     * DDL takes the write lock itself.
+     */
+    private function claimWriterPosition(): void
+    {
+        try {
+            $this->connection->executeStatement(
+                'INSERT OR IGNORE INTO waaseyaa_schema_authority (authority_id, generation) VALUES (1, 0)',
+            );
+
+            return;
+        } catch (\Doctrine\DBAL\Exception $missingTable) {
+            if (!str_contains($missingTable->getMessage(), 'waaseyaa_schema_authority')) {
+                throw $missingTable;
+            }
+        }
+
         $this->connection->executeStatement(
             'CREATE TABLE IF NOT EXISTS waaseyaa_schema_authority (
                 authority_id INTEGER PRIMARY KEY CHECK (authority_id = 1),
@@ -109,18 +161,9 @@ final class MigrationRepository
                 source_catalog_fingerprint VARCHAR(64) NULL
             )',
         );
-        $this->ensureSchemaAuthorityManifestColumns();
         $this->connection->executeStatement(
-            'INSERT OR IGNORE INTO waaseyaa_schema_authority (
-                authority_id, generation, schema_fingerprint, ledger_fingerprint, source_catalog_fingerprint
-            ) VALUES (1, 0, NULL, NULL, NULL)',
+            'INSERT OR IGNORE INTO waaseyaa_schema_authority (authority_id, generation) VALUES (1, 0)',
         );
-        $affected = $this->connection->executeStatement(
-            'UPDATE waaseyaa_schema_authority SET generation = generation + 1 WHERE authority_id = 1',
-        );
-        if ($affected !== 1) {
-            throw new \RuntimeException('[S1-DB101] Failed to acquire the schema mutation authority.');
-        }
     }
 
     /** Record the exact loaded migration catalogue inside the active transition. */
