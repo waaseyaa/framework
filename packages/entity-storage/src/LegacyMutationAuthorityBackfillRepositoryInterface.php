@@ -5,14 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage;
 
 /**
- * Explicit legacy-row authority repair implemented by the framework repository.
+ * Explicit legacy-row authority repair implemented by the framework repository
+ * for the restricted pre-DB-03 upgrade command.
  *
  * @internal Restricted upgrade orchestration only.
- */
-/**
- * Restricted repository seam for the explicit pre-DB-03 upgrade command.
- *
- * @internal
  */
 interface LegacyMutationAuthorityBackfillRepositoryInterface
 {
