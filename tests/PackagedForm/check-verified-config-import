@@ -15,7 +15,8 @@
 #
 # Proves: sign on the authoring host -> install:init on the consumer ->
 # signed config:import -> ordinary boot -> imported config readable from the
-# active store -> day-one entity write and read back. Then the adversarial
+# active store -> workflow binding resolved from that generation -> day-one
+# entity write and read back. Then the adversarial
 # matrix, each case a way untrusted or stale content could otherwise land.
 
 set -euo pipefail
@@ -257,7 +258,7 @@ if ! ( cd "$consumer" && php vendor/bin/waaseyaa config:import \
     echo 'The consumer could not import the signed configuration bundle.' >&2
     exit 1
 fi
-grep -Eq '1 created|1 updated' "$work/import.out"
+grep -Eq '2 created|2 updated' "$work/import.out"
 
 # The consumer must not have logged key material while importing.
 if grep -rqF -- "$private_key_b64" "$work/import.out" "$work/install.out" "$consumer/storage" 2>/dev/null; then
@@ -273,6 +274,7 @@ if ! ( cd "$consumer" && php verified-import-probe.php ) >"$work/probe.out" 2>&1
 fi
 grep -Fq 'consumer ordinary boot OK' "$work/probe.out"
 grep -Fq 'consumer imported-config read OK' "$work/probe.out"
+grep -Fq 'consumer workflow binding resolution OK' "$work/probe.out"
 grep -Fq 'consumer entity round-trip OK' "$work/probe.out"
 
 # Replay: the same envelope, against the site that already committed it.

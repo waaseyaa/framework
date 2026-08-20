@@ -13,8 +13,10 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
+use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\User\User;
+use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
 try {
     $kernel = new HttpKernel(__DIR__);
@@ -25,10 +27,13 @@ try {
     // authority — never by reading the sync directory, which is authored input
     // and never runtime state.
     $bridge = null;
+    $configFactory = null;
     foreach ($kernel->getProviders() as $provider) {
         if (isset($provider->getBindings()[ActiveConfigurationBridgeInterface::class])) {
             $bridge = $provider->resolve(ActiveConfigurationBridgeInterface::class);
-            break;
+        }
+        if (isset($provider->getBindings()[ConfigFactoryInterface::class])) {
+            $configFactory = $provider->resolve(ConfigFactoryInterface::class);
         }
     }
     if (!$bridge instanceof ActiveConfigurationBridgeInterface) {
@@ -53,6 +58,20 @@ try {
         exit(1);
     }
     fwrite(STDOUT, "consumer imported-config read OK\n");
+
+    if (!$configFactory instanceof ConfigFactoryInterface) {
+        fwrite(STDERR, "::error::the consumer exposes no runtime configuration factory\n");
+        exit(1);
+    }
+    $workflow = new WorkflowBindingResolver(
+        $configFactory,
+        $kernel->getEntityTypeManager(),
+    )->resolve('node', 'page');
+    if ($workflow?->id() !== 'editorial') {
+        fwrite(STDERR, "::error::the resolver did not read the activated workflow assignment\n");
+        exit(1);
+    }
+    fwrite(STDOUT, "consumer workflow binding resolution OK\n");
 
     $marker = 'verified-import-' . bin2hex(random_bytes(4));
     $repository = $kernel->getEntityTypeManager()->getRepository('user');

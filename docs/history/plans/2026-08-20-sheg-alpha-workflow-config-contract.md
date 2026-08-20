@@ -49,6 +49,18 @@ The Sheguiandah alpha acceptance run demonstrates the result: the default
 - Provider boot without a configuration registry remains safe and does not
   manufacture another authority.
 
+## Packaged-consumer proof
+
+The existing two-host CFG-03 packaged proof now authors both its credential-free
+AI provider entry and a `workflows.assignments` entry from the candidate's
+frozen registry. The authoring host signs those bytes under ephemeral test-only
+custody; a physically separate consumer runs content-free `install:init`,
+verifies and activates the bundle with public trust material only, then boots a
+new request and resolves `node.page` to the persisted `editorial` workflow via
+`WorkflowBindingResolver`. The existing replay, tamper, missing-envelope,
+malformed-envelope, and untrusted-key refusal matrix remains part of the same
+artifact-boundary proof.
+
 ## Work packages
 
 1. Retain failing unit and package-discovery tests for the absent contract.
@@ -60,7 +72,7 @@ The Sheguiandah alpha acceptance run demonstrates the result: the default
 
 ## Deferred boundary
 
-Consumer-specific assignment bytes, manifest signing, trust-key custody,
-activation request IDs, and post-activation backfill belong to the Sheg
-application/rehearsal package. This Framework candidate supplies the missing
-schema and compatibility authority only.
+Sheg's production assignment bytes, real trust-key custody, deployment-scoped
+activation request IDs, and post-activation backfill belong to the application
+and rehearsal package. The Framework proof uses generated ephemeral keys and
+disposable consumers only; it grants no deployment or production authority.
