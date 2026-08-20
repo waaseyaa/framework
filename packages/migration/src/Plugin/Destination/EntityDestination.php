@@ -10,14 +10,17 @@ use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisory;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Event\AfterDeleteEvent;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeDeleteEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
+use Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Migration\Advisory\SaveAdvisoryEvidence;
 use Waaseyaa\Migration\Canonical\CanonicalForm;
 use Waaseyaa\Migration\Exception\DestinationWriteException;
 use Waaseyaa\Migration\MigrationIdMap;
@@ -83,6 +86,12 @@ use Waaseyaa\Migration\SourceId;
  * repository's own internal `EntityEvents::PRE_SAVE` / `POST_SAVE` events
  * continue to fire unchanged.
  *
+ * A migration may opt into specific application advisory codes through
+ * {@see withAcknowledgedSaveAdvisoryCodes()}. The first save is always
+ * unacknowledged; only a fully allowlisted response is retried, exactly once,
+ * with the returned candidate-bound tokens. Evidence is returned transiently
+ * on {@see WriteResult} and is not persisted in the id-map.
+ *
  * ## Field map
  *
  * The optional `$fieldMap` translates **destination-record field names**
@@ -130,6 +139,9 @@ final class EntityDestination implements DestinationPluginInterface
      */
     private readonly ?string $runIdOverride;
 
+    /** @var list<string> */
+    private readonly array $acknowledgedSaveAdvisoryCodes;
+
     /**
      * @param string $destinationEntityTypeId Target entity type id (must be registered with EntityTypeManager).
      * @param EntityTypeManager $entityTypeManager Source of truth for entity type definitions (FR-018).
@@ -142,6 +154,7 @@ final class EntityDestination implements DestinationPluginInterface
      * @param array<string, string> $fieldMap Destination-record key → storage field name. Empty (default) means identity mapping.
      * @param ?LoggerInterface $logger Structured logger for diagnostics; defaults to {@see NullLogger}.
      * @param ?string $runIdOverride Runner-supplied UUIDv7 used by every write produced by this instance. `null` (default) preserves the WP05 per-write UUID behavior. Prefer {@see withRunId()} for cloning purposes.
+     * @param array<int|string, mixed> $acknowledgedSaveAdvisoryCodes Operator-approved advisory codes for this migration.
      */
     public function __construct(
         private readonly string $destinationEntityTypeId,
@@ -155,6 +168,7 @@ final class EntityDestination implements DestinationPluginInterface
         private readonly array $fieldMap = [],
         ?LoggerInterface $logger = null,
         ?string $runIdOverride = null,
+        array $acknowledgedSaveAdvisoryCodes = [],
     ) {
         if ($destinationEntityTypeId === '') {
             throw new \InvalidArgumentException(
@@ -187,6 +201,7 @@ final class EntityDestination implements DestinationPluginInterface
 
         $this->logger = $logger ?? new NullLogger();
         $this->runIdOverride = $runIdOverride;
+        $this->acknowledgedSaveAdvisoryCodes = self::validateAcknowledgedSaveAdvisoryCodes($acknowledgedSaveAdvisoryCodes);
     }
 
     /**
@@ -223,6 +238,26 @@ final class EntityDestination implements DestinationPluginInterface
             fieldMap: $this->fieldMap,
             logger: $this->logger,
             runIdOverride: $runId,
+            acknowledgedSaveAdvisoryCodes: $this->acknowledgedSaveAdvisoryCodes,
+        );
+    }
+
+    /** @param array<int|string, mixed> $codes */
+    public function withAcknowledgedSaveAdvisoryCodes(array $codes): self
+    {
+        return new self(
+            destinationEntityTypeId: $this->destinationEntityTypeId,
+            entityTypeManager: $this->entityTypeManager,
+            entityRepository: $this->entityRepository,
+            idMap: $this->idMap,
+            gate: $this->gate,
+            eventDispatcher: $this->eventDispatcher,
+            migrationId: $this->migrationId,
+            account: $this->account,
+            fieldMap: $this->fieldMap,
+            logger: $this->logger,
+            runIdOverride: $this->runIdOverride,
+            acknowledgedSaveAdvisoryCodes: $codes,
         );
     }
 
@@ -414,8 +449,58 @@ final class EntityDestination implements DestinationPluginInterface
         // `EntityRepository::save()`.
         $saveContext = SaveContext::default()->asImport();
 
+        /** @var list<SaveAdvisoryEvidence> $advisoryEvidence */
+        $advisoryEvidence = [];
         try {
             $this->entityRepository->save($entity, validate: false, context: $saveContext);
+        } catch (SaveAdvisoryAcknowledgementRequiredException $exception) {
+            $advisories = $exception->advisories();
+            $undeclared = array_values(array_unique(array_map(
+                static fn(SaveAdvisory $advisory): string => $advisory->code,
+                array_filter(
+                    $advisories,
+                    fn(SaveAdvisory $advisory): bool => !in_array(
+                        $advisory->code,
+                        $this->acknowledgedSaveAdvisoryCodes,
+                        true,
+                    ),
+                ),
+            )));
+            if ($undeclared !== []) {
+                throw DestinationWriteException::saveAdvisoryNotDeclared(
+                    $this->destinationEntityTypeId,
+                    $undeclared,
+                    $exception,
+                    $record->sourceId,
+                );
+            }
+
+            $tokens = array_map(
+                static fn(SaveAdvisory $advisory): string => $advisory->acknowledgement,
+                $advisories,
+            );
+            try {
+                $this->entityRepository->save(
+                    $entity,
+                    validate: false,
+                    context: $saveContext->withSaveAdvisoryAcknowledgements($tokens),
+                );
+            } catch (\Throwable $retryFailure) {
+                throw DestinationWriteException::entitySaveFailed(
+                    $this->destinationEntityTypeId,
+                    $retryFailure,
+                    $record->sourceId,
+                );
+            }
+            $sourceIdHash = $record->sourceId->hash();
+            $advisoryEvidence = array_map(
+                fn(SaveAdvisory $advisory): SaveAdvisoryEvidence => SaveAdvisoryEvidence::fromAdvisory(
+                    $this->migrationId,
+                    $sourceIdHash,
+                    $advisory,
+                ),
+                $advisories,
+            );
         } catch (\Throwable $e) {
             // The transactional() wrapper will roll back; surface a structured exception.
             throw DestinationWriteException::entitySaveFailed(
@@ -445,7 +530,18 @@ final class EntityDestination implements DestinationPluginInterface
         // is no longer used in this method.
         unset($isNewRevision);
 
-        return $writeResult;
+        if ($advisoryEvidence === []) {
+            return $writeResult;
+        }
+
+        return new WriteResult(
+            destinationEntityType: $writeResult->destinationEntityType,
+            destinationUuid: $writeResult->destinationUuid,
+            sourceRecordHash: $writeResult->sourceRecordHash,
+            runId: $writeResult->runId,
+            writtenAt: $writeResult->writtenAt,
+            acknowledgedSaveAdvisories: $advisoryEvidence,
+        );
     }
 
     /**
@@ -672,5 +768,28 @@ final class EntityDestination implements DestinationPluginInterface
         unset($prior);
 
         return Uuid::v7()->toRfc4122();
+    }
+
+    /** @param array<int|string, mixed> $codes @return list<string> */
+    private static function validateAcknowledgedSaveAdvisoryCodes(array $codes): array
+    {
+        if (!array_is_list($codes) || count($codes) > 32) {
+            throw new \InvalidArgumentException('EntityDestination advisory codes must be a list of at most 32 codes.');
+        }
+        $unique = [];
+        foreach ($codes as $code) {
+            if (!is_string($code)) {
+                throw new \InvalidArgumentException('EntityDestination advisory codes must contain only strings.');
+            }
+            SaveAdvisory::assertCode($code);
+            $unique[$code] = true;
+        }
+        if (count($unique) !== count($codes)) {
+            throw new \InvalidArgumentException('EntityDestination advisory codes must not contain duplicates.');
+        }
+        $codes = array_keys($unique);
+        sort($codes, SORT_STRING);
+
+        return $codes;
     }
 }

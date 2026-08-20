@@ -251,12 +251,14 @@ final class MigrationRunner
         $startedAt = ($this->clock)();
 
         $lookup = $this->buildLookupClosure();
-        $destination = $this->stampRunId($definition->destination, $runId);
+        $destination = $this->stampRunId($definition, $runId);
 
         // Counters and per-record error list — mutated as the iteration progresses.
         $counters = ['imported' => 0, 'skipped' => 0, 'failed' => 0];
         /** @var list<RecordError> $errors */
         $errors = [];
+        /** @var list<\Waaseyaa\Migration\Advisory\SaveAdvisoryEvidence> $warnings */
+        $warnings = [];
 
         $total = $this->safeSourceCount($definition);
         $processed = 0;
@@ -288,7 +290,7 @@ final class MigrationRunner
                 $position++;
 
                 try {
-                    [$sourceIdHash, $outcome] = $this->processOne(
+                    [$sourceIdHash, $outcome, $recordWarnings] = $this->processOne(
                         definition: $definition,
                         record: $record,
                         destination: $destination,
@@ -297,6 +299,12 @@ final class MigrationRunner
                         dryRun: $options->dryRun,
                         counters: $counters,
                     );
+                    foreach ($recordWarnings as $warning) {
+                        if (count($warnings) >= RunReport::WARNING_CAP) {
+                            break;
+                        }
+                        $warnings[] = $warning;
+                    }
 
                     // FR-038 — heartbeat the per-record outcome. Best-effort:
                     // a failure here is logged but does NOT escalate the run
@@ -348,6 +356,7 @@ final class MigrationRunner
                             startedAt: $startedAt,
                             finishedAt: $finishedAt,
                             aborted: true,
+                            warnings: $warnings,
                         );
 
                         throw new MigrationAbortedException(
@@ -378,6 +387,7 @@ final class MigrationRunner
                 startedAt: $startedAt,
                 finishedAt: $finishedAt,
                 aborted: true,
+                warnings: $warnings,
             );
 
             $this->logger->error('MigrationRunner: run-level abort (FR-048)', [
@@ -407,6 +417,7 @@ final class MigrationRunner
             startedAt: $startedAt,
             finishedAt: $finishedAt,
             aborted: false,
+            warnings: $warnings,
         );
     }
 
@@ -469,7 +480,7 @@ final class MigrationRunner
 
     /**
      * Per-record body. Mutates `$counters` in place. Returns a
-     * `[sourceIdHash, outcome]` tuple on success so the caller can heartbeat
+     * `[sourceIdHash, outcome, warnings]` tuple on success so the caller can heartbeat
      * the per-record outcome into `migration_run_state` (FR-038).
      *
      * `$outcome` is one of `'imported'` / `'skipped'`; the failure path
@@ -477,7 +488,7 @@ final class MigrationRunner
      *
      * @param array{imported:int,skipped:int,failed:int} $counters
      *
-     * @return array{0: string, 1: string} `[sourceIdHash, outcome]`.
+     * @return array{0: string, 1: string, 2: list<\Waaseyaa\Migration\Advisory\SaveAdvisoryEvidence>}
      */
     private function processOne(
         MigrationDefinition $definition,
@@ -533,7 +544,7 @@ final class MigrationRunner
                 'source_id_hash' => $sourceId->hash(),
             ]);
 
-            return [$sourceId->hash(), 'skipped'];
+            return [$sourceId->hash(), 'skipped', []];
         }
 
         // FR-031 — pre-read the prior id-map row so we can distinguish the
@@ -552,11 +563,11 @@ final class MigrationRunner
 
         if ($wasSkip) {
             $counters['skipped']++;
-            return [$sourceId->hash(), 'skipped'];
+            return [$sourceId->hash(), 'skipped', []];
         }
 
         $counters['imported']++;
-        return [$sourceId->hash(), 'imported'];
+        return [$sourceId->hash(), 'imported', $writeResult->acknowledgedSaveAdvisories];
     }
 
     /**
@@ -677,10 +688,13 @@ final class MigrationRunner
      * run ids per the WP05 contract. (A future WP could extract `WithRunId`
      * to a plugin-level interface; today only `EntityDestination` ships.)
      */
-    private function stampRunId(DestinationPluginInterface $destination, string $runId): DestinationPluginInterface
+    private function stampRunId(MigrationDefinition $definition, string $runId): DestinationPluginInterface
     {
+        $destination = $definition->destination;
         if ($destination instanceof EntityDestination) {
-            return $destination->withRunId($runId);
+            return $destination
+                ->withRunId($runId)
+                ->withAcknowledgedSaveAdvisoryCodes($definition->acknowledgedSaveAdvisoryCodes);
         }
 
         // Third-party destinations: leave alone. Their `WriteResult::$runId`

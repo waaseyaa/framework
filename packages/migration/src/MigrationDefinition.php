@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Migration;
 
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisory;
 use Waaseyaa\Migration\Plugin\DestinationPluginInterface;
 use Waaseyaa\Migration\Plugin\ProcessPluginInterface;
 use Waaseyaa\Migration\Plugin\SourcePluginInterface;
@@ -34,6 +35,9 @@ use Waaseyaa\Migration\Security\MigrationFieldReadManifest;
  */
 final readonly class MigrationDefinition
 {
+    /** @var list<string> */
+    public array $acknowledgedSaveAdvisoryCodes;
+
     /** Pattern every migration id must match (snake_case, starts with a letter). */
     public const string ID_PATTERN = '/^[a-z][a-z0-9_]*$/';
 
@@ -57,6 +61,7 @@ final readonly class MigrationDefinition
      * @param float $errorRateWarn Fraction of records that may fail before a warning is logged (range `[0.0, 1.0]`).
      * @param float $errorRateHalt Fraction of records that may fail before the runner halts (range `[0.0, 1.0]`). Must be `>=` {@see $errorRateWarn}.
      * @param ?string $bundle Optional destination bundle id (e.g. `article`) for this migration. Threaded verbatim by {@see \Waaseyaa\Migration\Runner\MigrationRunner} into `DestinationRecord::$bundle` for every record; `null` opts out (destination-resolved or bundle-less destinations).
+     * @param array<int|string, mixed> $acknowledgedSaveAdvisoryCodes Explicit operator-approved advisory codes for canonical entity writes.
      *
      * @throws \InvalidArgumentException On any per-instance validation failure (empty id, malformed id, empty process map, malformed process values, self-referential or duplicate dependency, out-of-range error rates, negative memory budget, empty-string bundle).
      */
@@ -72,6 +77,7 @@ final readonly class MigrationDefinition
         public float $errorRateHalt = self::DEFAULT_ERROR_RATE_HALT,
         public ?string $bundle = null,
         public ?MigrationFieldReadManifest $fieldReads = null,
+        array $acknowledgedSaveAdvisoryCodes = [],
     ) {
         $this->validateId($id);
         $this->validateProcessMap($process);
@@ -79,9 +85,44 @@ final readonly class MigrationDefinition
         $this->validateMemoryBudget($memoryBudgetBytes);
         $this->validateErrorRates($errorRateWarn, $errorRateHalt);
         $this->validateBundle($bundle);
+        $this->acknowledgedSaveAdvisoryCodes = $this->validateAcknowledgedSaveAdvisoryCodes($acknowledgedSaveAdvisoryCodes);
         if ($fieldReads !== null && $fieldReads->migrationId !== $id) {
             throw new \InvalidArgumentException('Migration field-read manifest id must match the migration definition id.');
         }
+    }
+
+    /** @param array<int|string, mixed> $codes @return list<string> */
+    private function validateAcknowledgedSaveAdvisoryCodes(array $codes): array
+    {
+        if (!array_is_list($codes) || count($codes) > 32) {
+            throw new \InvalidArgumentException(
+                'MigrationDefinition::$acknowledgedSaveAdvisoryCodes must be a list of at most 32 codes.',
+            );
+        }
+        $seen = [];
+        foreach ($codes as $code) {
+            if (!is_string($code)) {
+                throw new \InvalidArgumentException(
+                    'MigrationDefinition::$acknowledgedSaveAdvisoryCodes must contain only strings.',
+                );
+            }
+            try {
+                SaveAdvisory::assertCode($code);
+            } catch (\InvalidArgumentException $exception) {
+                throw new \InvalidArgumentException(
+                    'MigrationDefinition::$acknowledgedSaveAdvisoryCodes contains an invalid code.',
+                    previous: $exception,
+                );
+            }
+            if (isset($seen[$code])) {
+                throw new \InvalidArgumentException(
+                    'MigrationDefinition::$acknowledgedSaveAdvisoryCodes must not contain duplicates.',
+                );
+            }
+            $seen[$code] = true;
+        }
+
+        return $codes;
     }
 
     /**

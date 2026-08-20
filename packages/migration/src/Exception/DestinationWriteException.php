@@ -151,6 +151,27 @@ final class DestinationWriteException extends \RuntimeException
         );
     }
 
+    /** @param non-empty-list<string> $codes */
+    public static function saveAdvisoryNotDeclared(
+        string $entityTypeId,
+        array $codes,
+        \Throwable $previous,
+        ?SourceId $sourceId = null,
+    ): self {
+        sort($codes, \SORT_STRING);
+
+        return new self(
+            message: \sprintf(
+                'EntityDestination refused advisory code(s) not declared by migration policy: %s.',
+                implode(', ', $codes),
+            ),
+            reason: 'save_advisory_not_declared',
+            sourceId: $sourceId,
+            destinationEntityType: $entityTypeId,
+            previous: $previous,
+        );
+    }
+
     /**
      * Convenience factory: rollback (FR-041) — gate denied `delete` on the
      * destination entity. Mirrors {@see entityUpdateDenied()}.
