@@ -264,6 +264,9 @@ final class AnthropicProvider implements StreamingProviderInterface
         string|SecretHandle $apiKey,
         private readonly string $model = 'claude-sonnet-4-6',
         ?\Closure $authenticatedTransport = null,
+        ?ProviderTimeouts $timeouts = null,        // sendMessage bounds
+        ?ProviderTimeouts $streamTimeouts = null,  // streamMessage bounds
+        string $baseUrl = 'https://api.anthropic.com',
     );
 
     public function sendMessage(MessageRequest $request): MessageResponse;
@@ -275,6 +278,38 @@ final class AnthropicProvider implements StreamingProviderInterface
 ```
 
 Uses cURL for HTTP. `CURLOPT_WRITEFUNCTION` callbacks must not throw — `json_decode` is wrapped in try-catch inside callbacks. Error handling parses error bodies and handles HTTP 429 with `RateLimitException`.
+
+`$baseUrl` is the Messages API origin (`/v1/messages` is appended). It exists for Anthropic-compatible gateways and for transport tests; the constructor rejects any scheme other than http/https.
+
+#### Transport time bounds
+
+**File:** `packages/ai-agent/src/Provider/ProviderTimeouts.php`
+
+```php
+final readonly class ProviderTimeouts
+{
+    public function __construct(
+        public float $connectSeconds = 5.0,
+        public float $totalSeconds = 120.0,
+        public int $lowSpeedBytesPerSecond = 0,  // 0 disables the abort
+        public int $lowSpeedSeconds = 0,         // 0 disables the abort
+    );
+
+    public static function forRequest(): self;    // 5s connect, 120s total, no low-speed abort
+    public static function forStreaming(): self;  // 5s connect, 300s total, abort under 1 B/s for 30s
+    public function curlOptions(): array;         // CURLOPT_CONNECTTIMEOUT_MS / _TIMEOUT_MS / _LOW_SPEED_*
+}
+```
+
+A total timeout alone cannot bound a stalled peer cheaply (#2156), so each profile carries three independent bounds:
+
+- **connect** caps the connection phase (DNS, TCP, TLS handshake) by itself, so a peer that accepts and never negotiates fails there instead of spending the whole request budget;
+- **total** caps the exchange end to end;
+- **low-speed** tears the transfer down once it stops delivering bytes. For streaming this is the bound that matters: a caller's own deadline runs inside the chunk callback, and a stalled stream delivers no chunk to run it.
+
+The low-speed pair is off unless both halves are set, and only the streaming profile enables it by default — a non-streaming call is legitimately silent while the model generates. `ProviderTimeouts` rejects a non-positive bound, a connect bound larger than the total, and a half-configured low-speed abort. libcurl averages transfer speed over a rolling window, so a low-speed teardown trails its configured window by a few seconds; treat the window as a floor, not an exact deadline.
+
+A timeout surfaces as `TransportException`, which `AgentExecutor` already treats as retryable, and which the credential-custody boundary re-mints as `Provider transport unavailable.` — the endpoint and the cURL detail never reach the caller. `packages/ai-agent/tests/Unit/Provider/AnthropicProviderTransportTest.php` pins all of this against a local peer that stalls (`tests/Support/StallingTransportServer.php`): a TLS handshake that never completes, and an SSE stream that goes silent after one delta.
 
 The API key is held as a `SecretHandle` (a plain string is wrapped into a legacy static handle). Every request resolves it inside the registered `AnthropicCredentialOperation` consumer (purpose `waaseyaa.ai.anthropic.v1`), which builds the `x-api-key`/`anthropic-version` headers so credential bytes never return to provider code. Failures cross the custody boundary only as `ProviderCredentialOutcome`'s closed taxonomy — `RateLimitException` (retry-after seconds preserved), `TransportException`, `ClientErrorException` — re-thrown with fixed non-secret messages; the original exception text and chain are discarded. `OpenAiCompatibleProvider` follows the same pattern via `OpenAiCompatibleCredentialOperation` (purpose `waaseyaa.ai.openai-chat.v1`).
 
@@ -917,6 +952,7 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-agent/src/Provider/StreamChunk.php` | `StreamChunk` | Streaming chunk (type, text, toolUse) |
 | `packages/ai-agent/src/Provider/ToolUseBlock.php` | `ToolUseBlock` | Tool call from LLM (id, name, input) |
 | `packages/ai-agent/src/Provider/ToolResultBlock.php` | `ToolResultBlock` | Tool result back to LLM |
+| `packages/ai-agent/src/Provider/ProviderTimeouts.php` | `ProviderTimeouts` | Connect / total / low-speed bounds for one HTTP exchange |
 | `packages/ai-agent/src/Provider/RateLimitException.php` | `RateLimitException` | HTTP 429 with retryAfterSeconds |
 | `packages/ai-agent/src/Provider/MaxIterationsException.php` | `MaxIterationsException` | Tool loop safety limit exceeded |
 | `packages/ai-pipeline/src/Pipeline.php` | `Pipeline` | Config entity for processing pipelines |
@@ -993,3 +1029,4 @@ and authority fingerprints entirely inside the installed application.
   `docs/specs/agent-executor.md` "Identity & permissions" for the full gate
   inventory.
 - **`AnthropicProvider` cURL streaming**: `CURLOPT_WRITEFUNCTION` callbacks must not throw — wrap `json_decode(..., JSON_THROW_ON_ERROR)` in try-catch inside callbacks. Error handling in `httpPostStreaming` must match `httpPost` (parse error body, handle 429 with `RateLimitException`).
+- **A streaming caller's own deadline cannot bound a stalled stream**: it runs inside the chunk callback, and a stalled stream delivers no chunk. Bound the transport instead (`ProviderTimeouts`, `streamTimeouts:`) — never rely on a wall-clock check inside `$onChunk` to release the worker.

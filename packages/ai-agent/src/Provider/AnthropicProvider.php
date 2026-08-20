@@ -14,7 +14,8 @@ use Waaseyaa\Foundation\Security\SecretHandle;
  */
 final class AnthropicProvider implements StreamingProviderInterface
 {
-    private const string API_URL = 'https://api.anthropic.com/v1/messages';
+    private const string DEFAULT_BASE_URL = 'https://api.anthropic.com';
+    private const string MESSAGES_PATH = '/v1/messages';
     private const string DEFAULT_MODEL = 'claude-sonnet-4-6';
 
     private readonly SecretHandle $credential;
@@ -22,11 +23,25 @@ final class AnthropicProvider implements StreamingProviderInterface
     /** @var (\Closure(string, array<string, string>, array<string, mixed>): array<string, mixed>)|null */
     private readonly ?\Closure $authenticatedTransport;
 
+    private readonly ProviderTimeouts $timeouts;
+
+    private readonly ProviderTimeouts $streamTimeouts;
+
+    private readonly string $messagesUrl;
+
+    /**
+     * @param ProviderTimeouts|null $timeouts bounds for `sendMessage()`
+     * @param ProviderTimeouts|null $streamTimeouts bounds for `streamMessage()`
+     * @param string $baseUrl origin of the Messages API (an Anthropic-compatible gateway, or a test peer)
+     */
     public function __construct(
         #[\SensitiveParameter]
         string|SecretHandle $apiKey,
         private readonly string $model = self::DEFAULT_MODEL,
         ?\Closure $authenticatedTransport = null,
+        ?ProviderTimeouts $timeouts = null,
+        ?ProviderTimeouts $streamTimeouts = null,
+        string $baseUrl = self::DEFAULT_BASE_URL,
     ) {
         $this->credential = $apiKey instanceof SecretHandle
             ? $apiKey
@@ -38,12 +53,15 @@ final class AnthropicProvider implements StreamingProviderInterface
                 [AnthropicCredentialOperation::class],
             );
         $this->authenticatedTransport = $authenticatedTransport;
+        $this->timeouts = $timeouts ?? ProviderTimeouts::forRequest();
+        $this->streamTimeouts = $streamTimeouts ?? ProviderTimeouts::forStreaming();
+        $this->messagesUrl = self::messagesUrl($baseUrl);
     }
 
     public function sendMessage(MessageRequest $request): MessageResponse
     {
         $body = $this->buildRequestBody($request);
-        $responseData = $this->httpPost(self::API_URL, $body);
+        $responseData = $this->httpPost($this->messagesUrl, $body);
 
         return $this->parseResponse($responseData);
     }
@@ -53,7 +71,7 @@ final class AnthropicProvider implements StreamingProviderInterface
         $body = $this->buildRequestBody($request);
         $body['stream'] = true;
 
-        return $this->httpPostStreaming(self::API_URL, $body, $onChunk);
+        return $this->httpPostStreaming($this->messagesUrl, $body, $onChunk);
     }
 
     /**
@@ -224,20 +242,16 @@ final class AnthropicProvider implements StreamingProviderInterface
             \CURLOPT_POSTFIELDS => $jsonBody,
             \CURLOPT_RETURNTRANSFER => true,
             \CURLOPT_HTTPHEADER => self::headerLines($headers),
-            \CURLOPT_TIMEOUT => 120,
-        ]);
+        ] + $this->timeouts->curlOptions());
 
         $responseBody = \curl_exec($ch);
         $httpCode = \curl_getinfo($ch, \CURLINFO_HTTP_CODE);
 
         if ($responseBody === false) {
-            $error = \curl_error($ch);
-            \curl_close($ch);
-            throw new TransportException("cURL error: {$error}");
+            throw new TransportException('cURL error: ' . \curl_error($ch));
         }
 
         if (!\is_string($responseBody)) {
-            \curl_close($ch);
             throw new TransportException('Unexpected cURL response type.');
         }
 
@@ -326,7 +340,6 @@ final class AnthropicProvider implements StreamingProviderInterface
             \CURLOPT_POSTFIELDS => $jsonBody,
             \CURLOPT_RETURNTRANSFER => false,
             \CURLOPT_HTTPHEADER => self::headerLines($headers),
-            \CURLOPT_TIMEOUT => 300,
             \CURLOPT_WRITEFUNCTION => function ($ch, string $data) use (&$buffer, &$allLines, &$fullText, $onChunk): int {
                 $buffer .= $data;
 
@@ -354,7 +367,7 @@ final class AnthropicProvider implements StreamingProviderInterface
 
                 return \strlen($data);
             },
-        ]);
+        ] + $this->streamTimeouts->curlOptions());
 
         $execResult = \curl_exec($ch);
         $errno = \curl_errno($ch);
@@ -427,6 +440,18 @@ final class AnthropicProvider implements StreamingProviderInterface
             content: $content,
             stopReason: $parsed['stop_reason'],
         );
+    }
+
+    private static function messagesUrl(string $baseUrl): string
+    {
+        $scheme = \strtolower((string) \parse_url($baseUrl, \PHP_URL_SCHEME));
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            throw new \InvalidArgumentException(
+                "Anthropic base URL must be http(s), got scheme \"{$scheme}\".",
+            );
+        }
+
+        return \rtrim($baseUrl, '/') . self::MESSAGES_PATH;
     }
 
     /**
