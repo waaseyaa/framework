@@ -339,14 +339,12 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
 
                 $result = ($this->controller)(...$args);
 
-                // Honour the same `statusCode`/`body` contract ControllerDispatcher
-                // applies in production (ControllerDispatcher::handleCallable()).
-                // Without this the handler flattens an admin-surface refusal into a
-                // 200 carrying a `statusCode` key, which is the #2161 defect itself.
-                return new \Symfony\Component\HttpFoundation\JsonResponse(
-                    $result['body'] ?? $result,
-                    $result['statusCode'] ?? 200,
-                );
+                return $result instanceof Response
+                    ? $result
+                    : new \Symfony\Component\HttpFoundation\JsonResponse(
+                        $result['body'] ?? $result,
+                        $result['statusCode'] ?? 200,
+                    );
             }
         });
 

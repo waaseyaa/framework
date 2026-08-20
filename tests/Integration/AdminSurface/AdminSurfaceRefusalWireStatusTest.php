@@ -144,6 +144,11 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
         );
         self::assertFalse($this->decode($response)['ok']);
         self::assertSame(401, $this->decode($response)['error']['status']);
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
+        $this->assertBodyIs(
+            $this->callHostDirectly($this->host(session: null), $routeName, $routeParams, $method),
+            $response,
+        );
     }
 
     /**
@@ -157,7 +162,7 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
         $response = $this->dispatch($this->host(session: null), 'admin_surface.session');
 
         self::assertSame(401, $response->getStatusCode());
-        self::assertSame('application/vnd.api+json', $response->headers->get('Content-Type'));
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
     }
 
     #[Test]
@@ -190,6 +195,7 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
 
         self::assertSame(200, $response->getStatusCode(), $routeName . ' must not disturb success responses');
         self::assertTrue($this->decode($response)['ok']);
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
     }
 
     #[Test]
@@ -242,6 +248,7 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
         );
 
         self::assertSame(200, $response->getStatusCode(), 'An unpromotable status must not change the status line');
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
         $this->assertBodyIs($envelope, $response, 'An unpromotable envelope must pass through untouched');
     }
 
@@ -302,14 +309,15 @@ final class AdminSurfaceRefusalWireStatusTest extends TestCase
      * normalises away real distinctions (an empty JSON object round-trips to an
      * empty PHP array under associative decoding, `403.0` to `403`), and those
      * are exactly the differences a serialisation regression would hide. The
-     * flags mirror `JsonApiResponseTrait::jsonApiResponse()`.
+     * bytes mirror the compact `JsonResponse` emitted at the Admin Surface
+     * route boundary, not Foundation's JSON:API formatter.
      *
      * @param array<string, mixed> $expected
      */
     private function assertBodyIs(array $expected, Response $response, string $message = ''): void
     {
         self::assertSame(
-            json_encode($expected, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+            new \Symfony\Component\HttpFoundation\JsonResponse($expected)->getContent(),
             $response->getContent(),
             $message,
         );

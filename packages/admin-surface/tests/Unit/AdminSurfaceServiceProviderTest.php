@@ -266,7 +266,11 @@ final class AdminSurfaceServiceProviderTest extends TestCase
             ['administer content', 'administer nodes'],
             'operator',
         ));
-        $result = $controller($request, 'node', 'schema');
+        $request->attributes->set('_controller', $controller);
+        $request->attributes->set('type', 'node');
+        $request->attributes->set('action', 'schema');
+        $response = new ControllerDispatcher([])->dispatch($request);
+        $result = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
 
         self::assertTrue($result['ok'], json_encode($result));
         self::assertArrayHasKey('title', $result['data']['properties']);
@@ -637,6 +641,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $response = $this->dispatchRoute($host, 'admin_surface.action', ['type' => 'article', 'action' => 'create'], 'POST');
 
         self::assertSame(403, $response->getStatusCode());
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
 
         $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertFalse($body['ok']);
@@ -651,6 +656,11 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $response = $this->dispatchRoute($this->createTestHost(null), 'admin_surface.session');
 
         self::assertSame(401, $response->getStatusCode());
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
+        self::assertSame(
+            '{"ok":false,"error":{"status":401,"title":"Unauthorized"}}',
+            $response->getContent(),
+        );
     }
 
     #[Test]
@@ -659,6 +669,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $response = $this->dispatchRoute($this->host, 'admin_surface.action', ['type' => 'article', 'action' => 'create'], 'POST');
 
         self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
         self::assertTrue(json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR)['ok']);
     }
 
@@ -677,6 +688,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $response = $this->dispatchRoute($host, 'admin_surface.action', ['type' => 'article', 'action' => 'create'], 'POST');
 
         self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
         self::assertSame(
             $envelope,
             json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
