@@ -83,4 +83,21 @@ describe('EntityRevisionRecovery', () => {
     await flushPromises()
     expect(wrapper.find('.comparison-actions .btn-primary').exists()).toBe(false)
   })
+
+  it('rejects a preview grant that is not bound to an allowed URL', async () => {
+    runActionMock.mockImplementation(async (_type: string, action: string) => {
+      if (action === 'history') return history
+      if (action === 'revision') return { revisionId: 1, entity: { type: 'node', id: '7', attributes: { title: 'Original' } } }
+      if (action === 'revision-preview') return { revisionId: 1, previewUrl: '//attacker.example/preview' }
+      return {}
+    })
+    const wrapper = await mountRecovery()
+    await wrapper.findAll('.timeline-entry button')[1]!.trigger('click')
+    await flushPromises()
+    await wrapper.get('.comparison-actions .btn').trigger('click')
+    await flushPromises()
+
+    expect(runActionMock).toHaveBeenCalledWith('node', 'revision-preview', { id: '7', revision_id: 1 })
+    expect(wrapper.text()).toContain('preview_invalid_response')
+  })
 })

@@ -349,6 +349,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
             }
         }
         self::assertSame([
+            'packages/admin-surface/src/Host/GenericAdminSurfaceHost.php',
             'packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php',
             'packages/entity/src/Write/EntityWritePayloadGuard.php',
         ], $callers);
