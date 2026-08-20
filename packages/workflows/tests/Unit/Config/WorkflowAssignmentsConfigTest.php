@@ -14,6 +14,9 @@ use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncSerializer;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
 use Waaseyaa\Workflows\WorkflowServiceProvider;
 
@@ -123,6 +126,47 @@ final class WorkflowAssignmentsConfigTest extends TestCase
 
         self::assertFalse($result->isValid());
         self::assertStringContainsString('schema or package identity does not match', $result->diagnostics[0]->message);
+    }
+
+    #[Test]
+    public function semantic_assignment_validation_rejects_a_non_revisionable_binding(): void
+    {
+        $manager = new EntityTypeManager(new SymfonyEventDispatcherAdapter());
+        $manager->registerEntityType(new EntityType(
+            id: 'note',
+            label: 'Note',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+            revisionable: false,
+        ));
+        $registry = new ConfigSchemaRegistry();
+        $registration = WorkflowAssignmentsConfig::register($registry, $manager);
+        $registry->freeze();
+        $file = $this->file($registration, ['note.note' => 'editorial']);
+        file_put_contents($this->directory.'/'.$file->filename(), new ConfigSyncSerializer()->toYaml($file));
+
+        $result = new ConfigSyncBundleValidator($registry)->validate($this->directory);
+
+        self::assertFalse($result->isValid());
+        self::assertStringContainsString('not revisionable', $result->diagnostics[0]->message);
+    }
+
+    #[Test]
+    public function semantic_assignment_validation_rejects_noncanonical_key_and_workflow_id(): void
+    {
+        $registry = new ConfigSchemaRegistry();
+        $registration = WorkflowAssignmentsConfig::register(
+            $registry,
+            new EntityTypeManager(new SymfonyEventDispatcherAdapter()),
+        );
+        $registry->freeze();
+        $file = $this->file($registration, ['node' => 'Editorial Workflow']);
+        file_put_contents($this->directory.'/'.$file->filename(), new ConfigSyncSerializer()->toYaml($file));
+
+        $result = new ConfigSyncBundleValidator($registry)->validate($this->directory);
+
+        self::assertFalse($result->isValid());
+        self::assertStringContainsString('canonical', $result->diagnostics[0]->message);
     }
 
     /** @param array<string, mixed> $fields */

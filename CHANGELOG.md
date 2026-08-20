@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — consumer workflow bindings can enter CFG-02 active authority
+  (#2458):** `waaseyaa/workflows` now declares its CFG-03 package contract and
+  registers a closed `workflows.assignments@1` schema on the shared authority
+  registry. A frozen package-owned semantic gate rejects noncanonical and
+  non-revisionable bindings before CFG-03 accepts their content identity. A
+  verified consumer bundle can therefore carry bundle-to-workflow assignments
+  instead of leaving a fresh install permanently on an unbound, content-free
+  genesis generation. Genesis remains empty and ordinary boot remains
+  zero-write; signing, trust custody, and activation stay explicit deployment
+  actions.
+
 - **Added — the Admin SPA page builder can now review and acknowledge a layout
   save advisory (#2475):** #2473/#2474 completed the HTTP contract, but the
   editor had no affordance for it, so an author editing the layout of a page
@@ -281,6 +292,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   records it logs are held and emitted once per synchronization — from the plan
   when nothing changed, from the replay when something did — rather than once
   per traversal.
+
 - **Fixed — an OpenAI-compatible endpoint that never finishes connecting is now
   bounded at 5s instead of 120s (#2445):** `OpenAiCompatibleProvider` set one
   fixed `CURLOPT_TIMEOUT` of 120s, with no connect bound and no way for a caller

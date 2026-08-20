@@ -23,9 +23,11 @@ The Sheguiandah alpha acceptance run demonstrates the result: the default
 1. `waaseyaa/workflows` owns schema ID `workflows.assignments`, version 1, under
    configuration-contract version 1.
 2. The v1 document is a closed object whose dynamic assignment keys have string
-   values. CFG-03's canonical encoder already rejects empty/non-ASCII map keys;
-   the workflow resolver and `WorkflowAssignmentsValidator` retain the
-   entity-type/revisionability and runtime workflow-existence defenses.
+   values. A package-owned semantic validator then enforces canonical binding
+   and workflow IDs plus the existing entity-type/revisionability constraints.
+   Semantic validation is registered and frozen with the schema registry and
+   runs before authored/effective content identity is accepted. The workflow
+   resolver retains the runtime workflow-existence defense.
 3. `WorkflowServiceProvider::boot()` registers the schema on the one shared
    `ConfigSchemaRegistry` before it performs dispatcher-dependent engine wiring.
    Registration is optional only when the host does not install the

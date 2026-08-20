@@ -8,6 +8,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
 use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
@@ -38,13 +42,28 @@ final class WorkflowServiceProviderTest extends TestCase
     public function boot_registers_the_assignment_schema_on_the_shared_authority_registry(): void
     {
         $registry = new ConfigSchemaRegistry();
+        $entityTypes = new EntityTypeManager(new SymfonyEventDispatcherAdapter());
+        $entityTypes->registerEntityType(new EntityType(
+            id: 'note',
+            label: 'Note',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+            revisionable: false,
+        ));
         $provider = new WorkflowServiceProvider();
-        $provider->setKernelServices(new class ($registry) implements KernelServicesInterface {
-            public function __construct(private readonly ConfigSchemaRegistry $registry) {}
+        $provider->setKernelServices(new class ($registry, $entityTypes) implements KernelServicesInterface {
+            public function __construct(
+                private readonly ConfigSchemaRegistry $registry,
+                private readonly EntityTypeManagerInterface $entityTypes,
+            ) {}
 
             public function get(string $abstract): ?object
             {
-                return $abstract === ConfigSchemaRegistry::class ? $this->registry : null;
+                return match ($abstract) {
+                    ConfigSchemaRegistry::class => $this->registry,
+                    EntityTypeManagerInterface::class => $this->entityTypes,
+                    default => null,
+                };
             }
         });
         $provider->register();
@@ -57,6 +76,14 @@ final class WorkflowServiceProviderTest extends TestCase
         );
         self::assertNotNull($registration);
         self::assertSame(WorkflowAssignmentsConfig::OWNER_PACKAGE, $registration->ownerPackage);
+        $registry->freeze();
+        $violations = $registry->semanticViolations(
+            WorkflowAssignmentsConfig::CONFIG_NAME,
+            WorkflowAssignmentsConfig::SCHEMA_VERSION,
+            ['note.note' => 'editorial'],
+        );
+        self::assertCount(1, $violations);
+        self::assertStringContainsString('not revisionable', $violations[0]->message);
     }
 
     #[Test]

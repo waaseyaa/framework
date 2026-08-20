@@ -63,6 +63,15 @@ when its parent exists or has an object default. Arrays never synthesize
 elements; extension schemas never invent keys. Explicit `null` remains
 distinct from absence. Schema context disambiguates empty lists and maps.
 
+A schema-owning package may additionally register one semantic validator for a
+schema identity when a constraint depends on installed runtime definitions and
+cannot be expressed by the closed dialect. The validator is registered and
+frozen with the same registry, runs only after structural validation, and must
+be deterministic and read-only. Its verdict is required before authored or
+effective content hashes are accepted. The package contract version and schema
+provider bind responsibility for that code; semantic validators do not add
+keywords or alter the canonical schema hash.
+
 ## Strict sync format
 
 Every file declares a closed `_meta` mapping containing:

@@ -148,6 +148,16 @@ generation (#2428). It can express no content, claims no CFG-03 verification, an
 is unaffected by any of the above. A freshly installed site is bootable but
 unconfigured until a verified import runs.
 
+Schema-owning feature packages participate in that import by declaring an
+`extra.waaseyaa.config-contract` and registering their schemas on the shared
+registry before freeze. Package-owned semantic validators may enforce
+deterministic, read-only constraints over installed definitions after structural
+schema validation and before content identity is accepted. In particular,
+`waaseyaa/workflows` owns `workflows.assignments@1` and rejects malformed or
+non-revisionable bindings through that semantic gate; consumer workflow
+bindings are never copied into genesis or read directly from the sync directory
+at runtime.
+
 ---
 
 ## 1. What ships

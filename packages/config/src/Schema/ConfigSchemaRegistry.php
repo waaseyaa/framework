@@ -11,6 +11,8 @@ final class ConfigSchemaRegistry
 
     /** @var array<string, ConfigSchemaRegistration> */
     private array $registrations = [];
+    /** @var array<string, ConfigSemanticValidatorInterface> */
+    private array $semanticValidators = [];
     private bool $frozen = false;
 
     public function __construct(
@@ -60,6 +62,52 @@ final class ConfigSchemaRegistry
     public function freeze(): void
     {
         $this->frozen = true;
+    }
+
+    public function registerSemanticValidator(
+        string $schemaId,
+        int $schemaVersion,
+        ConfigSemanticValidatorInterface $validator,
+    ): void {
+        if ($this->frozen) {
+            throw new \LogicException('Configuration schema registry is frozen; late semantic validation registration is refused.');
+        }
+        $key = $this->key($schemaId, $schemaVersion);
+        if (!isset($this->registrations[$key])) {
+            throw new \LogicException(sprintf(
+                'Semantic validation requires a registered schema for %s version %d.',
+                $schemaId,
+                $schemaVersion,
+            ));
+        }
+        $existing = $this->semanticValidators[$key] ?? null;
+        if ($existing !== null) {
+            if ($existing::class === $validator::class) {
+                return;
+            }
+
+            throw new \LogicException(sprintf(
+                'Conflicting semantic validation registration for %s version %d.',
+                $schemaId,
+                $schemaVersion,
+            ));
+        }
+        $this->semanticValidators[$key] = $validator;
+    }
+
+    /**
+     * @param array<string, mixed> $fields
+     * @return list<SchemaViolation>
+     */
+    public function semanticViolations(string $schemaId, int $schemaVersion, array $fields): array
+    {
+        if (!$this->frozen) {
+            throw new \LogicException('Semantic configuration validation requires the frozen schema registry.');
+        }
+
+        $validator = $this->semanticValidators[$this->key($schemaId, $schemaVersion)] ?? null;
+
+        return $validator instanceof ConfigSemanticValidatorInterface ? $validator->validate($fields) : [];
     }
 
     public function isFrozen(): bool
