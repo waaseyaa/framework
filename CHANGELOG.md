@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — concurrent boots no longer fail to acquire schema authority
+  (#2446, 1/2):** `MigrationRepository::acquireSchemaAuthority()` now claims the
+  SQLite writer position with its first statement, before any read. DBAL opens a
+  deferred transaction, and `CREATE TABLE IF NOT EXISTS` against an existing
+  table reads `sqlite_schema` without writing, so the manifest-column
+  `PRAGMA table_info` used to pin a read snapshot and the authority `INSERT`
+  became a read-to-write upgrade. SQLite refuses that upgrade immediately and
+  does not apply `busy_timeout` to it, so concurrent boots returned
+  `database is locked` in microseconds and the kernel refused to boot — measured
+  at 212 of 240 attempts across four workers, and ~18% of PHP-served `/admin/*`
+  requests in a consumer application. Steady state now takes the lock on the
+  first statement, where the configured busy timeout applies and a competing
+  claim waits instead of failing; first install still takes it via the `CREATE`.
+  Raising the busy timeout was rejected as a repair: a failed snapshot upgrade is
+  not waitable. Remaining for #2446: an unchanged `EntitySchemaSync::syncAll()`
+  still enters the coordinator and becomes a writer with nothing to write.
+
 - **Fixed — an OpenAI-compatible endpoint that never finishes connecting is now
   bounded at 5s instead of 120s (#2445):** `OpenAiCompatibleProvider` set one
   fixed `CURLOPT_TIMEOUT` of 120s, with no connect bound and no way for a caller
