@@ -72,7 +72,7 @@ $respond = static function ($connection) use ($mode, $sseHeaders, $firstEvents, 
 
         case 'json':
             @fwrite($connection, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-                . \strlen($jsonBody) . "\r\nConnection: close\r\n\r\n" . $jsonBody);
+                . strlen($jsonBody) . "\r\nConnection: close\r\n\r\n" . $jsonBody);
 
             return true;
 
@@ -81,14 +81,14 @@ $respond = static function ($connection) use ($mode, $sseHeaders, $firstEvents, 
     }
 };
 
-$deadline = \microtime(true) + $lifetime;
+$deadline = microtime(true) + $lifetime;
 
 /** @var list<array{handle: resource, request: string, answered: bool}> $connections */
 $connections = [];
 
-while (\microtime(true) < $deadline) {
+while (microtime(true) < $deadline) {
     $accepted = @stream_socket_accept($server, 0.05);
-    if (\is_resource($accepted)) {
+    if (is_resource($accepted)) {
         stream_set_blocking($accepted, false);
         $connections[] = ['handle' => $accepted, 'request' => '', 'answered' => false];
     }
@@ -99,16 +99,16 @@ while (\microtime(true) < $deadline) {
         }
 
         $chunk = @fread($connection['handle'], 65536);
-        if (\is_string($chunk) && $chunk !== '') {
+        if (is_string($chunk) && $chunk !== '') {
             $connections[$index]['request'] .= $chunk;
         } elseif (feof($connection['handle'])) {
-            // Readiness probe (or an abandoned client): drop it.
+            // An abandoned client: drop it rather than hold a dead handle.
             @fclose($connection['handle']);
             unset($connections[$index]);
             continue;
         }
 
-        if (!\str_contains($connections[$index]['request'], "\r\n\r\n")) {
+        if (!str_contains($connections[$index]['request'], "\r\n\r\n")) {
             continue;
         }
 
