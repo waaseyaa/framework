@@ -554,6 +554,33 @@ filter set. The generator does not declare a filter or widen query authority:
 the list metadata, query policy, and per-entity access checks still decide what
 the destination may show.
 
+**Field names are one closed grammar.** A declared list field and a generated
+filter key must both match `\A[A-Za-z_][A-Za-z0-9_.]*\z`. `ListMetadata` and
+`AdminDestinationPaths` read that pattern from the same `SurfaceFieldName`
+constant, so a name one accepts the other cannot refuse. Dotted and underscored
+names are canonical; brackets, whitespace, control characters, leading digits,
+slashes, and backslashes are not. A bracket in a field name would otherwise
+forge a differently shaped query key, and a space would address a field no
+declaration can name.
+
+**A serialized operator is compared, never executed.** `filteredList()` emits
+only canonical `SurfaceFilterOperator` values, and the list restores a control
+only when the URL carries both members of the pair *and* the URL operator is
+exactly the operator that field declares:
+
+| URL pair | Result |
+|---|---|
+| operator matches the declaration, value present | value restored |
+| operator absent, or value absent | ignored; control keeps its default |
+| operator disagrees with the declaration | ignored |
+| operator names no `SurfaceFilterOperator` case | ignored |
+| field is not declared by the metadata | never consulted |
+
+The executed query always uses the metadata-declared operator, so a hand-edited
+link can preselect a declared view but can never widen, narrow, or redefine the
+comparison the list performs. This applies identically to the search control and
+to ordinary filters.
+
 **Degradation is the contract, not a nicety.** A bundle-scoped link can go stale
 or be hand-edited, so both pages fall back to the unscoped view rather than
 erroring:

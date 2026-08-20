@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface;
 
 use InvalidArgumentException;
+use Waaseyaa\AdminSurface\Query\SurfaceFieldName;
+use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 
 /**
  * Canonical path patterns for the Admin SPA's own pages.
@@ -61,11 +63,18 @@ final class AdminDestinationPaths
      * existing list metadata, query policy, and entity access gates remain
      * authoritative when the destination is opened.
      *
-     * @param non-empty-string $entityType
+     * Field names must satisfy the canonical {@see SurfaceFieldName} grammar
+     * that `ListMetadata` enforces, so a generated key cannot carry a bracket,
+     * a space, or a control character into the query shape. Operators must name
+     * a {@see SurfaceFilterOperator} case and are emitted in canonical form,
+     * because the list restores a control only when the serialized operator
+     * matches the one its metadata declares.
+     *
      * Runtime validation deliberately accepts an untrusted array boundary and
      * narrows it to `field => {operator, value}` before constructing a query.
      *
-     * @param array<mixed, mixed> $filters
+     * @param non-empty-string      $entityType
+     * @param array<mixed, mixed>   $filters
      */
     public static function filteredList(string $entityType, array $filters): string
     {
@@ -76,8 +85,12 @@ final class AdminDestinationPaths
         /** @var array<string, array{operator: string, value: string}> $normalized */
         $normalized = [];
         foreach ($filters as $field => $filter) {
-            if (!is_string($field) || $field === '') {
-                throw new InvalidArgumentException('AdminDestinationPaths: filter field must be a non-empty string.');
+            if (!SurfaceFieldName::isValid($field)) {
+                throw new InvalidArgumentException(sprintf(
+                    'AdminDestinationPaths: filter field must match %s; got "%s".',
+                    SurfaceFieldName::PATTERN,
+                    is_string($field) ? $field : get_debug_type($field),
+                ));
             }
             if (!is_array($filter)
                 || array_diff(array_keys($filter), ['operator', 'value']) !== []
@@ -92,7 +105,15 @@ final class AdminDestinationPaths
                     $field,
                 ));
             }
-            $normalized[$field] = $filter;
+            $operator = SurfaceFilterOperator::fromString($filter['operator']);
+            if ($operator === null) {
+                throw new InvalidArgumentException(sprintf(
+                    'AdminDestinationPaths: filter "%s" names no canonical operator: "%s".',
+                    $field,
+                    $filter['operator'],
+                ));
+            }
+            $normalized[$field] = ['operator' => $operator->value, 'value' => $filter['value']];
         }
         ksort($normalized, SORT_STRING);
 

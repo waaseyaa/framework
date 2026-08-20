@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generation adds no filter, entity, field, or access authority; the existing
   list metadata and server gates remain authoritative.
 
+  Field names are one closed grammar rather than two. `ListMetadata` and
+  `AdminDestinationPaths` now read `\A[A-Za-z_][A-Za-z0-9_.]*\z` from a shared
+  `SurfaceFieldName` constant, so the generator cannot emit a name a declared
+  list would refuse. Dotted and underscored names are preserved; brackets —
+  which forged a differently shaped query key — along with whitespace, control
+  characters, leading digits, slashes, and backslashes are refused.
+
+  A serialized operator is now compared rather than ignored. `filteredList()`
+  emits only canonical `SurfaceFilterOperator` values, and the list restores a
+  search or filter control only when the URL carries both members of the pair
+  and its operator exactly matches the one that field declares. A missing,
+  unknown, mismatched, or undeclared pair restores nothing and leaves the
+  control at its default. The executed query still uses the metadata-declared
+  operator in every case, so a hand-edited link can preselect a declared view
+  but never redefines the comparison the list performs.
+
 - **Fixed — concurrent and unchanged boots no longer contend for schema authority
   (#2446):** `MigrationRepository::acquireSchemaAuthority()` now claims the
   SQLite writer position with its first statement, before any read. DBAL opens a
