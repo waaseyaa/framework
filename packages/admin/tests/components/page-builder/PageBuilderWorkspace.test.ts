@@ -263,6 +263,19 @@ describe('PageBuilderWorkspace', () => {
     expect(wrapper.emitted('failure')?.[0]).toEqual([{ kind: 'server', status: 503 }])
   })
 
+  it('allows governed preview widths to shrink the iframe below its content minimum', async () => {
+    const wrapper = await mountWorkspace()
+    const preview = wrapper.get('[data-page-builder-preview]')
+    const viewportButtons = wrapper.findAll('.page-builder__viewport button')
+
+    expect(preview.element.style.width).toBe('100%')
+    await viewportButtons[2]!.trigger('click')
+
+    expect(viewportButtons[2]!.attributes('aria-pressed')).toBe('true')
+    expect(preview.element.style.width).toBe('390px')
+    expect(preview.element.style.minWidth).toBe('0px')
+  })
+
   it('preserves a conflicting change and requires an explicit compare then reapply choice', async () => {
     conflictRef.value = { detail: 'The page changed.', latestLoaded: false }
     const wrapper = await mountWorkspace()
