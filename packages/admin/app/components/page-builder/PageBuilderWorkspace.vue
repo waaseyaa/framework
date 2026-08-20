@@ -729,7 +729,7 @@ onBeforeUnmount(() => {
             v-if="previewUrl"
             data-page-builder-preview
             class="page-builder__preview-frame"
-            :style="{ width: previewWidth }"
+            :style="{ width: previewWidth, minWidth: '0px' }"
             :src="previewUrl"
             :title="t('page_builder_preview')"
           />

@@ -1562,6 +1562,11 @@ Admin surface for the MCP endpoint. Four pages under `/mcp/`, accessible via the
 
 The Admin SPA exposes registered page-builder surfaces at `/page-builder/{surface}/{id}`. The workspace combines Drupal-style governed structure with a direct visual editing interaction: the left library contains only backend-registered block definitions, the centre iframe renders a signed preview of the exact persisted revision, and the right inspector edits only schema-declared configuration. The outline remains a keyboard-accessible selection path when preview selection is unavailable.
 
+Desktop, Tablet, and Mobile change the iframe's real responsive viewport, not
+only the control's selected state or an ignored width declaration. The iframe
+therefore has no content-derived flex minimum: Tablet is bounded to 768px,
+Mobile to 390px, and both remain bounded by the available canvas width.
+
 Library insertion follows the editor's current context: when a block is
 selected in the exact preview or outline, a newly chosen block is inserted
 immediately after it in the same section and region. Without a selection the
