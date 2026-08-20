@@ -55,13 +55,40 @@ final class EntitySchemaSync
      */
     public function syncAll(iterable $entityTypes): void
     {
-        new CoordinatedEntitySchemaExecutor($this->database)->execute(
-            fn() => $this->doSyncAll($entityTypes),
-        );
+        $definitions = [];
+        foreach ($entityTypes as $entityType) {
+            $definitions[] = $entityType;
+        }
+
+        $executor = new CoordinatedEntitySchemaExecutor($this->database);
+
+        // The plan repeats every decision the apply traversal makes before the
+        // first refused write, so letting both passes log would report the same
+        // condition twice for one synchronization. Buffer the plan's records and
+        // emit them only when no apply traversal follows — including when the
+        // plan itself fails, where they are the sole diagnostics. (#2452)
+        $planningLog = new BufferedPlanLogger();
+        try {
+            $requiresMutation = $executor->requiresMutation(
+                fn() => $this->doSyncAll($definitions, $planningLog),
+            );
+        } catch (\Throwable $planningFailure) {
+            $planningLog->replayTo($this->logger);
+
+            throw $planningFailure;
+        }
+
+        if (!$requiresMutation) {
+            $planningLog->replayTo($this->logger);
+
+            return;
+        }
+
+        $executor->execute(fn() => $this->doSyncAll($definitions, $this->logger));
     }
 
     /** @param iterable<EntityTypeInterface> $entityTypes */
-    private function doSyncAll(iterable $entityTypes): void
+    private function doSyncAll(iterable $entityTypes, ?LoggerInterface $logger): void
     {
         $handlers = [];
         foreach ($entityTypes as $entityType) {
@@ -90,7 +117,7 @@ final class EntitySchemaSync
                 database: $this->database,
                 fieldRegistry: $this->fieldRegistry,
                 bundleEnumerator: $this->bundleEnumerator,
-                logger: $this->logger,
+                logger: $logger,
                 primaryBackendId: $backend,
                 entityLevelFields: $entityLevelFields,
             );
@@ -116,7 +143,7 @@ final class EntitySchemaSync
                     // alpha.199 peer-first read fallback). Drop the stale empty
                     // sibling so existing installs self-heal on db:init and the read
                     // fallback stops being load-bearing. (b2)
-                    $this->dropStaleBlobTranslationSibling($handler->getTranslationTableName());
+                    $this->dropStaleBlobTranslationSibling($handler->getTranslationTableName(), $logger);
                 }
             }
 
@@ -146,7 +173,7 @@ final class EntitySchemaSync
      * (logged) rather than risking data loss. Idempotent; self-heals on db:init.
      * (b2)
      */
-    private function dropStaleBlobTranslationSibling(string $siblingTable): void
+    private function dropStaleBlobTranslationSibling(string $siblingTable, ?LoggerInterface $logger): void
     {
         $schema = $this->database->schema();
         if (!$schema->tableExists($siblingTable)) {
@@ -157,7 +184,7 @@ final class EntitySchemaSync
             $this->database->select($siblingTable, 't')->fields('t')->range(0, 1)->execute(),
         );
         if ($probe !== []) {
-            $this->logger?->warning(sprintf(
+            $logger?->warning(sprintf(
                 'EntitySchemaSync: stale translation sibling "%s" is non-empty; leaving it intact (sql-blob translations belong in the base table).',
                 $siblingTable,
             ));
@@ -166,7 +193,7 @@ final class EntitySchemaSync
         }
 
         $schema->dropTable($siblingTable);
-        $this->logger?->info(sprintf(
+        $logger?->info(sprintf(
             'EntitySchemaSync: dropped stale empty translation sibling "%s" (sql-blob two-axis; rows live in the base table). (b2)',
             $siblingTable,
         ));

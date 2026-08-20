@@ -3738,6 +3738,13 @@
             "occurrence": 3
         },
         {
+            "path": "packages/entity-storage/tests/Unit/CoordinatedEntitySchemaExecutorTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
+        },
+        {
             "path": "packages/entity-storage/tests/Unit/Driver/EntityStorageDriverV2ContractTest.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",
@@ -4114,6 +4121,13 @@
             "class": "test-only",
             "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
             "occurrence": 2
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/EntitySchemaSyncTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 3
         },
         {
             "path": "packages/entity-storage/tests/Unit/Schema/TranslationSchemaHandlerTwoAxisTest.php",
@@ -4946,6 +4960,27 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
             "occurrence": 2
         },
         {
