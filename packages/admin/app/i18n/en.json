@@ -479,5 +479,16 @@
   "history_latest": "Latest draft",
   "history_unattributed": "unattributed",
   "history_unknown_time": "Unknown time",
-  "history_view": "History"
+  "history_view": "History",
+  "history_compare": "Compare",
+  "history_comparing": "Comparing revision {revision}",
+  "history_comparison": "Revision field comparison",
+  "history_selected": "Selected revision",
+  "history_working_copy": "Working copy",
+  "history_preview": "Preview revision",
+  "history_restore": "Restore as new draft",
+  "history_restore_confirm": "Restore revision {revision} as a new draft? Later history and the published version will be preserved.",
+  "history_restored": "Revision {revision} was restored as a new draft.",
+  "preview_desktop": "Desktop",
+  "preview_mobile": "Mobile"
 }

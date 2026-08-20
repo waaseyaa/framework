@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added — generic entity revision recovery is package-owned (#2464):** the
+  Admin host can now read an exact saved revision through record and per-field
+  view access, optionally request an application-signed preview bound to that
+  revision, and restore old content only by copy-forward rollback with both an
+  observed latest-revision fence and the opaque aggregate mutation token.
+  Conflicts return 409, restore never publishes, rollback audit now identifies
+  the selected source revision, and one comparison/preview/restore component is
+  reused by the full history page and embedded entity editor.
+
 - **Fixed — `/robots.txt` now advertises an absolute sitemap URL (#2151):**
   `SeoPublicController::robotsTxt()` emitted `Sitemap: /sitemap.xml`. The
   sitemaps protocol requires an absolute URL, and crawlers ignore a relative

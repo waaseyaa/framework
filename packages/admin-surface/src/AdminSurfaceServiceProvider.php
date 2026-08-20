@@ -89,6 +89,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $workflowBindingResolver = $this->resolveOptional(WorkflowBindingResolver::class);
         $publicationFieldReader = $this->resolveOptional(AdminPublicationFieldReaderInterface::class);
         $internalFieldVisibility = $this->resolveOptional(InternalFieldVisibilityPolicy::class);
+        $revisionPreviewAuthority = $this->resolveOptional(\Waaseyaa\AdminSurface\Host\AdminRevisionPreviewAuthorityInterface::class);
 
         return new GenericAdminSurfaceHost(
             entityTypeManager: $entityTypeManager,
@@ -106,6 +107,9 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
                 : null,
             publicationFieldReader: $publicationFieldReader instanceof AdminPublicationFieldReaderInterface
                 ? $publicationFieldReader
+                : null,
+            revisionPreviewAuthority: $revisionPreviewAuthority instanceof \Waaseyaa\AdminSurface\Host\AdminRevisionPreviewAuthorityInterface
+                ? $revisionPreviewAuthority
                 : null,
             features: self::defaultFeatures(
                 mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),

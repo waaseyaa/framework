@@ -1613,6 +1613,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             toRevisionId: null,
             actorUid: $actor,
             revisionValues: $targetRow,
+            sourceRevisionId: $targetRevisionId,
         );
         $transaction = $this->database?->transaction();
         try {

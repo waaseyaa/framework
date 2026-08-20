@@ -145,14 +145,26 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
   }
 
   async runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown> {
-    return this.request(
+    const body = { ...(payload ?? {}) }
+    if (action === 'restore-revision') {
+      const id = typeof body.id === 'string' ? body.id : ''
+      const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+      if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before restoring a revision.')
+      body.mutation_token = mutationToken
+    }
+    const result = await this.request<Record<string, unknown>>(
       this.surfaceUrl('admin_surface.action', { type, action }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload ?? {}),
+        body: JSON.stringify(body),
       },
     )
+    const entity = result?.entity
+    if (action === 'restore-revision' && typeof entity === 'object' && entity !== null) {
+      this.normalizeEntity(entity as SurfaceEntity, type)
+    }
+    return result
   }
 
   private buildQueryParams(query?: ListQuery): URLSearchParams {

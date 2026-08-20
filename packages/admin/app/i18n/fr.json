@@ -279,5 +279,16 @@
   "history_latest": "Dernier brouillon",
   "history_unattributed": "non attribuée",
   "history_unknown_time": "Heure inconnue",
-  "history_view": "Historique"
+  "history_view": "Historique",
+  "history_compare": "Comparer",
+  "history_comparing": "Comparaison de la révision {revision}",
+  "history_comparison": "Comparaison des champs de révision",
+  "history_selected": "Révision sélectionnée",
+  "history_working_copy": "Copie de travail",
+  "history_preview": "Prévisualiser la révision",
+  "history_restore": "Restaurer comme nouveau brouillon",
+  "history_restore_confirm": "Restaurer la révision {revision} comme nouveau brouillon? L’historique ultérieur et la version publiée seront conservés.",
+  "history_restored": "La révision {revision} a été restaurée comme nouveau brouillon.",
+  "preview_desktop": "Ordinateur",
+  "preview_mobile": "Mobile"
 }

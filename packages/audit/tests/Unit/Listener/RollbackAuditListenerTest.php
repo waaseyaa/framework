@@ -68,6 +68,7 @@ final class RollbackAuditListenerTest extends TestCase
         ?int $fromRevisionId = 4,
         ?int $toRevisionId = null,
         ?int $actorUid = null,
+        ?int $sourceRevisionId = null,
     ): BeforeRevisionPointerMoveEvent {
         return new BeforeRevisionPointerMoveEvent(
             entityTypeId: $entityTypeId,
@@ -77,6 +78,7 @@ final class RollbackAuditListenerTest extends TestCase
             toRevisionId: $toRevisionId,
             actorUid: $actorUid,
             revisionValues: ['title' => 'Fixture'],
+            sourceRevisionId: $sourceRevisionId,
         );
     }
 
@@ -114,7 +116,7 @@ final class RollbackAuditListenerTest extends TestCase
         // rollback(): pre-event (operation 'rollback', new revision id not
         // yet knowable) → write commits → REVISION_REVERTED with the NEW
         // revision (5).
-        $listener->onBeforePointerMove($this->preMoveEvent('rollback', fromRevisionId: 4, actorUid: 7));
+        $listener->onBeforePointerMove($this->preMoveEvent('rollback', fromRevisionId: 4, actorUid: 7, sourceRevisionId: 2));
         $listener->onRevisionReverted(new EntityEvent($this->revision('node', '12', 5)));
 
         $this->assertCount(1, $recorded);
@@ -127,6 +129,7 @@ final class RollbackAuditListenerTest extends TestCase
             'entity_id'        => '12',
             'operation'        => 'rollback',
             'from_revision_id' => 4,
+            'source_revision_id' => 2,
             'to_revision_id'   => 5,
         ], $recorded[0]->attributes);
     }

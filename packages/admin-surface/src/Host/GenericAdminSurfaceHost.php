@@ -19,6 +19,7 @@ use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
@@ -27,6 +28,8 @@ use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\EntityValueComparator;
+use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Foundation\SlugGenerator;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
@@ -56,6 +59,12 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     /** Config rows with an explicitly reviewed generic edit/delete lifecycle. */
     private const array MUTABLE_CONFIG_ROW_TYPES = ['taxonomy_vocabulary'];
+
+    /** Revision bookkeeping, never editable record fields. */
+    private const array REVISION_METADATA_FIELDS = [
+        'revision_id', 'revision_created', 'revision_log', 'revision_author',
+        'is_default_revision', 'is_latest_revision', 'entity_id',
+    ];
 
     /**
      * Hard cap on the session capability allowlist. The projection exists so
@@ -107,6 +116,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         ?EntityClockInterface $clock = null,
         array $capabilityAllowlist = [],
         private readonly ?AdminPublicationFieldReaderInterface $publicationFieldReader = null,
+        private readonly ?AdminRevisionPreviewAuthorityInterface $revisionPreviewAuthority = null,
     ) {
         $this->clock = $clock ?? new UtcEntityClock();
         $this->internalFieldVisibility = $internalFieldVisibility ?? new InternalFieldVisibilityPolicy();
@@ -876,7 +886,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(404, 'Unknown entity type', "Type '{$type}' is not registered.");
         }
 
-        if (in_array($type, $this->readOnlyTypes, true) && in_array($action, ['create', 'update', 'delete'], true)) {
+        if (in_array($type, $this->readOnlyTypes, true) && in_array($action, ['create', 'update', 'delete', 'restore-revision'], true)) {
             return AdminSurfaceResultData::error(403, 'Read-only entity type', "Type '{$type}' does not allow write actions.");
         }
 
@@ -896,8 +906,228 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             'delete' => $this->handleDelete($type, $payload),
             'generate-slug' => $this->handleGenerateSlug($payload),
             'history' => $this->handleHistory($type, $payload),
+            'revision' => $this->handleRevision($type, $payload),
+            'revision-preview' => $this->handleRevisionPreview($type, $payload),
+            'restore-revision' => $this->handleRestoreRevision($type, $payload),
             default => AdminSurfaceResultData::error(400, 'Unknown action', "Action '{$action}' is not supported."),
         };
+    }
+
+    /**
+     * Read one saved revision through the same record and field access
+     * boundaries as the ordinary entity detail surface.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function handleRevision(string $type, array $payload): AdminSurfaceResultData
+    {
+        $resolved = $this->revisionSubject($type, $payload, 'view');
+        if ($resolved instanceof AdminSurfaceResultData) {
+            return $resolved;
+        }
+        [$entity, $revisionId] = $resolved;
+
+        try {
+            $revision = $this->entityTypeManager->getRepository($type)->loadRevision((string) $entity->id(), $revisionId);
+        } catch (\LogicException) {
+            return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
+        }
+        if ($revision === null) {
+            return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
+        }
+
+        $resource = $this->serializer()->serialize($revision, $this->accessHandler, $this->currentAccount);
+        $surfaceEntity = [
+            'type' => $resource->type,
+            'id' => $resource->id,
+            'attributes' => $resource->attributes,
+        ];
+
+        return AdminSurfaceResultData::success([
+            'entityType' => $type,
+            'entityId' => (string) $entity->id(),
+            'revisionId' => $revisionId,
+            'entity' => $surfaceEntity,
+        ]);
+    }
+
+    /**
+     * Copy a historical snapshot forward as a new draft. The explicit latest
+     * revision check gives the operator a useful conflict, while the opaque
+     * mutation token is the atomic storage claim that closes the race.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function handleRestoreRevision(string $type, array $payload): AdminSurfaceResultData
+    {
+        $resolved = $this->revisionSubject($type, $payload, 'update');
+        if ($resolved instanceof AdminSurfaceResultData) {
+            return $resolved;
+        }
+        [$entity, $sourceRevisionId] = $resolved;
+
+        $expectedLatest = $payload['expected_latest_revision_id'] ?? null;
+        if (!is_int($expectedLatest) || $expectedLatest < 1) {
+            return AdminSurfaceResultData::error(400, 'Invalid revision fence', 'A positive observed latest revision id is required.');
+        }
+        $expectation = $this->mutationExpectation($payload);
+        if ($expectation instanceof AdminSurfaceResultData) {
+            return $expectation;
+        }
+
+        $repository = $this->entityTypeManager->getRepository($type);
+        try {
+            $workingCopy = $repository->loadWorkingCopy((string) $entity->id());
+        } catch (\LogicException) {
+            return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
+        }
+        $latestRevisionId = $workingCopy instanceof EntityInterface ? self::revisionIdentity($workingCopy) : null;
+        if ($latestRevisionId !== $expectedLatest) {
+            return AdminSurfaceResultData::error(409, 'Revision conflict', 'The record changed after history was loaded. Reload and compare again.');
+        }
+
+        try {
+            $sourceRevision = $repository->loadRevision((string) $entity->id(), $sourceRevisionId);
+        } catch (\LogicException) {
+            return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
+        }
+        if ($sourceRevision === null) {
+            return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
+        }
+        $fieldDenied = $this->restoreFieldAccessRefusal($type, $workingCopy, $sourceRevision);
+        if ($fieldDenied !== null) {
+            return $fieldDenied;
+        }
+
+        try {
+            $restored = $repository->rollback((string) $entity->id(), $sourceRevisionId, $expectation);
+        } catch (EntityMutationConflictException) {
+            return AdminSurfaceResultData::error(409, 'Revision conflict', 'The record changed after history was loaded. Reload and compare again.');
+        } catch (\InvalidArgumentException) {
+            return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
+        } catch (\LogicException) {
+            return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
+        }
+
+        $resource = $this->serializer()->serialize($restored, $this->accessHandler, $this->currentAccount, includeMutationToken: true);
+
+        return AdminSurfaceResultData::success([
+            'entityType' => $type,
+            'entityId' => (string) $entity->id(),
+            'sourceRevisionId' => $sourceRevisionId,
+            'resultingRevisionId' => self::revisionIdentity($restored),
+            'entity' => $this->jsonApiResourceToSurfaceEntity($resource),
+        ]);
+    }
+
+    private function restoreFieldAccessRefusal(
+        string $type,
+        ?EntityInterface $current,
+        EntityInterface $target,
+    ): ?AdminSurfaceResultData {
+        if ($current === null || $this->accessHandler === null || $this->currentAccount === null) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to restore this entity.');
+        }
+
+        $definitions = $this->entityTypeManager->resolveFieldDefinitions($type, $target->bundle());
+        $fields = array_values(array_filter(
+            EntityValues::fieldNames($target),
+            fn(string $field): bool => !in_array($field, self::REVISION_METADATA_FIELDS, true)
+                && !in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)
+                && !$this->internalFieldVisibility->isInternal($type, $field, $definitions[$field] ?? null),
+        ));
+        $changed = $current instanceof EntityBase && $target instanceof EntityBase
+            ? new EntityValueComparator()->changedFieldNames($current, $target, $fields)
+            : $fields;
+
+        foreach ($changed as $field) {
+            if ($this->accessHandler->checkFieldAccess($current, $field, 'edit', $this->currentAccount)->isForbidden()) {
+                return AdminSurfaceResultData::error(
+                    403,
+                    'Field access denied',
+                    "You do not have permission to restore the '{$field}' field.",
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function handleRevisionPreview(string $type, array $payload): AdminSurfaceResultData
+    {
+        $resolved = $this->revisionSubject($type, $payload, 'view');
+        if ($resolved instanceof AdminSurfaceResultData) {
+            return $resolved;
+        }
+        [$entity, $revisionId] = $resolved;
+        if ($this->revisionPreviewAuthority === null) {
+            return AdminSurfaceResultData::error(404, 'Preview unavailable', 'No exact-revision preview authority is configured.');
+        }
+
+        try {
+            $revision = $this->entityTypeManager->getRepository($type)->loadRevision((string) $entity->id(), $revisionId);
+        } catch (\LogicException) {
+            return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
+        }
+        if ($revision === null) {
+            return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
+        }
+
+        $grant = $this->revisionPreviewAuthority->issue($this->currentAccount, $revision, $revisionId);
+        if ($grant === null) {
+            return AdminSurfaceResultData::error(403, 'Preview denied', 'An exact-revision preview was not granted.');
+        }
+        if ($grant->revisionId !== $revisionId) {
+            return AdminSurfaceResultData::error(500, 'Invalid preview grant', 'The preview authority returned a grant for a different revision.');
+        }
+
+        return AdminSurfaceResultData::success($grant->toArray());
+    }
+
+    /**
+     * Resolve and authorize the record before consulting revision storage, so
+     * a refused caller receives no revision-existence oracle.
+     *
+     * @param array<string, mixed> $payload
+     * @return array{EntityInterface, int}|AdminSurfaceResultData
+     */
+    private function revisionSubject(string $type, array $payload, string $operation): array|AdminSurfaceResultData
+    {
+        $id = $payload['id'] ?? null;
+        $revisionId = $payload['revision_id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            return AdminSurfaceResultData::error(400, 'Missing id', 'A record id is required.');
+        }
+        if (!is_int($revisionId) || $revisionId < 1) {
+            return AdminSurfaceResultData::error(400, 'Invalid revision', 'A positive revision id is required.');
+        }
+
+        $entity = $this->findByIdOrUuid($type, $id);
+        if ($entity === null) {
+            return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");
+        }
+        if ($this->accessHandler === null || $this->currentAccount === null
+            || !$this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed()
+        ) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to view this entity.');
+        }
+        if ($operation === 'update'
+            && !$this->accessHandler->check($entity, 'update', $this->currentAccount)->isAllowed()
+        ) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to edit this entity.');
+        }
+
+        return [$entity, $revisionId];
+    }
+
+    private static function revisionIdentity(EntityInterface $entity): ?int
+    {
+        $revisionId = $entity instanceof EntityBase && $entity->_hasEntityStructure()
+            ? $entity->entityStructure()->revisionId
+            : ($entity instanceof RevisionableEntityInterface ? $entity->revisionId() : null);
+
+        return is_int($revisionId) && $revisionId > 0 ? $revisionId : null;
     }
 
     /**

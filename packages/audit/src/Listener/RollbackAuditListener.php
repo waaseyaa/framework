@@ -66,7 +66,7 @@ final class RollbackAuditListener implements EventSubscriberInterface
     /**
      * Armed by a `rollback` pre-pointer-move event; null otherwise.
      *
-     * @var array{entityTypeId: string, entityId: string, fromRevisionId: ?int, actorUid: ?int}|null
+     * @var array{entityTypeId: string, entityId: string, fromRevisionId: ?int, sourceRevisionId: ?int, actorUid: ?int}|null
      */
     private ?array $armedRollback = null;
 
@@ -104,6 +104,7 @@ final class RollbackAuditListener implements EventSubscriberInterface
             'entityTypeId'   => $event->entityTypeId,
             'entityId'       => $event->entityId,
             'fromRevisionId' => $event->fromRevisionId,
+            'sourceRevisionId' => $event->sourceRevisionId,
             'actorUid'       => $event->actorUid,
         ];
     }
@@ -142,6 +143,7 @@ final class RollbackAuditListener implements EventSubscriberInterface
                     'entity_id'        => (string) $entity->id(),
                     'operation'        => 'rollback',
                     'from_revision_id' => $armed['fromRevisionId'],
+                    'source_revision_id' => $armed['sourceRevisionId'],
                     // The NEW revision rollback created, known only post-write
                     // (the pre-event's toRevisionId is null for rollback).
                     'to_revision_id'   => $entity->revisionId(),

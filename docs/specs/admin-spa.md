@@ -513,6 +513,39 @@ understand. `author` distinguishes `null` (written without an acting context)
 from `0` (the anonymous account acted); collapsing the two would attribute an
 unattributed revision to a real account.
 
+**Revision recovery (#2464).** Metadata history stays content-free. Selecting a
+row invokes the distinct `revision` action, which first authorizes the record
+itself and only then loads the saved revision. The ordinary `ResourceSerializer`
+projects that snapshot with the acting account, so dynamically forbidden and
+internal fields never enter the response. A record-view refusal occurs before
+revision storage is consulted and therefore exposes no revision-existence
+oracle.
+
+`restore-revision` requires both record view and update access, a positive
+observed latest revision id, and the opaque mutation token cached by the Admin
+transport's prior record GET. The explicit revision comparison produces the
+operator-readable stale-history 409; the token claim is the atomic storage
+fence that closes a race after that comparison. The host delegates to
+`EntityRepository::rollback()`: selected content is copied into a successor
+draft, later history remains intact, and workflow/publication pointers are not
+moved by the surface. The response contains the source and resulting revision
+ids plus a newly fenced entity. The rollback audit distinguishes the
+pre-operation revision, selected source revision, and resulting revision and
+never records field content.
+
+Exact preview is absent unless the application binds
+`AdminRevisionPreviewAuthorityInterface`. The host proves record/revision
+existence and view access before calling it, and accepts only a grant naming the
+exact selected revision. Applications own signing, expiry, audience, and the
+render route. Desktop/mobile controls resize the same exact-revision iframe and
+have no storage or publication semantics.
+
+`EntityRevisionRecovery` owns loading, selection, field comparison, restore
+conflict recovery, and preview. Both the addressable full history page and
+shell-free `EntityEditorWorkspace` render that component; consumers must not
+fork either path. Structured date/time values are compared as serialized
+canonical field values and remain editable only through the schema editor.
+
 **Route layout.** The record page moved from `pages/[entityType]/[id].vue` to
 `pages/[entityType]/[id]/index.vue` so `history.vue` can be its sibling. Nuxt
 would otherwise treat `[id].vue` as a parent layout for `[id]/history.vue`,
