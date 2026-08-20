@@ -69,6 +69,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refusal a freshly installed site sees: it names the sidecar it wants, names
   the command that authors it, and says unsigned configuration is refused.
 
+- **Added — two-host packaged proof for verified import (#2430, 6/6):**
+  `tests/PackagedForm/check-verified-config-import` builds two physically
+  separate consumers from the candidate tree, keeps the Ed25519 signing key in a
+  third location owned by neither, and moves only the sync directory, the signed
+  envelope, and the public trust key between them. It asserts the consumer holds
+  no key file, names no signing custody, declares no `signing_key`, and that no
+  key material appears in its output or storage; and that signing leaves the
+  authoring host's active store byte-identical.
+
+  **The proof currently stops before completion**, at a defect it exists to
+  find: `ConfigurationActivationAuthorizerInterface` has no production producer,
+  so `DatabaseConfigurationActivator` receives
+  `RefusingConfigurationActivationAuthorizer` and every non-genesis activation
+  refuses. CFG-03 verification passes end to end — signature, manifest binding,
+  compatibility, and replay all succeed — and CFG-02 activation authorization
+  then refuses. `install:init` is unaffected because genesis is deliberately not
+  operator-authorized. `ConfigurationRollbackValidatorInterface` and
+  `ConfigurationCandidateSweepAuthorizerInterface` are unbound in the same way.
+
+  Also found: the skeleton ships `config/sync/.gitkeep`, which strict CFG-03
+  validation refuses as a bundle member, so a skeleton-derived site cannot sign
+  its own sync directory until the placeholder is removed.
+
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path
   to creating one required a generation to already exist. The activator refuses
