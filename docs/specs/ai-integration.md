@@ -309,9 +309,41 @@ A total timeout alone cannot bound a stalled peer cheaply (#2156), so each profi
 
 The low-speed pair is off unless both halves are set, and only the streaming profile enables it by default — a non-streaming call is legitimately silent while the model generates. `ProviderTimeouts` rejects a non-positive bound, a connect bound larger than the total, and a half-configured low-speed abort. libcurl averages transfer speed over a rolling window, so a low-speed teardown trails its configured window by a few seconds; treat the window as a floor, not an exact deadline.
 
-A timeout surfaces as `TransportException`, which `AgentExecutor` already treats as retryable, and which the credential-custody boundary re-mints as `Provider transport unavailable.` — the endpoint and the cURL detail never reach the caller. `packages/ai-agent/tests/Unit/Provider/AnthropicProviderTransportTest.php` pins all of this against a local peer that stalls (`tests/Support/StallingTransportServer.php`): a TLS handshake that never completes, and an SSE stream that goes silent after one delta.
+Both HTTP providers take these bounds. `AnthropicProvider` installs `forRequest()` for `sendMessage()` and `forStreaming()` for `streamMessage()`; `OpenAiCompatibleProvider` has no streaming path and installs `forRequest()` for its single exchange (#2445). Every bound is caller-settable, and the defaults preserve each provider's historical total.
+
+A timeout surfaces as `TransportException`, which `AgentExecutor` already treats as retryable, and which the credential-custody boundary re-mints as `Provider transport unavailable.` — the endpoint and the cURL detail never reach the caller. Two test classes pin this against a local peer that stalls (`tests/Support/StallingTransportServer.php`, a raw TCP peer rather than an HTTP server, because the point is a peer that does not answer): `AnthropicProviderTransportTest` covers a TLS handshake that never completes and an SSE stream that goes silent after one delta, and `OpenAiCompatibleProviderTransportTest` covers the same handshake plus the non-streaming stall — a peer that promises a chat completion by `Content-Length`, delivers a prefix, and stops.
 
 The API key is held as a `SecretHandle` (a plain string is wrapped into a legacy static handle). Every request resolves it inside the registered `AnthropicCredentialOperation` consumer (purpose `waaseyaa.ai.anthropic.v1`), which builds the `x-api-key`/`anthropic-version` headers so credential bytes never return to provider code. Failures cross the custody boundary only as `ProviderCredentialOutcome`'s closed taxonomy — `RateLimitException` (retry-after seconds preserved), `TransportException`, `ClientErrorException` — re-thrown with fixed non-secret messages; the original exception text and chain are discarded. `OpenAiCompatibleProvider` follows the same pattern via `OpenAiCompatibleCredentialOperation` (purpose `waaseyaa.ai.openai-chat.v1`).
+
+### OpenAiCompatibleProvider
+
+**File:** `packages/ai-agent/src/Provider/OpenAiCompatibleProvider.php`
+**Implements:** `ProviderInterface` (no streaming)
+
+```php
+final class OpenAiCompatibleProvider implements ProviderInterface
+{
+    public function __construct(
+        #[\SensitiveParameter]
+        string|SecretHandle $apiKey,
+        private readonly string $baseUrl = 'https://api.openai.com/v1',
+        private readonly string $model = 'gpt-4o-mini',
+        ?\Closure $authenticatedTransport = null,
+        ?ProviderTimeouts $timeouts = null,  // sendMessage bounds
+    );
+
+    public function sendMessage(MessageRequest $request): MessageResponse;
+    public static function parseChatCompletionResponse(array $data): MessageResponse;
+}
+```
+
+Serves any OpenAI Chat Completions–compatible endpoint (OpenRouter, Azure OpenAI, local gateways); `/chat/completions` is appended to `$baseUrl`. Text-in / text-out — tool loops must use `AnthropicProvider` until tool schema bridging exists.
+
+Because there is no stream, the stall that matters is a silent *body* rather than a silent stream: a peer that answers, promises a completion, and then delivers only part of it. No chunk callback exists to notice, so only a transport bound can end it.
+
+What the installed `forRequest()` profile does, precisely: connection establishment (DNS, TCP, TLS) is bounded at 5s, and the total stays at its historical 120s. Stalled-body protection is *available but not on* — the low-speed abort is off unless a caller sets it, so a peer that finishes connecting and then goes silent mid-body is still bounded only by the 120s total. That default is deliberate: a chat completion is legitimately silent while the model generates, and libcurl's byte-rate window covers that wait too, so enabling the abort by default would tear down healthy slow generations rather than stalled ones. A caller that knows its gateway responds promptly can pass `timeouts:` to enable it, and to set any of the three bounds.
+
+`$authenticatedTransport` replaces cURL entirely, so the bounds do not apply to it; it is a test seam, not a transport policy.
 
 ### Message Block Value Objects
 
@@ -947,6 +979,7 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-agent/src/Provider/ProviderInterface.php` | `ProviderInterface` | LLM provider contract (sendMessage) |
 | `packages/ai-agent/src/Provider/StreamingProviderInterface.php` | `StreamingProviderInterface` | Streaming LLM provider (extends ProviderInterface) |
 | `packages/ai-agent/src/Provider/AnthropicProvider.php` | `AnthropicProvider` | Anthropic Messages API with streaming |
+| `packages/ai-agent/src/Provider/OpenAiCompatibleProvider.php` | `OpenAiCompatibleProvider` | OpenAI Chat Completions–compatible endpoint (no streaming) |
 | `packages/ai-agent/src/Provider/MessageRequest.php` | `MessageRequest` | LLM request value object |
 | `packages/ai-agent/src/Provider/MessageResponse.php` | `MessageResponse` | LLM response value object |
 | `packages/ai-agent/src/Provider/StreamChunk.php` | `StreamChunk` | Streaming chunk (type, text, toolUse) |
@@ -1030,3 +1063,4 @@ and authority fingerprints entirely inside the installed application.
   inventory.
 - **`AnthropicProvider` cURL streaming**: `CURLOPT_WRITEFUNCTION` callbacks must not throw — wrap `json_decode(..., JSON_THROW_ON_ERROR)` in try-catch inside callbacks. Error handling in `httpPostStreaming` must match `httpPost` (parse error body, handle 429 with `RateLimitException`).
 - **A streaming caller's own deadline cannot bound a stalled stream**: it runs inside the chunk callback, and a stalled stream delivers no chunk. Bound the transport instead (`ProviderTimeouts`, `streamTimeouts:`) — never rely on a wall-clock check inside `$onChunk` to release the worker.
+- **A non-streaming provider still stalls**: `OpenAiCompatibleProvider` has no stream, but a peer that answers and then delivers only part of the promised body pins the worker just the same, with no callback anywhere to observe it. The connect bound only covers a peer that never finishes connecting — it does nothing for a body that stalls after a successful connection, which by default is still bounded only by the total. Pass `timeouts:` with a low-speed pair when that shape matters to the caller.

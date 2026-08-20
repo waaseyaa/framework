@@ -47,11 +47,22 @@ $remainingEvents = "event: content_block_delta\n"
 $jsonBody = '{"content":[{"type":"text","text":"Hello world"}],"stop_reason":"end_turn",'
     . '"usage":{"input_tokens":7,"output_tokens":3}}';
 
+$chatBody = '{"id":"chatcmpl-local","object":"chat.completion",'
+    . '"choices":[{"index":0,"message":{"role":"assistant","content":"Hello world"},"finish_reason":"stop"}],'
+    . '"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}';
+
 /**
  * @param resource $connection
  * @return bool whether the connection is finished and can be closed
  */
-$respond = static function ($connection) use ($mode, $sseHeaders, $firstEvents, $remainingEvents, $jsonBody): bool {
+$respond = static function ($connection) use (
+    $mode,
+    $sseHeaders,
+    $firstEvents,
+    $remainingEvents,
+    $jsonBody,
+    $chatBody,
+): bool {
     switch ($mode) {
         case 'silent':
             // Accept and say nothing, ever. Over https:// this stalls the TLS
@@ -75,6 +86,21 @@ $respond = static function ($connection) use ($mode, $sseHeaders, $firstEvents, 
                 . strlen($jsonBody) . "\r\nConnection: close\r\n\r\n" . $jsonBody);
 
             return true;
+
+        case 'chat':
+            @fwrite($connection, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                . strlen($chatBody) . "\r\nConnection: close\r\n\r\n" . $chatBody);
+
+            return true;
+
+        case 'chat-stall':
+            // Promise a complete chat completion, deliver a prefix of it, then
+            // go quiet forever. This is what a non-streaming stall looks like:
+            // there is no chunk callback to notice, and the body never arrives.
+            @fwrite($connection, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                . strlen($chatBody) . "\r\nConnection: close\r\n\r\n" . substr($chatBody, 0, 40));
+
+            return false;
 
         default:
             return true;

@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent\Tests\Support;
 
 /**
- * A local TCP peer that reproduces the two ways an upstream provider pins a
- * worker: accepting a connection and never finishing the handshake, and
- * answering with SSE headers and then going silent mid-stream.
+ * A local TCP peer that reproduces the ways an upstream provider pins a worker:
+ * accepting a connection and never finishing the handshake, answering with SSE
+ * headers and then going silent mid-stream, and — for a provider with no stream
+ * — promising a response body and then delivering only part of it.
  *
  * Deliberately not an HTTP server — `php -S` always answers, and the point of
  * these fixtures is a peer that does not.
@@ -25,8 +26,18 @@ final class StallingTransportServer
     /** Send a complete, well-formed SSE response and close. */
     public const MODE_SSE = 'sse';
 
-    /** Send a complete non-streaming JSON response and close. */
+    /** Send a complete non-streaming JSON response (Anthropic shape) and close. */
     public const MODE_JSON = 'json';
+
+    /** Send a complete OpenAI chat-completion response and close. */
+    public const MODE_CHAT = 'chat';
+
+    /**
+     * Send chat-completion headers promising a full body, deliver a prefix of
+     * it, then stop sending forever. The non-streaming stall: no chunk callback
+     * exists to notice, so only a transport bound can end it.
+     */
+    public const MODE_CHAT_STALL = 'chat-stall';
 
     /** @var resource */
     private $process;

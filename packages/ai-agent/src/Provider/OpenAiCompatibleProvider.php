@@ -22,12 +22,21 @@ final class OpenAiCompatibleProvider implements ProviderInterface
     /** @var (\Closure(string, array<string, string>, array<string, mixed>): array<string, mixed>)|null */
     private readonly ?\Closure $authenticatedTransport;
 
+    private readonly ProviderTimeouts $timeouts;
+
+    /**
+     * @param ProviderTimeouts|null $timeouts bounds for the chat-completion exchange; the default
+     *                                        request profile keeps the historical 120s total and
+     *                                        adds a connect bound. Ignored when
+     *                                        `$authenticatedTransport` replaces cURL.
+     */
     public function __construct(
         #[\SensitiveParameter]
         string|SecretHandle $apiKey,
         private readonly string $baseUrl = self::DEFAULT_BASE,
         private readonly string $model = 'gpt-4o-mini',
         ?\Closure $authenticatedTransport = null,
+        ?ProviderTimeouts $timeouts = null,
     ) {
         $this->credential = $apiKey instanceof SecretHandle
             ? $apiKey
@@ -39,6 +48,7 @@ final class OpenAiCompatibleProvider implements ProviderInterface
                 [OpenAiCompatibleCredentialOperation::class],
             );
         $this->authenticatedTransport = $authenticatedTransport;
+        $this->timeouts = $timeouts ?? ProviderTimeouts::forRequest();
     }
 
     public function sendMessage(MessageRequest $request): MessageResponse
@@ -126,20 +136,17 @@ final class OpenAiCompatibleProvider implements ProviderInterface
             \CURLOPT_POSTFIELDS => $jsonBody,
             \CURLOPT_RETURNTRANSFER => true,
             \CURLOPT_HTTPHEADER => self::headerLines($headers),
-            \CURLOPT_TIMEOUT => 120,
-        ]);
+        ] + $this->timeouts->curlOptions());
 
         $responseBody = \curl_exec($ch);
         $httpCode = \curl_getinfo($ch, \CURLINFO_HTTP_CODE);
 
         if ($responseBody === false) {
             $error = \curl_error($ch);
-            \curl_close($ch);
             throw new TransportException("cURL error: {$error}");
         }
 
         if (!\is_string($responseBody)) {
-            \curl_close($ch);
             throw new TransportException('Unexpected cURL response type.');
         }
 
