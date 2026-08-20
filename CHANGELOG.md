@@ -61,6 +61,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deliberate — an app-owned command of that name could shadow the one command
   that mints signing evidence.
 
+- **Fixed — the import wiring is proved on a real kernel (#2430, 5/6):** an
+  integration test boots a real console kernel, installs a site, and asserts
+  `config:import` resolves the verified gate rather than the permanent refusal.
+  The defect was never that verification was wrong — it was that nothing
+  composed it, which only a real container can prove. The same test pins the
+  refusal a freshly installed site sees: it names the sidecar it wants, names
+  the command that authors it, and says unsigned configuration is refused.
+
 - **Fixed — a fresh install can now be installed (#2428):** a site that had
   never been installed had no CFG-02 configuration generation, and every path
   to creating one required a generation to already exist. The activator refuses
