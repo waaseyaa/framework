@@ -27,11 +27,18 @@ copying it forward into a new conflict-checked draft.
 ## Interlocks
 
 - Metadata history remains content-free.
-- Revision content is serialized only after record-view and per-field checks.
-- Restore requires update authority and both observed fences, copies forward,
-  and never changes workflow/publication state directly.
+- Revision content is serialized only after record view, `view_revision` on the
+  actual snapshot, and per-field checks. Denied revision access is concealed.
+- Restore requires update authority, `view_revision` on the source snapshot,
+  both observed fences, and the shared changed-field set. Workflow and other
+  written privilege-bearing fields cannot bypass field-edit authority; fields
+  absent from the target are included as removals. Live publication pointers,
+  status, and credential hashes are preserved rather than copied from history.
+  Restore copies forward and never changes workflow/publication state directly.
 - Preview is omitted without an application authority and is bound to the
-  exact selected saved revision when present.
+  exact selected saved revision when present. Grants are validated after
+  fixed-point percent decoding and refuse controls, invalid UTF-8, backslashes,
+  protocol-relative forms, and parent path segments.
 - Rollback audit remains content-free and identifies actor, record, source,
   result, action, and outcome.
 - Page-builder recovery is unchanged and must not be forked.

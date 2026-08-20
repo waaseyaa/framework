@@ -128,11 +128,10 @@ final class EntityValueContainer
         $target->layout->assertCurrent();
         $changed = [];
         foreach ($targetFields as $field) {
-            if (!array_key_exists($field, $target->values)) {
-                continue;
-            }
-            if (!array_key_exists($field, $this->values)
-                || $this->comparableValue($field) !== $target->comparableValue($field)
+            $currentHas = array_key_exists($field, $this->values);
+            $targetHas = array_key_exists($field, $target->values);
+            if ($currentHas !== $targetHas
+                || ($currentHas && $this->comparableValue($field) !== $target->comparableValue($field))
             ) {
                 $changed[] = $field;
             }

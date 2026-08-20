@@ -217,7 +217,8 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
         // Availability regression: a credential field (`pass`) is unconditionally
         // edit-Forbidden for EVERYONE (no admin bypass), but it rides every
         // revision snapshot. Pointing current across a password rotation must NOT
-        // be blocked on the credential difference.
+        // be blocked on the credential difference. The live credential must
+        // survive rather than being copied from history.
         $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a', 'roles' => ['viewer'], 'pass' => 'hash-v1']);
         $entity->enforceIsNew();
         $this->repo->save($entity);
@@ -237,7 +238,7 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
         self::assertSame('v1', $reloaded->label());
-        $this->assertRestrictedFieldsMatch($reloaded, ['pass' => 'hash-v1'], 'the whole-row restore still writes the credential field');
+        $this->assertRestrictedFieldsMatch($reloaded, ['pass' => 'hash-v2'], 'pointer move must preserve the live credential field');
     }
 
     #[Test]

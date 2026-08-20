@@ -14,10 +14,11 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
-use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminRevisionPreviewAuthorityInterface;
 use Waaseyaa\AdminSurface\Host\AdminRevisionPreviewGrantData;
+use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
@@ -25,6 +26,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
@@ -43,6 +45,83 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
         self::assertSame('Historical', $result->data['entity']['attributes']['title']);
         self::assertArrayNotHasKey('secret', $result->data['entity']['attributes']);
         self::assertArrayNotHasKey('mutation_token', $result->data['entity']);
+    }
+
+    #[Test]
+    public function current_record_view_does_not_reveal_a_revision_the_actor_may_not_view(): void
+    {
+        $historical = $this->revision(1, 'Historical', 'historical-secret');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'current-secret'));
+        $repository->expects(self::once())->method('loadRevision')->with('1', 1)->willReturn($historical);
+        $seen = [];
+
+        $result = $this->host($repository, viewedOperations: $seen, deniedOperation: 'view_revision')
+            ->action('article', 'revision', ['id' => '1', 'revision_id' => 1]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Revision not found', $result->error['title']);
+        self::assertNull($result->data);
+        self::assertContains(['view_revision', 'Historical'], $seen);
+        self::assertNotContains(['view_revision', 'Current'], $seen);
+    }
+
+    #[Test]
+    public function restoring_an_internal_workflow_field_requires_more_than_generic_edit(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $current = $this->revision(3, 'Current', 'secret', $token);
+        $current->set('workflow_state', 'published');
+        $current->set('status', true);
+        $source = $this->revision(1, 'Current', 'secret');
+        $source->set('workflow_state', 'draft');
+        $source->set('status', true);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($current);
+        $repository->method('loadWorkingCopy')->willReturn($current);
+        $repository->method('loadRevision')->willReturn($source);
+        $repository->expects(self::never())->method('rollback');
+
+        $result = $this->host(
+            $repository,
+            internalFields: new InternalFieldVisibilityPolicy(['article' => ['workflow_state', 'status']]),
+            deniedFields: ['workflow_state', 'status'],
+        )->action('article', 'restore-revision', [
+            'id' => '1', 'revision_id' => 1, 'expected_latest_revision_id' => 3,
+            'mutation_token' => $token->toOpaqueString(),
+        ]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(403, $result->error['status']);
+        self::assertStringContainsString('workflow_state', (string) $result->error['detail']);
+        self::assertNull($result->data);
+        self::assertSame($token->toOpaqueString(), $current->mutationToken()?->toOpaqueString());
+    }
+
+    #[Test]
+    public function restore_conceals_a_revision_the_actor_may_not_view_before_any_write(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $current = $this->revision(3, 'Current', 'secret', $token);
+        $historical = $this->revision(1, 'Historical', 'historical-secret');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($current);
+        $repository->method('loadWorkingCopy')->willReturn($current);
+        $repository->method('loadRevision')->willReturn($historical);
+        $repository->expects(self::never())->method('rollback');
+
+        $result = $this->host($repository, deniedOperation: 'view_revision')
+            ->action('article', 'restore-revision', [
+                'id' => '1', 'revision_id' => 1, 'expected_latest_revision_id' => 3,
+                'mutation_token' => $token->toOpaqueString(),
+            ]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Revision not found', $result->error['title']);
+        self::assertNull($result->data);
+        self::assertSame($token->toOpaqueString(), $current->mutationToken()?->toOpaqueString());
     }
 
     #[Test]
@@ -148,6 +227,30 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
     }
 
     #[Test]
+    public function restore_cannot_remove_a_current_only_field_the_actor_may_not_edit(): void
+    {
+        $token = EntityMutationToken::issue('test', 'default', 'article', '1', 7);
+        $current = $this->revision(3, 'Current', 'secret', $token);
+        $current->set('legacy_only', 'live protected value');
+        $source = $this->revision(1, 'Old', 'secret');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($current);
+        $repository->method('loadWorkingCopy')->willReturn($current);
+        $repository->method('loadRevision')->willReturn($source);
+        $repository->expects(self::never())->method('rollback');
+
+        $result = $this->host($repository, deniedFields: ['legacy_only'])
+            ->action('article', 'restore-revision', [
+                'id' => '1', 'revision_id' => 1, 'expected_latest_revision_id' => 3,
+                'mutation_token' => $token->toOpaqueString(),
+            ]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(403, $result->error['status']);
+        self::assertStringContainsString('legacy_only', (string) $result->error['detail']);
+    }
+
+    #[Test]
     public function preview_is_omitted_without_an_application_authority(): void
     {
         $repository = $this->createMock(EntityRepositoryInterface::class);
@@ -177,6 +280,24 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
         self::assertTrue($result->ok, json_encode($result->error));
         self::assertSame(2, $result->data['revisionId']);
         self::assertStringContainsString('revision=2', $result->data['previewUrl']);
+    }
+
+    #[Test]
+    public function preview_does_not_issue_a_grant_for_a_revision_the_actor_may_not_view(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($this->revision(3, 'Current', 'secret'));
+        $repository->method('loadRevision')->willReturn($this->revision(2, 'Historical', 'secret'));
+        $authority = $this->createMock(AdminRevisionPreviewAuthorityInterface::class);
+        $authority->expects(self::never())->method('issue');
+
+        $result = $this->host($repository, $authority, deniedOperation: 'view_revision')
+            ->action('article', 'revision-preview', ['id' => '1', 'revision_id' => 2]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(404, $result->error['status']);
+        self::assertSame('Revision not found', $result->error['title']);
+        self::assertNull($result->data);
     }
 
     #[Test]
@@ -370,6 +491,20 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
     }
 
     #[Test]
+    public function a_workflow_denied_rollback_is_reported_as_a_closed_access_refusal(): void
+    {
+        $result = $this->restoreWithFailingRollback(new TransitionDeniedException(
+            TransitionDeniedException::REASON_PERMISSION,
+            'Internal workflow reason.',
+        ));
+
+        self::assertFalse($result->ok);
+        self::assertSame(403, $result->error['status']);
+        self::assertSame('Restore denied', $result->error['title']);
+        self::assertStringNotContainsString('Internal workflow reason', (string) $result->error['detail']);
+    }
+
+    #[Test]
     public function preview_reports_a_type_that_keeps_no_history(): void
     {
         $repository = $this->createStub(EntityRepositoryInterface::class);
@@ -466,8 +601,10 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
         EntityRepositoryInterface $repository,
         ?AdminRevisionPreviewAuthorityInterface $previewAuthority = null,
         ?string $deniedOperation = null,
-    ): RevisionRecoveryHarness
-    {
+        ?InternalFieldVisibilityPolicy $internalFields = null,
+        array $deniedFields = [],
+        ?array &$viewedOperations = null,
+    ): RevisionRecoveryHarness {
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturn(true);
         $manager->method('getDefinition')->willReturn(new EntityType(id: 'article', label: 'Article', class: TestEntity::class, keys: TestEntity::definitionKeys()));
@@ -476,7 +613,8 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
 
         return new RevisionRecoveryHarness(new GenericAdminSurfaceHost(
             $manager,
-            new EntityAccessHandler([$this->policy(99, $deniedOperation)]),
+            new EntityAccessHandler([$this->policy(99, $deniedOperation, $deniedFields, $viewedOperations)]),
+            internalFieldVisibility: $internalFields,
             revisionPreviewAuthority: $previewAuthority,
         ));
     }
@@ -493,30 +631,50 @@ final class GenericAdminSurfaceHostRevisionRecoveryTest extends TestCase
         return $entity;
     }
 
-    private function policy(int $allowedAccountId, ?string $deniedOperation = null): AccessPolicyInterface&FieldAccessPolicyInterface
-    {
-        return new class ($allowedAccountId, $deniedOperation) implements AccessPolicyInterface, FieldAccessPolicyInterface {
+    /**
+     * @param list<string> $deniedFields
+     * @param list<array{0: string, 1: string}>|null $viewedOperations
+     */
+    private function policy(
+        int $allowedAccountId,
+        ?string $deniedOperation = null,
+        array $deniedFields = [],
+        ?array &$viewedOperations = null,
+    ): AccessPolicyInterface&FieldAccessPolicyInterface {
+        return new class ($allowedAccountId, $deniedOperation, $deniedFields, $viewedOperations) implements AccessPolicyInterface, FieldAccessPolicyInterface {
+            /** @param list<string> $deniedFields */
             public function __construct(
                 private readonly int $allowedAccountId,
                 private readonly ?string $deniedOperation,
+                private readonly array $deniedFields,
+                private ?array &$viewedOperations,
             ) {}
-            public function appliesTo(string $entityTypeId): bool { return true; }
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return true;
+            }
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
+                if ($this->viewedOperations !== null) {
+                    $this->viewedOperations[] = [$operation, (string) $entity->label()];
+                }
                 if ($operation === $this->deniedOperation) {
                     return AccessResult::forbidden('operation denied');
                 }
 
                 return $account->id() === $this->allowedAccountId ? AccessResult::allowed('record access') : AccessResult::forbidden('record denied');
             }
-            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult { return AccessResult::forbidden(); }
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::forbidden();
+            }
             public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
             {
                 if ($operation === 'view' && $fieldName === 'secret') {
                     return AccessResult::forbidden('secret hidden');
                 }
-                if ($operation === 'edit' && $fieldName === 'roles') {
-                    return AccessResult::forbidden('roles protected');
+                if ($operation === 'edit' && ($fieldName === 'roles' || in_array($fieldName, $this->deniedFields, true))) {
+                    return AccessResult::forbidden($fieldName . ' protected');
                 }
 
                 return AccessResult::neutral();

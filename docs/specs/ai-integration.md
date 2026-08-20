@@ -1,5 +1,10 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-20 - #2464: EntityRollbackTool and
+EntitySetCurrentRevisionTool keep EntityRevisionRestoreGuard as the AI-facing
+wrapper; the changed-field set is RevisionRestoreChangedFields so Admin and AI
+restore cannot drift. Workflow/publication fields remain material; credentials
+do not. -->
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: framework-owned AI agent entities are registered from their class attributes so declared entity and field metadata survives provider bootstrap. This changes provider construction only; agent execution, tool authorization, and MCP exposure contracts are unchanged. -->
 
 <!-- Spec reviewed 2026-08-05 - #2194: ai-tools owns the optional `content.search` adapter and tool. It resolves the search package only through the provider boundary, requires an `AuthorizationPrincipalInterface`, emits a bounded schema and closed result projection, and converts missing or failing optional infrastructure to the shared sanitized correlation-only error contract. Anonymous MCP exposure remains default-off and adds only the dedicated `tool.content.search` capability when explicitly enabled. -->

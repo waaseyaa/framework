@@ -218,7 +218,8 @@ final class EntityRollbackToolFieldAccessTest extends TestCase
         // edit-Forbidden for EVERYONE (no admin bypass), but it rides every
         // revision snapshot. A restore spanning a password rotation must NOT be
         // blocked on the credential difference — credentials are not an
-        // escalation vector and are managed by dedicated flows.
+        // escalation vector and are managed by dedicated flows. The live
+        // credential must survive rather than being copied from history.
         $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a', 'roles' => ['viewer'], 'pass' => 'hash-v1']);
         $entity->enforceIsNew();
         $this->repo->save($entity);
@@ -238,7 +239,7 @@ final class EntityRollbackToolFieldAccessTest extends TestCase
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
         self::assertSame('v1', $reloaded->label());
-        $this->assertRestrictedFieldsMatch($reloaded, ['pass' => 'hash-v1'], 'the whole-row restore still writes the credential field');
+        $this->assertRestrictedFieldsMatch($reloaded, ['pass' => 'hash-v2'], 'restore must preserve the live credential field');
     }
 
     #[Test]

@@ -1,5 +1,10 @@
 # Entity System
 
+<!-- Spec reviewed 2026-08-20 - #2464: RevisionRestoreChangedFields is the
+canonical copy-forward restore comparison. It excludes revision metadata and values storage
+preserves from the live row (publication pointer, status, credential hashes); current-only
+removals, workflow state, and other written privilege-bearing fields stay in the authorized
+changed set. Admin and AI restore both call this helper. -->
 <!-- Spec reviewed 2026-08-20 - #2464: rollback's existing
 BeforeRevisionPointerMoveEvent now carries the selected source revision id in a
 new optional trailing field. Repository copy-forward, pointer, mutation-token,
@@ -810,6 +815,14 @@ leaving storage untouched (including transactional rollback of any earlier write
 transaction, for the multi-write translation paths). Full contract, payload shape, and the
 `Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard` consumer: `docs/specs/revision-system-unified.md`
 §4a.
+
+**Copy-forward restore changed fields (#2464).** Surfaces that authorize a whole-row rollback
+by the fields that would actually change must use `Waaseyaa\Entity\RevisionRestoreChangedFields`
+(name-only `EntityValueComparator` for `EntityBase` views). Revision bookkeeping and values
+preserved from the live row—publication pointer, status, and credential hashes—are excluded
+because rollback never copies them from history. Workflow and every other written
+privilege-bearing field remain in the set, including keys present only on the current row that
+the restore removes. Admin restore and the AI restore tools share this helper.
 
 ### Save (via SqlEntityStorage — low-level)
 

@@ -7,6 +7,7 @@ namespace Waaseyaa\Access\Policy;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\ContextAwareAccessPolicyInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\TranslatableInterface;
@@ -108,6 +109,7 @@ final readonly class RevisionPolicyComposition
      *                                                     `activeLangcode()` selects the
      *                                                     translation instance passed to the
      *                                                     policy.
+     * @param array<string, mixed>              $context   Operation-specific decision context.
      */
     #[\NoDiscard('ignoring an access decision is a security bug')]
     public function composeAccess(
@@ -116,10 +118,13 @@ final readonly class RevisionPolicyComposition
         AccountInterface $account,
         string $operation,
         ?RevisionableEntityInterface $revision = null,
+        array $context = [],
     ): AccessResult {
         $target = $this->resolveTarget($entity, $operation, $revision);
 
-        $primary = $policy->access($target, $operation, $account);
+        $primary = $policy instanceof ContextAwareAccessPolicyInterface
+            ? $policy->accessWithContext($target, $operation, $account, $context)
+            : $policy->access($target, $operation, $account);
 
         if (!$primary->isNeutral()) {
             return $primary;
@@ -131,7 +136,9 @@ final readonly class RevisionPolicyComposition
             return $primary;
         }
 
-        return $policy->access($target, $fallback, $account);
+        return $policy instanceof ContextAwareAccessPolicyInterface
+            ? $policy->accessWithContext($target, $fallback, $account, $context)
+            : $policy->access($target, $fallback, $account);
     }
 
     /**

@@ -13,6 +13,7 @@ use Waaseyaa\Entity\EntityReadLayout;
 use Waaseyaa\Entity\EntityReadLayoutGeneration;
 use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\RevisionRestoreChangedFields;
 
 final class EntityRevisionRestoreGuardTest extends TestCase
 {
@@ -23,6 +24,29 @@ final class EntityRevisionRestoreGuardTest extends TestCase
         $target = $this->entity(['id' => 1, 'title' => 'Target', 'roles' => ['administrator'], 'pass' => 'hash-b'], 1);
 
         self::assertSame(['roles', 'title'], EntityRevisionRestoreGuard::changedFieldNames($current, $target));
+    }
+
+    #[Test]
+    public function workflow_fields_are_gated_while_live_preserved_publication_status_is_not(): void
+    {
+        $current = $this->entity([
+            'id' => 1,
+            'title' => 'Same',
+            'workflow_state' => 'published',
+            'status' => true,
+        ], 2);
+        $target = $this->entity([
+            'id' => 1,
+            'title' => 'Same',
+            'workflow_state' => 'draft',
+            'status' => false,
+        ], 1);
+
+        self::assertSame(['workflow_state'], EntityRevisionRestoreGuard::changedFieldNames($current, $target));
+        self::assertSame(
+            EntityRevisionRestoreGuard::changedFieldNames($current, $target),
+            RevisionRestoreChangedFields::names($current, $target),
+        );
     }
 
     /** @param array<string, mixed> $values */
@@ -38,6 +62,8 @@ final class EntityRevisionRestoreGuardTest extends TestCase
                 'revision_id' => FieldReadLevel::Public,
                 'roles' => FieldReadLevel::Internal,
                 'pass' => FieldReadLevel::Internal,
+                'workflow_state' => FieldReadLevel::Internal,
+                'status' => FieldReadLevel::Public,
             ]),
             structure: new EntityStructure(
                 'comparison_revision',

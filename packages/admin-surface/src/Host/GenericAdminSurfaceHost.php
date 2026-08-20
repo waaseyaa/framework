@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
@@ -28,11 +29,11 @@ use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\EntityValueComparator;
-use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Entity\RevisionableEntityInterface;
+use Waaseyaa\Entity\RevisionRestoreChangedFields;
 use Waaseyaa\Foundation\SlugGenerator;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 
 /**
  * Generic admin surface host that works with any Waaseyaa application.
@@ -59,12 +60,6 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     /** Config rows with an explicitly reviewed generic edit/delete lifecycle. */
     private const array MUTABLE_CONFIG_ROW_TYPES = ['taxonomy_vocabulary'];
-
-    /** Revision bookkeeping, never editable record fields. */
-    private const array REVISION_METADATA_FIELDS = [
-        'revision_id', 'revision_created', 'revision_log', 'revision_author',
-        'is_default_revision', 'is_latest_revision', 'entity_id',
-    ];
 
     /**
      * Hard cap on the session capability allowlist. The projection exists so
@@ -914,8 +909,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     }
 
     /**
-     * Read one saved revision through the same record and field access
-     * boundaries as the ordinary entity detail surface.
+     * Read one saved revision through record view plus canonical
+     * view_revision authority on the historical snapshot.
      *
      * @param array<string, mixed> $payload
      */
@@ -933,6 +928,9 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
         }
         if ($revision === null) {
+            return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
+        }
+        if (!$this->revisionViewAllowed($revision)) {
             return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
         }
 
@@ -994,7 +992,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         if ($sourceRevision === null) {
             return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
         }
-        $fieldDenied = $this->restoreFieldAccessRefusal($type, $workingCopy, $sourceRevision);
+        if (!$this->revisionViewAllowed($sourceRevision)) {
+            return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
+        }
+        $fieldDenied = $this->restoreFieldAccessRefusal($workingCopy, $sourceRevision);
         if ($fieldDenied !== null) {
             return $fieldDenied;
         }
@@ -1003,6 +1004,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $restored = $repository->rollback((string) $entity->id(), $sourceRevisionId, $expectation);
         } catch (EntityMutationConflictException) {
             return AdminSurfaceResultData::error(409, 'Revision conflict', 'The record changed after history was loaded. Reload and compare again.');
+        } catch (TransitionDeniedException) {
+            return AdminSurfaceResultData::error(403, 'Restore denied', 'The selected revision cannot be restored under the active workflow.');
         } catch (\InvalidArgumentException) {
             return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
         } catch (\LogicException) {
@@ -1021,7 +1024,6 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     }
 
     private function restoreFieldAccessRefusal(
-        string $type,
         ?EntityInterface $current,
         EntityInterface $target,
     ): ?AdminSurfaceResultData {
@@ -1029,18 +1031,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to restore this entity.');
         }
 
-        $definitions = $this->entityTypeManager->resolveFieldDefinitions($type, $target->bundle());
-        $fields = array_values(array_filter(
-            EntityValues::fieldNames($target),
-            fn(string $field): bool => !in_array($field, self::REVISION_METADATA_FIELDS, true)
-                && !in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)
-                && !$this->internalFieldVisibility->isInternal($type, $field, $definitions[$field] ?? null),
-        ));
-        $changed = $current instanceof EntityBase && $target instanceof EntityBase
-            ? new EntityValueComparator()->changedFieldNames($current, $target, $fields)
-            : $fields;
-
-        foreach ($changed as $field) {
+        foreach (RevisionRestoreChangedFields::names($current, $target) as $field) {
             if ($this->accessHandler->checkFieldAccess($current, $field, 'edit', $this->currentAccount)->isForbidden()) {
                 return AdminSurfaceResultData::error(
                     403,
@@ -1071,6 +1062,9 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(404, 'No history', "Type '{$type}' does not keep revision history.");
         }
         if ($revision === null) {
+            return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
+        }
+        if (!$this->revisionViewAllowed($revision)) {
             return AdminSurfaceResultData::error(404, 'Revision not found', 'The selected revision does not exist.');
         }
 
@@ -1119,6 +1113,13 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         return [$entity, $revisionId];
+    }
+
+    private function revisionViewAllowed(EntityInterface $revision): bool
+    {
+        return $this->accessHandler !== null
+            && $this->currentAccount !== null
+            && $this->accessHandler->check($revision, GateInterface::VIEW_REVISION, $this->currentAccount)->isAllowed();
     }
 
     private static function revisionIdentity(EntityInterface $entity): ?int
