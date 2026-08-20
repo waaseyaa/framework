@@ -47,3 +47,29 @@ production operations, and repository settings changes are not authorized.
 This record remains open until source and generated distribution correspond,
 focused and repository gates pass at one exact commit, hosted checks are
 reconciled, and the exact Framework cohort passes Sheguiandah acceptance.
+
+## Framework candidate checkpoint
+
+- source and contract commit: `8f2ac93d6`;
+- governed distribution commit: `3eb7c527b`;
+- Admin distribution source signature:
+  `101c5a56b1b41e5f35b08b85a2a1002f81884093c8549cb73845bc01c67f1049`;
+- two consecutive normalized Node 24.19.0 builds produced the same complete
+  distribution tree digest:
+  `f28821ae0e28f41041e71f7317b2347e8fe22f2ed22d9ceb0e6f2f89914b0a48`.
+
+Verification on PHP 8.5.9 and Node 24.19.0:
+
+- transition API integration: 19 tests, 61 assertions, green;
+- focused Admin lifecycle path: 5 files, 39 tests, green;
+- full Admin Vitest: 90 files, 627 tests, green;
+- Admin typecheck: green;
+- Admin lint: zero errors, repository warning baseline retained;
+- Admin Surface Unit: 232 tests, 1,053 assertions, green;
+- first full preflight pass: 32 gates green, including PHPStan and dead-code;
+  the sole refusal was the expected `api-layer.md` drift-review trailer, carried
+  by the checkpoint commit that records this evidence.
+
+The Framework-only candidate still requires a clean post-checkpoint preflight,
+hosted review, and exact-cohort Sheguiandah acceptance. No integration or
+publication action is implied.
