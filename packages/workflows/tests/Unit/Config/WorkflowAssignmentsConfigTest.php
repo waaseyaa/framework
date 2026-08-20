@@ -18,9 +18,11 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
+use Waaseyaa\Workflows\Config\WorkflowAssignmentsSemanticValidator;
 use Waaseyaa\Workflows\WorkflowServiceProvider;
 
 #[CoversClass(WorkflowAssignmentsConfig::class)]
+#[CoversClass(WorkflowAssignmentsSemanticValidator::class)]
 final class WorkflowAssignmentsConfigTest extends TestCase
 {
     private string $directory;
