@@ -50,3 +50,32 @@ production operations, and repository settings changes are not authorized.
 This record remains open until source and generated distribution correspond,
 focused and repository gates pass at one exact commit, hosted checks are
 reconciled, and the same Framework cohort passes Sheguiandah acceptance.
+
+## Framework candidate checkpoint
+
+- retained-red contract commit: `596f81123`;
+- source implementation commit: `50ed16112`;
+- governed distribution commit: `fff4fb5af`;
+- Admin distribution source signature:
+  `88c27482bc22e8e33054dfc2cbe3e5719e0513ecf9eba5827ef82def5eab9682`;
+- two clean hermetic builds produced the same complete distribution digest:
+  `22d59ca4d9520f310c39a8f1c87c97e2e5096aad66d5ab38273e4a6707456185`.
+
+Verification on PHP 8.5.9 and Node 24.19.0:
+
+- Admin Vitest: 90 files, 622 tests, green;
+- Admin typecheck and lint: green (lint retains the repository warning
+  baseline, zero errors);
+- Admin Surface Unit: 231 tests, 1,049 assertions, green;
+- Integration: 2,008 tests, 8,876 assertions, green;
+- Architecture: 282 tests, 24,264 assertions, one environment skip, green;
+- full preflight: 33 gates, including PHPStan and dead-code, green;
+- Unit: 11,721 tests and 231,852 assertions completed with one reproducible
+  untouched baseline failure in
+  `AnthropicProviderTransportTest::withoutALowSpeedGuardAStalledStreamHoldsTheWorkerForTheWholeTotal`;
+  the test expects a three-second total bound but this host's cURL transfer ends
+  at the one-second connect bound. No #2455 file is in that package or test.
+
+The Framework-only candidate is therefore ready for hosted review, while this
+record remains open for the required exact-cohort Sheguiandah acceptance and
+hosted-check reconciliation. No integration or publication action is implied.
