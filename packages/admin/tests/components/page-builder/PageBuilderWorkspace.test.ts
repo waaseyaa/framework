@@ -274,6 +274,7 @@ describe('PageBuilderWorkspace', () => {
     expect(viewportButtons[2]!.attributes('aria-pressed')).toBe('true')
     expect(preview.element.style.width).toBe('390px')
     expect(preview.element.style.minWidth).toBe('0px')
+    expect(preview.element.style.flexBasis).toBe('390px')
   })
 
   it('preserves a conflicting change and requires an explicit compare then reapply choice', async () => {
