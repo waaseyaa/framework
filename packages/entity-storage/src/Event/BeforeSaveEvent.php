@@ -24,6 +24,7 @@ final class BeforeSaveEvent implements EntityLifecycleEventInterface
         private readonly EntityInterface $entityValue,
         private readonly SaveContext $saveContextValue,
         private readonly bool $newRevision,
+        private readonly ?EntityInterface $originalEntityValue = null,
     ) {}
 
     public function entity(): EntityInterface
@@ -45,5 +46,11 @@ final class BeforeSaveEvent implements EntityLifecycleEventInterface
     public function isNewRevision(): bool
     {
         return $this->newRevision;
+    }
+
+    /** The stored entity before this save, or null for a create. @api */
+    public function originalEntity(): ?EntityInterface
+    {
+        return $this->originalEntityValue;
     }
 }

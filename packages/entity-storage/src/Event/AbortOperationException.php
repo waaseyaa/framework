@@ -14,7 +14,7 @@ namespace Waaseyaa\EntityStorage\Event;
  * {@see \Waaseyaa\EntityStorage\EntityStorageCoordinator::delete()} to the caller.
  * No After* event fires. No backend writes occur after this is thrown.
  */
-final class AbortOperationException extends \RuntimeException
+class AbortOperationException extends \RuntimeException
 {
     public function __construct(
         public readonly string $reason,

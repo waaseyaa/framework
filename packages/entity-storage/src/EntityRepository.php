@@ -1101,7 +1101,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         // mid-batch abort roll back the WHOLE batch, as the contract
         // requires.
         $this->dispatchEvent(
-            new BeforeSaveEvent($entity, $resolvedContext, $createRevision),
+            new BeforeSaveEvent($entity, $resolvedContext, $createRevision, $originalEntity),
             BeforeSaveEvent::class,
         );
 

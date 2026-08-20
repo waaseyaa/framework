@@ -45,6 +45,7 @@ final class SaveContextAdvisoryAcknowledgementTest extends TestCase
                 SaveContext::default()->withSaveAdvisoryAcknowledgements($tokens);
                 self::fail('Malformed acknowledgement input was accepted.');
             } catch (\InvalidArgumentException) {
+                $this->addToAssertionCount(1);
             }
         }
     }
@@ -87,4 +88,3 @@ final class SaveContextAdvisoryAcknowledgementTest extends TestCase
         self::assertSame(9, $context->expectedRevisionId());
     }
 }
-
