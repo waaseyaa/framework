@@ -33,7 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   databases keep the prior coordinated path. Deterministic interleaving proves
   an unchanged inspection admits a competing commit and leaves the authority
   generation unchanged, while a real first-install change still acquires
-  authority exactly once and creates the requested table.
+  authority exactly once and creates the requested table. Because the plan
+  repeats every decision the replay makes before that first refused write, the
+  records it logs are held and emitted once per synchronization — from the plan
+  when nothing changed, from the replay when something did — rather than once
+  per traversal.
 
 - **Fixed — an OpenAI-compatible endpoint that never finishes connecting is now
   bounded at 5s instead of 120s (#2445):** `OpenAiCompatibleProvider` set one

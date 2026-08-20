@@ -954,6 +954,9 @@ completed traversal proves the entire operation is read-only and returns
 without acquiring schema authority; the first attempted write is refused before
 mutation and causes one replay through `SchemaMutationCoordinator`. This is the
 same ensure path in both phases, not a second shallow table-existence planner.
+Because it is the same path, what the first traversal logs is held and emitted
+only when no replay follows, so one `syncAll()` reports a condition once rather
+than once per traversal.
 Non-SQLite databases keep the coordinated path. Full writer-position and
 read-only-plan invariants: `docs/specs/infrastructure.md` “MigrationRepository”.
 

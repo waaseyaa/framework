@@ -140,6 +140,62 @@ final class SchemaAuthoritySteadyStateConcurrencyTest extends TestCase
         $steady->close();
     }
 
+    /**
+     * #2452. An install can carry entity tables while carrying no authority or
+     * ledger records — anything materialized before #2446 looks exactly like
+     * that. Ordinary boot is a read path, so a synchronization that finds
+     * nothing to change must leave that install alone rather than quietly
+     * installing schema on its behalf; `db:init` and the next real mutation are
+     * the authorized repair paths, and the second half of this test proves the
+     * install still converges through one of them.
+     */
+    #[Test]
+    public function an_unchanged_synchronization_leaves_an_install_without_authority_records_alone(): void
+    {
+        $this->databasePath = $this->freshDatabasePath();
+        $widget = self::entityType('widget', 'Widget');
+
+        $seed = $this->productionConnection();
+        new EntitySchemaSync(new DBALDatabase($seed))->syncAll([$widget]);
+        $seedSchema = $seed->createSchemaManager();
+        $seedSchema->dropTable('waaseyaa_schema_authority');
+        $seedSchema->dropTable('waaseyaa_migrations');
+        self::assertSame(['widget'], $seed->createSchemaManager()->listTableNames());
+        $seed->close();
+
+        $boot = $this->productionConnection();
+        new EntitySchemaSync(new DBALDatabase($boot))->syncAll([$widget]);
+
+        self::assertNotContains(
+            'waaseyaa_schema_authority',
+            $boot->createSchemaManager()->listTableNames(),
+            'a synchronization that found nothing to change must not install schema authority.',
+        );
+
+        new EntitySchemaSync(new DBALDatabase($boot))->syncAll([$widget, self::entityType('gadget', 'Gadget')]);
+
+        $repaired = $boot->createSchemaManager()->listTableNames();
+        self::assertContains('waaseyaa_schema_authority', $repaired, 'the next real mutation restores authority');
+        self::assertContains('waaseyaa_migrations', $repaired, 'the next real mutation restores the ledger');
+        $boot->close();
+    }
+
+    private static function entityType(string $id, string $label): EntityType
+    {
+        return new EntityType(
+            id: $id,
+            label: $label,
+            class: TestStorageEntity::class,
+            keys: [
+                'id' => 'id',
+                'uuid' => 'uuid',
+                'bundle' => 'bundle',
+                'label' => 'label',
+                'langcode' => 'langcode',
+            ],
+        );
+    }
+
     private function freshDatabasePath(): string
     {
         $path = tempnam(sys_get_temp_dir(), 'waaseyaa-steady-state-');

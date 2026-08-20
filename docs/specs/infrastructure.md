@@ -1146,6 +1146,24 @@ nested handlers do not acquire schema authority during this pass.
 - An already-active coordinator skips planning; nested schema work remains in
   its caller's transaction. Non-SQLite databases retain the prior coordinated
   apply path until they have an equivalent fail-before-write planning boundary.
+- The plan's log records are buffered rather than emitted as they are produced.
+  A replay reaches every condition the plan reached and reports them itself, so
+  the buffer is discarded in that case and replayed otherwise — including when
+  the plan fails on its own terms, where its records are the only diagnostics.
+  One synchronization therefore reports a condition once, not once per
+  traversal.
+- A plan that fails for any reason other than the read-only refusal propagates
+  unchanged, and restores both the connection's prior `query_only` mode and its
+  planning mark on the way out. A connection left query-only would fail every
+  later write; a stale planning mark would let nested schema work skip the
+  coordinator.
+
+An install can hold entity tables while holding no authority or ledger records —
+anything materialized before #2446 looks exactly like that. A plan that finds no
+change leaves such an install untouched rather than quietly installing schema on
+its behalf: ordinary boot is a read path, and `MigrationRepository`'s installing
+methods belong to `db:init` or to the next real mutation. Both are authorized
+mutation boundaries, and the install converges through whichever arrives first.
 
 Do not replace this with a hand-maintained shallow table-existence check. Entity
 schema synchronization also owns additive columns, indexes, foreign keys,

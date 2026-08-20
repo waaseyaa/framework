@@ -2252,6 +2252,20 @@
             "occurrence": 3
         },
         {
+            "path": "packages/entity-storage/tests/Unit/CoordinatedEntitySchemaExecutorTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/CoordinatedEntitySchemaExecutorTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 2
+        },
+        {
             "path": "packages/entity-storage/tests/Unit/DefaultRevisionDisciplineTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -2943,6 +2957,27 @@
             "class": "test",
             "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
             "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "test",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "test",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "test",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 5
         },
         {
             "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",

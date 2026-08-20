@@ -11,6 +11,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LoggerTrait;
+use Waaseyaa\Foundation\Log\LogLevel;
 
 #[CoversClass(EntitySchemaSync::class)]
 final class EntitySchemaSyncTest extends TestCase
@@ -75,6 +78,50 @@ final class EntitySchemaSyncTest extends TestCase
     }
 
     #[Test]
+    public function a_synchronization_that_replays_reports_each_condition_once(): void
+    {
+        $transWidget = $this->makeTranslatableEntityType('trans_widget', 'Trans Widget');
+        (new EntitySchemaSync($this->database))->syncAll([$transWidget]);
+        $this->seedNonEmptyTranslationSibling();
+
+        // A second, genuinely new type means the plan is refused only *after*
+        // the sibling has already been examined and reported, so both the plan
+        // and the replayed apply traversal reach that report.
+        $logger = new RecordingSchemaSyncLogger();
+        (new EntitySchemaSync($this->database, logger: $logger))->syncAll([
+            $transWidget,
+            $this->makeEntityType('late_widget', 'Late Widget'),
+        ]);
+
+        $this->assertTrue($this->database->schema()->tableExists('late_widget'), 'the change still applies');
+        $this->assertSame(
+            1,
+            $logger->countContaining('is non-empty'),
+            'a synchronization that replays through the coordinator must report a condition once, not once per traversal',
+        );
+    }
+
+    #[Test]
+    public function an_unchanged_synchronization_still_reports_what_its_plan_finds(): void
+    {
+        $transWidget = $this->makeTranslatableEntityType('trans_widget', 'Trans Widget');
+        (new EntitySchemaSync($this->database))->syncAll([$transWidget]);
+        $this->seedNonEmptyTranslationSibling();
+
+        $logger = new RecordingSchemaSyncLogger();
+        $sync = new EntitySchemaSync($this->database, logger: $logger);
+        $sync->syncAll([$transWidget]);
+
+        // The plan is the only traversal here, so suppressing its records would
+        // silence the diagnostic entirely on an install that needs no change.
+        $this->assertSame(
+            1,
+            $logger->countContaining('is non-empty'),
+            'an unchanged synchronization must still report what its read-only plan found',
+        );
+    }
+
+    #[Test]
     public function it_does_not_create_a_translations_sibling_for_sql_blob_translatable(): void
     {
         $article = $this->makeTranslatableEntityType('trans_widget', 'Trans Widget');
@@ -136,6 +183,20 @@ final class EntitySchemaSyncTest extends TestCase
         );
     }
 
+    /** A sql-blob translatable type's non-empty sibling is reported, never written to. */
+    private function seedNonEmptyTranslationSibling(): void
+    {
+        $this->database->schema()->createTable('trans_widget_translations', [
+            'fields' => [
+                'entity_id' => ['type' => 'varchar', 'length' => 128],
+                'langcode' => ['type' => 'varchar', 'length' => 12],
+            ],
+        ]);
+        $this->database->insert('trans_widget_translations')
+            ->values(['entity_id' => 'e1', 'langcode' => 'oj'])
+            ->execute();
+    }
+
     private function makeEntityType(string $id, string $label): EntityType
     {
         return new EntityType(
@@ -168,5 +229,27 @@ final class EntitySchemaSyncTest extends TestCase
             ],
             translatable: true,
         );
+    }
+}
+
+/** Counts what a synchronization reported, regardless of which traversal produced it. */
+final class RecordingSchemaSyncLogger implements LoggerInterface
+{
+    use LoggerTrait;
+
+    /** @var list<string> */
+    private array $messages = [];
+
+    public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+    {
+        $this->messages[] = (string) $message;
+    }
+
+    public function countContaining(string $needle): int
+    {
+        return \count(array_filter(
+            $this->messages,
+            static fn(string $message): bool => str_contains($message, $needle),
+        ));
     }
 }
