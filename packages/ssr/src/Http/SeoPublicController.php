@@ -34,6 +34,12 @@ use Waaseyaa\User\AnonymousUser;
  * curated `llms.topics` config produce nicer URLs; this is the zero-config
  * default (A-001).
  *
+ * `/robots.txt` advertises the sitemap with an absolute URL taken from
+ * {@see CanonicalPublicOrigin} (trusted `APP_URL` / `api_catalog.base_url` /
+ * `app.url`). The incoming request Host is never used. Missing or invalid
+ * configuration omits the `Sitemap:` line rather than emitting a relative
+ * or attacker-controlled URL. `/sitemap.xml` loc generation is unchanged.
+ *
  * @api
  */
 final class SeoPublicController
@@ -67,12 +73,13 @@ final class SeoPublicController
         private readonly EntityTypeManager $entityTypeManager,
         private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
         private readonly ?AccountPrincipalFactoryInterface $principalFactory = null,
+        private readonly ?CanonicalPublicOrigin $canonicalOrigin = null,
     ) {}
 
     public function robotsTxt(): Response
     {
         $body = new RobotsTxtGenerator()->toText(
-            sitemapUrl: '/sitemap.xml',
+            sitemapUrl: $this->canonicalOrigin?->sitemapUrl(),
             disallowPaths: [],
         );
 
