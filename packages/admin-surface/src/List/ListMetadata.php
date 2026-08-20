@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AdminSurface\List;
 
+use Waaseyaa\AdminSurface\Query\SurfaceFieldName;
 use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 
 /**
@@ -290,7 +291,7 @@ final readonly class ListMetadata
 
     private static function field(mixed $value): ?string
     {
-        return is_string($value) && preg_match('/^[A-Za-z_][A-Za-z0-9_.]*$/', $value) === 1 ? $value : null;
+        return SurfaceFieldName::normalize($value);
     }
 
     private static function label(mixed $value): ?string

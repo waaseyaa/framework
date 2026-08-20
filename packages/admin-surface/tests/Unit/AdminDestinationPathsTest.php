@@ -77,6 +77,150 @@ final class AdminDestinationPathsTest extends TestCase
     }
 
     #[Test]
+    public function filteredListOwnsTheSpaDeclaredFilterQueryShape(): void
+    {
+        self::assertSame(
+            '/admin/node?filter%5Bworkflow_state%5D%5Boperator%5D=EQUALS&filter%5Bworkflow_state%5D%5Bvalue%5D=draft',
+            AdminDestinationPaths::filteredList('node', [
+                'workflow_state' => ['operator' => 'EQUALS', 'value' => 'draft'],
+            ]),
+        );
+    }
+
+    #[Test]
+    public function filteredListIsStableAndRfc3986Encoded(): void
+    {
+        $expected = '/admin/odd%20type'
+            . '?filter%5Ba_field.sub%5D%5Boperator%5D=CONTAINS'
+            . '&filter%5Ba_field.sub%5D%5Bvalue%5D=a%20b%26c'
+            . '&filter%5Bz%5D%5Boperator%5D=EQUALS'
+            . '&filter%5Bz%5D%5Bvalue%5D=0';
+
+        self::assertSame($expected, AdminDestinationPaths::filteredList('odd type', [
+            'z' => ['operator' => 'EQUALS', 'value' => '0'],
+            'a_field.sub' => ['operator' => 'CONTAINS', 'value' => 'a b&c'],
+        ]));
+    }
+
+    #[Test]
+    #[DataProvider('canonicalFilterFields')]
+    public function filteredListPreservesCanonicalFieldNames(string $field): void
+    {
+        self::assertSame(
+            sprintf(
+                '/admin/node?filter%%5B%s%%5D%%5Boperator%%5D=EQUALS&filter%%5B%s%%5D%%5Bvalue%%5D=draft',
+                $field,
+                $field,
+            ),
+            AdminDestinationPaths::filteredList('node', [
+                $field => ['operator' => 'EQUALS', 'value' => 'draft'],
+            ]),
+        );
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function canonicalFilterFields(): iterable
+    {
+        yield 'plain' => ['state'];
+        yield 'underscored' => ['workflow_state'];
+        yield 'leading underscore' => ['_internal'];
+        yield 'dotted' => ['owner.name'];
+        yield 'digits after first character' => ['field2'];
+    }
+
+    /**
+     * The generator may not emit a field name the list metadata would refuse:
+     * a forged bracket would fabricate a differently shaped key, and a space or
+     * control character would address a field no declaration can name.
+     */
+    #[Test]
+    #[DataProvider('noncanonicalFilterFields')]
+    public function filteredListRefusesANoncanonicalFieldName(string $field): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        AdminDestinationPaths::filteredList('node', [
+            $field => ['operator' => 'EQUALS', 'value' => 'draft'],
+        ]);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function noncanonicalFilterFields(): iterable
+    {
+        yield 'bracket injection' => ['a][x'];
+        yield 'opening bracket' => ['a[x'];
+        yield 'closing bracket' => ['a]'];
+        yield 'inner space' => ['a field'];
+        yield 'leading space' => [' state'];
+        yield 'trailing space' => ['state '];
+        yield 'tab' => ["state\tx"];
+        yield 'newline' => ["state\n"];
+        yield 'carriage return' => ["state\rx"];
+        yield 'null byte' => ["state\0"];
+        yield 'leading digit' => ['1state'];
+        yield 'leading dot' => ['.state'];
+        yield 'forward slash' => ['a/b'];
+        yield 'backslash' => ['a\\b'];
+        yield 'hyphen' => ['a-b'];
+        yield 'ampersand' => ['a&b'];
+        yield 'equals' => ['a=b'];
+        yield 'percent' => ['a%b'];
+        yield 'non-ascii' => ['état'];
+    }
+
+    /**
+     * An operator is serialized so the list can compare it with the one its
+     * metadata declares. A name that is no canonical operator could never match
+     * that declaration, so it is refused rather than emitted.
+     */
+    #[Test]
+    public function filteredListRefusesANoncanonicalOperator(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        AdminDestinationPaths::filteredList('node', [
+            'state' => ['operator' => 'LIKE', 'value' => 'draft'],
+        ]);
+    }
+
+    #[Test]
+    public function filteredListEmitsOperatorsInCanonicalForm(): void
+    {
+        self::assertSame(
+            '/admin/node?filter%5Bstate%5D%5Boperator%5D=STARTS_WITH&filter%5Bstate%5D%5Bvalue%5D=dr',
+            AdminDestinationPaths::filteredList('node', [
+                'state' => ['operator' => 'starts_with', 'value' => 'dr'],
+            ]),
+        );
+    }
+
+    /** @param array<mixed> $filters */
+    #[Test]
+    #[DataProvider('invalidListFilters')]
+    public function filteredListRefusesAnEmptyOrMalformedTuple(array $filters): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        AdminDestinationPaths::filteredList('node', $filters);
+    }
+
+    /** @return iterable<string, array{array<mixed>}> */
+    public static function invalidListFilters(): iterable
+    {
+        yield 'no filters' => [[]];
+        yield 'empty field' => [['' => ['operator' => 'EQUALS', 'value' => 'draft']]];
+        yield 'numeric field' => [[0 => ['operator' => 'EQUALS', 'value' => 'draft']]];
+        yield 'not a tuple' => [['state' => 'draft']];
+        yield 'missing operator' => [['state' => ['value' => 'draft']]];
+        yield 'empty operator' => [['state' => ['operator' => '', 'value' => 'draft']]];
+        yield 'missing value' => [['state' => ['operator' => 'EQUALS']]];
+        yield 'empty value' => [['state' => ['operator' => 'EQUALS', 'value' => '']]];
+        yield 'non-string value' => [['state' => ['operator' => 'EQUALS', 'value' => false]]];
+        yield 'extra member' => [['state' => ['operator' => 'EQUALS', 'value' => 'draft', 'label' => 'Draft']]];
+        yield 'unknown operator' => [['state' => ['operator' => 'NOT_AN_OPERATOR', 'value' => 'draft']]];
+    }
+
+    #[Test]
     public function createAcceptsABundleScope(): void
     {
         self::assertSame('/admin/node/create?bundle=job_posting', AdminDestinationPaths::create('node', 'job_posting'));
@@ -186,6 +330,26 @@ final class AdminDestinationPathsTest extends TestCase
             $source,
             'The admin SPA must name the bundle query parameter exactly as this generator emits it.',
         );
+    }
+
+    /**
+     * The SPA half of the restoration contract. The behavioural proof lives in
+     * the SchemaList Vitest suite; this pins only that the page still reads
+     * both members of the pair and gates restoration on the declared operator,
+     * so the query shape this generator emits cannot drift away from the one
+     * the list consumes.
+     */
+    #[Test]
+    public function theAdminSpaRestoresTheSameFilteredListQueryShape(): void
+    {
+        $source = file_get_contents(\dirname(__DIR__, 3) . '/admin/app/components/schema/SchemaList.vue');
+        self::assertIsString($source);
+
+        self::assertStringContainsString('params.get(`filter[${field}][operator]`)', $source);
+        self::assertStringContainsString('params.get(`filter[${field}][value]`)', $source);
+        self::assertStringContainsString('urlOperator === declaredOperator', $source);
+        self::assertStringContainsString('url.searchParams.set(`filter[${filter.field}][operator]`, filter.operator)', $source);
+        self::assertStringContainsString('url.searchParams.set(`filter[${filter.field}][value]`, String(value))', $source);
     }
 
     /**

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface;
 
 use InvalidArgumentException;
+use Waaseyaa\AdminSurface\Query\SurfaceFieldName;
+use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 
 /**
  * Canonical path patterns for the Admin SPA's own pages.
@@ -51,6 +53,77 @@ final class AdminDestinationPaths
     public static function list(string $entityType, ?string $bundle = null): string
     {
         return self::withBundle(self::typePath($entityType), $bundle);
+    }
+
+    /**
+     * A list deep link carrying schema-declared filter controls.
+     *
+     * This owns only the SPA query encoding. Generating the URL does not make
+     * an undeclared field filterable and grants no list or field access; the
+     * existing list metadata, query policy, and entity access gates remain
+     * authoritative when the destination is opened.
+     *
+     * Field names must satisfy the canonical {@see SurfaceFieldName} grammar
+     * that `ListMetadata` enforces, so a generated key cannot carry a bracket,
+     * a space, or a control character into the query shape. Operators must name
+     * a {@see SurfaceFilterOperator} case and are emitted in canonical form,
+     * because the list restores a control only when the serialized operator
+     * matches the one its metadata declares.
+     *
+     * Runtime validation deliberately accepts an untrusted array boundary and
+     * narrows it to `field => {operator, value}` before constructing a query.
+     *
+     * @param non-empty-string      $entityType
+     * @param array<mixed, mixed>   $filters
+     */
+    public static function filteredList(string $entityType, array $filters): string
+    {
+        if ($filters === []) {
+            throw new InvalidArgumentException('AdminDestinationPaths: filters must not be empty.');
+        }
+
+        /** @var array<string, array{operator: string, value: string}> $normalized */
+        $normalized = [];
+        foreach ($filters as $field => $filter) {
+            if (!SurfaceFieldName::isValid($field)) {
+                throw new InvalidArgumentException(sprintf(
+                    'AdminDestinationPaths: filter field must match %s; got "%s".',
+                    SurfaceFieldName::PATTERN,
+                    is_string($field) ? $field : get_debug_type($field),
+                ));
+            }
+            if (!is_array($filter)
+                || array_diff(array_keys($filter), ['operator', 'value']) !== []
+                || count($filter) !== 2
+                || !is_string($filter['operator'] ?? null)
+                || $filter['operator'] === ''
+                || !is_string($filter['value'] ?? null)
+                || $filter['value'] === ''
+            ) {
+                throw new InvalidArgumentException(sprintf(
+                    'AdminDestinationPaths: filter "%s" must contain only non-empty string operator and value members.',
+                    $field,
+                ));
+            }
+            $operator = SurfaceFilterOperator::fromString($filter['operator']);
+            if ($operator === null) {
+                throw new InvalidArgumentException(sprintf(
+                    'AdminDestinationPaths: filter "%s" names no canonical operator: "%s".',
+                    $field,
+                    $filter['operator'],
+                ));
+            }
+            $normalized[$field] = ['operator' => $operator->value, 'value' => $filter['value']];
+        }
+        ksort($normalized, SORT_STRING);
+
+        $query = [];
+        foreach ($normalized as $field => $filter) {
+            $query[sprintf('filter[%s][operator]', $field)] = $filter['operator'];
+            $query[sprintf('filter[%s][value]', $field)] = $filter['value'];
+        }
+
+        return self::typePath($entityType) . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
     }
 
     /**

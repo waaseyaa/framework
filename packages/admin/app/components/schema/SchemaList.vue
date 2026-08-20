@@ -209,14 +209,34 @@ function initializeListControls() {
   restoreBrowserQuery()
 }
 
+/**
+ * The value a serialized control may restore, or null when it may not.
+ *
+ * Metadata stays authoritative. A link carries an operator alongside its value,
+ * but that operator is never executed: it is only compared against the one this
+ * field declares. A pair that is missing a member, names an unknown operator,
+ * or disagrees with the declaration restores nothing, so the control keeps its
+ * default rather than silently running a query the URL asked for and the list
+ * never offered. Fields the metadata does not declare are never consulted.
+ */
+function declaredControlValue(params: URLSearchParams, field: string, declaredOperator: string): string | null {
+  const urlOperator = params.get(`filter[${field}][operator]`)
+  const value = params.get(`filter[${field}][value]`)
+  if (urlOperator === null || value === null) return null
+  return urlOperator === declaredOperator ? value : null
+}
+
 function restoreBrowserQuery() {
   if (typeof window === 'undefined' || !listMetadata.value) return
   const params = new URL(window.location.href).searchParams
   const search = listMetadata.value.search
-  if (search) searchValue.value = params.get(`filter[${search.field}][value]`) ?? searchValue.value
+  if (search) {
+    const restored = declaredControlValue(params, search.field, search.operator)
+    if (restored !== null) searchValue.value = restored
+  }
   for (const filter of listMetadata.value.filters) {
-    const value = params.get(`filter[${filter.field}][value]`)
-    if (value !== null) filterValues[filter.field] = value
+    const restored = declaredControlValue(params, filter.field, filter.operator)
+    if (restored !== null) filterValues[filter.field] = restored
   }
   const rawSort = params.get('sort')
   if (rawSort) {
