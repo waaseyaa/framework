@@ -32,14 +32,49 @@ final class InstallInitHandlerTest extends TestCase
 {
     private ConfigurationAuthorityContext $authority;
 
+    private string $syncPath;
+
     protected function setUp(): void
     {
+        $this->syncPath = sys_get_temp_dir() . '/waaseyaa-install-sync-' . bin2hex(random_bytes(6)) . '/config/sync';
         $this->authority = new ConfigurationAuthorityContext(
             authorityId: str_repeat('a', 64),
             databaseIdentity: 'database:v1:test',
-            syncPath: '/tmp/config-sync',
+            syncPath: $this->syncPath,
             selectorProvenance: ['default'],
         );
+    }
+
+    /**
+     * A site needs somewhere to receive an authored bundle (#2430), and it must
+     * be empty: strict CFG-03 validation requires every member of a sync
+     * directory to be a versioned config sync file, so a placeholder would make
+     * the directory unsignable the moment it existed.
+     */
+    #[Test]
+    public function it_creates_an_empty_configuration_sync_directory(): void
+    {
+        self::assertDirectoryDoesNotExist($this->syncPath);
+
+        $genesis = $this->genesisActivator($this->token());
+        [$io, $output] = $this->io();
+
+        $exit = new InstallInitHandler(
+            prepareSchema: static function (): void {},
+            activator: $this->activator(null, null),
+            genesis: $genesis,
+            authority: $this->authority,
+        )->execute($io);
+
+        self::assertSame(0, $exit);
+        self::assertDirectoryExists($this->syncPath);
+        self::assertStringContainsString('Created the configuration sync directory', $output->fetch());
+        self::assertSame(
+            [],
+            array_values(array_diff((array) scandir($this->syncPath), ['.', '..'])),
+            'Installation must leave the sync directory empty.',
+        );
+        self::assertNotSame([], $genesis->requests);
     }
 
     #[Test]

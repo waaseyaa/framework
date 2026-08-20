@@ -49,6 +49,13 @@ final readonly class InstallInitHandler
         $io->writeln('Applying migrations and synchronizing entity schema...');
         ($this->prepareSchema)();
 
+        // A site needs somewhere to receive an authored configuration bundle
+        // (#2430). Installation creates the directory and puts nothing in it:
+        // strict CFG-03 validation requires every member of a sync directory to
+        // be a versioned config sync file, so a placeholder file would make the
+        // directory unsignable and unimportable the moment it existed.
+        $this->ensureSyncDirectory($io);
+
         $requestId = self::requestId($this->authority);
         $existing = $this->activator->currentToken();
 
@@ -93,6 +100,25 @@ final readonly class InstallInitHandler
         $io->writeln('Installation is complete.');
 
         return 0;
+    }
+
+    private function ensureSyncDirectory(SymfonyCommandIO $io): void
+    {
+        $syncPath = $this->authority->syncPath;
+        if (is_dir($syncPath)) {
+            return;
+        }
+        if (file_exists($syncPath)) {
+            $io->writeln(sprintf('Configuration sync path %s exists and is not a directory; leaving it alone.', $syncPath));
+
+            return;
+        }
+        if (!mkdir($syncPath, 0o755, true) && !is_dir($syncPath)) {
+            $io->writeln(sprintf('Could not create the configuration sync directory %s.', $syncPath));
+
+            return;
+        }
+        $io->writeln(sprintf('Created the configuration sync directory %s.', $syncPath));
     }
 
     /**
