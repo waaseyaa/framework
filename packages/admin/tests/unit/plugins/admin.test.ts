@@ -119,6 +119,39 @@ describe('admin plugin degraded bootstrap paths', () => {
     expect(authChecked.value).toBe(true)
   })
 
+  it('reports embedded session expiry to the same-origin parent before redirecting', async () => {
+    vi.resetModules()
+
+    window.history.replaceState({}, '', '/admin/entity-editor-embed/node/42')
+    const originalParent = window.parent
+    const postMessage = vi.fn()
+    Object.defineProperty(window, 'parent', { configurable: true, value: { postMessage } })
+
+    vi.stubGlobal('defineNuxtPlugin', (plugin: unknown) => plugin)
+    vi.stubGlobal('useRuntimeConfig', () => ({
+      app: { baseURL: '/admin/' },
+      public: { baseUrl: '/admin' },
+    }))
+    vi.stubGlobal('$fetch', vi.fn(async () => ({ ok: false, error: { status: 401 } })))
+    vi.stubGlobal('navigateTo', vi.fn(async () => {}))
+
+    try {
+      const plugin = (await import('~/plugins/admin')).default as () => Promise<{ provide: { admin: AdminRuntime | null } }>
+      await plugin()
+
+      expect(postMessage).toHaveBeenCalledWith({
+        schema: 'waaseyaa.admin.embed.lifecycle.v1',
+        event: 'failure',
+        surface: 'entity-editor',
+        entityType: 'node',
+        entityId: '42',
+        failure: { kind: 'session-expired', status: 401 },
+      }, window.location.origin)
+    } finally {
+      Object.defineProperty(window, 'parent', { configurable: true, value: originalParent })
+    }
+  })
+
   it('redirects to login when the session succeeds but catalog bootstrap is unavailable', async () => {
     vi.resetModules()
 

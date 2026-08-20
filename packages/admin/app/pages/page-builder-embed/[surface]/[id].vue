@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { postEmbedLifecycle, type EmbedFailure } from '~/runtime/embedLifecycle'
 definePageMeta({ layout: false })
 
 const route = useRoute()
@@ -8,11 +9,30 @@ const { t } = useLanguage()
 const { appName } = useAdminConfig()
 
 useHead({ title: computed(() => `${t('page_builder_title')} | ${appName}`) })
+
+function lifecycle(event: 'ready' | 'saved') {
+  postEmbedLifecycle({ event, surface: 'page-builder', surfaceId: surface.value, entityId: entityId.value })
+}
+
+function onDirty(dirty: boolean) {
+  postEmbedLifecycle({ event: 'dirty', surface: 'page-builder', surfaceId: surface.value, entityId: entityId.value, dirty })
+}
+
+function onFailure(failure: EmbedFailure) {
+  postEmbedLifecycle({ event: 'failure', surface: 'page-builder', surfaceId: surface.value, entityId: entityId.value, failure })
+}
 </script>
 
 <template>
   <main class="page-builder-embed" data-page-builder-client="waaseyaa-admin">
-    <PageBuilderWorkspace :surface="surface" :entity-id="entityId" />
+    <PageBuilderWorkspace
+      :surface="surface"
+      :entity-id="entityId"
+      @ready="lifecycle('ready')"
+      @dirty="onDirty"
+      @saved="lifecycle('saved')"
+      @failure="onFailure"
+    />
   </main>
 </template>
 

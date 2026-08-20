@@ -53,6 +53,7 @@ vi.mock('~/composables/usePageBuilder', () => ({
     loading: ref(false),
     saving: ref(false),
     error: ref(null),
+    failure: ref(null),
     conflict: ref(null),
     load: loadMock,
     apply: applyMock,
@@ -148,6 +149,7 @@ describe('PageBuilderWorkspace block controls', () => {
     try {
       await wrapper.find('textarea').setValue('Recovered copy')
       expect(wrapper.text()).toContain('page_builder_unsaved')
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
 
       await vi.advanceTimersByTimeAsync(1500)
       await flushPromises()
@@ -158,6 +160,8 @@ describe('PageBuilderWorkspace block controls', () => {
         config: { html: 'Recovered copy' },
       })
       expect(loadHistoryMock).toHaveBeenCalled()
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([false])
     } finally {
       vi.useRealTimers()
     }

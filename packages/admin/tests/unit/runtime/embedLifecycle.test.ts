@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   EMBED_LIFECYCLE_SCHEMA,
   classifyEmbedFailure,
+  embedIdentityFromPath,
   postEmbedLifecycle,
 } from '~/runtime/embedLifecycle'
 
@@ -41,6 +42,24 @@ describe('embed lifecycle protocol', () => {
     expect(postMessage).not.toHaveBeenCalled()
   })
 
+  it('reconstructs the envelope so accidental content cannot cross the boundary', () => {
+    const postMessage = vi.fn()
+    const child = {
+      parent: { postMessage },
+      location: { origin: 'https://example.test' },
+    } as unknown as Window
+
+    postEmbedLifecycle({
+      event: 'saved',
+      surface: 'entity-editor',
+      entityType: 'node',
+      entityId: '42',
+      attributes: { title: 'private content' },
+    } as never, child)
+
+    expect(postMessage.mock.calls[0]?.[0]).not.toHaveProperty('attributes')
+  })
+
   it.each([
     [401, 'session-expired'],
     [403, 'permission-denied'],
@@ -52,5 +71,18 @@ describe('embed lifecycle protocol', () => {
 
   it('classifies a request with no response as a network failure', () => {
     expect(classifyEmbedFailure(new TypeError('Failed to fetch'))).toEqual({ kind: 'network' })
+  })
+
+  it('derives only canonical shell-free identities for bootstrap failures', () => {
+    expect(embedIdentityFromPath('/admin/entity-editor-embed/node/create', '/admin')).toEqual({
+      surface: 'entity-editor',
+      entityType: 'node',
+    })
+    expect(embedIdentityFromPath('/admin/page-builder-embed/page/a%2Fb', '/admin')).toEqual({
+      surface: 'page-builder',
+      surfaceId: 'page',
+      entityId: 'a/b',
+    })
+    expect(embedIdentityFromPath('/admin/node/42', '/admin')).toBeNull()
   })
 })

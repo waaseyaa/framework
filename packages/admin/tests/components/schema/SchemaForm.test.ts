@@ -172,6 +172,9 @@ describe('SchemaForm loading and error states', () => {
     })
     await flushPromises()
     expect(wrapper.find('form').exists()).toBe(true)
+    expect(wrapper.emitted('ready')).toHaveLength(1)
+    await wrapper.get('input[type="text"]').setValue('changed')
+    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
   })
 
   it('renders schema-declared task sections without dropping unassigned fields', async () => {
@@ -614,6 +617,7 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.emitted('saved')?.[0]).toEqual([resource])
+    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([false])
   })
 
   it('initializes boolean fields from schema defaults in create mode', async () => {
@@ -667,6 +671,7 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
     await flushPromises()
     // Should emit an error event
     expect(wrapper.emitted('error')).toBeTruthy()
+    expect(wrapper.emitted('failure')?.[0]?.[0]).toMatchObject({ kind: 'server', status: 422 })
   })
 })
 

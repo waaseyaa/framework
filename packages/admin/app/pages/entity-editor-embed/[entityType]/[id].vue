@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { postEmbedLifecycle, type EmbedFailure } from '~/runtime/embedLifecycle'
 definePageMeta({ layout: false })
 
 const route = useRoute()
@@ -20,9 +21,39 @@ function notify(type: 'saved' | 'deleted', id: string) {
   }, window.location.origin)
 }
 
+function lifecycle(event: 'ready' | 'saved' | 'deleted', id?: string) {
+  postEmbedLifecycle({
+    event,
+    surface: 'entity-editor',
+    entityType: entityType.value,
+    ...(id ? { entityId: id } : entityId.value ? { entityId: entityId.value } : {}),
+  })
+}
+
+function onDirty(dirty: boolean) {
+  postEmbedLifecycle({
+    event: 'dirty',
+    surface: 'entity-editor',
+    entityType: entityType.value,
+    ...(entityId.value ? { entityId: entityId.value } : {}),
+    dirty,
+  })
+}
+
+function onFailure(failure: EmbedFailure) {
+  postEmbedLifecycle({
+    event: 'failure',
+    surface: 'entity-editor',
+    entityType: entityType.value,
+    ...(entityId.value ? { entityId: entityId.value } : {}),
+    failure,
+  })
+}
+
 async function onSaved(resource: any) {
   const id = String(resource?.id ?? entityId.value ?? '')
   if (!id) return
+  lifecycle('saved', id)
   notify('saved', id)
   if (!entityId.value) {
     await navigateTo(`/entity-editor-embed/${encodeURIComponent(entityType.value)}/${encodeURIComponent(id)}`, { replace: true })
@@ -30,6 +61,7 @@ async function onSaved(resource: any) {
 }
 
 function onDeleted(id: string) {
+  lifecycle('deleted', id)
   notify('deleted', id)
 }
 </script>
@@ -42,6 +74,9 @@ function onDeleted(id: string) {
       :initial-bundle="initialBundle"
       @saved="onSaved"
       @deleted="onDeleted"
+      @ready="lifecycle('ready')"
+      @dirty="onDirty"
+      @failure="onFailure"
     />
   </main>
 </template>

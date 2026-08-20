@@ -180,9 +180,56 @@ final class AdminDestinationPaths
         return self::typePath($entityType) . '/pipeline';
     }
 
+    /**
+     * The shell-free create editor, optionally scoped to one bundle.
+     *
+     * @param non-empty-string $entityType
+     */
+    public static function embeddedCreate(string $entityType, ?string $bundle = null): string
+    {
+        return self::withBundle(self::embeddedEntityTypePath($entityType) . '/create', $bundle);
+    }
+
+    /**
+     * The shell-free editor for one existing record.
+     *
+     * `create` is a reserved route identity and therefore cannot ambiguously
+     * name an existing record through this generator.
+     *
+     * @param non-empty-string $entityType
+     * @param non-empty-string $id
+     */
+    public static function embeddedEdit(string $entityType, string $id): string
+    {
+        $id = self::require($id, 'id');
+        if ($id === 'create') {
+            throw new InvalidArgumentException('AdminDestinationPaths: id "create" is reserved by the embedded create route.');
+        }
+
+        return self::embeddedEntityTypePath($entityType) . '/' . rawurlencode($id);
+    }
+
+    /**
+     * The shell-free page builder for one registered surface record.
+     *
+     * @param non-empty-string $surface
+     * @param non-empty-string $id
+     */
+    public static function embeddedPageBuilder(string $surface, string $id): string
+    {
+        return self::MOUNT . '/page-builder-embed/'
+            . rawurlencode(self::require($surface, 'surface')) . '/'
+            . rawurlencode(self::require($id, 'id'));
+    }
+
     private static function typePath(string $entityType): string
     {
         return self::MOUNT . '/' . rawurlencode(self::require($entityType, 'entityType'));
+    }
+
+    private static function embeddedEntityTypePath(string $entityType): string
+    {
+        return self::MOUNT . '/entity-editor-embed/' . rawurlencode(self::require($entityType, 'entityType'));
     }
 
     /**

@@ -1519,7 +1519,7 @@ mounts the same `SchemaForm`, rich-text, date/time, file, slug, validation, and
 entity-autocomplete widgets as the default Admin SPA. Existing entities also
 receive the same workflow transitions, transition history, capability-gated
 delete action, and authoritative API enforcement. A same-origin parent receives
-only a saved/deleted resource identity notification so it can refresh its list;
+only the bounded lifecycle and resource identity notifications described below;
 content values and policy decisions never move through `postMessage`.
 
 ### Same-origin embed lifecycle protocol

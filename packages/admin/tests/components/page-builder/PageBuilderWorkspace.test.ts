@@ -4,7 +4,7 @@ import { flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import type { PageBuilderCommand, PageBuilderDefinitions, PageBuilderDraft, PageBuilderRevision } from '~/contracts/pageBuilder'
 
-const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionRef, loadingRef, savingRef, errorRef, conflictRef, loadMock, applyMock, loadLatestForConflictMock, retryConflictMock, dismissConflictMock, refreshPreviewMock, loadHistoryMock, compareRevisionMock, restoreRevisionMock } = vi.hoisted(() => {
+const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionRef, loadingRef, savingRef, errorRef, failureRef, conflictRef, loadMock, applyMock, loadLatestForConflictMock, retryConflictMock, dismissConflictMock, refreshPreviewMock, loadHistoryMock, compareRevisionMock, restoreRevisionMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     definitionsRef: ref<PageBuilderDefinitions | null>(null),
@@ -15,6 +15,7 @@ const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionR
     loadingRef: ref(false),
     savingRef: ref(false),
     errorRef: ref<string | null>(null),
+    failureRef: ref<{ kind: 'server', status?: number } | null>(null),
     conflictRef: ref<{ detail: string, latestLoaded: boolean } | null>(null),
     loadMock: vi.fn(),
     applyMock: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock('~/composables/usePageBuilder', () => ({
     loading: loadingRef,
     saving: savingRef,
     error: errorRef,
+    failure: failureRef,
     conflict: conflictRef,
     load: loadMock,
     apply: applyMock,
@@ -184,6 +186,7 @@ beforeEach(() => {
   loadingRef.value = false
   savingRef.value = false
   errorRef.value = null
+  failureRef.value = null
   conflictRef.value = null
   loadMock.mockReset().mockResolvedValue(undefined)
   applyMock.mockReset().mockImplementation(async (command: PageBuilderCommand) => {
@@ -229,6 +232,15 @@ describe('PageBuilderWorkspace', () => {
     expect(wrapper.text()).toContain('One column')
     expect(wrapper.text()).not.toContain('rich_text')
     expect(wrapper.get('textarea').element.value).toBe('Welcome')
+    expect(wrapper.emitted('ready')).toHaveLength(1)
+  })
+
+  it('forwards only the bounded lifecycle failure state', async () => {
+    const wrapper = await mountWorkspace()
+    failureRef.value = { kind: 'server', status: 503 }
+    await nextTick()
+
+    expect(wrapper.emitted('failure')?.[0]).toEqual([{ kind: 'server', status: 503 }])
   })
 
   it('preserves a conflicting change and requires an explicit compare then reapply choice', async () => {
