@@ -1,3 +1,4 @@
+import type { AdminSurfaceErrorMeta } from './adminSurface'
 import type { EntitySchema } from './schema'
 
 export interface TransportAdapter {
@@ -60,7 +61,7 @@ export class TransportError extends Error {
     public readonly detail?: string,
     public readonly source?: Record<string, string>,
     public readonly code?: string,
-    public readonly meta?: Record<string, unknown>,
+    public readonly meta?: AdminSurfaceErrorMeta,
   ) {
     super(title)
     this.name = 'TransportError'

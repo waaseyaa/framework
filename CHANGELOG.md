@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — Admin `TransportError` keeps the closed save-advisory meta contract
+  (#2467):** `TransportError.meta` is `AdminSurfaceErrorMeta`, not
+  `Record<string, unknown>`, so the allowlisted `save_advisories` projection
+  typechecks without reopening arbitrary error metadata.
+
 - **Changed — `AbortOperationException` stays final; unacknowledged save
   advisories are a sibling exception (#2467):** the public abort type is not an
   open hierarchy. `SaveAdvisoryAcknowledgementRequiredException` extends

@@ -160,7 +160,9 @@ allowlisted `save_advisories` fields (`code`, `field`, `severity`, `message`,
 objects, and other JSON:API error.meta keys do not cross the Admin boundary.
 A missing mutation-token HTTP 428 remains a codeless/meta-less precondition
 error, so the schema form can distinguish it from an unacknowledged advisory
-without parsing prose.
+without parsing prose. The SPA `TransportError` carries that same closed
+`AdminSurfaceErrorMeta` type; it does not reopen error metadata as
+`Record<string, unknown>`.
 
 The Admin transport supports optional acknowledgement tokens on create/update
 payloads. The schema form displays the returned advisories in an accessible

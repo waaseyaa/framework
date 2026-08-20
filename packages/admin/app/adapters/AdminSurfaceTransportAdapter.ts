@@ -223,7 +223,9 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
         error?.detail,
         error?.source,
         error?.code,
-        error?.meta,
+        error?.meta === undefined
+          ? undefined
+          : { save_advisories: error.meta.save_advisories },
       )
     }
     return json.data as T
