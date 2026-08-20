@@ -186,8 +186,14 @@ final readonly class ContentToolSet
                 $this->schema([
                     'values' => $this->valuesSchema(),
                     'idempotency_key' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 128],
+                    'save_advisory_acknowledgements' => $this->saveAdvisoryAcknowledgementsSchema(),
                 ], required: ['values', 'idempotency_key']),
-                static fn(array $a, $actor): array => $p->createDraft($actor, (array) $a['values'], (string) $a['idempotency_key']),
+                static fn(array $a, $actor): array => $p->createDraft(
+                    $actor,
+                    (array) $a['values'],
+                    (string) $a['idempotency_key'],
+                    (array) ($a['save_advisory_acknowledgements'] ?? []),
+                ),
                 $noRedaction,
             ],
             "$prefix.updateDraft" => [
@@ -197,6 +203,7 @@ final readonly class ContentToolSet
                     'values' => $this->valuesSchema(),
                     'expected_revision_id' => ['type' => 'integer', 'minimum' => 1],
                     'idempotency_key' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 128],
+                    'save_advisory_acknowledgements' => $this->saveAdvisoryAcknowledgementsSchema(),
                 ], required: ['id', 'values', 'expected_revision_id', 'idempotency_key']),
                 static fn(array $a, $actor): array => $p->updateDraft(
                     $actor,
@@ -204,6 +211,7 @@ final readonly class ContentToolSet
                     (array) $a['values'],
                     (int) $a['expected_revision_id'],
                     (string) $a['idempotency_key'],
+                    (array) ($a['save_advisory_acknowledgements'] ?? []),
                 ),
                 $noRedaction,
             ],
@@ -296,6 +304,17 @@ final readonly class ContentToolSet
         }
 
         return $tools;
+    }
+
+    /** @return array<string, mixed> */
+    private function saveAdvisoryAcknowledgementsSchema(): array
+    {
+        return [
+            'type' => 'array',
+            'items' => ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$'],
+            'maxItems' => 32,
+            'uniqueItems' => true,
+        ];
     }
 
     /** @return array<string, mixed> */

@@ -14,6 +14,7 @@ interface ContentDraftMutationInterface
 
     /**
      * @param array<string, mixed> $values
+     * @param list<string> $saveAdvisoryAcknowledgements
      * @return array<string, mixed>
      */
     public function updateDraft(
@@ -22,5 +23,6 @@ interface ContentDraftMutationInterface
         array $values,
         int $expectedRevisionId,
         string $idempotencyKey,
+        array $saveAdvisoryAcknowledgements = [],
     ): array;
 }
