@@ -65,7 +65,7 @@ canonical form containing:
 
 1. contract version;
 2. entity type and bundle;
-3. stable entity identity (`uuid`, then id, or the literal `new`);
+3. stable entity identity (the literal `new` for creates, otherwise `uuid`, then id);
 4. advisory code and field;
 5. the candidate field value encoded with type preservation.
 

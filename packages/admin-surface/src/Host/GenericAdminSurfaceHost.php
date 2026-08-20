@@ -1412,12 +1412,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         $api = $this->jsonApi();
 
         try {
-            $doc = $api->store($type, [
-                'data' => [
-                    'type' => $type,
-                    'attributes' => $attributes,
-                ],
-            ]);
+            $resource = [
+                'type' => $type,
+                'attributes' => $attributes,
+            ];
+            if (array_key_exists('save_advisory_acknowledgements', $payload)) {
+                $resource['meta'] = [
+                    'save_advisory_acknowledgements' => $payload['save_advisory_acknowledgements'],
+                ];
+            }
+            $doc = $api->store($type, ['data' => $resource]);
         } catch (\InvalidArgumentException $e) {
             return AdminSurfaceResultData::error(422, 'Unprocessable', $e->getMessage());
         }
@@ -1456,12 +1460,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         try {
-            $doc = $api->update($type, (string) $id, [
-                'data' => [
-                    'type' => $type,
-                    'attributes' => $payload['attributes'] ?? [],
-                ],
-            ], $expectation);
+            $resource = [
+                'type' => $type,
+                'attributes' => $payload['attributes'] ?? [],
+            ];
+            if (array_key_exists('save_advisory_acknowledgements', $payload)) {
+                $resource['meta'] = [
+                    'save_advisory_acknowledgements' => $payload['save_advisory_acknowledgements'],
+                ];
+            }
+            $doc = $api->update($type, (string) $id, ['data' => $resource], $expectation);
         } catch (\InvalidArgumentException $e) {
             return AdminSurfaceResultData::error(422, 'Unprocessable', $e->getMessage());
         }
@@ -1707,6 +1715,9 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $status,
             $first->title,
             $first->detail !== '' ? $first->detail : null,
+            $first->code,
+            $first->source,
+            $first->meta,
         );
     }
 }

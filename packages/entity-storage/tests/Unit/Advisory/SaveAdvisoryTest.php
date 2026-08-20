@@ -92,7 +92,7 @@ final class SaveAdvisoryTest extends TestCase
 
     private function entity(string $id, string $bundle, string $name): TestStorageEntity
     {
-        return new TestStorageEntity(
+        $entity = new TestStorageEntity(
             values: [
                 'id' => $id,
                 'uuid' => "00000000-0000-7000-8000-00000000000{$id}",
@@ -110,6 +110,8 @@ final class SaveAdvisoryTest extends TestCase
                 'langcode' => 'langcode',
             ],
         );
+        $entity->enforceIsNew(false);
+
+        return $entity;
     }
 }
-

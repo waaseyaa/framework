@@ -35,11 +35,11 @@ final readonly class SaveAdvisory
         self::assertField($field);
         self::assertMessage($message);
 
-        $identity = $entity->uuid();
-        if ($identity === '') {
+        $identity = $entity->isNew() ? 'new' : $entity->uuid();
+        if ($identity !== 'new' && $identity === '') {
             $id = $entity->id();
-            $identity = $id === null || $id === '' ? 'new' : 'id:' . (string) $id;
-        } else {
+            $identity = $id === null || $id === '' ? 'unidentified' : 'id:' . (string) $id;
+        } elseif ($identity !== 'new') {
             $identity = 'uuid:' . $identity;
         }
 

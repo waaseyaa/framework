@@ -77,19 +77,33 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     return promise
   }
 
-  async create(type: string, attributes: Record<string, any>): Promise<EntityResource> {
+  async create(
+    type: string,
+    attributes: Record<string, any>,
+    saveAdvisoryAcknowledgements: string[] = [],
+  ): Promise<EntityResource> {
     const entity = await this.request<SurfaceEntity>(
       this.surfaceUrl('admin_surface.action', { type, action: 'create' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attributes }),
+        body: JSON.stringify({
+          attributes,
+          ...(saveAdvisoryAcknowledgements.length > 0
+            ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
+            : {}),
+        }),
       },
     )
     return this.normalizeEntity(entity, type)
   }
 
-  async update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource> {
+  async update(
+    type: string,
+    id: string,
+    attributes: Record<string, any>,
+    saveAdvisoryAcknowledgements: string[] = [],
+  ): Promise<EntityResource> {
     const mutationToken = this.mutationTokens.get(`${type}:${id}`)
     if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before saving it.')
     const entity = await this.request<SurfaceEntity>(
@@ -97,7 +111,14 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, attributes, mutation_token: mutationToken }),
+        body: JSON.stringify({
+          id,
+          attributes,
+          mutation_token: mutationToken,
+          ...(saveAdvisoryAcknowledgements.length > 0
+            ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
+            : {}),
+        }),
       },
     )
     return this.normalizeEntity(entity, type)
@@ -201,6 +222,8 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
         error?.title ?? `HTTP ${response.status}`,
         error?.detail,
         error?.source,
+        error?.code,
+        error?.meta,
       )
     }
     return json.data as T

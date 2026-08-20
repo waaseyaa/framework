@@ -626,6 +626,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      *
      * @return int SAVED_NEW or SAVED_UPDATED (see {@see EntityConstants}).
      *
+     * @throws \Doctrine\DBAL\Exception\UniqueConstraintViolationException If the database rejects a unique value.
      * @throws \Waaseyaa\Entity\Validation\EntityValidationException If validation fails.
      * @throws AbortOperationException If a BeforeSaveEvent subscriber aborts.
      * @throws \RuntimeException If a PRE_SAVE subscriber rejects the save (e.g. a workflow guard denial) — subscriber exceptions propagate to the caller.

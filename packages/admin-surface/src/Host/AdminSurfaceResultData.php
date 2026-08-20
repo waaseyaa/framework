@@ -33,14 +33,27 @@ final readonly class AdminSurfaceResultData
         return new self(ok: true, data: $data, meta: $meta);
     }
 
-    public static function error(int $status, string $title, ?string $detail = null): self
-    {
+    /**
+     * @param array<string, string> $source
+     * @param array<string, mixed> $meta
+     */
+    public static function error(
+        int $status,
+        string $title,
+        ?string $detail = null,
+        string $code = '',
+        array $source = [],
+        array $meta = [],
+    ): self {
         return new self(
             ok: false,
             error: array_filter([
                 'status' => $status,
                 'title' => $title,
                 'detail' => $detail,
+                'code' => $code !== '' ? $code : null,
+                'source' => $source !== [] ? $source : null,
+                'meta' => $meta !== [] ? $meta : null,
             ], fn($v) => $v !== null),
         );
     }

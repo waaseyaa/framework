@@ -23,6 +23,7 @@ use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuardResult;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 
@@ -497,6 +498,11 @@ final class JsonApiController
             );
         }
 
+        $advisoryContext = $this->advisorySaveContext($data['data']['meta'] ?? null);
+        if ($advisoryContext instanceof JsonApiDocument) {
+            return $advisoryContext;
+        }
+
         $attributes = $data['data']['attributes'] ?? [];
 
         // Validate required fields for content entities.
@@ -650,7 +656,15 @@ final class JsonApiController
         }
 
         try {
-            $repository->save($entity);
+            if ($repository instanceof EntityRepository) {
+                $repository->save($entity, context: $advisoryContext);
+            } elseif ($advisoryContext->saveAdvisoryAcknowledgements() === []) {
+                $repository->save($entity);
+            } else {
+                return $this->errorDocument(JsonApiError::unprocessable(
+                    "Entity type '{$entityTypeId}' does not support save advisory acknowledgements.",
+                ));
+            }
         } catch (UniqueConstraintViolationException) {
             return $this->errorDocument(
                 new JsonApiError(
@@ -661,6 +675,8 @@ final class JsonApiController
             );
         } catch (EntityValidationException $e) {
             return $this->validationError($entityTypeId, $e);
+        } catch (SaveAdvisoryAcknowledgementRequiredException $e) {
+            return $this->saveAdvisoryError($e);
         } catch (TransitionDeniedException $e) {
             // WP2 rework (review finding #8): WorkflowStateGuard denies from
             // PRE_SAVE inside save() — never let it surface as an uncaught 500.
@@ -740,6 +756,10 @@ final class JsonApiController
         // research D4; If-Match is explicitly NOT this contract).
         $expectedRevisionId = null;
         $meta = $data['data']['meta'] ?? null;
+        $advisoryContext = $this->advisorySaveContext($meta);
+        if ($advisoryContext instanceof JsonApiDocument) {
+            return $advisoryContext;
+        }
         if (is_array($meta) && array_key_exists('expected_revision_id', $meta)) {
             $candidate = $meta['expected_revision_id'];
             if (!is_int($candidate) || $candidate < 1) {
@@ -868,13 +888,26 @@ final class JsonApiController
         }
 
         if ($expectedRevisionId !== null) {
-            $failure = $this->saveWithExpectation($entityTypeId, $target, $expectedRevisionId);
+            $failure = $this->saveWithExpectation(
+                $entityTypeId,
+                $target,
+                $expectedRevisionId,
+                $advisoryContext,
+            );
             if ($failure !== null) {
                 return $failure;
             }
         } else {
             try {
-                $repository->save($target);
+                if ($repository instanceof EntityRepository) {
+                    $repository->save($target, context: $advisoryContext);
+                } elseif ($advisoryContext->saveAdvisoryAcknowledgements() === []) {
+                    $repository->save($target);
+                } else {
+                    return $this->errorDocument(JsonApiError::unprocessable(
+                        "Entity type '{$entityTypeId}' does not support save advisory acknowledgements.",
+                    ));
+                }
             } catch (EntityMutationConflictException) {
                 return $this->mutationConflictDocument();
             } catch (UniqueConstraintViolationException) {
@@ -887,6 +920,8 @@ final class JsonApiController
                 return $this->errorDocument($this->uniquenessConflictError($entityTypeId, (string) $target->id()));
             } catch (EntityValidationException $e) {
                 return $this->validationError($entityTypeId, $e);
+            } catch (SaveAdvisoryAcknowledgementRequiredException $e) {
+                return $this->saveAdvisoryError($e);
             } catch (TransitionDeniedException $e) {
                 // WP2 rework (review finding #8): same PRE_SAVE guard denial
                 // as create() and the expectation-stated PATCH path below.
@@ -924,6 +959,7 @@ final class JsonApiController
         string $entityTypeId,
         EntityInterface $entity,
         int $expectedRevisionId,
+        SaveContext $context,
     ): ?JsonApiDocument {
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         if (!$repository instanceof EntityRepository) {
@@ -938,7 +974,7 @@ final class JsonApiController
         }
 
         try {
-            $repository->save($entity, context: SaveContext::default()->withExpectedRevisionId($expectedRevisionId));
+            $repository->save($entity, context: $context->withExpectedRevisionId($expectedRevisionId));
         } catch (UniqueConstraintViolationException) {
             // Same 409 mapping as the no-expectation PATCH path and
             // create() (WP2 review): the expectation can pass and the base
@@ -957,6 +993,8 @@ final class JsonApiController
             ));
         } catch (EntityValidationException $e) {
             return $this->validationError($entityTypeId, $e);
+        } catch (SaveAdvisoryAcknowledgementRequiredException $e) {
+            return $this->saveAdvisoryError($e);
         } catch (TransitionDeniedException $e) {
             // WP2 rework (review finding #8): same PRE_SAVE guard denial as
             // create() and the plain PATCH path above.
@@ -969,6 +1007,47 @@ final class JsonApiController
         }
 
         return null;
+    }
+
+    private function advisorySaveContext(mixed $meta): SaveContext|JsonApiDocument
+    {
+        if ($meta === null) {
+            return SaveContext::default();
+        }
+        if (!is_array($meta)) {
+            return $this->errorDocument(JsonApiError::badRequest('data.meta must be an object.'));
+        }
+
+        $member = 'save_advisory_acknowledgements';
+        if (!array_key_exists($member, $meta)) {
+            return SaveContext::default();
+        }
+        $tokens = $meta[$member];
+        if (!is_array($tokens)) {
+            return $this->errorDocument(JsonApiError::badRequest(
+                "data.meta.{$member} must be a list of lowercase 64-character hex tokens.",
+            ));
+        }
+
+        try {
+            return SaveContext::default()->withSaveAdvisoryAcknowledgements($tokens);
+        } catch (\InvalidArgumentException) {
+            return $this->errorDocument(JsonApiError::badRequest(
+                "data.meta.{$member} must be a list of at most 32 lowercase 64-character hex tokens.",
+            ));
+        }
+    }
+
+    private function saveAdvisoryError(
+        SaveAdvisoryAcknowledgementRequiredException $exception,
+    ): JsonApiDocument {
+        return $this->errorDocument(new JsonApiError(
+            status: '428',
+            title: 'Precondition Required',
+            detail: $exception->getMessage(),
+            code: 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
+            meta: ['save_advisories' => $exception->toArray()],
+        ));
     }
 
     private function validationError(string $entityTypeId, EntityValidationException $exception): JsonApiDocument

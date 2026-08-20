@@ -95,6 +95,8 @@ export interface AdminSurfaceError {
   title: string
   detail?: string
   source?: Record<string, string>
+  code?: string
+  meta?: Record<string, unknown>
 }
 
 export interface AdminSurfaceListQuery {

@@ -60,6 +60,9 @@ describe('SchemaForm save advisory acknowledgement', () => {
     await wrapper.get('input[type="text"]').setValue('News')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="save-advisory-review"]').exists()).toBe(true)
+    })
 
     const review = wrapper.get('[data-testid="save-advisory-review"]')
     expect(review.attributes('role')).toBe('status')
@@ -69,6 +72,7 @@ describe('SchemaForm save advisory acknowledgement', () => {
 
     await review.get('button').trigger('click')
     await flushPromises()
+    await vi.waitFor(() => expect(wrapper.emitted('saved')).toBeTruthy())
 
     expect(payloads).toEqual([
       { attributes: { title: 'News' } },
