@@ -31,6 +31,7 @@ export interface WorkflowTransitionApplyResult {
   transition: string
   from: string
   to: string
+  public_changed: boolean
 }
 
 interface WorkflowTransitionApplyResponse {
@@ -109,10 +110,24 @@ export function useWorkflowTransitions() {
       `/api/${entityType}/${encodeURIComponent(id)}/workflow/transition`,
       { method: 'POST', body: { transition: transitionId } },
     )
+    if (!isWorkflowTransitionApplyResponse(response)) {
+      throw new WorkflowTransitionResponseError()
+    }
     return response.data
   }
 
   return { transitions, state, history, loading, error, errorKind, fetchTransitions, applyTransition }
+}
+
+function isWorkflowTransitionApplyResponse(value: unknown): value is WorkflowTransitionApplyResponse {
+  if (typeof value !== 'object' || value === null) return false
+  const data = (value as { data?: unknown }).data
+  return typeof data === 'object'
+    && data !== null
+    && typeof (data as WorkflowTransitionApplyResult).transition === 'string'
+    && typeof (data as WorkflowTransitionApplyResult).from === 'string'
+    && typeof (data as WorkflowTransitionApplyResult).to === 'string'
+    && typeof (data as WorkflowTransitionApplyResult).public_changed === 'boolean'
 }
 
 class WorkflowTransitionResponseError extends Error {}

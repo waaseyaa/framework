@@ -4,6 +4,7 @@ import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
 import { useSchema } from '~/composables/useSchema'
 import { classifyEmbedFailure, type EmbedFailure } from '~/runtime/embedLifecycle'
+import type { WorkflowTransitionApplyResult } from '~/composables/useWorkflowTransitions'
 
 const props = defineProps<{
   entityType: string
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   ready: []
   dirty: [dirty: boolean]
   failure: [failure: EmbedFailure]
+  transitioned: [result: WorkflowTransitionApplyResult]
 }>()
 
 const { t, entityLabel: translateEntityLabel } = useLanguage()
@@ -52,9 +54,10 @@ function onError(message: string) {
   errorMessage.value = message
 }
 
-function onTransitioned() {
+function onTransitioned(result: WorkflowTransitionApplyResult) {
   successMessage.value = t('workflow_transitioned')
   refreshKey.value++
+  emit('transitioned', result)
 }
 
 async function confirmDelete() {

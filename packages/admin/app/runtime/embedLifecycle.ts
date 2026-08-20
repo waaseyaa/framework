@@ -1,4 +1,5 @@
 export const EMBED_LIFECYCLE_SCHEMA = 'waaseyaa.admin.embed.lifecycle.v1' as const
+export const EMBED_LIFECYCLE_SCHEMA_V2 = 'waaseyaa.admin.embed.lifecycle.v2' as const
 
 export type EmbedSurface = 'entity-editor' | 'page-builder'
 export type EmbedFailureKind = 'session-expired' | 'permission-denied' | 'conflict' | 'validation' | 'network' | 'server'
@@ -6,6 +7,11 @@ export type EmbedFailureKind = 'session-expired' | 'permission-denied' | 'confli
 export interface EmbedFailure {
   kind: EmbedFailureKind
   status?: number
+}
+
+export interface EmbedTransitionPresentation {
+  state: string
+  publicChanged: boolean
 }
 
 interface EmbedIdentity {
@@ -19,10 +25,11 @@ export type EmbedLifecyclePayload = EmbedIdentity & (
   | { event: 'ready' | 'saved' | 'deleted' }
   | { event: 'dirty', dirty: boolean }
   | { event: 'failure', failure: EmbedFailure }
+  | { event: 'transitioned', transition: EmbedTransitionPresentation }
 )
 
 export type EmbedLifecycleMessage = EmbedLifecyclePayload & {
-  schema: typeof EMBED_LIFECYCLE_SCHEMA
+  schema: typeof EMBED_LIFECYCLE_SCHEMA | typeof EMBED_LIFECYCLE_SCHEMA_V2
 }
 
 function finiteStatus(value: unknown): number | undefined {
@@ -77,11 +84,11 @@ export function postEmbedLifecycle(payload: EmbedLifecyclePayload, target: Windo
     ...(payload.surfaceId !== undefined ? { surfaceId: payload.surfaceId } : {}),
     ...(payload.entityId !== undefined ? { entityId: payload.entityId } : {}),
   }
-  const message: EmbedLifecycleMessage = payload.event === 'dirty'
-    ? { schema: EMBED_LIFECYCLE_SCHEMA, event: 'dirty', dirty: payload.dirty, ...identity }
+  const message = (schema: EmbedLifecycleMessage['schema']): EmbedLifecycleMessage => payload.event === 'dirty'
+    ? { schema, event: 'dirty', dirty: payload.dirty, ...identity }
     : payload.event === 'failure'
       ? {
-          schema: EMBED_LIFECYCLE_SCHEMA,
+          schema,
           event: 'failure',
           failure: {
             kind: payload.failure.kind,
@@ -89,8 +96,24 @@ export function postEmbedLifecycle(payload: EmbedLifecyclePayload, target: Windo
           },
           ...identity,
         }
-      : { schema: EMBED_LIFECYCLE_SCHEMA, event: payload.event, ...identity }
-  target.parent.postMessage(message, target.location.origin)
+      : payload.event === 'transitioned'
+        ? {
+            schema,
+            event: 'transitioned',
+            transition: {
+              state: payload.transition.state,
+              publicChanged: payload.transition.publicChanged,
+            },
+            ...identity,
+          }
+        : { schema, event: payload.event, ...identity }
+
+  // Existing hosts continue to receive the unchanged v1 vocabulary. V2 hosts
+  // select the v2 schema and receive the same lifecycle plus transitions.
+  if (payload.event !== 'transitioned') {
+    target.parent.postMessage(message(EMBED_LIFECYCLE_SCHEMA), target.location.origin)
+  }
+  target.parent.postMessage(message(EMBED_LIFECYCLE_SCHEMA_V2), target.location.origin)
 }
 
 function decodePathSegment(value: string): string | null {

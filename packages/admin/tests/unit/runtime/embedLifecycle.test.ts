@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   EMBED_LIFECYCLE_SCHEMA,
+  EMBED_LIFECYCLE_SCHEMA_V2,
   classifyEmbedFailure,
   embedIdentityFromPath,
   postEmbedLifecycle,
@@ -58,6 +59,32 @@ describe('embed lifecycle protocol', () => {
     } as never, child)
 
     expect(postMessage.mock.calls[0]?.[0]).not.toHaveProperty('attributes')
+  })
+
+  it('emits an authoritative transition only in the v2 observation envelope', () => {
+    const postMessage = vi.fn()
+    const child = {
+      parent: { postMessage },
+      location: { origin: 'https://example.test' },
+    } as unknown as Window
+
+    postEmbedLifecycle({
+      event: 'transitioned',
+      surface: 'entity-editor',
+      entityType: 'node',
+      entityId: '42',
+      transition: { state: 'published', publicChanged: true },
+    }, child)
+
+    expect(postMessage).toHaveBeenCalledTimes(1)
+    expect(postMessage).toHaveBeenCalledWith({
+      schema: EMBED_LIFECYCLE_SCHEMA_V2,
+      event: 'transitioned',
+      surface: 'entity-editor',
+      entityType: 'node',
+      entityId: '42',
+      transition: { state: 'published', publicChanged: true },
+    }, 'https://example.test')
   })
 
   it.each([

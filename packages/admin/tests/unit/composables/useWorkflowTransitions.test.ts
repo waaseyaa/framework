@@ -44,6 +44,11 @@ registerEndpoint('/api/node/missing/workflow/transitions', (event: unknown) => {
 
 registerEndpoint('/api/node/5/workflow/transition', {
   method: 'POST',
+  handler: () => ({ data: { transition: 'publish', from: 'review', to: 'published', public_changed: true } }),
+})
+
+registerEndpoint('/api/node/malformed/workflow/transition', {
+  method: 'POST',
   handler: () => ({ data: { transition: 'publish', from: 'review', to: 'published' } }),
 })
 
@@ -129,7 +134,13 @@ describe('useWorkflowTransitions', () => {
     const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
     const { applyTransition } = useWorkflowTransitions()
     const result = await applyTransition('node', '5', 'publish')
-    expect(result).toEqual({ transition: 'publish', from: 'review', to: 'published' })
+    expect(result).toEqual({ transition: 'publish', from: 'review', to: 'published', public_changed: true })
+  })
+
+  it('applyTransition rejects a response that omits the authoritative public-change flag', async () => {
+    const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
+    const { applyTransition } = useWorkflowTransitions()
+    await expect(applyTransition('node', 'malformed', 'publish')).rejects.toThrow()
   })
 
   it('applyTransition rejects with the raw error on a 403 permission denial', async () => {

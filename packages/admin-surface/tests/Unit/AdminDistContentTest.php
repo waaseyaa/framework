@@ -202,6 +202,28 @@ final class AdminDistContentTest extends TestCase
     }
 
     #[Test]
+    public function shipped_bundle_contains_the_authoritative_transition_lifecycle(): void
+    {
+        $js = $this->concatenatedBundleJs();
+
+        self::assertStringContainsString(
+            'waaseyaa.admin.embed.lifecycle.v2',
+            $js,
+            'The served admin bundle is missing the v2 embed lifecycle envelope; rebuild with bin/build-admin-dist.',
+        );
+        self::assertStringContainsString(
+            'publicChanged',
+            $js,
+            'The served admin bundle is missing the bounded public-projection refresh signal.',
+        );
+        self::assertStringContainsString(
+            'public_changed',
+            $js,
+            'The served admin bundle is not consuming the authoritative transition API result.',
+        );
+    }
+
+    #[Test]
     public function admin_source_and_shipped_bundle_do_not_depend_on_external_icon_infrastructure(): void
     {
         $adminDir = dirname(__DIR__, 3) . '/admin';

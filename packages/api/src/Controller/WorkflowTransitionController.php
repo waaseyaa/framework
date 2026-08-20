@@ -211,6 +211,7 @@ final class WorkflowTransitionController
         // this first-party caller (the passed object IS the working copy).
         $repository = $this->entityTypeManager->getRepository($entityType);
         $workingCopy = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+        $servedBefore = $this->workflowSubjectReader->read($entity);
         $expectedMutation = $this->mutationExpectation($request, $entityType, (string) $entity->id(), $workingCopy);
         if ($expectedMutation instanceof JsonApiResponse) {
             return $expectedMutation;
@@ -241,15 +242,35 @@ final class WorkflowTransitionController
         }
 
         $successor = $workingCopy instanceof EntityBase ? $workingCopy->mutationToken() : null;
+        $servedAfter = $this->workflowSubjectReader->read(
+            $repository->find((string) $entity->id()) ?? $workingCopy,
+        );
+        $publicChanged = ($servedBefore->status === 1 || $servedAfter->status === 1)
+            && (
+                $servedBefore->status !== $servedAfter->status
+                || $servedBefore->workflowState !== $servedAfter->workflowState
+                || !self::sameIdentifier($servedBefore->revisionId, $servedAfter->revisionId)
+                || !self::sameIdentifier($servedBefore->publishedRevisionId, $servedAfter->publishedRevisionId)
+            );
 
         return new JsonApiResponse([
             'data' => [
                 'transition' => $result->transitionId,
                 'from' => $result->fromState,
                 'to' => $result->toState,
+                'public_changed' => $publicChanged,
             ],
             'meta' => ['mutation_token' => $successor?->toOpaqueString()],
         ], headers: $successor !== null ? ['ETag' => $successor->toStrongEtag()] : []);
+    }
+
+    private static function sameIdentifier(int|string|null $left, int|string|null $right): bool
+    {
+        if ($left === null || $right === null) {
+            return $left === $right;
+        }
+
+        return (string) $left === (string) $right;
     }
 
     /**

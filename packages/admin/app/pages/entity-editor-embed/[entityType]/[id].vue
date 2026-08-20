@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { postEmbedLifecycle, type EmbedFailure } from '~/runtime/embedLifecycle'
+import type { WorkflowTransitionApplyResult } from '~/composables/useWorkflowTransitions'
 definePageMeta({ layout: false })
 
 const route = useRoute()
@@ -50,6 +51,19 @@ function onFailure(failure: EmbedFailure) {
   })
 }
 
+function onTransitioned(result: WorkflowTransitionApplyResult) {
+  postEmbedLifecycle({
+    event: 'transitioned',
+    surface: 'entity-editor',
+    entityType: entityType.value,
+    ...(entityId.value ? { entityId: entityId.value } : {}),
+    transition: {
+      state: result.to,
+      publicChanged: result.public_changed,
+    },
+  })
+}
+
 async function onSaved(resource: any) {
   const id = String(resource?.id ?? entityId.value ?? '')
   if (!id) return
@@ -77,6 +91,7 @@ function onDeleted(id: string) {
       @ready="lifecycle('ready')"
       @dirty="onDirty"
       @failure="onFailure"
+      @transitioned="onTransitioned"
     />
   </main>
 </template>
