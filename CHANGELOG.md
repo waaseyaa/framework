@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added — canonical filtered Admin list destinations (#2462):**
+  `AdminDestinationPaths::filteredList()` now emits the exact deterministic,
+  RFC3986-encoded query shape that the schema-driven Admin list already restores
+  for declared filters. Downstream shells can link truthfully to a Draft or
+  other declared view without assembling bracketed query keys or misusing the
+  optional pipeline page. Empty or malformed filter tuples fail closed. URL
+  generation adds no filter, entity, field, or access authority; the existing
+  list metadata and server gates remain authoritative.
+
 - **Fixed — concurrent and unchanged boots no longer contend for schema authority
   (#2446):** `MigrationRepository::acquireSchemaAuthority()` now claims the
   SQLite writer position with its first statement, before any read. DBAL opens a

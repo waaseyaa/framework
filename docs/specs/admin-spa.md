@@ -527,6 +527,7 @@ own **pages** — the destinations a consumer links to from outside the SPA:
 | Generator | Destination | SPA page |
 |---|---|---|
 | `list($type, $bundle = null)` | `/admin/{type}` · `?bundle={b}` | `pages/[entityType]/index.vue` |
+| `filteredList($type, $filters)` | `/admin/{type}` · declared `filter[field][operator/value]` query | `pages/[entityType]/index.vue` |
 | `create($type, $bundle = null)` | `/admin/{type}/create` · `?bundle={b}` | `pages/[entityType]/create.vue` |
 | `edit($type, $id)` | `/admin/{type}/{id}` | `pages/[entityType]/[id]/index.vue` |
 | `pipeline($type)` | `/admin/{type}/pipeline` | `pages/[entityType]/pipeline.vue` |
@@ -542,6 +543,16 @@ The bundle query parameter is one contract spanning PHP and the SPA:
 `BUNDLE_QUERY_PARAM` are pinned to each other by test, as is each destination's
 correspondence to the page file that serves it — moving a page breaks the build
 rather than every consumer's links.
+
+The same list page restores schema-declared filters from
+`filter[field][operator]` / `filter[field][value]` query controls.
+`filteredList()` owns their deterministic RFC3986 encoding so a downstream
+shell can link to, for example, the declared workflow-state Draft view without
+assembling private-looking bracket keys. It accepts one tuple per field, sorts
+fields before encoding, and refuses an empty field, operator, value, tuple, or
+filter set. The generator does not declare a filter or widen query authority:
+the list metadata, query policy, and per-entity access checks still decide what
+the destination may show.
 
 **Degradation is the contract, not a nicety.** A bundle-scoped link can go stale
 or be hand-edited, so both pages fall back to the unscoped view rather than

@@ -91,10 +91,10 @@ final class AdminDestinationPathsTest extends TestCase
     public function filteredListIsStableAndRfc3986Encoded(): void
     {
         $expected = '/admin/odd%20type'
-            .'?filter%5Ba%20field%5D%5Boperator%5D=CONTAINS'
-            .'&filter%5Ba%20field%5D%5Bvalue%5D=a%20b%26c'
-            .'&filter%5Bz%5D%5Boperator%5D=EQUALS'
-            .'&filter%5Bz%5D%5Bvalue%5D=0';
+            . '?filter%5Ba%20field%5D%5Boperator%5D=CONTAINS'
+            . '&filter%5Ba%20field%5D%5Bvalue%5D=a%20b%26c'
+            . '&filter%5Bz%5D%5Boperator%5D=EQUALS'
+            . '&filter%5Bz%5D%5Bvalue%5D=0';
 
         self::assertSame($expected, AdminDestinationPaths::filteredList('odd type', [
             'z' => ['operator' => 'EQUALS', 'value' => '0'],
@@ -124,6 +124,7 @@ final class AdminDestinationPathsTest extends TestCase
         yield 'missing value' => [['state' => ['operator' => 'EQUALS']]];
         yield 'empty value' => [['state' => ['operator' => 'EQUALS', 'value' => '']]];
         yield 'non-string value' => [['state' => ['operator' => 'EQUALS', 'value' => false]]];
+        yield 'extra member' => [['state' => ['operator' => 'EQUALS', 'value' => 'draft', 'label' => 'Draft']]];
     }
 
     #[Test]

@@ -54,6 +54,58 @@ final class AdminDestinationPaths
     }
 
     /**
+     * A list deep link carrying schema-declared filter controls.
+     *
+     * This owns only the SPA query encoding. Generating the URL does not make
+     * an undeclared field filterable and grants no list or field access; the
+     * existing list metadata, query policy, and entity access gates remain
+     * authoritative when the destination is opened.
+     *
+     * @param non-empty-string $entityType
+     * Runtime validation deliberately accepts an untrusted array boundary and
+     * narrows it to `field => {operator, value}` before constructing a query.
+     *
+     * @param array<mixed, mixed> $filters
+     */
+    public static function filteredList(string $entityType, array $filters): string
+    {
+        if ($filters === []) {
+            throw new InvalidArgumentException('AdminDestinationPaths: filters must not be empty.');
+        }
+
+        /** @var array<string, array{operator: string, value: string}> $normalized */
+        $normalized = [];
+        foreach ($filters as $field => $filter) {
+            if (!is_string($field) || $field === '') {
+                throw new InvalidArgumentException('AdminDestinationPaths: filter field must be a non-empty string.');
+            }
+            if (!is_array($filter)
+                || array_diff(array_keys($filter), ['operator', 'value']) !== []
+                || count($filter) !== 2
+                || !is_string($filter['operator'] ?? null)
+                || $filter['operator'] === ''
+                || !is_string($filter['value'] ?? null)
+                || $filter['value'] === ''
+            ) {
+                throw new InvalidArgumentException(sprintf(
+                    'AdminDestinationPaths: filter "%s" must contain only non-empty string operator and value members.',
+                    $field,
+                ));
+            }
+            $normalized[$field] = $filter;
+        }
+        ksort($normalized, SORT_STRING);
+
+        $query = [];
+        foreach ($normalized as $field => $filter) {
+            $query[sprintf('filter[%s][operator]', $field)] = $filter['operator'];
+            $query[sprintf('filter[%s][value]', $field)] = $filter['value'];
+        }
+
+        return self::typePath($entityType) . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+    }
+
+    /**
      * The create form for an entity type, optionally preselecting one bundle.
      *
      * @param non-empty-string $entityType
