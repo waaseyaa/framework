@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added — candidate-bound save advisories can be acknowledged consistently
+  across write surfaces (#2467):** applications can use one bundle-aware
+  pre-save policy to warn without misclassifying intentional legacy state as a
+  validation error. The first attempt performs no write; JSON:API, Generic
+  Admin, publishing/MCP, and explicitly declared migrations can retry the same
+  candidate with deterministic acknowledgement tokens. Changed candidate
+  values invalidate earlier tokens, validation remains unacknowledgeable, and
+  canonical import runs retain bounded advisory evidence.
+
 - **Fixed — generic revision recovery authorizes the historical snapshot
   (#2464):** exact revision reads go through `RevisionPolicyComposition` /
   `view_revision` on the requested revision, so current-entity view alone
