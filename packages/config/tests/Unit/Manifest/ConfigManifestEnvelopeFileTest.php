@@ -127,6 +127,55 @@ final class ConfigManifestEnvelopeFileTest extends TestCase
         ConfigManifestEnvelopeFile::read($this->root . '/config/sync');
     }
 
+    #[Test]
+    public function anEmptyEnvelopeFileIsRefused(): void
+    {
+        file_put_contents($this->root . '/config/sync.envelope.json', '');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/unreadable or empty/i');
+        ConfigManifestEnvelopeFile::read($this->root . '/config/sync');
+    }
+
+    #[Test]
+    public function aDirectoryWhereTheEnvelopeBelongsIsRefused(): void
+    {
+        mkdir($this->root . '/config/sync.envelope.json', 0o755, true);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/not a regular file/i');
+        ConfigManifestEnvelopeFile::read($this->root . '/config/sync');
+    }
+
+    /** A well-formed JSON object that is not an envelope is still refused. */
+    #[Test]
+    public function aJsonObjectThatIsNotAnEnvelopeIsRefused(): void
+    {
+        file_put_contents($this->root . '/config/sync.envelope.json', '{"format":"something-else"}');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/malformed/i');
+        ConfigManifestEnvelopeFile::read($this->root . '/config/sync');
+    }
+
+    #[Test]
+    public function writingIntoAMissingDirectoryIsRefused(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/does not exist/i');
+        ConfigManifestEnvelopeFile::write($this->root . '/absent/sync', $this->envelope());
+    }
+
+    #[Test]
+    public function writingThroughASymbolicLinkIsRefused(): void
+    {
+        symlink($this->root . '/elsewhere.json', $this->root . '/config/sync.envelope.json');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/symbolic link/i');
+        ConfigManifestEnvelopeFile::write($this->root . '/config/sync', $this->envelope());
+    }
+
     private function envelope(): SignedConfigManifestEnvelope
     {
         $registry = new ConfigSchemaRegistry();

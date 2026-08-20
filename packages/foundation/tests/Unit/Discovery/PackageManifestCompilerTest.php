@@ -17,6 +17,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\ContentEntityBase;
 
 #[CoversClass(PackageManifestCompiler::class)]
+#[CoversClass(MalformedConfigContractException::class)]
 final class PackageManifestCompilerTest extends TestCase
 {
     private string $tempDir;
@@ -122,6 +123,50 @@ final class PackageManifestCompilerTest extends TestCase
                 self::assertStringContainsString('waaseyaa/broken', $exception->getMessage());
             }
         }
+    }
+
+    #[Test]
+    public function compile_refuses_a_configuration_contract_that_is_not_an_object(): void
+    {
+        foreach ([[1, 2, 3], []] as $declaration) {
+            $this->writeInstalled([
+                ['name' => 'waaseyaa/broken', 'extra' => ['waaseyaa' => ['config-contract' => $declaration]]],
+            ]);
+
+            try {
+                new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+                self::fail('A non-object configuration contract was accepted.');
+            } catch (MalformedConfigContractException $exception) {
+                self::assertStringContainsString('must be a JSON object', $exception->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function compile_refuses_readable_versions_that_are_not_a_list(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/broken', 'extra' => ['waaseyaa' => ['config-contract' => [
+                'schema-provider' => 'Acme\\Example\\SchemaProvider',
+                'version' => 1,
+                'readable_versions' => ['first' => 1],
+            ]]]],
+        ]);
+
+        $this->expectException(MalformedConfigContractException::class);
+        $this->expectExceptionMessageMatches('/readable_versions/');
+        new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile();
+    }
+
+    /** A package with no name cannot own a contract, and is skipped quietly. */
+    #[Test]
+    public function compile_skips_a_package_with_no_name(): void
+    {
+        $this->writeInstalled([
+            ['extra' => ['waaseyaa' => ['config-contract' => ['version' => 1]]]],
+        ]);
+
+        self::assertSame([], new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage')->compile()->configContracts);
     }
 
     /** A package that declares nothing contributes nothing, which is complete. */

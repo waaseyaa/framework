@@ -51,6 +51,48 @@ final class InstallInitHandlerTest extends TestCase
      * directory to be a versioned config sync file, so a placeholder would make
      * the directory unsignable the moment it existed.
      */
+    /** An existing directory is left exactly as it is, contents included. */
+    #[Test]
+    public function it_leaves_an_existing_sync_directory_untouched(): void
+    {
+        mkdir($this->syncPath, 0o755, true);
+        file_put_contents($this->syncPath . '/system.site.yml', "existing\n");
+        [$io, $output] = $this->io();
+
+        new InstallInitHandler(
+            prepareSchema: static function (): void {},
+            activator: $this->activator(null, null),
+            genesis: $this->genesisActivator($this->token()),
+            authority: $this->authority,
+        )->execute($io);
+
+        self::assertSame("existing\n", file_get_contents($this->syncPath . '/system.site.yml'));
+        self::assertStringNotContainsString('Created the configuration sync directory', $output->fetch());
+    }
+
+    /**
+     * A file where the directory belongs is reported and left alone. Installation
+     * has no business deleting whatever an operator put there.
+     */
+    #[Test]
+    public function it_reports_a_sync_path_that_is_not_a_directory(): void
+    {
+        mkdir(dirname($this->syncPath), 0o755, true);
+        file_put_contents($this->syncPath, 'not a directory');
+        [$io, $output] = $this->io();
+
+        $exit = new InstallInitHandler(
+            prepareSchema: static function (): void {},
+            activator: $this->activator(null, null),
+            genesis: $this->genesisActivator($this->token()),
+            authority: $this->authority,
+        )->execute($io);
+
+        self::assertSame(0, $exit, 'A surprising sync path must not block installation.');
+        self::assertStringContainsString('is not a directory; leaving it alone', $output->fetch());
+        self::assertSame('not a directory', file_get_contents($this->syncPath));
+    }
+
     #[Test]
     public function it_creates_an_empty_configuration_sync_directory(): void
     {
