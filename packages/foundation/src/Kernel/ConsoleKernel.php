@@ -78,13 +78,14 @@ final class ConsoleKernel extends AbstractKernel
         }
 
         try {
-            if (in_array($input->getFirstArgument(), [
+            if ($input->getFirstArgument() === 'entity:backfill-mutation-authorities') {
+                $this->bootForMutationAuthorityBackfill();
+            } elseif (in_array($input->getFirstArgument(), [
                 'schema:sync',
                 'migrate',
                 'migrate:rollback',
                 'migrate:status',
                 'site:init',
-                'entity:backfill-mutation-authorities',
                 // #2428: the installation phase must not construct runtime
                 // consumers that require the generation it is about to create.
                 'install:init',

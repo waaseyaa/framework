@@ -152,11 +152,19 @@ universal mutation authority. Keep the application quiesced for the sequence.
    `waaseyaa install:init` phase as applicable.
 3. Before any ordinary HTTP, worker, scheduler, or fully booted CLI process,
    run `php vendor/bin/waaseyaa entity:backfill-mutation-authorities --reason='<change reference>' --json`.
-4. Retain the exit status and per-type count report as upgrade evidence. The
-   output must contain no mutation token; a nonzero exit leaves the application
-   quiesced for investigation.
+4. Retain the exact invocation reason, exit status, and per-type count report as
+   the durable upgrade evidence. Verify that `reason_sha256` matches the retained
+   reason. The output must contain neither the raw reason nor any mutation token;
+   a nonzero exit leaves the application quiesced for investigation. A `null`
+   type count means the framework cannot prove whether a foreign repository
+   committed work; in that case the aggregate `created` total is also `null`
+   rather than a lower bound presented as exact. An integer is the exact
+   committed count, including after a post-commit audit-event delivery failure.
+   Per-row events are notifications, not a substitute for this retained evidence.
 5. Retry the same command with a retry-specific reason. A completed prior run
-   reports `created: 0`; a partial prior run repairs only still-missing rows.
+   reports `created: 0`; a failed framework type either rolled back atomically or
+   reports the exact already-committed count, and the retry repairs only missing
+   authorities.
 6. Perform ordinary boot and application smoke checks, then leave maintenance
    mode under Playbook I.
 

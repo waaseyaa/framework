@@ -22,6 +22,9 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-fresh-install-boot.XXXXXX")"
 source_root="$work/source"
 consumer="$work/consumer"
+old_source_root="$work/old-source"
+legacy_consumer="$work/legacy-consumer"
+upgrade_consumer="$work/upgrade-consumer"
 
 composer_bin="${COMPOSER_BIN:-}"
 if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
@@ -38,7 +41,7 @@ trap cleanup EXIT
 
 candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
 
-mkdir -p "$source_root" "$consumer"
+mkdir -p "$source_root" "$consumer" "$old_source_root" "$legacy_consumer" "$upgrade_consumer"
 "$root/bin/git" -C "$root" archive --format=tar HEAD \
     | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
 
@@ -102,55 +105,145 @@ grep -Fq 'fresh-install kernel boot OK' "$work/boot.out"
 # write. Require the day-one round-trip too.
 grep -Fq 'fresh-install entity round-trip OK' "$work/boot.out"
 
-# Simulate the exact pre-DB-03 upgrade trap from #2460: a persisted aggregate
-# remains, but its authority row does not. Ordinary provider boot must fail
-# closed until the deliberate restricted command repairs it.
-cp "$source_root/tests/MutationAuthorityUpgrade/simulate-legacy.php" "$consumer/simulate-legacy.php"
-cp "$source_root/tests/MutationAuthorityUpgrade/ordinary-boot.php" "$consumer/ordinary-boot.php"
-cp "$source_root/tests/MutationAuthorityUpgrade/verify-authorities.php" "$consumer/verify-authorities.php"
+# Build an actual released pre-DB-03 consumer, persist its stock editorial
+# workflow, then install the candidate cohort over the durable database. This
+# is an upgrade rehearsal, not a candidate install with a token deleted later.
+old_release_ref='v0.1.0-alpha.293'
+if ! "$root/bin/git" -C "$root" cat-file -e "${old_release_ref}^{commit}" 2>/dev/null; then
+    "$root/bin/git" -C "$root" fetch --no-tags --depth=1 origin \
+        "refs/tags/${old_release_ref}:refs/tags/${old_release_ref}"
+fi
+"$root/bin/git" -C "$root" archive --format=tar "$old_release_ref" \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$old_source_root"
+cp -R "$old_source_root/skeleton/." "$legacy_consumer/"
+rm -f "$legacy_consumer/composer.lock" "$legacy_consumer/composer.local.json.example"
+mkdir -p "$legacy_consumer/storage/framework" "$legacy_consumer/storage/files"
 
-php "$consumer/simulate-legacy.php" \
-    "$consumer/storage/fresh-install.sqlite" "$work/preserved-authority.json" \
-    >"$work/simulate-legacy.out" 2>&1
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*"],
+        ["type" => "path", "url" => $argv[2]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    $composer["minimum-stability"] = "dev";
+    $composer["prefer-stable"] = true;
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$legacy_consumer/composer.json" "$old_source_root"
 
-if php "$consumer/ordinary-boot.php" >"$work/legacy-boot.out" 2>&1; then
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/legacy.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\nWAASEYAA_CONFIG_DIR=%s/config/sync\n' \
+    "$app_secret" "$work" "$legacy_consumer" "$legacy_consumer" > "$legacy_consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$legacy_consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/old-composer.out" 2>&1; then
+    tail -100 "$work/old-composer.out" >&2
+    exit 1
+fi
+if ! ( cd "$legacy_consumer" && php vendor/bin/waaseyaa db:init ) >"$work/old-db-init.out" 2>&1; then
+    cat "$work/old-db-init.out" >&2
+    echo 'The released pre-DB-03 consumer could not initialize its database.' >&2
+    exit 1
+fi
+if ! ( cd "$legacy_consumer" && php vendor/bin/waaseyaa entity:list workflow ) >"$work/old-workflow.out" 2>&1; then
+    cat "$work/old-workflow.out" >&2
+    echo 'The released consumer could not read its persisted workflow.' >&2
+    exit 1
+fi
+grep -Fq 'editorial' "$work/old-workflow.out"
+
+# Model a clean deployment release directory: retain application state and the
+# old database, but install vendor from the candidate-resolved lock from scratch.
+( cd "$legacy_consumer" && tar --exclude='./vendor' -cf - . ) \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$upgrade_consumer"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/legacy.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\nWAASEYAA_CONFIG_DIR=%s/config/sync\n' \
+    "$app_secret" "$work" "$upgrade_consumer" "$upgrade_consumer" > "$upgrade_consumer/.env"
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*"],
+        ["type" => "path", "url" => $argv[2]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    $composer["minimum-stability"] = "dev";
+    $composer["prefer-stable"] = true;
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$upgrade_consumer/composer.json" "$source_root"
+if ! "$composer_bin" update --working-dir="$upgrade_consumer" waaseyaa/framework \
+        --with-all-dependencies --no-install --no-interaction --no-progress >"$work/upgrade-resolve.out" 2>&1; then
+    tail -100 "$work/upgrade-resolve.out" >&2
+    exit 1
+fi
+if ! "$composer_bin" install --working-dir="$upgrade_consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/upgrade-install.out" 2>&1; then
+    tail -100 "$work/upgrade-install.out" >&2
+    exit 1
+fi
+while IFS= read -r -d '' package; do
+    resolved="$(readlink -f "$package")"
+    if [[ "$resolved" != "$source_root" && "$resolved" != "$source_root"/packages/* ]]; then
+        echo "Candidate install retained a foreign package link: $package -> $resolved" >&2
+        exit 1
+    fi
+done < <(find "$upgrade_consumer/vendor/waaseyaa" -mindepth 1 -maxdepth 1 -type l -print0)
+
+if ! ( cd "$upgrade_consumer" && php vendor/bin/waaseyaa install:init ) >"$work/upgrade-install-init.out" 2>&1; then
+    cat "$work/upgrade-install-init.out" >&2
+    echo 'The candidate installation phase failed over the released database.' >&2
+    exit 1
+fi
+cp "$source_root/tests/MutationAuthorityUpgrade/prepare-old-consumer-upgrade.php" "$upgrade_consumer/prepare-old-consumer-upgrade.php"
+cp "$source_root/tests/MutationAuthorityUpgrade/ordinary-boot.php" "$upgrade_consumer/ordinary-boot.php"
+cp "$source_root/tests/MutationAuthorityUpgrade/verify-authorities.php" "$upgrade_consumer/verify-authorities.php"
+php "$upgrade_consumer/prepare-old-consumer-upgrade.php" \
+    "$work/legacy.sqlite" "$work/preserved-authority.json" \
+    >"$work/prepare-old-consumer.out" 2>&1
+
+if php "$upgrade_consumer/ordinary-boot.php" >"$work/legacy-boot.out" 2>&1; then
     cat "$work/legacy-boot.out" >&2
     echo 'Ordinary boot must fail closed over a legacy aggregate without authority.' >&2
     exit 1
 fi
-grep -Fq "Persisted entity workflow 'editorial' has no aggregate mutation authority." "$work/legacy-boot.out"
+if ! grep -Fq "Persisted entity workflow 'editorial' has no aggregate mutation authority." "$work/legacy-boot.out"; then
+    cat "$work/legacy-boot.out" >&2
+    echo 'Ordinary boot failed for a reason other than the legacy mutation-authority gap.' >&2
+    exit 1
+fi
 
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa entity:backfill-mutation-authorities \
+if ! ( cd "$upgrade_consumer" && php vendor/bin/waaseyaa entity:backfill-mutation-authorities \
         --reason='Packaged-form legacy upgrade proof' --json ) >"$work/backfill.out" 2>&1; then
     cat "$work/backfill.out" >&2
     echo 'The restricted mutation-authority upgrade failed.' >&2
     exit 1
 fi
-grep -Eq '"created"[[:space:]]*:[[:space:]]*1' "$work/backfill.out"
+grep -Eq '"created"[[:space:]]*:[[:space:]]*1[[:space:]]*,' "$work/backfill.out"
 grep -Eq '"workflow"[[:space:]]*:[[:space:]]*1' "$work/backfill.out"
 if grep -Fq 'mutation_tag' "$work/backfill.out"; then
     echo 'The upgrade output exposed mutation-token material.' >&2
     exit 1
 fi
 
-php "$consumer/verify-authorities.php" \
-    "$consumer/storage/fresh-install.sqlite" "$work/preserved-authority.json" \
+php "$upgrade_consumer/verify-authorities.php" \
+    "$work/legacy.sqlite" "$work/preserved-authority.json" \
     >"$work/verify-authorities.out" 2>&1
 
-if ! php "$consumer/ordinary-boot.php" >"$work/repaired-boot.out" 2>&1; then
+if ! php "$upgrade_consumer/ordinary-boot.php" >"$work/repaired-boot.out" 2>&1; then
     cat "$work/repaired-boot.out" >&2
     echo 'Ordinary boot remained blocked after the supported upgrade.' >&2
     exit 1
 fi
 grep -Fq 'ordinary boot OK' "$work/repaired-boot.out"
 
-if ! ( cd "$consumer" && php vendor/bin/waaseyaa entity:backfill-mutation-authorities \
+if ! ( cd "$upgrade_consumer" && php vendor/bin/waaseyaa entity:backfill-mutation-authorities \
         --reason='Packaged-form idempotency proof' --json ) >"$work/backfill-retry.out" 2>&1; then
     cat "$work/backfill-retry.out" >&2
     echo 'The mutation-authority upgrade retry failed.' >&2
     exit 1
 fi
-grep -Eq '"created"[[:space:]]*:[[:space:]]*0' "$work/backfill-retry.out"
+grep -Eq '"created"[[:space:]]*:[[:space:]]*0[[:space:]]*,' "$work/backfill-retry.out"
 
 printf 'Fresh-install boot proof passed.\n'
 printf 'Candidate: %s\n' "$candidate"

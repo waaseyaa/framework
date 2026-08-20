@@ -12,8 +12,13 @@ namespace Waaseyaa\EntityStorage;
  */
 interface LegacyMutationAuthorityBackfillRepositoryInterface
 {
+    /** Whether this repository has the framework database authority boundary. */
+    public function supportsMutationAuthorityBackfill(): bool;
+
     /**
      * Create missing aggregate mutation authorities without replacing existing ones.
+     *
+     * @throws Exception\MutationAuthorityBackfillException with the exact committed count on failure
      */
     public function backfillMutationAuthorities(string $reason): int;
 }

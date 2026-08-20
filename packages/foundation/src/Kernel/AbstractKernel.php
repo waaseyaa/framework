@@ -102,6 +102,12 @@ abstract class AbstractKernel
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
     private bool $restrictedDiscoveryOnly = false;
+
+    /**
+     * Captured while building the repository factory for the explicit legacy
+     * mutation-authority repair. No ordinary boot path may enable this flag.
+     */
+    private bool $allowUnscopedMutationAuthorityRepair = false;
     protected LoggerInterface $logger;
 
     /**
@@ -256,13 +262,20 @@ abstract class AbstractKernel
         $this->fieldRegistry = $fieldRegistry;
         ContentEntityBase::setFieldRegistry($fieldRegistry);
 
+        // Repository construction is lazy, so capture this boot decision by
+        // value rather than consulting mutable kernel state after boot.
+        $allowUnscopedMutationAuthorityRepair = $this->allowUnscopedMutationAuthorityRepair;
+
         $this->entityTypeManager = new EntityTypeManagerFactory()->build(
             database: $this->database,
             dispatcher: $this->dispatcher,
             fieldRegistry: $fieldRegistry,
             logger: $this->logger,
             accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
-            communityScoreResolver: fn(EntityTypeInterface $definition): ?\Waaseyaa\EntityStorage\Tenancy\CommunityScope => $this->resolveCommunityScope($definition),
+            communityScoreResolver: fn(EntityTypeInterface $definition): ?\Waaseyaa\EntityStorage\Tenancy\CommunityScope => $this->resolveCommunityScope(
+                $definition,
+                $allowUnscopedMutationAuthorityRepair,
+            ),
             accountContextAttacher: function (object $repository): void {
                 $this->attachAccountContext($repository);
             },
@@ -335,8 +348,10 @@ abstract class AbstractKernel
      *     every read passes through unfiltered. That is a data-leak
      *     posture, not a tolerable misconfiguration. Fail loud at boot.
      */
-    private function resolveCommunityScope(EntityTypeInterface $definition): ?CommunityScope
-    {
+    private function resolveCommunityScope(
+        EntityTypeInterface $definition,
+        bool $allowUnscopedMutationAuthorityRepair = false,
+    ): ?CommunityScope {
         $tenancy = $definition->getTenancy();
         if ($tenancy === null) {
             return null;
@@ -347,6 +362,14 @@ abstract class AbstractKernel
         // remains so a follow-on (region, org, etc.) lands as a deliberate
         // change rather than a silent fall-through.
         if ($tenancy['scope'] !== 'community') {
+            return null;
+        }
+
+        // This one explicit pre-runtime repair must inspect every persisted
+        // row so it can restore the row's own tenant/type/id-bound authority.
+        // Capturing the permission during its dedicated restricted boot keeps
+        // ordinary production repositories fail-closed and scoped.
+        if ($allowUnscopedMutationAuthorityRepair) {
             return null;
         }
 
@@ -1038,6 +1061,27 @@ abstract class AbstractKernel
     public function bootForSchemaSync(): void
     {
         $this->bootForRestrictedDiscovery();
+    }
+
+    /**
+     * Restricted discovery for the explicit pre-DB-03 authority repair.
+     *
+     * Unlike ordinary and schema-sync boot, its repository factory is allowed
+     * to scan tenant-scoped storage without an active community so every row's
+     * own tenant binding can be repaired. The permission is captured by value
+     * while the factory is built and cannot leak into another boot path.
+     *
+     * @internal
+     */
+    public function bootForMutationAuthorityBackfill(): void
+    {
+        $previous = $this->allowUnscopedMutationAuthorityRepair;
+        $this->allowUnscopedMutationAuthorityRepair = true;
+        try {
+            $this->bootForRestrictedDiscovery();
+        } finally {
+            $this->allowUnscopedMutationAuthorityRepair = $previous;
+        }
     }
 
     private function bootForRestrictedDiscovery(): void

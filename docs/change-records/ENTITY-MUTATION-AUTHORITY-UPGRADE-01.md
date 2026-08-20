@@ -13,20 +13,31 @@ boot. No ordinary boot, read, migration, schema synchronization, or fresh-instal
 path invokes the repair.
 
 The command validates its audit reason, repairs repositories implementing the
-framework boundary, and explicitly reports custom repository types it skips.
-A supported type that fails is named without leaking exception details, does not
-strand later types, and produces a nonzero exit. The command delegates creation
-to the repository-owned transaction and audit event, preserves existing
-authorities, reports only deterministic per-type counts and type names, and
-reveals no token material. A retry is idempotent.
+framework boundary with a database-backed authority, and explicitly reports
+other repository types it skips. Repository construction and repair failures do
+not strand later types. A repository-owned transaction repairs each type
+atomically across every declared community. Legacy empty community owners bind
+to the same `_global` tenant used by hydration, while NUL-bearing entity,
+community, or language identities fail before composite keys are formed.
+Translatable types derive authority only from the canonical language row, not
+from translation peers. A post-commit event-delivery failure reports the exact
+committed count, while an unclassified foreign failure makes both its per-type
+count and the aggregate total unknown rather than claiming zero. The retained
+invocation reason plus exit/count report is the
+durable audit evidence: output includes the reason's SHA-256 digest for binding
+without echoing the raw reason. Per-row events are post-commit notifications,
+not the sole durable audit record. Existing authorities are preserved, output
+reveals no token material, and a completed retry is idempotent.
 
 ## Proof
 
-The packaged-form gate installs the exact candidate tree, creates ordinary
-authorities, removes only the persisted `workflow:editorial` authority to model
-the legacy state, and proves ordinary boot fails. It then runs the supported
-command, verifies an unrelated token is byte-identical, proves ordinary boot
-succeeds, and proves a retry creates zero rows.
+The packaged-form gate starts from a released pre-DB-03 consumer, persists its
+ordinary `workflow:editorial` row, resolves and installs the exact candidate
+package cohort over that durable database, and runs the supported upgrade
+sequence. It proves ordinary boot is initially refused, the
+restricted command repairs all tenant bindings without changing an existing
+authority, ordinary boot then succeeds, and a completed retry creates zero
+rows.
 
 No merge, release, tag, deployment, or production operation is authorized by
 this change record.

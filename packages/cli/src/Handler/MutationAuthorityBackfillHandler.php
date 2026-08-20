@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Handler;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\EntityStorage\Exception\MutationAuthorityBackfillException;
 use Waaseyaa\EntityStorage\LegacyMutationAuthorityBackfillRepositoryInterface;
 
 /**
@@ -34,30 +35,52 @@ final readonly class MutationAuthorityBackfillHandler
         /** @var array<string, EntityRepositoryInterface&LegacyMutationAuthorityBackfillRepositoryInterface> $repositories */
         $repositories = [];
         $skippedEntityTypes = [];
+        $failedEntityTypes = [];
+        $createdByType = [];
         foreach (array_keys($definitions) as $entityTypeId) {
-            $repository = $this->entityTypeManager->getRepository($entityTypeId);
+            try {
+                $repository = $this->entityTypeManager->getRepository($entityTypeId);
+            } catch (\Throwable) {
+                $createdByType[$entityTypeId] = 0;
+                $failedEntityTypes[] = $entityTypeId;
+                continue;
+            }
             if (!$repository instanceof LegacyMutationAuthorityBackfillRepositoryInterface) {
+                $skippedEntityTypes[] = $entityTypeId;
+                continue;
+            }
+            try {
+                $supported = $repository->supportsMutationAuthorityBackfill();
+            } catch (\Throwable) {
+                $createdByType[$entityTypeId] = null;
+                $failedEntityTypes[] = $entityTypeId;
+                continue;
+            }
+            if (!$supported) {
                 $skippedEntityTypes[] = $entityTypeId;
                 continue;
             }
             $repositories[$entityTypeId] = $repository;
         }
 
-        $createdByType = [];
-        $failedEntityTypes = [];
         foreach ($repositories as $entityTypeId => $repository) {
             try {
                 $createdByType[$entityTypeId] = $repository->backfillMutationAuthorities($reason);
+            } catch (MutationAuthorityBackfillException $e) {
+                $createdByType[$entityTypeId] = $e->committedCount;
+                $failedEntityTypes[] = $entityTypeId;
             } catch (\Throwable) {
-                $createdByType[$entityTypeId] = 0;
+                $createdByType[$entityTypeId] = null;
                 $failedEntityTypes[] = $entityTypeId;
             }
         }
-        $created = array_sum($createdByType);
+        ksort($createdByType);
+        $created = in_array(null, $createdByType, true) ? null : array_sum($createdByType);
         $exitCode = $failedEntityTypes === [] ? 0 : 1;
 
         if ((bool) $io->option('json')) {
             $io->writeln(json_encode([
+                'reason_sha256' => hash('sha256', $reason),
                 'created' => $created,
                 'entity_types' => $createdByType,
                 'skipped_entity_types' => $skippedEntityTypes,
@@ -67,15 +90,19 @@ final readonly class MutationAuthorityBackfillHandler
             return $exitCode;
         }
 
-        $io->writeln(sprintf('Mutation-authority backfill: created=%d', $created));
+        $io->writeln(sprintf(
+            'Mutation-authority backfill: created=%s',
+            $created === null ? 'unknown' : (string) $created,
+        ));
+        $io->writeln(sprintf('Reason SHA-256: %s', hash('sha256', $reason)));
         foreach ($createdByType as $entityTypeId => $count) {
-            $io->writeln(sprintf('  %s: %d', $entityTypeId, $count));
+            $io->writeln(sprintf('  %s: %s', $entityTypeId, $count === null ? 'unknown' : (string) $count));
         }
         foreach ($skippedEntityTypes as $entityTypeId) {
             $io->writeln(sprintf('  %s: skipped (repository is outside the framework repair boundary)', $entityTypeId));
         }
         foreach ($failedEntityTypes as $entityTypeId) {
-            $io->writeln(sprintf('  %s: failed (no authority was established for this type)', $entityTypeId));
+            $io->writeln(sprintf('  %s: failed (see the reported committed count)', $entityTypeId));
         }
 
         return $exitCode;
