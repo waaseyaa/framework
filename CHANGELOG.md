@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — an OpenAI-compatible endpoint that never finishes connecting is now
+  bounded at 5s instead of 120s (#2445):** `OpenAiCompatibleProvider` set one
+  fixed `CURLOPT_TIMEOUT` of 120s, with no connect bound and no way for a caller
+  to change either. Measured against a local peer: a gateway that accepted the
+  TCP connection and never answered the TLS handshake pinned the worker for the
+  full 120s, and so did one that answered, promised a chat completion by
+  `Content-Length`, and then delivered only a prefix of it.
+
+  This provider has no streaming path, so there is no chunk callback in which a
+  caller could notice either silence; nothing short of a transport bound ends the
+  call.
+
+  It now accepts the `ProviderTimeouts` profile introduced for #2156, as a final
+  optional constructor parameter so existing positional callers are unaffected.
+  Precisely what changes by default: connection establishment (DNS, TCP, TLS) is
+  bounded at 5s, and the 120s total is unchanged. Stalled-body protection — the
+  low-speed abort — is available but off unless a caller asks for it, so a peer
+  that finishes connecting and then goes silent mid-body is still bounded only by
+  that 120s total. It is off by default because a chat completion is legitimately
+  silent while the model generates, and libcurl's byte-rate window covers that
+  wait too, so enabling it by default would abort healthy slow generations rather
+  than stalled ones. A caller that knows its gateway responds promptly can pass
+  `timeouts:` to enable it, and to set any of the three bounds.
+
+  Two `curl_close()` calls are also gone. They have had no effect since PHP 8.0
+  and are deprecated in 8.5, and the timeout path reached one of them — the
+  120s reproduction emitted the deprecation notice before throwing.
+
 - **Fixed — a stalled Anthropic peer no longer holds a worker for five minutes
   (#2156):** `AnthropicProvider` set one fixed `CURLOPT_TIMEOUT` — 120s for
   `sendMessage`, 300s for `streamMessage` — with no connect bound and no
