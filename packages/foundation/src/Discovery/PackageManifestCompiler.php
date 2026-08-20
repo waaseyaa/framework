@@ -921,7 +921,13 @@ final class PackageManifestCompiler
 
             $declaration = $package['extra']['waaseyaa']['config-contract'];
             if (!is_array($declaration) || array_is_list($declaration)) {
-                throw MalformedConfigContractException::forField($name, 'config-contract', 'must be a JSON object');
+                // An empty JSON object decodes to an empty PHP array, which is
+                // indistinguishable from an empty list, so both land here.
+                throw MalformedConfigContractException::forField(
+                    $name,
+                    'config-contract',
+                    'must be a JSON object declaring schema-provider, version, and readable_versions',
+                );
             }
 
             $keys = array_keys($declaration);
@@ -930,8 +936,10 @@ final class PackageManifestCompiler
                 throw MalformedConfigContractException::forField(
                     $name,
                     'config-contract',
+                    // A non-list array always has at least one key, so there is
+                    // always something to name here.
                     'must declare exactly schema-provider, version, and readable_versions (found: '
-                        . ($keys === [] ? 'nothing' : implode(', ', $keys)) . ')',
+                        . implode(', ', $keys) . ')',
                 );
             }
 
