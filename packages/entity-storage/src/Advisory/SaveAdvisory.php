@@ -67,7 +67,7 @@ final readonly class SaveAdvisory
     }
 
     /** @return array{code:string,field:string,severity:string,message:string,acknowledgement:string} */
-    public function toArray(): array
+    public function payload(): array
     {
         return [
             'code' => $this->code,

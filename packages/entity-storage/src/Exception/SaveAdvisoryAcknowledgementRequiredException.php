@@ -35,10 +35,10 @@ final class SaveAdvisoryAcknowledgementRequiredException extends AbortOperationE
     }
 
     /** @return non-empty-list<array{code:string,field:string,severity:string,message:string,acknowledgement:string}> */
-    public function toArray(): array
+    public function advisoryPayloads(): array
     {
         return array_map(
-            static fn(SaveAdvisory $advisory): array => $advisory->toArray(),
+            static fn(SaveAdvisory $advisory): array => $advisory->payload(),
             $this->advisoryValues,
         );
     }

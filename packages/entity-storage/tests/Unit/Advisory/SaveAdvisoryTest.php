@@ -39,7 +39,7 @@ final class SaveAdvisoryTest extends TestCase
             'severity' => 'warning',
             'message' => 'The short route is reserved; use /pages/news.',
             'acknowledgement' => $first->acknowledgement,
-        ], $first->toArray());
+        ], $first->payload());
     }
 
     #[Test]

@@ -30,9 +30,9 @@ final class SaveAdvisoryGateTest extends TestCase
         } catch (SaveAdvisoryAcknowledgementRequiredException $exception) {
             self::assertSame([$alpha, $zeta], $exception->advisories());
             self::assertSame([
-                $alpha->toArray(),
-                $zeta->toArray(),
-            ], $exception->toArray());
+                $alpha->payload(),
+                $zeta->payload(),
+            ], $exception->advisoryPayloads());
         }
     }
 
@@ -85,4 +85,3 @@ final class SaveAdvisoryGateTest extends TestCase
         );
     }
 }
-

@@ -1046,7 +1046,7 @@ final class JsonApiController
             title: 'Precondition Required',
             detail: $exception->getMessage(),
             code: 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
-            meta: ['save_advisories' => $exception->toArray()],
+            meta: ['save_advisories' => $exception->advisoryPayloads()],
         ));
     }
 

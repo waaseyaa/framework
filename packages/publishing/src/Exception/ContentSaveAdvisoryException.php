@@ -14,7 +14,7 @@ final class ContentSaveAdvisoryException extends ContentPublishingException
         parent::__construct(
             'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
             $exception->getMessage(),
-            meta: ['save_advisories' => $exception->toArray()],
+            meta: ['save_advisories' => $exception->advisoryPayloads()],
         );
     }
 }
