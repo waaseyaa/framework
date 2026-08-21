@@ -19,7 +19,8 @@ interface ConfigSemanticValidatorInterface
      * contract on two hosts must return byte-identical values, and any change
      * to the enforced semantics must advance it.
      *
-     * Non-empty printable ASCII.
+     * Non-empty visible ASCII: one or more characters in the range
+     * `\x21`-`\x7E`, so no whitespace and no control characters.
      */
     public function contract(): string;
 

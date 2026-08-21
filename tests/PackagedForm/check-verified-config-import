@@ -226,22 +226,21 @@ cp -R "$authoring/config/sync/." "$consumer/config/sync/"
 cp "$authoring/config/sync.envelope.json" "$consumer/config/sync.envelope.json"
 
 # --- Key hygiene: the consumer holds no private material ---------------------
-private_key_b64="$(php -r 'echo base64_encode((string) file_get_contents($argv[1]));' "$custody/manifest-signing.key")"
-if grep -rqF -- "$private_key_b64" "$consumer" 2>/dev/null; then
-    echo 'The consumer tree contains the private signing key.' >&2
+# The encoded-bytes scan and both filename scans live in one executable so the
+# refusal rules can be regression-tested on their own; see
+# `tests/Architecture/PackagedImportKeyHygieneTest.php`. The encoded-bytes scan
+# sees the key's content only in base64, and the key file holds raw bytes, so
+# the unpruned `*.key` name scan is load-bearing rather than redundant: vendor
+# is never pruned from it. Only the exact `defuse/php-encryption` distribution
+# artifacts are exempt, and only from the `*signing*` name scan.
+if ! "$root/tests/PackagedForm/check-consumer-key-hygiene" "$consumer" "$custody/manifest-signing.key"; then
     exit 1
 fi
+# Retained for the import/install output scan further down, which asks a
+# different question: not "is the key in the tree" but "did the run log it".
+private_key_b64="$(php -r 'echo base64_encode((string) file_get_contents($argv[1]));' "$custody/manifest-signing.key")"
 if grep -rq -- 'manifest-signing.key\|WAASEYAA_AUTHORING_SIGNING_KEY_FILE\|authoring-file' "$consumer/config" "$consumer/.env" 2>/dev/null; then
     echo 'The consumer references authoring signing custody.' >&2
-    exit 1
-fi
-# Filename heuristic is for the consumer project, not third-party vendor
-# artifacts. `defuse/php-encryption` ships public `signingkey*.asc` files in
-# `vendor/`, which are not authoring custody. The byte scan above already
-# refuses the real private key anywhere in the tree, including vendor.
-if [[ -n "$(find "$consumer" \( -path "$consumer/vendor" -prune \) \
-        -o -type f \( -name '*.key' -o -name '*signing*' \) -print 2>/dev/null)" ]]; then
-    echo 'The consumer tree contains a key file.' >&2
     exit 1
 fi
 grep -Fq 'signing_key' "$authoring/config/waaseyaa.php"
