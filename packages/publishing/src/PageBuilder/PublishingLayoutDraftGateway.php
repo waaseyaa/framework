@@ -6,17 +6,35 @@ namespace Waaseyaa\Publishing\PageBuilder;
 
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\PageBuilder\Draft\AdvisoryAwareLayoutDraftGatewayInterface;
+use Waaseyaa\PageBuilder\Draft\Exception\LayoutSaveAdvisoryException;
 use Waaseyaa\PageBuilder\Draft\Exception\PageBuilderDraftNotFoundException;
 use Waaseyaa\PageBuilder\Draft\Exception\StaleEntityRevisionException;
-use Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface;
+use Waaseyaa\PageBuilder\Draft\Exception\UnsupportedLayoutSaveAdvisoryAcknowledgementException;
 use Waaseyaa\PageBuilder\Draft\LayoutDraftSnapshot;
 use Waaseyaa\PageBuilder\Surface\Exception\PageBuilderAccessDeniedException;
 use Waaseyaa\Publishing\ContentDraftMutationInterface;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\Exception\ContentNotFoundException;
+use Waaseyaa\Publishing\Exception\ContentSaveAdvisoryException;
+use Waaseyaa\Publishing\Exception\UnsupportedSaveAdvisoryAcknowledgementException;
+use Waaseyaa\Publishing\SaveAdvisoryAcknowledgementDispatcher;
 
-/** @api */
-final readonly class PublishingLayoutDraftGateway implements LayoutDraftGatewayInterface
+/**
+ * Publishing-backed layout draft gateway.
+ *
+ * Carries save advisory acknowledgements end to end: receipts arrive through
+ * the layout seam and are handed to the draft-mutation seam by
+ * {@see SaveAdvisoryAcknowledgementDispatcher}, which refuses rather than
+ * dropping them when the wrapped publisher cannot carry them. An unacknowledged
+ * advisory comes back as a page-builder-typed {@see LayoutSaveAdvisoryException}
+ * so a page-builder transport can present the review without depending on this
+ * package, the same translation this gateway already performs for authorization
+ * and not-found outcomes.
+ *
+ * @api
+ */
+final readonly class PublishingLayoutDraftGateway implements AdvisoryAwareLayoutDraftGatewayInterface
 {
     public function __construct(
         private ContentDraftMutationInterface $publisher,
@@ -38,21 +56,29 @@ final readonly class PublishingLayoutDraftGateway implements LayoutDraftGatewayI
         }
     }
 
+    /** @param list<string> $saveAdvisoryAcknowledgements Exact candidate-bound receipts. */
     public function update(
         AuthorizationPrincipalInterface $actor,
         string $entityId,
         string $encodedLayout,
         int $expectedRevisionId,
         string $idempotencyKey,
+        array $saveAdvisoryAcknowledgements = [],
     ): LayoutDraftSnapshot {
         try {
-            return $this->snapshot($this->publisher->updateDraft(
+            return $this->snapshot(SaveAdvisoryAcknowledgementDispatcher::updateDraft(
+                $this->publisher,
                 $actor,
                 $entityId,
                 [$this->layoutField => $encodedLayout],
                 $expectedRevisionId,
                 $idempotencyKey,
+                $saveAdvisoryAcknowledgements,
             ));
+        } catch (ContentSaveAdvisoryException $exception) {
+            throw new LayoutSaveAdvisoryException($exception->meta['save_advisories'] ?? [], previous: $exception);
+        } catch (UnsupportedSaveAdvisoryAcknowledgementException $exception) {
+            throw new UnsupportedLayoutSaveAdvisoryAcknowledgementException(previous: $exception);
         } catch (ContentAuthorizationException $exception) {
             throw new PageBuilderAccessDeniedException('The page draft is not accessible.', previous: $exception);
         } catch (ContentNotFoundException $exception) {

@@ -284,6 +284,20 @@ no direct Symfony request dependency. The configured surface permission is
 checked server-side for every operation. Unknown surfaces and malformed,
 oversized, extra, or missing command fields fail closed.
 
+The command route additionally accepts an optional
+`save_advisory_acknowledgements` body key: a list of at most 32 lowercase
+64-character hexadecimal receipts. The required-key set is unchanged, so a
+client that does not send receipts is unaffected. A malformed receipt is a `400`
+before any surface call. An edit held for review answers `428` with
+`code: SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` and the same allowlisted
+`meta.save_advisories` projection the entity save path uses, so a client
+branches on one machine code regardless of which surface raised it. Receipts
+sent to a gateway that cannot carry them answer `501` with
+`code: SAVE_ADVISORY_UNSUPPORTED` and no token in the payload. The SPA prompt
+that renders a layout-draft advisory and returns its receipt is not yet built;
+the transport contract above is complete. See `docs/specs/save-advisories.md`
+§11.
+
 The Admin SPA client added by the subsequent work package consumes this same
 contract as Anokii. It must not use generic entity PATCH, a direct repository
 save, or a client-private command vocabulary for layout edits.

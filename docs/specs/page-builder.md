@@ -238,6 +238,51 @@ universal mutation-token contract. A future opaque aggregate token may replace
 the current revision identifier behind the same gateway without giving either
 editor client a private persistence path.
 
+### 7.1.1 Save advisories on a layout edit
+
+A layout edit is an ordinary entity save, so it reaches the repository save
+boundary and a pre-save policy can hold it for review over a field the edit
+never touched. An application that raises a candidate-bound advisory on `slug`
+will raise it on a layout-only edit to a page whose slug is already reserved.
+
+The gateway contract therefore carries acknowledgement receipts, using the split
+already established for the draft-mutation seam (#2467) rather than widening the
+existing contract:
+
+- `LayoutDraftGatewayInterface::update()` is **frozen at five parameters**. PHP
+  checks an implementing method against every parameter its interface declares,
+  so a trailing optional parameter there is a load-time fatal for every existing
+  implementor.
+- `AdvisoryAwareLayoutDraftGatewayInterface` extends it with one trailing
+  optional `list<string> $saveAdvisoryAcknowledgements`. Opting in is how a
+  gateway declares it can carry receipts; not opting in stays fully supported.
+- `LayoutSaveAdvisoryAcknowledgementDispatcher` is the single decision point.
+  With no receipts it calls the frozen five-argument method. With receipts it
+  requires the extension and otherwise throws
+  `UnsupportedLayoutSaveAdvisoryAcknowledgementException`
+  (`SAVE_ADVISORY_UNSUPPORTED`) before any write. A receipt is never
+  synthesized, rewritten, or discarded to make an edit succeed, and the refusal
+  carries no token, policy identity, or implementation name.
+- An unacknowledged advisory surfaces as `LayoutSaveAdvisoryException`, the
+  page-builder-typed review outcome. The layout seam owns its own exception
+  types because a gateway is not required to be publishing-backed and the Admin
+  Surface does not depend on `waaseyaa/publishing`, so a transport catches only
+  layout-contract types. The publishing adapter therefore translates **both**
+  advisory outcomes: `ContentSaveAdvisoryException` into
+  `LayoutSaveAdvisoryException` with the advisory payloads intact, and
+  `UnsupportedSaveAdvisoryAcknowledgementException` into
+  `UnsupportedLayoutSaveAdvisoryAcknowledgementException`. The second arises
+  when the adapter advertises receipt support but the publisher it wraps is
+  frozen at five arguments, so the refusal is raised one seam further in than
+  the one the transport knows about; untranslated it escapes the host uncaught
+  and the structured `501` never reaches the client. Both follow the pattern the
+  adapter already uses for authorization and not-found outcomes.
+
+`LayoutDraftManager::apply()` and `PageBuilderSurface::apply()` accept the same
+trailing optional receipts list and forward it. Both are `final`, so that
+addition is source-compatible. The full contract, including the compatibility
+promise binding future changes, is in `docs/specs/save-advisories.md` §11.
+
 ### 7.2 Shared authenticated wire surface
 
 The Admin Surface exposes one optional, application-registered page-builder
@@ -248,7 +293,15 @@ surface under `/admin/_surface/page-builder/{surface}`. It has four operations:
 - `GET /{id}` returns the canonical document, document fingerprint, and entity
   revision;
 - `POST /{id}/commands` accepts exactly one closed-vocabulary edit command plus
-  the observed fingerprint, entity revision, and idempotency key;
+  the observed fingerprint, entity revision, and idempotency key, and optionally
+  `save_advisory_acknowledgements`: a list of at most 32 lowercase 64-character
+  hexadecimal receipts. The required-key set is unchanged, so a client that does
+  not send receipts is unaffected. A malformed receipt is a `400` before any
+  surface call; an edit held for review answers `428` with
+  `code: SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` and the allowlisted
+  `meta.save_advisories` projection shared with the entity save path; receipts
+  sent to a gateway that cannot carry them answer `501` with
+  `code: SAVE_ADVISORY_UNSUPPORTED` and no token in the payload;
 - `POST /{id}/preview` issues a short-lived grant for exactly the submitted
   entity revision and returns an application-generated same-origin preview URL.
 

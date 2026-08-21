@@ -64,10 +64,26 @@ idempotency conflict. A storage advisory is translated to the structured
 `meta.save_advisories`. Publish, unpublish, and rollback do not accept tokens in
 this contract.
 
-`ContentPublisher` also implements the internal composite-authoring mutation
+`ContentPublisher` also implements the public composite-authoring mutation
 seam used by the page-builder publishing adapter. The adapter may project only
 its configured canonical layout field, and it must forward the caller's
-observed entity revision and idempotency key unchanged. Admin SPA and Anokii
+observed entity revision and idempotency key unchanged.
+
+Because a layout edit is an ordinary entity save, a pre-save policy can hold it
+for review over a field the edit never touched. `PublishingLayoutDraftGateway`
+therefore implements `AdvisoryAwareLayoutDraftGatewayInterface`, hands any
+receipts to `SaveAdvisoryAcknowledgementDispatcher`, and translates both of that
+dispatcher's advisory outcomes into page-builder types:
+`ContentSaveAdvisoryException` becomes `LayoutSaveAdvisoryException` with the
+advisory payloads intact, and `UnsupportedSaveAdvisoryAcknowledgementException`
+— raised when the adapter advertises receipt support but the publisher it wraps
+is frozen at five arguments — becomes
+`UnsupportedLayoutSaveAdvisoryAcknowledgementException`. Both translations exist
+because a layout gateway is not required to be publishing-backed and
+`waaseyaa/admin-surface` does not depend on this package, so an untranslated
+outcome escapes the page-builder host uncaught; they follow the same pattern the
+adapter already uses for authorization and not-found outcomes. See
+`docs/specs/save-advisories.md` §11. Admin SPA and Anokii
 therefore share the same publication authority; neither client receives a
 direct repository save path.
 

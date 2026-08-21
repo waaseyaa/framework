@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — a page-builder layout edit can now review and acknowledge a save
+  advisory (#2473):** a layout edit is an ordinary entity save, so a pre-save
+  policy can hold it for review over a field the edit never touched. An
+  application that raises an advisory on `slug` raised it on a layout-only edit
+  to a page whose slug was already reserved, and `LayoutDraftGatewayInterface`
+  had no receipt channel, so the advisory repeated indefinitely and the page
+  could not be edited in the page builder at all. The draft-mutation split from
+  #2467 is now applied one seam further out: the five-parameter
+  `LayoutDraftGatewayInterface::update()` is frozen and untouched, receipts
+  travel through the new `AdvisoryAwareLayoutDraftGatewayInterface`, and
+  `LayoutSaveAdvisoryAcknowledgementDispatcher` is the single fail-closed
+  decision point — the frozen call when there are no receipts, and
+  `UnsupportedLayoutSaveAdvisoryAcknowledgementException`
+  (`SAVE_ADVISORY_UNSUPPORTED`) before any write when a gateway cannot carry
+  them. Receipts are never synthesized, rewritten, or dropped.
+
+  `LayoutDraftManager::apply()` and `PageBuilderSurface::apply()` gain a
+  trailing optional receipts parameter; both are `final`, so that is
+  source-compatible. `PublishingLayoutDraftGateway` implements the extension and
+  translates **both** publishing advisory outcomes into page-builder types:
+  `ContentSaveAdvisoryException` into `LayoutSaveAdvisoryException`, and
+  `UnsupportedSaveAdvisoryAcknowledgementException` into
+  `UnsupportedLayoutSaveAdvisoryAcknowledgementException`. That is required
+  because `waaseyaa/admin-surface` does not depend on `waaseyaa/publishing` and a
+  layout gateway need not be publishing-backed, so a transport catches only
+  layout-contract types and an untranslated outcome escapes the host uncaught.
+  The refusal case arises when the gateway advertises receipt support but the
+  publisher it wraps is frozen at five arguments.
+  `GenericPageBuilderSurfaceHost` accepts `save_advisory_acknowledgements` as an
+  optional body key (bounded, validated, `400` when malformed), answers `428`
+  with the existing allowlisted `save_advisories` projection when an edit is
+  held, and `501` with no token in the payload when receipts reach a surface
+  that cannot carry them. The required-key set is unchanged, so existing clients
+  are unaffected. All five elements are classified `public` in
+  `docs/public-surface-map.php`; the promise is written down in
+  `docs/specs/save-advisories.md` §11. The Admin SPA prompt that surfaces the
+  warning and returns the receipt is separate work.
+
 - **Added — authoritative embedded workflow transition presentation (#2461):**
   successful entity-editor transitions now emit a v2 same-origin lifecycle
   event containing only the server-confirmed resulting state and whether the

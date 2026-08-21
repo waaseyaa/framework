@@ -613,6 +613,17 @@ return [
     'Waaseyaa\Publishing\AdvisoryAwareContentDraftMutationInterface' => 'public',
     'Waaseyaa\Publishing\SaveAdvisoryAcknowledgementDispatcher' => 'public',
     'Waaseyaa\Publishing\Exception\UnsupportedSaveAdvisoryAcknowledgementException' => 'public',
+    // Layout-draft seam (#2473): the same split one seam further out. A layout
+    // edit reaches the repository save boundary, so it can raise a save advisory
+    // for a field the edit never touched, and the gateway needs a receipt channel
+    // to let the reviewer retry. `LayoutDraftGatewayInterface` above stays frozen
+    // at five parameters; receipts arrive through the extending interface, and
+    // `LayoutSaveAdvisoryAcknowledgementDispatcher` is the @api entry point that
+    // takes the frozen base as a parameter. See docs/specs/save-advisories.md §11.
+    'Waaseyaa\PageBuilder\Draft\AdvisoryAwareLayoutDraftGatewayInterface' => 'public',
+    'Waaseyaa\PageBuilder\Draft\LayoutSaveAdvisoryAcknowledgementDispatcher' => 'public',
+    'Waaseyaa\PageBuilder\Draft\Exception\LayoutSaveAdvisoryException' => 'public',
+    'Waaseyaa\PageBuilder\Draft\Exception\UnsupportedLayoutSaveAdvisoryAcknowledgementException' => 'public',
     // Revision history/preview seams stay internal: no @api entry point takes
     // them as a parameter, and no consumer implements them under support.
     'Waaseyaa\Publishing\ContentRevisionHistoryInterface' => 'internal',

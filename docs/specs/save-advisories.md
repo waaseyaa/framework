@@ -312,3 +312,85 @@ and a `## Breaking changes` release listing):
 method shapes. Revision history and preview seams
 (`ContentRevisionHistoryInterface`, `ContentRevisionPreviewInterface`) remain
 internal: no public entry point takes them as a parameter.
+
+## 11. The layout-draft seam
+
+A page-builder layout edit is an ordinary entity save. It reaches the repository
+save boundary, so a pre-save policy can hold it for review over a field the edit
+never touched: an application that raises an advisory on `slug` will raise it on
+a layout-only edit to a page whose slug is already reserved. Before #2473 the
+layout seam had no receipt channel, so that advisory repeated forever and the
+page could not be edited in the page builder at all.
+
+The fix is §10's split applied one seam further out. Nothing about the advisory
+itself changes; only the route a receipt travels.
+
+| Element | Kind | Disposition |
+|---|---|---|
+| `Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface` | interface consumers implement | public, **frozen at five parameters** |
+| `Waaseyaa\PageBuilder\Draft\AdvisoryAwareLayoutDraftGatewayInterface` | extending interface consumers opt into | public |
+| `Waaseyaa\PageBuilder\Draft\LayoutSaveAdvisoryAcknowledgementDispatcher` | entry point consumers call | public |
+| `Waaseyaa\PageBuilder\Draft\Exception\LayoutSaveAdvisoryException` | typed review outcome consumers catch | public |
+| `Waaseyaa\PageBuilder\Draft\Exception\UnsupportedLayoutSaveAdvisoryAcknowledgementException` | typed refusal consumers catch | public |
+
+The same four promises in §10 bind here, with the base signature being
+`update(AuthorizationPrincipalInterface $actor, string $entityId, string $encodedLayout, int $expectedRevisionId, string $idempotencyKey)`.
+`LayoutDraftPublicSurfaceTest` enforces the classifications and the exact shapes.
+
+### Why the layout seam owns its own exceptions
+
+`waaseyaa/admin-surface` does not depend on `waaseyaa/publishing`, and a layout
+gateway is not required to be publishing-backed. A page-builder transport
+therefore catches only layout-contract types. **Every outcome a publishing-backed
+gateway can produce must be expressed in those types**, or it escapes the host
+uncaught and the promised structured response never reaches the client.
+
+`PublishingLayoutDraftGateway` translates both advisory outcomes, exactly as it
+already translates authorization and not-found outcomes across that boundary:
+
+| Raised in `waaseyaa/publishing` | Translated to |
+|---|---|
+| `ContentSaveAdvisoryException` | `LayoutSaveAdvisoryException` (payloads verbatim, so the caller receives the same candidate-bound token the entity-storage gate issued) |
+| `UnsupportedSaveAdvisoryAcknowledgementException` | `UnsupportedLayoutSaveAdvisoryAcknowledgementException` |
+
+The second case is easy to miss: it arises when the *gateway* advertises
+`AdvisoryAwareLayoutDraftGatewayInterface` but the *publisher* it wraps is frozen
+at five arguments, so the refusal is raised one seam further in than the one the
+transport knows about. The originating exception is chained for diagnosis, and
+nothing from it reaches a transport payload.
+
+### The full receipt path
+
+```
+GenericPageBuilderSurfaceHost   save_advisory_acknowledgements (optional body key,
+                                bounded to 32 lowercase 64-hex tokens or 400)
+  -> PageBuilderSurface::apply()          trailing optional parameter (final class)
+  -> LayoutDraftManager::apply()          trailing optional parameter (final class)
+  -> LayoutSaveAdvisoryAcknowledgementDispatcher::update()   fail-closed decision point
+  -> AdvisoryAwareLayoutDraftGatewayInterface::update()      opt-in extension
+  -> SaveAdvisoryAcknowledgementDispatcher::updateDraft()    fail-closed decision point
+  -> AdvisoryAwareContentDraftMutationInterface::updateDraft()
+  -> SaveContext::withSaveAdvisoryAcknowledgements()
+```
+
+`LayoutDraftManager` and `PageBuilderSurface` are `final`, so a trailing optional
+parameter there is source-compatible: no consumer can be extending them. Only
+the two gateway interfaces needed the extension treatment.
+
+### Transport
+
+`GenericPageBuilderSurfaceHost` accepts `save_advisory_acknowledgements` as an
+**optional** body key on the command endpoint; the required-key set is unchanged,
+so an existing client is unaffected. Malformed receipts are a `400` at the wire
+before any surface call. A held edit answers `428 Precondition Required` with
+`code: SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` and the allowlisted
+`meta.save_advisories` projection already used by the entity save path, so a
+client branches on one machine code regardless of which surface raised it.
+Receipts sent to a gateway that cannot carry them answer `501` with
+`code: SAVE_ADVISORY_UNSUPPORTED` and no token in the payload.
+
+### What is not covered
+
+The Admin SPA does not yet render a layout-draft advisory prompt. The HTTP
+contract above is complete and tested; the editor affordance that surfaces the
+warning and returns the receipt is separate work.
