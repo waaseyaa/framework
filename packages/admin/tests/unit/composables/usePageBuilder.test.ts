@@ -52,6 +52,18 @@ const history: PageBuilderRevision[] = [{
   block_count: 0,
 }]
 
+/**
+ * Idempotency keys must be *sequential* here. A single constant cannot tell a
+ * retained key apart from a freshly minted one, which is exactly how a
+ * regenerated key on the acknowledged retry stayed invisible.
+ */
+function operationId(sequence: number): `${string}-${string}-${string}-${string}-${string}` {
+  return `00000000-0000-4000-8000-${String(sequence).padStart(12, '0')}`
+}
+
+let operationSequence = 0
+let randomUUID: ReturnType<typeof vi.spyOn>
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.definitions.mockResolvedValue({ ok: true, data: { definitions } })
@@ -61,7 +73,11 @@ beforeEach(() => {
   mocks.history.mockResolvedValue({ ok: true, data: { revisions: history } })
   mocks.revision.mockResolvedValue({ ok: true, data: { ...draft, entity_revision_id: 5 } })
   mocks.restore.mockResolvedValue({ ok: true, data: { ...draft, entity_revision_id: 8 } })
-  vi.spyOn(crypto, 'randomUUID').mockReturnValue('11111111-1111-4111-8111-111111111111')
+  operationSequence = 0
+  randomUUID = vi.spyOn(crypto, 'randomUUID').mockImplementation(() => {
+    operationSequence += 1
+    return operationId(operationSequence)
+  })
 })
 
 describe('usePageBuilder', () => {
@@ -104,7 +120,7 @@ describe('usePageBuilder', () => {
       '42',
       draft,
       removeCommand,
-      '11111111-1111-4111-8111-111111111111',
+      operationId(1),
       [],
     )
     expect(state.draft.value?.entity_revision_id).toBe(8)
@@ -166,7 +182,7 @@ describe('usePageBuilder', () => {
       '42',
       latest,
       removeCommand,
-      '11111111-1111-4111-8111-111111111111',
+      operationId(2),
       [],
     )
     expect(state.draft.value).toEqual(retried)
@@ -223,8 +239,9 @@ describe('usePageBuilder', () => {
       expect(mocks.command).toHaveBeenCalledTimes(1)
     })
 
-    it('returns exactly the received receipts on the same command, revision, and fingerprint', async () => {
+    it('returns exactly the received receipts on the same command, revision, fingerprint, and idempotency key', async () => {
       const state = await heldState()
+      expect(state.advisoryReview.value?.operationId).toBe(operationId(1))
       mocks.command.mockResolvedValueOnce({ ok: true, data: { ...draft, entity_revision_id: 8 } })
 
       await expect(state.confirmAdvisoryReview()).resolves.toBe(true)
@@ -234,9 +251,13 @@ describe('usePageBuilder', () => {
         '42',
         draft,
         removeCommand,
-        '11111111-1111-4111-8111-111111111111',
+        operationId(1),
         [token],
       )
+      // The acknowledged retry is the same save attempt, not a new one.
+      const [held, retried] = mocks.command.mock.calls
+      expect(retried![4]).toBe(held![4])
+      expect(randomUUID).toHaveBeenCalledTimes(1)
       expect(state.advisoryReview.value).toBeNull()
       expect(state.draft.value?.entity_revision_id).toBe(8)
     })
@@ -248,15 +269,32 @@ describe('usePageBuilder', () => {
       await expect(state.confirmAdvisoryReview()).resolves.toBe(false)
 
       expect(mocks.command).toHaveBeenLastCalledWith(
-        'page', '42', draft, removeCommand, '11111111-1111-4111-8111-111111111111', [token],
+        'page', '42', draft, removeCommand, operationId(1), [token],
       )
       expect(state.advisoryReview.value?.advisories).toEqual([{ ...advisory, acknowledgement: secondToken }])
+      expect(state.advisoryReview.value?.operationId).toBe(operationId(1))
 
       mocks.command.mockResolvedValueOnce({ ok: true, data: { ...draft, entity_revision_id: 8 } })
       await expect(state.confirmAdvisoryReview()).resolves.toBe(true)
       expect(mocks.command).toHaveBeenLastCalledWith(
-        'page', '42', draft, removeCommand, '11111111-1111-4111-8111-111111111111', [secondToken],
+        'page', '42', draft, removeCommand, operationId(1), [secondToken],
       )
+      // One review chain is one save attempt: only the receipts change.
+      const keys = mocks.command.mock.calls.map(call => call[4])
+      expect(keys).toEqual([operationId(1), operationId(1), operationId(1)])
+      expect(randomUUID).toHaveBeenCalledTimes(1)
+    })
+
+    it('mints a new idempotency key only for a genuinely new save attempt', async () => {
+      const state = await heldState()
+
+      state.declineAdvisoryReview()
+      mocks.command.mockResolvedValueOnce({ ok: true, data: { ...draft, entity_revision_id: 8 } })
+      await expect(state.apply(removeCommand)).resolves.toBe(true)
+
+      const keys = mocks.command.mock.calls.map(call => call[4])
+      expect(keys).toEqual([operationId(1), operationId(2)])
+      expect(randomUUID).toHaveBeenCalledTimes(2)
     })
 
     it('leaves the draft unsaved and the review closed when the author declines', async () => {
@@ -365,11 +403,18 @@ describe('usePageBuilder', () => {
       await expect(state.retryConflict()).resolves.toBe(false)
       expect(state.advisoryReview.value?.advisories).toEqual([advisory])
 
+      // The advisory arrived on the conflict replay, so the acknowledged retry
+      // continues *that* attempt rather than the original refused one.
+      expect(state.advisoryReview.value?.operationId).toBe(operationId(2))
+
       mocks.command.mockResolvedValueOnce({ ok: true, data: { ...latest, entity_revision_id: 10 } })
       await expect(state.confirmAdvisoryReview()).resolves.toBe(true)
       expect(mocks.command).toHaveBeenLastCalledWith(
-        'page', '42', latest, removeCommand, '11111111-1111-4111-8111-111111111111', [token],
+        'page', '42', latest, removeCommand, operationId(2), [token],
       )
+      const keys = mocks.command.mock.calls.map(call => call[4])
+      expect(keys).toEqual([operationId(1), operationId(2), operationId(2)])
+      expect(randomUUID).toHaveBeenCalledTimes(2)
       expect(state.conflict.value).toBeNull()
     })
   })
@@ -428,7 +473,7 @@ describe('usePageBuilder', () => {
       '42',
       5,
       7,
-      '11111111-1111-4111-8111-111111111111',
+      operationId(1),
     )
     expect(state.draft.value?.entity_revision_id).toBe(8)
     expect(state.comparedRevision.value).toBeNull()

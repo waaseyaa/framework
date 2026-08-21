@@ -129,6 +129,7 @@ test.describe('Page-builder layout save advisory', () => {
     // The edit was not discarded and the first attempt carried no receipt.
     await expect(page.getByRole('textbox', { name: 'Body' })).toHaveValue('Rewritten body')
     expect(sent[0]).not.toHaveProperty('save_advisory_acknowledgements')
+    expect(sent[0]!.idempotency_key).toEqual(expect.any(String))
   })
 
   test('returns exactly the received receipt on the same bound retry', async ({ page }) => {
@@ -145,6 +146,8 @@ test.describe('Page-builder layout save advisory', () => {
     expect(sent[1]!.command).toEqual(sent[0]!.command)
     expect(sent[1]!.expected_document_fingerprint).toBe(draft.document_fingerprint)
     expect(sent[1]!.expected_entity_revision_id).toBe(draft.entity_revision_id)
+    // The acknowledged retry is the same save attempt, under the same key.
+    expect(sent[1]!.idempotency_key).toBe(sent[0]!.idempotency_key)
   })
 
   test('re-prompts with the new advisory instead of replaying a superseded receipt', async ({ page }) => {
@@ -163,6 +166,12 @@ test.describe('Page-builder layout save advisory', () => {
     expect(sent).toHaveLength(3)
     expect(sent[1]!.save_advisory_acknowledgements).toEqual([TOKEN])
     expect(sent[2]!.save_advisory_acknowledgements).toEqual([OTHER_TOKEN])
+    // One review chain is one save attempt: only the receipts change.
+    expect(sent.map(body => body.idempotency_key)).toEqual([
+      sent[0]!.idempotency_key,
+      sent[0]!.idempotency_key,
+      sent[0]!.idempotency_key,
+    ])
   })
 
   test('declining writes nothing and leaves the editor intact', async ({ page }) => {
@@ -174,6 +183,12 @@ test.describe('Page-builder layout save advisory', () => {
 
     expect(sent).toHaveLength(1)
     await expect(page.getByRole('textbox', { name: 'Body' })).toHaveValue('Rewritten body')
+
+    // A genuinely new attempt after declining gets its own key.
+    await page.getByRole('button', { name: APPLY }).click()
+    await expect(page.locator('[data-page-builder-advisory]')).toBeVisible()
+    expect(sent).toHaveLength(2)
+    expect(sent[1]!.idempotency_key).not.toBe(sent[0]!.idempotency_key)
   })
 
   test('presents an unsupported deployment with no confirm affordance', async ({ page }) => {

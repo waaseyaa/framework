@@ -311,13 +311,23 @@ concurrency conflict does. It is **not** an embed lifecycle failure: nothing was
 written, so the pending edit stays dirty and no `failure` event is emitted.
 
 Confirming returns **exactly** the acknowledgement values received, on the same
-command, document fingerprint, entity revision, and a fresh idempotency key, via
-the client's optional `saveAdvisoryAcknowledgements` argument. The client omits
-the body key entirely when there are none, so an ordinary save sends the
-byte-identical body it always sent. The review is dropped before the retry, so a
-second `428` — the candidate moved underneath the author — installs the new
-advisory and its new receipts rather than replaying a superseded one. Tokens are
-never synthesized, rewritten, persisted, or carried to another candidate.
+command, document fingerprint, entity revision, **and the same idempotency
+key**, via the client's optional `saveAdvisoryAcknowledgements` argument. The
+client omits the body key entirely when there are none, so an ordinary save
+sends the byte-identical body it always sent. The review is dropped before the
+retry, so a second `428` — the candidate moved underneath the author — installs
+the new advisory and its new receipts rather than replaying a superseded one.
+Tokens are never synthesized, rewritten, persisted, or carried to another
+candidate.
+
+A review chain is **one save attempt**. The idempotency key of the held attempt
+is retained on the review and reused for the acknowledged retry and for every
+further `428` in that chain; only the receipts change. This matches the server
+contract, where `LayoutDraftSaveAdvisoryTest` holds one key across the held
+attempt, a superseded-receipt refusal, and the successful retry. An advisory
+raised on a conflict replay retains *that* replay's key, not the original
+refused attempt's. A new key is minted only for a genuinely new save attempt —
+including the next attempt after the author declines.
 
 Declining clears the prompt and changes nothing else: no write, no draft
 replacement, and the edit stays dirty and unsaved. A rejected, superseded, or

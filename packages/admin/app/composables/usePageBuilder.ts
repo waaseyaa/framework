@@ -17,6 +17,14 @@ export interface PageBuilderAdvisoryReview {
   command: PageBuilderCommand
   advisories: AdminSurfaceSaveAdvisory[]
   detail: string
+  /**
+   * The idempotency key of the attempt this review holds.
+   *
+   * The acknowledged retry is the *same* save attempt, so it carries the same
+   * key rather than minting a new one — the server treats one review chain as
+   * one operation. A genuinely new save attempt gets a new key.
+   */
+  operationId: string
 }
 
 interface ApplyOptions {
@@ -25,6 +33,8 @@ interface ApplyOptions {
   /** Replay the pending change with the receipts its own advisory issued. */
   afterAdvisory?: boolean
   acknowledgements?: string[]
+  /** Continue an existing save attempt under its own idempotency key. */
+  operationId?: string
 }
 
 function idempotencyKey(): string {
@@ -103,7 +113,7 @@ export function usePageBuilder(surface: string, entityId: string) {
     failure.value = null
     advisoryUnsupported.value = null
     try {
-      const operationId = idempotencyKey()
+      const operationId = options.operationId ?? idempotencyKey()
       const result = await client.command(
         surface,
         entityId,
@@ -141,6 +151,7 @@ export function usePageBuilder(surface: string, entityId: string) {
           command: cloneValue(command),
           advisories,
           detail: result.error?.detail || result.error?.title || '',
+          operationId,
         }
         return false
       }
@@ -171,7 +182,8 @@ export function usePageBuilder(surface: string, entityId: string) {
    *
    * The review is dropped before the retry, so a second `428` — the candidate
    * moved underneath the author — installs the *new* advisory and its new
-   * receipts rather than replaying a superseded one.
+   * receipts rather than replaying a superseded one. The whole chain stays one
+   * save attempt under one idempotency key; only the receipts change.
    */
   async function confirmAdvisoryReview(): Promise<boolean> {
     const pending = advisoryReview.value
@@ -183,6 +195,7 @@ export function usePageBuilder(surface: string, entityId: string) {
       afterAdvisory: true,
       afterConflict: advisoryFollowsConflictRetry,
       acknowledgements,
+      operationId: pending.operationId,
     })
   }
 

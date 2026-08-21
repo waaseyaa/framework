@@ -19,7 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Confirming returns **exactly** the acknowledgement values that candidate's own
   advisory carried, on the same command, document fingerprint, entity revision,
-  and a fresh idempotency key. The client omits `save_advisory_acknowledgements`
+  and the same idempotency key — a review chain is one save attempt, which is
+  how the server's own advisory tests hold one key across a held attempt, a
+  refused replay, and the successful retry. A new key is minted only for a
+  genuinely new attempt. The client omits `save_advisory_acknowledgements`
   entirely when there are none, so an ordinary save sends the byte-identical
   body it always sent. The review is dropped before the retry, so a second `428`
   re-prompts with the new advisory instead of replaying a superseded receipt.

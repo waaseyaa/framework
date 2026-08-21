@@ -21,6 +21,7 @@ const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionR
       command: PageBuilderCommand
       advisories: Array<{ code: string, field: string, severity: 'warning', message: string, acknowledgement: string }>
       detail: string
+      operationId: string
     } | null>(null),
     advisoryUnsupportedRef: ref<string | null>(null),
     loadMock: vi.fn(),
@@ -296,6 +297,7 @@ describe('PageBuilderWorkspace', () => {
         command: heldCommand,
         advisories: [advisory],
         detail: 'This change needs review before it can be saved.',
+        operationId: '00000000-0000-4000-8000-000000000001',
       }
     }
 

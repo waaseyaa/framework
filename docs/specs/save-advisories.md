@@ -395,7 +395,9 @@ The Admin SPA renders the review. `usePageBuilder` holds the exact pending
 command with the advisories that candidate produced; the workspace shows each
 advisory's `field` and `message`, never its token, and blocks further editing
 while the review is open. Confirming replays that same command with exactly the
-received acknowledgements; declining writes nothing and leaves the edit dirty
-and intact. A `501` is presented as a configuration problem with no confirm
+received acknowledgements, under the **same idempotency key** — a review chain
+is one save attempt, exactly as the tests in this section hold one key across a
+held attempt, a refused replay, and the successful retry. Declining writes
+nothing and leaves the edit dirty and intact. A `501` is presented as a configuration problem with no confirm
 affordance. See `docs/specs/admin-spa.md`, "Layout save-advisory review in the
 editor".
