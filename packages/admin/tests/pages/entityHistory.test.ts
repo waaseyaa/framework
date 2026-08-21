@@ -7,10 +7,11 @@ import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { runActionMock, fetchSchemaMock, schemaRef } = vi.hoisted(() => {
+const { runActionMock, getMock, fetchSchemaMock, schemaRef } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     runActionMock: vi.fn(),
+    getMock: vi.fn(),
     fetchSchemaMock: vi.fn(),
     schemaRef: ref<Record<string, unknown> | null>({ title: 'Content', properties: {} }),
   }
@@ -31,7 +32,7 @@ vi.mock('~/composables/useSchema', () => ({
 }))
 
 vi.mock('~/composables/useEntity', () => ({
-  useEntity: () => ({ runAction: runActionMock }),
+  useEntity: () => ({ runAction: runActionMock, get: getMock }),
 }))
 
 const revisions = [
@@ -50,6 +51,7 @@ async function mountHistory() {
 describe('per-record history surface', () => {
   beforeEach(() => {
     runActionMock.mockReset()
+    getMock.mockReset().mockResolvedValue({ type: 'node', id: '5', attributes: { title: 'Working copy' } })
     fetchSchemaMock.mockReset()
     fetchSchemaMock.mockResolvedValue(undefined)
   })

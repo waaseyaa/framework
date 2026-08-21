@@ -1,5 +1,12 @@
 # Access Control
 
+<!-- Spec reviewed 2026-08-20 - #2464: EntityAccessHandler composes view_revision
+through RevisionPolicyComposition against the supplied entity (the historical
+snapshot on generic Admin recovery). Neutral falls back to view; explicit
+Forbidden does not. Protected entity-read policies evaluate the snapshot before
+legacy composition, and context-aware policies retain the caller's context on
+both the primary view_revision decision and its view fallback. -->
+
 <!-- Spec reviewed 2026-08-10 - #2327 configured-community principal convergence: the real HttpKernel stack explicitly runs CommunityMiddleware before FieldReadContextMiddleware, normalizing the resolved authoritative community onto `_community_id` before immutable principal construction. Explicit route/session precedence is preserved, configured state is restored after dispatch for long-lived workers, a fixed-community route carries the same scope as storage/controllers, and an inactive context remains null. -->
 <!-- Spec reviewed 2026-08-09 - #2314 external extension policies: explicitly participating installed packages receive policy-only discovery outside Waaseyaa/root namespaces while complete declared-policy parity remains fail closed. -->
 <!-- Spec reviewed 2026-08-07 - #2304: interactive self-profile identity reads use the separate UserSelfProfileReaderInterface. Its audited implementation releases exactly name/mail only when an authenticated immutable principal matches the target User id, binds the capability and ledger receipt to that actor plus tenant/community claims, and otherwise fails before reserving authority. MailDelivery, SessionBootstrap, and MaintenanceCli reasons remain unavailable as substitutes. Principal construction remains exclusively AccountPrincipalFactoryInterface. -->

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — generic revision recovery authorizes the historical snapshot
+  (#2464):** exact revision reads go through `RevisionPolicyComposition` /
+  `view_revision` on the requested revision, so current-entity view alone
+  cannot serialize historical attributes. Denied revision access is concealed
+  as a missing revision before any restore write, preview grant, or response
+  serialization. Restore changed-field authority is the shared
+  `RevisionRestoreChangedFields` helper used by Admin and AI tools. It gates
+  current-only removals and every historical value rollback actually writes,
+  while storage preserves live publication pointers, status, and credential
+  hashes rather than replaying their historical values. Protected/context-aware
+  snapshot-read policies participate in `view_revision`. Preview grants reject
+  fixed-point encoded traversal, backslashes, controls, and invalid UTF-8
+  without rejecting dots that occur only in query values.
+
+- **Added — generic entity revision recovery is package-owned (#2464):** the
+  Admin host can now read an exact saved revision through record and per-field
+  view access, optionally request an application-signed preview bound to that
+  revision, and restore old content only by copy-forward rollback with both an
+  observed latest-revision fence and the opaque aggregate mutation token.
+  Conflicts return 409, restore never publishes, rollback audit now identifies
+  the selected source revision, and one comparison/preview/restore component is
+  reused by the full history page and embedded entity editor.
+
 - **Fixed — `/robots.txt` now advertises an absolute sitemap URL (#2151):**
   `SeoPublicController::robotsTxt()` emitted `Sitemap: /sitemap.xml`. The
   sitemaps protocol requires an absolute URL, and crawlers ignore a relative

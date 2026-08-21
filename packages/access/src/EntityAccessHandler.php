@@ -6,10 +6,12 @@ namespace Waaseyaa\Access;
 
 use Waaseyaa\Access\Attribute\AccessPolicy;
 use Waaseyaa\Access\Gate\GateInterface;
+use Waaseyaa\Access\Policy\RevisionPolicyComposition;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\RevisionableEntityInterface;
 
 /**
  * Checks entity access by running all registered AccessPolicy plugins.
@@ -19,10 +21,13 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  * logic (any Allowed grants access), but Forbidden always wins. If no policy
  * grants access, the result is Neutral (effectively denied).
  *
- * Recognized operations: 'view', 'update', 'delete', 'translate'. The 'translate'
- * operation falls through to 'update' when no policy expresses an opinion
- * (translate ⊆ update); explicit Forbidden on 'translate' is honored without
- * fallthrough. Policies that implement {@see ContextAwareAccessPolicyInterface}
+ * Recognized operations: 'view', 'update', 'delete', 'translate', 'view_revision'.
+ * The 'translate' operation falls through to 'update' when no policy expresses
+ * an opinion (translate ⊆ update); explicit Forbidden on 'translate' is honored
+ * without fallthrough. 'view_revision' is composed through
+ * {@see RevisionPolicyComposition} against the supplied entity (the historical
+ * snapshot when a caller has one) and falls back to 'view' when the policy is
+ * Neutral. Policies that implement {@see ContextAwareAccessPolicyInterface}
  * receive a context bag (for 'translate' this carries the target 'langcode').
  *
  * See docs/specs/bundle-scoped-fields.md §Access for the bundle filter contract.
@@ -37,7 +42,7 @@ class EntityAccessHandler
      * Operations recognized by the handler. 'translate' is the M-006 addition
      * that falls through to 'update' when no policy opines.
      */
-    public const array RECOGNIZED_OPERATIONS = [GateInterface::VIEW, GateInterface::UPDATE, GateInterface::DELETE, self::OPERATION_TRANSLATE];
+    public const array RECOGNIZED_OPERATIONS = [GateInterface::VIEW, GateInterface::UPDATE, GateInterface::DELETE, self::OPERATION_TRANSLATE, GateInterface::VIEW_REVISION];
 
     /** Translate operation identifier — no GateInterface constant; kept local. */
     private const string OPERATION_TRANSLATE = 'translate';
@@ -90,7 +95,8 @@ class EntityAccessHandler
      * $context bag; others use the standard {@see AccessPolicyInterface::access()}.
      *
      * @param EntityInterface  $entity    The entity being accessed.
-     * @param string           $operation The operation: 'view', 'update', 'delete', or 'translate'.
+     * @param string           $operation The operation: 'view', 'update', 'delete',
+     *                                    'translate', or 'view_revision'.
      * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      * @param array<string, mixed> $context Optional extra context. For 'translate':
      *                                       ['langcode' => string].
@@ -102,6 +108,10 @@ class EntityAccessHandler
         array $context = [],
     ): AccessResult {
         $this->assertImmutableDecisionAccount($account);
+
+        if ($operation === GateInterface::VIEW_REVISION) {
+            return $this->checkViewRevision($entity, $account, $context);
+        }
 
         if ($operation === GateInterface::VIEW
             && $entity instanceof EntityBase
@@ -143,6 +153,65 @@ class EntityAccessHandler
         // reaches this branch, so it is honored over the update fallback.
         if ($operation === self::OPERATION_TRANSLATE && $result->isNeutral()) {
             return $this->check($entity, GateInterface::UPDATE, $account, $context);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Compose {@see GateInterface::VIEW_REVISION} against the supplied entity,
+     * which must be the historical snapshot when one is being read.
+     *
+     * @param AuthorizationPrincipalInterface $account
+     */
+    private function checkViewRevision(EntityInterface $entity, AccountInterface $account, array $context): AccessResult
+    {
+        $composer = new RevisionPolicyComposition();
+        $revision = $entity instanceof RevisionableEntityInterface ? $entity : null;
+        $result = AccessResult::neutral('No policy provided an opinion.');
+        $entityTypeId = $entity->getEntityTypeId();
+        $bundle = $entity->bundle();
+
+        if ($entity instanceof EntityBase
+            && $this->isAuthorizationPrincipal($account)
+            && $this->hasProtectedEntityReadPolicy($entityTypeId, $bundle)
+        ) {
+            $legacySubject = ($this->entityPolicySubjectAuthority)($entity, []);
+            $subject = ($this->entityPolicySubjectAuthority)(
+                $entity,
+                $this->protectedEntityReadInputs($entityTypeId, $bundle),
+            );
+            $result = $result->orIf($this->checkProtectedEntityRead(
+                $account,
+                $entity->entityStructure(),
+                $subject,
+                GateInterface::VIEW,
+                $legacySubject,
+            ));
+            if ($result->isForbidden()) {
+                return $result;
+            }
+        }
+
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($entityTypeId)) {
+                continue;
+            }
+            if (!$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)) {
+                continue;
+            }
+
+            $result = $result->orIf($composer->composeAccess(
+                $policy,
+                $entity,
+                $account,
+                GateInterface::VIEW_REVISION,
+                $revision,
+                $context,
+            ));
+            if ($result->isForbidden()) {
+                return $result;
+            }
         }
 
         return $result;

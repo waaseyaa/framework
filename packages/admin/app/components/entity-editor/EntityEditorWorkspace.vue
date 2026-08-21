@@ -116,6 +116,13 @@ async function confirmDelete() {
       :entity-id="entityId"
     />
 
+    <EntityEditorEntityRevisionRecovery
+      v-if="entityId"
+      :entity-type="entityType"
+      :entity-id="entityId"
+      compact
+    />
+
     <CommonConfirmDialog
       :open="showDeleteConfirm"
       :message="t('confirm_delete')"

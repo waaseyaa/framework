@@ -25,6 +25,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\RevisionMetadata;
+use Waaseyaa\Entity\RevisionRestoreChangedFields;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
@@ -1613,6 +1614,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             toRevisionId: null,
             actorUid: $actor,
             revisionValues: $targetRow,
+            sourceRevisionId: $targetRevisionId,
         );
         $transaction = $this->database?->transaction();
         try {
@@ -1637,7 +1639,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
             // Restore content only; publication/status remain under the live
             // pointer authority observed above.
-            foreach (['published_revision_id', 'status'] as $pointerKey) {
+            foreach (RevisionRestoreChangedFields::LIVE_PRESERVED_KEYS as $pointerKey) {
                 if ($priorBaseRow !== null && array_key_exists($pointerKey, $priorBaseRow)) {
                     $targetRow[$pointerKey] = $priorBaseRow[$pointerKey];
                 } else {
@@ -1770,7 +1772,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         // decision 2). The target revision's frozen published_revision_id/status
         // snapshot must not overwrite the live base row's values. Reuse the base
         // row already read above ($priorBaseRow) rather than re-reading.
-        foreach (['published_revision_id', 'status'] as $pointerKey) {
+        foreach (RevisionRestoreChangedFields::LIVE_PRESERVED_KEYS as $pointerKey) {
             if ($priorBaseRow !== null && array_key_exists($pointerKey, $priorBaseRow)) {
                 $row[$pointerKey] = $priorBaseRow[$pointerKey];
             } else {
@@ -1795,7 +1797,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             throw $e;
         }
 
-        $entity = $this->loadRevision($entityId, $revisionId);
+        // Reload the row that was actually made current. The historical
+        // revision snapshot intentionally retains its frozen status,
+        // publication pointer, and credentials, while the base row above
+        // preserves the live values. Returning or dispatching the snapshot
+        // would expose stale credentials with a fresh mutation token.
+        $entity = $this->find($entityId);
+        if ($entity === null) {
+            throw new \UnexpectedValueException(
+                "Current entity {$this->entityType->id()} '{$entityId}' could not be reloaded after moving its revision pointer.",
+            );
+        }
 
         $this->dispatchEvent(
             $this->eventFactory->create($entity),

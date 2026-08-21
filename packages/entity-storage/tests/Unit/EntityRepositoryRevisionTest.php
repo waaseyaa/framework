@@ -9,7 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityValueComparator;
+use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -28,6 +31,8 @@ final class EntityRepositoryRevisionTest extends TestCase
     private EntityRepository $repo;
     /** @var string[] */
     private array $dispatchedEvents = [];
+    /** @var array<string, list<object>> */
+    private array $dispatchedEventPayloads = [];
 
     protected function setUp(): void
     {
@@ -50,9 +55,11 @@ final class EntityRepositoryRevisionTest extends TestCase
         $revisionDriver = new RevisionableStorageDriver($resolver, $entityType);
 
         $this->dispatchedEvents = [];
+        $this->dispatchedEventPayloads = [];
         $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnCallback(function ($event, $eventName) {
             $this->dispatchedEvents[] = $eventName;
+            $this->dispatchedEventPayloads[$eventName][] = $event;
             return $event;
         });
 
@@ -264,6 +271,75 @@ final class EntityRepositoryRevisionTest extends TestCase
             $this->repo->find('1')->get('published_revision_id'),
             'live published pointer untouched by rollback',
         );
+    }
+
+    #[Test]
+    public function revision_restore_preserves_live_credentials_instead_of_replaying_historical_values(): void
+    {
+        $entity = new TestRevisionableEntity(values: [
+            'title' => 'v1',
+            'id' => '1',
+            'uuid' => 'a',
+            'pass' => 'old-hash',
+            'password_hash' => 'old-password-hash',
+        ]);
+        $entity->enforceIsNew();
+        $this->repo->save($entity);
+
+        $entity = $this->repo->find('1');
+        self::assertNotNull($entity);
+        $entity->set('title', 'v2');
+        $entity->set('pass', 'live-hash');
+        $entity->set('password_hash', 'live-password-hash');
+        $this->repo->save($entity);
+
+        $rolledBack = $this->repo->rollback('1', 1, $this->mutationToken('1'));
+        self::assertSame('v1', $rolledBack->label());
+        $liveValues = $this->rawDataValues('1');
+        self::assertSame('live-hash', $liveValues['pass'] ?? null);
+        self::assertSame('live-password-hash', $liveValues['password_hash'] ?? null);
+
+        $this->dispatchedEventPayloads = [];
+        $reverted = $this->repo->setCurrentRevision('1', 1, $this->mutationToken('1'));
+        self::assertSame('v1', $reverted->label());
+        $this->assertLiveCredentials($reverted);
+
+        $revertedEvents = $this->dispatchedEventPayloads[EntityEvents::REVISION_REVERTED->value] ?? [];
+        self::assertCount(1, $revertedEvents);
+        self::assertInstanceOf(EntityEvent::class, $revertedEvents[0]);
+        $this->assertLiveCredentials($revertedEvents[0]->entity);
+
+        // The returned entity carries a fresh mutation token. Saving it must
+        // not turn that token into a replay path for historical credentials.
+        $reverted->set('title', 'v1-after-save');
+        $this->repo->save($reverted);
+        $liveValues = $this->rawDataValues('1');
+        self::assertSame('live-hash', $liveValues['pass'] ?? null);
+        self::assertSame('live-password-hash', $liveValues['password_hash'] ?? null);
+    }
+
+    private function assertLiveCredentials(EntityInterface $entity): void
+    {
+        $expected = new TestRevisionableEntity(values: [
+            'pass' => 'live-hash',
+            'password_hash' => 'live-password-hash',
+        ]);
+        self::assertSame(
+            [],
+            new EntityValueComparator()->changedFieldNames($entity, $expected, ['pass', 'password_hash']),
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function rawDataValues(string $entityId): array
+    {
+        $rows = iterator_to_array($this->db->query(
+            'SELECT _data FROM test_revisionable WHERE id = ?',
+            [$entityId],
+        ));
+        self::assertCount(1, $rows);
+
+        return json_decode((string) ((array) $rows[0])['_data'], true, flags: JSON_THROW_ON_ERROR);
     }
 
     #[Test]

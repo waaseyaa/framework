@@ -1,5 +1,16 @@
 # Entity System
 
+<!-- Spec reviewed 2026-08-20 - #2464: RevisionRestoreChangedFields is the
+canonical copy-forward restore comparison. It excludes revision metadata and values storage
+preserves from the live row (publication pointer, status, credential hashes); current-only
+removals, workflow state, and other written privilege-bearing fields stay in the authorized
+changed set. Admin and AI restore both call this helper. -->
+<!-- Spec reviewed 2026-08-20 - #2464: rollback's existing
+BeforeRevisionPointerMoveEvent now carries the selected source revision id in a
+new optional trailing field. Repository copy-forward, pointer, mutation-token,
+and workflow-guard semantics are unchanged; the identifier lets the existing
+post-commit rollback audit distinguish source from pre-operation current. -->
+
 <!-- Spec reviewed 2026-08-20 - #2460: pre-DB-03 aggregate authority repair is reachable only through the explicit restricted `entity:backfill-mutation-authorities --reason=...` command. It raw-preflights NUL-free identities across every declared community, maps legacy empty owners to hydration's `_global` tenant, derives translatable authority only from canonical language rows, repairs each framework type atomically, explicitly reports skipped repositories, and propagates any unknown per-type count to an unknown aggregate total without token material. It binds retained operator evidence to a SHA-256 digest of the unrendered reason, preserves existing tenant/type/id-bound authorities, and is idempotent. Post-commit per-row events are notifications rather than the sole durable audit authority. Ordinary boot and reads remain fail-closed and never synthesize authority. -->
 <!-- Spec reviewed 2026-08-16 - S1-FW-DB-03: every persisted existing aggregate carries an opaque, tenant/type/id-bound EntityMutationToken. EntityRepository claims that token transactionally for saves, deletes, batches, revision-pointer moves, rollback, pruning, and translation writes; stale, missing, or transplanted authority fails closed without disclosing the successor token. Supported HTTP, GraphQL, AI, workflow, publishing, and Admin mutation surfaces must propagate the observed token. New aggregates establish authority during creation, while the audited backfill path exists only for legacy rows. Canonical contract and scheduler fencing companion: s1-concurrency-fencing.md. -->
 
@@ -804,6 +815,14 @@ leaving storage untouched (including transactional rollback of any earlier write
 transaction, for the multi-write translation paths). Full contract, payload shape, and the
 `Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard` consumer: `docs/specs/revision-system-unified.md`
 §4a.
+
+**Copy-forward restore changed fields (#2464).** Surfaces that authorize a whole-row rollback
+by the fields that would actually change must use `Waaseyaa\Entity\RevisionRestoreChangedFields`
+(name-only `EntityValueComparator` for `EntityBase` views). Revision bookkeeping and values
+preserved from the live row—publication pointer, status, and credential hashes—are excluded
+because rollback never copies them from history. Workflow and every other written
+privilege-bearing field remain in the set, including keys present only on the current row that
+the restore removes. Admin restore and the AI restore tools share this helper.
 
 ### Save (via SqlEntityStorage — low-level)
 

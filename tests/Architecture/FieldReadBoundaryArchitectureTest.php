@@ -185,7 +185,6 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
     /** @var array<string, non-empty-string> */
     private const array ENTITY_TO_ARRAY_ALLOWLIST = [
         'packages/ai-tools/src/Entity/EntityReadTool.php' => 'Third-party EntityInterface compatibility fallback only; framework values are selected by fieldNames before guarded get().',
-        'packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php' => 'Third-party EntityInterface compatibility fallback only; framework revisions use the closed name-only comparator.',
         'packages/ai-tools/src/Entity/EntitySearchTool.php' => 'Third-party EntityInterface compatibility fallback only; framework search selects names before guarded get().',
         'packages/ai-tools/src/Relationship/RelationshipTraverseTool.php' => 'Third-party EntityInterface compatibility fallback only; framework edge projection uses selected guarded reads.',
         'packages/entity-storage/src/CoordinatorLifecycleDispatcher.php' => 'Third-party EntityInterface persistence fallback only; framework fan-out uses the private closed persistence authority.',
@@ -193,6 +192,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/entity/src/ConfigEntityBase.php' => 'Explicit public config export; sealed Internal fields intentionally make the whole export fail atomically.',
         'packages/entity/src/DateTime/TimestampFieldConvention.php' => 'Third-party EntityInterface compatibility fallback only; framework entities enumerate and use guarded get().',
         'packages/entity/src/EntityValues.php' => 'Third-party EntityInterface compatibility fallback only; framework entities use non-value fieldNames() enumeration.',
+        'packages/entity/src/RevisionRestoreChangedFields.php' => 'Third-party EntityInterface compatibility fallback only; framework revisions use the closed name-only comparator.',
         'packages/entity/src/Snapshot/EntityValuesSnapshot.php' => 'Public-only snapshot boundary; framework entities are classification-preflighted before export and third-party implementations retain their declared array contract.',
         'packages/entity/src/Write/EntityWritePayloadGuard.php' => 'Third-party EntityInterface bookkeeping-echo compatibility only; framework echoes use the closed name-only comparator.',
     ];
@@ -349,7 +349,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
             }
         }
         self::assertSame([
-            'packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php',
+            'packages/entity/src/RevisionRestoreChangedFields.php',
             'packages/entity/src/Write/EntityWritePayloadGuard.php',
         ], $callers);
     }

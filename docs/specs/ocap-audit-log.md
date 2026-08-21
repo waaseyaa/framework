@@ -1,5 +1,10 @@
 # OCAP Audit Log Substrate
 
+<!-- Spec reviewed 2026-08-20 - #2464: successful copy-forward rollback audit
+attributes now retain source_revision_id separately from from_revision_id and
+to_revision_id. The record remains metadata-only and best-effort; actor,
+subject, allowed outcome, and operation semantics are unchanged. -->
+
 <!-- Spec reviewed 2026-08-13 - AuditQuery adds an optional exact
 `subjectUri` filter (appended for positional-constructor compatibility). The
 API adapter carries the same field so authorized domain surfaces can project

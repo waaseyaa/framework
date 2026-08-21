@@ -76,6 +76,8 @@ final class BeforeRevisionPointerMoveEvent extends Event
     /**
      * @param 'rollback'|'revert'|'publish'|'translation_save' $operation
      * @param array<string, mixed> $revisionValues
+     * @param ?int $sourceRevisionId Existing revision whose content is being
+     *   copied forward; populated only for rollback.
      */
     public function __construct(
         public readonly string $entityTypeId,
@@ -85,6 +87,7 @@ final class BeforeRevisionPointerMoveEvent extends Event
         public readonly ?int $toRevisionId,
         public readonly ?int $actorUid,
         public readonly array $revisionValues,
+        public readonly ?int $sourceRevisionId = null,
     ) {}
 
     /**

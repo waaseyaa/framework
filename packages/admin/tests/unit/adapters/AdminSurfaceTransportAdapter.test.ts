@@ -183,6 +183,48 @@ describe('AdminSurfaceTransportAdapter', () => {
     expect(fetchFn).not.toHaveBeenCalled()
   })
 
+  it('keeps the restore mutation token private and refreshes it from the successor', async () => {
+    const responses = [
+      { type: 'node', id: '7', attributes: { title: 'Current' }, mutation_token: 'emt1.observed' },
+      {
+        entityType: 'node', entityId: '7', sourceRevisionId: 1, resultingRevisionId: 4,
+        entity: { type: 'node', id: '7', attributes: { title: 'Restored' }, mutation_token: 'emt1.successor' },
+      },
+      { type: 'node', id: '7', attributes: { title: 'Edited' }, mutation_token: 'emt1.after-edit' },
+    ]
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: responses.shift() }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('node', '7')
+    await adapter.runAction('node', 'restore-revision', {
+      id: '7', revision_id: 1, expected_latest_revision_id: 3,
+    })
+    await adapter.update('node', '7', { title: 'Edited' })
+
+    expect(fetchFn).toHaveBeenNthCalledWith(2, '/admin/_surface/node/action/restore-revision', expect.objectContaining({
+      body: JSON.stringify({
+        id: '7', revision_id: 1, expected_latest_revision_id: 3, mutation_token: 'emt1.observed',
+      }),
+    }))
+    expect(fetchFn).toHaveBeenNthCalledWith(3, '/admin/_surface/node/action/update', expect.objectContaining({
+      body: JSON.stringify({ id: '7', attributes: { title: 'Edited' }, mutation_token: 'emt1.successor' }),
+    }))
+  })
+
+  it('refuses a blind revision restore before making a request', async () => {
+    const fetchFn = vi.fn()
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await expect(adapter.runAction('node', 'restore-revision', {
+      id: '7', revision_id: 1, expected_latest_revision_id: 3,
+    })).rejects.toMatchObject({ status: 428, title: 'Precondition required' })
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
   it('throws a transport error for failed surface responses', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: false,

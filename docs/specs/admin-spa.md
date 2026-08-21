@@ -1,5 +1,9 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-20 - #2464 generic revision recovery: exact reads compose
+view_revision plus protected/context-aware authority on the historical snapshot; restore uses
+shared RevisionRestoreChangedFields and preserves live pointer/status/credential values; preview
+grants reject fixed-point encoded traversal, controls, backslashes, and invalid UTF-8. -->
 <!-- Spec reviewed 2026-08-13 - shared workflow history: the entity editor's
 TransitionHistoryTimeline reads `meta.workflow_history` from the sanctioned
 workflow-discovery endpoint, not the obsolete inline `workflow_audit` field.
@@ -512,6 +516,49 @@ is in flight, which is the case an editor most often opens history to
 understand. `author` distinguishes `null` (written without an acting context)
 from `0` (the anonymous account acted); collapsing the two would attribute an
 unattributed revision to a real account.
+
+**Revision recovery (#2464).** Metadata history stays content-free. Selecting a
+row invokes the distinct `revision` action, which first authorizes the record
+itself and only then loads the saved revision. Historical attributes are
+released only after `EntityAccessHandler` composes `view_revision` through
+`RevisionPolicyComposition` against that snapshot; current-entity view is not
+enough. Protected entity-read authority and context-aware policy evaluation use
+the same historical snapshot. A denied revision is concealed as a missing revision. The ordinary
+`ResourceSerializer` then projects the snapshot with the acting account, so
+dynamically forbidden and internal fields never enter the response. A
+record-view refusal occurs before revision storage is consulted and therefore
+exposes no revision-existence oracle.
+
+`restore-revision` requires both record view and update access, `view_revision`
+on the source snapshot, a positive observed latest revision id, and the opaque
+mutation token cached by the Admin transport's prior record GET. Changed-field
+edit authority is the same `RevisionRestoreChangedFields` set used by the AI
+restore tools: revision metadata and live-preserved keys are excluded, while
+workflow and every other written privilege-bearing field—including current-only
+keys removed by restore—are not. Storage preserves the live publication pointer,
+status, and credential hashes rather than copying their historical values. The explicit
+revision comparison produces the operator-readable stale-history 409; the token
+claim is the atomic storage fence that closes a race after that comparison. The
+host delegates to `EntityRepository::rollback()`: selected content is copied
+into a successor draft, later history remains intact, and workflow/publication
+pointers are not moved by the surface. The response contains the source and
+resulting revision ids plus a newly fenced entity. The rollback audit
+distinguishes the pre-operation revision, selected source revision, and
+resulting revision and never records field content.
+
+Exact preview is absent unless the application binds
+`AdminRevisionPreviewAuthorityInterface`. The host proves record/revision
+existence and `view_revision` access before calling it, and accepts only a
+grant naming the exact selected revision. Grant URLs must be root-relative or
+HTTPS and must not contain `\` or `..`. Applications own signing, expiry,
+audience, and the render route. Desktop/mobile controls resize the same
+exact-revision iframe and have no storage or publication semantics.
+
+`EntityRevisionRecovery` owns loading, selection, field comparison, restore
+conflict recovery, and preview. Both the addressable full history page and
+shell-free `EntityEditorWorkspace` render that component; consumers must not
+fork either path. Structured date/time values are compared as serialized
+canonical field values and remain editable only through the schema editor.
 
 **Route layout.** The record page moved from `pages/[entityType]/[id].vue` to
 `pages/[entityType]/[id]/index.vue` so `history.vue` can be its sibling. Nuxt
