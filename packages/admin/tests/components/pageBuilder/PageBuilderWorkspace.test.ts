@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
+import {
+  createLifecycleTimeline,
+  expectDirtyThenCleanThenSaved,
+  expectRemainsDirtyWithoutSaved,
+} from '../../helpers/lifecycleTimeline'
 
 const { ref } = require('vue') as typeof import('vue')
 
@@ -77,9 +82,12 @@ beforeEach(() => {
   vi.stubGlobal('crypto', { randomUUID: () => '11111111-2222-4333-8444-555555555555' })
 })
 
-async function mountWorkspace() {
+async function mountWorkspace(attrs: Record<string, unknown> = {}) {
   const { default: PageBuilderWorkspace } = await import('~/components/page-builder/PageBuilderWorkspace.vue')
-  const wrapper = await mountSuspended(PageBuilderWorkspace, { props: { surface: 'page', entityId: '42' } })
+  const wrapper = await mountSuspended(PageBuilderWorkspace, {
+    props: { surface: 'page', entityId: '42' },
+    attrs,
+  })
   await flushPromises()
   return wrapper
 }
@@ -162,6 +170,38 @@ describe('PageBuilderWorkspace block controls', () => {
       expect(loadHistoryMock).toHaveBeenCalled()
       expect(wrapper.emitted('saved')).toHaveLength(1)
       expect(wrapper.emitted('dirty')?.at(-1)).toEqual([false])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('delivers dirty:false before saved after a successful config apply', async () => {
+    const { timeline, attrs } = createLifecycleTimeline()
+    const wrapper = await mountWorkspace(attrs)
+    vi.useFakeTimers()
+    try {
+      await wrapper.find('textarea').setValue('Recovered copy')
+      await vi.advanceTimersByTimeAsync(1500)
+      await flushPromises()
+
+      expectDirtyThenCleanThenSaved(timeline)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps dirty true and emits no saved when a config apply is refused', async () => {
+    applyMock.mockResolvedValue(false)
+    const { timeline, attrs } = createLifecycleTimeline()
+    const wrapper = await mountWorkspace(attrs)
+    vi.useFakeTimers()
+    try {
+      await wrapper.find('textarea').setValue('Unsaved copy')
+      await vi.advanceTimersByTimeAsync(1500)
+      await flushPromises()
+
+      expectRemainsDirtyWithoutSaved(timeline)
+      expect(wrapper.text()).toContain('page_builder_unsaved')
     } finally {
       vi.useRealTimers()
     }

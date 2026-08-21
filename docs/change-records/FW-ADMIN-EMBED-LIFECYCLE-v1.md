@@ -70,19 +70,21 @@ Transplant onto `44e9b34c43abc7f854ccf409c937a7f000dab7c2`:
 
 Current-main remediation then classifies non-advisory HTTP 422 as `validation`
 and clears stale `useSchema` error/failure before cache or in-flight returns,
-while preserving merged #2468 advisory HTTP 428 review.
+while preserving merged #2468 advisory HTTP 428 review. A later review finding
+clears page-builder `configDirty` after a successful config apply so the host
+receives `dirty:false` before `saved`; a refused apply stays dirty.
 
 - Admin distribution source signature:
-  `fc324a6c558a2e4211adeb51baac1ec9879a5f6e93a8a4abf5ea9a2644e449a1`;
+  `74e5b6e46975f870f05be14720b02f8e7ab2f2509c5768c2322e2aa6891221be`;
 - two clean hermetic builds produced the same complete distribution digest:
-  `a927a9304349894226802023d59dda4fd20a51904f34a129338f733c53c20418`.
+  `15e79210316572baf51424b3edccb730d8f665aba702bf821bdd2ad6496a7c8a`.
 
 Verification on PHP 8.5.8 and Node 24.19.0 after the transplant and
 remediation:
 
-- focused embed lifecycle, SchemaForm, save-advisory, and useSchema
-  regressions: 48 tests, green;
-- Admin Vitest: 93 files, 645 tests, green;
+- focused embed lifecycle, SchemaForm, save-advisory, page-builder, and
+  chronology regressions: 58 tests, green;
+- Admin Vitest: 93 files, 647 tests, green;
 - Admin typecheck: green;
 - Admin Surface Unit: 337 tests, 1,427 assertions, green;
 - `composer cs-check`: green.

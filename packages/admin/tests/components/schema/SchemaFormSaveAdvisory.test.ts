@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { readBody } from 'h3'
+import {
+  createLifecycleTimeline,
+  expectDirtyThenCleanThenSaved,
+  expectRemainsDirtyWithoutSaved,
+} from '../../helpers/lifecycleTimeline'
 
 const TOKEN = 'a'.repeat(64)
 const schema = {
@@ -55,7 +60,8 @@ describe('SchemaForm save advisory acknowledgement', () => {
 
     vi.resetModules()
     const { default: SchemaForm } = await import('~/components/schema/SchemaForm.vue')
-    const wrapper = await mountSuspended(SchemaForm, { props: { entityType: 'advisory_page' } })
+    const { timeline, attrs } = createLifecycleTimeline()
+    const wrapper = await mountSuspended(SchemaForm, { props: { entityType: 'advisory_page' }, attrs })
     await flushPromises()
     await wrapper.get('input[type="text"]').setValue('News')
     await wrapper.get('form').trigger('submit')
@@ -67,9 +73,8 @@ describe('SchemaForm save advisory acknowledgement', () => {
     const review = wrapper.get('[data-testid="save-advisory-review"]')
     expect(review.attributes('role')).toBe('status')
     expect(review.text()).toContain('The short route is reserved')
-    expect(wrapper.emitted('saved')).toBeUndefined()
     expect(wrapper.emitted('failure')).toBeUndefined()
-    expect(wrapper.emitted('dirty')).toEqual([[true]])
+    expectRemainsDirtyWithoutSaved(timeline)
     expect(payloads).toEqual([{ attributes: { title: 'News' } }])
 
     await review.get('button').trigger('click')
@@ -82,7 +87,7 @@ describe('SchemaForm save advisory acknowledgement', () => {
     ])
     expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ id: '7' })
     expect(wrapper.emitted('failure')).toBeUndefined()
-    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([false])
+    expectDirtyThenCleanThenSaved(timeline)
   })
 
   it('clears a pending review when the operator edits the candidate', async () => {

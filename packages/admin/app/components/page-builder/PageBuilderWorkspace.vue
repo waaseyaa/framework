@@ -52,7 +52,7 @@ let resolveConfirmation: ((confirmed: boolean) => void) | null = null
 let confirmationReturnFocus: HTMLElement | null = null
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(configDirty, dirty => emit('dirty', dirty))
+watch(configDirty, dirty => emit('dirty', dirty), { flush: 'sync' })
 watch(failure, value => { if (value) emit('failure', value) })
 
 const commonLayoutPrefix = computed(() => {
@@ -253,6 +253,7 @@ async function run(command: PageBuilderCommand, message: string): Promise<boolea
   await nextTick()
   announcement.value = message
   await refreshPreview()
+  configDirty.value = false
   emit('saved')
   return true
 }
@@ -302,7 +303,6 @@ async function saveSelectedBlock(automatic = false): Promise<boolean> {
     config: cloneConfig(editableConfig.value),
   }, automatic ? t('page_builder_autosaved') : t('page_builder_change_saved'))
   if (saved) {
-    configDirty.value = false
     await loadHistory()
   }
   return saved

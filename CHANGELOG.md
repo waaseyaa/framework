@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — page-builder config save emits dirty:false before saved (#2455):**
+  a successful block-config apply now clears `configDirty` before the host
+  receives `saved`. Failed applies stay dirty and emit no saved event. Shared
+  chronological timeline regressions cover entity-form success, refused
+  persistence, and advisory HTTP 428 review.
+
 - **Fixed — Admin embed lifecycle keeps validation distinct from server failure
   and recovers after a stale scoped schema miss (#2455):** non-advisory HTTP
   422 is classified and emitted as `validation`, while merged save-advisory

@@ -5,6 +5,11 @@ import { flushPromises } from '@vue/test-utils'
 import { readBody } from 'h3'
 import SchemaForm from '~/components/schema/SchemaForm.vue'
 import { userSchema } from '../../fixtures/schemas'
+import {
+  createLifecycleTimeline,
+  expectDirtyThenCleanThenSaved,
+  expectRemainsDirtyWithoutSaved,
+} from '../../helpers/lifecycleTimeline'
 
 const bundledNodeDiscoverySchema = {
   $schema: 'https://json-schema.org/draft-07/schema#',
@@ -609,15 +614,17 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
       }),
     })
     const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const { timeline, attrs } = createLifecycleTimeline()
     const wrapper = await mountSuspended(SchemaFormFresh, {
       props: { entityType: 'user_create' },
+      attrs,
     })
     await flushPromises()
     await wrapper.get('input[type="text"]').setValue('alice')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.emitted('saved')?.[0]).toEqual([resource])
-    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([false])
+    expectDirtyThenCleanThenSaved(timeline)
   })
 
   it('initializes boolean fields from schema defaults in create mode', async () => {
@@ -662,8 +669,10 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
       },
     })
     const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const { timeline, attrs } = createLifecycleTimeline()
     const wrapper = await mountSuspended(SchemaFormFresh, {
       props: { entityType: 'user_create_err' },
+      attrs,
     })
     await flushPromises()
     await wrapper.get('input[type="text"]').setValue('alice')
@@ -671,9 +680,8 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
     await flushPromises()
     // Should emit an error event
     expect(wrapper.emitted('error')).toBeTruthy()
-    expect(wrapper.emitted('saved')).toBeUndefined()
-    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
     expect(wrapper.emitted('failure')?.[0]?.[0]).toMatchObject({ kind: 'validation', status: 422 })
+    expectRemainsDirtyWithoutSaved(timeline)
   })
 })
 
