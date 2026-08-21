@@ -1,6 +1,6 @@
 # FW-ADMIN-EMBED-LIFECYCLE-v2 — authoritative transition presentation
 
-- Parent: `1775cc116a9a941d2c01006076bdf58009edc520`
+- Parent: `cf8706ae2fd0754ac8328129beea69fdb6bb977d`
 - Contract: `docs/specs/admin-spa.md`
 - Issue: `#2461`
 - Authority: Framework source, generated Admin distribution, tests, and hosted
@@ -59,27 +59,43 @@ reconciled, and the exact Framework cohort passes Sheguiandah acceptance.
 
 ## Framework candidate checkpoint
 
-- compatibility follow-up source and contract commit: `9bd6fa00e`;
-- governed distribution commit: `c39803e5c`;
+Historical unique commits on `1775cc116a9a941d2c01006076bdf58009edc520`:
+
+- feat: `8f2ac93d6`;
+- first dist rebuild: `3eb7c527b`;
+- evidence: `c45acce25`;
+- compatibility fix: `9bd6fa00e`;
+- second dist rebuild: `c39803e5c`;
+- follow-up evidence: `89ccc067e`.
+
+Transplant onto current main / #2456 squash `cf8706ae2fd0754ac8328129beea69fdb6bb977d`:
+
+- feat: `213f5244c` (semantic `!`: keep landed `validation` kinds and #2464 revision recovery);
+- first dist placeholder: `e97f027b4` (empty; current-main dist retained during replay);
+- evidence: `09cb91d9b` (patch-identical);
+- compatibility fix: `1d4f14daf` (semantic `!`: keep `validation` in the spec kind list);
+- second dist placeholder: `03423cd2d` (empty; current-main dist retained during replay);
+- follow-up evidence: `4235ce8da` (patch-identical).
+
+Current-main transplant then rebuilds the governed Admin distribution once after source resolution.
+
 - Admin distribution source signature:
-  `faa6096ea67c3dd366d3bd05d7b52926836d0cbf03418b1e47286343e35dafe0`;
-- two consecutive normalized Node 24.16.0 builds produced the same complete
+  `0f6dfb5a59596c1498bea910f4e38aa1d75ddabff2a9c8a4dbbd139ab2e2fcad`;
+- two consecutive hermetic Node 24.19.0 builds produced the same complete
   distribution tree digest:
-  `10788769ad7a765fbe6de7764d9025a640cfe08a93bc43aa8de8665fdf3fafe2`.
+  `db7603692286734ee8f8631c4dc8d7a80485939b408e526328dcfe2f99264197`.
 
-Verification on PHP 8.5.9 and Node 24.16.0:
+Verification on PHP 8.5.8 and Node 24.19.0:
 
-- transition API unit + integration: 30 tests, 94 assertions, green;
-- focused Admin lifecycle path plus related embed/workflow tests: 7 files,
-  58 tests, green;
-- full Admin Vitest: 90 files, 634 tests, green;
+- focused embed lifecycle, SchemaForm, save-advisory, page-builder, workflow
+  transition, and useSchema regressions: 11 files, 103 tests, green;
+- full Admin Vitest: 93 files, 659 tests, green;
 - Admin typecheck: green;
-- Admin lint: zero errors, repository warning baseline retained;
-- Admin Surface Unit: 232 tests, 1,053 assertions, green;
-- API + Admin Surface PHP packages: 1,055 tests, 3,776 assertions, green;
+- WorkflowTransitionController PHP: 19 tests, 61 assertions, green;
+- Admin Surface Unit: 338 tests, 1,431 assertions, green;
+- `composer cs-check`: green;
 - two consecutive dist rebuilds: identical complete tree digest;
-- `php bin/check-admin-dist-fresh`: in sync with the source signature above;
-- full governed preflight: 33/33 gates green, including PHPStan and dead-code.
+- `php bin/check-admin-dist-fresh`: in sync with the source signature above.
 
 The Framework-only candidate still requires a clean post-checkpoint preflight,
 hosted review, and exact-cohort Sheguiandah acceptance. No integration or
