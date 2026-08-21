@@ -3,6 +3,7 @@ import { useAdmin } from '~/composables/useAdmin'
 import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
 import { useSchema } from '~/composables/useSchema'
+import { classifyEmbedFailure, type EmbedFailure } from '~/runtime/embedLifecycle'
 
 const props = defineProps<{
   entityType: string
@@ -13,6 +14,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   saved: [resource: any]
   deleted: [entityId: string]
+  ready: []
+  dirty: [dirty: boolean]
+  failure: [failure: EmbedFailure]
 }>()
 
 const { t, entityLabel: translateEntityLabel } = useLanguage()
@@ -62,6 +66,7 @@ async function confirmDelete() {
     emit('deleted', props.entityId)
   } catch (error: any) {
     deleteError.value = error?.data?.errors?.[0]?.detail ?? error?.message ?? t('error_deleting')
+    emit('failure', classifyEmbedFailure(error))
   } finally {
     deleting.value = false
     showDeleteConfirm.value = false
@@ -107,6 +112,9 @@ async function confirmDelete() {
       :initial-bundle="initialBundle"
       @saved="onSaved"
       @error="onError"
+      @ready="emit('ready')"
+      @dirty="emit('dirty', $event)"
+      @failure="emit('failure', $event)"
     />
 
     <WorkflowTransitionHistoryTimeline

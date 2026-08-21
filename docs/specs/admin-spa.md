@@ -1519,8 +1519,44 @@ mounts the same `SchemaForm`, rich-text, date/time, file, slug, validation, and
 entity-autocomplete widgets as the default Admin SPA. Existing entities also
 receive the same workflow transitions, transition history, capability-gated
 delete action, and authoritative API enforcement. A same-origin parent receives
-only a saved/deleted resource identity notification so it can refresh its list;
+only the bounded lifecycle and resource identity notifications described below;
 content values and policy decisions never move through `postMessage`.
+
+### Same-origin embed lifecycle protocol
+
+Both shell-free editor routes expose the versioned
+`waaseyaa.admin.embed.lifecycle.v1` message envelope to a same-origin parent.
+The closed event vocabulary is `ready`, `dirty`, `saved`, `deleted`, and
+`failure`; the surface is `entity-editor` or `page-builder`. Identity fields are
+limited to the applicable entity type, surface id, and entity id. A dirty event
+contains one boolean. A failure contains only a closed kind (`session-expired`,
+`permission-denied`, `conflict`, `validation`, `network`, or `server`) and an
+optional HTTP status. Content values, field names, validation details, policy
+reasons, response bodies, credentials, and tokens are forbidden.
+
+The child posts only to `window.parent` with `window.location.origin`, and only
+when it is framed. A host must accept a lifecycle event only when both
+`event.origin === window.location.origin` and `event.source` is the exact iframe
+window it created. The protocol is observation-only: it adds no command channel,
+mutation, authentication, or access path. Canonical workspaces retain all save,
+delete, validation, workflow, revision, and conflict authority.
+
+`ready` means that the canonical workspace completed its initial authoritative
+reads. Entity-form edits and unsaved page-builder configuration emit dirty state;
+a successful persistence boundary returns dirty to false before `saved`. Initial
+or later authentication loss is `session-expired`; a 403 is
+`permission-denied`; an optimistic-concurrency refusal is `conflict`; a
+non-advisory HTTP 422 is `validation`; a request that received no HTTP response
+is `network`; other failures collapse to `server`. An advisory-acknowledgement
+HTTP 428 is not a lifecycle failure: the canonical form keeps dirty state and
+retries the same candidate after acknowledgement. The parent may use these
+states to render chrome, refresh identity-only lists, and confirm close. It must
+not infer access from readiness or inspect the iframe DOM.
+
+During the compatibility interval the entity editor also emits the historical
+`waaseyaa.entity-editor.saved` and `waaseyaa.entity-editor.deleted` identity-only
+messages. New hosts consume the versioned envelope; no new legacy message types
+may be added.
 
 Role-focused shells such as Anokii may supply navigation, branding, list views,
 and content-type shortcuts around this route. They must not reimplement the

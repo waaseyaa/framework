@@ -71,6 +71,27 @@ final class AdminDestinationPathsTest extends TestCase
     }
 
     #[Test]
+    public function embeddedEntityDestinationsDistinguishCreateFromEdit(): void
+    {
+        self::assertSame('/admin/entity-editor-embed/node/create?bundle=event', AdminDestinationPaths::embeddedCreate('node', 'event'));
+        self::assertSame('/admin/entity-editor-embed/node/42', AdminDestinationPaths::embeddedEdit('node', '42'));
+    }
+
+    #[Test]
+    public function embeddedEditRefusesTheReservedCreateIdentifier(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        AdminDestinationPaths::embeddedEdit('node', 'create');
+    }
+
+    #[Test]
+    public function embeddedPageBuilderAddressesOneRegisteredSurfaceRecord(): void
+    {
+        self::assertSame('/admin/page-builder-embed/page/42', AdminDestinationPaths::embeddedPageBuilder('page', '42'));
+    }
+
+    #[Test]
     public function listAcceptsABundleScope(): void
     {
         self::assertSame('/admin/node?bundle=post', AdminDestinationPaths::list('node', 'post'));
@@ -308,6 +329,9 @@ final class AdminDestinationPathsTest extends TestCase
         yield 'edit' => [AdminDestinationPaths::edit('node', '1'), '[entityType]/[id]/index.vue'];
         yield 'history' => [AdminDestinationPaths::history('node', '1'), '[entityType]/[id]/history.vue'];
         yield 'pipeline' => [AdminDestinationPaths::pipeline('node'), '[entityType]/pipeline.vue'];
+        yield 'embedded create' => [AdminDestinationPaths::embeddedCreate('node'), 'entity-editor-embed/[entityType]/[id].vue'];
+        yield 'embedded edit' => [AdminDestinationPaths::embeddedEdit('node', '1'), 'entity-editor-embed/[entityType]/[id].vue'];
+        yield 'embedded page builder' => [AdminDestinationPaths::embeddedPageBuilder('page', '1'), 'page-builder-embed/[surface]/[id].vue'];
     }
 
     /**

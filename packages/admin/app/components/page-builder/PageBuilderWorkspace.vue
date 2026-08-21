@@ -9,10 +9,18 @@ import type {
 import ConfirmDialog from '~/components/common/ConfirmDialog.vue'
 import { usePageBuilder } from '~/composables/usePageBuilder'
 import type { SchemaProperty } from '~/composables/useSchema'
+import type { EmbedFailure } from '~/runtime/embedLifecycle'
 
 const props = defineProps<{
   surface: string
   entityId: string
+}>()
+
+const emit = defineEmits<{
+  ready: []
+  dirty: [dirty: boolean]
+  saved: []
+  failure: [failure: EmbedFailure]
 }>()
 
 type PreviewSize = 'desktop' | 'tablet' | 'mobile'
@@ -23,7 +31,7 @@ type JsonSchemaProperty = Omit<SchemaProperty, 'enum'> & {
 
 const { t } = useLanguage()
 const {
-  definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error, conflict,
+  definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error, failure, conflict,
   load, apply, loadLatestForConflict, retryConflict, dismissConflict,
   refreshPreview, loadHistory, compareRevision, restoreRevision,
 } = usePageBuilder(
@@ -43,6 +51,9 @@ const confirmation = ref({ open: false, title: '', message: '', confirmLabel: ''
 let resolveConfirmation: ((confirmed: boolean) => void) | null = null
 let confirmationReturnFocus: HTMLElement | null = null
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(configDirty, dirty => emit('dirty', dirty), { flush: 'sync' })
+watch(failure, value => { if (value) emit('failure', value) })
 
 const commonLayoutPrefix = computed(() => {
   const layouts = definitions.value?.layouts ?? []
@@ -242,6 +253,8 @@ async function run(command: PageBuilderCommand, message: string): Promise<boolea
   await nextTick()
   announcement.value = message
   await refreshPreview()
+  configDirty.value = false
+  emit('saved')
   return true
 }
 
@@ -261,6 +274,7 @@ async function reapplyConflict() {
     historyOpen.value = false
     await loadHistory()
     await refreshPreview()
+    emit('saved')
   }
 }
 
@@ -289,7 +303,6 @@ async function saveSelectedBlock(automatic = false): Promise<boolean> {
     config: cloneConfig(editableConfig.value),
   }, automatic ? t('page_builder_autosaved') : t('page_builder_change_saved'))
   if (saved) {
-    configDirty.value = false
     await loadHistory()
   }
   return saved
@@ -314,6 +327,7 @@ async function restoreComparedRevision() {
     await nextTick()
     announcement.value = t('page_builder_revision_restored', { revision: String(revisionId) })
     await refreshPreview()
+    emit('saved')
   }
 }
 
@@ -502,6 +516,7 @@ function onPreviewMessage(event: MessageEvent) {
 onMounted(async () => {
   window.addEventListener('message', onPreviewMessage)
   await load()
+  if (draft.value && definitions.value) emit('ready')
   await loadHistory()
   if (blocks.value[0]) {
     selectedBlockId.value = blocks.value[0].block.id

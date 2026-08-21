@@ -80,13 +80,14 @@ describe('usePageBuilder', () => {
   })
 
   it('surfaces the server detail when loading is refused', async () => {
-    mocks.definitions.mockResolvedValue({ ok: false, error: { title: 'Denied', detail: 'Page builder access denied' } })
+    mocks.definitions.mockResolvedValue({ ok: false, error: { status: 403, title: 'Denied', detail: 'Page builder access denied' } })
     const { usePageBuilder } = await import('~/composables/usePageBuilder')
     const state = usePageBuilder('page', '42')
 
     await state.load()
 
     expect(state.error.value).toBe('Page builder access denied')
+    expect(state.failure.value).toEqual({ kind: 'permission-denied', status: 403 })
     expect(state.loading.value).toBe(false)
   })
 
@@ -147,6 +148,7 @@ describe('usePageBuilder', () => {
     expect(state.error.value).toBeNull()
     expect(state.conflict.value?.command).toEqual(removeCommand)
     expect(state.conflict.value?.localDraft).toEqual(draft)
+    expect(state.failure.value).toEqual({ kind: 'conflict', status: 409 })
     await expect(state.apply(removeCommand)).resolves.toBe(false)
     expect(mocks.command).toHaveBeenCalledTimes(1)
 

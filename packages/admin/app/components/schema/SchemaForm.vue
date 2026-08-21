@@ -7,6 +7,7 @@ import { useLanguage } from '~/composables/useLanguage'
 import { schemaFormContextKey } from './schemaFormContext'
 import { normalizeValidationFailure } from './validationErrors'
 import type { SaveAdvisory } from '~/contracts/transport'
+import { classifyEmbedFailure, type EmbedFailure } from '~/runtime/embedLifecycle'
 
 const props = defineProps<{
   entityType: string
@@ -18,16 +19,20 @@ const props = defineProps<{
 const emit = defineEmits<{
   saved: [resource: any]
   error: [message: string]
+  ready: []
+  dirty: [dirty: boolean]
+  failure: [failure: EmbedFailure]
 }>()
 
 const { t } = useLanguage()
-const { schema, error: schemaError, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
+const { schema, error: schemaError, failure: schemaFailure, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
 const { get, create, update } = useEntity()
 
 const formData = ref<Record<string, any>>({})
 const saving = ref(false)
 let submitInFlight = false
 const loadError = ref<string | null>(null)
+const loadFailure = ref<EmbedFailure | null>(null)
 const fieldErrors = ref<Record<string, string>>({})
 const globalErrors = ref<string[]>([])
 const validationSummary = ref<HTMLElement | null>(null)
@@ -93,6 +98,7 @@ onMounted(async () => {
     } else {
       const e: any = entityResult.reason
       loadError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_loading_entity')
+      loadFailure.value = classifyEmbedFailure(e)
     }
   } else {
     // Create mode: load the generic schema first so its bundle key remains the
@@ -129,6 +135,9 @@ onMounted(async () => {
     }
   }
   loading.value = false
+  if (schemaFailure.value) emit('failure', schemaFailure.value)
+  else if (loadFailure.value) emit('failure', loadFailure.value)
+  else if (loadError.value === null && schema.value !== null) emit('ready')
 })
 
 const editableFields = computed(() => sortedProperties(true))
@@ -330,6 +339,7 @@ async function onFieldUpdate(fieldName: string, value: any, accessRestricted: bo
   if (accessRestricted) return
 
   formData.value[fieldName] = value
+  emit('dirty', true)
   clearAdvisoryReview()
   clearValidation(fieldName)
   const bundleKey = schema.value?.['x-bundle-key']
@@ -337,6 +347,7 @@ async function onFieldUpdate(fieldName: string, value: any, accessRestricted: bo
 
   clearValidation()
   await fetchSchema({ bundle: value })
+  if (schemaFailure.value) emit('failure', schemaFailure.value)
   if (schema.value && !schemaError.value) {
     // Preserve shared fields and defaults, but discard values belonging only to
     // the previously selected bundle so they cannot leak into create payloads.
@@ -358,6 +369,7 @@ async function persistCandidate(
       ? await update(props.entityType, props.entityId, writableData, acknowledgements)
       : await create(props.entityType, writableData, acknowledgements)
     clearAdvisoryReview()
+    emit('dirty', false)
     emit('saved', resource)
   } catch (e: any) {
     // A failed create must retain the bundle that scoped the current schema.
@@ -382,6 +394,7 @@ async function persistCandidate(
     globalErrors.value = normalized.globalErrors
     const msg = normalized.globalErrors[0] ?? Object.values(normalized.fieldErrors)[0] ?? t('error_saving_entity')
     emit('error', msg)
+    emit('failure', classifyEmbedFailure(e))
     await focusValidationSummary()
   }
 }

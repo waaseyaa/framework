@@ -11,6 +11,7 @@ import type {
 import { normalizeAppBaseURL } from '../runtime/normalizeAppBaseURL'
 import { adminSurfaceFetchUrl } from '../runtime/adminSurfaceRoutes'
 import { normalizeSurfaceUi } from '../runtime/normalizeSurfaceUi'
+import { classifyEmbedFailure, postEmbedBootstrapFailure, type EmbedFailure } from '../runtime/embedLifecycle'
 
 export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRuntime | null } }> => {
   const config = useRuntimeConfig()
@@ -34,6 +35,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
 
   let surfaceSession: SurfaceSession | null = null
   let surfaceCatalog: SurfaceCatalogEntry[] | null = null
+  let bootstrapFailure: EmbedFailure | null = null
 
   try {
     const sessionRes = await $fetch<SurfaceResult<SurfaceSession>>(
@@ -56,14 +58,24 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
       )
       if (catalogRes && catalogRes.ok && catalogRes.data) {
         surfaceCatalog = catalogRes.data.entities
+      } else {
+        bootstrapFailure = classifyEmbedFailure(catalogRes?.error)
       }
     } else if (sessionRes && !sessionRes.ok && sessionRes.error?.status === 401) {
       syncAuthState(null, true)
+      postEmbedBootstrapFailure(
+        { kind: 'session-expired', status: 401 },
+        window.location.pathname,
+        adminPathBase,
+      )
       await navigateTo('/login', { replace: true })
       return { provide: { admin: null } }
+    } else if (sessionRes && !sessionRes.ok) {
+      bootstrapFailure = classifyEmbedFailure(sessionRes.error)
     }
-  } catch {
+  } catch (reason) {
     // Surface API not available
+    postEmbedBootstrapFailure(classifyEmbedFailure(reason), window.location.pathname, adminPathBase)
     console.error('[waaseyaa:admin] AdminSurface API not available')
     throw createError({
       statusCode: 503,
@@ -74,6 +86,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
 
   if (!surfaceSession || !surfaceCatalog) {
     syncAuthState(null, true)
+    postEmbedBootstrapFailure(bootstrapFailure ?? { kind: 'server' }, window.location.pathname, adminPathBase)
     await navigateTo('/login', { replace: true })
     return { provide: { admin: null } }
   }

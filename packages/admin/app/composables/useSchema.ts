@@ -2,6 +2,7 @@ import { ref, type Ref } from 'vue'
 import type { SchemaProperty, EntitySchema } from '../contracts/schema'
 import type { SchemaScope } from '../contracts/transport'
 import { requireAdminRuntime } from './useAdminRuntime'
+import { classifyEmbedFailure, type EmbedFailure } from '../runtime/embedLifecycle'
 
 export type { SchemaProperty, EntitySchema }
 export type { SchemaScope }
@@ -13,6 +14,7 @@ export function useSchema(entityType: string) {
   const schema: Ref<EntitySchema | null> = ref(null)
   const loading = ref(false)
   const error: Ref<string | null> = ref(null)
+  const failure: Ref<EmbedFailure | null> = ref(null)
 
   // Schemas are cached per entity type and explicit scope. Existing records use
   // an id scope; create forms first fetch the base discovery schema and then a
@@ -24,6 +26,8 @@ export function useSchema(entityType: string) {
 
   async function fetch(scope?: SchemaScope) {
     const key = cacheKey(scope)
+    error.value = null
+    failure.value = null
 
     if (schemaCache.has(key)) {
       schema.value = schemaCache.get(key)!
@@ -38,7 +42,6 @@ export function useSchema(entityType: string) {
     }
 
     loading.value = true
-    error.value = null
 
     try {
       // FR-001: register the in-flight Promise before awaiting.
@@ -60,6 +63,7 @@ export function useSchema(entityType: string) {
       schema.value = await promise
     } catch (e: any) {
       error.value = e.detail ?? e.message ?? 'Failed to load schema'
+      failure.value = classifyEmbedFailure(e)
     } finally {
       loading.value = false
     }
@@ -103,5 +107,5 @@ export function useSchema(entityType: string) {
     })
   }
 
-  return { schema, loading, error, fetch, invalidate, sortedProperties }
+  return { schema, loading, error, failure, fetch, invalidate, sortedProperties }
 }

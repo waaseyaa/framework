@@ -51,8 +51,8 @@ async function mountWorkspace(entityId?: string) {
       stubs: {
         SchemaForm: {
           props: ['entityType', 'entityId', 'initialBundle'],
-          emits: ['saved', 'error'],
-          template: '<div data-testid="schema-form" :data-entity-id="entityId" :data-bundle="initialBundle"><button data-testid="save" @click="$emit(\'saved\', { id: entityId || \'new-id\' })">save</button><button data-testid="error" @click="$emit(\'error\', \'Save failed\')">error</button></div>',
+          emits: ['saved', 'error', 'ready', 'dirty', 'failure'],
+          template: '<div data-testid="schema-form" :data-entity-id="entityId" :data-bundle="initialBundle"><button data-testid="save" @click="$emit(\'saved\', { id: entityId || \'new-id\' })">save</button><button data-testid="error" @click="$emit(\'error\', \'Save failed\')">error</button><button data-testid="ready" @click="$emit(\'ready\')">ready</button><button data-testid="dirty" @click="$emit(\'dirty\', true)">dirty</button><button data-testid="failure" @click="$emit(\'failure\', { kind: \'network\' })">failure</button></div>',
         },
         WorkflowTransitionControls: {
           emits: ['transitioned'],
@@ -90,6 +90,12 @@ describe('EntityEditorWorkspace', () => {
     expect(wrapper.emitted('saved')?.[0]?.[0]).toEqual({ id: 'new-id' })
     expect(wrapper.text()).toContain('entity_created')
     expect(wrapper.text()).toContain('Save failed')
+    await wrapper.get('[data-testid="ready"]').trigger('click')
+    await wrapper.get('[data-testid="dirty"]').trigger('click')
+    await wrapper.get('[data-testid="failure"]').trigger('click')
+    expect(wrapper.emitted('ready')).toHaveLength(1)
+    expect(wrapper.emitted('dirty')?.[0]).toEqual([true])
+    expect(wrapper.emitted('failure')?.[0]).toEqual([{ kind: 'network' }])
   })
 
   it('uses the same workflow and capability-gated deletion controls for existing content', async () => {

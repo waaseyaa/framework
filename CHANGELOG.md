@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — page-builder config save emits dirty:false before saved (#2455):**
+  a successful block-config apply now clears `configDirty` before the host
+  receives `saved`. Failed applies stay dirty and emit no saved event. Shared
+  chronological timeline regressions cover entity-form success, refused
+  persistence, and advisory HTTP 428 review.
+
+- **Fixed — Admin embed lifecycle keeps validation distinct from server failure
+  and recovers after a stale scoped schema miss (#2455):** non-advisory HTTP
+  422 is classified and emitted as `validation`, while merged save-advisory
+  HTTP 428 review remains a dirty, unsaved retry. `useSchema.fetch()` clears a
+  prior error or failure before returning a cached or in-flight schema so a
+  later successful scope can render the form.
+
+- **Added — safe same-origin Admin embed lifecycle (#2455):** the canonical
+  shell-free entity editor and page builder now expose one versioned,
+  observation-only lifecycle envelope for ready, dirty, saved, deleted, and
+  bounded failure states. Messages target only the current origin and carry
+  resource identity rather than content, validation detail, policy reasons, or
+  response bodies. Initial session expiry is reported before the existing login
+  redirect, entity and page-builder workspaces keep all mutation authority, and
+  legacy entity saved/deleted identity notifications remain during the
+  compatibility interval. `AdminDestinationPaths` also generates the canonical
+  embedded create, edit, and page-builder destinations and refuses the reserved
+  ambiguous `create` record id.
+
 - **Changed — the draft-mutation seam is a supported public extension point
   (#2467):** `SaveAdvisoryAcknowledgementDispatcher` is `@api` and takes
   `ContentDraftMutationInterface` as a parameter, but that interface and its
