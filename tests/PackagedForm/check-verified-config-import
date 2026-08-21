@@ -235,7 +235,12 @@ if grep -rq -- 'manifest-signing.key\|WAASEYAA_AUTHORING_SIGNING_KEY_FILE\|autho
     echo 'The consumer references authoring signing custody.' >&2
     exit 1
 fi
-if [[ -n "$(find "$consumer" -name '*.key' -o -name '*signing*' -type f 2>/dev/null)" ]]; then
+# Filename heuristic is for the consumer project, not third-party vendor
+# artifacts. `defuse/php-encryption` ships public `signingkey*.asc` files in
+# `vendor/`, which are not authoring custody. The byte scan above already
+# refuses the real private key anywhere in the tree, including vendor.
+if [[ -n "$(find "$consumer" \( -path "$consumer/vendor" -prune \) \
+        -o -type f \( -name '*.key' -o -name '*signing*' \) -print 2>/dev/null)" ]]; then
     echo 'The consumer tree contains a key file.' >&2
     exit 1
 fi
