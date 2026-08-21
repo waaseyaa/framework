@@ -336,6 +336,11 @@ not an author-fixable validation error, and it is a real lifecycle failure
 keys, machine codes, the five projected advisory fields, the token shape, and
 the 32-receipt bound — against the real PHP host, so a rename on either side
 fails rather than silently breaking the editor.
+`e2e/page-builder-save-advisory.spec.ts` drives the five acceptance paths
+through the real editor in a browser. A page-builder surface is registered by
+the application rather than the framework, so there is no live surface in this
+repository to point at; the spec serves the command endpoint itself using the
+exact envelopes that contract test pins against the host.
 
 The Admin SPA client added by the subsequent work package consumes this same
 contract as Anokii. It must not use generic entity PATCH, a direct repository
