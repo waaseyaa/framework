@@ -21,6 +21,7 @@ use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncSerializer;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
+use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
 
 $kernel = new ConsoleKernel(__DIR__);
 $kernel->bootForCli();
@@ -43,7 +44,7 @@ if ($registration === null) {
     exit(1);
 }
 
-$file = ConfigSyncFile::writable(
+$providerFile = ConfigSyncFile::writable(
     entityType: 'config',
     entityId: 'ai_providers',
     uuid: ConfigSyncFile::deterministicUuid('config', 'ai_providers'),
@@ -64,7 +65,32 @@ $file = ConfigSyncFile::writable(
 );
 
 $syncPath = __DIR__ . '/config/sync';
-file_put_contents($syncPath . '/' . $file->filename(), new ConfigSyncSerializer()->toYaml($file));
+$serializer = new ConfigSyncSerializer();
+file_put_contents($syncPath . '/' . $providerFile->filename(), $serializer->toYaml($providerFile));
 
-fwrite(STDOUT, "authored {$file->ref()}\n");
+$workflowRegistration = $registry->get(
+    WorkflowAssignmentsConfig::CONFIG_NAME,
+    WorkflowAssignmentsConfig::SCHEMA_VERSION,
+);
+if ($workflowRegistration === null) {
+    fwrite(STDERR, "The installed workflows package has not registered its assignment schema.\n");
+    exit(1);
+}
+$workflowFile = ConfigSyncFile::writable(
+    entityType: 'workflows',
+    entityId: 'assignments',
+    uuid: ConfigSyncFile::deterministicUuid('workflows', 'assignments'),
+    dependencies: [],
+    langcode: 'en',
+    fields: ['node.page' => 'editorial'],
+    schemaId: $workflowRegistration->schemaId,
+    schemaVersion: $workflowRegistration->schemaVersion,
+    schemaHash: $workflowRegistration->canonicalSchemaHash,
+    ownerPackage: $workflowRegistration->ownerPackage,
+    ownerConfigContractVersion: $workflowRegistration->ownerConfigContractVersion,
+);
+file_put_contents($syncPath . '/' . $workflowFile->filename(), $serializer->toYaml($workflowFile));
+
+fwrite(STDOUT, "authored {$providerFile->ref()}\n");
+fwrite(STDOUT, "authored {$workflowFile->ref()}\n");
 exit(0);

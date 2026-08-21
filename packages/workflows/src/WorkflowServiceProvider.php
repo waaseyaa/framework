@@ -9,6 +9,7 @@ use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Config\ConfigFactoryInterface;
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -24,6 +25,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Groups\Membership\GroupMembershipService;
 use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
 use Waaseyaa\Workflows\Listener\WorkflowRepublishListener;
@@ -190,6 +192,28 @@ final class WorkflowServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // CFG-03 (#2458): bindings are deployable configuration, so the
+        // workflows package owns their schema and registers it on the one
+        // authority registry before that registry freezes after provider boot.
+        // A host without configuration authority gets no private fallback.
+        $configSchemas = $this->resolveOptional(ConfigSchemaRegistry::class);
+        if ($configSchemas instanceof ConfigSchemaRegistry) {
+            $entityTypes = $this->resolveOptional(EntityTypeManagerInterface::class);
+            if (!$entityTypes instanceof EntityTypeManagerInterface) {
+                // Which bindings are admissible is a fact about the installed
+                // entity types. Without that authority the schema could only be
+                // registered structurally, and every arbitrary string would
+                // acquire a trusted CFG-03 identity. Refuse instead: a
+                // configuration authority we cannot semantically guard is not a
+                // weaker authority, it is a different one.
+                throw new \LogicException(
+                    'waaseyaa/workflows cannot register its CFG-03 assignment schema without the entity type '
+                    . 'manager that its semantic validation requires.',
+                );
+            }
+            WorkflowAssignmentsConfig::register($configSchemas, $entityTypes);
+        }
+
         $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
         if (!$dispatcher instanceof EventDispatcherInterface) {
             return;

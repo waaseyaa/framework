@@ -63,6 +63,33 @@ when its parent exists or has an object default. Arrays never synthesize
 elements; extension schemas never invent keys. Explicit `null` remains
 distinct from absence. Schema context disambiguates empty lists and maps.
 
+A schema-owning package may additionally register one semantic validator for a
+schema identity when a constraint depends on installed runtime definitions and
+cannot be expressed by the closed dialect. The validator is registered and
+frozen with the same registry, runs only after structural validation, receives
+the complete authored document rather than one entry at a time, and must be
+deterministic and read-only. Its verdict is required before authored or
+effective content hashes are accepted. The package contract version and schema
+provider bind responsibility for that code; semantic validators add no dialect
+keywords.
+
+A semantic validator declares a deterministic, portable **semantic contract**
+string, which is the schema identity's promise about which domain rules were
+enforced. That string — never a runtime object identity — is bound into
+`canonical_schema_hash` under the separate `waaseyaa.config-schema+semantic/1`
+digest domain, so the guarded and unguarded forms of one schema occupy
+non-colliding identity spaces. Content authored under a semantic contract
+therefore cannot verify on a host that installs a different contract or none at
+all; the mismatch surfaces as the ordinary bound-identity refusal. Advancing
+the enforced semantics means advancing the contract string.
+
+Registering a semantic validator twice is idempotent only when the second
+registration is genuinely the same authority: the same instance, or the same
+class declaring the same contract and closing over the same runtime
+dependencies. A second registration of the same class carrying materially
+different dependencies is an ambiguous authority and is refused, as is any
+competing class and any registration after freeze.
+
 ## Strict sync format
 
 Every file declares a closed `_meta` mapping containing:

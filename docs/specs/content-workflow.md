@@ -120,7 +120,25 @@ transitions:
 
 A transition MAY additionally carry `group_constraint: content_groups` (WP-3): fireable only by members of the group(s) the content belongs to (departments are `groups` entities; content carries a department relationship). Permission answers *may this kind of person do this*; the group constraint answers *may they do it to this content*. A workflow with no group constraints behaves exactly like Drupal core.
 
-**Bindings** map `entity_type` + `bundle` → workflow id (config: `workflows.assignments`). Binding requires the entity type to be revisionable — rejected at config-import validation otherwise.
+**Bindings** map `entity_type` + `bundle` → workflow id (config:
+`workflows.assignments`). `waaseyaa/workflows` owns the strict CFG-03 schema
+`workflows.assignments@1` and configuration-contract version 1; its provider
+registers that schema and its deterministic assignment semantic validator on
+the shared authority registry before freeze. The semantic validator is not
+optional: a host that exposes a configuration schema registry but no entity
+type manager cannot judge which bindings are admissible, so the provider
+refuses to register the schema at all rather than register it structurally.
+The semantic gate enforces canonical binding/workflow IDs and then judges the
+complete assignment map in one pass against the same revisionable, single-axis
+entity constraint the runtime resolver defends, so a rule spanning several
+bindings is expressible. Its declared contract string is bound into the
+schema's canonical hash, so an assignment bundle authored against these
+semantics is refused by a host that does not run them. A fresh
+`install:init` deliberately activates only content-free genesis, so a consumer
+must author, sign, verify, and explicitly activate its assignment entry before
+the resolver can bind content. Boot never copies legacy flat files or writes an
+assignment implicitly. Binding requires the entity type to be revisionable —
+rejected at config-import validation otherwise and enforced again at runtime.
 
 The default `editorial` workflow ships as **config data, not code**. The retired machinery's preset-in-code (`EditorialWorkflowPreset` as canonical definition) is an explicit anti-pattern here: replacing a self-contained populated default with an empty generic silently broke consumers once already (CLAUDE.md gotcha).
 

@@ -442,6 +442,9 @@ return [
     'Waaseyaa\Config\Manifest\ConfigReplayStateReaderInterface' => 'public',
     'Waaseyaa\Config\TranslatableConfigFactoryInterface' => 'public',
     'Waaseyaa\Config\Event\ConfigEvents' => 'public',
+    // CFG-03 package-owned validation seam (#2458): schema providers use this
+    // only for deterministic constraints the closed dialect cannot express.
+    'Waaseyaa\Config\Schema\ConfigSemanticValidatorInterface' => 'public',
     // M-003 (config-management-v1) — CMI sync substrate. Charter §5.5; spec docs/specs/config-management.md.
     'Waaseyaa\Config\Dependency\ConfigDependencyInterface' => 'public',
     'Waaseyaa\Config\Dependency\Exception\ConfigDependencyCycleException' => 'public',

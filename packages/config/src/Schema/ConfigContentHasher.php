@@ -47,6 +47,15 @@ final class ConfigContentHasher
                 $violations[0]->message,
             ));
         }
+        $semanticViolations = $registry->semanticViolations($file->schemaId, $file->schemaVersion, $file->fields);
+        if ($semanticViolations !== []) {
+            throw new \InvalidArgumentException(sprintf(
+                'Authored configuration %s fails semantic validation at %s: %s',
+                $file->ref(),
+                $semanticViolations[0]->path,
+                $semanticViolations[0]->message,
+            ));
+        }
         $effective = $this->validator->materialize($file->fields, $registration->schema);
         $dependencies = $file->dependencies;
         sort($dependencies, \SORT_STRING);

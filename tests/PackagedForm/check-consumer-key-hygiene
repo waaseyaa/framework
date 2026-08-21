@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Key hygiene for a packaged consumer tree.
+#
+# Usage: check-consumer-key-hygiene <tree> <private-key-file>
+#
+# Exits 0 when the tree holds no authoring custody, 1 with a reason on stderr
+# otherwise. Extracted from `check-verified-config-import` so the refusal rules
+# are executable in isolation and can carry their own regression coverage
+# (#2458 review finding 1).
+#
+# Three independent rules. They are deliberately not interchangeable:
+#
+#   1. Encoded bytes, anywhere. Catches the key's content under ANY filename,
+#      but ONLY in its base64 form -- the key file itself holds raw
+#      `sodium_crypto_sign_secretkey()` bytes, so this rule does NOT see a
+#      verbatim copy. That is precisely why rule 2 exists and why rule 2 must
+#      not be pruned.
+#   2. `*.key` by name, anywhere, INCLUDING `vendor/`. This is the rule that
+#      catches a raw `manifest-signing.key` copied anywhere into the tree.
+#   3. `*signing*` by name, anywhere, except the exact known-harmless
+#      `defuse/php-encryption` distribution artifacts. That package ships public
+#      `signingkey*.asc` files, which are not authoring custody. The allowlist
+#      is scoped to that one directory and those basenames; a `*signing*` file
+#      anywhere else in `vendor/` is still refused, and nothing in this rule can
+#      excuse a `*.key` file, which rule 2 judges independently.
+
+set -euo pipefail
+
+tree="${1:-}"
+private_key_file="${2:-}"
+if [[ -z "$tree" || -z "$private_key_file" ]]; then
+    echo 'Usage: check-consumer-key-hygiene <tree> <private-key-file>' >&2
+    exit 2
+fi
+if [[ ! -d "$tree" ]]; then
+    echo "Not a directory: $tree" >&2
+    exit 2
+fi
+if [[ ! -f "$private_key_file" ]]; then
+    echo "Not a file: $private_key_file" >&2
+    exit 2
+fi
+
+# Rule 1 -- encoded private-key bytes anywhere in the tree, vendor included.
+private_key_b64="$(php -r 'echo base64_encode((string) file_get_contents($argv[1]));' "$private_key_file")"
+if grep -rqF -- "$private_key_b64" "$tree" 2>/dev/null; then
+    echo 'The consumer tree contains the private signing key.' >&2
+    exit 1
+fi
+
+# Rule 2 -- *.key by name, unpruned across the complete packaged tree.
+key_hits="$(find "$tree" -type f -name '*.key' -print 2>/dev/null || true)"
+if [[ -n "$key_hits" ]]; then
+    echo 'The consumer tree contains a key file:' >&2
+    printf '%s\n' "$key_hits" >&2
+    exit 1
+fi
+
+# Rule 3 -- *signing* by name, minus the exact defuse/php-encryption artifacts.
+allowed_signing_dir="$tree/vendor/defuse/php-encryption/dist"
+signing_hits=''
+while IFS= read -r candidate; do
+    [[ -z "$candidate" ]] && continue
+    if [[ "${candidate%/*}" == "$allowed_signing_dir" ]]; then
+        case "${candidate##*/}" in
+            signingkey*.asc|signingkey*.asc.sig) continue ;;
+        esac
+    fi
+    signing_hits+="$candidate"$'\n'
+done < <(find "$tree" -type f -name '*signing*' -print 2>/dev/null || true)
+if [[ -n "$signing_hits" ]]; then
+    echo 'The consumer tree contains a signing-custody file:' >&2
+    printf '%s' "$signing_hits" >&2
+    exit 1
+fi
+
+exit 0

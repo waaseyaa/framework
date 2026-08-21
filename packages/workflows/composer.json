@@ -88,6 +88,13 @@
     },
     "extra": {
         "waaseyaa": {
+            "config-contract": {
+                "schema-provider": "Waaseyaa\\Workflows\\WorkflowServiceProvider",
+                "version": 1,
+                "readable_versions": [
+                    1
+                ]
+            },
             "policies": [
                 "Waaseyaa\\Workflows\\Access\\WorkflowAuthorityAccessPolicy"
             ],

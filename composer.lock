@@ -6444,7 +6444,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
-                "reference": "6e583c740b10e37e43bd41ed68423bc75a088264"
+                "reference": "364c498eb91c5f25f67df0a2d931457979ba8fb3"
             },
             "require": {
                 "php": ">=8.5",
@@ -6467,6 +6467,13 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "config-contract": {
+                        "schema-provider": "Waaseyaa\\Workflows\\WorkflowServiceProvider",
+                        "version": 1,
+                        "readable_versions": [
+                            1
+                        ]
+                    },
                     "policies": [
                         "Waaseyaa\\Workflows\\Access\\WorkflowAuthorityAccessPolicy"
                     ],

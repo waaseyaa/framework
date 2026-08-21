@@ -114,7 +114,7 @@ Authoritative dispositions are in `docs/public-surface-map.php`, verified by `Pu
 | entity | `EntityInterface`, `EntityBase`, `ContentEntityBase`, `ContentEntityInterface`, `ConfigEntityBase`, `ConfigEntityInterface`, `EntityTypeInterface`, `EntityType` (incl. `EntityType::fromClass()` static factory), `EntityTypeManagerInterface`, `EntityTypeRegistrationCollisionException`, `FieldableInterface`, `RevisionableInterface`, `TranslatableInterface`, `RevisionableEntityTrait`, `EntityRepositoryInterface`, `EntityEventFactoryInterface`, `EntityStorageInterface`, `RevisionableStorageInterface`, `EntityQueryInterface`, `HydratableFromStorageInterface`, `HydrationContext`, `EntityValues`, `CastDefinition`, `ValueCaster`, `CastException`, `FromArrayEntityValueInterface`, `FieldDefinitionConstraintBuilder`, `EntityTypeValidationConstraints`, `Attribute\ContentEntityType` (with `label`, `description` parameters), `Attribute\ContentEntityKeys`, `Attribute\Field`, `Attribute\EntityClassMetadata`, `Attribute\EntityMetadataReader`, `Attribute\ContentEntityTypeReader`, `Exception\EntityMetadataException` |
 | entity-storage | `EntityStorageDriverInterface`, `ConnectionResolverInterface` |
 | field | `FieldItemInterface`, `FieldItemListInterface`, `FieldDefinitionInterface`, `FieldStorage`, `FieldTypeInterface`, `FieldFormatterInterface`, `FieldTypeManagerInterface`, `FieldItemBase`, `ViewModeConfigInterface` |
-| config | `ConfigInterface`, `ConfigFactoryInterface`, `ConfigManagerInterface`, `StorageInterface`, `TranslatableConfigFactoryInterface` |
+| config | `ConfigInterface`, `ConfigFactoryInterface`, `ConfigManagerInterface`, `StorageInterface`, `TranslatableConfigFactoryInterface`, `ConfigSemanticValidatorInterface` |
 
 **`@internal`** (implementation details, may change without notice):
 
@@ -1631,6 +1631,23 @@ with one of its checks missing. The CLI provider composes
 verifier-only profile — one with no `config_manifest_signing.signing_key` —
 registers normally and the command refuses there rather than the provider
 failing to boot.
+
+Packages whose closed CFG-03 schema dialect cannot express every domain rule may
+register one `ConfigSemanticValidatorInterface` for an already-registered schema
+identity before the shared registry freezes. Each validator declares a
+deterministic `contract()` string; the registry binds that string into the
+schema identity's `canonical_schema_hash`, so content authored under a semantic
+contract is refused by a host running a different contract or none. Duplicate
+registration is idempotent only for the same authority — the same instance, or
+the same class with the same declared contract and the same dependency
+instances. A same-class validator with materially different dependencies, a
+competing class, a validator declaring no contract, and any late registration
+are all refused. `ConfigContentHasher` runs that package-owned semantic
+validation over the complete authored document after structural schema
+validation and before it derives authored or effective identities, so invalid
+domain values cannot acquire trusted hashes. The package's declared
+configuration contract version binds responsibility for those semantics and must
+advance when their compatibility changes.
 
 CFG-02 activation authorization is bound alongside it (#2430):
 `VerifiedNonDestructiveConfigurationActivationAuthorizer` replaces the refusing
