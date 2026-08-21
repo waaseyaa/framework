@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\ConsoleApplicationFactory;
 use Waaseyaa\CLI\Handler\InstallInitHandler;
+use Waaseyaa\CLI\Handler\MutationAuthorityBackfillHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 
@@ -130,6 +131,17 @@ final class InstallInitCommandWiringTest extends TestCase
         self::assertInstanceOf(HandlerCommand::class, $command);
         self::assertSame(InstallInitHandler::class, $command->sourceClass());
         self::assertStringContainsString('initial configuration generation', $command->getDescription());
+
+        $backfill = $container->get(MutationAuthorityBackfillHandler::class);
+        self::assertInstanceOf(MutationAuthorityBackfillHandler::class, $backfill);
+        self::assertSame($backfill, $container->get(MutationAuthorityBackfillHandler::class));
+        self::assertTrue($application->has('entity:backfill-mutation-authorities'));
+        $backfillCommand = $application->find('entity:backfill-mutation-authorities');
+        self::assertInstanceOf(HandlerCommand::class, $backfillCommand);
+        self::assertSame(
+            MutationAuthorityBackfillHandler::class,
+            $backfillCommand->sourceClass(),
+        );
     }
 
     private function restoreEnvironment(string $name, string|false $value): void

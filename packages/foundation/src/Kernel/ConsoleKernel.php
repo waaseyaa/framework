@@ -78,7 +78,9 @@ final class ConsoleKernel extends AbstractKernel
         }
 
         try {
-            if (in_array($input->getFirstArgument(), [
+            if ($input->getFirstArgument() === 'entity:backfill-mutation-authorities') {
+                $this->bootForMutationAuthorityBackfill();
+            } elseif (in_array($input->getFirstArgument(), [
                 'schema:sync',
                 'migrate',
                 'migrate:rollback',

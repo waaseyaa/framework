@@ -671,6 +671,41 @@ final class Mission1257KernelPathTest extends TestCase
         $kernel->publicEntityTypeManager()->getRepository('mission1257_prod_unbound_tenant');
     }
 
+    #[Test]
+    public function mutationAuthorityRepairCapturesItsUnscopedProductionRepositoryBoundary(): void
+    {
+        $kernel = $this->newTenancyTestKernel(environment: 'production');
+
+        // bootForMutationAuthorityBackfill() enables this only while boot()
+        // builds the lazy repository factory. Drive that exact captured state
+        // without running unrelated provider discovery in this kernel-path test.
+        $repairFlag = new \ReflectionProperty(AbstractKernel::class, 'allowUnscopedMutationAuthorityRepair');
+        $repairFlag->setValue($kernel, true);
+        $kernel->publicBootDatabase();
+        $kernel->publicBootEntityTypeManager();
+        $repairFlag->setValue($kernel, false);
+
+        $tenantType = new EntityType(
+            id: 'mission1257_prod_authority_repair',
+            label: 'Production tenant authority repair',
+            class: Mission1257TenantWidget::class,
+            keys: ['id' => 'wid', 'uuid' => 'uuid', 'label' => 'name', 'langcode' => 'langcode'],
+            tenancy: ['scope' => 'community'],
+        );
+        $kernel->publicEntityTypeManager()->registerEntityType($tenantType, registrant: self::class);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->getDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$tenantType],
+        );
+
+        $repository = $kernel->publicEntityTypeManager()->getRepository('mission1257_prod_authority_repair');
+        self::assertNull(
+            self::extractCommunityScope(self::extractDriver($repository)),
+            'The explicit repair must scan all tenants even after its boot-only flag is restored.',
+        );
+    }
+
     /**
      * Reach into an EntityRepository to inspect the storage driver it wraps.
      *

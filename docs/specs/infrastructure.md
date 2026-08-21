@@ -174,9 +174,10 @@ Authoritative dispositions are in `docs/public-surface-map.php`, verified by `Pu
 ## Console boot modes and the installation phase
 
 `ConsoleKernel::handle()` selects a boot mode per command. Most commands take
-ordinary `bootForCli()`. A small, explicit set — `schema:sync`, `migrate`,
-`migrate:rollback`, `migrate:status`, `site:init`, and `install:init` — takes
-`bootForSchemaSync()`, which sets `restrictedDiscoveryOnly` and therefore skips
+ordinary `bootForCli()`. A small, explicit installation set — `schema:sync`,
+`migrate`, `migrate:rollback`, `migrate:status`, `site:init`, and
+`install:init` — takes `bootForSchemaSync()`, which sets
+`restrictedDiscoveryOnly` and therefore skips
 `bootProviders()`, `discoverAccessPolicies()`, the field-read runtime, schedule
 entries, and `finalizeBoot()`.
 
@@ -186,6 +187,16 @@ the first configuration generation could not run under ordinary boot: it would
 require the very state it exists to produce. Commands added to this list must be
 genuinely pre-runtime; anything needing policies, schedules, or the field-read
 runtime does not belong in it.
+
+The mutation-authority backfill is the sole post-migration data-repair command
+and instead takes `bootForMutationAuthorityBackfill()`. It has the same
+restricted composition because a pre-DB-03 aggregate can make ordinary provider
+boot unreachable. This mode alone constructs repositories for community-scoped
+types without an active `CommunityScope`, allowing the repository-owned raw
+identity scan to cover every declared community; the suspension is captured
+only for this exact command and ordinary construction remains fail-closed. The
+command is operator-invoked, audited, idempotent, and zero-write unless its exact
+name is dispatched.
 
 
 ## Packages

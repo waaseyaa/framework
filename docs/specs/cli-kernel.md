@@ -116,6 +116,36 @@ not a diagnostic warning.
 
 ## Installation lifecycle
 
+### Legacy mutation-authority upgrade
+
+`entity:backfill-mutation-authorities --reason=<audit reason> [--json]` is an
+explicit pre-runtime upgrade command for aggregates persisted before DB-03.
+`ConsoleKernel::handle()` routes only this exact command name through
+`bootForMutationAuthorityBackfill()`, so it remains reachable when ordinary provider boot
+correctly refuses a persisted aggregate with no authority row. It never runs
+implicitly during boot, reads, migration, schema sync, or fresh installation.
+
+The command requires a non-empty audit reason. Repositories implementing the
+framework repair seam and database authority boundary are processed; other
+repositories are skipped and named explicitly rather than invoked through an
+invented repair path. Repository construction and repair failures do not
+prevent later types from running and make the command return nonzero. Output
+contains the reason's SHA-256 digest, aggregate total, per-entity-type committed
+counts (or `null` when a foreign failure makes the count unknowable), skipped type
+names, and failed type names; the raw reason, token material, and exception
+details are never rendered. The aggregate `created` value is also `null`
+(rendered as `unknown` in text mode) whenever any per-type count is unknown;
+it is never presented as a false exact total. Each type is preflighted and
+repaired atomically across all declared communities. Legacy empty community
+owners bind to `_global`, matching hydration, and translatable types derive
+authority only from their canonical language row. Existing authorities are
+preserved. A completed retry reports zero created rows. Audit
+events are buffered with the write and dispatched after commit; they are
+notifications rather than the sole durable audit authority. A delivery failure
+therefore reports the exact already-committed count rather than zero. Operators
+retain the invocation reason with the digest-bound exit/count report as the
+durable upgrade evidence.
+
 `install:init` is the governed installation phase (#2428) and belongs to the
 restricted pre-boot command set alongside `schema:sync`, `migrate*`, and
 `site:init`. `ConsoleKernel::handle()` routes it through `bootForSchemaSync()`,

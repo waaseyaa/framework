@@ -48,6 +48,7 @@ use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\EntityMutationAuthorityBackfilledEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\EntityStorage\Exception\MissingEntityMutationTokenException;
+use Waaseyaa\EntityStorage\Exception\MutationAuthorityBackfillException;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\I18n\LanguageManagerInterface;
@@ -59,7 +60,7 @@ use Waaseyaa\I18n\LanguageManagerInterface;
  * and language fallback. Delegates raw I/O to a storage driver.
  * @api
  */
-final class EntityRepository implements EntityRepositoryInterface, AggregateMutationRepositoryInterface
+final class EntityRepository implements EntityRepositoryInterface, AggregateMutationRepositoryInterface, LegacyMutationAuthorityBackfillRepositoryInterface
 {
     private readonly EntityStorageDriverV2Interface $driver;
 
@@ -2683,6 +2684,11 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         return $count;
     }
 
+    public function supportsMutationAuthorityBackfill(): bool
+    {
+        return $this->mutationAuthority !== null && $this->database !== null;
+    }
+
     /**
      * Privileged, explicit legacy migration for rows created before aggregate
      * mutation authority existed. Ordinary reads never synthesize authority.
@@ -2699,36 +2705,117 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
-        $seen = [];
-        $created = 0;
-        foreach ($this->findDriverRows($this->entityType->id()) as $row) {
-            $entityId = (string) ($row[$idKey] ?? '');
-            if ($entityId === '' || isset($seen[$entityId])) {
-                continue;
-            }
-            $seen[$entityId] = true;
-            $tenantId = $this->tenantIdFromValues($row);
-            if ($this->mutationAuthority->load($tenantId, $this->entityType->id(), $entityId) !== null) {
-                continue;
-            }
-
-            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
-            $unitOfWork->transaction(function () use ($tenantId, $entityId, $reason, $unitOfWork): void {
-                $this->mutationAuthority->create($tenantId, $this->entityType->id(), $entityId);
-                $unitOfWork->bufferEvent(
-                    new EntityMutationAuthorityBackfilledEvent(
-                        $tenantId,
-                        $this->entityType->id(),
-                        $entityId,
-                        $reason,
-                    ),
-                    EntityMutationAuthorityBackfilledEvent::class,
-                );
-            });
-            ++$created;
+        $communityScoped = ($this->entityType->getTenancy()['scope'] ?? null) === 'community';
+        $fields = [$idKey];
+        $langcodeKey = null;
+        $defaultLangcodeKey = null;
+        if ($this->entityType->isTranslatable()) {
+            $langcodeKey = $keys['langcode'] ?? 'langcode';
+            $defaultLangcodeKey = $keys['default_langcode'] ?? 'default_langcode';
+            $fields[] = $langcodeKey;
+            $fields[] = $defaultLangcodeKey;
+        }
+        if ($communityScoped) {
+            $fields[] = 'community_id';
         }
 
-        return $created;
+        foreach ($fields as $field) {
+            if (!$this->database->schema()->fieldExists($this->entityType->id(), $field)) {
+                throw new MutationAuthorityBackfillException(0, new \LogicException(sprintf(
+                    'Mutation-authority backfill requires column "%s" on entity type "%s".',
+                    $field,
+                    $this->entityType->id(),
+                )));
+            }
+        }
+
+        $seen = [];
+        $missing = [];
+        try {
+            $rows = $this->database->select($this->entityType->id())
+                ->fields($this->entityType->id(), $fields)
+                ->execute();
+            foreach ($rows as $row) {
+                $row = (array) $row;
+                if ($langcodeKey !== null) {
+                    $rawLangcode = $row[$langcodeKey] ?? null;
+                    $rawDefaultLangcode = $row[$defaultLangcodeKey] ?? null;
+                    if (
+                        !is_string($rawLangcode)
+                        || $rawLangcode === ''
+                        || str_contains($rawLangcode, "\0")
+                        || !is_string($rawDefaultLangcode)
+                        || $rawDefaultLangcode === ''
+                        || str_contains($rawDefaultLangcode, "\0")
+                    ) {
+                        throw new \UnexpectedValueException(
+                            'Persisted translation identity must contain non-empty, NUL-free language codes.',
+                        );
+                    }
+                    if ($rawLangcode !== $rawDefaultLangcode) {
+                        continue;
+                    }
+                }
+                $rawEntityId = $row[$idKey] ?? null;
+                if (!is_int($rawEntityId) && !is_string($rawEntityId)) {
+                    throw new \UnexpectedValueException('Persisted entity identity must be an integer or string.');
+                }
+                $entityId = (string) $rawEntityId;
+                if ($entityId === '' || str_contains($entityId, "\0")) {
+                    throw new \UnexpectedValueException('Persisted entity identity must be non-empty and contain no NUL byte.');
+                }
+                $tenantId = '_global';
+                if ($communityScoped) {
+                    $rawTenantId = $row['community_id'] ?? null;
+                    if (!is_string($rawTenantId) || str_contains($rawTenantId, "\0")) {
+                        throw new \UnexpectedValueException('Persisted community identity must be a NUL-free string.');
+                    }
+                    $tenantId = $this->tenantIdFromValues($row);
+                }
+                $selector = $tenantId . "\0" . $entityId;
+                if (isset($seen[$selector])) {
+                    continue;
+                }
+                $seen[$selector] = true;
+                if ($this->mutationAuthority->load($tenantId, $this->entityType->id(), $entityId) === null) {
+                    $missing[] = [$tenantId, $entityId];
+                }
+            }
+        } catch (\Throwable $e) {
+            throw $e instanceof MutationAuthorityBackfillException
+                ? $e
+                : new MutationAuthorityBackfillException(0, $e);
+        }
+
+        if ($missing === []) {
+            return 0;
+        }
+
+        $committed = 0;
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+        try {
+            $unitOfWork->transaction(function () use ($missing, $reason, $unitOfWork, &$committed): void {
+                foreach ($missing as [$tenantId, $entityId]) {
+                    $this->mutationAuthority->create($tenantId, $this->entityType->id(), $entityId);
+                    $unitOfWork->bufferEvent(
+                        new EntityMutationAuthorityBackfilledEvent(
+                            $tenantId,
+                            $this->entityType->id(),
+                            $entityId,
+                            $reason,
+                        ),
+                        EntityMutationAuthorityBackfilledEvent::class,
+                    );
+                }
+                $unitOfWork->afterCommit(static function () use (&$committed, $missing): void {
+                    $committed = count($missing);
+                });
+            });
+        } catch (\Throwable $e) {
+            throw new MutationAuthorityBackfillException($committed, $e);
+        }
+
+        return $committed;
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
 use Waaseyaa\Database\DBALDatabase;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
@@ -13,6 +14,7 @@ use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\MutationAuthorityBackfillException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestConfigEntity;
@@ -76,7 +78,7 @@ final class EntityRepositorySqlCrudTest extends TestCase
         $this->repository = $this->makeRepository($this->entityType);
     }
 
-    private function makeRepository(EntityType $entityType): EntityRepository
+    private function makeRepository(EntityType $entityType, ?EventDispatcherInterface $dispatcher = null): EntityRepository
     {
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, $entityType->getKeys()['id'] ?? 'id');
@@ -84,9 +86,122 @@ final class EntityRepositorySqlCrudTest extends TestCase
         return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
-            $this->eventDispatcher,
+            $dispatcher ?? $this->eventDispatcher,
             database: $this->database,
         );
+    }
+
+    public function testMutationAuthorityBackfillFailsClosedBeforeWritesForAnEmptyPersistedId(): void
+    {
+        $repository = $this->createConfigRepository();
+        $this->database->insert('node_type')->values([
+            'type' => '',
+            'bundle' => 'test_entity',
+            'name' => 'Malformed legacy row',
+            'langcode' => 'en',
+            '_data' => '{}',
+        ])->execute();
+        $this->database->insert('node_type')->values([
+            'type' => 'valid-legacy',
+            'bundle' => 'test_entity',
+            'name' => 'Valid legacy row',
+            'langcode' => 'en',
+            '_data' => '{}',
+        ])->execute();
+
+        try {
+            $repository->backfillMutationAuthorities('Malformed identity regression.');
+            self::fail('Malformed persisted identity was accepted.');
+        } catch (MutationAuthorityBackfillException $e) {
+            self::assertSame(0, $e->committedCount);
+        }
+
+        $this->database->delete('node_type')->condition('type', '')->execute();
+        self::assertSame(1, $repository->backfillMutationAuthorities('Retry after malformed row removal.'));
+    }
+
+    public function testMutationAuthorityBackfillFailsClosedBeforeWritesForANulBearingPersistedId(): void
+    {
+        $repository = $this->createConfigRepository();
+        $this->database->insert('node_type')->values([
+            'type' => "malformed\0legacy",
+            'bundle' => 'test_entity',
+            'name' => 'Malformed legacy row',
+            'langcode' => 'en',
+            '_data' => '{}',
+        ])->execute();
+        $this->database->insert('node_type')->values([
+            'type' => 'valid-legacy',
+            'bundle' => 'test_entity',
+            'name' => 'Valid legacy row',
+            'langcode' => 'en',
+            '_data' => '{}',
+        ])->execute();
+
+        try {
+            $repository->backfillMutationAuthorities('NUL identity regression.');
+            self::fail('NUL-bearing persisted identity was accepted.');
+        } catch (MutationAuthorityBackfillException $e) {
+            self::assertSame(0, $e->committedCount);
+        }
+
+        $this->database->delete('node_type')->condition('type', "malformed\0legacy")->execute();
+        self::assertSame(1, $repository->backfillMutationAuthorities('Retry after malformed row removal.'));
+    }
+
+    public function testMutationAuthorityBackfillReportsCommittedRowsWhenEventDispatchFails(): void
+    {
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
+        $dispatcher->method('dispatch')->willThrowException(new \RuntimeException('Listener failed after commit.'));
+        $repository = $this->createConfigRepository($dispatcher);
+        $this->database->insert('node_type')->values([
+            'type' => 'legacy-event',
+            'bundle' => 'test_entity',
+            'name' => 'Legacy event row',
+            'langcode' => 'en',
+            '_data' => '{}',
+        ])->execute();
+
+        try {
+            $repository->backfillMutationAuthorities('Post-commit accounting regression.');
+            self::fail('Listener failure was not surfaced.');
+        } catch (MutationAuthorityBackfillException $e) {
+            self::assertSame(1, $e->committedCount);
+        }
+
+        self::assertSame(0, $this->createConfigRepository()->backfillMutationAuthorities('Idempotent retry.'));
+    }
+
+    public function testMutationAuthorityBackfillRollsBackTheWholeTypeWhenAnyCreateFails(): void
+    {
+        $repository = $this->createConfigRepository();
+        foreach (['first', 'second'] as $type) {
+            $this->database->insert('node_type')->values([
+                'type' => $type,
+                'bundle' => 'test_entity',
+                'name' => ucfirst($type),
+                'langcode' => 'en',
+                '_data' => '{}',
+            ])->execute();
+        }
+        $this->database->query(<<<'SQL'
+            CREATE TRIGGER refuse_second_authority
+            BEFORE INSERT ON waaseyaa_entity_mutation_authority
+            WHEN NEW.entity_id = 'second'
+            BEGIN
+                SELECT RAISE(ABORT, 'refused test authority');
+            END
+            SQL);
+
+        try {
+            $repository->backfillMutationAuthorities('Atomic type regression.');
+            self::fail('A refused authority insert was not surfaced.');
+        } catch (MutationAuthorityBackfillException $e) {
+            self::assertSame(0, $e->committedCount);
+        }
+
+        $this->database->query('DROP TRIGGER refuse_second_authority');
+        self::assertSame(2, $repository->backfillMutationAuthorities('Retry after rollback.'));
     }
 
     public function testCreateReturnsNewEntity(): void
@@ -363,7 +478,7 @@ final class EntityRepositorySqlCrudTest extends TestCase
         return $this->makeRepository($entityType);
     }
 
-    private function createConfigRepository(): EntityRepository
+    private function createConfigRepository(?EventDispatcherInterface $dispatcher = null): EntityRepository
     {
         $configType = new EntityType(
             id: 'node_type',
@@ -383,7 +498,7 @@ final class EntityRepositorySqlCrudTest extends TestCase
         $schemaHandler = new SqlSchemaHandler($configType, $this->database);
         $schemaHandler->ensureTable();
 
-        return $this->makeRepository($configType);
+        return $this->makeRepository($configType, $dispatcher);
     }
 
     public function testCreateAppliesFieldDefaults(): void

@@ -100,6 +100,40 @@ final class RevisionCommunityScopeTest extends TestCase
     }
 
     #[Test]
+    public function authorityBackfillScansAllCommunitiesDespiteAnActiveScope(): void
+    {
+        $this->database->insert('scoped_revisionable')->values([
+            'id' => '2',
+            'uuid' => 'scoped-b',
+            'title' => 'Community B legacy row',
+            'community_id' => 'community-b',
+            '_data' => '{}',
+        ])->execute();
+        $this->database->insert('scoped_revisionable')->values([
+            'id' => '3',
+            'uuid' => 'scoped-global',
+            'title' => 'Legacy unowned row',
+            'community_id' => '',
+            '_data' => '{}',
+        ])->execute();
+
+        self::assertCount(3, iterator_to_array($this->database->query(
+            'SELECT id, community_id FROM scoped_revisionable ORDER BY id',
+        )));
+        self::assertCount(0, iterator_to_array($this->database->query(
+            'SELECT entity_id FROM waaseyaa_entity_mutation_authority WHERE tenant_id = ? AND entity_type = ? AND entity_id = ?',
+            ['community-b', 'scoped_revisionable', '2'],
+        )));
+        self::assertSame(2, $this->repository->backfillMutationAuthorities('All-community repair regression.'));
+        self::assertSame(0, $this->repository->backfillMutationAuthorities('Idempotent retry.'));
+
+        $this->context->set('community-b');
+        self::assertNotNull($this->repository->find('2')?->mutationToken());
+        $this->context->clear();
+        self::assertNotNull($this->repository->find('3')?->mutationToken());
+    }
+
+    #[Test]
     public function foreignRevisionMutationsFailBeforeEventsOrWrites(): void
     {
         $this->context->set('community-b');
@@ -313,6 +347,25 @@ final class RevisionCommunityScopeTest extends TestCase
     }
 
     #[Test]
+    public function authorityBackfillUsesTheCanonicalTranslationOwnerAndIgnoresAnOwnerlessPeer(): void
+    {
+        [$repository] = $this->scopedTwoAxisRepository(backfill: false);
+        $this->database->insert('scoped_two_axis')
+            ->fields(['id', 'uuid', 'title', 'langcode', 'default_langcode', 'community_id'])
+            ->values(['7', 'two-axis-a', 'Legacy empty peer', 'oj', 'en', ''])
+            ->execute();
+
+        self::assertSame(1, $repository->backfillMutationAuthorities('Canonical translation owner regression.'));
+        $authorities = iterator_to_array($this->database->query(
+            'SELECT tenant_id FROM waaseyaa_entity_mutation_authority WHERE entity_type = ? AND entity_id = ?',
+            ['scoped_two_axis', '7'],
+        ));
+        self::assertCount(1, $authorities);
+        self::assertSame('community-a', (string) ((array) $authorities[0])['tenant_id']);
+        self::assertNotNull($repository->find('7')?->mutationToken());
+    }
+
+    #[Test]
     public function ownedSiblingCannotSubstituteForCanonicalBaseOwnership(): void
     {
         [, $base] = $this->scopedTwoAxisRepository();
@@ -345,7 +398,7 @@ final class RevisionCommunityScopeTest extends TestCase
     }
 
     /** @return array{EntityRepository, SqlStorageDriver} */
-    private function scopedTwoAxisRepository(): array
+    private function scopedTwoAxisRepository(bool $backfill = true): array
     {
         $type = new EntityType(
             id: 'scoped_two_axis',
@@ -403,7 +456,9 @@ final class RevisionCommunityScopeTest extends TestCase
             'langcode' => 'en',
             'default_langcode' => 'en',
         ]);
-        self::assertSame(1, $repository->backfillMutationAuthorities('tenancy two-axis fixture'));
+        if ($backfill) {
+            self::assertSame(1, $repository->backfillMutationAuthorities('tenancy two-axis fixture'));
+        }
 
         return [$repository, $base];
     }

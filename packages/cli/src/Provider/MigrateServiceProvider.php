@@ -13,6 +13,7 @@ use Waaseyaa\CLI\Handler\MigrateDefaultsHandler;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
+use Waaseyaa\CLI\Handler\MutationAuthorityBackfillHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
@@ -52,6 +53,13 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
      */
     public function register(): void
     {
+        $this->singleton(MutationAuthorityBackfillHandler::class, function (): MutationAuthorityBackfillHandler {
+            $entityTypeManager = $this->resolve(\Waaseyaa\Entity\EntityTypeManager::class);
+            assert($entityTypeManager instanceof \Waaseyaa\Entity\EntityTypeManagerInterface);
+
+            return new MutationAuthorityBackfillHandler($entityTypeManager);
+        });
+
         // install:init (#2428) reuses this provider's migration runtime because
         // preparing schema IS migrate + schema sync; the handler itself only
         // sequences that and the initial activation, which closes the lifecycle
@@ -169,6 +177,25 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
 
     public function consoleCommands(): iterable
     {
+        yield new HandlerCommand(
+            name: 'entity:backfill-mutation-authorities',
+            description: 'Create missing aggregate mutation authorities for legacy persisted entity rows.',
+            options: [
+                new HandlerOption(
+                    name: 'reason',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Non-empty audit reason for this explicit legacy repair.',
+                    default: '',
+                ),
+                new HandlerOption(
+                    name: 'json',
+                    mode: HandlerOptionMode::None,
+                    description: 'Emit stable machine-readable per-type counts.',
+                ),
+            ],
+            handler: [MutationAuthorityBackfillHandler::class, 'execute'],
+        );
+
         yield new HandlerCommand(
             name: 'install:init',
             description: 'Initialize a fresh installation: apply migrations, synchronize schema, and activate the initial configuration generation',
