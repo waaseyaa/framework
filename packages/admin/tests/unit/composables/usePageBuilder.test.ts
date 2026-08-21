@@ -52,6 +52,18 @@ const history: PageBuilderRevision[] = [{
   block_count: 0,
 }]
 
+/**
+ * Idempotency keys must be *sequential* here. A single constant cannot tell a
+ * retained key apart from a freshly minted one, which is exactly how a
+ * regenerated key on the acknowledged retry stayed invisible.
+ */
+function operationId(sequence: number): `${string}-${string}-${string}-${string}-${string}` {
+  return `00000000-0000-4000-8000-${String(sequence).padStart(12, '0')}`
+}
+
+let operationSequence = 0
+let randomUUID: ReturnType<typeof vi.spyOn>
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.definitions.mockResolvedValue({ ok: true, data: { definitions } })
@@ -61,7 +73,11 @@ beforeEach(() => {
   mocks.history.mockResolvedValue({ ok: true, data: { revisions: history } })
   mocks.revision.mockResolvedValue({ ok: true, data: { ...draft, entity_revision_id: 5 } })
   mocks.restore.mockResolvedValue({ ok: true, data: { ...draft, entity_revision_id: 8 } })
-  vi.spyOn(crypto, 'randomUUID').mockReturnValue('11111111-1111-4111-8111-111111111111')
+  operationSequence = 0
+  randomUUID = vi.spyOn(crypto, 'randomUUID').mockImplementation(() => {
+    operationSequence += 1
+    return operationId(operationSequence)
+  })
 })
 
 describe('usePageBuilder', () => {
@@ -104,7 +120,8 @@ describe('usePageBuilder', () => {
       '42',
       draft,
       removeCommand,
-      '11111111-1111-4111-8111-111111111111',
+      operationId(1),
+      [],
     )
     expect(state.draft.value?.entity_revision_id).toBe(8)
     expect(state.previewUrl.value).toBeNull()
@@ -165,10 +182,241 @@ describe('usePageBuilder', () => {
       '42',
       latest,
       removeCommand,
-      '11111111-1111-4111-8111-111111111111',
+      operationId(2),
+      [],
     )
     expect(state.draft.value).toEqual(retried)
     expect(state.conflict.value).toBeNull()
+  })
+
+  describe('layout save advisory review (#2475)', () => {
+    const token = 'b'.repeat(64)
+    const secondToken = 'c'.repeat(64)
+    const advisory = {
+      code: 'RESERVED_ROUTE_VALUE',
+      field: 'slug',
+      severity: 'warning' as const,
+      message: 'This slug is reserved for a system route.',
+      acknowledgement: token,
+    }
+    const heldResult = (acknowledgement = token) => ({
+      ok: false,
+      error: {
+        status: 428,
+        title: 'Precondition Required',
+        detail: 'This change needs review before it can be saved.',
+        code: 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
+        meta: { save_advisories: [{ ...advisory, acknowledgement }] },
+      },
+    })
+
+    async function heldState() {
+      mocks.command.mockResolvedValueOnce(heldResult())
+      const { usePageBuilder } = await import('~/composables/usePageBuilder')
+      const state = usePageBuilder('page', '42')
+      await state.load()
+      await expect(state.apply(removeCommand)).resolves.toBe(false)
+      return state
+    }
+
+    it('holds the exact pending edit for review and writes nothing', async () => {
+      const state = await heldState()
+
+      expect(state.advisoryReview.value?.advisories).toEqual([advisory])
+      expect(state.advisoryReview.value?.command).toEqual(removeCommand)
+      expect(state.advisoryReview.value?.detail).toBe('This change needs review before it can be saved.')
+      expect(state.draft.value).toEqual(draft)
+      expect(state.error.value).toBeNull()
+      // A held edit is a review prompt, not an embed lifecycle failure.
+      expect(state.failure.value).toBeNull()
+      expect(state.advisoryUnsupported.value).toBeNull()
+    })
+
+    it('blocks a further ordinary edit while the review is open', async () => {
+      const state = await heldState()
+
+      await expect(state.apply({ type: 'remove_block', block_id: 'blk_other' })).resolves.toBe(false)
+      expect(mocks.command).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns exactly the received receipts on the same command, revision, fingerprint, and idempotency key', async () => {
+      const state = await heldState()
+      expect(state.advisoryReview.value?.operationId).toBe(operationId(1))
+      mocks.command.mockResolvedValueOnce({ ok: true, data: { ...draft, entity_revision_id: 8 } })
+
+      await expect(state.confirmAdvisoryReview()).resolves.toBe(true)
+
+      expect(mocks.command).toHaveBeenLastCalledWith(
+        'page',
+        '42',
+        draft,
+        removeCommand,
+        operationId(1),
+        [token],
+      )
+      // The acknowledged retry is the same save attempt, not a new one.
+      const [held, retried] = mocks.command.mock.calls
+      expect(retried![4]).toBe(held![4])
+      expect(randomUUID).toHaveBeenCalledTimes(1)
+      expect(state.advisoryReview.value).toBeNull()
+      expect(state.draft.value?.entity_revision_id).toBe(8)
+    })
+
+    it('re-prompts with the new advisory when the candidate changed underneath, never replaying the stale receipt', async () => {
+      const state = await heldState()
+      mocks.command.mockResolvedValueOnce(heldResult(secondToken))
+
+      await expect(state.confirmAdvisoryReview()).resolves.toBe(false)
+
+      expect(mocks.command).toHaveBeenLastCalledWith(
+        'page', '42', draft, removeCommand, operationId(1), [token],
+      )
+      expect(state.advisoryReview.value?.advisories).toEqual([{ ...advisory, acknowledgement: secondToken }])
+      expect(state.advisoryReview.value?.operationId).toBe(operationId(1))
+
+      mocks.command.mockResolvedValueOnce({ ok: true, data: { ...draft, entity_revision_id: 8 } })
+      await expect(state.confirmAdvisoryReview()).resolves.toBe(true)
+      expect(mocks.command).toHaveBeenLastCalledWith(
+        'page', '42', draft, removeCommand, operationId(1), [secondToken],
+      )
+      // One review chain is one save attempt: only the receipts change.
+      const keys = mocks.command.mock.calls.map(call => call[4])
+      expect(keys).toEqual([operationId(1), operationId(1), operationId(1)])
+      expect(randomUUID).toHaveBeenCalledTimes(1)
+    })
+
+    it('mints a new idempotency key only for a genuinely new save attempt', async () => {
+      const state = await heldState()
+
+      state.declineAdvisoryReview()
+      mocks.command.mockResolvedValueOnce({ ok: true, data: { ...draft, entity_revision_id: 8 } })
+      await expect(state.apply(removeCommand)).resolves.toBe(true)
+
+      const keys = mocks.command.mock.calls.map(call => call[4])
+      expect(keys).toEqual([operationId(1), operationId(2)])
+      expect(randomUUID).toHaveBeenCalledTimes(2)
+    })
+
+    it('leaves the draft unsaved and the review closed when the author declines', async () => {
+      const state = await heldState()
+
+      state.declineAdvisoryReview()
+
+      expect(state.advisoryReview.value).toBeNull()
+      expect(state.draft.value).toEqual(draft)
+      expect(state.error.value).toBeNull()
+      expect(mocks.command).toHaveBeenCalledTimes(1)
+      await expect(state.confirmAdvisoryReview()).resolves.toBe(false)
+      expect(mocks.command).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps a rejected receipt a refusal with no write and no reusable token', async () => {
+      const state = await heldState()
+      mocks.command.mockResolvedValueOnce({
+        ok: false,
+        error: { status: 422, title: 'Page layout is not editable' },
+      })
+
+      await expect(state.confirmAdvisoryReview()).resolves.toBe(false)
+
+      expect(state.draft.value).toEqual(draft)
+      expect(state.advisoryReview.value).toBeNull()
+      expect(state.error.value).toBe('Page layout is not editable')
+    })
+
+    it('treats a malformed advisory projection as a refusal rather than a review', async () => {
+      mocks.command.mockResolvedValueOnce({
+        ok: false,
+        error: {
+          status: 428,
+          title: 'Precondition Required',
+          code: 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED',
+          meta: { save_advisories: [{ ...advisory, acknowledgement: 'not-a-token' }] },
+        },
+      })
+      const { usePageBuilder } = await import('~/composables/usePageBuilder')
+      const state = usePageBuilder('page', '42')
+      await state.load()
+
+      await expect(state.apply(removeCommand)).resolves.toBe(false)
+
+      expect(state.advisoryReview.value).toBeNull()
+      expect(state.error.value).toBe('Precondition Required')
+      expect(state.draft.value).toEqual(draft)
+    })
+
+    it('presents an unsupported deployment as a capability problem with no review to confirm', async () => {
+      mocks.command.mockResolvedValueOnce({
+        ok: false,
+        error: {
+          status: 501,
+          title: 'Save advisory acknowledgement unsupported',
+          detail: 'This layout draft surface cannot accept save advisory acknowledgements.',
+          code: 'SAVE_ADVISORY_UNSUPPORTED',
+        },
+      })
+      const { usePageBuilder } = await import('~/composables/usePageBuilder')
+      const state = usePageBuilder('page', '42')
+      await state.load()
+
+      await expect(state.apply(removeCommand)).resolves.toBe(false)
+
+      expect(state.advisoryUnsupported.value)
+        .toBe('This layout draft surface cannot accept save advisory acknowledgements.')
+      expect(state.advisoryReview.value).toBeNull()
+      // Not an author-fixable validation error: no inline error, but a real failure.
+      expect(state.error.value).toBeNull()
+      expect(state.failure.value).toEqual({ kind: 'server', status: 501 })
+      expect(state.draft.value).toEqual(draft)
+    })
+
+    it('clears a prior unsupported notice once another attempt is made', async () => {
+      mocks.command.mockResolvedValueOnce({
+        ok: false,
+        error: { status: 501, title: 'Unsupported', code: 'SAVE_ADVISORY_UNSUPPORTED' },
+      })
+      const { usePageBuilder } = await import('~/composables/usePageBuilder')
+      const state = usePageBuilder('page', '42')
+      await state.load()
+      await state.apply(removeCommand)
+      expect(state.advisoryUnsupported.value).toBe('Unsupported')
+
+      await expect(state.apply(removeCommand)).resolves.toBe(true)
+      expect(state.advisoryUnsupported.value).toBeNull()
+    })
+
+    it('acknowledges a held edit that arrived on a conflict replay', async () => {
+      mocks.command.mockResolvedValueOnce({
+        ok: false,
+        error: { status: 409, title: 'Page changed', detail: 'Another editor saved first.' },
+      })
+      const latest = { ...draft, entity_revision_id: 9, document_fingerprint: 'd'.repeat(64) }
+      const { usePageBuilder } = await import('~/composables/usePageBuilder')
+      const state = usePageBuilder('page', '42')
+      await state.load()
+      await expect(state.apply(removeCommand)).resolves.toBe(false)
+
+      mocks.draft.mockResolvedValueOnce({ ok: true, data: latest })
+      await expect(state.loadLatestForConflict()).resolves.toBe(true)
+
+      mocks.command.mockResolvedValueOnce(heldResult())
+      await expect(state.retryConflict()).resolves.toBe(false)
+      expect(state.advisoryReview.value?.advisories).toEqual([advisory])
+
+      // The advisory arrived on the conflict replay, so the acknowledged retry
+      // continues *that* attempt rather than the original refused one.
+      expect(state.advisoryReview.value?.operationId).toBe(operationId(2))
+
+      mocks.command.mockResolvedValueOnce({ ok: true, data: { ...latest, entity_revision_id: 10 } })
+      await expect(state.confirmAdvisoryReview()).resolves.toBe(true)
+      expect(mocks.command).toHaveBeenLastCalledWith(
+        'page', '42', latest, removeCommand, operationId(2), [token],
+      )
+      const keys = mocks.command.mock.calls.map(call => call[4])
+      expect(keys).toEqual([operationId(1), operationId(2), operationId(2)])
+      expect(randomUUID).toHaveBeenCalledTimes(2)
+      expect(state.conflict.value).toBeNull()
+    })
   })
 
   it('loads an exact revision preview and reports preview refusal', async () => {
@@ -225,7 +473,7 @@ describe('usePageBuilder', () => {
       '42',
       5,
       7,
-      '11111111-1111-4111-8111-111111111111',
+      operationId(1),
     )
     expect(state.draft.value?.entity_revision_id).toBe(8)
     expect(state.comparedRevision.value).toBeNull()

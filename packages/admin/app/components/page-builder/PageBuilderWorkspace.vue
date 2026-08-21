@@ -32,7 +32,9 @@ type JsonSchemaProperty = Omit<SchemaProperty, 'enum'> & {
 const { t } = useLanguage()
 const {
   definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error, failure, conflict,
+  advisoryReview, advisoryUnsupported,
   load, apply, loadLatestForConflict, retryConflict, dismissConflict,
+  confirmAdvisoryReview, declineAdvisoryReview,
   refreshPreview, loadHistory, compareRevision, restoreRevision,
 } = usePageBuilder(
   props.surface,
@@ -47,6 +49,7 @@ const editableConfig = ref<Record<string, unknown>>({})
 const announcement = ref('')
 const configDirty = ref(false)
 const historyOpen = ref(false)
+const advisoryBanner = ref<HTMLElement | null>(null)
 const confirmation = ref({ open: false, title: '', message: '', confirmLabel: '', dangerous: false })
 let resolveConfirmation: ((confirmed: boolean) => void) | null = null
 let confirmationReturnFocus: HTMLElement | null = null
@@ -54,6 +57,11 @@ let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(configDirty, dirty => emit('dirty', dirty), { flush: 'sync' })
 watch(failure, value => { if (value) emit('failure', value) })
+watch(advisoryReview, async (review) => {
+  if (!review) return
+  await nextTick()
+  advisoryBanner.value?.focus()
+})
 
 const commonLayoutPrefix = computed(() => {
   const layouts = definitions.value?.layouts ?? []
@@ -107,7 +115,7 @@ const selectedEntry = computed(() => blocks.value.find(entry => entry.block.id =
 const sections = computed(() => draft.value?.document.sections ?? [])
 const selectedSection = computed(() => sections.value.find(section => section.id === selectedSectionId.value) ?? null)
 const selectedSectionIndex = computed(() => sections.value.findIndex(section => section.id === selectedSectionId.value))
-const editingBlocked = computed(() => saving.value || conflict.value !== null)
+const editingBlocked = computed(() => saving.value || conflict.value !== null || advisoryReview.value !== null)
 const sectionPosition = (section: PageBuilderSection) => sections.value.findIndex(candidate => candidate.id === section.id) + 1
 const sectionBlockCount = (section: PageBuilderSection) => Object.values(section.regions).reduce((count, regionBlocks) => count + regionBlocks.length, 0)
 const activeTemplate = computed(() => definitions.value?.templates.find(template => (
@@ -281,6 +289,26 @@ async function reapplyConflict() {
 function keepLatestAfterConflict() {
   dismissConflict()
   configDirty.value = false
+}
+
+async function acknowledgeAdvisory() {
+  if (await confirmAdvisoryReview()) {
+    announcement.value = ''
+    await nextTick()
+    announcement.value = t('page_builder_advisory_acknowledged')
+    configDirty.value = false
+    await loadHistory()
+    await refreshPreview()
+    emit('saved')
+  }
+}
+
+/**
+ * Declining writes nothing and changes no editor state: the pending edit stays
+ * exactly where the author left it, still dirty and still unsaved.
+ */
+function declineAdvisory() {
+  declineAdvisoryReview()
 }
 
 async function focusOutlineTarget(kind: 'block' | 'section', id: string | null) {
@@ -591,6 +619,55 @@ onBeforeUnmount(() => {
           {{ t('page_builder_keep_latest') }}
         </button>
       </template>
+    </div>
+    <div
+      v-if="advisoryReview"
+      ref="advisoryBanner"
+      class="page-builder__advisory"
+      role="status"
+      aria-live="polite"
+      tabindex="-1"
+      data-page-builder-advisory
+    >
+      <div>
+        <strong>{{ t('page_builder_advisory_title') }}</strong>
+        <span>{{ t('page_builder_advisory_help') }}</span>
+        <ul>
+          <li v-for="advisory in advisoryReview.advisories" :key="advisory.acknowledgement">
+            <strong>{{ advisory.field }}</strong>: {{ advisory.message }}
+          </li>
+        </ul>
+      </div>
+      <button
+        type="button"
+        class="btn btn-primary"
+        :disabled="saving"
+        data-page-builder-advisory-confirm
+        @click="acknowledgeAdvisory"
+      >
+        {{ t('page_builder_advisory_confirm') }}
+      </button>
+      <button
+        type="button"
+        class="btn"
+        :disabled="saving"
+        data-page-builder-advisory-decline
+        @click="declineAdvisory"
+      >
+        {{ t('page_builder_advisory_decline') }}
+      </button>
+    </div>
+    <div
+      v-if="advisoryUnsupported"
+      class="page-builder__advisory-unsupported"
+      role="alert"
+      data-page-builder-advisory-unsupported
+    >
+      <div>
+        <strong>{{ t('page_builder_advisory_unsupported_title') }}</strong>
+        <span>{{ t('page_builder_advisory_unsupported_help') }}</span>
+        <small>{{ advisoryUnsupported }}</small>
+      </div>
     </div>
     <div v-if="error" class="page-builder__error" role="alert">
       <strong>{{ t('page_builder_could_not_continue') }}</strong>
@@ -954,12 +1031,18 @@ onBeforeUnmount(() => {
 .page-builder__revision-card.is-selected { border-color: var(--color-primary, #2f8068); background: var(--color-primary-light, #e5f2ed); }
 .page-builder__comparison { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #dfe2dd; }
 .page-builder__comparison ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; font-size: 12px; }
-.page-builder__error, .page-builder__conflict, .page-builder__loading { margin: 18px 24px; padding: 14px 16px; border-radius: 8px; }
+.page-builder__error, .page-builder__conflict, .page-builder__advisory, .page-builder__advisory-unsupported, .page-builder__loading { margin: 18px 24px; padding: 14px 16px; border-radius: 8px; }
 .page-builder__error { display: flex; align-items: center; gap: 10px; background: #fff0ed; color: #8f251a; }
 .page-builder__error span { flex: 1; }
 .page-builder__conflict { display: flex; align-items: center; gap: 10px; background: #fff6dc; color: #684800; }
 .page-builder__conflict > div { display: grid; flex: 1; gap: 3px; }
 .page-builder__conflict small { color: inherit; opacity: .8; }
+.page-builder__advisory { display: flex; align-items: flex-start; gap: 10px; background: #fff6dc; color: #684800; }
+.page-builder__advisory > div { display: grid; flex: 1; gap: 3px; }
+.page-builder__advisory ul { margin: 4px 0 0; padding-left: 18px; }
+.page-builder__advisory-unsupported { background: #f3f4f6; color: #374151; }
+.page-builder__advisory-unsupported > div { display: grid; gap: 3px; }
+.page-builder__advisory-unsupported small { color: inherit; opacity: .8; }
 .page-builder__loading { background: #fff; color: #5f6964; }
 @media (max-width: 1100px) {
   .page-builder__workspace { grid-template-columns: 190px minmax(400px, 1fr) 250px; }

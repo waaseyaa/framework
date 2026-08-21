@@ -4,7 +4,7 @@ import { flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import type { PageBuilderCommand, PageBuilderDefinitions, PageBuilderDraft, PageBuilderRevision } from '~/contracts/pageBuilder'
 
-const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionRef, loadingRef, savingRef, errorRef, failureRef, conflictRef, loadMock, applyMock, loadLatestForConflictMock, retryConflictMock, dismissConflictMock, refreshPreviewMock, loadHistoryMock, compareRevisionMock, restoreRevisionMock } = vi.hoisted(() => {
+const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionRef, loadingRef, savingRef, errorRef, failureRef, conflictRef, advisoryReviewRef, advisoryUnsupportedRef, loadMock, applyMock, loadLatestForConflictMock, retryConflictMock, dismissConflictMock, confirmAdvisoryReviewMock, declineAdvisoryReviewMock, dismissAdvisoryUnsupportedMock, refreshPreviewMock, loadHistoryMock, compareRevisionMock, restoreRevisionMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     definitionsRef: ref<PageBuilderDefinitions | null>(null),
@@ -17,11 +17,21 @@ const { definitionsRef, draftRef, previewUrlRef, revisionsRef, comparedRevisionR
     errorRef: ref<string | null>(null),
     failureRef: ref<{ kind: 'server', status?: number } | null>(null),
     conflictRef: ref<{ detail: string, latestLoaded: boolean } | null>(null),
+    advisoryReviewRef: ref<{
+      command: PageBuilderCommand
+      advisories: Array<{ code: string, field: string, severity: 'warning', message: string, acknowledgement: string }>
+      detail: string
+      operationId: string
+    } | null>(null),
+    advisoryUnsupportedRef: ref<string | null>(null),
     loadMock: vi.fn(),
     applyMock: vi.fn(),
     loadLatestForConflictMock: vi.fn(),
     retryConflictMock: vi.fn(),
     dismissConflictMock: vi.fn(),
+    confirmAdvisoryReviewMock: vi.fn(),
+    declineAdvisoryReviewMock: vi.fn(),
+    dismissAdvisoryUnsupportedMock: vi.fn(),
     refreshPreviewMock: vi.fn(),
     loadHistoryMock: vi.fn(),
     compareRevisionMock: vi.fn(),
@@ -49,11 +59,16 @@ vi.mock('~/composables/usePageBuilder', () => ({
     error: errorRef,
     failure: failureRef,
     conflict: conflictRef,
+    advisoryReview: advisoryReviewRef,
+    advisoryUnsupported: advisoryUnsupportedRef,
     load: loadMock,
     apply: applyMock,
     loadLatestForConflict: loadLatestForConflictMock,
     retryConflict: retryConflictMock,
     dismissConflict: dismissConflictMock,
+    confirmAdvisoryReview: confirmAdvisoryReviewMock,
+    declineAdvisoryReview: declineAdvisoryReviewMock,
+    dismissAdvisoryUnsupported: dismissAdvisoryUnsupportedMock,
     refreshPreview: refreshPreviewMock,
     loadHistory: loadHistoryMock,
     compareRevision: compareRevisionMock,
@@ -188,6 +203,8 @@ beforeEach(() => {
   errorRef.value = null
   failureRef.value = null
   conflictRef.value = null
+  advisoryReviewRef.value = null
+  advisoryUnsupportedRef.value = null
   loadMock.mockReset().mockResolvedValue(undefined)
   applyMock.mockReset().mockImplementation(async (command: PageBuilderCommand) => {
     applyCommandToDraft(command)
@@ -196,6 +213,9 @@ beforeEach(() => {
   loadLatestForConflictMock.mockReset().mockResolvedValue(true)
   retryConflictMock.mockReset().mockResolvedValue(true)
   dismissConflictMock.mockReset()
+  confirmAdvisoryReviewMock.mockReset().mockResolvedValue(true)
+  declineAdvisoryReviewMock.mockReset().mockImplementation(() => { advisoryReviewRef.value = null })
+  dismissAdvisoryUnsupportedMock.mockReset()
   refreshPreviewMock.mockReset().mockResolvedValue(true)
   loadHistoryMock.mockReset().mockResolvedValue(true)
   compareRevisionMock.mockReset().mockResolvedValue(true)
@@ -260,6 +280,120 @@ describe('PageBuilderWorkspace', () => {
     await actions[0]!.trigger('click')
     await flushPromises()
     expect(retryConflictMock).toHaveBeenCalledOnce()
+  })
+
+  describe('layout save advisory review (#2475)', () => {
+    const advisory = {
+      code: 'RESERVED_ROUTE_VALUE',
+      field: 'slug',
+      severity: 'warning' as const,
+      message: 'This slug is reserved for a system route.',
+      acknowledgement: 'b'.repeat(64),
+    }
+    const heldCommand: PageBuilderCommand = { type: 'remove_block', block_id: 'blk_intro' }
+
+    function hold(): void {
+      advisoryReviewRef.value = {
+        command: heldCommand,
+        advisories: [advisory],
+        detail: 'This change needs review before it can be saved.',
+        operationId: '00000000-0000-4000-8000-000000000001',
+      }
+    }
+
+    it('renders each advisory field and message and holds editing while the review is open', async () => {
+      hold()
+      const wrapper = await mountWorkspace()
+
+      const banner = wrapper.get('[data-page-builder-advisory]')
+      expect(banner.text()).toContain('page_builder_advisory_title')
+      expect(banner.text()).toContain('page_builder_advisory_help')
+      expect(banner.text()).toContain('slug')
+      expect(banner.text()).toContain('This slug is reserved for a system route.')
+      // The received receipt is never rendered to the author.
+      expect(banner.text()).not.toContain(advisory.acknowledgement)
+      expect(wrapper.get('textarea').attributes('disabled')).toBeDefined()
+    })
+
+    it('retains the pending edit rather than discarding it when a save is held', async () => {
+      const wrapper = await mountWorkspace()
+      await wrapper.get('textarea').setValue('Reserved slug rewrite')
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+
+      hold()
+      await nextTick()
+
+      expect(wrapper.get('textarea').element.value).toBe('Reserved slug rewrite')
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+      expect(wrapper.emitted('saved')).toBeUndefined()
+      wrapper.unmount()
+    })
+
+    it('confirms through the composable and only then clears dirty state and announces the save', async () => {
+      const wrapper = await mountWorkspace()
+      await wrapper.get('textarea').setValue('Reserved slug rewrite')
+      hold()
+      await nextTick()
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+
+      await wrapper.get('[data-page-builder-advisory-confirm]').trigger('click')
+      await flushPromises()
+
+      expect(confirmAdvisoryReviewMock).toHaveBeenCalledOnce()
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([false])
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+      expect(loadHistoryMock).toHaveBeenCalled()
+      expect(wrapper.find('.sr-only').text()).toContain('page_builder_advisory_acknowledged')
+      wrapper.unmount()
+    })
+
+    it('leaves the document unsaved and the editor intact when the review is declined', async () => {
+      const wrapper = await mountWorkspace()
+      await wrapper.get('textarea').setValue('Reserved slug rewrite')
+      hold()
+      await nextTick()
+
+      await wrapper.get('[data-page-builder-advisory-decline]').trigger('click')
+      await flushPromises()
+
+      expect(declineAdvisoryReviewMock).toHaveBeenCalledOnce()
+      expect(confirmAdvisoryReviewMock).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-page-builder-advisory]').exists()).toBe(false)
+      expect(wrapper.get('textarea').element.value).toBe('Reserved slug rewrite')
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+      expect(wrapper.emitted('saved')).toBeUndefined()
+      wrapper.unmount()
+    })
+
+    it('keeps the pending edit dirty when an acknowledged retry is refused again', async () => {
+      confirmAdvisoryReviewMock.mockResolvedValue(false)
+      const wrapper = await mountWorkspace()
+      await wrapper.get('textarea').setValue('Reserved slug rewrite')
+      hold()
+      await nextTick()
+
+      await wrapper.get('[data-page-builder-advisory-confirm]').trigger('click')
+      await flushPromises()
+
+      expect(confirmAdvisoryReviewMock).toHaveBeenCalledOnce()
+      expect(wrapper.emitted('saved')).toBeUndefined()
+      expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+      expect(wrapper.get('textarea').element.value).toBe('Reserved slug rewrite')
+      wrapper.unmount()
+    })
+
+    it('presents an unsupported deployment as a configuration problem with no confirm affordance', async () => {
+      advisoryUnsupportedRef.value = 'This layout draft surface cannot accept save advisory acknowledgements.'
+      const wrapper = await mountWorkspace()
+
+      const banner = wrapper.get('[data-page-builder-advisory-unsupported]')
+      expect(banner.attributes('role')).toBe('alert')
+      expect(banner.text()).toContain('page_builder_advisory_unsupported_title')
+      expect(banner.text()).toContain('page_builder_advisory_unsupported_help')
+      expect(banner.findAll('button')).toHaveLength(0)
+      expect(wrapper.find('[data-page-builder-advisory-confirm]').exists()).toBe(false)
+      expect(wrapper.find('[data-page-builder-advisory]').exists()).toBe(false)
+    })
   })
 
   it('applies inspector changes as a guarded command and refreshes the exact preview', async () => {

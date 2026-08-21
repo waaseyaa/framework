@@ -46,6 +46,41 @@ describe('PageBuilderClient', () => {
     })
   })
 
+  it('omits the receipt key entirely for an ordinary save', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, data: draft })
+    const client = new PageBuilderClient('/admin/', fetch)
+
+    await client.command('page', '42', draft, { type: 'remove_block', block_id: 'blk_intro' }, 'operation-123', [])
+
+    const body = fetch.mock.calls[0]?.[1]?.body as Record<string, unknown>
+    expect(Object.keys(body).sort()).toEqual([
+      'command',
+      'expected_document_fingerprint',
+      'expected_entity_revision_id',
+      'idempotency_key',
+    ])
+  })
+
+  it('returns the received acknowledgements verbatim on the same bound retry', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, data: draft })
+    const client = new PageBuilderClient('/admin/', fetch)
+    const command = { type: 'remove_block', block_id: 'blk_intro' } as const
+    const receipts = ['b'.repeat(64), 'c'.repeat(64)]
+
+    await client.command('page', '42', draft, command, 'operation-123', receipts)
+
+    expect(fetch).toHaveBeenCalledWith('/admin/_surface/page-builder/page/42/commands', {
+      method: 'POST',
+      body: {
+        expected_entity_revision_id: 7,
+        expected_document_fingerprint: 'a'.repeat(64),
+        idempotency_key: 'operation-123',
+        command,
+        save_advisory_acknowledgements: receipts,
+      },
+    })
+  })
+
   it('requests preview for an exact persisted revision', async () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true, data: {} })
     const client = new PageBuilderClient('/admin/', fetch)

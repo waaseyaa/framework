@@ -293,10 +293,64 @@ before any surface call. An edit held for review answers `428` with
 `meta.save_advisories` projection the entity save path uses, so a client
 branches on one machine code regardless of which surface raised it. Receipts
 sent to a gateway that cannot carry them answer `501` with
-`code: SAVE_ADVISORY_UNSUPPORTED` and no token in the payload. The SPA prompt
-that renders a layout-draft advisory and returns its receipt is not yet built;
-the transport contract above is complete. See `docs/specs/save-advisories.md`
-§11.
+`code: SAVE_ADVISORY_UNSUPPORTED` and no token in the payload. See
+`docs/specs/save-advisories.md` §11.
+
+#### Layout save-advisory review in the editor (#2475)
+
+`PageBuilderSurfaceError` carries the closed `code` and `meta` allowlist, so the
+page-builder transport reads the advisory contract without widening to an index
+signature. `app/runtime/layoutSaveAdvisory.ts` is the only place the SPA reads
+those two machine codes; it is a *reader* and mints nothing.
+
+A held layout edit installs `advisoryReview` on `usePageBuilder`, holding the
+exact pending command together with the advisories that candidate produced. The
+workspace renders each advisory's `field` and `message` — never its token — and
+blocks further editing while the review is open, exactly as an optimistic-
+concurrency conflict does. It is **not** an embed lifecycle failure: nothing was
+written, so the pending edit stays dirty and no `failure` event is emitted.
+
+Confirming returns **exactly** the acknowledgement values received, on the same
+command, document fingerprint, entity revision, **and the same idempotency
+key**, via the client's optional `saveAdvisoryAcknowledgements` argument. The
+client omits the body key entirely when there are none, so an ordinary save
+sends the byte-identical body it always sent. The review is dropped before the
+retry, so a second `428` — the candidate moved underneath the author — installs
+the new advisory and its new receipts rather than replaying a superseded one.
+Tokens are never synthesized, rewritten, persisted, or carried to another
+candidate.
+
+A review chain is **one save attempt**. The idempotency key of the held attempt
+is retained on the review and reused for the acknowledged retry and for every
+further `428` in that chain; only the receipts change. This matches the server
+contract, where `LayoutDraftSaveAdvisoryTest` holds one key across the held
+attempt, a superseded-receipt refusal, and the successful retry. An advisory
+raised on a conflict replay retains *that* replay's key, not the original
+refused attempt's. A new key is minted only for a genuinely new save attempt —
+including the next attempt after the author declines.
+
+Declining clears the prompt and changes nothing else: no write, no draft
+replacement, and the edit stays dirty and unsaved. A rejected, superseded, or
+wrong receipt returns another `428` or an ordinary refusal; either way nothing
+is written. A malformed `meta.save_advisories` projection — one bad entry in the
+list, a token that is not lowercase 64-hex, more than 32 entries — is a refusal,
+not a partial review, so the editor can never present a review it cannot
+faithfully acknowledge.
+
+`501 SAVE_ADVISORY_UNSUPPORTED` sets `advisoryUnsupported` instead, rendered as
+a distinct configuration/capability notice with **no confirm affordance**. It is
+not an author-fixable validation error, and it is a real lifecycle failure
+(`{ kind: 'server', status: 501 }`).
+
+`AdminSpaLayoutAdvisoryContractTest` pins the two-language vocabulary — body
+keys, machine codes, the five projected advisory fields, the token shape, and
+the 32-receipt bound — against the real PHP host, so a rename on either side
+fails rather than silently breaking the editor.
+`e2e/page-builder-save-advisory.spec.ts` drives the five acceptance paths
+through the real editor in a browser. A page-builder surface is registered by
+the application rather than the framework, so there is no live surface in this
+repository to point at; the spec serves the command endpoint itself using the
+exact envelopes that contract test pins against the host.
 
 The Admin SPA client added by the subsequent work package consumes this same
 contract as Anokii. It must not use generic entity PATCH, a direct repository
