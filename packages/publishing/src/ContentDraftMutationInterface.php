@@ -9,14 +9,21 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 /**
  * Adapter seam for governed composite authoring services.
  *
- * This signature is frozen: applications implement it directly (page-builder
- * gateways, id-resolving decorators), so adding a parameter here — even an
- * optional one — is a load-time fatal for every existing implementor. Save
- * advisory acknowledgements therefore live on
- * {@see AdvisoryAwareContentDraftMutationInterface}, which extends this
- * contract instead of altering it.
+ * Applications implement this contract directly — page-builder gateways and
+ * id-resolving decorators — and {@see SaveAdvisoryAcknowledgementDispatcher}
+ * accepts it as a parameter, so it is a supported public extension point.
  *
- * @internal Adapter seam for governed composite authoring services.
+ * **The five-parameter `updateDraft()` signature is frozen.** PHP checks an
+ * implementing method against every parameter its interface declares, so adding
+ * a parameter here — even a trailing optional one — is a load-time fatal for
+ * every existing implementor. Save advisory acknowledgements therefore live on
+ * {@see AdvisoryAwareContentDraftMutationInterface}, which extends this contract
+ * instead of altering it. Future capability arrives the same way: a further
+ * extending interface or a value object, never a parameter added here.
+ *
+ * See docs/specs/save-advisories.md §10 for the full compatibility promise.
+ *
+ * @api
  */
 interface ContentDraftMutationInterface
 {

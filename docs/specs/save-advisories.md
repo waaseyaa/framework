@@ -269,3 +269,46 @@ rather than implemented by applications. Existing `SaveContext`, JSON:API,
 Admin transport, publishing, MCP, and migration callers retain their previous
 behavior when they provide no advisory policy or acknowledgement data. Existing
 response bodies remain unchanged outside the new typed failure path.
+
+## 10. Public compatibility promise for the draft-mutation seam
+
+The draft-mutation seam is a **public** extension point in
+`docs/public-surface-map.php`. Four elements carry that classification together,
+and they must stay consistent: a public entry point may not require a consumer
+to implement an internal contract.
+
+| Element | Kind | Disposition |
+|---|---|---|
+| `ContentDraftMutationInterface` | interface consumers implement | public |
+| `AdvisoryAwareContentDraftMutationInterface` | extending interface consumers opt into | public |
+| `SaveAdvisoryAcknowledgementDispatcher` | entry point consumers call | public |
+| `UnsupportedSaveAdvisoryAcknowledgementException` | typed refusal consumers catch | public |
+
+The promise, binding under charter §3.1 (a public-surface break needs a
+deprecation cycle, a shim or an argued infeasibility, an upgrade-guide entry,
+and a `## Breaking changes` release listing):
+
+1. **The base `updateDraft()` is frozen at five parameters** —
+   `(AuthorizationPrincipalInterface $actor, string $id, array $values, int $expectedRevisionId, string $idempotencyKey)`.
+   PHP checks an implementing method against every parameter its interface
+   declares, so adding even a trailing optional parameter is a load-time fatal
+   for existing implementors. It is a breaking change, not an additive one.
+2. **Acknowledgement support is opt-in through the extending interface.**
+   Implementing `AdvisoryAwareContentDraftMutationInterface` is how a surface
+   declares it can carry receipts. Not implementing it stays fully supported.
+3. **Callers use the dispatcher and never silently discard receipts.**
+   `SaveAdvisoryAcknowledgementDispatcher::updateDraft()` calls the ordinary
+   five-argument method when no receipts are supplied and requires the extension
+   when they are; otherwise it throws
+   `UnsupportedSaveAdvisoryAcknowledgementException` (`SAVE_ADVISORY_UNSUPPORTED`)
+   before any write. Dropping receipts to make a call succeed would silently
+   re-raise an advisory the caller already reviewed, and is forbidden.
+4. **Future capability additions require a new extending interface or a value
+   object** — never mutation of an existing implementor's signature. If a
+   capability needs more than one new parameter, introduce a parameter object
+   rather than a second extension.
+
+`DraftMutationPublicSurfaceTest` enforces the classifications and the exact
+method shapes. Revision history and preview seams
+(`ContentRevisionHistoryInterface`, `ContentRevisionPreviewInterface`) remain
+internal: no public entry point takes them as a parameter.

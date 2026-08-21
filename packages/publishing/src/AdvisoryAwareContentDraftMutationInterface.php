@@ -17,7 +17,13 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
  * {@see SaveAdvisoryAcknowledgementDispatcher::updateDraft()}, which fails
  * closed rather than dropping receipts.
  *
- * @internal Advisory-carrying extension of the governed authoring seam.
+ * Opting in is the only supported way to carry receipts: the base contract stays
+ * frozen, and this extension is itself frozen at six parameters. A future
+ * capability gets its own extending interface.
+ *
+ * See docs/specs/save-advisories.md §10.
+ *
+ * @api
  */
 interface AdvisoryAwareContentDraftMutationInterface extends ContentDraftMutationInterface
 {

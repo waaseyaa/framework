@@ -111,6 +111,32 @@ Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha2
 
 `waaseyaa/publishing` owns the `waaseyaa.publishing.preview-hmac.v1` purpose in the application-master rekey roster through `PublishingPreviewRekeyAdapter` — the framework's sole `ephemeral-no-persistence` purpose. Preview grants are stateless: there are no persisted rows to transition or export, so the adapter snapshots exactly zero records and refuses transition and rollback batches. Its purpose policy declares owner `waaseyaa/publishing`, lifetime and retention equal to the 30-minute maximum grant lifetime, and rollback behavior `verify-declared-version-until-expiry` — grants issued under a predecessor master version stay verifiable through their lifetime because reads accept any keyring-declared version. Coordinator and keyring mechanics live in `docs/specs/infrastructure.md`.
 
+### Draft-mutation seam (public extension point)
+
+`ContentDraftMutationInterface` is the adapter seam applications implement to
+compose their own authoring services — id-resolving decorators and page-builder
+gateways. It is classified **public** in `docs/public-surface-map.php`, because
+`SaveAdvisoryAcknowledgementDispatcher` is an `@api` entry point that takes it
+as a parameter, and a public entry point may not require consumers to implement
+an internal contract.
+
+Its five-parameter `updateDraft()` is **frozen**. PHP checks an implementing
+method against every parameter its interface declares, so adding even a trailing
+optional parameter is a load-time fatal for every existing implementor — a
+breaking change, not an additive one. Acknowledgement support is therefore opt-in
+through `AdvisoryAwareContentDraftMutationInterface`, which extends the frozen
+contract; `ContentPublisher` implements the extension. Callers route through
+`SaveAdvisoryAcknowledgementDispatcher::updateDraft()`, which calls the ordinary
+five-argument method when no receipts are supplied, requires the extension when
+they are, and otherwise throws `UnsupportedSaveAdvisoryAcknowledgementException`
+(`SAVE_ADVISORY_UNSUPPORTED`) before any write rather than discarding receipts.
+
+`ContentRevisionHistoryInterface` and `ContentRevisionPreviewInterface` remain
+internal: no public entry point takes them as a parameter.
+
+The full compatibility promise, including how future capability must be added,
+is in `docs/specs/save-advisories.md` §10.
+
 ### Audit
 
 Every successful mutation records via `AuditWriterInterface` (best-effort): kinds `content.draft_saved`, `content.published`, `content.unpublished`, `content.rolled_back`; preview issuance records `content.preview_issued`. Subject URI `/content/{entityType}/{id}`; attributes carry `revision_id`, `slug` — never body content, never credentials. (These app-visible kinds are additive `AuditEventKind` cases.) The MCP transport already records `mcp.dispatch` (hashed params) + `agent.tool_execute` per call.

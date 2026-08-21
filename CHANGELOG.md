@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — the draft-mutation seam is a supported public extension point
+  (#2467):** `SaveAdvisoryAcknowledgementDispatcher` is `@api` and takes
+  `ContentDraftMutationInterface` as a parameter, but that interface and its
+  advisory-aware extension were classified `internal`. A public entry point
+  cannot require consumers to implement internal parameter contracts — that
+  reproduced the very compatibility hazard the seam split was meant to close,
+  since an internal contract may be reshaped without notice while applications
+  are obliged to implement it. `ContentDraftMutationInterface`,
+  `AdvisoryAwareContentDraftMutationInterface`, the dispatcher, and
+  `UnsupportedSaveAdvisoryAcknowledgementException` are now classified `public`
+  and carry `@api`, binding future changes to the charter §3.1 process. The
+  compatibility promise is written down in `docs/specs/save-advisories.md` §10:
+  the five-parameter base `updateDraft()` is frozen, acknowledgement support is
+  opt-in through the extending interface, callers go through the dispatcher and
+  never discard receipts, and future capability arrives as a further extending
+  interface or a value object rather than a parameter added to an existing
+  implementor signature. `ContentRevisionHistoryInterface` and
+  `ContentRevisionPreviewInterface` stay internal: no public entry point takes
+  them as a parameter.
+
 - **Fixed — the draft-mutation seam stays source-compatible for applications
   (#2467):** a trailing optional parameter is safe for callers but not for
   implementors — PHP checks an implementing method against every parameter its

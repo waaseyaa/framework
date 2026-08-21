@@ -602,8 +602,19 @@ return [
     'Waaseyaa\PageBuilder\Command\EditCommand' => 'public',
     'Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface' => 'public',
     'Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface' => 'public',
-    'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'internal',
-    'Waaseyaa\Publishing\AdvisoryAwareContentDraftMutationInterface' => 'internal',
+    // Draft-mutation seam (#2467): applications implement these directly, and
+    // `SaveAdvisoryAcknowledgementDispatcher` is an @api entry point that takes
+    // the base contract as a parameter. A public entry point may not require
+    // implementing an internal parameter contract, so the seam is public and its
+    // five-parameter `updateDraft()` shape is frozen — new capability arrives as
+    // a further extending interface, never as a parameter added to an existing
+    // implementor signature. See docs/specs/save-advisories.md §10.
+    'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'public',
+    'Waaseyaa\Publishing\AdvisoryAwareContentDraftMutationInterface' => 'public',
+    'Waaseyaa\Publishing\SaveAdvisoryAcknowledgementDispatcher' => 'public',
+    'Waaseyaa\Publishing\Exception\UnsupportedSaveAdvisoryAcknowledgementException' => 'public',
+    // Revision history/preview seams stay internal: no @api entry point takes
+    // them as a parameter, and no consumer implements them under support.
     'Waaseyaa\Publishing\ContentRevisionHistoryInterface' => 'internal',
     'Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => 'public',
     'Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface' => 'public',
