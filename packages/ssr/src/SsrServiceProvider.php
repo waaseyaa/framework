@@ -28,6 +28,7 @@ use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\Flash\Flash;
 use Waaseyaa\SSR\Flash\FlashMessageService;
+use Waaseyaa\SSR\Http\CanonicalPublicOrigin;
 use Waaseyaa\SSR\Http\Router\AppControllerRouter;
 use Waaseyaa\SSR\Http\Router\SsrRouter;
 use Waaseyaa\SSR\Http\SeoPublicController;
@@ -46,6 +47,14 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
 
     public function register(): void
     {
+        $canonicalOrigin = CanonicalPublicOrigin::tryFromTrustedConfig($this->config);
+        if ($canonicalOrigin !== null) {
+            $this->singleton(
+                CanonicalPublicOrigin::class,
+                static fn(): CanonicalPublicOrigin => $canonicalOrigin,
+            );
+        }
+
         if ($this->projectRoot !== '') {
             $this->kernelTwigEnvironment = ThemeServiceProvider::getTwigEnvironment()
                 ?? self::createTwigEnvironment($this->projectRoot, $this->config);

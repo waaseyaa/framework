@@ -1,4 +1,5 @@
 # App controller invocation (SSR `Class::method`)
+<!-- Spec reviewed 2026-08-20 - #2151: SeoPublicController constructor gains an optional trailing CanonicalPublicOrigin (trusted config / APP_URL only). robotsTxt() still takes no request arguments, so Host / Forwarded / X-Forwarded-Host cannot select the Sitemap origin. App-controller discovery, argument resolution, invocation, and error behavior are unchanged. -->
 <!-- Spec reviewed 2026-08-16 - #2113: SsrServiceProvider threads the boot-scoped InternalFieldVisibilityPolicy into SsrPageHandler's Markdown ResourceSerializer. This only unifies field projection metadata with Admin/JSON:API; application-controller discovery, argument resolution, invocation, and error behavior are unchanged. -->
 
 

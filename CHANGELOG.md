@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — `/robots.txt` now advertises an absolute sitemap URL (#2151):**
+  `SeoPublicController::robotsTxt()` emitted `Sitemap: /sitemap.xml`. The
+  sitemaps protocol requires an absolute URL, and crawlers ignore a relative
+  value, so autodiscovery silently failed. The controller now takes an optional
+  `CanonicalPublicOrigin` resolved from trusted `api_catalog.base_url`,
+  `APP_URL`, or `app.url` — never from `Host`, `Forwarded`, or
+  `X-Forwarded-Host`. Trailing slashes and an optional base path are
+  normalized. Missing or invalid configuration omits the `Sitemap:` line
+  rather than emitting a relative or attacker-controlled URL. `/sitemap.xml`
+  generation is unchanged. Existing `new SeoPublicController($entityTypeManager)`
+  callers remain compatible.
+
 - **Fixed — legacy aggregates can now be repaired before ordinary boot (#2460):**
   the explicit restricted command `entity:backfill-mutation-authorities` accepts
   a required audit reason and creates only missing aggregate authorities. It
