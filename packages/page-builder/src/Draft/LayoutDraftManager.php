@@ -27,6 +27,13 @@ final readonly class LayoutDraftManager
         return $this->hydrate($this->gateway->read($actor, $entityId));
     }
 
+    /**
+     * @param list<string> $saveAdvisoryAcknowledgements Exact candidate-bound
+     *        receipts for advisories this edit has already reviewed. Routed
+     *        through {@see LayoutSaveAdvisoryAcknowledgementDispatcher}, which
+     *        refuses rather than dropping them on a gateway that cannot carry
+     *        them.
+     */
     public function apply(
         AuthorizationPrincipalInterface $actor,
         string $entityId,
@@ -34,6 +41,7 @@ final readonly class LayoutDraftManager
         string $expectedDocumentFingerprint,
         EditCommand $command,
         string $idempotencyKey,
+        array $saveAdvisoryAcknowledgements = [],
     ): LayoutDraft {
         if ($expectedEntityRevisionId < 1 || '' === $idempotencyKey) {
             throw new \InvalidArgumentException('A positive expected entity revision and idempotency key are required.');
@@ -45,12 +53,14 @@ final readonly class LayoutDraftManager
         }
 
         $edited = $this->editor->apply($current->document, $expectedDocumentFingerprint, $command);
-        $saved = $this->gateway->update(
+        $saved = LayoutSaveAdvisoryAcknowledgementDispatcher::update(
+            $this->gateway,
             $actor,
             $entityId,
             $this->codec->encode($edited->document()),
             $expectedEntityRevisionId,
             $idempotencyKey,
+            $saveAdvisoryAcknowledgements,
         );
 
         return $this->hydrate($saved);

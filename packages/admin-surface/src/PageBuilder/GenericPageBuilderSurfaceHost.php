@@ -7,8 +7,10 @@ namespace Waaseyaa\AdminSurface\PageBuilder;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\PageBuilder\Draft\Exception\InvalidStoredLayoutException;
+use Waaseyaa\PageBuilder\Draft\Exception\LayoutSaveAdvisoryException;
 use Waaseyaa\PageBuilder\Draft\Exception\PageBuilderDraftNotFoundException;
 use Waaseyaa\PageBuilder\Draft\Exception\StaleEntityRevisionException;
+use Waaseyaa\PageBuilder\Draft\Exception\UnsupportedLayoutSaveAdvisoryAcknowledgementException;
 use Waaseyaa\PageBuilder\Draft\LayoutDraft;
 use Waaseyaa\PageBuilder\Editor\Exception\InvalidEditCommandException;
 use Waaseyaa\PageBuilder\Editor\Exception\StaleDocumentFingerprintException;
@@ -24,6 +26,9 @@ use Waaseyaa\PageBuilder\Wire\Exception\InvalidWireCommandException;
 final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurfaceHostInterface
 {
     private const int MAX_BODY_BYTES = 1_048_576;
+
+    /** Matches the SaveContext acknowledgement bound. */
+    private const int MAX_SAVE_ADVISORY_RECEIPTS = 32;
 
     public function __construct(
         private PageBuilderSurfaceRegistry $surfaces,
@@ -52,7 +57,7 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
                 'expected_document_fingerprint',
                 'idempotency_key',
                 'command',
-            ]);
+            ], ['save_advisory_acknowledgements']);
             $expectedRevision = $this->positiveInt($payload, 'expected_entity_revision_id');
             $fingerprint = $this->string($payload, 'expected_document_fingerprint');
             if (1 !== preg_match('/^[a-f0-9]{64}$/D', $fingerprint)) {
@@ -70,6 +75,7 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
                 $fingerprint,
                 $this->commands->decode($commandPayload),
                 $this->string($payload, 'idempotency_key'),
+                $this->saveAdvisoryAcknowledgements($payload),
             ));
         });
     }
@@ -138,6 +144,21 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
             return AdminSurfaceResultData::error(404, 'Page history not available')->toArray();
         } catch (PageBuilderAccessDeniedException) {
             return AdminSurfaceResultData::error(403, 'Page builder access denied')->toArray();
+        } catch (LayoutSaveAdvisoryException $exception) {
+            return AdminSurfaceResultData::error(
+                428,
+                'Precondition Required',
+                $exception->getMessage(),
+                LayoutSaveAdvisoryException::ERROR_CODE,
+                saveAdvisories: $exception->advisoryPayloads(),
+            )->toArray();
+        } catch (UnsupportedLayoutSaveAdvisoryAcknowledgementException $exception) {
+            return AdminSurfaceResultData::error(
+                501,
+                'Save advisory acknowledgement unsupported',
+                $exception->getMessage(),
+                UnsupportedLayoutSaveAdvisoryAcknowledgementException::ERROR_CODE,
+            )->toArray();
         } catch (StaleEntityRevisionException|StaleDocumentFingerprintException) {
             return AdminSurfaceResultData::error(409, 'Page changed', 'Reload or compare the newer draft before applying this edit.')->toArray();
         } catch (InvalidEditCommandException|InvalidStoredLayoutException) {
@@ -147,8 +168,12 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
         }
     }
 
-    /** @param list<string> $expected @return array<string, mixed> */
-    private function body(PageBuilderSurfaceRequest $request, array $expected): array
+    /**
+     * @param list<string> $expected Keys that must all be present.
+     * @param list<string> $optional Keys that may be present.
+     * @return array<string, mixed>
+     */
+    private function body(PageBuilderSurfaceRequest $request, array $expected, array $optional = []): array
     {
         $content = $request->content;
         if ('' === $content || strlen($content) > self::MAX_BODY_BYTES) {
@@ -159,9 +184,10 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
             throw new InvalidWireCommandException('Request body must be a JSON object.');
         }
         $actual = array_keys($payload);
-        sort($actual, SORT_STRING);
-        sort($expected, SORT_STRING);
-        if ($actual !== $expected) {
+        if (
+            array_diff($expected, $actual) !== []
+            || array_diff($actual, [...$expected, ...$optional]) !== []
+        ) {
             throw new InvalidWireCommandException('Request fields do not match the page-builder contract.');
         }
 
@@ -187,6 +213,30 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
             throw new InvalidWireCommandException("{$key} must be a non-empty string.");
         }
 
+        return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return list<string>
+     */
+    private function saveAdvisoryAcknowledgements(array $payload): array
+    {
+        $value = $payload['save_advisory_acknowledgements'] ?? [];
+        if (!is_array($value) || !array_is_list($value) || count($value) > self::MAX_SAVE_ADVISORY_RECEIPTS) {
+            throw new InvalidWireCommandException(
+                'save_advisory_acknowledgements must be a list of at most 32 acknowledgement tokens.',
+            );
+        }
+        foreach ($value as $token) {
+            if (!is_string($token) || preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) {
+                throw new InvalidWireCommandException(
+                    'Each save advisory acknowledgement must be a lowercase 64-character hexadecimal token.',
+                );
+            }
+        }
+
+        /** @var list<string> $value */
         return $value;
     }
 

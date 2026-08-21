@@ -45,6 +45,7 @@ final readonly class PageBuilderSurface
         return $this->drafts->read($actor, $entityId);
     }
 
+    /** @param list<string> $saveAdvisoryAcknowledgements Exact candidate-bound receipts. */
     public function apply(
         AuthorizationPrincipalInterface $actor,
         string $entityId,
@@ -52,6 +53,7 @@ final readonly class PageBuilderSurface
         string $expectedDocumentFingerprint,
         EditCommand $command,
         string $idempotencyKey,
+        array $saveAdvisoryAcknowledgements = [],
     ): LayoutDraft {
         $this->assertAllowed($actor);
 
@@ -62,6 +64,7 @@ final readonly class PageBuilderSurface
             $expectedDocumentFingerprint,
             $command,
             $idempotencyKey,
+            $saveAdvisoryAcknowledgements,
         );
     }
 
