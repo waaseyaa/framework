@@ -16,6 +16,7 @@ use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncSerializer;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
 use Waaseyaa\Workflows\Config\WorkflowAssignmentsSemanticValidator;
@@ -216,6 +217,51 @@ final class WorkflowAssignmentsConfigTest extends TestCase
         $consumer->freeze();
 
         $result = new ConfigSyncBundleValidator($consumer)->validate($this->directory);
+
+        self::assertFalse($result->isValid());
+        self::assertStringContainsString('schema or package identity does not match', $result->diagnostics[0]->message);
+    }
+
+    #[Test]
+    public function register_has_no_structural_only_call_shape(): void
+    {
+        $method = new \ReflectionMethod(WorkflowAssignmentsConfig::class, 'register');
+
+        self::assertSame(2, $method->getNumberOfParameters());
+        self::assertSame(2, $method->getNumberOfRequiredParameters());
+        $entityTypeParameter = $method->getParameters()[1]->getType();
+        self::assertInstanceOf(\ReflectionNamedType::class, $entityTypeParameter);
+        self::assertSame(EntityTypeManagerInterface::class, $entityTypeParameter->getName());
+        self::assertFalse($entityTypeParameter->allowsNull());
+    }
+
+    #[Test]
+    public function an_unguarded_assignment_identity_is_stale_on_a_guarded_host(): void
+    {
+        $unguarded = new ConfigSchemaRegistry();
+        $structural = $unguarded->register(
+            WorkflowAssignmentsConfig::CONFIG_NAME,
+            WorkflowAssignmentsConfig::SCHEMA_VERSION,
+            WorkflowAssignmentsConfig::OWNER_PACKAGE,
+            WorkflowAssignmentsConfig::OWNER_CONFIG_CONTRACT_VERSION,
+            WorkflowAssignmentsConfig::schema(),
+        );
+        $unguarded->freeze();
+        // The unguarded dialect hash is a known stale identity: content
+        // authored without the semantic contract cannot verify on a host that
+        // binds one. Do not treat this digest as a supported import target.
+        self::assertSame(
+            'sha256:3fcffba9f5345fa2dd56829e74bdfdab0434248ba310c63af485c102a2ecc630',
+            $structural->canonicalSchemaHash,
+        );
+        $file = $this->file($structural, ['node.page' => 'editorial']);
+        file_put_contents($this->directory.'/'.$file->filename(), new ConfigSyncSerializer()->toYaml($file));
+
+        $guarded = new ConfigSchemaRegistry();
+        WorkflowAssignmentsConfig::register($guarded, $this->entityTypes());
+        $guarded->freeze();
+
+        $result = new ConfigSyncBundleValidator($guarded)->validate($this->directory);
 
         self::assertFalse($result->isValid());
         self::assertStringContainsString('schema or package identity does not match', $result->diagnostics[0]->message);
