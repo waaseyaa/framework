@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — Admin embed lifecycle keeps validation distinct from server failure
+  and recovers after a stale scoped schema miss (#2455):** non-advisory HTTP
+  422 is classified and emitted as `validation`, while merged save-advisory
+  HTTP 428 review remains a dirty, unsaved retry. `useSchema.fetch()` clears a
+  prior error or failure before returning a cached or in-flight schema so a
+  later successful scope can render the form.
+
 - **Added — safe same-origin Admin embed lifecycle (#2455):** the canonical
   shell-free entity editor and page builder now expose one versioned,
   observation-only lifecycle envelope for ready, dirty, saved, deleted, and

@@ -26,6 +26,8 @@ export function useSchema(entityType: string) {
 
   async function fetch(scope?: SchemaScope) {
     const key = cacheKey(scope)
+    error.value = null
+    failure.value = null
 
     if (schemaCache.has(key)) {
       schema.value = schemaCache.get(key)!
@@ -40,8 +42,6 @@ export function useSchema(entityType: string) {
     }
 
     loading.value = true
-    error.value = null
-    failure.value = null
 
     try {
       // FR-001: register the in-flight Promise before awaiting.

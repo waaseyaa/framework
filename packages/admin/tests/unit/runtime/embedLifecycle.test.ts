@@ -64,6 +64,8 @@ describe('embed lifecycle protocol', () => {
     [401, 'session-expired'],
     [403, 'permission-denied'],
     [409, 'conflict'],
+    [422, 'validation'],
+    [428, 'server'],
     [503, 'server'],
   ] as const)('classifies HTTP %s without carrying response detail', (status, kind) => {
     expect(classifyEmbedFailure({ status, data: { secret: 'must not cross' } })).toEqual({ kind, status })

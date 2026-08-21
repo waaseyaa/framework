@@ -1,7 +1,7 @@
 export const EMBED_LIFECYCLE_SCHEMA = 'waaseyaa.admin.embed.lifecycle.v1' as const
 
 export type EmbedSurface = 'entity-editor' | 'page-builder'
-export type EmbedFailureKind = 'session-expired' | 'permission-denied' | 'conflict' | 'network' | 'server'
+export type EmbedFailureKind = 'session-expired' | 'permission-denied' | 'conflict' | 'validation' | 'network' | 'server'
 
 export interface EmbedFailure {
   kind: EmbedFailureKind
@@ -63,6 +63,7 @@ export function classifyEmbedFailure(value: unknown): EmbedFailure {
   if (status === 401) return { kind: 'session-expired', status }
   if (status === 403) return { kind: 'permission-denied', status }
   if (status === 409) return { kind: 'conflict', status }
+  if (status === 422) return { kind: 'validation', status }
   if (status !== undefined) return { kind: 'server', status }
   if (isNetworkFailure(value)) return { kind: 'network' }
   return { kind: 'server' }

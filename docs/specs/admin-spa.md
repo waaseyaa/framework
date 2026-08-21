@@ -1530,9 +1530,9 @@ The closed event vocabulary is `ready`, `dirty`, `saved`, `deleted`, and
 `failure`; the surface is `entity-editor` or `page-builder`. Identity fields are
 limited to the applicable entity type, surface id, and entity id. A dirty event
 contains one boolean. A failure contains only a closed kind (`session-expired`,
-`permission-denied`, `conflict`, `network`, or `server`) and an optional HTTP
-status. Content values, field names, validation details, policy reasons,
-response bodies, credentials, and tokens are forbidden.
+`permission-denied`, `conflict`, `validation`, `network`, or `server`) and an
+optional HTTP status. Content values, field names, validation details, policy
+reasons, response bodies, credentials, and tokens are forbidden.
 
 The child posts only to `window.parent` with `window.location.origin`, and only
 when it is framed. A host must accept a lifecycle event only when both
@@ -1545,11 +1545,13 @@ delete, validation, workflow, revision, and conflict authority.
 reads. Entity-form edits and unsaved page-builder configuration emit dirty state;
 a successful persistence boundary returns dirty to false before `saved`. Initial
 or later authentication loss is `session-expired`; a 403 is
-`permission-denied`; an optimistic-concurrency refusal is `conflict`; a request
-that received no HTTP response is `network`; other failures collapse to
-`server`. The parent may use these states to render chrome, refresh identity-only
-lists, and confirm close. It must not infer access from readiness or inspect the
-iframe DOM.
+`permission-denied`; an optimistic-concurrency refusal is `conflict`; a
+non-advisory HTTP 422 is `validation`; a request that received no HTTP response
+is `network`; other failures collapse to `server`. An advisory-acknowledgement
+HTTP 428 is not a lifecycle failure: the canonical form keeps dirty state and
+retries the same candidate after acknowledgement. The parent may use these
+states to render chrome, refresh identity-only lists, and confirm close. It must
+not infer access from readiness or inspect the iframe DOM.
 
 During the compatibility interval the entity editor also emits the historical
 `waaseyaa.entity-editor.saved` and `waaseyaa.entity-editor.deleted` identity-only

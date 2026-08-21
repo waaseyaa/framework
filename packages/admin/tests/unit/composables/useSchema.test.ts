@@ -235,4 +235,66 @@ describe('useSchema() in-flight deduplication', () => {
     expect(callCount).toBe(2)
     expect(composable.error.value).toBeNull()
   })
+
+  it('clears a stale scoped failure before returning a successfully cached schema', async () => {
+    const mockSchemaFn = vi.fn().mockImplementation((_type: string, scope?: { bundle?: string }) => {
+      if (scope?.bundle === 'page') {
+        return Promise.reject(Object.assign(new Error('schema unavailable'), { status: 500 }))
+      }
+      return Promise.resolve({ ...userSchema, title: 'Post' })
+    })
+    vi.doMock('~/composables/useAdminRuntime', () => ({
+      ADMIN_RUNTIME_UNAVAILABLE_MESSAGE,
+      requireAdminRuntime: () => ({ transport: { schema: mockSchemaFn } }),
+    }))
+
+    const { useSchema } = await import('~/composables/useSchema')
+    const composable = useSchema('stale_cached_scope')
+
+    await composable.fetch({ bundle: 'post' })
+    expect(composable.schema.value?.title).toBe('Post')
+    expect(composable.error.value).toBeNull()
+    expect(composable.failure.value).toBeNull()
+
+    await composable.fetch({ bundle: 'page' })
+    expect(composable.error.value).toBeTruthy()
+    expect(composable.failure.value).toMatchObject({ kind: 'server', status: 500 })
+
+    await composable.fetch({ bundle: 'post' })
+    expect(mockSchemaFn).toHaveBeenCalledTimes(2)
+    expect(composable.schema.value?.title).toBe('Post')
+    expect(composable.error.value).toBeNull()
+    expect(composable.failure.value).toBeNull()
+  })
+
+  it('clears a stale scoped failure before joining an in-flight schema fetch', async () => {
+    let resolvePost!: (schema: object) => void
+    const mockSchemaFn = vi.fn().mockImplementation((_type: string, scope?: { bundle?: string }) => {
+      if (scope?.bundle === 'page') {
+        return Promise.reject(Object.assign(new Error('schema unavailable'), { status: 500 }))
+      }
+      return new Promise((resolve) => { resolvePost = resolve })
+    })
+    vi.doMock('~/composables/useAdminRuntime', () => ({
+      ADMIN_RUNTIME_UNAVAILABLE_MESSAGE,
+      requireAdminRuntime: () => ({ transport: { schema: mockSchemaFn } }),
+    }))
+
+    const { useSchema } = await import('~/composables/useSchema')
+    const failed = useSchema('stale_inflight_scope')
+    const live = useSchema('stale_inflight_scope')
+
+    await failed.fetch({ bundle: 'page' })
+    expect(failed.failure.value).toMatchObject({ kind: 'server', status: 500 })
+
+    const first = live.fetch({ bundle: 'post' })
+    const second = failed.fetch({ bundle: 'post' })
+    resolvePost({ ...userSchema, title: 'Post' })
+    await Promise.all([first, second])
+
+    expect(mockSchemaFn).toHaveBeenCalledTimes(2)
+    expect(failed.schema.value?.title).toBe('Post')
+    expect(failed.error.value).toBeNull()
+    expect(failed.failure.value).toBeNull()
+  })
 })

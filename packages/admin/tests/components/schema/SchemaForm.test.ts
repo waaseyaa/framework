@@ -671,7 +671,9 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
     await flushPromises()
     // Should emit an error event
     expect(wrapper.emitted('error')).toBeTruthy()
-    expect(wrapper.emitted('failure')?.[0]?.[0]).toMatchObject({ kind: 'server', status: 422 })
+    expect(wrapper.emitted('saved')).toBeUndefined()
+    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+    expect(wrapper.emitted('failure')?.[0]?.[0]).toMatchObject({ kind: 'validation', status: 422 })
   })
 })
 

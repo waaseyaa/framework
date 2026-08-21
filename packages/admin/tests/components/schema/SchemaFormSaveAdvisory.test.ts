@@ -68,6 +68,8 @@ describe('SchemaForm save advisory acknowledgement', () => {
     expect(review.attributes('role')).toBe('status')
     expect(review.text()).toContain('The short route is reserved')
     expect(wrapper.emitted('saved')).toBeUndefined()
+    expect(wrapper.emitted('failure')).toBeUndefined()
+    expect(wrapper.emitted('dirty')).toEqual([[true]])
     expect(payloads).toEqual([{ attributes: { title: 'News' } }])
 
     await review.get('button').trigger('click')
@@ -79,6 +81,8 @@ describe('SchemaForm save advisory acknowledgement', () => {
       { attributes: { title: 'News' }, save_advisory_acknowledgements: [TOKEN] },
     ])
     expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ id: '7' })
+    expect(wrapper.emitted('failure')).toBeUndefined()
+    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([false])
   })
 
   it('clears a pending review when the operator edits the candidate', async () => {
@@ -154,5 +158,7 @@ describe('SchemaForm save advisory acknowledgement', () => {
 
     expect(wrapper.find('[data-testid="save-advisory-review"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Reload the entity before attempting this mutation.')
+    expect(wrapper.emitted('saved')).toBeUndefined()
+    expect(wrapper.emitted('failure')?.[0]?.[0]).toMatchObject({ kind: 'server', status: 428 })
   })
 })

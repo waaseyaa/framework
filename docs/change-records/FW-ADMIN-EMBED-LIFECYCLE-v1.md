@@ -33,11 +33,12 @@ refresh, and close confirmation; it cannot command a save, bypass access, or
 inspect iframe DOM. Legacy entity-editor saved/deleted identity notifications
 remain during the compatibility interval.
 
-Session expiry, permission refusal, optimistic conflict, network failure, and
-server failure are distinct bounded states. Unknown failures collapse to a
-generic server failure. A host must validate both `event.origin` and
-`event.source`; this child-side contract does not make a parent trustworthy by
-origin alone.
+Session expiry, permission refusal, optimistic conflict, validation refusal,
+network failure, and server failure are distinct bounded states. Unknown
+failures collapse to a generic server failure. A non-advisory HTTP 422 is
+validation; an advisory-acknowledgement HTTP 428 is not a lifecycle failure. A
+host must validate both `event.origin` and `event.source`; this child-side
+contract does not make a parent trustworthy by origin alone.
 
 ## External interlock
 
@@ -53,29 +54,40 @@ reconciled, and the same Framework cohort passes Sheguiandah acceptance.
 
 ## Framework candidate checkpoint
 
+Historical unique commits on `cf4bd663ae5fa96b11683e48fdd487b6214ee192`:
+
 - retained-red contract commit: `596f81123`;
 - source implementation commit: `50ed16112`;
-- governed distribution commit: `fff4fb5af`;
+- governed distribution commit: `fff4fb5af` (skipped during current-main
+  replay; dist was rebuilt once after source resolution);
+- evidence commit: `1775cc116`.
+
+Transplant onto `44e9b34c43abc7f854ccf409c937a7f000dab7c2`:
+
+- retained-red contract commit: `7c7364207`;
+- source implementation commit: `30b7e5217`;
+- evidence commit: `bec4e503d`.
+
+Current-main remediation then classifies non-advisory HTTP 422 as `validation`
+and clears stale `useSchema` error/failure before cache or in-flight returns,
+while preserving merged #2468 advisory HTTP 428 review.
+
 - Admin distribution source signature:
-  `88c27482bc22e8e33054dfc2cbe3e5719e0513ecf9eba5827ef82def5eab9682`;
+  `fc324a6c558a2e4211adeb51baac1ec9879a5f6e93a8a4abf5ea9a2644e449a1`;
 - two clean hermetic builds produced the same complete distribution digest:
-  `22d59ca4d9520f310c39a8f1c87c97e2e5096aad66d5ab38273e4a6707456185`.
+  `a927a9304349894226802023d59dda4fd20a51904f34a129338f733c53c20418`.
 
-Verification on PHP 8.5.9 and Node 24.19.0:
+Verification on PHP 8.5.8 and Node 24.19.0 after the transplant and
+remediation:
 
-- Admin Vitest: 90 files, 622 tests, green;
-- Admin typecheck and lint: green (lint retains the repository warning
-  baseline, zero errors);
-- Admin Surface Unit: 231 tests, 1,049 assertions, green;
-- Integration: 2,008 tests, 8,876 assertions, green;
-- Architecture: 282 tests, 24,264 assertions, one environment skip, green;
-- full preflight: 33 gates, including PHPStan and dead-code, green;
-- Unit: 11,721 tests and 231,852 assertions completed with one reproducible
-  untouched baseline failure in
-  `AnthropicProviderTransportTest::withoutALowSpeedGuardAStalledStreamHoldsTheWorkerForTheWholeTotal`;
-  the test expects a three-second total bound but this host's cURL transfer ends
-  at the one-second connect bound. No #2455 file is in that package or test.
+- focused embed lifecycle, SchemaForm, save-advisory, and useSchema
+  regressions: 48 tests, green;
+- Admin Vitest: 93 files, 645 tests, green;
+- Admin typecheck: green;
+- Admin Surface Unit: 337 tests, 1,427 assertions, green;
+- `composer cs-check`: green.
 
-The Framework-only candidate is therefore ready for hosted review, while this
-record remains open for the required exact-cohort Sheguiandah acceptance and
-hosted-check reconciliation. No integration or publication action is implied.
+The Framework-only candidate is therefore ready for hosted review after
+preflight, while this record remains open for exact-cohort Sheguiandah
+acceptance and hosted-check reconciliation. No integration or publication
+action is implied.
