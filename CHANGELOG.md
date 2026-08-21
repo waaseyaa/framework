@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — page-builder responsive controls now resize the actual preview
+  viewport (#2465):** the Mobile and Tablet controls changed their selected
+  state and the iframe's declared width, but the iframe's automatic flex-item
+  minimum could keep the rendered viewport at desktop width. The exact-preview
+  iframe now opts out of that content-derived minimum, so its governed 390px
+  and 768px widths can take effect while `max-width: 100%` still protects
+  narrower canvases.
+
 - **Fixed — consumer workflow bindings can enter CFG-02 active authority
   (#2458):** `waaseyaa/workflows` now declares its CFG-03 package contract and
   registers a closed `workflows.assignments@1` schema on the shared authority
