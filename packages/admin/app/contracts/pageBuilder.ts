@@ -1,3 +1,5 @@
+import type { AdminSurfaceErrorMeta } from './adminSurface'
+
 export type PageBuilderBlockDefinition = {
   id: string
   version: number
@@ -85,8 +87,23 @@ export type PageBuilderCommand =
   | { type: 'remove_section', section_id: string }
   | { type: 'change_section_layout', section_id: string, layout_id: string, layout_version: number }
 
+/**
+ * The Admin Surface error envelope as the page-builder transport carries it.
+ *
+ * `code` and `meta` are the closed save-advisory contract (#2473/#2474): the
+ * host projects only the allowlisted `meta.save_advisories` shape, so this type
+ * stays a closed allowlist and must never widen to an index signature.
+ */
+export type PageBuilderSurfaceError = {
+  status: number
+  title: string
+  detail?: string
+  code?: string
+  meta?: AdminSurfaceErrorMeta
+}
+
 export type PageBuilderSurfaceResult<T> = {
   ok: boolean
   data?: T
-  error?: { status: number, title: string, detail?: string }
+  error?: PageBuilderSurfaceError
 }

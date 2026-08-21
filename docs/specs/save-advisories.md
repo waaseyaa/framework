@@ -389,8 +389,13 @@ client branches on one machine code regardless of which surface raised it.
 Receipts sent to a gateway that cannot carry them answer `501` with
 `code: SAVE_ADVISORY_UNSUPPORTED` and no token in the payload.
 
-### What is not covered
+### The editor affordance (#2475)
 
-The Admin SPA does not yet render a layout-draft advisory prompt. The HTTP
-contract above is complete and tested; the editor affordance that surfaces the
-warning and returns the receipt is separate work.
+The Admin SPA renders the review. `usePageBuilder` holds the exact pending
+command with the advisories that candidate produced; the workspace shows each
+advisory's `field` and `message`, never its token, and blocks further editing
+while the review is open. Confirming replays that same command with exactly the
+received acknowledgements; declining writes nothing and leaves the edit dirty
+and intact. A `501` is presented as a configuration problem with no confirm
+affordance. See `docs/specs/admin-spa.md`, "Layout save-advisory review in the
+editor".

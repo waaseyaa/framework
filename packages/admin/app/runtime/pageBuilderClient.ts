@@ -26,12 +26,21 @@ export class PageBuilderClient {
     })
   }
 
+  /**
+   * Apply one edit command.
+   *
+   * `saveAdvisoryAcknowledgements` carries receipts the server minted for this
+   * exact candidate. The key is omitted entirely when there are none, so an
+   * ordinary save sends the byte-identical body it always sent and the host's
+   * strict key contract is unchanged.
+   */
   command(
     surface: string,
     id: string,
     draft: PageBuilderDraft,
     command: PageBuilderCommand,
     idempotencyKey: string,
+    saveAdvisoryAcknowledgements: string[] = [],
   ): Promise<PageBuilderSurfaceResult<PageBuilderDraft>> {
     return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.command', { surface, id }), {
       method: 'POST',
@@ -40,6 +49,9 @@ export class PageBuilderClient {
         expected_document_fingerprint: draft.document_fingerprint,
         idempotency_key: idempotencyKey,
         command,
+        ...(saveAdvisoryAcknowledgements.length > 0
+          ? { save_advisory_acknowledgements: saveAdvisoryAcknowledgements }
+          : {}),
       },
     })
   }

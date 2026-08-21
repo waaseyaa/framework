@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added — the Admin SPA page builder can now review and acknowledge a layout
+  save advisory (#2475):** #2473/#2474 completed the HTTP contract, but the
+  editor had no affordance for it, so an author editing the layout of a page
+  under a standing pre-save advisory simply saw the edit fail. A held layout
+  edit now renders each advisory's `field` and `message` in the workspace, with
+  the pending edit retained rather than discarded and further editing blocked
+  while the review is open — the same shape as an optimistic-concurrency
+  conflict. A `428` is deliberately **not** an embed lifecycle failure: nothing
+  was written, so the edit stays dirty and no `failure` event is emitted.
+
+  Confirming returns **exactly** the acknowledgement values that candidate's own
+  advisory carried, on the same command, document fingerprint, entity revision,
+  and a fresh idempotency key. The client omits `save_advisory_acknowledgements`
+  entirely when there are none, so an ordinary save sends the byte-identical
+  body it always sent. The review is dropped before the retry, so a second `428`
+  re-prompts with the new advisory instead of replaying a superseded receipt.
+  Tokens are never synthesized, rewritten, persisted, or reused across
+  candidates. Declining writes nothing and leaves the editor state and dirty
+  flag exactly as the author left them; dirty state clears only when an
+  acknowledged retry actually succeeds. A rejected, superseded, wrong, or
+  malformed receipt stays a refusal with no write — one bad entry rejects the
+  whole projection rather than showing a partial review.
+
+  `501 SAVE_ADVISORY_UNSUPPORTED` is presented as a distinct configuration and
+  capability problem with **no confirm affordance**, not as an author-fixable
+  validation error. `PageBuilderSurfaceError` carries the closed `code`/`meta`
+  allowlist, so the page-builder transport reads the advisory contract without a
+  `Record<string, unknown>` escape hatch. `AdminSpaLayoutAdvisoryContractTest`
+  pins the two-language vocabulary — body keys, machine codes, the five
+  projected advisory fields, the token shape, and the 32-receipt bound — against
+  the real PHP host.
+
 - **Fixed — a page-builder layout edit can now review and acknowledge a save
   advisory (#2473):** a layout edit is an ordinary entity save, so a pre-save
   policy can hold it for review over a field the edit never touched. An
