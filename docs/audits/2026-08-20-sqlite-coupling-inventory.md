@@ -1,13 +1,19 @@
 # SQLite Coupling Inventory — 2026-08-20
 
-> **Pinned to `e77d610ad16cac25ff7f313091a8856b61a73750` (`origin/main`), re-resolved 2026-08-21.**
+> **Pinned to `3aca84d79b8afe0b60272ffc374a5f9299eb98c2` (`origin/main`), re-resolved 2026-08-21.**
 > Every file-and-line reference below was resolved against that exact tree: each path resolves to a tracked
-> file, and each cited line is within it. The `#2446` repairs (**#2450**, **#2452**) are present at this
-> commit and are reflected in §4.1 and §4.10 — including the four SQLite couplings those repairs added.
+> file, and each cited line is within it. The `#2446` repairs (**#2450**, **#2452**) remain present and are
+> reflected in §4.1 and §4.10 — including the four SQLite couplings those repairs added.
 > The production surfaces added by **#2474** (the layout-draft acknowledgement seam, in `page-builder`,
 > `publishing`, and `admin-surface`) were swept with the same discovery patterns and contain **no SQLite
 > couplings** — they reach persistence only through a gateway interface. #2474's one addition to
 > `support/s1-sqlite-construction-roster.json` is test-scope and therefore outside this inventory's scope.
+> Two commits landed on main after the previous pin (`e77d610ad`): **#2477** (layout save advisory) and
+> **#2459** (governed workflow assignment configuration). Neither added, removed, nor relocated a production
+> SQLite coupling in this inventory's scope (`packages/*/src/**`, `packages/*/migrations/**`, `bin/**`,
+> `public/**`). #2459 updated only the recorded `composer.lock` digest in
+> `support/s1-sqlite-dependency-bytes.json`, which is outside the §4 occurrence tables. All 358 §4 sites
+> re-resolved at this pin; no inventoried production file moved, so the cited line numbers are unchanged.
 > Line numbers are evidence about this commit, not durable identifiers; re-resolve before relying on them.
 
 **Scope:** An exhaustive, file-and-line inventory of SQLite-specific SQL, DDL, catalogue access, connection topology, and governance pins in Waaseyaa production source (`packages/*/src/**`, `packages/*/migrations/**`, `bin/**`, `public/**`). It exists to feed the assessment-surface line item of **#2447** — "inventory of SQLite-specific SQL and behavior with an owner/disposition for each occurrence" — and nothing else.
@@ -114,7 +120,7 @@ strongest claim this method can support, and it is weaker than a passing test.
 
 Lead with the structural gaps, because those are what set the assessment's cost.
 
-**1. There is zero non-SQLite CI. This is a structural gap in the assessment itself, not just in the code.** No `services:` block exists in any of the 21 workflows under `.github/workflows/`, and no workflow file references postgres, mysql, mariadb, or pgsql in any form. `ci.yml` contains **19** `setup-php` steps: **15** request SQLite extensions, **3** specify no `extensions:` key at all, and **1** (`:718`) requests `xml` only. The three that specify nothing still get whatever the runner image provides, which is SQLite-capable and not PostgreSQL- or MySQL-capable, so the absence of a pin is not the presence of an alternative. Two blocking gates enforce the state directly: `bin/check-s1-sqlite-contract:371` requires `pdo_sqlite` and `sqlite3` to be loaded in CI, and `:374-377` pins the SQLite **library version** to `>=3.40.0 <4.0.0`. Nothing in this inventory below the governance layer can be executed anywhere in CI today.
+**1. There is zero non-SQLite CI. This is a structural gap in the assessment itself, not just in the code.** No `services:` block exists in any of the 21 workflows under `.github/workflows/`, and no workflow file references postgres, mysql, mariadb, or pgsql in any form. `ci.yml` contains **19** `setup-php` steps: **15** request SQLite extensions, **3** specify no `extensions:` key at all, and **1** (`ci.yml:721`) requests `xml` only. The three that specify nothing still get whatever the runner image provides, which is SQLite-capable and not PostgreSQL- or MySQL-capable, so the absence of a pin is not the presence of an alternative. Two blocking gates enforce the state directly: `bin/check-s1-sqlite-contract:371` requires `pdo_sqlite` and `sqlite3` to be loaded in CI, and `:374-377` pins the SQLite **library version** to `>=3.40.0 <4.0.0`. Nothing in this inventory below the governance layer can be executed anywhere in CI today.
 
 **2. Governance refuses the port before code can be written.** `bin/check-s1-sqlite-contract:204` requires the machine contract to declare `postgresql` among the *refused* alternate databases, and line 253 hardcodes that refusal list in the **checker**, not only in `support/s1-sqlite-v1.json` — so editing the JSON alone does not clear the gate. Line 179 pins `authority.engine = sqlite`; line 192 pins the search projection engine to SQLite. The gate is fail-closed and runs in pre-push and CI. Separately, `bin/check-support-contract:203-204` requires the published root `composer.json` to hard-require `ext-pdo_sqlite` and `ext-sqlite3`, which every downstream consumer install inherits. **The charter-level contract must change before the first line of driver code can land.**
 
@@ -240,7 +246,7 @@ Ordered by structural-gap count, most severe first. Every confirmed occurrence i
 
 **Owner:** `packages/foundation`, `packages/cli`.
 
-**What the coupling is.** Three layers, each SQLite-shaped for a different reason. (a) The ledger itself is created and introspected with SQLite-only statements — `AUTOINCREMENT`, `INSERT OR IGNORE`, `sqlite_master`, and eight `PRAGMA` reads. (b) The v2 migration algebra compiles through exactly one backend, `SqliteCompiler`, whose op-support surface is defined by SQLite's `ALTER TABLE` limitations and whose capability predicates are `version_compare()` against a SQLite version string. (c) The schema fingerprint and the recorded `diff_hash` are both defined over SQLite artefacts.
+**What the coupling is.** Three layers, each SQLite-shaped for a different reason. (a) The ledger itself is created and introspected with SQLite-only statements — `AUTOINCREMENT`, `INSERT OR IGNORE`, two `sqlite_master` probes, and six `PRAGMA` reads. (b) The v2 migration algebra compiles through exactly one backend, `SqliteCompiler`, whose op-support surface is defined by SQLite's `ALTER TABLE` limitations and whose capability predicates are `version_compare()` against a SQLite version string. (c) The schema fingerprint and the recorded `diff_hash` are both defined over SQLite artefacts.
 
 **Why it is load-bearing.** `ledgerExists()` (which the `sqlite_master` probe at `:89` implements) gates `hasRun`, `getCompleted`, `allWithChecksums`, and `assertReadableLedger` — on a non-SQLite driver the ledger is simply unreadable, so nothing downstream runs. `migrate --dry-run` and `--verify` return exit code 2 without a compiler (`MigrateHandler.php:94`, `:112`). The `plan_mismatch` verdict at `VerifyRunner.php:140` is defined against SQLite-compiler output, which means every historically recorded row would fail verification after a compiler change even if the schema were identical.
 
@@ -410,9 +416,9 @@ Two things the verifiers corrected and that matter for scoping. First, `DBALData
 
 **Owner:** `packages/deployer`.
 
-**What the coupling is.** The deploy model is "a database is one file you copy, hash, and rename". Backup is a byte copy verified by `hash_equals` on a sha256 digest (`Installer.php:40-44`); activation is a filesystem `rename()` (`Installer.php:93`, `:98`); the rollback path at `Installer.php:109-121` is built on that rename being atomic and reversible; quiescence is proved by `filesize($wal) !== 0` (`Preparer.php:180`); validity is `PRAGMA integrity_check` returning `'ok'`. Schema cloning replays the stored `CREATE` text read straight out of `sqlite_master` (`Preparer.php:247`, exec'd verbatim at `:254`).
+**What the coupling is.** The deploy model is "a database is one file you copy, hash, and rename". Backup is a byte copy verified by `hash_equals` on a sha256 digest (`RuntimeState/SqliteArtifactInstaller.php:40-44`); activation is a filesystem `rename()` (`RuntimeState/SqliteArtifactInstaller.php:93`, `:98`); the rollback path at `RuntimeState/SqliteArtifactInstaller.php:109-121` is built on that rename being atomic and reversible; quiescence is proved by `filesize($wal) !== 0` (`RuntimeState/SqliteArtifactPreparer.php:180`); validity is `PRAGMA integrity_check` returning `'ok'`. Schema cloning replays the stored `CREATE` text read straight out of `sqlite_master` (`RuntimeState/SqliteArtifactPreparer.php:247`, exec'd verbatim at `:254`).
 
-**Why it is load-bearing.** Every safety property of the deploy — byte identity of the backup, atomicity of activation, the pre-install `wal_checkpoint(TRUNCATE)` busy=0 assertion at `Installer.php:186`/`:189`, the post-activation integrity gate at `Installer.php:217` that triggers rollback — is a property of the SQLite file model. None of them translate.
+**Why it is load-bearing.** Every safety property of the deploy — byte identity of the backup, atomicity of activation, the pre-install `wal_checkpoint(TRUNCATE)` busy=0 assertion at `RuntimeState/SqliteArtifactInstaller.php:186`/`:189`, the post-activation integrity gate at `RuntimeState/SqliteArtifactInstaller.php:217` that triggers rollback — is a property of the SQLite file model. None of them translate.
 
 **PostgreSQL position.** No part of the pipeline survives. `pg_dump`/`pg_basebackup` give no byte identity; there is no whole-database integrity statement (amcheck is an extension covering indexes only); there is no sidecar-file quiescence signal; there is no `immutable=1` read-only promise. `PRAGMA foreign_keys = OFF` has no direct substitute — the nearest is `SET session_replication_role = replica`, which is superuser-only, i.e. a privilege-model change.
 
@@ -758,7 +764,7 @@ Two defects worth separating out. `SqlSchemaHandler.php:1294` sits inside a **re
 
 **PostgreSQL position.** `AUTOINCREMENT` → `GENERATED BY DEFAULT AS IDENTITY` or `SERIAL`; `DATETIME` → `TIMESTAMP`/`TIMESTAMPTZ` (PG has no `DATETIME` type at all); `BLOB` → `bytea`; `MAX(a,b)` → `GREATEST(a,b)`; `REAL` is 4-byte single precision on PG, which destroys sub-second resolution for a Unix-epoch float and needs `DOUBLE PRECISION`.
 
-**MySQL position.** `AUTOINCREMENT` → `AUTO_INCREMENT` (a different spelling, not the same keyword); `DATETIME` and `REAL` are native and work; `BLOB` works but caps at 65,535 bytes, which serialized cache payloads can exceed. MySQL-only failures PG does not have: reserved-word columns `key` (`rate_limit_window_schema.php:18`), `signed` (§4.4), and `cursor` (`application_master_rekey.php:100`); `TEXT NOT NULL DEFAULT ''` (MySQL rejects a literal DEFAULT on TEXT/BLOB); `CREATE INDEX IF NOT EXISTS` (`MigrationIdMapSchema.php:121`).
+**MySQL position.** `AUTOINCREMENT` → `AUTO_INCREMENT` (a different spelling, not the same keyword); `DATETIME` and `REAL` are native and work; `BLOB` works but caps at 65,535 bytes, which serialized cache payloads can exceed. MySQL-only failures PG does not have: reserved-word columns `key` (`foundation/migrations/2026_08_12_000001_rate_limit_window_schema.php:18`), `signed` (§4.4), and `cursor` (`foundation/migrations/2026_08_15_000002_application_master_rekey.php:100`); `TEXT NOT NULL DEFAULT ''` (MySQL rejects a literal DEFAULT on TEXT/BLOB); `CREATE INDEX IF NOT EXISTS` (`MigrationIdMapSchema.php:121`).
 
 | file:line | construct | PG | MySQL | disposition |
 |---|---|---|---|---|
@@ -840,7 +846,7 @@ The single structural item is `AppendOnlyAuditDatabase.php:215`, and it is a sec
 | `frankenphp/src/Binary/Installer.php:204` | generated Windows `php.ini` enables `sqlite3` only | unsupported | unsupported | mechanical-gap |
 | `listing/src/ListingResolver.php:716` | string-normalised scalar equality for driver-emitted types | differs | works | mechanical-gap |
 
-Three items deserve a note rather than a table row. `DatabaseLease.php:164` is mechanical but carries a trap: the obvious PG/MySQL substitutes (`now()`, `CURRENT_TIMESTAMP`, `NOW()`) are frozen at transaction start or truncated to seconds, and either would silently break the monotonicity check at `:166` and every acquire/renew/expiry decision built on it — the correct substitutes are `clock_timestamp()` and `NOW(3)`. `DatabaseRateLimiter.php:45` is the mirror image of the usual pattern: it is already PostgreSQL-native and MySQL is the engine that fails, which is why it must not be filed under "already remediated". And `ListingResolver.php:716` is latent rather than present-tense — the failure requires a native `BOOLEAN` column, and the framework declares booleans as `INTEGER` everywhere the verifiers checked.
+Three items deserve a note rather than a table row. `DatabaseLease.php:164` is mechanical but carries a trap: the obvious PG/MySQL substitutes (`now()`, `CURRENT_TIMESTAMP`, `NOW()`) are frozen at transaction start or truncated to seconds, and either would silently break the monotonicity check at `:166` and every acquire/renew/expiry decision built on it — the correct substitutes are `clock_timestamp()` and `NOW(3)`. `auth/src/DatabaseRateLimiter.php:45` is the mirror image of the usual pattern: it is already PostgreSQL-native and MySQL is the engine that fails, which is why it must not be filed under "already remediated". And `ListingResolver.php:716` is latent rather than present-tense — the failure requires a native `BOOLEAN` column, and the framework declares booleans as `INTEGER` everywhere the verifiers checked.
 
 ---
 
@@ -862,7 +868,6 @@ These are the pattern the rest of the surface should be measured against. In eac
 | `attachment/src/Schema/AttachmentSchema.php:191` | transactional-DDL platform branch in recovery guidance | this line (`:190-200`), backed by `detectDatabasePlatform()` at `:591-605` | works | works |
 | `attachment/src/Schema/AttachmentSchema.php:475` | `CREATE INDEX IF NOT EXISTS` | `AttachmentSchema.php:450` platform detect, `:451-459` unknown-skip, `:469` MySQL `mysqlIndexExists()` probe | works | works |
 | `attachment/src/Schema/AttachmentSchema.php:562` | partial `UNIQUE INDEX ... WHERE is_active = 1` | `AttachmentSchema.php:549` — `if ($platform === 'mysql' \|\| $platform === 'mariadb') { …warning…; return; }`, plus a try/catch at `:570-581` | works | unsupported |
-
 | `entity-storage/src/CoordinatedEntitySchemaExecutor.php:67` | `PRAGMA query_only` read-back | `if (!$connection->getDatabasePlatform() instanceof SQLitePlatform) { return true; }` at `:63-65` | unsupported | unsupported |
 | `entity-storage/src/CoordinatedEntitySchemaExecutor.php:69` | `PRAGMA query_only = ON` | same guard, `:63-65` | unsupported | unsupported |
 | `entity-storage/src/CoordinatedEntitySchemaExecutor.php:83` | `PRAGMA query_only = OFF` | same guard, `:63-65` | unsupported | unsupported |
@@ -957,7 +962,7 @@ Enumerated in §6.
 | `foundation/src/Migration/MigrationRepository.php:117` | `$this->ensureSchemaAuthorityManifestColumns();` — a PHP call with no SQL. The `PRAGMA table_info` it reaches is counted once, at `:298`. |
 | `foundation/src/Migration/SchemaMutationCoordinator.php:41` | `$this->repository->acquireSchemaAuthority();` — call site. Its couplings are counted at `MigrationRepository.php:145`/`:156`/`:165`/`:298`. |
 | `foundation/src/Migration/SchemaMutationCoordinator.php:48` | call site of `LogicalSchemaFingerprint::capture()`. Counted at `LogicalSchemaFingerprint.php:16`. Confirms, though, that the SQLite catalogue scan sits on the commit path of every coordinated transition. |
-| `cli/src/Handler/DbInitHandler.php:82` | `installOrUpgradeLedger()` call site. Counted at `MigrationRepository.php:57`/`:218`/`:247`. |
+| `cli/src/Handler/DbInitHandler.php:82` | `installOrUpgradeLedger()` call site. Counted at `MigrationRepository.php:57`/`:61` (CREATE TABLE) and the upgrade path it calls at `:261`/`:267`/`:272`/`:290`. |
 
 ### 7.3 Refuted as out of scope — 1
 
@@ -970,21 +975,21 @@ Enumerated in §6.
 These 63 occurrences carry the `portable` disposition in §3 and §4. The recurring refutations, grouped:
 
 - **DBAL-wrapper assertions are not driver assertions.** `AbstractKernel.php:431`, `CoordinatedEntitySchemaExecutor.php:30`, `BroadcastStorage.php:39` all assert `DBALDatabase` or `\PDO`, neither of which carries engine information. This is precisely the inverse of #2447's rejected premise and cuts the same way: a DBAL type in a signature proves nothing either direction.
-- **PostgreSQL accepts more than the finders assumed.** The `NULL` column constraint in `ADD COLUMN` (`MigrationRepository.php:267`/`:272`/`:304`) is documented PG grammar; `CHAR(64)` ignores trailing blanks in `bpchar` comparison and the values are exactly 64 chars (`oidc/migrations/2026_07_15_000005_oidc_secret_storage.php:18`); `INTEGER` + `CHECK` is valid (`entity_mutation_authority.php:21`); descending indexes are real on MySQL 8, the stated target (`media/migrations/2026_05_25_000005_create_media_version_table.php:50`).
+- **PostgreSQL accepts more than the finders assumed.** The `NULL` column constraint in `ADD COLUMN` (`MigrationRepository.php:267`/`:272`/`:304`) is documented PG grammar; `CHAR(64)` ignores trailing blanks in `bpchar` comparison and the values are exactly 64 chars (`oidc/migrations/2026_07_15_000005_oidc_secret_storage.php:18`); `INTEGER` + `CHECK` is valid (`entity-storage/migrations/2026_08_12_000001_entity_mutation_authority.php:21`); descending indexes are real on MySQL 8, the stated target (`media/migrations/2026_05_25_000005_create_media_version_table.php:50`).
 - **The abstraction layer is doing its job in places.** `DBALSchema.php:339` (`'serial'` → per-platform identity DDL) is the correct portability seam, and it is exactly what the raw-DDL sites bypass. `SqlSchemaHandler.php:568`, `:764` and `ColumnSpecMap.php:36` emit identically on all three engines.
 - **PHP-side guards and value objects are not SQL.** `JsonFieldName.php:38` (injection allowlist), `ResolvedField.php:47` (a boolean flag with three callsites), `AttachmentActiveInvariant.php:43` (an INTEGER column, so `'t'`/`'f'` cannot arise), `AppendOnlyAuditDatabase.php:217`/`:218`/`:219` (recognising PG's and MySQL's own identifier delimiters is engine-*readiness*, not lock-in).
 - **One coupling runs backwards.** `DBALConsistentReadTransaction.php:29` and `SqlEntityQuery.php:1539`: SQLite maps every level at or above READ COMMITTED to `PRAGMA read_uncommitted = 1`, so SQLite is the degraded engine here. PG 14 and InnoDB both give a real MVCC snapshot. Porting *improves* the contextual Protected-entity read rather than breaking it.
 
 ### 7.5 Verifier disagreements carried forward
 
-The two verification passes disagreed on eight occurrences. Rather than smooth these over, the carried verdict and the dissent are both recorded. All eight remain in the 353; only their disposition is contested.
+The two verification passes disagreed on eight rows. Rather than smooth these over, the carried verdict and the dissent are both recorded. All eight remain in the 358; only their disposition is contested. Two of those rows group four related sites each, so the table covers fourteen sites.
 
 | file:line | carried | dissent | basis for the carried verdict |
 |---|---|---|---|
 | `SqliteTopology.php:75`, `:76`, `:96`, `:97` | mechanical-gap | structural-gap | The PRAGMA *setters* have a direct substitute or are removable; the fail-closed property that makes boot impossible is the readback assertion, already counted as structural at `:87`–`:89` and `:103`–`:105`. Counting both as structural double-attributes one failure. |
 | `SqliteDriverMiddleware.php:33` | guarded | structural-gap | The installation-site proof is stronger than the assertion of absence: `DBALDatabase.php:132-139` installs the middleware in the same expression as `'driver' => 'pdo_sqlite'`, and a grep found no other installer. |
 | `entity-storage/migrations/2026_08_15_000004_configuration_manifest_replay.php:60` | mechanical-gap | portable | The dissent is correct that `INTEGER` + `CHECK` is valid PG. The carried verdict adds a finding the dissent missed: `SIGNED` is a MySQL reserved word, so the unquoted column name is a syntax error there regardless of the CHECK. |
-| `entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php:48` | mechanical-gap | portable | **Unresolved, but the documented grammar favours the dissent.** One verifier read PostgreSQL's `ALTER TABLE ADD COLUMN` as accepting an inline `CHECK`; the other read it as requiring a separate `ADD CONSTRAINT`. The PostgreSQL 14+ `ALTER TABLE` synopsis gives `ADD [ COLUMN ] [ IF NOT EXISTS ] column_name data_type [ COLLATE collation ] [ column_constraint [ ... ] ]`, and `column_constraint` includes `CHECK ( expression )` (<https://www.postgresql.org/docs/14/sql-altertable.html>, cross-referenced with the `column_constraint` production in <https://www.postgresql.org/docs/14/sql-createtable.html>). On that reading the dissent is right and the line is PG-portable. It is **still carried as the more severe verdict**, because this document's standard for `works` is observed execution, not a reading of a grammar — and this row is the one place where two careful readers of the same published grammar disagreed, which is the standard's justification. Resolve by execution, not by re-reading. |
+| `entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php:48` | mechanical-gap | portable | **Unresolved, but the documented grammar favours the dissent.** One verifier read PostgreSQL's `ALTER TABLE ADD COLUMN` as accepting an inline `CHECK`; the other read it as requiring a separate `ADD CONSTRAINT`. The PostgreSQL 14+ `ALTER TABLE` synopsis gives `ADD [ COLUMN ] [ IF NOT EXISTS ] column_name data_type [ COLLATE collation ] [ column_constraint [ ... ] ]`, and `column_constraint` includes `CHECK ( expression )` (<https://www.postgresql.org/docs/14/sql-altertable.html>, cross-referenced with the `column_constraint` production in <https://www.postgresql.org/docs/14/sql-createtable.html>). On that reading the dissent is right and the line is PG-portable. It is **still carried as the more severe verdict**. Two readings of the same published grammar reached opposite conclusions, so this document will not promote the row to `works` on a citation alone. `works` here remains a static assessment (§1), not an executed result. Resolve by running the statement against a real PostgreSQL server, not by re-reading. |
 | `bin/check-s1-sqlite-contract:371` | mechanical-gap | structural-gap | Adding PG/MySQL extensions alongside is a workflow edit; the structural governance blockers are `:179` and `:204`. |
 | `DbInitHandler.php:216`, `:275`, `:299`, `:326` | structural-gap | mechanical-gap | These are the path-not-DSN identity model, the same construct both passes independently call structural at `DatabaseBootstrapper.php:89`/`:213`. Classifying the same construct differently by file would make the counts incoherent. |
 | `audit/migrations/2026_08_12_000003_audit_runtime_schema.php:15` | structural-gap | mechanical-gap | The dissent traced consumers the first pass did not: `:42-45` computes checkpoint segments from `MAX(id)` and `AuditCheckpointHasher` chains on that ordering, so commit-order guarantees are load-bearing and a keyword swap does not preserve them. |
@@ -1031,7 +1036,7 @@ every reference against the then-current tree rather than treating any pinned in
 
 What this audit could not determine, and therefore what a real service is still required for.
 
-**It is a static inventory. Every engine position is a documented-behaviour claim, not an observed one.** No PostgreSQL or MySQL instance was contacted. No statement in this document was executed against either engine. Where a verifier wrote "PG rejects this at plan time" or "MySQL 8 does not support IF NOT EXISTS on CREATE INDEX", that is a reading of the engines' documented grammar, not a reproduction. §7.5 records one case (`configuration_genesis_marker.php:48`) where two careful readers of PostgreSQL's `ALTER TABLE` grammar reached opposite conclusions — a direct demonstration of the limit.
+**It is a static inventory. Every engine position is a documented-behaviour claim, not an observed one.** No PostgreSQL or MySQL instance was contacted. No statement in this document was executed against either engine. Where a verifier wrote "PG rejects this at plan time" or "MySQL 8 does not support IF NOT EXISTS on CREATE INDEX", that is a reading of the engines' documented grammar, not a reproduction. §7.5 records one case (`entity-storage/migrations/2026_08_19_000005_configuration_genesis_marker.php:48`) where two careful readers of PostgreSQL's `ALTER TABLE` grammar reached opposite conclusions — a direct demonstration of the limit.
 
 Specifically undetermined:
 
@@ -1044,7 +1049,7 @@ Specifically undetermined:
 - **Whether the 280 unguarded gaps are the complete set.** Discovery was broad and the `AUTOINCREMENT` cross-check reconciles exactly (§1), but a static sweep cannot prove absence. Constructs that are portable in syntax and divergent only in behaviour — implicit casts, NULL ordering, aggregate return types, integer division, string concatenation with NULL — are the class most likely to have been missed, precisely because grep does not find them.
 
 - **How long these references stay correct.** This inventory is pinned to
-  `e77d610ad16cac25ff7f313091a8856b61a73750`. Line numbers are evidence about that one commit, not durable
+  `3aca84d79b8afe0b60272ffc374a5f9299eb98c2`. Line numbers are evidence about that one commit, not durable
   identifiers, and ordinary merges invalidate them quickly — the #2446 repairs alone moved much of §4.1 and
   added four couplings. Re-resolve before relying on any reference here.
 
