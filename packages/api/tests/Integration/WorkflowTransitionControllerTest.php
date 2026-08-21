@@ -312,8 +312,24 @@ final class WorkflowTransitionControllerTest extends TestCase
         $this->assertSame('submit_for_review', $body['data']['transition']);
         $this->assertSame('draft', $body['data']['from']);
         $this->assertSame('review', $body['data']['to']);
+        $this->assertFalse($body['data']['public_changed']);
         $this->assertSame($entity->mutationToken()?->toOpaqueString(), $body['meta']['mutation_token']);
         $this->assertSame($entity->mutationToken()?->toStrongEtag(), $response->headers->get('ETag'));
+    }
+
+    #[Test]
+    public function successfulPublicationReportsAnAuthoritativePublicProjectionChange(): void
+    {
+        [$controller, $repository] = $this->boundWorld(denyView: false);
+        $entity = new FixtureWorkflowEntity('22', 'review');
+        $repository->addEntity($entity);
+        $account = $this->account(9, ['use editorial transition publish']);
+        $request = $this->postRequest('/api/wf_article/22/workflow/transition', '{"transition":"publish"}', $account);
+
+        $body = $this->decode($controller->transition($request, self::ENTITY_TYPE_ID, '22'));
+
+        $this->assertSame('published', $body['data']['to']);
+        $this->assertTrue($body['data']['public_changed']);
     }
 
     #[Test]

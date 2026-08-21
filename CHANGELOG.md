@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added — authoritative embedded workflow transition presentation (#2461):**
+  successful entity-editor transitions now emit a v2 same-origin lifecycle
+  event containing only the server-confirmed resulting state and whether the
+  served public projection changed. The API derives that refresh signal from
+  before/after served snapshots; the browser does not infer it from transition
+  intent. Denials, conflicts, failures, and malformed required members emit no
+  success event. An omitted additive `public_changed` field remains a committed
+  success. Each ordinary lifecycle event is delivered once on the v1 envelope;
+  `transitioned` is v2-only. Historical entity-editor saved/deleted messages
+  remain a separate compatibility channel.
+
 - **Fixed — page-builder config save emits dirty:false before saved (#2455):**
   a successful block-config apply now clears `configDirty` before the host
   receives `saved`. Failed applies stay dirty and emit no saved event. Shared

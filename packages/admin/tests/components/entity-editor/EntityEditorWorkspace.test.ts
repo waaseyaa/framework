@@ -56,7 +56,7 @@ async function mountWorkspace(entityId?: string) {
         },
         WorkflowTransitionControls: {
           emits: ['transitioned'],
-          template: '<button data-testid="transition" @click="$emit(\'transitioned\')">transition</button>',
+          template: '<button data-testid="transition" @click="$emit(\'transitioned\', { transition: \'publish\', from: \'review\', to: \'published\', public_changed: true })">transition</button>',
         },
         WorkflowTransitionHistoryTimeline: { template: '<div data-testid="history" />' },
         CommonConfirmDialog: {
@@ -107,6 +107,12 @@ describe('EntityEditorWorkspace', () => {
     expect(wrapper.find('[data-testid="history"]').exists()).toBe(true)
     await wrapper.get('[data-testid="transition"]').trigger('click')
     expect(wrapper.text()).toContain('workflow_transitioned')
+    expect(wrapper.emitted('transitioned')?.[0]?.[0]).toEqual({
+      transition: 'publish',
+      from: 'review',
+      to: 'published',
+      public_changed: true,
+    })
 
     await wrapper.get('.btn-danger').trigger('click')
     await wrapper.get('[data-testid="confirm-delete"]').trigger('click')

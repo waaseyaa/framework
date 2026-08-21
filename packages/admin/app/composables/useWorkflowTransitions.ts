@@ -31,10 +31,18 @@ export interface WorkflowTransitionApplyResult {
   transition: string
   from: string
   to: string
+  public_changed: boolean
+}
+
+interface WorkflowTransitionApplyData {
+  transition: string
+  from: string
+  to: string
+  public_changed?: boolean
 }
 
 interface WorkflowTransitionApplyResponse {
-  data: WorkflowTransitionApplyResult
+  data: WorkflowTransitionApplyData
 }
 
 export type WorkflowTransitionErrorKind =
@@ -109,10 +117,37 @@ export function useWorkflowTransitions() {
       `/api/${entityType}/${encodeURIComponent(id)}/workflow/transition`,
       { method: 'POST', body: { transition: transitionId } },
     )
-    return response.data
+    if (!isWorkflowTransitionApplyResponse(response)) {
+      throw new WorkflowTransitionResponseError()
+    }
+    return {
+      transition: response.data.transition,
+      from: response.data.from,
+      to: response.data.to,
+      // Older API packages and application-provided controllers may omit the
+      // additive refresh signal after a committed transition. Absence is not
+      // failure; hosts then refresh public rendering as they did before the
+      // signal existed.
+      public_changed: response.data.public_changed ?? true,
+    }
   }
 
   return { transitions, state, history, loading, error, errorKind, fetchTransitions, applyTransition }
+}
+
+function isWorkflowTransitionApplyResponse(value: unknown): value is WorkflowTransitionApplyResponse {
+  if (typeof value !== 'object' || value === null) return false
+  const data = (value as { data?: unknown }).data
+  if (typeof data !== 'object' || data === null) return false
+  const record = data as Record<string, unknown>
+  if (
+    typeof record.transition !== 'string'
+    || typeof record.from !== 'string'
+    || typeof record.to !== 'string'
+  ) {
+    return false
+  }
+  return record.public_changed === undefined || typeof record.public_changed === 'boolean'
 }
 
 class WorkflowTransitionResponseError extends Error {}

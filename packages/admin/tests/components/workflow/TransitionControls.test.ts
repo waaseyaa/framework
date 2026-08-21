@@ -185,21 +185,26 @@ describe('TransitionControls fetch error path', () => {
 })
 
 describe('TransitionControls apply transition', () => {
-  it('emits transitioned and re-fetches the transition list on a successful apply', async () => {
+  it.each([
+    ['review', { transition: 'submit_for_review', from: 'draft', to: 'review', public_changed: false }],
+    ['publication', { transition: 'publish', from: 'review', to: 'published', public_changed: true }],
+    ['schedule', { transition: 'schedule', from: 'review', to: 'scheduled', public_changed: false }],
+  ])('emits the authoritative %s result and re-fetches after a successful apply', async (_outcome, result) => {
+    const available = { id: result.transition, label: 'Advance', to: result.to }
     fetchTransitionsMock.mockImplementation(async () => {
-      transitionsRef.value = [publishTransition]
-      stateRef.value = 'review'
+      transitionsRef.value = [available]
+      stateRef.value = result.from
       return { transitions: transitionsRef.value, state: stateRef.value }
     })
-    applyTransitionMock.mockResolvedValue({ transition: 'publish', from: 'review', to: 'published' })
+    applyTransitionMock.mockResolvedValue(result)
 
     const wrapper = await mountControls()
     await wrapper.get('button').trigger('click')
     await flushPromises()
 
-    expect(applyTransitionMock).toHaveBeenCalledWith('node', '5', 'publish')
+    expect(applyTransitionMock).toHaveBeenCalledWith('node', '5', result.transition)
     expect(wrapper.emitted('transitioned')).toBeTruthy()
-    expect(wrapper.emitted('transitioned')![0]![0]).toEqual({ transition: 'publish', from: 'review', to: 'published' })
+    expect(wrapper.emitted('transitioned')![0]![0]).toEqual(result)
     // One fetch on mount, one re-fetch after the successful apply.
     expect(fetchTransitionsMock).toHaveBeenCalledTimes(2)
   })
@@ -219,7 +224,7 @@ describe('TransitionControls apply transition', () => {
 
     expect(button.attributes('disabled')).toBeDefined()
 
-    resolveApply({ transition: 'publish', from: 'review', to: 'published' })
+    resolveApply({ transition: 'publish', from: 'review', to: 'published', public_changed: true })
     await flushPromises()
   })
 
@@ -237,7 +242,7 @@ describe('TransitionControls apply transition', () => {
     const second = vm.apply('publish')
 
     expect(applyTransitionMock).toHaveBeenCalledTimes(1)
-    resolveApply({ transition: 'publish', from: 'review', to: 'published' })
+    resolveApply({ transition: 'publish', from: 'review', to: 'published', public_changed: true })
     await Promise.all([first, second])
   })
 
@@ -263,6 +268,26 @@ describe('TransitionControls apply transition', () => {
     expect(errorEl.attributes('aria-live')).toBe('assertive')
     // A failed apply does not re-fetch — only the mount-time fetch happened.
     expect(fetchTransitionsMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('transitioned')).toBeUndefined()
+  })
+
+  it('does not emit a successful state when an optimistic conflict refuses the transition', async () => {
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [publishTransition]
+      stateRef.value = 'review'
+      return { transitions: transitionsRef.value, state: stateRef.value }
+    })
+    applyTransitionMock.mockRejectedValue({
+      statusCode: 409,
+      data: { errors: [{ detail: 'The entity changed before this transition could be applied.' }] },
+    })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.error').text()).toContain('changed')
+    expect(wrapper.emitted('transitioned')).toBeUndefined()
   })
 
   it('falls back to the generic i18n key when the error has no JSON:API detail', async () => {
