@@ -14,15 +14,25 @@ use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisory;
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisoryGate;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\Migration\Exception\DestinationWriteException;
+use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
+use Waaseyaa\Migration\Discovery\MigrationRegistry;
+use Waaseyaa\Migration\MigrationDefinition;
 use Waaseyaa\Migration\MigrationIdMap;
 use Waaseyaa\Migration\Plugin\Destination\EntityDestination;
 use Waaseyaa\Migration\Plugin\DestinationRecord;
+use Waaseyaa\Migration\Plugin\SourceRecord;
+use Waaseyaa\Migration\PluginFixtures\InMemorySource;
+use Waaseyaa\Migration\Runner\MigrationRunner;
+use Waaseyaa\Migration\Runner\ProcessChainExecutor;
+use Waaseyaa\Migration\Runner\RunOptions;
 use Waaseyaa\Migration\Schema\MigrationIdMapSchema;
 use Waaseyaa\Migration\SourceId;
 use Waaseyaa\Migration\Tests\Fixtures\AllowAllPolicy;
@@ -123,6 +133,18 @@ final class EntityDestinationTest extends TestCase
         );
     }
 
+    private function titleAdvisory(BeforeSaveEvent $event): void
+    {
+        SaveAdvisoryGate::requireAcknowledged([
+            SaveAdvisory::forEntityField(
+                $event->entity(),
+                'MIGRATION_TITLE_REVIEW',
+                'title',
+                'Review migration title.',
+            ),
+        ], $event->saveContext());
+    }
+
     #[Test]
     public function happy_path_writes_entity_creates_id_map_row_and_returns_write_result(): void
     {
@@ -146,6 +168,125 @@ final class EntityDestinationTest extends TestCase
         $row = $this->idMap->lookupDestination(self::MIGRATION_ID, $record->sourceId);
         self::assertNotNull($row);
         self::assertSame($result->destinationUuid, $row->destinationUuid);
+    }
+
+    #[Test]
+    public function declared_advisory_is_retried_once_and_returns_bounded_evidence(): void
+    {
+        $afterSaveCount = 0;
+        $this->dispatcher->addListener(BeforeSaveEvent::class, $this->titleAdvisory(...));
+        $this->dispatcher->addListener(AfterSaveEvent::class, static function () use (&$afterSaveCount): void {
+            ++$afterSaveCount;
+        });
+
+        $record = $this->makeRecord('Review this title');
+        $result = $this->makeDestination()
+            ->withAcknowledgedSaveAdvisoryCodes(['MIGRATION_TITLE_REVIEW'])
+            ->write($record);
+
+        self::assertSame(1, $afterSaveCount);
+        self::assertCount(1, $result->acknowledgedSaveAdvisories);
+        $evidence = $result->acknowledgedSaveAdvisories[0];
+        self::assertSame(self::MIGRATION_ID, $evidence->migrationId);
+        self::assertSame($record->sourceId->hash(), $evidence->sourceIdHash);
+        self::assertSame('MIGRATION_TITLE_REVIEW', $evidence->code);
+        self::assertSame('title', $evidence->field);
+        self::assertSame('warning', $evidence->severity);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $evidence->acknowledgement);
+        self::assertCount(1, $this->repository->findBy(['uuid' => $result->destinationUuid]));
+    }
+
+    #[Test]
+    public function undeclared_advisory_rolls_back_entity_and_id_map_writes(): void
+    {
+        $this->dispatcher->addListener(BeforeSaveEvent::class, $this->titleAdvisory(...));
+        $record = $this->makeRecord('Blocked title');
+
+        try {
+            $this->makeDestination()->write($record);
+            self::fail('An undeclared migration advisory was acknowledged.');
+        } catch (DestinationWriteException $exception) {
+            self::assertSame('save_advisory_not_declared', $exception->reason);
+        }
+
+        self::assertSame(0, $this->repository->count());
+        self::assertNull($this->idMap->lookupDestination(self::MIGRATION_ID, $record->sourceId));
+    }
+
+    #[Test]
+    public function changed_policy_on_retry_fails_closed_without_looping(): void
+    {
+        $calls = 0;
+        $this->dispatcher->addListener(BeforeSaveEvent::class, static function (BeforeSaveEvent $event) use (&$calls): void {
+            ++$calls;
+            $code = $calls === 1 ? 'FIRST_MIGRATION_WARNING' : 'SECOND_MIGRATION_WARNING';
+            SaveAdvisoryGate::requireAcknowledged([
+                SaveAdvisory::forEntityField($event->entity(), $code, 'title', 'Review migration title.'),
+            ], $event->saveContext());
+        });
+        $record = $this->makeRecord('Changing policy');
+
+        try {
+            $this->makeDestination()
+                ->withAcknowledgedSaveAdvisoryCodes(['FIRST_MIGRATION_WARNING', 'SECOND_MIGRATION_WARNING'])
+                ->write($record);
+            self::fail('A changed advisory policy retried more than once.');
+        } catch (DestinationWriteException $exception) {
+            self::assertSame('entity_save_failed', $exception->reason);
+        }
+
+        self::assertSame(2, $calls);
+        self::assertSame(0, $this->repository->count());
+        self::assertNull($this->idMap->lookupDestination(self::MIGRATION_ID, $record->sourceId));
+    }
+
+    #[Test]
+    public function hash_match_skip_emits_no_new_advisory_evidence(): void
+    {
+        $this->dispatcher->addListener(BeforeSaveEvent::class, $this->titleAdvisory(...));
+        $destination = $this->makeDestination()
+            ->withAcknowledgedSaveAdvisoryCodes(['MIGRATION_TITLE_REVIEW']);
+        $record = $this->makeRecord('Stable title');
+
+        self::assertCount(1, $destination->write($record)->acknowledgedSaveAdvisories);
+        self::assertSame([], $destination->write($record)->acknowledgedSaveAdvisories);
+    }
+
+    #[Test]
+    public function runner_applies_manifest_allowlist_and_reports_only_new_evidence(): void
+    {
+        $this->dispatcher->addListener(BeforeSaveEvent::class, $this->titleAdvisory(...));
+        $source = new InMemorySource('in_memory', [
+            new SourceRecord('in_memory', ['id' => 'runner-one', 'title' => 'Runner title']),
+        ]);
+        $definition = new MigrationDefinition(
+            id: self::MIGRATION_ID,
+            source: $source,
+            process: ['title' => 'title'],
+            destination: $this->makeDestination(),
+            acknowledgedSaveAdvisoryCodes: ['MIGRATION_TITLE_REVIEW'],
+        );
+        $provider = new class([$definition]) implements HasMigrationsInterface {
+            /** @param list<MigrationDefinition> $definitions */
+            public function __construct(private readonly array $definitions) {}
+            public function migrations(): iterable { yield from $this->definitions; }
+        };
+        $registry = new MigrationRegistry([$provider]);
+        $registry->boot();
+        $runner = new MigrationRunner($registry, new ProcessChainExecutor(), $this->idMap);
+
+        $first = $runner->run(self::MIGRATION_ID, new RunOptions());
+        self::assertSame(1, $first->imported);
+        self::assertCount(1, $first->warnings);
+        self::assertSame(self::MIGRATION_ID, $first->warnings[0]->migrationId);
+        self::assertSame(
+            (new SourceId('in_memory', ['id' => 'runner-one']))->hash(),
+            $first->warnings[0]->sourceIdHash,
+        );
+
+        $second = $runner->run(self::MIGRATION_ID, new RunOptions());
+        self::assertSame(1, $second->skipped);
+        self::assertSame([], $second->warnings);
     }
 
     #[Test]

@@ -454,6 +454,18 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 
 ### CRUD Operations
 
+Create and update resource objects may carry
+`data.meta.save_advisory_acknowledgements`, a list of at most 32 exact
+lowercase 64-hex tokens (#2467). Malformed meta is a 400 and never reaches
+storage. `JsonApiController` threads valid tokens through `SaveContext` on
+create, plain update, and expected-revision update. A repository
+`SaveAdvisoryAcknowledgementRequiredException` becomes one 428 JSON:API error
+with code `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` and the deterministic
+advisory payload in `meta.save_advisories`. Validation remains 422 and cannot be
+acknowledged. Repositories outside the concrete context-aware
+`EntityRepository` accept the legacy no-token path only and fail closed when a
+caller supplies tokens.
+
 **`index(string $entityTypeId, array $query = []): JsonApiDocument`**
 
 1. Validates entity type exists via `$entityTypeManager->hasDefinition()`.

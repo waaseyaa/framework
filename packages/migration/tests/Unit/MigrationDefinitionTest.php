@@ -68,6 +68,47 @@ final class MigrationDefinitionTest extends TestCase
         self::assertSame(0.10, $definition->errorRateHalt);
         self::assertSame([], $definition->dependencies);
         self::assertNull($definition->description);
+        self::assertSame([], $definition->acknowledgedSaveAdvisoryCodes);
+    }
+
+    #[Test]
+    public function save_advisory_code_allowlist_round_trips(): void
+    {
+        $definition = new MigrationDefinition(
+            id: 'wp_posts',
+            source: $this->makeSource('wp_post'),
+            process: ['title' => 'post_title'],
+            destination: $this->makeDestination('node'),
+            acknowledgedSaveAdvisoryCodes: ['EDITORIAL_TITLE_REVIEW', 'RESERVED_PAGE_SLUG'],
+        );
+
+        self::assertSame(
+            ['EDITORIAL_TITLE_REVIEW', 'RESERVED_PAGE_SLUG'],
+            $definition->acknowledgedSaveAdvisoryCodes,
+        );
+    }
+
+    #[Test]
+    public function malformed_duplicate_and_oversized_save_advisory_allowlists_are_rejected(): void
+    {
+        foreach ([
+            ['bad-code'],
+            ['GOOD_CODE', 'GOOD_CODE'],
+            array_fill(0, 33, 'GOOD_CODE'),
+        ] as $codes) {
+            try {
+                new MigrationDefinition(
+                    id: 'wp_posts',
+                    source: $this->makeSource('wp_post'),
+                    process: ['title' => 'post_title'],
+                    destination: $this->makeDestination('node'),
+                    acknowledgedSaveAdvisoryCodes: $codes,
+                );
+                self::fail('An invalid save advisory allowlist was accepted.');
+            } catch (\InvalidArgumentException $exception) {
+                self::assertStringContainsString('acknowledgedSaveAdvisoryCodes', $exception->getMessage());
+            }
+        }
     }
 
     #[Test]

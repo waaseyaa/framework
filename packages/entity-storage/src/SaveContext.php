@@ -55,6 +55,8 @@ final class SaveContext
      *     the actor pair, no boolean pin is needed: a null expectation has no
      *     third meaning (there is no "I expect no revision" head state on a
      *     persisted revisionable row).
+     * @param list<lowercase-string> $saveAdvisoryAcknowledgements Exact
+     *     candidate-bound acknowledgement tokens carried by this save.
      */
     private function __construct(
         public readonly bool $withoutNewRevision = false,
@@ -64,6 +66,7 @@ final class SaveContext
         private readonly ?int $actorUid = null,
         private readonly bool $actorOverridden = false,
         private readonly ?int $expectedRevisionId = null,
+        private readonly array $saveAdvisoryAcknowledgements = [],
     ) {}
 
     /**
@@ -97,6 +100,7 @@ final class SaveContext
             actorUid: $uid,
             actorOverridden: true,
             expectedRevisionId: $this->expectedRevisionId,
+            saveAdvisoryAcknowledgements: $this->saveAdvisoryAcknowledgements,
         );
     }
 
@@ -128,6 +132,7 @@ final class SaveContext
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
             expectedRevisionId: $revisionId,
+            saveAdvisoryAcknowledgements: $this->saveAdvisoryAcknowledgements,
         );
     }
 
@@ -178,6 +183,7 @@ final class SaveContext
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
             expectedRevisionId: $this->expectedRevisionId,
+            saveAdvisoryAcknowledgements: $this->saveAdvisoryAcknowledgements,
         );
     }
 
@@ -202,6 +208,7 @@ final class SaveContext
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
             expectedRevisionId: $this->expectedRevisionId,
+            saveAdvisoryAcknowledgements: $this->saveAdvisoryAcknowledgements,
         );
     }
 
@@ -224,6 +231,7 @@ final class SaveContext
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
             expectedRevisionId: $this->expectedRevisionId,
+            saveAdvisoryAcknowledgements: $this->saveAdvisoryAcknowledgements,
         );
     }
 
@@ -288,6 +296,62 @@ final class SaveContext
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
             expectedRevisionId: $this->expectedRevisionId,
+            saveAdvisoryAcknowledgements: $this->saveAdvisoryAcknowledgements,
         );
+    }
+
+    /**
+     * Return a new context carrying exact candidate-bound acknowledgement tokens.
+     *
+     * @param array<int|string, mixed> $tokens
+     * @api
+     */
+    public function withSaveAdvisoryAcknowledgements(array $tokens): self
+    {
+        if (!array_is_list($tokens) || count($tokens) > 32) {
+            throw new \InvalidArgumentException(
+                'SaveContext advisory acknowledgements must be a list of at most 32 tokens.',
+            );
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (!is_string($token) || preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) {
+                throw new \InvalidArgumentException(
+                    'SaveContext advisory acknowledgement tokens must be exact lowercase 64-character hex strings.',
+                );
+            }
+            $normalized[$token] = true;
+        }
+        $normalized = array_keys($normalized);
+        sort($normalized, \SORT_STRING);
+
+        return new self(
+            withoutNewRevision: $this->withoutNewRevision,
+            langcode: $this->langcode,
+            isImport: $this->isImport,
+            translations: $this->translations,
+            actorUid: $this->actorUid,
+            actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
+            saveAdvisoryAcknowledgements: $normalized,
+        );
+    }
+
+    /** @return list<lowercase-string> */
+    public function saveAdvisoryAcknowledgements(): array
+    {
+        return $this->saveAdvisoryAcknowledgements;
+    }
+
+    public function acknowledgesSaveAdvisory(string $token): bool
+    {
+        foreach ($this->saveAdvisoryAcknowledgements as $acknowledgement) {
+            if (hash_equals($acknowledgement, $token)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

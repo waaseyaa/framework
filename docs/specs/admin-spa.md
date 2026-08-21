@@ -1,5 +1,13 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-20 - #2467 save-advisory Admin envelope: Generic Admin
+projects JSON:API errors through AdminSurfaceResultData::fromJsonApiError().
+Ordinary errors keep status/title/detail; only SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED
+emits code plus allowlisted meta.save_advisories. TransportError.meta is that
+closed AdminSurfaceErrorMeta type, not Record<string, unknown>. A missing
+mutation-token 428 stays codeless so SchemaForm can distinguish the two without
+parsing prose. -->
+
 <!-- Spec reviewed 2026-08-20 - #2464 generic revision recovery: exact reads compose
 view_revision plus protected/context-aware authority on the historical snapshot; restore uses
 shared RevisionRestoreChangedFields and preserves live pointer/status/credential values; preview
@@ -362,8 +370,8 @@ function useEntity(): {
   list(type: string, query?: { page?: { offset: number; limit: number }; sort?: string }):
     Promise<{ data: JsonApiResource[]; meta: Record<string, any>; links: Record<string, string> }>
   get(type: string, id: string): Promise<JsonApiResource>
-  create(type: string, attributes: Record<string, any>): Promise<JsonApiResource>
-  update(type: string, id: string, attributes: Record<string, any>): Promise<JsonApiResource>
+  create(type: string, attributes: Record<string, any>, saveAdvisoryAcknowledgements?: string[]): Promise<JsonApiResource>
+  update(type: string, id: string, attributes: Record<string, any>, saveAdvisoryAcknowledgements?: string[]): Promise<JsonApiResource>
   remove(type: string, id: string): Promise<void>
   search(type: string, labelField: string, query: string, limit?: number): Promise<JsonApiResource[]>
 }
@@ -761,6 +769,18 @@ The form rendering pipeline:
    authority
 4. For each field, `SchemaField` resolves the widget component from `x-widget`
 5. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+
+`SchemaForm` also handles candidate-bound save advisories (#2467). A 428
+`SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` transport failure is rendered in a
+focusable `role=status` review panel. The explicit confirmation button retries
+the JSON-captured writable candidate with only the returned acknowledgement
+tokens. Any field or bundle edit, or an ordinary new submit, clears the pending
+review; the normal Save button never implies acknowledgement. The Admin surface
+projects only the allowlisted advisory `code` and `meta.save_advisories` onto
+the envelope; `TransportError.meta` is that same closed `AdminSurfaceErrorMeta`
+type, not an open `Record<string, unknown>`. A missing mutation-token HTTP 428
+stays a codeless precondition error so the two 428s are distinguishable without
+parsing prose.
 
 `x-form-sections` is an ordered list of `{id, label, description?, fields,
 collapsible?, collapsed?}` objects. IDs and labels are non-empty strings and

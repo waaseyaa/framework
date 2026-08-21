@@ -626,8 +626,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      *
      * @return int SAVED_NEW or SAVED_UPDATED (see {@see EntityConstants}).
      *
+     * @throws \Doctrine\DBAL\Exception\UniqueConstraintViolationException If the database rejects a unique value.
      * @throws \Waaseyaa\Entity\Validation\EntityValidationException If validation fails.
      * @throws AbortOperationException If a BeforeSaveEvent subscriber aborts.
+     * @throws \Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException If a save advisory is unacknowledged.
      * @throws \RuntimeException If a PRE_SAVE subscriber rejects the save (e.g. a workflow guard denial) — subscriber exceptions propagate to the caller.
      */
     public function save(EntityInterface $entity, bool $validate = true, ?SaveContext $context = null): int
@@ -1091,7 +1093,8 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         // now the single dispatch site for BeforeSaveEvent / AfterSaveEvent;
         // callers (e.g. `\Waaseyaa\Migration\Plugin\Destination\EntityDestination`)
         // no longer self-dispatch. Subscribers may abort via
-        // AbortOperationException; no write occurs and AfterSaveEvent does
+        // AbortOperationException or SaveAdvisoryAcknowledgementRequiredException;
+        // no write occurs and AfterSaveEvent does
         // NOT fire. Dispatched IMMEDIATELY even under a UnitOfWork batch
         // (see the PRE_SAVE dispatch above for the full rationale): the
         // documented abort contract is unfulfillable when buffered
@@ -1101,7 +1104,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         // mid-batch abort roll back the WHOLE batch, as the contract
         // requires.
         $this->dispatchEvent(
-            new BeforeSaveEvent($entity, $resolvedContext, $createRevision),
+            new BeforeSaveEvent($entity, $resolvedContext, $createRevision, $originalEntity),
             BeforeSaveEvent::class,
         );
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Migration\Runner;
 
+use Waaseyaa\Migration\Advisory\SaveAdvisoryEvidence;
+
 /**
  * Output value object summarising a single {@see MigrationRunner::run()} call.
  *
@@ -21,6 +23,8 @@ namespace Waaseyaa\Migration\Runner;
  *  - `$failed`        — records that raised a typed exception (FR-046).
  *  - `$errors`        — list of {@see RecordError} entries (capped at
  *    {@see self::ERROR_CAP}).
+ *  - `$warnings`      — successful save-advisory acknowledgements (capped at
+ *    {@see self::WARNING_CAP}); contains hashes and tokens, never source values.
  *  - `$aborted`       — `true` when the runner short-circuited via
  *    {@see \Waaseyaa\Migration\Exception\MigrationAbortedException}.
  *
@@ -32,12 +36,16 @@ namespace Waaseyaa\Migration\Runner;
  */
 final readonly class RunReport
 {
+    /** @var list<SaveAdvisoryEvidence> */
+    public array $warnings;
+
     /**
      * Maximum number of per-record errors retained in memory. The full audit
      * trail lives in `migration_run_state` (WP07); this cap keeps the report
      * value object bounded on million-error runs.
      */
     public const int ERROR_CAP = 100;
+    public const int WARNING_CAP = 100;
 
     /**
      * @param string $migrationId Id of the migration this report describes. Non-empty.
@@ -50,8 +58,9 @@ final readonly class RunReport
      * @param \DateTimeImmutable $startedAt Wall-clock instant the run began.
      * @param \DateTimeImmutable $finishedAt Wall-clock instant the run ended (success, abort, or short-circuit).
      * @param bool $aborted `true` when the runner raised {@see \Waaseyaa\Migration\Exception\MigrationAbortedException}; `false` on normal completion.
+     * @param array<int, mixed> $warnings Bounded advisory acknowledgements produced by successful writes.
      *
-     * @throws \InvalidArgumentException When counts are negative, ids are empty, or the error list exceeds the cap.
+     * @throws \InvalidArgumentException When counts are negative, ids are empty, or an error/warning list is invalid or exceeds its cap.
      */
     public function __construct(
         public string $migrationId,
@@ -64,6 +73,7 @@ final readonly class RunReport
         public \DateTimeImmutable $startedAt,
         public \DateTimeImmutable $finishedAt,
         public bool $aborted,
+        array $warnings = [],
     ) {
         if ($migrationId === '') {
             throw new \InvalidArgumentException('RunReport::$migrationId must be a non-empty string.');
@@ -93,6 +103,23 @@ final readonly class RunReport
                 \count($errors),
             ));
         }
+        if (!array_is_list($warnings)) {
+            throw new \InvalidArgumentException('RunReport::$warnings must be a list.');
+        }
+        if (count($warnings) > self::WARNING_CAP) {
+            throw new \InvalidArgumentException(\sprintf(
+                'RunReport::$warnings must not exceed WARNING_CAP=%d, got %d entries.',
+                self::WARNING_CAP,
+                count($warnings),
+            ));
+        }
+        foreach ($warnings as $warning) {
+            if (!$warning instanceof SaveAdvisoryEvidence) {
+                throw new \InvalidArgumentException('RunReport::$warnings contains an invalid entry.');
+            }
+        }
+        /** @var list<SaveAdvisoryEvidence> $warnings */
+        $this->warnings = $warnings;
         // PHPDoc declares `list<RecordError>` so static analysis verifies entry
         // types at the call site; no runtime check needed here.
         if ($startedAt > $finishedAt) {

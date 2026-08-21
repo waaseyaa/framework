@@ -20,9 +20,12 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisory;
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisoryGate;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Publishing\ContentPublisher;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
@@ -48,6 +51,7 @@ final class ContentToolSetTest extends TestCase
     private string $uploadsDir;
     private EntityRepository $mediaRepository;
     private DBALDatabase $database;
+    private EventDispatcher $articleEvents;
 
     protected function setUp(): void
     {
@@ -65,10 +69,11 @@ final class ContentToolSetTest extends TestCase
         $handler->ensureTable();
         $handler->ensureRevisionTable();
         $resolver = new SingleConnectionResolver($db);
+        $this->articleEvents = new EventDispatcher();
         $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $articleType,
             new SqlStorageDriver($resolver),
-            new EventDispatcher(),
+            $this->articleEvents,
             new RevisionableStorageDriver($resolver, $articleType),
             $db,
         );
@@ -308,6 +313,41 @@ final class ContentToolSetTest extends TestCase
         ]);
         self::assertSame('VALIDATION_FAILED', $error['code']);
         self::assertContains('nope', array_column($error['errors'], 'field'));
+    }
+
+    #[Test]
+    public function draft_tools_expose_and_forward_structured_save_advisories(): void
+    {
+        foreach (['article.createDraft', 'article.updateDraft'] as $toolName) {
+            $property = $this->tools[$toolName]->inputSchema['properties']['save_advisory_acknowledgements'];
+            self::assertSame('array', $property['type']);
+            self::assertSame(32, $property['maxItems']);
+            self::assertSame('^[a-f0-9]{64}$', $property['items']['pattern']);
+        }
+
+        $this->articleEvents->addListener(BeforeSaveEvent::class, static function (BeforeSaveEvent $event): void {
+            SaveAdvisoryGate::requireAcknowledged([
+                SaveAdvisory::forEntityField(
+                    $event->entity(),
+                    'EDITORIAL_TITLE_REVIEW',
+                    'title',
+                    'Review the title before saving.',
+                ),
+            ], $event->saveContext());
+        });
+
+        $input = [
+            'values' => ['slug' => 'advisory-tool', 'title' => 'Review me'],
+            'idempotency_key' => 'advisory-tool-key',
+        ];
+        $error = $this->callExpectingError('article.createDraft', $input);
+        self::assertSame('SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED', $error['code']);
+        self::assertSame('EDITORIAL_TITLE_REVIEW', $error['meta']['save_advisories'][0]['code']);
+
+        $saved = $this->call('article.createDraft', $input + [
+            'save_advisory_acknowledgements' => [$error['meta']['save_advisories'][0]['acknowledgement']],
+        ]);
+        self::assertSame('Review me', $saved['title']);
     }
 
     #[Test]

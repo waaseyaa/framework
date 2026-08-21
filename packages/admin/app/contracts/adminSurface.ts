@@ -90,11 +90,25 @@ export interface AdminSurfaceResult<T> {
   meta?: Record<string, unknown>
 }
 
+export interface AdminSurfaceSaveAdvisory {
+  code: string
+  field: string
+  severity: 'warning'
+  message: string
+  acknowledgement: string
+}
+
+export interface AdminSurfaceErrorMeta {
+  save_advisories: AdminSurfaceSaveAdvisory[]
+}
+
 export interface AdminSurfaceError {
   status: number
   title: string
   detail?: string
   source?: Record<string, string>
+  code?: string
+  meta?: AdminSurfaceErrorMeta
 }
 
 export interface AdminSurfaceListQuery {

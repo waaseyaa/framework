@@ -1,10 +1,11 @@
+import type { AdminSurfaceErrorMeta } from './adminSurface'
 import type { EntitySchema } from './schema'
 
 export interface TransportAdapter {
   list(type: string, query?: ListQuery): Promise<ListResult>
   get(type: string, id: string): Promise<EntityResource>
-  create(type: string, attributes: Record<string, any>): Promise<EntityResource>
-  update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource>
+  create(type: string, attributes: Record<string, any>, saveAdvisoryAcknowledgements?: string[]): Promise<EntityResource>
+  update(type: string, id: string, attributes: Record<string, any>, saveAdvisoryAcknowledgements?: string[]): Promise<EntityResource>
   remove(type: string, id: string): Promise<void>
   schema(type: string, scope?: SchemaScope): Promise<EntitySchema>
   search(
@@ -45,12 +46,22 @@ export interface EntityResource {
   }
 }
 
+export interface SaveAdvisory {
+  code: string
+  field: string
+  severity: 'warning'
+  message: string
+  acknowledgement: string
+}
+
 export class TransportError extends Error {
   constructor(
     public readonly status: number,
     public readonly title: string,
     public readonly detail?: string,
     public readonly source?: Record<string, string>,
+    public readonly code?: string,
+    public readonly meta?: AdminSurfaceErrorMeta,
   ) {
     super(title)
     this.name = 'TransportError'

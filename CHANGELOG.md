@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — the draft-mutation seam is a supported public extension point
+  (#2467):** `SaveAdvisoryAcknowledgementDispatcher` is `@api` and takes
+  `ContentDraftMutationInterface` as a parameter, but that interface and its
+  advisory-aware extension were classified `internal`. A public entry point
+  cannot require consumers to implement internal parameter contracts — that
+  reproduced the very compatibility hazard the seam split was meant to close,
+  since an internal contract may be reshaped without notice while applications
+  are obliged to implement it. `ContentDraftMutationInterface`,
+  `AdvisoryAwareContentDraftMutationInterface`, the dispatcher, and
+  `UnsupportedSaveAdvisoryAcknowledgementException` are now classified `public`
+  and carry `@api`, binding future changes to the charter §3.1 process. The
+  compatibility promise is written down in `docs/specs/save-advisories.md` §10:
+  the five-parameter base `updateDraft()` is frozen, acknowledgement support is
+  opt-in through the extending interface, callers go through the dispatcher and
+  never discard receipts, and future capability arrives as a further extending
+  interface or a value object rather than a parameter added to an existing
+  implementor signature. `ContentRevisionHistoryInterface` and
+  `ContentRevisionPreviewInterface` stay internal: no public entry point takes
+  them as a parameter.
+
+- **Fixed — the draft-mutation seam stays source-compatible for applications
+  (#2467):** a trailing optional parameter is safe for callers but not for
+  implementors — PHP checks an implementing method against every parameter its
+  interface declares — so adding `$saveAdvisoryAcknowledgements` to
+  `ContentDraftMutationInterface::updateDraft()` made every application that
+  already implements the seam fail to load, at kernel boot rather than only on
+  the page-builder path. The published contract is restored to its original
+  five-parameter shape and the capability moves to
+  `AdvisoryAwareContentDraftMutationInterface`, which extends it.
+  `ContentPublisher` implements the extension.
+  `SaveAdvisoryAcknowledgementDispatcher::updateDraft()` is the single decision
+  point: with no receipts it calls the ordinary five-argument method, so a
+  legacy implementor is untouched; with receipts it requires the extension and
+  otherwise refuses with `SAVE_ADVISORY_UNSUPPORTED` before any write.
+  Acknowledgement receipts are never dropped to make a call succeed, and the
+  refusal carries no token, policy, or implementation identity.
+
+- **Fixed — Admin `TransportError` keeps the closed save-advisory meta contract
+  (#2467):** `TransportError.meta` is `AdminSurfaceErrorMeta`, not
+  `Record<string, unknown>`, so the allowlisted `save_advisories` projection
+  typechecks without reopening arbitrary error metadata.
+
+- **Changed — `AbortOperationException` stays final; unacknowledged save
+  advisories are a sibling exception (#2467):** the public abort type is not an
+  open hierarchy. `SaveAdvisoryAcknowledgementRequiredException` extends
+  `RuntimeException` directly so existing `catch (AbortOperationException)`
+  blocks keep their prior semantics and cannot silently absorb a review
+  contract. Throwing the typed advisory from `BeforeSaveEvent` still performs
+  no write.
+
+- **Changed — Generic Admin projects save-advisory JSON:API errors through an
+  allowlist (#2467):** `AdminSurfaceResultData` no longer forwards
+  `error.meta` verbatim. Ordinary errors keep the legacy status/title/detail
+  envelope. Only `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` emits `code` and
+  `meta.save_advisories`, and each advisory is reduced to code, field,
+  severity, message, and acknowledgement. A missing mutation-token HTTP 428
+  remains distinguishable because it has neither.
+
+- **Added — candidate-bound save advisories can be acknowledged consistently
+  across write surfaces (#2467):** applications can use one bundle-aware
+  pre-save policy to warn without misclassifying intentional legacy state as a
+  validation error. The first attempt performs no write; JSON:API, Generic
+  Admin, publishing/MCP, and explicitly declared migrations can retry the same
+  candidate with deterministic acknowledgement tokens. Changed candidate
+  values invalidate earlier tokens, validation remains unacknowledgeable, and
+  canonical import runs retain bounded advisory evidence.
+
 - **Fixed — generic revision recovery authorizes the historical snapshot
   (#2464):** exact revision reads go through `RevisionPolicyComposition` /
   `view_revision` on the requested revision, so current-entity view alone

@@ -13,6 +13,10 @@ namespace Waaseyaa\EntityStorage\Event;
  * {@see \Waaseyaa\EntityStorage\EntityStorageCoordinator::write()} /
  * {@see \Waaseyaa\EntityStorage\EntityStorageCoordinator::delete()} to the caller.
  * No After* event fires. No backend writes occur after this is thrown.
+ *
+ * This class is final so existing `catch (AbortOperationException)` blocks
+ * keep their original semantics. Save-advisory acknowledgement uses the
+ * sibling {@see \Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException}.
  */
 final class AbortOperationException extends \RuntimeException
 {

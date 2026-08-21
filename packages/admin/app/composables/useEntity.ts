@@ -18,12 +18,21 @@ export function useEntity() {
     return transport.get(type, id)
   }
 
-  async function create(type: string, attributes: Record<string, any>): Promise<EntityResource> {
-    return transport.create(type, attributes)
+  async function create(
+    type: string,
+    attributes: Record<string, any>,
+    saveAdvisoryAcknowledgements: string[] = [],
+  ): Promise<EntityResource> {
+    return transport.create(type, attributes, saveAdvisoryAcknowledgements)
   }
 
-  async function update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource> {
-    return transport.update(type, id, attributes)
+  async function update(
+    type: string,
+    id: string,
+    attributes: Record<string, any>,
+    saveAdvisoryAcknowledgements: string[] = [],
+  ): Promise<EntityResource> {
+    return transport.update(type, id, attributes, saveAdvisoryAcknowledgements)
   }
 
   async function remove(type: string, id: string): Promise<void> {

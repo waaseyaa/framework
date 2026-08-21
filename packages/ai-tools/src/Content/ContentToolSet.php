@@ -9,6 +9,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Publishing\ContentPublisher;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\Preview\PreviewLinkService;
+use Waaseyaa\Publishing\SaveAdvisoryAcknowledgementDispatcher;
 
 /**
  * Registers the full bundle-scoped content tool set under app-chosen stable
@@ -186,8 +187,14 @@ final readonly class ContentToolSet
                 $this->schema([
                     'values' => $this->valuesSchema(),
                     'idempotency_key' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 128],
+                    'save_advisory_acknowledgements' => $this->saveAdvisoryAcknowledgementsSchema(),
                 ], required: ['values', 'idempotency_key']),
-                static fn(array $a, $actor): array => $p->createDraft($actor, (array) $a['values'], (string) $a['idempotency_key']),
+                static fn(array $a, $actor): array => $p->createDraft(
+                    $actor,
+                    (array) $a['values'],
+                    (string) $a['idempotency_key'],
+                    self::acknowledgements($a),
+                ),
                 $noRedaction,
             ],
             "$prefix.updateDraft" => [
@@ -197,13 +204,16 @@ final readonly class ContentToolSet
                     'values' => $this->valuesSchema(),
                     'expected_revision_id' => ['type' => 'integer', 'minimum' => 1],
                     'idempotency_key' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 128],
+                    'save_advisory_acknowledgements' => $this->saveAdvisoryAcknowledgementsSchema(),
                 ], required: ['id', 'values', 'expected_revision_id', 'idempotency_key']),
-                static fn(array $a, $actor): array => $p->updateDraft(
+                static fn(array $a, $actor): array => SaveAdvisoryAcknowledgementDispatcher::updateDraft(
+                    $p,
                     $actor,
                     (string) $a['id'],
                     (array) $a['values'],
                     (int) $a['expected_revision_id'],
                     (string) $a['idempotency_key'],
+                    self::acknowledgements($a),
                 ),
                 $noRedaction,
             ],
@@ -296,6 +306,32 @@ final readonly class ContentToolSet
         }
 
         return $tools;
+    }
+
+    /**
+     * Read the acknowledgement receipts verbatim.
+     *
+     * Deliberately no reshaping beyond the array cast: a malformed payload must
+     * reach the publisher's strict validator and be refused, never be quietly
+     * normalised into something acceptable or dropped to an empty list.
+     *
+     * @param array<string, mixed> $arguments
+     * @return array<int|string, mixed>
+     */
+    private static function acknowledgements(array $arguments): array
+    {
+        return (array) ($arguments['save_advisory_acknowledgements'] ?? []);
+    }
+
+    /** @return array<string, mixed> */
+    private function saveAdvisoryAcknowledgementsSchema(): array
+    {
+        return [
+            'type' => 'array',
+            'items' => ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$'],
+            'maxItems' => 32,
+            'uniqueItems' => true,
+        ];
     }
 
     /** @return array<string, mixed> */

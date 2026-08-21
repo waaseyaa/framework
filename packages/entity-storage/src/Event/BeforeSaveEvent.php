@@ -13,7 +13,13 @@ use Waaseyaa\EntityStorage\SaveContext;
  * Dispatched before any backend write in a save operation.
  *
  * Subscribers may throw {@see AbortOperationException} to halt the save.
- * No backend writes occur after an abort; no {@see AfterSaveEvent} fires.
+ * An unacknowledged save advisory throws
+ * {@see \Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException},
+ * a sibling {@see \RuntimeException}: it also performs no write and suppresses
+ * {@see AfterSaveEvent}, but it is not an AbortOperationException, so existing
+ * abort catches keep their prior semantics.
+ *
+ * No backend writes occur after either exception; no {@see AfterSaveEvent} fires.
  *
  * @see AfterSaveEvent
  * @see AbortOperationException
@@ -24,6 +30,7 @@ final class BeforeSaveEvent implements EntityLifecycleEventInterface
         private readonly EntityInterface $entityValue,
         private readonly SaveContext $saveContextValue,
         private readonly bool $newRevision,
+        private readonly ?EntityInterface $originalEntityValue = null,
     ) {}
 
     public function entity(): EntityInterface
@@ -45,5 +52,11 @@ final class BeforeSaveEvent implements EntityLifecycleEventInterface
     public function isNewRevision(): bool
     {
         return $this->newRevision;
+    }
+
+    /** The stored entity before this save, or null for a create. @api */
+    public function originalEntity(): ?EntityInterface
+    {
+        return $this->originalEntityValue;
     }
 }

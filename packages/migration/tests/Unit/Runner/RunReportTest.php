@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Migration\Runner\RecordError;
 use Waaseyaa\Migration\Runner\RunReport;
+use Waaseyaa\Migration\Advisory\SaveAdvisoryEvidence;
 
 #[CoversClass(RunReport::class)]
 #[CoversClass(RecordError::class)]
@@ -82,6 +83,36 @@ final class RunReportTest extends TestCase
         }
         $this->expectException(\InvalidArgumentException::class);
         $this->makeReport(failed: \count($errors), errors: $errors);
+    }
+
+    #[Test]
+    public function rejects_more_advisory_warnings_than_cap(): void
+    {
+        $warning = new SaveAdvisoryEvidence(
+            'demo',
+            str_repeat('a', 64),
+            'DEMO_WARNING',
+            'title',
+            'warning',
+            'Review.',
+            str_repeat('b', 64),
+        );
+        $warnings = array_fill(0, RunReport::WARNING_CAP + 1, $warning);
+
+        $this->expectException(\InvalidArgumentException::class);
+        new RunReport(
+            migrationId: 'demo',
+            runId: '019683d3-1234-7000-8123-456789abcdef',
+            total: 0,
+            imported: 0,
+            skipped: 0,
+            failed: 0,
+            errors: [],
+            startedAt: new \DateTimeImmutable('2026-05-13T12:00:00Z'),
+            finishedAt: new \DateTimeImmutable('2026-05-13T12:00:01Z'),
+            aborted: false,
+            warnings: $warnings,
+        );
     }
 
     /**

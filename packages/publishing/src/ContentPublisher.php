@@ -15,9 +15,11 @@ use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\Exception\ContentNotFoundException;
+use Waaseyaa\Publishing\Exception\ContentSaveAdvisoryException;
 use Waaseyaa\Publishing\Exception\ContentValidationException;
 use Waaseyaa\Publishing\Exception\SlugConflictException;
 use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
@@ -39,7 +41,7 @@ use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
  *
  * @api
  */
-final class ContentPublisher implements ContentDraftMutationInterface, ContentRevisionHistoryInterface, ContentRevisionPreviewInterface
+final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterface, ContentRevisionHistoryInterface, ContentRevisionPreviewInterface
 {
     private readonly ContentMutationSnapshotReader $snapshotReader;
 
@@ -207,21 +209,33 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
      * of payload (payloads may not carry it at all).
      *
      * @param array<string, mixed> $values
+     * @param list<string> $saveAdvisoryAcknowledgements
      * @return array<string, mixed>
      */
-    public function createDraft(AuthorizationPrincipalInterface $actor, array $values, string $idempotencyKey): array
-    {
+    public function createDraft(
+        AuthorizationPrincipalInterface $actor,
+        array $values,
+        string $idempotencyKey,
+        array $saveAdvisoryAcknowledgements = [],
+    ): array {
         $this->requireCapability($actor);
         $this->requireEntityCreateAccess($actor);
+        $saveAdvisoryAcknowledgements = $this->normalizeSaveAdvisoryAcknowledgements($saveAdvisoryAcknowledgements);
+        $request = $saveAdvisoryAcknowledgements === []
+            ? $values
+            : ['values' => $values, 'save_advisory_acknowledgements' => $saveAdvisoryAcknowledgements];
 
-        return $this->idempotency->execute($idempotencyKey, 'createDraft', $values, function () use ($actor, $values): array {
+        return $this->idempotency->execute($idempotencyKey, 'createDraft', $request, function () use ($actor, $values, $saveAdvisoryAcknowledgements): array {
             $clean = $this->validatePayload($values, existing: null);
             $this->assertSlugFree((string) $clean[$this->descriptor->slugField], excludeId: null);
 
             $entity = $this->repository->create($clean + $this->bundleCriteria());
             $entity = $entity->set($this->descriptor->statusField, 0);
             $this->stampLog($entity, 'Draft created via publishing surface.');
-            $this->repository->save($entity, true, $this->saveContext($actor));
+            $this->saveDraft($entity, $this->saveContext(
+                $actor,
+                saveAdvisoryAcknowledgements: $saveAdvisoryAcknowledgements,
+            ));
 
             $saved = $this->reload($entity);
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
@@ -232,15 +246,26 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
 
     /**
      * @param array<string, mixed> $values Partial payload; omitted fields keep their value.
+     * @param list<string> $saveAdvisoryAcknowledgements
      * @return array<string, mixed>
      */
-    public function updateDraft(AuthorizationPrincipalInterface $actor, string $id, array $values, int $expectedRevisionId, string $idempotencyKey): array
-    {
+    public function updateDraft(
+        AuthorizationPrincipalInterface $actor,
+        string $id,
+        array $values,
+        int $expectedRevisionId,
+        string $idempotencyKey,
+        array $saveAdvisoryAcknowledgements = [],
+    ): array {
         $this->requireCapability($actor);
+        $saveAdvisoryAcknowledgements = $this->normalizeSaveAdvisoryAcknowledgements($saveAdvisoryAcknowledgements);
 
         $request = ['id' => $id, 'values' => $values, 'expected_revision_id' => $expectedRevisionId];
+        if ($saveAdvisoryAcknowledgements !== []) {
+            $request['save_advisory_acknowledgements'] = $saveAdvisoryAcknowledgements;
+        }
 
-        return $this->idempotency->execute($idempotencyKey, 'updateDraft', $request, function () use ($actor, $id, $values, $expectedRevisionId): array {
+        return $this->idempotency->execute($idempotencyKey, 'updateDraft', $request, function () use ($actor, $id, $values, $expectedRevisionId, $saveAdvisoryAcknowledgements): array {
             $entity = $this->load($id);
             $this->requireEntityUpdateAccess($actor, $entity);
 
@@ -253,7 +278,7 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
                 $entity = $entity->set($field, $value);
             }
             $this->stampLog($entity, 'Draft updated via publishing surface.');
-            $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
+            $this->saveDraft($entity, $this->saveContext($actor, $expectedRevisionId, $saveAdvisoryAcknowledgements));
 
             $saved = $this->reload($entity);
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
@@ -606,8 +631,12 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
         return $reloaded ?? $entity;
     }
 
-    private function saveContext(AuthorizationPrincipalInterface $actor, ?int $expectedRevisionId = null): SaveContext
-    {
+    /** @param list<string> $saveAdvisoryAcknowledgements */
+    private function saveContext(
+        AuthorizationPrincipalInterface $actor,
+        ?int $expectedRevisionId = null,
+        array $saveAdvisoryAcknowledgements = [],
+    ): SaveContext {
         $context = SaveContext::default();
         $uid = $actor->id();
         if (\is_int($uid) || ctype_digit($uid)) {
@@ -617,7 +646,24 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
             $context = $context->withExpectedRevisionId($expectedRevisionId);
         }
 
-        return $context;
+        return $context->withSaveAdvisoryAcknowledgements($saveAdvisoryAcknowledgements);
+    }
+
+    /** @param list<string> $tokens @return list<string> */
+    private function normalizeSaveAdvisoryAcknowledgements(array $tokens): array
+    {
+        return SaveContext::default()
+            ->withSaveAdvisoryAcknowledgements($tokens)
+            ->saveAdvisoryAcknowledgements();
+    }
+
+    private function saveDraft(EntityInterface $entity, SaveContext $context): void
+    {
+        try {
+            $this->repository->save($entity, true, $context);
+        } catch (SaveAdvisoryAcknowledgementRequiredException $exception) {
+            throw new ContentSaveAdvisoryException($exception);
+        }
     }
 
     private function assertExpectedRevision(EntityInterface $entity, int $expectedRevisionId): void

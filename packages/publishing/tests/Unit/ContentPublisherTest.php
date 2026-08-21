@@ -17,9 +17,12 @@ use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisory;
+use Waaseyaa\EntityStorage\Advisory\SaveAdvisoryGate;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Publishing\ContentMutationSnapshotReader;
@@ -28,6 +31,7 @@ use Waaseyaa\Publishing\ContentPublisher;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\ContentValidatorInterface;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
+use Waaseyaa\Publishing\Exception\ContentSaveAdvisoryException;
 use Waaseyaa\Publishing\Exception\ContentValidationException;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 use Waaseyaa\Publishing\Exception\SlugConflictException;
@@ -51,6 +55,7 @@ final class ContentPublisherTest extends TestCase
     private SpyAuditWriter $audit;
     private ContentPublisher $publisher;
     private PublisherAccount $actor;
+    private EventDispatcher $events;
     private ?EntityValueReadGuardInterface $priorGuard;
 
     protected function setUp(): void
@@ -75,10 +80,11 @@ final class ContentPublisherTest extends TestCase
         $handler->ensureTable();
         $handler->ensureRevisionTable();
         $resolver = new SingleConnectionResolver($db);
+        $this->events = new EventDispatcher();
         $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
-            new EventDispatcher(),
+            $this->events,
             new RevisionableStorageDriver($resolver, $entityType),
             $db,
         );
@@ -177,6 +183,70 @@ final class ContentPublisherTest extends TestCase
     }
 
     // --- drafts ---
+
+    #[Test]
+    public function draft_create_returns_structured_advisories_and_binds_them_into_idempotency(): void
+    {
+        $this->requireTitleAdvisory();
+
+        try {
+            $this->publisher->createDraft($this->actor, $this->draftValues(), 'advisory-create');
+            self::fail('An unacknowledged draft was saved.');
+        } catch (ContentSaveAdvisoryException $exception) {
+            self::assertSame('SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED', $exception->errorCode);
+            self::assertCount(1, $exception->meta['save_advisories']);
+            $advisory = $exception->meta['save_advisories'][0];
+            self::assertSame('EDITORIAL_TITLE_REVIEW', $advisory['code']);
+            self::assertSame('title', $advisory['field']);
+            self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $advisory['acknowledgement']);
+        }
+        self::assertSame(0, $this->repo->count());
+
+        $draft = $this->publisher->createDraft(
+            $this->actor,
+            $this->draftValues(),
+            'advisory-create',
+            [$advisory['acknowledgement']],
+        );
+        self::assertSame('First post', $draft['title']);
+
+        $this->expectException(IdempotencyConflictException::class);
+        $this->publisher->createDraft($this->actor, $this->draftValues(), 'advisory-create');
+    }
+
+    #[Test]
+    public function draft_update_preserves_actor_and_revision_context_when_acknowledged(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'advisory-seed');
+        $this->requireTitleAdvisory();
+
+        try {
+            $this->publisher->updateDraft(
+                $this->actor,
+                (string) $draft['id'],
+                ['title' => 'Reviewed title'],
+                $draft['revision_id'],
+                'advisory-update',
+            );
+            self::fail('An unacknowledged update was saved.');
+        } catch (ContentSaveAdvisoryException $exception) {
+            $advisory = $exception->meta['save_advisories'][0];
+        }
+        self::assertCount(1, $this->publisher->revisions($this->actor, (string) $draft['id']));
+
+        $updated = $this->publisher->updateDraft(
+            $this->actor,
+            (string) $draft['id'],
+            ['title' => 'Reviewed title'],
+            $draft['revision_id'],
+            'advisory-update',
+            [$advisory['acknowledgement']],
+        );
+
+        self::assertSame('Reviewed title', $updated['title']);
+        self::assertGreaterThan($draft['revision_id'], $updated['revision_id']);
+        self::assertSame($this->actor->id(), $this->publisher->revisions($this->actor, (string) $draft['id'])[0]['author_uid']);
+    }
 
     #[Test]
     public function create_draft_is_never_public_and_returns_the_revision_token(): void
@@ -549,5 +619,19 @@ final class ContentPublisherTest extends TestCase
 
         $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'k2', 'Go');
         self::assertCount(1, $this->publisher->list($this->actor, publishedOnly: true));
+    }
+
+    private function requireTitleAdvisory(): void
+    {
+        $this->events->addListener(BeforeSaveEvent::class, static function (BeforeSaveEvent $event): void {
+            SaveAdvisoryGate::requireAcknowledged([
+                SaveAdvisory::forEntityField(
+                    $event->entity(),
+                    'EDITORIAL_TITLE_REVIEW',
+                    'title',
+                    'Review the title before saving.',
+                ),
+            ], $event->saveContext());
+        });
     }
 }

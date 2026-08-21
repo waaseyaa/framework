@@ -6,6 +6,7 @@ import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
 import { schemaFormContextKey } from './schemaFormContext'
 import { normalizeValidationFailure } from './validationErrors'
+import type { SaveAdvisory } from '~/contracts/transport'
 
 const props = defineProps<{
   entityType: string
@@ -30,6 +31,12 @@ const loadError = ref<string | null>(null)
 const fieldErrors = ref<Record<string, string>>({})
 const globalErrors = ref<string[]>([])
 const validationSummary = ref<HTMLElement | null>(null)
+const advisoryReview = ref<HTMLElement | null>(null)
+const saveAdvisories = ref<SaveAdvisory[]>([])
+const pendingAdvisorySubmission = ref<{
+  values: Record<string, any>
+  acknowledgements: string[]
+} | null>(null)
 const isEditMode = computed(() => !!props.entityId)
 const bundleKey = computed(() => schema.value?.['x-bundle-key'] ?? null)
 const selectedBundle = computed(() => {
@@ -236,6 +243,45 @@ function clearValidation(fieldName?: string) {
   globalErrors.value = []
 }
 
+function clearAdvisoryReview() {
+  saveAdvisories.value = []
+  pendingAdvisorySubmission.value = null
+}
+
+function advisoriesFromFailure(error: unknown): SaveAdvisory[] | null {
+  if (!error || typeof error !== 'object') return null
+  const failure = error as Record<string, unknown>
+  if (failure.status !== 428
+    || failure.code !== 'SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED') {
+    return null
+  }
+  const meta = failure.meta
+  if (!meta || typeof meta !== 'object') return null
+  const candidates = (meta as Record<string, unknown>).save_advisories
+  if (!Array.isArray(candidates) || candidates.length === 0 || candidates.length > 32) return null
+
+  const advisories: SaveAdvisory[] = []
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') return null
+    const value = candidate as Record<string, unknown>
+    if (typeof value.code !== 'string'
+      || typeof value.field !== 'string'
+      || value.severity !== 'warning'
+      || typeof value.message !== 'string'
+      || typeof value.acknowledgement !== 'string'
+      || !/^[a-f0-9]{64}$/.test(value.acknowledgement)) {
+      return null
+    }
+    advisories.push(value as unknown as SaveAdvisory)
+  }
+
+  return advisories
+}
+
+function captureJsonCandidate(values: Record<string, any>): Record<string, any> {
+  return JSON.parse(JSON.stringify(values)) as Record<string, any>
+}
+
 async function focusValidationSummary() {
   await nextTick()
   validationSummary.value?.focus()
@@ -284,6 +330,7 @@ async function onFieldUpdate(fieldName: string, value: any, accessRestricted: bo
   if (accessRestricted) return
 
   formData.value[fieldName] = value
+  clearAdvisoryReview()
   clearValidation(fieldName)
   const bundleKey = schema.value?.['x-bundle-key']
   if (props.entityId || bundleKey !== fieldName || typeof value !== 'string' || value === '') return
@@ -300,10 +347,50 @@ async function onFieldUpdate(fieldName: string, value: any, accessRestricted: bo
   }
 }
 
+async function persistCandidate(
+  writableData: Record<string, any>,
+  acknowledgements: string[] = [],
+) {
+  const submittedBundleKey = bundleKey.value
+  const submittedBundle = submittedBundleKey ? writableData[submittedBundleKey] : undefined
+  try {
+    const resource = props.entityId
+      ? await update(props.entityType, props.entityId, writableData, acknowledgements)
+      : await create(props.entityType, writableData, acknowledgements)
+    clearAdvisoryReview()
+    emit('saved', resource)
+  } catch (e: any) {
+    // A failed create must retain the bundle that scoped the current schema.
+    // This also defends against transport/plugin error handling replacing the
+    // reactive payload while the request is in flight.
+    if (!props.entityId && submittedBundleKey && typeof submittedBundle === 'string') {
+      formData.value[submittedBundleKey] = submittedBundle
+    }
+    const advisories = advisoriesFromFailure(e)
+    if (advisories !== null) {
+      saveAdvisories.value = advisories
+      pendingAdvisorySubmission.value = {
+        values: captureJsonCandidate(writableData),
+        acknowledgements: advisories.map(advisory => advisory.acknowledgement),
+      }
+      await nextTick()
+      advisoryReview.value?.focus()
+      return
+    }
+    const normalized = normalizeValidationFailure(e, new Set(editableFields.value.map(([name]) => name)))
+    fieldErrors.value = normalized.fieldErrors
+    globalErrors.value = normalized.globalErrors
+    const msg = normalized.globalErrors[0] ?? Object.values(normalized.fieldErrors)[0] ?? t('error_saving_entity')
+    emit('error', msg)
+    await focusValidationSummary()
+  }
+}
+
 async function onSubmit() {
   if (submitInFlight) return
   submitInFlight = true
   clearValidation()
+  clearAdvisoryReview()
   const clientErrors = validateDateFields(validateRequiredFields())
   if (Object.keys(clientErrors).length > 0) {
     fieldErrors.value = clientErrors
@@ -312,8 +399,6 @@ async function onSubmit() {
     return
   }
   saving.value = true
-  const submittedBundleKey = bundleKey.value
-  const submittedBundle = submittedBundleKey ? formData.value[submittedBundleKey] : undefined
   try {
     // Entity reads include structural attributes needed for display and
     // identity, but the schema is the write contract. Submit only declared,
@@ -325,23 +410,22 @@ async function onSubmit() {
         return property !== undefined && property.readOnly !== true
       }),
     )
-    const resource = props.entityId
-      ? await update(props.entityType, props.entityId, writableData)
-      : await create(props.entityType, writableData)
-    emit('saved', resource)
-  } catch (e: any) {
-    // A failed create must retain the bundle that scoped the current schema.
-    // This also defends against transport/plugin error handling replacing the
-    // reactive payload while the request is in flight.
-    if (!props.entityId && submittedBundleKey && typeof submittedBundle === 'string') {
-      formData.value[submittedBundleKey] = submittedBundle
-    }
-    const normalized = normalizeValidationFailure(e, new Set(editableFields.value.map(([name]) => name)))
-    fieldErrors.value = normalized.fieldErrors
-    globalErrors.value = normalized.globalErrors
-    const msg = normalized.globalErrors[0] ?? Object.values(normalized.fieldErrors)[0] ?? t('error_saving_entity')
-    emit('error', msg)
-    await focusValidationSummary()
+    await persistCandidate(writableData)
+  } finally {
+    saving.value = false
+    submitInFlight = false
+  }
+}
+
+async function confirmAdvisorySubmission() {
+  if (submitInFlight || pendingAdvisorySubmission.value === null) return
+  submitInFlight = true
+  saving.value = true
+  const submission = pendingAdvisorySubmission.value
+  clearValidation()
+  clearAdvisoryReview()
+  try {
+    await persistCandidate(submission.values, submission.acknowledgements)
   } finally {
     saving.value = false
     submitInFlight = false
@@ -355,6 +439,26 @@ async function onSubmit() {
     <div v-else-if="schemaError" class="error">{{ schemaError }}</div>
     <div v-else-if="loadError" class="error">{{ loadError }}</div>
     <form v-else novalidate @submit.prevent="onSubmit">
+      <section
+        v-if="saveAdvisories.length > 0"
+        ref="advisoryReview"
+        class="save-advisory-review"
+        data-testid="save-advisory-review"
+        role="status"
+        aria-live="polite"
+        tabindex="-1"
+      >
+        <h2>Review before saving</h2>
+        <p>This content can be saved after you acknowledge the following warning.</p>
+        <ul>
+          <li v-for="advisory in saveAdvisories" :key="advisory.acknowledgement">
+            <strong>{{ advisory.field }}</strong>: {{ advisory.message }}
+          </li>
+        </ul>
+        <button type="button" class="btn btn-primary" :disabled="saving" @click="confirmAdvisorySubmission">
+          Acknowledge warning and save
+        </button>
+      </section>
       <div
         v-if="validationMessages.length > 0"
         ref="validationSummary"
@@ -434,6 +538,20 @@ async function onSubmit() {
 .schema-form form {
   display: grid;
   gap: 1rem;
+}
+.save-advisory-review {
+  padding: 1rem;
+  border: 2px solid var(--color-warning, #9a6700);
+  border-radius: 0.625rem;
+  background: var(--color-warning-surface, #fff8c5);
+}
+.save-advisory-review h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+.save-advisory-review p,
+.save-advisory-review ul {
+  margin: 0 0 0.75rem;
 }
 .form-section {
   min-width: 0;

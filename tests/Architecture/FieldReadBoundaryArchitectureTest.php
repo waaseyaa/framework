@@ -219,6 +219,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/audit/src/Entity/AuditRetentionPolicy.php' => 'Audit-retention domain helpers use the canonical guarded accessor for explicitly classified fields.',
         'packages/cli/src/Command/Ai/AiRunCommand.php' => 'CLI entity input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/engagement/src/EngagementAccessPolicy.php' => 'Engagement policy input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/entity-storage/src/Advisory/SaveAdvisory.php' => 'Candidate-bound advisory authority reads exactly one app-declared field through the guarded accessor to bind a warning token; it never exposes or compares the entity value bag (#2467).',
         'packages/entity/src/EntityBase.php' => 'Canonical guarded accessor and structural helper implementation.',
         'packages/entity/src/DateTime/TimestampFieldConvention.php' => 'Framework timestamp inspection uses fieldNames() plus the canonical guarded accessor.',
         'packages/entity/src/EntityValues.php' => 'Selected cast-aware projections enumerate field names without first exporting a value bag.',
