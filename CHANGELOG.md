@@ -54,6 +54,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   host that declares nothing reads as "no history" instead of offering an
   affordance that can only be refused.
 
+- **Fixed — production HTTP must not lazily create entity-storage tables after
+  field-access preflight (#2478):** `AbstractKernel` fingerprinted entity
+  schema, then provider boot (notably `AttachmentSchema::ensureTable()`) could
+  CREATE or heal entity tables on the first request. The next boot hashed a
+  different shape and fail-closed as stale. Production runtime now asserts the
+  registered entity schema before provider boot and refuses missing tables with
+  `[S1-DB106]` / `schema:sync`. Attachment's canonical columns are applied by
+  coordinated schema sync (`#[StorageSchemaTransition]`). Local/development
+  boots may still materialize that schema for convenience. The preflight
+  artifact is not rewritten on the request path.
+
 - **Fixed — page-builder responsive controls now resize the actual preview
   viewport (#2465):** the Mobile and Tablet controls changed their selected
   state and the iframe's declared width, but the iframe's automatic flex-item

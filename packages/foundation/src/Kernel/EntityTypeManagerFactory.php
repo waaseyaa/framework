@@ -161,6 +161,17 @@ final class EntityTypeManagerFactory
         return $manager;
     }
 
+    public function assertRegisteredRuntimeSchemas(
+        DatabaseInterface $database,
+        EntityTypeManager $manager,
+        FieldDefinitionRegistryInterface $fieldRegistry,
+        LoggerInterface $logger,
+    ): void {
+        foreach ($manager->getDefinitions() as $definition) {
+            $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger)->assertRuntimeSchema();
+        }
+    }
+
     private function schemaHandlerFor(
         EntityTypeInterface $definition,
         DatabaseInterface $database,

@@ -90,6 +90,20 @@ final class HttpKernelBootFailureTest extends TestCase
     }
 
     #[Test]
+    public function client_safe_boot_failure_detail_names_schema_sync_without_table_names(): void
+    {
+        $formatter = new BootFailureMessageFormatter();
+
+        $detail = $formatter->format(new \RuntimeException(
+            '[S1-DB106] Required runtime schema is unavailable for table "attachment"; missing: table. Apply migration "waaseyaa schema:sync" through the schema coordinator.',
+        ));
+
+        self::assertStringContainsString('schema:sync', $detail);
+        self::assertStringContainsString('install:init', $detail);
+        self::assertStringNotContainsString('attachment', $detail);
+    }
+
+    #[Test]
     public function client_safe_boot_failure_detail_passes_through_app_debug_guard_message(): void
     {
         $formatter = new BootFailureMessageFormatter();

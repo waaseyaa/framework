@@ -7,6 +7,7 @@ namespace Waaseyaa\Attachment\Schema;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\EntityStorage\Schema\EntityStorageSchemaTransitionInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -30,7 +31,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * ONLY provider of the attachment-specific columns
  * (`parent_entity_type`, `parent_entity_id`, `is_active`, `created_at`,
  * `updated_at`) and the composite/partial indexes below. It is wired into
- * every real kernel boot by {@see \Waaseyaa\Attachment\AttachmentServiceProvider::boot()}.
+ * It is applied by coordinated schema sync (`#[StorageSchemaTransition]` on
+ * {@see \Waaseyaa\Attachment\Attachment}) and may still run from
+ * {@see \Waaseyaa\Attachment\AttachmentServiceProvider::boot()} in
+ * local/development. Production HTTP must not call it (#2478).
  *
  * {@see ensureTable()} is written to converge to this canonical shape
  * regardless of which path creates the base table first: if the table does
@@ -71,7 +75,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * @api
  */
-final class AttachmentSchema
+final class AttachmentSchema implements EntityStorageSchemaTransitionInterface
 {
     private const TABLE = 'attachment';
 
@@ -119,6 +123,17 @@ final class AttachmentSchema
         $this->logger = $logger ?? new NullLogger();
     }
 
+    public function apply(DatabaseInterface $database, string $table): void
+    {
+        if ($table !== self::TABLE) {
+            throw new \LogicException(sprintf('AttachmentSchema cannot transition table "%s".', $table));
+        }
+        if ($database !== $this->database) {
+            throw new \LogicException('AttachmentSchema must be applied on the database it was constructed with.');
+        }
+        $this->ensureTable();
+    }
+
     /**
      * Ensures the attachment table exists with all required columns and indexes.
      *
@@ -159,9 +174,9 @@ final class AttachmentSchema
      *     through DBAL's recreate machinery — see {@see ensureIndexes()}.
      *   - The whole heal is best-effort (try/catch + logged warning,
      *     mirroring {@see ensureActivePartialUniqueIndex()}'s posture): it
-     *     runs on every kernel boot via `AttachmentServiceProvider::boot()`,
-     *     and a platform quirk or partial failure must degrade loudly in
-     *     the log — never crash boot.
+     *     runs from coordinated schema sync and from local/development
+     *     `AttachmentServiceProvider::boot()`. A platform quirk or partial
+     *     failure must degrade loudly in the log — never crash boot.
      *
      * Cost when there is nothing to heal: a fresh table skips the heal
      * branch entirely; an already-healed table does five fieldExists()

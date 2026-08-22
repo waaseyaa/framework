@@ -60,7 +60,7 @@ final class AttachmentSchemaSelfHealTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         $entityType = EntityType::fromClass(Attachment::class);
-        new SqlSchemaHandler($entityType, $database)->ensureTable();
+        $this->createBaseOnlyAttachmentTable($database);
 
         $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
@@ -141,8 +141,7 @@ final class AttachmentSchemaSelfHealTest extends TestCase
     public function selfHealInterpretsBlobIsActiveWithTheStrictAllowList(): void
     {
         $database = DBALDatabase::createSqlite();
-        $entityType = EntityType::fromClass(Attachment::class);
-        new SqlSchemaHandler($entityType, $database)->ensureTable();
+        $this->createBaseOnlyAttachmentTable($database);
 
         // Hand-craft a degraded row whose blob is_active is PHP-truthy
         // garbage — hydration-era code never wrote this, but the backfill
@@ -274,8 +273,7 @@ final class AttachmentSchemaSelfHealTest extends TestCase
     public function midHealFailureRollsBackAndTheNextBootConvergesFully(): void
     {
         $database = DBALDatabase::createSqlite();
-        $entityType = EntityType::fromClass(Attachment::class);
-        new SqlSchemaHandler($entityType, $database)->ensureTable();
+        $this->createBaseOnlyAttachmentTable($database);
 
         // Two degraded-era rows (distinct parents, distinct uuids) whose
         // attachment data lives only in the `_data` blob.
@@ -385,6 +383,14 @@ final class AttachmentSchemaSelfHealTest extends TestCase
         new AttachmentSchema($database, $boot3Logger)->ensureTable();
         self::assertSame([], $boot3Logger->warnings, 'Boot 3 must not warn.');
         self::assertSame([], $boot3Logger->infosAndNotices, 'Boot 3 must not re-heal anything.');
+    }
+
+    private function createBaseOnlyAttachmentTable(DBALDatabase $database): void
+    {
+        $handler = new SqlSchemaHandler(EntityType::fromClass(Attachment::class), $database);
+        $spec = new \ReflectionMethod(SqlSchemaHandler::class, 'buildTableSpec')->invoke($handler);
+        self::assertIsArray($spec);
+        $database->schema()->createTable('attachment', $spec);
     }
 }
 

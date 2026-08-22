@@ -476,6 +476,20 @@
             "occurrence": 1
         },
         {
+            "path": "packages/attachment/tests/Unit/Schema/AttachmentSchemaParityTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/attachment/tests/Unit/Schema/AttachmentSchemaSelfHealTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
+        },
+        {
             "path": "packages/audit/migrations/2026_05_25_000002_create_audit_retention_policy_table.php",
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
@@ -8769,6 +8783,27 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "occurrence": 2
+        },
+        {
+            "path": "tests/Integration/Preflight/ProductionHttpEntitySchemaMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Preflight/ProductionHttpEntitySchemaMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Integration/Preflight/ProductionHttpEntitySchemaMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
+            "occurrence": 3
         },
         {
             "path": "tests/Integration/Queue/QueueIntegrationTest.php",

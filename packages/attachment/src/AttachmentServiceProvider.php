@@ -36,12 +36,9 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  *   - {@see AttachmentSchema::ensureTable()} — the canonical schema
  *     materializer for this package's `#[Field]`-declared columns and
- *     composite/partial indexes, which the generic sql-blob schema-sync
- *     path does NOT create on its own (see {@see AttachmentSchema}'s
- *     docblock for the full rationale). Called on every kernel boot,
- *     database availability permitting; idempotent and self-healing
- *     regardless of whether the generic path already materialized the
- *     base-only table.
+ *     composite/partial indexes. Coordinated schema sync applies it via
+ *     `#[StorageSchemaTransition]`. Local/development boots still call it
+ *     for convenience; production HTTP must not (#2478).
  *   - {@see AttachmentActiveGuardListener} onto `EntityEvents::PRE_SAVE` —
  *     the at-most-one-active guard for the generic entity API
  *     (`getRepository('attachment')->save()`), which bypasses
@@ -96,12 +93,13 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
      * Materializes the canonical attachment schema, then wires
      * {@see AttachmentActiveGuardListener} onto `EntityEvents::PRE_SAVE`.
      *
-     * Schema materialization runs whenever a database is available,
-     * independent of the dispatcher — a CLI/migration context may boot this
-     * provider without an event dispatcher wired, and the table must still
-     * get its attachment-specific columns/indexes in that context (e.g.
-     * `db:init`). The listener wiring additionally needs the dispatcher, so
-     * it stays gated on both.
+     * Schema materialization on this boot path is local/development convenience
+     * only. Production HTTP must not mutate entity-storage schema (#2478);
+     * `install:init` / `schema:sync` apply {@see AttachmentSchema} through the
+     * coordinated transition declared on the entity type.
+     *
+     * The listener wiring additionally needs the dispatcher, so it stays gated
+     * on the database and dispatcher both.
      *
      * The kernel-services bus serves the event dispatcher ONLY under the
      * Symfony-contracts FQCN (`ProviderRegistryKernelServices::get()`);
@@ -117,7 +115,9 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
             return;
         }
 
-        $this->resolve(AttachmentSchema::class)->ensureTable();
+        if ($this->allowsConvenientSchemaMaterialization()) {
+            $this->resolve(AttachmentSchema::class)->ensureTable();
+        }
 
         $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
         if (!$dispatcher instanceof \Waaseyaa\Foundation\Event\EventDispatcherInterface) {
@@ -166,5 +166,16 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
         }
 
         return $httpKernel->getProjectRoot() . '/storage/private-files';
+    }
+
+    /** Production and staging HTTP must not CREATE or ALTER entity tables. */
+    private function allowsConvenientSchemaMaterialization(): bool
+    {
+        $configured = $this->config['environment'] ?? getenv('APP_ENV');
+        $environment = is_string($configured) && $configured !== ''
+            ? strtolower($configured)
+            : 'production';
+
+        return in_array($environment, ['dev', 'development', 'local', 'testing'], true);
     }
 }

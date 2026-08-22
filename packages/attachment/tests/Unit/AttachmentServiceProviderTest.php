@@ -70,12 +70,8 @@ final class AttachmentServiceProviderTest extends TestCase
     }
 
     /**
-     * The generic sql-blob schema-sync path (SqlSchemaHandler) never
-     * materializes this package's `#[Field]`-declared columns or its
-     * composite/partial indexes for a sql-blob backend entity type — see
-     * AttachmentSchema's docblock. boot() must materialize the canonical
-     * attachment shape itself so a real kernel boot (which never calls
-     * AttachmentSchema::ensureTable() any other way) actually gets it.
+     * Local/development boot still materializes attachment-specific columns.
+     * Production HTTP must not; coordinated schema:sync owns that shape (#2478).
      */
     #[Test]
     public function bootMaterializesAttachmentSpecificSchema(): void
@@ -84,6 +80,7 @@ final class AttachmentServiceProviderTest extends TestCase
         $database = DBALDatabase::createSqlite();
 
         $provider = new AttachmentServiceProvider();
+        $provider->setKernelContext('/tmp', ['environment' => 'local'], []);
         $provider->setKernelServices($this->kernelServices([
             \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
             DatabaseInterface::class => $database,
@@ -109,6 +106,7 @@ final class AttachmentServiceProviderTest extends TestCase
         $database = DBALDatabase::createSqlite();
 
         $provider = new AttachmentServiceProvider();
+        $provider->setKernelContext('/tmp', ['environment' => 'local'], []);
         $provider->setKernelServices($this->kernelServices([
             DatabaseInterface::class => $database,
         ]));
@@ -116,6 +114,21 @@ final class AttachmentServiceProviderTest extends TestCase
         $provider->boot();
 
         $this->assertTrue($database->schema()->fieldExists('attachment', 'is_active'));
+    }
+
+    #[Test]
+    public function productionBootDoesNotCreateAttachmentTable(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $provider = new AttachmentServiceProvider();
+        $provider->setKernelContext('/tmp', ['environment' => 'production'], []);
+        $provider->setKernelServices($this->kernelServices([
+            DatabaseInterface::class => $database,
+        ]));
+        $provider->register();
+        $provider->boot();
+
+        $this->assertFalse($database->schema()->tableExists('attachment'));
     }
 
     #[Test]

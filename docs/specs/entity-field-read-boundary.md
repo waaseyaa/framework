@@ -354,6 +354,14 @@ Narrowing the fingerprint does **not** narrow the blocker sweep: the
 queue/cache/state serialized-payload scans still run over every physical
 table at artifact-generation time.
 
+**Production HTTP must not mutate that entity-storage fingerprint (#2478).**
+`AbstractKernel` fingerprints, then asserts every registered entity type's
+runtime schema, *before* provider `boot()` hooks. Missing entity tables fail
+closed with `[S1-DB106]` and `schema:sync` / `install:init` guidance.
+`AttachmentSchema` is a coordinated `#[StorageSchemaTransition]`, not a
+production request-time CREATE. The activation preflight is not rewritten,
+ignored, or auto-refreshed on the HTTP path.
+
 Framework-owned defaults are not a preflight-only waiver. The exact table in
 `field-access.md` is resolved by the same source during sealed runtime layout
 compilation and preflight scanning. Explicit definitions and classification

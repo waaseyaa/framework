@@ -1,3 +1,4 @@
+<!-- Spec reviewed 2026-08-21 - #2478: production HTTP must not CREATE entity-storage tables after FieldAccessActivationPreflight fingerprints them. Missing tables fail closed with S1-DB106 / schema:sync before provider boot. AttachmentSchema is a coordinated StorageSchemaTransition. -->
 # Entity System
 
 <!-- Spec reviewed 2026-08-20 - #2467 save-advisory exception hierarchy: AbortOperationException remains final. SaveAdvisoryAcknowledgementRequiredException is a sibling RuntimeException, not a subclass, so existing abort catches keep prior semantics while BeforeSaveEvent throws still perform no write. -->
