@@ -160,6 +160,23 @@ final class CiSingleExecutionProofTest extends TestCase
         self::assertStringNotContainsString('restore-keys: composer-v2-', $randomOrderJobs);
     }
 
+    #[Test]
+    public function deadCodeResultCacheIsBoundToTheExactWorkflowRun(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/ci.yml');
+        $job = $this->job($workflow, 'check-dead-code', 'prepare-test-plan');
+        $key = <<<'KEY'
+            key: phpstan-dead-code-cache-${{ hashFiles('tools/phpstan/WaaseyaaEntrypointProvider.php', 'phpstan-dead-code.neon', 'phpstan-dead-code-baseline.neon', 'phpstan.neon') }}-${{ github.run_id }}
+            KEY;
+
+        // Dead-code analysis is global: a PHP/PHPDoc change can alter the
+        // reachability graph without changing analyzer configuration. The
+        // run_id is therefore the custody boundary. Both restore and save
+        // use that exact key, and no prefix fallback may cross the boundary.
+        self::assertSame(2, substr_count($job, $key), 'Restore and save must share the exact run-scoped key.');
+        self::assertStringNotContainsString('restore-keys:', $job);
+    }
+
     private function job(string $workflow, string $name, string $next): string
     {
         $start = strpos($workflow, "  {$name}:");

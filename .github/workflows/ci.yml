@@ -275,13 +275,11 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tmp/phpstan-dead-code
-          # Bust the cache when the analyzer's rules change: provider source,
-          # dead-code config, or baseline. The run_id suffix gives per-run
-          # write keys; the restore-keys fallback only matches runs with the
-          # same analyzer-config hash, never older provider versions.
+          # Exact key only: dead-code reachability is global, so an analyzed
+          # PHP/PHPDoc change can invalidate results without changing analyzer
+          # configuration. The analyzer hash busts rule/config changes; run_id
+          # is the custody boundary that prevents reuse across workflow runs.
           key: phpstan-dead-code-cache-${{ hashFiles('tools/phpstan/WaaseyaaEntrypointProvider.php', 'phpstan-dead-code.neon', 'phpstan-dead-code-baseline.neon', 'phpstan.neon') }}-${{ github.run_id }}
-          restore-keys: |
-            phpstan-dead-code-cache-${{ hashFiles('tools/phpstan/WaaseyaaEntrypointProvider.php', 'phpstan-dead-code.neon', 'phpstan-dead-code-baseline.neon', 'phpstan.neon') }}-
 
       - name: Run dead-code check (fails on new findings)
         run: php bin/check-dead-code

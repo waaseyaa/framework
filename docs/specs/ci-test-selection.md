@@ -397,6 +397,16 @@ instead, via the shared `.github/actions/composer-install-retry` composite
 action (or an equivalent hand-rolled loop where the job's `run:` shape
 cannot cleanly call a composite action mid-script).
 
+The `check-dead-code` job's PHPStan result cache has a separate, stricter
+custody rule. Dead-code reachability is a global property of the analyzed PHP
+universe: a source or PHPDoc change can alter the usage graph without changing
+the entrypoint provider, PHPStan configuration, or baseline. Its restore and
+save steps therefore share one exact key composed from those analyzer inputs
+and `github.run_id`, with **no `restore-keys` prefix**. A rerun of the same
+workflow run may reuse that exact cache; a distinct run must start cold even
+when its analyzer-configuration hash matches. This prevents an older analyzed
+head from deciding the current head while preserving exact-run retry reuse.
+
 ### 7.4 Aggregator contract
 
 `ci/random-order` publishes the required status context. `if: always()`
