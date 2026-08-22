@@ -60,8 +60,9 @@ different purposes:
 5. Suite assignment is total and unique: every discovered test file resolves
    to exactly one `phpunit.xml.dist` testsuite, or planning fails closed
    (exit 2) — see §5.
-6. Coverage, security, architecture, governance, and spec-drift gates are
-   untouched by this spec and remain unconditional.
+6. Coverage, security, architecture, governance, spec-drift, and the hosted
+   FrankenPHP worker-runtime lane (`ci/frankenphp-worker`) are untouched by this
+   spec and remain unconditional.
 
 ## 3. Rejected design: changed-package selection
 

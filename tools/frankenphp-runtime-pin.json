@@ -1,0 +1,8 @@
+{
+    "_comment": "Pinned FrankenPHP binary for the hosted worker-runtime acceptance lane (#2494). CI downloads this exact URL and verifies sha256 before chmod or execution. Do not replace with an unversioned installer.",
+    "version": "v1.12.4",
+    "repository": "php/frankenphp",
+    "asset": "frankenphp-linux-x86_64",
+    "url": "https://github.com/php/frankenphp/releases/download/v1.12.4/frankenphp-linux-x86_64",
+    "sha256": "b39c7511483c99faf0d857cc0789b39cc23023038260b31d4b40dd4ae18795dc"
+}

@@ -161,8 +161,12 @@ collapses the four-copy duplication to a one-line bootstrap.
 - **Architecture:** keep `FrontControllerRuntimeDispatchTest` — re-pin the
   byte-identity to the new thin bootstrap, keep the no-raw-boot-leak invariant
   across all four copies.
-- **Manual / out-of-CI:** a documented smoke check under real `frankenphp run`
-  worker mode (concurrency + SSE warmth) since CI has no FrankenPHP worker.
+- **Hosted worker lane (#2494):** ordinary CI job `ci/frankenphp-worker` now
+  installs pinned FrankenPHP and runs `scripts/acceptance-frankenphp-worker.sh`
+  against `public/index.php` in real worker mode (sequential + concurrent
+  requests, SSE, shutdown). PHPUnit still owns the worker-loop heuristic and
+  four-copy architecture pin; this audit's earlier "CI has no FrankenPHP worker"
+  statement is obsolete.
 
 ---
 
@@ -190,9 +194,9 @@ collapses the four-copy duplication to a one-line bootstrap.
   architecture test). Nothing is broken or reachable; this is purely about
   collapsing duplication and tidying the runtime seam.
 - The highest-risk surface (worker-loop semantics, boot-leak gate) is **load-
-  bearing for production** and **under-covered by CI** (no FrankenPHP worker in
-  the runner), so a refactor trades a tidier seam for genuine production-
-  regression risk that the test suite cannot fully catch.
+  bearing for production**. #2494 added a real-worker HTTP lane; a refactor
+  still trades a tidier seam for production-regression risk around the
+  first-call-throw heuristic, which remains a PHPUnit/architecture concern.
 - If undertaken, do it as a **single, self-contained mission** with the test
   strategy above landed *first* (unit-cover the worker heuristic before moving
   it), the recommended "worker strategy stays in foundation, `function_exists`-

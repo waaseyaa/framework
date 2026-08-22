@@ -38,6 +38,14 @@ if (is_file($projectRoot . '/.env')) {
 // A fresh kernel is built per request so no container/entity state bleeds across
 // requests handled by the same long-lived FrankenPHP worker.
 $handler = static function () use ($projectRoot): void {
+    // Test-only: FrankenPHP worker includes auto_prepend once per process.
+    // The acceptance lane sets WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE so each
+    // request still runs the fixture. Unset in production — this branch is idle.
+    $acceptanceProbe = getenv('WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE');
+    if (is_string($acceptanceProbe) && $acceptanceProbe !== '' && is_file($acceptanceProbe)) {
+        require $acceptanceProbe;
+    }
+
     try {
         $kernel = new HttpKernel($projectRoot);
         $response = $kernel->handle();

@@ -60,6 +60,10 @@ return [
             getenv('WAASEYAA_DEV_FALLBACK_ACCOUNT') ?: false,
             FILTER_VALIDATE_BOOLEAN,
         ),
+        // HMAC key for reset/verify tokens. Production rejects empty/"change-me".
+        // Prefer AUTH_TOKEN_SECRET; fall back to the application secret already
+        // required for production boot.
+        'token_secret' => getenv('AUTH_TOKEN_SECRET') ?: (getenv('WAASEYAA_APP_SECRET') ?: ''),
     ],
 
     // Upload validation (POST /api/media/upload). MIME types are sniffed
