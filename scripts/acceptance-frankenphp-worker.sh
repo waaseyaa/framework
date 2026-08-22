@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PIN_FILE="$ROOT/tools/frankenphp-runtime-pin.json"
 PROBE="$ROOT/tests/Acceptance/FrankenPhpWorker/probe.php"
 SEED="$ROOT/tests/Acceptance/FrankenPhpWorker/seed.php"
-RESOLVE="$ROOT/tests/Acceptance/FrankenPhpWorker/activate-resolve.php"
+AUTOLOAD="$ROOT/vendor/autoload.php"
 CONCURRENT_PID_ASSERT="$ROOT/tests/Acceptance/FrankenPhpWorker/assert-concurrent-pids.py"
 LEAK_EXIT=42
 TREE_SNAPSHOT=""
@@ -93,48 +93,43 @@ self_test_concurrent_pid_proofs() {
 self_test_probe_mutations() {
   php -r '
 require $argv[1];
-$root = $argv[2];
-$resolved = waaseyaa_frankenphp_acceptance_resolve(
-    $root,
-    "worker-lane-v1",
-    "frankenphp",
-    ["HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE" => "worker-lane-v1"],
-    "/tmp/waaseyaa-evil-probe.php",
-);
-$expected = $root . "/tests/Acceptance/FrankenPhpWorker/probe.php";
-if ($resolved !== $expected) {
-    fwrite(STDERR, "path override was not ignored: $resolved\n");
+$probe = "Waaseyaa\\FrankenPhp\\WorkerAcceptance";
+if (!class_exists($probe)) {
+    fwrite(STDERR, "WorkerAcceptance class missing from production autoload\n");
     exit(1);
 }
-try {
-    waaseyaa_frankenphp_acceptance_resolve(
-        $root,
-        false,
-        "frankenphp",
-        ["HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE" => "worker-lane-v1"],
-        false,
-    );
+$root = $argv[2];
+$token = $probe::processToken([], ["HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE" => $probe::TOKEN]);
+if ($token !== false) {
     fwrite(STDERR, "request-only activation unexpectedly succeeded\n");
     exit(1);
-} catch (RuntimeException $e) {
-    if (!str_contains($e->getMessage(), "exact worker-lane token")) {
-        fwrite(STDERR, $e->getMessage() . "\n");
-        exit(1);
-    }
 }
 $missing = sys_get_temp_dir() . "/waaseyaa-missing-acceptance-" . uniqid("", true);
-try {
-    waaseyaa_frankenphp_acceptance_resolve($missing, "worker-lane-v1", "frankenphp", [], false);
-    fwrite(STDERR, "missing probe unexpectedly succeeded\n");
+if (!mkdir($missing, 0755, true)) {
+    fwrite(STDERR, "could not create missing-tests root\n");
     exit(1);
-} catch (RuntimeException $e) {
-    if (!str_contains($e->getMessage(), "probe fixture is missing")) {
-        fwrite(STDERR, $e->getMessage() . "\n");
-        exit(1);
-    }
 }
-' "$RESOLVE" "$ROOT" || fail "probe activation mutations did not fail closed"
-  echo "arbitrary-path / request-only / missing-probe proofs failed closed"
+$probe::apply($missing, $probe::TOKEN, $probe::SAPI, [], false);
+if (is_file($missing . "/tests/Acceptance/FrankenPhpWorker/probe.php")) {
+    fwrite(STDERR, "absent tests tree unexpectedly grew extras\n");
+    rmdir($missing);
+    exit(1);
+}
+rmdir($missing);
+unset($_SESSION);
+$probe::apply($root, $probe::TOKEN, "cli", ["HTTP_X_WAASEYAA_ACCEPTANCE_COMMUNITY" => "community-a"], false);
+if (isset($_SESSION["waaseyaa_community_id"])) {
+    fwrite(STDERR, "wrong SAPI unexpectedly activated extras\n");
+    exit(1);
+}
+$evil = sys_get_temp_dir() . "/waaseyaa-evil-probe-" . uniqid("", true) . ".php";
+file_put_contents($evil, "<?php throw new RuntimeException(\"evil probe executed\");");
+$probe::apply($root, $probe::TOKEN, $probe::SAPI, [], $evil);
+unlink($evil);
+$probe::apply($root, $probe::TOKEN, $probe::SAPI, [], false);
+$probe::apply($root, $probe::TOKEN, $probe::SAPI, [], false);
+' "$AUTOLOAD" "$ROOT" || fail "probe activation mutations did not stay inert"
+  echo "absent-tests / request-only / wrong-sapi / path-override / repeat proofs stayed inert"
 }
 
 self_test_public_storage_predicate() {

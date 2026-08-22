@@ -3,15 +3,12 @@
 declare(strict_types=1);
 
 /**
- * Test-only FrankenPHP acceptance prepend.
+ * Test-only FrankenPHP acceptance extras.
  *
- * Loaded solely via WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE (per worker request)
- * or the acceptance php.ini auto_prepend_file. Production autoload never
- * references this file.
+ * Loaded by Waaseyaa\FrankenPhp\WorkerAcceptance only when this exact
+ * repository path exists. Production package installs do not ship it.
+ * Identity PID/SAPI headers live on the Framework-owned probe class.
  */
-
-header('X-Waaseyaa-Worker-Pid: ' . (string) getmypid());
-header('X-Waaseyaa-Acceptance-Sapi: ' . PHP_SAPI);
 
 $community = $_SERVER['HTTP_X_WAASEYAA_ACCEPTANCE_COMMUNITY'] ?? '';
 if (is_string($community) && $community !== '') {
@@ -19,7 +16,9 @@ if (is_string($community) && $community !== '') {
         session_start();
     }
     $_SESSION['waaseyaa_community_id'] = $community;
-    header('X-Waaseyaa-Community-Seen: ' . $community);
+    if (\PHP_SAPI !== 'cli') {
+        header('X-Waaseyaa-Community-Seen: ' . $community);
+    }
 }
 
 $injectLeak = getenv('WAASEYAA_FRANKENPHP_LEAK_PROOF');

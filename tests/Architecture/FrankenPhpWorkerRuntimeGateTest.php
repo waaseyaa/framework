@@ -20,9 +20,8 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
     private const string PROBE = 'tests/Acceptance/FrankenPhpWorker/probe.php';
     private const string LEAK = 'tests/Acceptance/FrankenPhpWorker/leak.php';
     private const string SEED = 'tests/Acceptance/FrankenPhpWorker/seed.php';
-    private const string ACTIVATE = 'tests/Acceptance/FrankenPhpWorker/activate.php';
-    private const string RESOLVE = 'tests/Acceptance/FrankenPhpWorker/activate-resolve.php';
     private const string CONCURRENT = 'tests/Acceptance/FrankenPhpWorker/assert-concurrent-pids.py';
+    private const string PROBE_CLASS = 'packages/frankenphp/src/WorkerAcceptance.php';
 
     private string $repoRoot;
 
@@ -58,7 +57,7 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
     #[Test]
     public function the_harness_and_test_only_fixtures_exist(): void
     {
-        foreach ([self::HARNESS, self::PROBE, self::LEAK, self::SEED, self::PIN, self::ACTIVATE, self::RESOLVE, self::CONCURRENT] as $relative) {
+        foreach ([self::HARNESS, self::PROBE, self::LEAK, self::SEED, self::PIN, self::PROBE_CLASS, self::CONCURRENT] as $relative) {
             self::assertFileExists($this->repoRoot . '/' . $relative, $relative);
         }
         self::assertTrue(is_executable($this->repoRoot . '/' . self::HARNESS), self::HARNESS . ' must be executable.');
@@ -116,6 +115,8 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
         self::assertStringContainsString('A fresh kernel is built per request', $front);
         self::assertStringContainsString('WAASEYAA_FRANKENPHP_ACCEPTANCE', $front);
         self::assertStringContainsString('worker-lane-v1', $front);
+        self::assertStringContainsString('Waaseyaa\\\\FrankenPhp\\\\WorkerAcceptance', $front);
+        self::assertStringNotContainsString('tests/Acceptance', $front);
         self::assertStringNotContainsString('WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE', $front);
     }
 
@@ -177,7 +178,7 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
         self::assertSame(0, $status, (string) $stderr);
         self::assertIsString($stdout);
         self::assertStringContainsString('concurrent PID missing/changed proofs failed closed', $stdout);
-        self::assertStringContainsString('arbitrary-path / request-only / missing-probe proofs failed closed', $stdout);
+        self::assertStringContainsString('absent-tests / request-only / wrong-sapi / path-override / repeat proofs stayed inert', $stdout);
         self::assertStringContainsString('public/storage artifact is treated as a custody failure', $stdout);
     }
 }

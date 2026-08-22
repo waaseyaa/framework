@@ -22,12 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3055–3058 free). A test-only adversarial fixture must make `--inject-leak`
   exit 42; missing or changed concurrent PIDs fail the harness. Missing the
   binary fails the job instead of skipping. PHPUnit static lifetime gates are
-  unchanged. The repo front controller loads a repository-owned activator only
-  when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` (idle
-  otherwise; no environment-supplied path). `config/waaseyaa.php` maps
+  unchanged. The repo front controller arms `Waaseyaa\FrankenPhp\WorkerAcceptance`
+  only when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` and SAPI
+  is `frankenphp` (idle otherwise; no `tests/` require; no environment-supplied
+  path). Accidental `worker-lane-v1` without `tests/` or without
+  `waaseyaa/frankenphp` is inert, not a 500. `config/waaseyaa.php` maps
   `AUTH_TOKEN_SECRET` independently of `WAASEYAA_APP_SECRET`, and
   `WAASEYAA_STORAGE_PATH` so broadcast/runtime files stay out of `public/`.
-
 
 - **Fixed - the Admin SPA can apply workflow transitions again (#2481):** the
   transition POST is an aggregate mutation and `WorkflowTransitionController`

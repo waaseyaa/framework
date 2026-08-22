@@ -9,92 +9,98 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Fail-closed activation for the FrankenPHP worker-lane probe (#2494).
+ * Fail-closed, production-safe activation for the FrankenPHP worker-lane probe (#2494).
+ *
+ * The shipped repo front controller must not require the tests/ tree. Packaged
+ * consumers and skeleton / make:public copies stay inert. Request headers cannot
+ * arm the seam.
  */
 #[CoversNothing]
 final class FrankenPhpWorkerActivationTest extends TestCase
 {
     private string $repoRoot;
 
-    private string $activate;
-
     protected function setUp(): void
     {
         $this->repoRoot = dirname(__DIR__, 2);
-        $this->activate = $this->repoRoot . '/tests/Acceptance/FrankenPhpWorker/activate-resolve.php';
-        require_once $this->activate;
     }
 
     #[Test]
-    public function the_front_controller_does_not_require_an_environment_path(): void
+    public function the_front_controller_does_not_require_the_tests_tree(): void
     {
         $front = (string) file_get_contents($this->repoRoot . '/public/index.php');
-        self::assertStringContainsString('tests/Acceptance/FrankenPhpWorker/activate.php', $front);
+        self::assertStringNotContainsString('tests/Acceptance', $front);
+        self::assertStringNotContainsString('activate.php', $front);
+        self::assertStringNotContainsString('activator is missing', $front);
+        self::assertStringContainsString('Waaseyaa\\\\FrankenPhp\\\\WorkerAcceptance', $front);
+        self::assertStringContainsString('class_exists', $front);
         self::assertStringContainsString('worker-lane-v1', $front);
+        self::assertStringContainsString("PHP_SAPI === 'frankenphp'", $front);
         self::assertStringNotContainsString('WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE', $front);
-        self::assertDoesNotMatchRegularExpression(
-            '/require\s+\$acceptanceProbe/',
-            $front,
-        );
         self::assertStringNotContainsString('HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE', $front);
+        self::assertDoesNotMatchRegularExpression('/require\s+\$acceptance/', $front);
     }
 
     #[Test]
-    public function a_path_override_cannot_replace_the_repository_probe(): void
+    public function packaged_and_scaffolded_front_controllers_stay_inert(): void
     {
-        $probe = waaseyaa_frankenphp_acceptance_resolve(
-            $this->repoRoot,
-            'worker-lane-v1',
-            'frankenphp',
-            ['HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE' => 'worker-lane-v1'],
-            '/tmp/waaseyaa-evil-probe.php',
-        );
-        self::assertSame(
-            $this->repoRoot . '/tests/Acceptance/FrankenPhpWorker/probe.php',
-            $probe,
-        );
+        foreach ([
+            'skeleton/public/index.php',
+            'skeleton/bin/maintenance/golden-public-index.php',
+            'packages/cli/templates/public/index.php.stub',
+        ] as $relative) {
+            $source = (string) file_get_contents($this->repoRoot . '/' . $relative);
+            self::assertStringNotContainsString(
+                'tests/Acceptance',
+                $source,
+                $relative . ' must not load the Framework tests tree.',
+            );
+            self::assertStringNotContainsString(
+                'WAASEYAA_FRANKENPHP_ACCEPTANCE',
+                $source,
+                $relative . ' must stay inert without the worker-lane seam.',
+            );
+            self::assertStringNotContainsString(
+                'WorkerAcceptance',
+                $source,
+                $relative . ' is the consumer copy and must not grow the Framework probe.',
+            );
+        }
     }
 
     #[Test]
-    public function a_missing_probe_fixture_fails_closed(): void
+    public function production_package_installs_do_not_ship_the_acceptance_tree(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('probe fixture is missing');
-        waaseyaa_frankenphp_acceptance_resolve(
-            sys_get_temp_dir() . '/waaseyaa-missing-acceptance-' . uniqid(),
-            'worker-lane-v1',
-            'frankenphp',
-            [],
-            false,
-        );
-    }
+        $rootAutoload = json_decode((string) file_get_contents($this->repoRoot . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
+        $psr4 = json_encode($rootAutoload['autoload'] ?? [], JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString('Acceptance/FrankenPhpWorker', $psr4);
 
-    #[Test]
-    public function request_headers_cannot_satisfy_the_token(): void
-    {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('exact worker-lane token');
-        waaseyaa_frankenphp_acceptance_resolve(
-            $this->repoRoot,
-            false,
-            'frankenphp',
-            ['HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE' => 'worker-lane-v1'],
-            false,
+        $frankenphp = json_decode(
+            (string) file_get_contents($this->repoRoot . '/packages/frankenphp/composer.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
         );
-    }
+        self::assertSame(['Waaseyaa\\FrankenPhp\\' => 'src/'], $frankenphp['autoload']['psr-4'] ?? null);
+        self::assertArrayNotHasKey('files', $frankenphp['autoload'] ?? []);
 
-    #[Test]
-    public function a_non_frankenphp_sapi_fails_closed(): void
-    {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('requires SAPI frankenphp');
-        waaseyaa_frankenphp_acceptance_resolve(
-            $this->repoRoot,
-            'worker-lane-v1',
-            'cli',
-            [],
-            false,
+        foreach (['core', 'cms', 'full'] as $metapackage) {
+            $manifest = json_decode(
+                (string) file_get_contents($this->repoRoot . '/packages/' . $metapackage . '/composer.json'),
+                true,
+                flags: JSON_THROW_ON_ERROR,
+            );
+            self::assertArrayNotHasKey('waaseyaa/frankenphp', $manifest['require'] ?? []);
+            self::assertArrayNotHasKey('waaseyaa/frankenphp', $manifest['require-dev'] ?? []);
+        }
+
+        $packagedForm = json_decode(
+            (string) file_get_contents($this->repoRoot . '/tests/PackagedForm/skeleton/composer.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
         );
+        self::assertArrayNotHasKey('waaseyaa/frankenphp', $packagedForm['require'] ?? []);
+        self::assertFileDoesNotExist($this->repoRoot . '/packages/frankenphp/tests/Acceptance');
+        self::assertDirectoryDoesNotExist($this->repoRoot . '/packages/frankenphp/tests/Acceptance');
     }
 
     #[Test]
