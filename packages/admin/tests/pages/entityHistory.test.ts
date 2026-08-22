@@ -7,10 +7,11 @@ import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { runActionMock, getMock, fetchSchemaMock, schemaRef } = vi.hoisted(() => {
+const { runActionMock, getMock, fetchSchemaMock, schemaRef, hasCapabilityMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     runActionMock: vi.fn(),
+    hasCapabilityMock: vi.fn(),
     getMock: vi.fn(),
     fetchSchemaMock: vi.fn(),
     schemaRef: ref<Record<string, unknown> | null>({ title: 'Content', properties: {} }),
@@ -35,6 +36,10 @@ vi.mock('~/composables/useEntity', () => ({
   useEntity: () => ({ runAction: runActionMock, get: getMock }),
 }))
 
+vi.mock('~/composables/useAdmin', () => ({
+  useAdmin: () => ({ hasCapability: hasCapabilityMock }),
+}))
+
 const revisions = [
   { revisionId: 3, createdAt: '2026-03-03T00:00:00+00:00', author: 7, log: 'Third pass', isCurrent: false, isLatest: true },
   { revisionId: 2, createdAt: '2026-02-02T00:00:00+00:00', author: null, log: null, isCurrent: false, isLatest: false },
@@ -54,6 +59,19 @@ describe('per-record history surface', () => {
     getMock.mockReset().mockResolvedValue({ type: 'node', id: '5', attributes: { title: 'Working copy' } })
     fetchSchemaMock.mockReset()
     fetchSchemaMock.mockResolvedValue(undefined)
+    hasCapabilityMock.mockReset().mockReturnValue(true)
+  })
+
+  // The page is reachable by URL, so it must answer for a type that keeps no
+  // revisions rather than asking for a history the server will refuse.
+  it('says so and asks nothing when the type keeps no revision history', async () => {
+    hasCapabilityMock.mockImplementation((_type: string, capability: string) => capability !== 'revisions')
+
+    const wrapper = await mountHistory()
+
+    expect(hasCapabilityMock).toHaveBeenCalledWith('node', 'revisions')
+    expect(wrapper.get('[data-testid="history-unsupported"]').text()).toBe('history_unsupported')
+    expect(runActionMock).not.toHaveBeenCalled()
   })
 
   it('asks the server for the history of exactly this record', async () => {

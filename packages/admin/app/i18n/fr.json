@@ -277,6 +277,7 @@
   "page_builder_secure_id_unavailable": "Ce navigateur ne peut pas créer un identifiant de contenu sécurisé.",
   "form_other_details": "Autres détails",
   "history_title": "Historique",
+  "history_unsupported": "Ce type d'enregistrement ne conserve pas d'historique des revisions.",
   "history_for": "Historique de {type}",
   "history_back_to_record": "Retour à la fiche",
   "history_unavailable": "L'historique de cette fiche ne vous est pas accessible.",

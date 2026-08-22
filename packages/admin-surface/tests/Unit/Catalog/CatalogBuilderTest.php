@@ -85,6 +85,23 @@ final class CatalogBuilderTest extends TestCase
         self::assertTrue($caps['update']);
         self::assertTrue($caps['delete']);
         self::assertTrue($caps['schema']);
+        // Fail-closed, unlike the others: a type is assumed to keep no revision
+        // history until a host says otherwise, because the history endpoint
+        // refuses a type that keeps none rather than returning an empty list.
+        self::assertFalse($caps['revisions']);
+    }
+
+    #[Test]
+    public function revisionsCapabilityIsDeclaredExplicitly(): void
+    {
+        $builder = new CatalogBuilder();
+        $builder->defineEntity('node', 'Content')->capabilities(['revisions' => true]);
+        $builder->defineEntity('menu_link', 'Menu link')->capabilities(['revisions' => false]);
+
+        $byId = array_column($builder->build(), null, 'id');
+
+        self::assertTrue($byId['node']['capabilities']['revisions']);
+        self::assertFalse($byId['menu_link']['capabilities']['revisions']);
     }
 
     #[Test]

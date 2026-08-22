@@ -38,6 +38,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   operator's back, which would discard unsaved edits, and nothing silently
   retries a refused write.
 
+- **Fixed - the Admin editor no longer asks for history a type cannot have
+  (#2486):** the shared entity editor mounted the revision-recovery panel for
+  every record it opened, so a type that keeps no revisions produced a console
+  error and a failed response on every edit (`menu_link` and `taxonomy_term`
+  answered `404 No history`). The server was already correct: it refuses a
+  non-revisionable type deliberately rather than returning an empty list.
+
+  The catalog now advertises revision support per type, derived in
+  `buildCatalog()` from `EntityType::isRevisionable()` rather than a second list
+  that could drift from what the endpoint will answer. The editor and the
+  per-record history page gate the affordance on that capability, the way the
+  same component already gates Delete, so a type without revisions renders no
+  History and issues no request. The capability is fail-closed and optional: a
+  host that declares nothing reads as "no history" instead of offering an
+  affordance that can only be refused.
+
 - **Fixed — page-builder responsive controls now resize the actual preview
   viewport (#2465):** the Mobile and Tablet controls changed their selected
   state and the iframe's declared width, but the iframe's automatic flex-item

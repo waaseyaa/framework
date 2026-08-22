@@ -477,6 +477,7 @@
   "page_builder_secure_id_unavailable": "This browser cannot create a secure content identifier.",
   "form_other_details": "Other details",
   "history_title": "History",
+  "history_unsupported": "This record type does not keep revision history.",
   "history_for": "History of {type}",
   "history_back_to_record": "Back to record",
   "history_unavailable": "This record's history is not available to you.",

@@ -36,6 +36,9 @@ const isCreate = computed(() => !props.entityId)
 const entityLabel = computed(() => translateEntityLabel(props.entityType, schema.value?.title ?? props.entityType))
 const workflowBound = computed(() => schema.value?.['x-workflow']?.bound === true)
 const canDelete = computed(() => !!props.entityId && hasCapability(props.entityType, 'delete'))
+// A type that keeps no revisions has no history surface, so asking for one
+// yields 404. Withhold the panel instead of rendering it and letting it fail.
+const canSeeHistory = computed(() => !!props.entityId && hasCapability(props.entityType, 'revisions'))
 
 onMounted(() => fetchSchema(props.entityId
   ? { id: props.entityId }
@@ -128,7 +131,7 @@ async function confirmDelete() {
     />
 
     <EntityEditorEntityRevisionRecovery
-      v-if="entityId"
+      v-if="entityId && canSeeHistory"
       :entity-type="entityType"
       :entity-id="entityId"
       compact

@@ -620,6 +620,16 @@ Three properties are load-bearing:
   the page distinguishes *refused* (`history-unavailable`) from *genuinely
   empty* (`history-empty`). A non-revisionable entity type is refused with 404
   rather than raising.
+- **The affordance is withheld, not offered and then refused (#2486).** That 404
+  is the right answer to a question that should not have been asked. The catalog
+  carries a per-type `revisions` capability, derived in `buildCatalog()` from
+  `EntityType::isRevisionable()` so it cannot drift from what the endpoint will
+  answer, and both the embedded editor and the per-record history page gate the
+  panel on it exactly as they already gate Delete. A type that keeps no
+  revisions renders no History and issues no request; the history page, which is
+  reachable by URL, says so instead. The capability is fail-closed and optional,
+  so a host that declares nothing reads as "no history" rather than advertising
+  a surface that does not exist.
 
 `isCurrent` (the published/default revision) and `isLatest` (the tip) are
 reported separately rather than collapsed: they differ whenever a forward draft

@@ -37,6 +37,9 @@ final class EntityDefinition
     private bool $canDelete = true;
     private bool $canSchema = true;
 
+    /** Fail-closed: history is advertised only when a host declares revisions. */
+    private bool $canRevisions = false;
+
     public function __construct(
         private readonly string $id,
         private readonly string $label,
@@ -105,7 +108,14 @@ final class EntityDefinition
     }
 
     /**
-     * Set capabilities. Unmentioned capabilities remain at their defaults (true).
+     * Set capabilities. Unmentioned capabilities remain at their defaults: true,
+     * except `revisions`, which is false until a host declares it.
+     *
+     * A type that keeps no revisions has no history surface at all, and the
+     * history endpoint answers 404 rather than an empty list. Advertising the
+     * affordance by default would put every client one click from a refusal, so
+     * this one capability is fail-closed: a host that knows a type is
+     * revisionable says so.
      *
      * @param array<string, bool> $capabilities
      */
@@ -119,6 +129,7 @@ final class EntityDefinition
                 'update' => $this->canUpdate = $value,
                 'delete' => $this->canDelete = $value,
                 'schema' => $this->canSchema = $value,
+                'revisions' => $this->canRevisions = $value,
                 default => throw new \InvalidArgumentException("Unknown capability: {$key}"),
             };
         }
@@ -153,6 +164,7 @@ final class EntityDefinition
                 'update' => $this->canUpdate,
                 'delete' => $this->canDelete,
                 'schema' => $this->canSchema,
+                'revisions' => $this->canRevisions,
             ],
         ], fn($v) => $v !== null);
     }
