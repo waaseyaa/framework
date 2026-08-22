@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — public-surface removal governance now requires exact, current
+  authorization (#2505).** `check-surface-parity.php` compares the governed map
+  with the candidate's merge base, so deleting both a concrete final class and
+  its map record remains visible. Removal, rename, and public-disposition
+  downgrade directives use complete FQCNs under the canonical Unreleased
+  Removed or Deprecated heading and must be newly added by the candidate.
+  Historical Added/Changed entries, prose, links, examples, stale directives,
+  and same-leaf-name namespace collisions no longer authorize removal.
+
 - **Fixed — hosted dead-code analysis can no longer accept a stale PHPStan
   result cache from another workflow run (#2485).** The `check-dead-code` job
   now restores only its exact analyzer-config-hash plus `github.run_id` key;

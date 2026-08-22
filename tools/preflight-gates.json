@@ -262,13 +262,14 @@
         },
         {
             "id": "surface-parity",
-            "run": "php tools/check-surface-parity.php",
-            "repair": "record the new public element's disposition in docs/public-surface-map.php (or carry a CHANGELOG removal note)",
+            "run": "php tools/check-surface-parity.php --base={base}",
+            "base": true,
+            "repair": "keep every current map entry loadable; for a removal or public downgrade, add the exact current-change CHANGELOG directive documented in stability-charter.md §8.1",
             "profile": "default",
             "enforced_by": "workflow:surface-parity.yml#check-surface-parity.php",
             "refresh": {
                 "mode": "manual",
-                "instruction": "record each new public element's disposition in docs/public-surface-map.php (public|internal|extract|remove), or carry a CHANGELOG removal note for deleted ones"
+                "instruction": "record each new public element's disposition in docs/public-surface-map.php; authorize a removal, rename, or public downgrade only with the exact current-change CHANGELOG grammar in stability-charter.md §8.1"
             }
         },
         {
