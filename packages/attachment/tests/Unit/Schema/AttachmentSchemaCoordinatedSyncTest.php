@@ -33,6 +33,16 @@ final class AttachmentSchemaCoordinatedSyncTest extends TestCase
     ];
 
     #[Test]
+    public function apply_rejects_a_different_database_instance(): void
+    {
+        $constructed = DBALDatabase::createSqlite();
+        $other = DBALDatabase::createSqlite();
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('database it was constructed with');
+        new AttachmentSchema($constructed)->apply($other, 'attachment');
+    }
+
+    #[Test]
     public function apply_rejects_the_wrong_table(): void
     {
         $database = DBALDatabase::createSqlite();

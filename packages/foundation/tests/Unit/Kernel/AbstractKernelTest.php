@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ScheduleEntryRegistry;
@@ -109,6 +110,42 @@ final class AbstractKernelTest extends TestCase
         $this->assertNotNull($kernel->getEntityTypeManager());
         $this->assertNotNull($kernel->getDatabase());
         $this->assertNotNull($kernel->getEventDispatcher());
+    }
+
+    #[Test]
+    public function production_runtime_schema_assertion_refuses_missing_sql_tables(): void
+    {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void
+            {
+                $this->boot();
+            }
+        };
+        $kernel->publicBoot();
+
+        try {
+            new \ReflectionMethod(AbstractKernel::class, 'assertProductionEntityStorageSchema')->invoke($kernel);
+            self::fail('Missing SQL-backed tables must fail closed.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('S1-DB106', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function production_runtime_schema_assertion_accepts_materialized_sql_tables(): void
+    {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void
+            {
+                $this->boot();
+            }
+        };
+        $kernel->publicBoot();
+        new EntitySchemaSync($kernel->getDatabase())->syncAll($kernel->getEntityTypeManager()->getDefinitions());
+
+        new \ReflectionMethod(AbstractKernel::class, 'assertProductionEntityStorageSchema')->invoke($kernel);
+
+        self::assertTrue($kernel->getDatabase()->schema()->tableExists('test'));
     }
 
     #[Test]
