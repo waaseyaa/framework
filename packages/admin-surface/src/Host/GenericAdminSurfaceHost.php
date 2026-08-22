@@ -230,6 +230,11 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                 $entity->group($group);
             }
 
+            // Revision support is a property of the type declaration, so derive
+            // it here rather than maintaining a second list that can drift from
+            // what the history endpoint will actually answer.
+            $entity->capabilities(['revisions' => $definition->isRevisionable()]);
+
             $referenceField = $this->safeReferenceLabelField($definition);
             if ($referenceField !== null) {
                 $entity->reference(

@@ -43,10 +43,12 @@ const baseSchema = {
   properties: {},
 } satisfies EntitySchema
 
-async function mountWorkspace(entityId?: string) {
+const revisionHistoryRequests: Array<{ entityType: string; entityId?: string }> = []
+
+async function mountWorkspace(entityId?: string, entityType = 'node') {
   const { default: EntityEditorWorkspace } = await import('~/components/entity-editor/EntityEditorWorkspace.vue')
   const wrapper = await mountSuspended(EntityEditorWorkspace, {
-    props: { entityType: 'node', entityId, initialBundle: 'community_event' },
+    props: { entityType, entityId, initialBundle: 'community_event' },
     global: {
       stubs: {
         SchemaForm: {
@@ -59,6 +61,13 @@ async function mountWorkspace(entityId?: string) {
           template: '<button data-testid="transition" @click="$emit(\'transitioned\', { transition: \'publish\', from: \'review\', to: \'published\', public_changed: true })">transition</button>',
         },
         WorkflowTransitionHistoryTimeline: { template: '<div data-testid="history" />' },
+        EntityEditorEntityRevisionRecovery: {
+          props: ['entityType', 'entityId', 'compact'],
+          // Records the request the real panel would issue on mount, so a
+          // rendered-but-unused panel cannot pass as "no request made".
+          template: '<div data-testid="revision-recovery" />',
+          mounted() { revisionHistoryRequests.push({ entityType: this.entityType, entityId: this.entityId }) },
+        },
         CommonConfirmDialog: {
           props: ['open'],
           emits: ['cancel', 'confirm'],
@@ -77,6 +86,42 @@ describe('EntityEditorWorkspace', () => {
     fetchSchemaMock.mockReset().mockResolvedValue(undefined)
     removeMock.mockReset().mockResolvedValue(undefined)
     hasCapabilityMock.mockReset().mockReturnValue(true)
+    revisionHistoryRequests.length = 0
+  })
+
+  // A type that keeps no revisions has no history surface at all: the endpoint
+  // answers 404, so the affordance must be withheld rather than offered and
+  // then refused. Before this gate, menu_link and taxonomy_term produced a
+  // console error and a failed response on every edit.
+  it.each(['menu_link', 'taxonomy_term'])(
+    'renders no history panel and issues no history request for non-revisionable %s',
+    async (entityType) => {
+      hasCapabilityMock.mockImplementation((_type: string, capability: string) => capability !== 'revisions')
+
+      const wrapper = await mountWorkspace('42', entityType)
+
+      expect(hasCapabilityMock).toHaveBeenCalledWith(entityType, 'revisions')
+      expect(wrapper.find('[data-testid="revision-recovery"]').exists()).toBe(false)
+      expect(revisionHistoryRequests).toEqual([])
+    },
+  )
+
+  it('still renders history for a revisionable type', async () => {
+    hasCapabilityMock.mockImplementation((_type: string, capability: string) => capability === 'revisions')
+
+    const wrapper = await mountWorkspace('42', 'node')
+
+    expect(wrapper.find('[data-testid="revision-recovery"]').exists()).toBe(true)
+    expect(revisionHistoryRequests).toEqual([{ entityType: 'node', entityId: '42' }])
+  })
+
+  it('asks for no history while creating, where there is no record to have any', async () => {
+    hasCapabilityMock.mockReturnValue(true)
+
+    const wrapper = await mountWorkspace(undefined, 'node')
+
+    expect(wrapper.find('[data-testid="revision-recovery"]').exists()).toBe(false)
+    expect(revisionHistoryRequests).toEqual([])
   })
 
   it('opens create mode in the requested server-declared bundle and emits the saved identity', async () => {

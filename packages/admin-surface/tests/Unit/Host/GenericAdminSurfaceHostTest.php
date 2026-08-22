@@ -405,6 +405,48 @@ final class GenericAdminSurfaceHostTest extends TestCase
     }
 
     #[Test]
+    public function build_catalog_advertises_revision_support_from_the_type_declaration(): void
+    {
+        // A type that keeps no revisions has no history surface: handleHistory()
+        // answers 404 rather than an empty list. The catalog must say so, or
+        // every client renders a History affordance that can only be refused.
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
+        $etm->method('getDefinitions')->willReturn([
+            new EntityType(
+                id: 'node',
+                label: 'Content',
+                class: \stdClass::class,
+                keys: ['id' => 'nid', 'revision' => 'vid'],
+                revisionable: true,
+            ),
+            new EntityType(
+                id: 'menu_link',
+                label: 'Menu link',
+                class: \stdClass::class,
+                keys: ['id' => 'id'],
+            ),
+            new EntityType(
+                id: 'taxonomy_term',
+                label: 'Term',
+                class: \stdClass::class,
+                keys: ['id' => 'tid'],
+            ),
+        ]);
+
+        $catalog = (new GenericAdminSurfaceHost($etm))->buildCatalog(new AdminSurfaceSessionData(
+            accountId: '1',
+            accountName: 'Admin',
+            roles: ['administrator'],
+            policies: [],
+        ))->build();
+        $byId = array_column($catalog, null, 'id');
+
+        self::assertTrue($byId['node']['capabilities']['revisions']);
+        self::assertFalse($byId['menu_link']['capabilities']['revisions']);
+        self::assertFalse($byId['taxonomy_term']['capabilities']['revisions']);
+    }
+
+    #[Test]
     public function build_catalog_exposes_authoritative_reference_fields_and_fails_closed_for_unsafe_labels(): void
     {
         $etm = $this->createStub(EntityTypeManagerInterface::class);
