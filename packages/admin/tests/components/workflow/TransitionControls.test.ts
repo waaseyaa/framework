@@ -19,6 +19,10 @@ const transitionsRef = ref<Array<{ id: string; label: string; to: string }>>([])
 const stateRef = ref<string | null>(null)
 const fetchErrorRef = ref<string | null>(null)
 const loadingRef = ref(false)
+// The validator the composable holds. It is null before the first discovery and
+// after the server refuses a precondition, which is what tells the component to
+// re-read rather than let the operator press a dead button.
+const mutationTokenRef = ref<string | null>(null)
 
 const { fetchTransitionsMock, applyTransitionMock } = vi.hoisted(() => ({
   fetchTransitionsMock: vi.fn(),
@@ -35,6 +39,7 @@ vi.mock('~/composables/useWorkflowTransitions', () => ({
     state: stateRef,
     loading: loadingRef,
     error: fetchErrorRef,
+    mutationToken: mutationTokenRef,
     fetchTransitions: fetchTransitionsMock,
     applyTransition: applyTransitionMock,
   }),
@@ -48,6 +53,7 @@ beforeEach(() => {
   stateRef.value = null
   fetchErrorRef.value = null
   loadingRef.value = false
+  mutationTokenRef.value = 'emt1.observed'
 })
 
 async function mountControls() {
@@ -181,6 +187,50 @@ describe('TransitionControls fetch error path', () => {
     expect(wrapper.findAll('button')).toHaveLength(0)
     expect(wrapper.find('[data-testid="transition-fetch-error"]').exists()).toBe(false)
     expect(wrapper.find('.transition-controls').exists()).toBe(false)
+  })
+})
+
+describe('TransitionControls mutation precondition', () => {
+  it('re-reads the transitions when the server refused the mutation precondition', async () => {
+    const available = { id: 'publish', label: 'Publish', to: 'published' }
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [available]
+      stateRef.value = 'review'
+      return { transitions: transitionsRef.value, state: stateRef.value }
+    })
+    // A refused precondition leaves the composable holding no validator.
+    applyTransitionMock.mockImplementation(async () => {
+      mutationTokenRef.value = null
+      throw { data: { errors: [{ detail: 'The resource changed after the supplied mutation precondition was observed.' }] } }
+    })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="transition-error"]').text())
+      .toContain('The resource changed after the supplied mutation precondition was observed.')
+    // One read on mount, one re-read after the refusal, and no second POST.
+    expect(fetchTransitionsMock).toHaveBeenCalledTimes(2)
+    expect(applyTransitionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not re-read when the failure left the held validator intact', async () => {
+    const available = { id: 'publish', label: 'Publish', to: 'published' }
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [available]
+      stateRef.value = 'review'
+      return { transitions: transitionsRef.value, state: stateRef.value }
+    })
+    applyTransitionMock.mockRejectedValue({ data: { errors: [{ detail: 'You may not publish this content.' }] } })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="transition-error"]').text()).toContain('You may not publish this content.')
+    expect(fetchTransitionsMock).toHaveBeenCalledTimes(1)
+    expect(applyTransitionMock).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -13,6 +13,30 @@ view_revision plus protected/context-aware authority on the historical snapshot;
 shared RevisionRestoreChangedFields and preserves live pointer/status/credential values; preview
 grants reject fixed-point encoded traversal, controls, backslashes, and invalid UTF-8. -->
 <!-- Spec reviewed 2026-08-13 - shared workflow history: the entity editor's
+### Workflow transition preconditions
+
+The transition POST is an aggregate mutation. `WorkflowTransitionController`
+requires a strong `If-Match` entity mutation ETag and answers `428
+MUTATION_PRECONDITION_REQUIRED` without one, `400` for a malformed one, and `412`
+once the working copy has moved on.
+
+The only authoritative validator for that POST is `meta.mutation_token` on the
+discovery response, which the controller derives from the same working copy the
+transition targets. The apply response carries the successor in the same member.
+`useWorkflowTransitions` captures the discovery token, sends it as `If-Match`,
+and adopts the successor so a second transition in one session is fenced by
+committed state. `AdminSurfaceTransportAdapter`'s token map is not a substitute:
+it holds the entity-read token for the `/admin/_surface` transport, a different
+basis that can be stale for this endpoint.
+
+The fence is never weakened to make a call succeed. Applying without an observed
+validator, or with one observed for a different entity, is refused in the client
+rather than posted. A validator the server rejects with `412` or `428` is
+dropped, so the next attempt must re-read the transitions; the transition
+controls re-read on that refusal and never re-post on the operator's behalf. A
+discovery that offers no transitions carries no token, which is exactly when
+there is nothing to apply.
+
 TransitionHistoryTimeline reads `meta.workflow_history` from the sanctioned
 workflow-discovery endpoint, not the obsolete inline `workflow_audit` field.
 The response is shape-validated, limited to successful transitions, ordered
@@ -1360,7 +1384,9 @@ That means `useAuth()` does not establish an independent session source of truth
 - Delete buttons include entity label in `aria-label`
 - Live region: `<div role="status" aria-live="polite">` announces pagination changes
 - Workflow discovery announces loading and a bound no-transition state through
-  polite status regions. Fetch/apply failures use assertive alert regions;
+  polite status regions. Fetch/apply failures use assertive alert regions,
+  including a refused mutation precondition, after which the controls re-read the
+  available transitions so the operator acts on current state;
   native transition buttons retain keyboard activation and explicit accessible
   names, and all controls are disabled behind a same-tick single-flight guard
   during submission.

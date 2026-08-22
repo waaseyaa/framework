@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useLanguage()
-const { transitions, state, loading, error: fetchError, fetchTransitions, applyTransition } = useWorkflowTransitions()
+const { transitions, state, loading, error: fetchError, mutationToken, fetchTransitions, applyTransition } = useWorkflowTransitions()
 
 const loaded = ref(false)
 const pending = ref(false)
@@ -42,6 +42,12 @@ async function apply(transitionId: string) {
   } catch (e: unknown) {
     const err = e as { data?: { errors?: Array<{ detail?: string }> }; message?: string }
     applyError.value = err?.data?.errors?.[0]?.detail ?? err?.message ?? t('workflow_transition_error_generic')
+    // A refused or missing mutation precondition leaves the composable holding
+    // no validator. Re-read the transitions so the operator can act on the
+    // current state; never re-post the mutation on their behalf.
+    if (mutationToken.value === null) {
+      await load()
+    }
   } finally {
     pending.value = false
   }
