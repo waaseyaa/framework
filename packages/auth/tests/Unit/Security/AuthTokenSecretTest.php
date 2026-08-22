@@ -72,6 +72,18 @@ final class AuthTokenSecretTest extends TestCase
     }
 
     #[Test]
+    public function non_string_explicit_values_fail_without_echoing_the_payload(): void
+    {
+        try {
+            AuthTokenSecret::resolve(12345, null, 'production');
+            self::fail('Non-string explicit secret was accepted.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('invalid', $exception->getMessage());
+            self::assertStringNotContainsString('12345', $exception->getMessage());
+        }
+    }
+
+    #[Test]
     public function invalid_explicit_exceptions_do_not_echo_the_secret(): void
     {
         $secret = 'Change-Me';
@@ -81,6 +93,19 @@ final class AuthTokenSecretTest extends TestCase
         } catch (\RuntimeException $exception) {
             self::assertStringNotContainsString($secret, $exception->getMessage());
             self::assertStringNotContainsString('Change-Me', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function unusable_environment_labels_are_not_echoed_into_the_exception(): void
+    {
+        try {
+            AuthTokenSecret::resolve('too-short', null, '!!!');
+            self::fail('A short explicit secret was accepted.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('unspecified', $exception->getMessage());
+            self::assertStringNotContainsString('!!!', $exception->getMessage());
+            self::assertStringNotContainsString('too-short', $exception->getMessage());
         }
     }
 }

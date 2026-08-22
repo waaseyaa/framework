@@ -37,6 +37,13 @@ final class AuthTokenRepositoryTest extends TestCase
             'SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name',
         )->fetchFirstColumn());
         self::assertStringNotContainsString($secret, print_r($repo, true));
+
+        try {
+            serialize($repo);
+            self::fail('Auth token HMAC keys were serialized.');
+        } catch (\LogicException $exception) {
+            self::assertStringContainsString('cannot be serialized', $exception->getMessage());
+        }
     }
 
     #[Test]

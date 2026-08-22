@@ -79,7 +79,7 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
 
     public function applicationMasterRekeyContributions(): iterable
     {
-        $database = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
+        $database = $this->resolveOptional(\Waaseyaa\Database\DatabaseInterface::class);
         if (!$database instanceof \Waaseyaa\Database\DatabaseInterface) {
             throw new \LogicException('Auth-token HMAC rekey composition requires the kernel database authority.');
         }

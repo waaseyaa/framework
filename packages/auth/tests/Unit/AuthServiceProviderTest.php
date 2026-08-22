@@ -189,6 +189,23 @@ final class AuthServiceProviderTest extends TestCase
         );
     }
 
+    #[Test]
+    public function rekey_composition_refuses_a_missing_database_authority(): void
+    {
+        $provider = new AuthServiceProvider();
+        $provider->setKernelContext('', ['environment' => 'testing'], []);
+        $provider->setKernelServices(new class implements KernelServicesInterface {
+            public function get(string $abstract): ?object
+            {
+                return null;
+            }
+        });
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('kernel database authority');
+        iterator_to_array($provider->applicationMasterRekeyContributions());
+    }
+
     /**
      * @param array<string, mixed> $config
      */

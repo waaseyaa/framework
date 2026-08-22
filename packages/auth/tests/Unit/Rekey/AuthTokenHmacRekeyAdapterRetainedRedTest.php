@@ -19,6 +19,7 @@ use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterInventorySnapshot;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRecord;
@@ -95,6 +96,9 @@ final class AuthTokenHmacRekeyAdapterRetainedRedTest extends TestCase
 
         $snapshot = $adapter->snapshot($context);
         $verification = $adapter->verify($context, $snapshot);
+        self::assertSame(AuthTokenHmacRekeyAdapter::ID, $adapter->id());
+        self::assertSame([ApplicationSecret::PURPOSE_AUTH_TOKEN_HMAC], $adapter->purposeIds());
+        self::assertSame($database, $adapter->databaseAuthority());
         self::assertSame(0, $snapshot->totalRecords);
         self::assertSame(0, $verification[ApplicationSecret::PURPOSE_AUTH_TOKEN_HMAC]->verifiedRecords);
 
@@ -103,6 +107,123 @@ final class AuthTokenHmacRekeyAdapterRetainedRedTest extends TestCase
         $this->expectException(ApplicationMasterRekeyConflictException::class);
         $this->expectExceptionMessage('Outstanding auth tokens');
         $adapter->snapshot($context);
+    }
+
+    #[Test]
+    public function drain_adapter_refuses_mutations_wrong_authority_and_inexact_snapshots(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        AuthSchema::install($database);
+        $keyring = $this->keyring(2);
+        $context = new ApplicationMasterRekeyContext(
+            new ApplicationMasterRekeyRecord(
+                'auth-rekey-2',
+                hash('sha256', 'auth-request-2'),
+                1,
+                2,
+                hash('sha256', 'auth-registry-2'),
+                hash('sha256', 'auth-authorization-2'),
+                'test-operator',
+                1_000_100,
+                1_002_000,
+                ApplicationMasterRekeyState::EnumerateSnapshot,
+                0,
+                0,
+                1_000_000,
+                1_000_000,
+            ),
+            $keyring,
+            $database,
+        );
+        $adapter = new AuthTokenHmacRekeyAdapter($database);
+        $snapshot = $adapter->snapshot($context);
+        $rollbackContext = new ApplicationMasterRekeyContext(
+            $context->request,
+            $this->keyring(1),
+            $database,
+        );
+        $rollback = $adapter->rollbackSnapshot($rollbackContext);
+        $verification = $adapter->verifyRollback($rollbackContext, $rollback);
+
+        self::assertSame(0, $rollback->totalRecords);
+        self::assertSame(0, $verification[ApplicationSecret::PURPOSE_AUTH_TOKEN_HMAC]->verifiedRecords);
+
+        try {
+            $adapter->transitionBatch($context, $snapshot, null, 10);
+            self::fail('Transition batches must be refused.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('cannot be rehashed', $exception->getMessage());
+        }
+
+        try {
+            $adapter->rollbackBatch($rollbackContext, $rollback, null, 10);
+            self::fail('Rollback batches must be refused.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('cannot restore plaintext', $exception->getMessage());
+        }
+
+        try {
+            $adapter->snapshot(new ApplicationMasterRekeyContext(
+                $context->request,
+                $keyring,
+                DBALDatabase::createSqlite(),
+            ));
+            self::fail('Foreign database authority must be refused.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('exact coordinator database authority', $exception->getMessage());
+        }
+
+        try {
+            $adapter->verify($context, new ApplicationMasterInventorySnapshot(hash('sha256', 'wrong-snapshot'), 0));
+            self::fail('Inexact snapshot tokens must be refused.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('snapshot is not exact', $exception->getMessage());
+        }
+
+        $emptySchema = DBALDatabase::createSqlite();
+        $emptyAdapter = new AuthTokenHmacRekeyAdapter($emptySchema);
+        $emptyContext = new ApplicationMasterRekeyContext($context->request, $keyring, $emptySchema);
+        self::assertSame(0, $emptyAdapter->snapshot($emptyContext)->totalRecords);
+
+        $staleWriter = $this->keyring(1);
+        $this->expectException(ApplicationMasterRekeyConflictException::class);
+        $this->expectExceptionMessage('active writer version is not exact');
+        $adapter->snapshot(new ApplicationMasterRekeyContext($context->request, $staleWriter, $database));
+    }
+
+    #[Test]
+    public function verify_refuses_tokens_that_appear_after_the_drain_snapshot(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        AuthSchema::install($database);
+        $keyring = $this->keyring(2);
+        $context = new ApplicationMasterRekeyContext(
+            new ApplicationMasterRekeyRecord(
+                'auth-rekey-3',
+                hash('sha256', 'auth-request-3'),
+                1,
+                2,
+                hash('sha256', 'auth-registry-3'),
+                hash('sha256', 'auth-authorization-3'),
+                'test-operator',
+                1_000_100,
+                1_002_000,
+                ApplicationMasterRekeyState::EnumerateSnapshot,
+                0,
+                0,
+                1_000_000,
+                1_000_000,
+            ),
+            $keyring,
+            $database,
+        );
+        $adapter = new AuthTokenHmacRekeyAdapter($database);
+        $snapshot = $adapter->snapshot($context);
+        new AuthTokenRepository($database, 'abcdefghijklmnopqrstuvwxyz012345')->createToken(1, 'invite', 60);
+
+        $this->expectException(ApplicationMasterRekeyConflictException::class);
+        $this->expectExceptionMessage('appeared after the drain snapshot');
+        $adapter->verify($context, $snapshot);
     }
 
     private function keyring(int $activeVersion): ApplicationMasterKeyring
