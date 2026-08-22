@@ -48,6 +48,9 @@ keys:
 - audit checkpoint HMAC validation;
 - OIDC private-key and token ciphertext, plus opaque-token lookup values;
 - pending and failed persistent queue payloads;
+- auth reset, verification, and invite token HMAC validation when those tokens
+  are derived from the application master rather than an independent
+  `AUTH_TOKEN_SECRET`;
 - SQL state payloads.
 
 This batch does not provide re-encryption or key-rotation tooling. Plan rotation

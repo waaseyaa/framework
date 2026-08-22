@@ -5,12 +5,20 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth;
 
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Auth\Config\AuthConfig;
+use Waaseyaa\Auth\Rekey\AuthTokenHmacRekeyAdapter;
+use Waaseyaa\Auth\Security\AuthTokenSecret;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface
+final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface, ProvidesApplicationMasterRekeyContributionsInterface
 {
     public function register(): void
     {
@@ -30,25 +38,12 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         $this->singleton(Config\AuthConfig::class, fn() => Config\AuthConfig::fromArray($authConfig, $appEnv));
 
         $this->singleton(Token\AuthTokenRepositoryInterface::class, function () use ($authConfig) {
-            $secret = $authConfig['token_secret'] ?? ($this->config['app_secret'] ?? null);
-
-            // The reset/verify token HMAC key must never be the literal 'change-me'
-            // published in source (forgeable token hashes), nor empty. Real deployments
-            // MUST configure a secret: fail loudly there. In dev/test, synthesise an
-            // ephemeral random secret so boot still works — never a known string.
-            // (Ephemeral means tokens do not survive a reboot; set AUTH_TOKEN_SECRET to
-            // persist them. Under the boot-per-request dev runtime this is per-request.)
-            if (!is_string($secret) || $secret === '' || $secret === 'change-me') {
-                if (self::requiresConfiguredTokenSecret($this->resolveRuntimeEnvironment())) {
-                    throw new \RuntimeException(
-                        'Auth token secret is not configured. Set a real "auth.token_secret" (or "app_secret") '
-                        . 'to a non-empty value; the insecure placeholder "change-me" is rejected. '
-                        . 'Reset/verify token HMAC keys must not fall back to a value published in source.',
-                    );
-                }
-
-                $secret = bin2hex(random_bytes(32));
-            }
+            $applicationSecret = $this->resolveOptional(ApplicationSecret::class);
+            $secret = AuthTokenSecret::resolve(
+                $authConfig['token_secret'] ?? null,
+                $applicationSecret instanceof ApplicationSecret ? $applicationSecret : null,
+                $this->resolveRuntimeEnvironment(),
+            );
 
             $db = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
             $repo = new Token\AuthTokenRepository($db, $secret);
@@ -82,6 +77,27 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         return [];
     }
 
+    public function applicationMasterRekeyContributions(): iterable
+    {
+        $database = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
+        if (!$database instanceof \Waaseyaa\Database\DatabaseInterface) {
+            throw new \LogicException('Auth-token HMAC rekey composition requires the kernel database authority.');
+        }
+
+        yield new ApplicationMasterRekeyContribution(
+            new AuthTokenHmacRekeyAdapter($database),
+            [new ApplicationMasterPurposePolicy(
+                ApplicationSecret::PURPOSE_AUTH_TOKEN_HMAC,
+                'waaseyaa/auth',
+                ApplicationMasterPurposeStrategy::DrainOrExpire,
+                AuthConfig::LONGEST_TOKEN_TTL_SECONDS,
+                AuthConfig::LONGEST_TOKEN_TTL_SECONDS,
+                AuthTokenHmacRekeyAdapter::ID,
+                'expire-outstanding-tokens',
+            )],
+        );
+    }
+
     /**
      * Resolve the runtime environment the same way {@see \Waaseyaa\Foundation\Kernel\AbstractKernel}
      * does: the canonical source is the config `environment` key (what the kernel and the
@@ -98,19 +114,5 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         $fromEnv = getenv('APP_ENV');
 
         return is_string($fromEnv) && $fromEnv !== '' ? $fromEnv : 'production';
-    }
-
-    /**
-     * Whether the runtime environment must have an explicitly configured token
-     * secret (real deployments) rather than tolerating an ephemeral dev secret.
-     *
-     * Dev/test environments (local, dev, development, testing) may synthesise an
-     * ephemeral random secret so a misconfigured-but-non-production app still boots;
-     * every other environment (production, staging, or anything unrecognised) must
-     * fail loudly so a real deployment never silently ships without a stable secret.
-     */
-    private static function requiresConfiguredTokenSecret(string $appEnv): bool
-    {
-        return !in_array(strtolower($appEnv), ['local', 'dev', 'development', 'testing'], true);
     }
 }
