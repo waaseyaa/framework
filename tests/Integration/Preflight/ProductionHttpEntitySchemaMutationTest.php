@@ -143,6 +143,28 @@ final class ProductionHttpEntitySchemaMutationTest extends TestCase
     }
 
     #[Test]
+    public function production_boot_does_not_heal_a_base_only_attachment_table(): void
+    {
+        $this->install();
+        $this->replaceAttachmentWithBaseOnlyTable();
+        self::assertFalse($this->columnExists($this->sqlite(), 'attachment', 'is_active'));
+        $this->writeReadyPreflight();
+        $artifact = (string) file_get_contents($this->projectRoot . '/.waaseyaa/field-access-preflight.json');
+        $before = $this->fingerprintAndTables();
+        $sqlBefore = $this->attachmentTableSql();
+
+        $this->putEnv('APP_ENV', 'production');
+        $this->bootProduction();
+
+        $after = $this->fingerprintAndTables();
+        self::assertFalse($this->columnExists($this->sqlite(), 'attachment', 'is_active'));
+        self::assertSame($sqlBefore, $this->attachmentTableSql());
+        self::assertSame($before['fingerprint'], $after['fingerprint']);
+        self::assertSame($before['tables'], $after['tables']);
+        self::assertSame($artifact, (string) file_get_contents($this->projectRoot . '/.waaseyaa/field-access-preflight.json'));
+    }
+
+    #[Test]
     public function production_http_redacts_missing_schema_without_creating_tables(): void
     {
         $this->install();
@@ -305,6 +327,31 @@ final class ProductionHttpEntitySchemaMutationTest extends TestCase
         sort($names);
 
         return $names;
+    }
+
+    private function replaceAttachmentWithBaseOnlyTable(): void
+    {
+        $pdo = $this->sqlite();
+        $pdo->exec('PRAGMA foreign_keys = OFF');
+        $pdo->exec('DROP TABLE IF EXISTS attachment');
+        $pdo->exec(
+            'CREATE TABLE attachment ('
+            . 'id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,'
+            . " uuid VARCHAR(128) NOT NULL DEFAULT '',"
+            . " bundle VARCHAR(128) NOT NULL DEFAULT '',"
+            . " filename VARCHAR(255) NOT NULL DEFAULT '',"
+            . " langcode VARCHAR(12) NOT NULL DEFAULT 'en',"
+            . " _data TEXT NOT NULL DEFAULT '{}'"
+            . ')',
+        );
+        $pdo->exec('PRAGMA foreign_keys = ON');
+    }
+
+    private function attachmentTableSql(): string
+    {
+        $sql = $this->sqlite()->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='attachment'")->fetchColumn();
+
+        return is_string($sql) ? $sql : '';
     }
 
     private function tableExists(\PDO $pdo, string $table): bool

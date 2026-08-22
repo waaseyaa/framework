@@ -1237,7 +1237,9 @@ Per spec §15 Q9, `extra.waaseyaa.migrations` also accepts an **ordered list** o
 `SqlSchemaHandler::ensureTable()` (base columns plus declared
 `#[StorageSchemaTransition]` healers such as attachment-specific columns).
 Production HTTP must not create missing entity-storage tables (#2478): the
-kernel fail-closes with `[S1-DB106]` before provider boot. Local/development
+kernel fail-closes with `[S1-DB106]` before provider boot for Framework
+SQL-backed definitions. A valid custom `EntityStorageInterface` is not
+required to own an SQL table (#2482). Local/development
 boots may still materialize convenience schema. **Additive** columns that are
 not part of that coordinated path belong in package migrations so they run on
 **`db:init`** / `migrate`. Do **not** add recurring DDL in

@@ -589,12 +589,6 @@ parameters:
 			path: packages/entity/src/EntityTypeLifecycleManager.php
 
 		-
-			message: '#^Strict comparison using \=\=\= between class\-string\<Waaseyaa\\Entity\\Storage\\EntityStorageInterface\> and '''' will always evaluate to false\.$#'
-			identifier: identical.alwaysFalse
-			count: 1
-			path: packages/entity/src/EntityTypeManager.php
-
-		-
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 5

@@ -336,7 +336,6 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
         return $this->class;
     }
 
-    /** @return class-string<Storage\EntityStorageInterface> */
     public function getStorageClass(): string
     {
         return $this->storageClass;

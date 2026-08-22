@@ -14,7 +14,6 @@ interface EntityTypeInterface
 
     public function getClass(): string;
 
-    /** @return class-string<Storage\EntityStorageInterface> */
     public function getStorageClass(): string;
 
     /** @return array<string, string> Entity keys (id, uuid, label, bundle, revision, langcode, etc.) */

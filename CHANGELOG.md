@@ -55,15 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   affordance that can only be refused.
 
 - **Fixed — production HTTP must not lazily create entity-storage tables after
-  field-access preflight (#2478):** `AbstractKernel` fingerprinted entity
+  field-access preflight (#2478, #2482):** `AbstractKernel` fingerprinted entity
   schema, then provider boot (notably `AttachmentSchema::ensureTable()`) could
   CREATE or heal entity tables on the first request. The next boot hashed a
-  different shape and fail-closed as stale. Production runtime now asserts the
-  registered entity schema before provider boot and refuses missing tables with
-  `[S1-DB106]` / `schema:sync`. Attachment's canonical columns are applied by
-  coordinated schema sync (`#[StorageSchemaTransition]`). Local/development
-  boots may still materialize that schema for convenience. The preflight
-  artifact is not rewritten on the request path.
+  different shape and fail-closed as stale. Production runtime now asserts
+  Framework SQL-backed entity schema before provider boot and refuses missing
+  tables with `[S1-DB106]` / `schema:sync`. A valid custom
+  `EntityStorageInterface` is not forced to own an SQL table. Attachment's
+  canonical columns are applied by coordinated schema sync
+  (`#[StorageSchemaTransition]` / `AttachmentSchema::apply()`). Local/development
+  boots may still materialize that schema as best-effort convenience. The
+  preflight artifact is not rewritten on the request path.
 
 - **Fixed — page-builder responsive controls now resize the actual preview
   viewport (#2465):** the Mobile and Tablet controls changed their selected

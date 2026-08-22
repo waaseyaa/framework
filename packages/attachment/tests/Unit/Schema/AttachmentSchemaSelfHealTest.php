@@ -301,9 +301,9 @@ final class AttachmentSchemaSelfHealTest extends TestCase
 
         self::assertNotEmpty($boot1Logger->warnings, 'Boot 1 must survive with a logged warning.');
         self::assertStringContainsString(
-            'retry automatically',
+            'schema:sync',
             implode(' ', $boot1Logger->warnings),
-            'The warning must state the actual (transactional-platform) recovery path.',
+            'The warning must name the supported coordinated recovery path.',
         );
         self::assertFalse(
             $database->schema()->fieldExists('attachment', 'parent_entity_type'),

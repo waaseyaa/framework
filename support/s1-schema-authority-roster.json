@@ -416,13 +416,6 @@
             "path": "packages/attachment/src/Schema/AttachmentSchema.php",
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
-            "match_sha256": "6f9ecae904fbfca083f69864b18bcb9c4240a82d7524020c024a09ac5aaa2e51",
-            "occurrence": 6
-        },
-        {
-            "path": "packages/attachment/src/Schema/AttachmentSchema.php",
-            "pattern": "ddl_sql",
-            "class": "coordinator-plan-or-executor",
             "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
             "occurrence": 1
         },
@@ -473,6 +466,20 @@
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "42258e5cc060785171e149889a5f9b65d5544ab23dd6f6136426fe74527bcd57",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/attachment/tests/Unit/Schema/AttachmentSchemaCoordinatedSyncTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/attachment/tests/Unit/Schema/AttachmentSchemaCoordinatedSyncTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
             "occurrence": 1
         },
         {
@@ -8788,6 +8795,13 @@
             "path": "tests/Integration/Preflight/ProductionHttpEntitySchemaMutationTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Preflight/ProductionHttpEntitySchemaMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
             "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
             "occurrence": 1
         },
@@ -8804,6 +8818,13 @@
             "class": "test-only",
             "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
             "occurrence": 3
+        },
+        {
+            "path": "tests/Integration/Preflight/ProductionHttpEntitySchemaMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "fc2cdf17010da953b5592e2af5597e9597d9abac2952db3009bdccf9162e815e",
+            "occurrence": 4
         },
         {
             "path": "tests/Integration/Queue/QueueIntegrationTest.php",
