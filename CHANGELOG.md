@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed - the Admin SPA can apply workflow transitions again (#2481):** the
+  transition POST is an aggregate mutation and `WorkflowTransitionController`
+  requires a strong `If-Match` entity mutation ETag, but the shipped SPA never
+  sent one, so every transition from the entity editor answered
+  `428 MUTATION_PRECONDITION_REQUIRED`. `useWorkflowTransitions` now captures
+  `meta.mutation_token` from the discovery response, which the controller derives
+  from the same working copy the transition targets, and sends it as the
+  precondition. The successor token the apply response returns is adopted so a
+  second transition in one session is fenced by committed state.
+
+  The fence is never weakened to make a call succeed. Applying without an
+  observed validator, or with one observed for a different entity, is refused
+  locally instead of posted. A validator the server rejects with 412 or 428 is
+  dropped, so the next attempt must re-read the transitions rather than retry;
+  the transition controls re-read on that refusal and never re-post on the
+  operator's behalf.
+
+- **Fixed - a committed transition no longer strands the Admin surface transport
+  on a stale mutation validator (#2484):** the transition writes a new revision,
+  which superseded the validator `AdminSurfaceTransportAdapter` cached on its
+  last read, so the next save or delete through `/admin/_surface` presented a
+  pre-transition token and was refused with `412`. Both transports carry the same
+  `EntityMutationToken` opaque string, so the controls now hand the successor the
+  transition returned straight across through a new `MutationTokenAwareTransport`
+  interface, kept separate from `TransportAdapter` so a transport with no
+  validator cache need not implement it. When a transition issues no successor
+  the cached validator is dropped instead, so the next write asks for a reload
+  rather than presenting something stale. Nothing re-reads the entity behind the
+  operator's back, which would discard unsaved edits, and nothing silently
+  retries a refused write.
+
 - **Fixed — page-builder responsive controls now resize the actual preview
   viewport (#2465):** the Mobile and Tablet controls changed their selected
   state and the iframe's declared width, but the iframe's automatic flex-item

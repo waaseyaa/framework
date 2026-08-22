@@ -231,6 +231,27 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     return json.data as T
   }
 
+  /**
+   * Adopt the successor a mutation committed elsewhere returned. A workflow
+   * transition on the canonical /api route commits a new revision, so the
+   * validator cached from the last surface read is stale from that moment.
+   */
+  adoptMutationToken(type: string, id: string, token: string): void {
+    if (token === '') {
+      this.forgetMutationToken(type, id)
+      return
+    }
+    this.mutationTokens.set(`${type}:${id}`, token)
+  }
+
+  /**
+   * Drop the cached validator. The next write then refuses locally and asks for
+   * a reload rather than presenting something the server will reject.
+   */
+  forgetMutationToken(type: string, id: string): void {
+    this.mutationTokens.delete(`${type}:${id}`)
+  }
+
   private normalizeEntity(entity: SurfaceEntity, surfaceType: string = entity.type): EntityResource {
     if (entity.mutation_token) this.mutationTokens.set(`${surfaceType}:${entity.id}`, entity.mutation_token)
     return {

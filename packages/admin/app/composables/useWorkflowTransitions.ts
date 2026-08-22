@@ -1,7 +1,14 @@
 // useWorkflowTransitions — admin SPA composable for the CW-v1 transition UI
 // (WP-4 Task C, #1920). Reads GET /api/{entityType}/{id}/workflow/transitions
 // (the sanctioned UI read side — group- and permission-filtered, per WP-2/WP-3)
-// and posts /api/{entityType}/{id}/workflow/transition. Modeled on
+// and posts /api/{entityType}/{id}/workflow/transition. The POST is an
+// aggregate mutation: WorkflowTransitionController requires a strong If-Match
+// entity mutation ETag and answers 428 without one. The only authoritative
+// validator for that POST is `meta.mutation_token` from the discovery response,
+// which the controller computes from the same working copy the transition
+// targets; after a committed transition the apply response carries the
+// successor token. This composable therefore never synthesizes a validator and
+// never reuses one it has not just observed. Modeled on
 // useWorkflowDefinitions.ts: always goes through useApi().apiFetch, never raw
 // $fetch, so the canonical root /api base is independent of the admin mount.
 
@@ -24,6 +31,7 @@ interface WorkflowTransitionsResponse {
   meta?: {
     workflow_state?: string | null
     workflow_history?: WorkflowTransitionHistoryItem[]
+    mutation_token?: string
   }
 }
 
@@ -43,6 +51,9 @@ interface WorkflowTransitionApplyData {
 
 interface WorkflowTransitionApplyResponse {
   data: WorkflowTransitionApplyData
+  meta?: {
+    mutation_token?: string
+  }
 }
 
 export type WorkflowTransitionErrorKind =
@@ -50,7 +61,31 @@ export type WorkflowTransitionErrorKind =
   | 'not_found'
   | 'malformed_response'
   | 'network'
+  | 'precondition'
   | 'server'
+
+/**
+ * The held validator is missing or was refused by the server. The caller must
+ * re-read the transitions before trying again; retrying without a freshly
+ * observed validator would defeat the mutation fence, so this composable never
+ * does it on the caller's behalf.
+ */
+export class WorkflowTransitionPreconditionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkflowTransitionPreconditionError'
+  }
+}
+
+function readMutationToken(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null) return null
+  const token = (value as { mutation_token?: unknown }).mutation_token
+  return typeof token === 'string' && token !== '' ? token : null
+}
+
+function subjectOf(entityType: string, id: string): string {
+  return `${entityType}:${id}`
+}
 
 export function useWorkflowTransitions() {
   const { apiFetch } = useApi()
@@ -61,6 +96,16 @@ export function useWorkflowTransitions() {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const errorKind = ref<WorkflowTransitionErrorKind | null>(null)
+  // The validator observed by the most recent successful discovery, and the
+  // exact entity it belongs to. Both are cleared together so a token can never
+  // be carried across entities or survive a failed read.
+  const mutationToken = ref<string | null>(null)
+  const mutationTokenSubject = ref<string | null>(null)
+
+  function forgetMutationToken(): void {
+    mutationToken.value = null
+    mutationTokenSubject.value = null
+  }
 
   async function fetchTransitions(
     entityType: string,
@@ -81,10 +126,15 @@ export function useWorkflowTransitions() {
       transitions.value = response.data
       state.value = response.meta?.workflow_state ?? null
       history.value = response.meta?.workflow_history ?? []
+      // The controller omits the token when no transition is available, which
+      // is exactly when there is nothing to apply.
+      mutationToken.value = readMutationToken(response.meta)
+      mutationTokenSubject.value = mutationToken.value === null ? null : subjectOf(entityType, id)
     } catch (e: unknown) {
       transitions.value = []
       state.value = null
       history.value = []
+      forgetMutationToken()
 
       if (e instanceof WorkflowTransitionResponseError) {
         errorKind.value = 'malformed_response'
@@ -113,13 +163,52 @@ export function useWorkflowTransitions() {
     id: string,
     transitionId: string,
   ): Promise<WorkflowTransitionApplyResult> {
-    const response = await apiFetch<WorkflowTransitionApplyResponse>(
-      `/api/${entityType}/${encodeURIComponent(id)}/workflow/transition`,
-      { method: 'POST', body: { transition: transitionId } },
-    )
+    // Apply only against a validator this composable observed for this exact
+    // entity. Posting without one is refused locally rather than sent, because
+    // the server would answer 428 and because a caller that has not read the
+    // current transitions cannot know what it is transitioning from.
+    if (mutationToken.value === null || mutationTokenSubject.value !== subjectOf(entityType, id)) {
+      throw new WorkflowTransitionPreconditionError(
+        'Read the current workflow transitions before applying one.',
+      )
+    }
+
+    let response: WorkflowTransitionApplyResponse
+    try {
+      response = await apiFetch<WorkflowTransitionApplyResponse>(
+        `/api/${entityType}/${encodeURIComponent(id)}/workflow/transition`,
+        {
+          method: 'POST',
+          body: { transition: transitionId },
+          // Strong entity mutation ETag, the form EntityMutationToken accepts.
+          headers: { 'If-Match': `"${mutationToken.value}"` },
+        },
+      )
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number }; statusCode?: number }
+      const statusCode = err?.response?.status ?? err?.statusCode ?? 0
+      // 412 means the entity moved under us and 428 means the server did not
+      // accept what we sent as a precondition. In both cases the held validator
+      // is worthless: drop it so the next attempt must re-read the transitions.
+      // Never retry here by weakening or omitting the fence.
+      if (statusCode === 412 || statusCode === 428) {
+        forgetMutationToken()
+      }
+      throw e
+    }
+
     if (!isWorkflowTransitionApplyResponse(response)) {
+      forgetMutationToken()
       throw new WorkflowTransitionResponseError()
     }
+
+    // Adopt the successor the server just issued, so a second transition in the
+    // same session is fenced by the committed state rather than by the token
+    // that has now been consumed. If the response carries none, hold nothing.
+    const successor = readMutationToken(response.meta)
+    mutationToken.value = successor
+    mutationTokenSubject.value = successor === null ? null : subjectOf(entityType, id)
+
     return {
       transition: response.data.transition,
       from: response.data.from,
@@ -132,7 +221,7 @@ export function useWorkflowTransitions() {
     }
   }
 
-  return { transitions, state, history, loading, error, errorKind, fetchTransitions, applyTransition }
+  return { transitions, state, history, loading, error, errorKind, mutationToken, fetchTransitions, applyTransition }
 }
 
 function isWorkflowTransitionApplyResponse(value: unknown): value is WorkflowTransitionApplyResponse {
@@ -146,6 +235,14 @@ function isWorkflowTransitionApplyResponse(value: unknown): value is WorkflowTra
     || typeof record.to !== 'string'
   ) {
     return false
+  }
+  // The successor validator is additive: an API package that predates it simply
+  // carries no meta, and the caller then holds nothing rather than something stale.
+  const meta = (value as { meta?: unknown }).meta
+  if (meta !== undefined) {
+    if (typeof meta !== 'object' || meta === null) return false
+    const token = (meta as Record<string, unknown>).mutation_token
+    if (token !== undefined && token !== null && typeof token !== 'string') return false
   }
   return record.public_changed === undefined || typeof record.public_changed === 'boolean'
 }
@@ -208,6 +305,7 @@ export function classifyWorkflowTransitionError(
   statusCode: number,
 ): Exclude<WorkflowTransitionErrorKind, 'not_found' | 'malformed_response'> {
   if (statusCode === 403) return 'forbidden'
+  if (statusCode === 412 || statusCode === 428) return 'precondition'
   if (statusCode === 0 || hasTypeErrorCause(error)) return 'network'
   return 'server'
 }

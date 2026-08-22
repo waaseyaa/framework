@@ -19,10 +19,32 @@ const transitionsRef = ref<Array<{ id: string; label: string; to: string }>>([])
 const stateRef = ref<string | null>(null)
 const fetchErrorRef = ref<string | null>(null)
 const loadingRef = ref(false)
+// The validator the composable holds. It is null before the first discovery and
+// after the server refuses a precondition, which is what tells the component to
+// re-read rather than let the operator press a dead button.
+const mutationTokenRef = ref<string | null>(null)
 
-const { fetchTransitionsMock, applyTransitionMock } = vi.hoisted(() => ({
+const { fetchTransitionsMock, applyTransitionMock, adoptMutationTokenMock, forgetMutationTokenMock, runtimeAvailable } = vi.hoisted(() => ({
   fetchTransitionsMock: vi.fn(),
   applyTransitionMock: vi.fn(),
+  adoptMutationTokenMock: vi.fn(),
+  forgetMutationTokenMock: vi.fn(),
+  runtimeAvailable: { value: true },
+}))
+
+// The shared admin-surface transport caches an entity mutation validator from
+// its last read. A committed transition supersedes it, so the controls hand the
+// successor over; a mount with no admin runtime must still transition.
+vi.mock('~/composables/useAdminRuntime', () => ({
+  requireAdminRuntime: () => {
+    if (!runtimeAvailable.value) throw new Error('Admin runtime is unavailable.')
+    return {
+      transport: {
+        adoptMutationToken: adoptMutationTokenMock,
+        forgetMutationToken: forgetMutationTokenMock,
+      },
+    }
+  },
 }))
 
 vi.mock('~/composables/useLanguage', () => ({
@@ -35,6 +57,7 @@ vi.mock('~/composables/useWorkflowTransitions', () => ({
     state: stateRef,
     loading: loadingRef,
     error: fetchErrorRef,
+    mutationToken: mutationTokenRef,
     fetchTransitions: fetchTransitionsMock,
     applyTransition: applyTransitionMock,
   }),
@@ -48,6 +71,10 @@ beforeEach(() => {
   stateRef.value = null
   fetchErrorRef.value = null
   loadingRef.value = false
+  mutationTokenRef.value = 'emt1.observed'
+  adoptMutationTokenMock.mockReset()
+  forgetMutationTokenMock.mockReset()
+  runtimeAvailable.value = true
 })
 
 async function mountControls() {
@@ -181,6 +208,117 @@ describe('TransitionControls fetch error path', () => {
     expect(wrapper.findAll('button')).toHaveLength(0)
     expect(wrapper.find('[data-testid="transition-fetch-error"]').exists()).toBe(false)
     expect(wrapper.find('.transition-controls').exists()).toBe(false)
+  })
+})
+
+describe('TransitionControls validator handover', () => {
+  function readyToApply(result: { transition: string; from: string; to: string; public_changed: boolean }) {
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [{ id: result.transition, label: 'Advance', to: result.to }]
+      stateRef.value = result.from
+      return { transitions: transitionsRef.value, state: stateRef.value }
+    })
+  }
+
+  const result = { transition: 'publish', from: 'review', to: 'published', public_changed: true }
+
+  it('hands the successor to the surface transport so the next write is not refused as stale', async () => {
+    readyToApply(result)
+    applyTransitionMock.mockImplementation(async () => {
+      mutationTokenRef.value = 'emt1.after-transition'
+      return result
+    })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(adoptMutationTokenMock).toHaveBeenCalledWith('node', '5', 'emt1.after-transition')
+    expect(forgetMutationTokenMock).not.toHaveBeenCalled()
+  })
+
+  it('drops the cached validator when the transition issued no successor', async () => {
+    readyToApply(result)
+    applyTransitionMock.mockImplementation(async () => {
+      mutationTokenRef.value = null
+      return result
+    })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(forgetMutationTokenMock).toHaveBeenCalledWith('node', '5')
+    expect(adoptMutationTokenMock).not.toHaveBeenCalled()
+  })
+
+  it('never touches the cached validator when the transition failed', async () => {
+    readyToApply(result)
+    applyTransitionMock.mockRejectedValue({ data: { errors: [{ detail: 'Denied.' }] } })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(adoptMutationTokenMock).not.toHaveBeenCalled()
+    expect(forgetMutationTokenMock).not.toHaveBeenCalled()
+  })
+
+  it('still emits a committed transition when no admin runtime is mounted', async () => {
+    runtimeAvailable.value = false
+    readyToApply(result)
+    applyTransitionMock.mockResolvedValue(result)
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('transitioned')).toBeTruthy()
+    expect(wrapper.emitted('transitioned')![0]![0]).toEqual(result)
+  })
+})
+
+describe('TransitionControls mutation precondition', () => {
+  it('re-reads the transitions when the server refused the mutation precondition', async () => {
+    const available = { id: 'publish', label: 'Publish', to: 'published' }
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [available]
+      stateRef.value = 'review'
+      return { transitions: transitionsRef.value, state: stateRef.value }
+    })
+    // A refused precondition leaves the composable holding no validator.
+    applyTransitionMock.mockImplementation(async () => {
+      mutationTokenRef.value = null
+      throw { data: { errors: [{ detail: 'The resource changed after the supplied mutation precondition was observed.' }] } }
+    })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="transition-error"]').text())
+      .toContain('The resource changed after the supplied mutation precondition was observed.')
+    // One read on mount, one re-read after the refusal, and no second POST.
+    expect(fetchTransitionsMock).toHaveBeenCalledTimes(2)
+    expect(applyTransitionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not re-read when the failure left the held validator intact', async () => {
+    const available = { id: 'publish', label: 'Publish', to: 'published' }
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [available]
+      stateRef.value = 'review'
+      return { transitions: transitionsRef.value, state: stateRef.value }
+    })
+    applyTransitionMock.mockRejectedValue({ data: { errors: [{ detail: 'You may not publish this content.' }] } })
+
+    const wrapper = await mountControls()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="transition-error"]').text()).toContain('You may not publish this content.')
+    expect(fetchTransitionsMock).toHaveBeenCalledTimes(1)
+    expect(applyTransitionMock).toHaveBeenCalledTimes(1)
   })
 })
 
