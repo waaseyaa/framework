@@ -1126,6 +1126,9 @@ jobs:
           "$FRANKENPHP_BIN" version
           echo "FRANKENPHP_BIN=$FRANKENPHP_BIN" >> "$GITHUB_ENV"
 
+      - name: Harness self-tests
+        run: bash scripts/acceptance-frankenphp-worker.sh --self-test
+
       - name: Real FrankenPHP worker acceptance
         run: bash scripts/acceptance-frankenphp-worker.sh
         env:

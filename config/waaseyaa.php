@@ -48,6 +48,10 @@ return [
     // File storage root for LocalFileRepository (media package).
     'files_dir' => getenv('WAASEYAA_FILES_DIR') ?: __DIR__ . '/../storage/files',
 
+    // Runtime/broadcast storage. The worker-acceptance harness pins this under
+    // a disposable tree so public/ is never used as CWD-relative ./storage.
+    'storage_path' => getenv('WAASEYAA_STORAGE_PATH') ?: (__DIR__ . '/../storage'),
+
     // Bearer auth settings for machine clients.
     // JWT uses HS256 with this shared secret.
     'jwt_secret' => getenv('WAASEYAA_JWT_SECRET') ?: '',
@@ -61,9 +65,8 @@ return [
             FILTER_VALIDATE_BOOLEAN,
         ),
         // HMAC key for reset/verify tokens. Production rejects empty/"change-me".
-        // Prefer AUTH_TOKEN_SECRET; fall back to the application secret already
-        // required for production boot.
-        'token_secret' => getenv('AUTH_TOKEN_SECRET') ?: (getenv('WAASEYAA_APP_SECRET') ?: ''),
+        // AUTH_TOKEN_SECRET only — never WAASEYAA_APP_SECRET.
+        'token_secret' => getenv('AUTH_TOKEN_SECRET') ?: '',
     ],
 
     // Upload validation (POST /api/media/upload). MIME types are sniffed

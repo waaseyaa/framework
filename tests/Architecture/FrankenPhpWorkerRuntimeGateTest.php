@@ -20,6 +20,9 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
     private const string PROBE = 'tests/Acceptance/FrankenPhpWorker/probe.php';
     private const string LEAK = 'tests/Acceptance/FrankenPhpWorker/leak.php';
     private const string SEED = 'tests/Acceptance/FrankenPhpWorker/seed.php';
+    private const string ACTIVATE = 'tests/Acceptance/FrankenPhpWorker/activate.php';
+    private const string RESOLVE = 'tests/Acceptance/FrankenPhpWorker/activate-resolve.php';
+    private const string CONCURRENT = 'tests/Acceptance/FrankenPhpWorker/assert-concurrent-pids.py';
 
     private string $repoRoot;
 
@@ -55,7 +58,7 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
     #[Test]
     public function the_harness_and_test_only_fixtures_exist(): void
     {
-        foreach ([self::HARNESS, self::PROBE, self::LEAK, self::SEED, self::PIN] as $relative) {
+        foreach ([self::HARNESS, self::PROBE, self::LEAK, self::SEED, self::PIN, self::ACTIVATE, self::RESOLVE, self::CONCURRENT] as $relative) {
             self::assertFileExists($this->repoRoot . '/' . $relative, $relative);
         }
         self::assertTrue(is_executable($this->repoRoot . '/' . self::HARNESS), self::HARNESS . ' must be executable.');
@@ -66,8 +69,12 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
         self::assertStringContainsString('public/index.php', $harness);
         self::assertStringContainsString('php-server', $harness);
         self::assertStringContainsString('Missing binary is not skippable', $harness);
-        self::assertStringNotContainsString('get.frankenphp.dev', $harness);
-        self::assertDoesNotMatchRegularExpression('/^[^#]*\\bskip\\b/mi', $harness);
+        self::assertStringContainsString('assert-concurrent-pids.py', $harness);
+        self::assertStringContainsString('WAASEYAA_STORAGE_PATH', $harness);
+        self::assertStringContainsString('git status --porcelain', $harness);
+        self::assertStringContainsString('public/storage', $harness);
+        self::assertStringNotContainsString('AUTH_TOKEN_SECRET:-$WAASEYAA_APP_SECRET', $harness);
+        self::assertStringNotContainsString('mkdir -p "$SESSION_DIR" "$INI_DIR" "$ROOT/storage"', $harness);
 
         $leak = (string) file_get_contents($this->repoRoot . '/' . self::LEAK);
         self::assertStringContainsString('WaaseyaaFrankenphpAcceptanceLeakStore', $leak);
@@ -107,7 +114,9 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
         self::assertStringContainsString('$handler();', $front);
         self::assertStringContainsString('new HttpKernel($projectRoot)', $front);
         self::assertStringContainsString('A fresh kernel is built per request', $front);
-        self::assertStringContainsString('WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE', $front);
+        self::assertStringContainsString('WAASEYAA_FRANKENPHP_ACCEPTANCE', $front);
+        self::assertStringContainsString('worker-lane-v1', $front);
+        self::assertStringNotContainsString('WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE', $front);
     }
 
     #[Test]
@@ -138,5 +147,37 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
         self::assertIsString($stderr);
         self::assertStringContainsString('FRANKENPHP_BINARY', $stderr);
         self::assertStringNotContainsString('skipped', strtolower($stderr));
+    }
+
+    #[Test]
+    public function harness_self_test_fails_closed_on_pid_and_probe_mutations(): void
+    {
+        $harness = $this->repoRoot . '/' . self::HARNESS;
+        $env = getenv();
+        if (!is_array($env)) {
+            $env = [];
+        }
+        unset($env['FRANKENPHP_BINARY']);
+        $process = proc_open(
+            ['bash', $harness, '--self-test'],
+            [
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $this->repoRoot,
+            $env,
+        );
+        self::assertIsResource($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status = proc_close($process);
+        self::assertSame(0, $status, (string) $stderr);
+        self::assertIsString($stdout);
+        self::assertStringContainsString('concurrent PID missing/changed proofs failed closed', $stdout);
+        self::assertStringContainsString('arbitrary-path / request-only / missing-probe proofs failed closed', $stdout);
+        self::assertStringContainsString('public/storage artifact is treated as a custody failure', $stdout);
     }
 }

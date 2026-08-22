@@ -13,17 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chmod or execution, and runs `scripts/acceptance-frankenphp-worker.sh` against
   the shipped `public/index.php` in genuine worker mode — not PHP's built-in
   server and not a mocked process. The harness retains one worker PID across 20
-  sequential requests and a concurrent burst, varies synthetic account and
+  sequential requests, a concurrent burst with per-request PID headers, and a
+  post-burst request on the same worker PID, varies synthetic account and
   community marks, exercises public / authenticated / forbidden / concealed /
   streamed / error / maintenance-recovery paths, proves classic `php-server`
-  fallback, and asserts clean shutdown. A test-only adversarial fixture must
-  make `--inject-leak` exit 42; missing the binary fails the job instead of
-  skipping. PHPUnit static lifetime gates are unchanged. The repo front
-  controller optionally loads a test-only probe when
-  `WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE` is set (idle otherwise).
-  `config/waaseyaa.php` maps `AUTH_TOKEN_SECRET` / `WAASEYAA_APP_SECRET` into
-  `auth.token_secret` so production worker boot can satisfy the existing
-  fail-closed auth secret gate.
+  fallback, and asserts hermetic shutdown (git status unchanged, no
+  `public/storage`, runtime root removed, no leftover FrankenPHP, ports
+  3055–3058 free). A test-only adversarial fixture must make `--inject-leak`
+  exit 42; missing or changed concurrent PIDs fail the harness. Missing the
+  binary fails the job instead of skipping. PHPUnit static lifetime gates are
+  unchanged. The repo front controller loads a repository-owned activator only
+  when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` (idle
+  otherwise; no environment-supplied path). `config/waaseyaa.php` maps
+  `AUTH_TOKEN_SECRET` independently of `WAASEYAA_APP_SECRET`, and
+  `WAASEYAA_STORAGE_PATH` so broadcast/runtime files stay out of `public/`.
 
 
 - **Fixed - the Admin SPA can apply workflow transitions again (#2481):** the

@@ -38,12 +38,23 @@ if (is_file($projectRoot . '/.env')) {
 // A fresh kernel is built per request so no container/entity state bleeds across
 // requests handled by the same long-lived FrankenPHP worker.
 $handler = static function () use ($projectRoot): void {
-    // Test-only: FrankenPHP worker includes auto_prepend once per process.
-    // The acceptance lane sets WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE so each
-    // request still runs the fixture. Unset in production — this branch is idle.
-    $acceptanceProbe = getenv('WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE');
-    if (is_string($acceptanceProbe) && $acceptanceProbe !== '' && is_file($acceptanceProbe)) {
-        require $acceptanceProbe;
+    // Test-only worker-lane probe. Exact process env token, repository-owned
+    // path, FrankenPHP SAPI. Missing activator fails closed. Idle in production.
+    // Request headers cannot activate (HTTP_* is ignored). Worker env may appear
+    // in getenv(), $_ENV, or $_SERVER without an HTTP_ prefix.
+    $acceptanceToken = getenv('WAASEYAA_FRANKENPHP_ACCEPTANCE');
+    if ($acceptanceToken !== 'worker-lane-v1') {
+        $processToken = $_ENV['WAASEYAA_FRANKENPHP_ACCEPTANCE']
+            ?? $_SERVER['WAASEYAA_FRANKENPHP_ACCEPTANCE']
+            ?? null;
+        $acceptanceToken = $processToken === 'worker-lane-v1' ? $processToken : false;
+    }
+    if ($acceptanceToken === 'worker-lane-v1') {
+        $acceptanceActivator = $projectRoot . '/tests/Acceptance/FrankenPhpWorker/activate.php';
+        if (!is_file($acceptanceActivator)) {
+            throw new \RuntimeException('FrankenPHP worker acceptance activator is missing.');
+        }
+        require $acceptanceActivator;
     }
 
     try {

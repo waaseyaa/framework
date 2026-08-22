@@ -6,9 +6,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PIN_FILE="$ROOT/tools/frankenphp-runtime-pin.json"
 PROBE="$ROOT/tests/Acceptance/FrankenPhpWorker/probe.php"
-export WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE="$PROBE"
 SEED="$ROOT/tests/Acceptance/FrankenPhpWorker/seed.php"
+RESOLVE="$ROOT/tests/Acceptance/FrankenPhpWorker/activate-resolve.php"
+CONCURRENT_PID_ASSERT="$ROOT/tests/Acceptance/FrankenPhpWorker/assert-concurrent-pids.py"
 LEAK_EXIT=42
+TREE_SNAPSHOT=""
 
 MODE="green"
 SELF_TEST=0
@@ -38,9 +40,18 @@ fail() {
   exit 1
 }
 
+public_storage_leaked() {
+  local root="${1:-$ROOT}"
+  [[ -e "$root/public/storage" || -L "$root/public/storage" ]]
+}
+
+port_in_use() {
+  ss -ltn 2>/dev/null | grep -qE ":${1}[[:space:]]"
+}
+
 require_pin() {
   [[ -f "$PIN_FILE" ]] || fail "missing pin file $PIN_FILE"
-  python3 - "$PIN_FILE" <<'PY'
+  python3 - "$PIN_FILE" <<'PINPY'
 import json, re, sys
 pin = json.load(open(sys.argv[1], encoding="utf-8"))
 for key in ("version", "url", "sha256", "asset"):
@@ -53,18 +64,105 @@ if pin["version"] not in pin["url"]:
 if ("get." + "frankenphp" + ".dev") in pin["url"]:
     raise SystemExit("unversioned installer URLs are forbidden")
 print(pin["version"], pin["url"], pin["sha256"], pin["asset"])
-PY
+PINPY
+}
+
+self_test_concurrent_pid_proofs() {
+  [[ -f "$CONCURRENT_PID_ASSERT" ]] || fail "missing $CONCURRENT_PID_ASSERT"
+  local tmp i
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-frankenphp-pid-proof.XXXXXX")"
+  for i in $(seq -w 1 20); do
+    printf 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n' >"$tmp/${i}.headers"
+  done
+  if python3 "$CONCURRENT_PID_ASSERT" "$tmp" "12345"; then
+    rm -rf -- "$tmp"
+    fail "concurrent PID missing proof unexpectedly passed"
+  fi
+  for i in $(seq -w 1 20); do
+    printf 'HTTP/1.1 200 OK\r\nX-Waaseyaa-Worker-Pid: 111\r\n\r\n' >"$tmp/${i}.headers"
+  done
+  printf 'HTTP/1.1 200 OK\r\nX-Waaseyaa-Worker-Pid: 222\r\n\r\n' >"$tmp/20.headers"
+  if python3 "$CONCURRENT_PID_ASSERT" "$tmp" "111"; then
+    rm -rf -- "$tmp"
+    fail "concurrent PID changed proof unexpectedly passed"
+  fi
+  rm -rf -- "$tmp"
+  echo "concurrent PID missing/changed proofs failed closed"
+}
+
+self_test_probe_mutations() {
+  php -r '
+require $argv[1];
+$root = $argv[2];
+$resolved = waaseyaa_frankenphp_acceptance_resolve(
+    $root,
+    "worker-lane-v1",
+    "frankenphp",
+    ["HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE" => "worker-lane-v1"],
+    "/tmp/waaseyaa-evil-probe.php",
+);
+$expected = $root . "/tests/Acceptance/FrankenPhpWorker/probe.php";
+if ($resolved !== $expected) {
+    fwrite(STDERR, "path override was not ignored: $resolved\n");
+    exit(1);
+}
+try {
+    waaseyaa_frankenphp_acceptance_resolve(
+        $root,
+        false,
+        "frankenphp",
+        ["HTTP_X_WAASEYAA_FRANKENPHP_ACCEPTANCE" => "worker-lane-v1"],
+        false,
+    );
+    fwrite(STDERR, "request-only activation unexpectedly succeeded\n");
+    exit(1);
+} catch (RuntimeException $e) {
+    if (!str_contains($e->getMessage(), "exact worker-lane token")) {
+        fwrite(STDERR, $e->getMessage() . "\n");
+        exit(1);
+    }
+}
+$missing = sys_get_temp_dir() . "/waaseyaa-missing-acceptance-" . uniqid("", true);
+try {
+    waaseyaa_frankenphp_acceptance_resolve($missing, "worker-lane-v1", "frankenphp", [], false);
+    fwrite(STDERR, "missing probe unexpectedly succeeded\n");
+    exit(1);
+} catch (RuntimeException $e) {
+    if (!str_contains($e->getMessage(), "probe fixture is missing")) {
+        fwrite(STDERR, $e->getMessage() . "\n");
+        exit(1);
+    }
+}
+' "$RESOLVE" "$ROOT" || fail "probe activation mutations did not fail closed"
+  echo "arbitrary-path / request-only / missing-probe proofs failed closed"
+}
+
+self_test_public_storage_predicate() {
+  if public_storage_leaked "$ROOT"; then
+    fail "repository public/storage already leaked before self-test"
+  fi
+  local tmp
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-frankenphp-storage-proof.XXXXXX")"
+  mkdir -p "$tmp/public/storage"
+  if ! public_storage_leaked "$tmp"; then
+    rm -rf -- "$tmp"
+    fail "public_storage_leaked missed a present artifact"
+  fi
+  rm -rf -- "$tmp"
+  echo "public/storage artifact is treated as a custody failure"
 }
 
 if [[ "$SELF_TEST" -eq 1 ]]; then
   require_pin >/dev/null
   php -r 'require $argv[1];' "$ROOT/tests/Acceptance/FrankenPhpWorker/leak.php"
+  self_test_concurrent_pid_proofs
+  self_test_probe_mutations
+  self_test_public_storage_predicate
   if [[ -x "${FRANKENPHP_BINARY:-}" ]]; then
     echo "self-test: pin valid; leak fixture loadable; binary present"
     exit 0
   fi
   echo "self-test: pin valid; leak fixture loadable"
-  # Still fail closed when a caller asked the harness to run without a binary.
   if [[ "${WAASEYAA_FRANKENPHP_SELF_TEST_REQUIRE_BINARY:-}" == "1" ]]; then
     fail "Set FRANKENPHP_BINARY to the pinned FrankenPHP binary"
   fi
@@ -90,28 +188,42 @@ echo "$VERSION_OUT" | grep -Eq "FrankenPHP[[:space:]]+v?1\.12\.4" \
 
 PORT="${WAASEYAA_FRANKENPHP_ACCEPTANCE_PORT:-3055}"
 CLASSIC_PORT="${WAASEYAA_FRANKENPHP_CLASSIC_PORT:-3056}"
-if ss -ltn 2>/dev/null | grep -qE ":${PORT}[[:space:]]"; then
-  fail "Port ${PORT} is already in use; refusing a contaminated listener."
+occupy_check_ports=(3055 3056 3057 3058 "$PORT" "$CLASSIC_PORT")
+seen_ports=" "
+for occupy_port in "${occupy_check_ports[@]}"; do
+  case "$seen_ports" in
+    *" ${occupy_port} "*) continue ;;
+  esac
+  seen_ports+="${occupy_port} "
+  if port_in_use "$occupy_port"; then
+    fail "Port ${occupy_port} is already in use; refusing a contaminated listener."
+  fi
+done
+
+if public_storage_leaked "$ROOT"; then
+  fail "Refusing to start: ${ROOT}/public/storage exists (custody contamination)."
 fi
+TREE_SNAPSHOT="$(git -C "$ROOT" status --porcelain)"
 
 RUNTIME_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-frankenphp-acceptance.XXXXXX")"
 WORKER_LOG="$RUNTIME_ROOT/worker.log"
 CLASSIC_LOG="$RUNTIME_ROOT/classic.log"
 SESSION_DIR="$RUNTIME_ROOT/sessions"
 INI_DIR="$RUNTIME_ROOT/php-ini.d"
-mkdir -p "$SESSION_DIR" "$INI_DIR" "$ROOT/storage"
+mkdir -p "$SESSION_DIR" "$INI_DIR"
 
 export APP_ENV=production
 export APP_DEBUG=false
 export WAASEYAA_DEV_FALLBACK_ACCOUNT=false
 export WAASEYAA_APP_SECRET="${WAASEYAA_APP_SECRET:-base64:$(php -r 'echo base64_encode(random_bytes(32));')}"
-export AUTH_TOKEN_SECRET="${AUTH_TOKEN_SECRET:-$WAASEYAA_APP_SECRET}"
+export AUTH_TOKEN_SECRET="$(php -r 'echo "base64:" . base64_encode(random_bytes(32));')"
 export WAASEYAA_JWT_SECRET="${WAASEYAA_JWT_SECRET:-$(php -r 'echo bin2hex(random_bytes(32));')}"
 export WAASEYAA_DB="$RUNTIME_ROOT/acceptance.sqlite"
 export WAASEYAA_FILES_DIR="$RUNTIME_ROOT/files"
+export WAASEYAA_STORAGE_PATH="$RUNTIME_ROOT/storage"
 export WAASEYAA_MAINTENANCE_FLAG="$RUNTIME_ROOT/maintenance.flag"
 export WAASEYAA_MAINTENANCE_TRUST_LOCALHOST=false
-mkdir -p "$WAASEYAA_FILES_DIR"
+mkdir -p "$WAASEYAA_FILES_DIR" "$WAASEYAA_STORAGE_PATH"
 
 if [[ "$MODE" == "leak" ]]; then
   export WAASEYAA_FRANKENPHP_LEAK_PROOF=1
@@ -120,7 +232,6 @@ else
 fi
 
 cat >"$INI_DIR/acceptance.ini" <<EOF
-auto_prepend_file=${PROBE}
 session.save_path=${SESSION_DIR}
 display_errors=Off
 display_startup_errors=Off
@@ -135,7 +246,6 @@ cat >"$CADDYFILE" <<EOF
 	frankenphp {
 		php_ini display_errors Off
 		php_ini display_startup_errors Off
-		php_ini auto_prepend_file ${PROBE}
 		worker {
 			file ${ROOT}/public/index.php
 			num 1
@@ -144,7 +254,8 @@ cat >"$CADDYFILE" <<EOF
 			env WAASEYAA_DEV_FALLBACK_ACCOUNT "${WAASEYAA_DEV_FALLBACK_ACCOUNT}"
 			env WAASEYAA_APP_SECRET "${WAASEYAA_APP_SECRET}"
 			env AUTH_TOKEN_SECRET "${AUTH_TOKEN_SECRET}"
-			env WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE "${WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE}"
+			env WAASEYAA_FRANKENPHP_ACCEPTANCE worker-lane-v1
+			env WAASEYAA_STORAGE_PATH "${WAASEYAA_STORAGE_PATH}"
 			env WAASEYAA_JWT_SECRET "${WAASEYAA_JWT_SECRET}"
 			env WAASEYAA_DB "${WAASEYAA_DB}"
 			env WAASEYAA_FILES_DIR "${WAASEYAA_FILES_DIR}"
@@ -167,7 +278,7 @@ CLASSIC_PID=""
 cleanup() {
   exit_code=$?
   trap - EXIT
-  local remaining=""
+  local remaining="" occupy_port seen_ports
   if [[ -n "${WORKER_PID}" ]]; then
     if kill -0 "${WORKER_PID}" 2>/dev/null; then
       kill -TERM "${WORKER_PID}" 2>/dev/null || true
@@ -192,7 +303,7 @@ cleanup() {
   fi
   remaining="$(ps -eo pid= | while read -r pid; do
     exe="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
-    if [[ "$exe" == "$(readlink -f "$FRANKENPHP")" ]]; then
+    if [[ -n "${FRANKENPHP:-}" && "$exe" == "$(readlink -f "$FRANKENPHP")" ]]; then
       echo "$pid"
     fi
   done | tr '\n' ' ')"
@@ -200,19 +311,44 @@ cleanup() {
     echo "Surviving FrankenPHP processes after cleanup: ${remaining}" >&2
     [[ "$exit_code" -ne 0 ]] || exit_code=1
   fi
-  if ss -ltn 2>/dev/null | grep -qE ":${PORT}[[:space:]]"; then
-    echo "Port ${PORT} is still listening after FrankenPHP shutdown." >&2
-    [[ "$exit_code" -ne 0 ]] || exit_code=1
-  fi
-  if ss -ltn 2>/dev/null | grep -qE ":${CLASSIC_PORT}[[:space:]]"; then
-    echo "Classic port ${CLASSIC_PORT} is still listening after shutdown." >&2
-    [[ "$exit_code" -ne 0 ]] || exit_code=1
-  fi
+  seen_ports=" "
+  for occupy_port in 3055 3056 3057 3058 "${PORT:-}" "${CLASSIC_PORT:-}"; do
+    [[ -n "$occupy_port" ]] || continue
+    case "$seen_ports" in
+      *" ${occupy_port} "*) continue ;;
+    esac
+    seen_ports+="${occupy_port} "
+    if port_in_use "$occupy_port"; then
+      echo "Port ${occupy_port} is still listening after FrankenPHP shutdown." >&2
+      [[ "$exit_code" -ne 0 ]] || exit_code=1
+    fi
+  done
   if [[ "${PREFLIGHT_CREATED:-0}" -eq 1 ]]; then
     rm -f "$ROOT/.waaseyaa/field-access-preflight.json"
     rm -f "$ROOT/.waaseyaa/field-access-classification.json"
+    rmdir "$ROOT/.waaseyaa" 2>/dev/null || true
   fi
-  rm -rf -- "$RUNTIME_ROOT"
+  if [[ -n "${RUNTIME_ROOT:-}" ]]; then
+    rm -rf -- "$RUNTIME_ROOT"
+    if [[ -e "$RUNTIME_ROOT" ]]; then
+      echo "RUNTIME_ROOT still exists after cleanup: ${RUNTIME_ROOT}" >&2
+      [[ "$exit_code" -ne 0 ]] || exit_code=1
+    fi
+  fi
+  if public_storage_leaked "$ROOT"; then
+    echo "public/storage leaked under ${ROOT} after cleanup." >&2
+    [[ "$exit_code" -ne 0 ]] || exit_code=1
+  fi
+  local after
+  after="$(git -C "$ROOT" status --porcelain)"
+  if [[ "$after" != "$TREE_SNAPSHOT" ]]; then
+    echo "git status --porcelain drifted from TREE_SNAPSHOT." >&2
+    echo "before:" >&2
+    printf '%s\n' "$TREE_SNAPSHOT" >&2
+    echo "after:" >&2
+    printf '%s\n' "$after" >&2
+    [[ "$exit_code" -ne 0 ]] || exit_code=1
+  fi
   exit "$exit_code"
 }
 trap cleanup EXIT
@@ -242,7 +378,7 @@ write_preflight_with_frankenphp_sapi() {
 			env WAASEYAA_DEV_FALLBACK_ACCOUNT "${WAASEYAA_DEV_FALLBACK_ACCOUNT}"
 			env WAASEYAA_APP_SECRET "${WAASEYAA_APP_SECRET}"
 			env AUTH_TOKEN_SECRET "${AUTH_TOKEN_SECRET}"
-			env WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE "${WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE}"
+			env WAASEYAA_STORAGE_PATH "${WAASEYAA_STORAGE_PATH}"
 			env WAASEYAA_JWT_SECRET "${WAASEYAA_JWT_SECRET}"
 			env WAASEYAA_DB "${WAASEYAA_DB}"
 			env WAASEYAA_FILES_DIR "${WAASEYAA_FILES_DIR}"
@@ -291,7 +427,7 @@ wait_ready() {
   local listen_port="$1"
   local ready=0
   for _ in $(seq 1 250); do
-    if curl -sf -o /dev/null "http://127.0.0.1:${listen_port}/.well-known/waaseyaa-anchors.json"; then
+    if curl -sf --max-time 2 -o /dev/null "http://127.0.0.1:${listen_port}/.well-known/waaseyaa-anchors.json"; then
       ready=1
       break
     fi
@@ -320,7 +456,7 @@ request() {
   local headers="$RUNTIME_ROOT/last.headers"
   local body="$RUNTIME_ROOT/last.body"
   curl -sS -D "$headers" -o "$body" -X "$method" "${extra[@]}" "$url"
-  python3 - "$headers" "$body" <<'PY'
+  python3 - "$headers" "$body" <<'REQPY'
 import pathlib, sys
 headers_path, body_path = sys.argv[1], sys.argv[2]
 raw = pathlib.Path(headers_path).read_text(errors="replace")
@@ -354,7 +490,7 @@ for line in raw.splitlines():
         ctype = line.split(":", 1)[1].strip()
 body = pathlib.Path(body_path).read_text(errors="replace")
 print("\n".join([status, server, pid, sapi, leak, community, leak_community, ctype, str(len(body))]))
-PY
+REQPY
 }
 
 login() {
@@ -370,6 +506,7 @@ login() {
 }
 
 if [[ "$MODE" != "classic" ]]; then
+  export WAASEYAA_FRANKENPHP_ACCEPTANCE=worker-lane-v1
   "$FRANKENPHP" run --config "$CADDYFILE" --adapter caddyfile >"$WORKER_LOG" 2>&1 &
   WORKER_PID=$!
   wait_ready "$PORT"
@@ -391,7 +528,7 @@ if [[ "$MODE" != "classic" ]]; then
     echo "${META[0]}" >>"$SERIAL_FILE"
     echo "${META[2]}" >>"$SERIAL_PIDS"
   done
-  python3 - "$SERIAL_FILE" "$SERIAL_PIDS" "$WORKER_IDENT" <<'PY'
+  python3 - "$SERIAL_FILE" "$SERIAL_PIDS" "$WORKER_IDENT" <<'SERIALPY'
 from pathlib import Path
 import sys
 status = Path(sys.argv[1]).read_text().split()
@@ -400,19 +537,16 @@ ident = sys.argv[3]
 assert status == ["200"] * 20, status
 assert pids == [ident] * 20, (pids, ident)
 print("serial public", len(status), "same worker", ident)
-PY
+SERIALPY
 
-  CONCURRENT_FILE="$RUNTIME_ROOT/concurrent-status.txt"
-  seq 20 | xargs -P 20 -I{} curl -sS -o /dev/null -w '%{http_code}\n' \
-    "http://127.0.0.1:${PORT}/.well-known/waaseyaa-anchors.json" >"$CONCURRENT_FILE"
-  python3 - "$CONCURRENT_FILE" <<'PY'
-from collections import Counter
-from pathlib import Path
-import sys
-codes = Path(sys.argv[1]).read_text().split()
-assert Counter(codes) == Counter({"200": 20}), codes
-print("concurrent public", Counter(codes))
-PY
+  CONCURRENT_DIR="$RUNTIME_ROOT/concurrent-headers"
+  mkdir -p "$CONCURRENT_DIR"
+  seq -w 1 20 | xargs -P 20 -I{} curl -sS -D "$CONCURRENT_DIR/{}.headers" -o "$CONCURRENT_DIR/{}.body" \
+    "http://127.0.0.1:${PORT}/.well-known/waaseyaa-anchors.json"
+  python3 "$CONCURRENT_PID_ASSERT" "$CONCURRENT_DIR" "$WORKER_IDENT"
+  assert_listener_is_binary "$PORT"
+  mapfile -t META < <(request GET "http://127.0.0.1:${PORT}/.well-known/waaseyaa-anchors.json")
+  [[ "${META[0]}" == "200" && "${META[2]}" == "$WORKER_IDENT" ]] || fail "post-burst request left the retained worker"
 
   ALICE_USER="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["alice"]["name"])' "$IDS_JSON")"
   ALICE_PASS="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["alice"]["password"])' "$IDS_JSON")"
@@ -484,7 +618,7 @@ PY
     -H 'Accept: text/event-stream' \
     -b "$ALICE_JAR" \
     "http://127.0.0.1:${PORT}/api/broadcast" || true
-  python3 - "$STREAM_HEADERS" "$STREAM_BODY" <<'PY'
+  python3 - "$STREAM_HEADERS" "$STREAM_BODY" <<'STREAMPY'
 from pathlib import Path
 import sys
 headers = Path(sys.argv[1]).read_text(errors="replace").lower()
@@ -492,7 +626,7 @@ body = Path(sys.argv[2]).read_bytes()
 if "text/event-stream" not in headers and b"event:" not in body and b"data:" not in body:
     raise SystemExit("streamed /api/broadcast did not look like an SSE response")
 print("streamed broadcast accepted")
-PY
+STREAMPY
 
   mapfile -t META < <(request GET "http://127.0.0.1:${PORT}/no-such-acceptance-route-${RANDOM}")
   [[ "${META[0]}" == "404" ]] || fail "missing route expected 404, got ${META[0]}"
@@ -507,6 +641,7 @@ PY
   [[ "${META[0]}" == "200" && "${META[2]}" == "$WORKER_IDENT" ]] || fail "recovery after maintenance failed"
 
   echo "worker-mode acceptance green pid=${WORKER_IDENT}"
+  unset WAASEYAA_FRANKENPHP_ACCEPTANCE || true
 fi
 
 if ss -ltn 2>/dev/null | grep -qE ":${CLASSIC_PORT}[[:space:]]"; then
