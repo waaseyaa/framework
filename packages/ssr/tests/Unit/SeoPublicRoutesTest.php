@@ -17,6 +17,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Seo\Discovery\DiscoveryFailurePolicy;
 use Waaseyaa\SSR\Http\CanonicalPublicOrigin;
 use Waaseyaa\SSR\Http\SeoPublicController;
 use Waaseyaa\SSR\SsrPageHandler;
@@ -57,6 +58,56 @@ final class SeoPublicRoutesTest extends TestCase
             self::assertSame($path, $route->getPath());
             self::assertSame(10, $route->getOption('_waaseyaa_priority'));
         }
+    }
+
+    #[Test]
+    public function each_public_seo_path_is_registered_exactly_once(): void
+    {
+        $router = new WaaseyaaRouter();
+        new SsrServiceProvider()->routes($router, new EntityTypeManager(new EventDispatcher()));
+
+        $paths = [];
+        foreach ($router->getRouteCollection()->all() as $route) {
+            $paths[] = $route->getPath();
+        }
+
+        // Route ownership: an application that needs different SEO behaviour
+        // now binds a discovery policy (#2501) instead of registering a
+        // competing higher-priority route, so each path must have exactly one
+        // owner here and stay that way.
+        foreach (['/robots.txt', '/sitemap.xml', '/llms.txt'] as $path) {
+            self::assertSame(1, count(array_keys($paths, $path, true)), $path . ' must be registered exactly once');
+        }
+    }
+
+    #[Test]
+    public function provider_binds_the_default_failure_policy(): void
+    {
+        $provider = new SsrServiceProvider();
+        $provider->setKernelContext('/tmp', [], []);
+        $provider->register();
+
+        self::assertSame(DiscoveryFailurePolicy::EmptyDocument, $provider->resolve(DiscoveryFailurePolicy::class));
+    }
+
+    #[Test]
+    public function provider_binds_a_configured_propagate_failure_policy(): void
+    {
+        $provider = new SsrServiceProvider();
+        $provider->setKernelContext('/tmp', ['seo' => ['failure_policy' => 'propagate']], []);
+        $provider->register();
+
+        self::assertSame(DiscoveryFailurePolicy::Propagate, $provider->resolve(DiscoveryFailurePolicy::class));
+    }
+
+    #[Test]
+    public function provider_refuses_an_unrecognised_failure_policy_at_boot(): void
+    {
+        $provider = new SsrServiceProvider();
+        $provider->setKernelContext('/tmp', ['seo' => ['failure_policy' => 'propogate']], []);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $provider->register();
     }
 
     #[Test]

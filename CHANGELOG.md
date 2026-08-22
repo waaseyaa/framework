@@ -48,6 +48,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AUTH_TOKEN_SECRET` independently of `WAASEYAA_APP_SECRET`, and
   `WAASEYAA_STORAGE_PATH` so broadcast/runtime files stay out of `public/`.
 
+- **Added - application extension contracts for the crawler-facing SEO surfaces
+  (#2501):** `SeoPublicController` owned generic orchestration for
+  `/robots.txt`, `/sitemap.xml`, and `/llms.txt` but exposed no seam for the two
+  decisions every real site must make, so it hardcoded a `/{entityTypeId}/{id}`
+  URL model and a private non-public entity-type blacklist. An application whose
+  public URLs were anything else had no supported option but to fork the
+  controller and register a competing higher-priority route, and to copy the
+  blacklist, giving a security-relevant exclusion list a second copy that could
+  drift.
+
+  The new `Waaseyaa\Seo\Discovery` contracts close that. `PublicUrlPolicyInterface`
+  supplies an entity's canonical path and its Markdown-representation path;
+  these are deliberately separate questions, because a canonical human-facing URL
+  is frequently served by a controller that renders HTML only.
+  `CrawlEligibilityPolicyInterface` restricts which entity types are crawled at
+  all, `SitemapContributorInterface` adds non-entity URLs without replacing the
+  controller, and `NonPublicEntityTypes` moves the blacklist into the framework as
+  an unconditional floor an application can narrow but never widen.
+
+  Policies return ROOT-RELATIVE paths and the framework joins them to
+  `CanonicalPublicOrigin`, so an application can never influence the origin of an
+  emitted URL and no request `Host`, `Forwarded`, or `X-Forwarded-Host` header can
+  reach one. Returned paths are validated strictly, and a malformed return drops
+  that entity rather than falling back to the built-in URL model, which would
+  advertise a URL the application declined to authorise. Canonical mode without a
+  trusted origin raises `DiscoveryConfigurationException` instead of degrading to
+  a relative URL.
+
+  `DiscoveryFailurePolicy` makes the previously implicit failure behaviour an
+  explicit choice via `seo.failure_policy`. The historical
+  degrade-to-empty-200-document remains the default, so consumers that bind
+  nothing keep today's exact bytes; `propagate` suits a site for which an
+  unbuildable sitemap is an operational failure that must be seen rather than an
+  empty `urlset` indistinguishable from a site with no content. An unrecognised
+  value is refused at boot rather than silently resolving to the more permissive
+  case.
+
+  Backward compatible throughout: every new constructor parameter is optional and
+  trailing, and binding nothing preserves the existing relative `/{entityTypeId}/{id}`
+  locs, `?format=md` links, and empty-document degradation.
+
 - **Fixed - the Admin SPA can apply workflow transitions again (#2481):** the
   transition POST is an aggregate mutation and `WorkflowTransitionController`
   requires a strong `If-Match` entity mutation ETag, but the shipped SPA never

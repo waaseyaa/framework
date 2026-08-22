@@ -26,6 +26,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterf
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Seo\Discovery\DiscoveryFailurePolicy;
 use Waaseyaa\SSR\Flash\Flash;
 use Waaseyaa\SSR\Flash\FlashMessageService;
 use Waaseyaa\SSR\Http\CanonicalPublicOrigin;
@@ -54,6 +55,15 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
                 static fn(): CanonicalPublicOrigin => $canonicalOrigin,
             );
         }
+
+        // Always bound, so SeoPublicController receives an explicit policy rather
+        // than inferring one. An unrecognised `seo.failure_policy` throws here, at
+        // boot, instead of silently resolving to the more permissive case.
+        $failurePolicy = DiscoveryFailurePolicy::fromConfig($this->config);
+        $this->singleton(
+            DiscoveryFailurePolicy::class,
+            static fn(): DiscoveryFailurePolicy => $failurePolicy,
+        );
 
         if ($this->projectRoot !== '') {
             $this->kernelTwigEnvironment = ThemeServiceProvider::getTwigEnvironment()
