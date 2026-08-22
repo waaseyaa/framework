@@ -144,6 +144,82 @@ describe('AdminSurfaceTransportAdapter', () => {
     )
   })
 
+  it('deletes with the successor a workflow transition handed over, not the stale read token', async () => {
+    const responses = [
+      { type: 'node', id: '7', attributes: { title: 'Observed' }, mutation_token: 'emt1.before-transition' },
+      undefined,
+    ]
+    const fetchFn = vi.fn().mockImplementation(async () => {
+      const data = responses.shift()
+      return { ok: true, status: data === undefined ? 204 : 200, json: async () => ({ ok: true, data }) }
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('node', '7')
+    // A transition committed on the canonical /api route returned this successor.
+    adapter.adoptMutationToken('node', '7', 'emt1.after-transition')
+    await adapter.remove('node', '7')
+
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      2,
+      '/admin/_surface/node/action/delete',
+      expect.objectContaining({
+        body: JSON.stringify({ id: '7', mutation_token: 'emt1.after-transition' }),
+      }),
+    )
+  })
+
+  it('refuses the next write locally after the cached validator is forgotten', async () => {
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: { type: 'node', id: '7', attributes: {}, mutation_token: 'emt1.observed' } }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('node', '7')
+    adapter.forgetMutationToken('node', '7')
+
+    await expect(adapter.remove('node', '7')).rejects.toMatchObject({ status: 428 })
+    // The read only; no unfenced delete was ever sent.
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats an empty handed-over successor as no validator rather than sending an empty one', async () => {
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: { type: 'node', id: '7', attributes: {}, mutation_token: 'emt1.observed' } }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('node', '7')
+    adapter.adoptMutationToken('node', '7', '')
+
+    await expect(adapter.remove('node', '7')).rejects.toMatchObject({ status: 428 })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('scopes a handed-over successor to its own entity', async () => {
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: { type: 'node', id: '8', attributes: {}, mutation_token: 'emt1.eight' } }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('node', '8')
+    adapter.forgetMutationToken('node', '7')
+    adapter.adoptMutationToken('node', '7', 'emt1.seven')
+
+    await adapter.remove('node', '8')
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      2,
+      '/admin/_surface/node/action/delete',
+      expect.objectContaining({ body: JSON.stringify({ id: '8', mutation_token: 'emt1.eight' }) }),
+    )
+  })
+
   it('keys mutation authority by the requested surface when the canonical entity type differs', async () => {
     const responses = [
       { type: 'taxonomy_vocabulary', id: 'topics', attributes: { name: 'Topics' }, mutation_token: 'emt1.observed' },

@@ -37,6 +37,17 @@ controls re-read on that refusal and never re-post on the operator's behalf. A
 discovery that offers no transitions carries no token, which is exactly when
 there is nothing to apply.
 
+A committed transition writes a new revision, which supersedes the entity
+mutation validator the admin-surface transport cached on its last read. Both
+transports carry the same `EntityMutationToken` opaque string, so the controls
+hand the successor across through `MutationTokenAwareTransport`
+(`adoptMutationToken` / `forgetMutationToken`), which is kept separate from
+`TransportAdapter` so a transport holding no validator cache need not implement
+it. A transition that issues no successor drops the cached validator instead, so
+the next write asks for a reload rather than presenting a stale one. The entity
+is never re-read behind the operator, which would discard unsaved edits, and a
+refused write is never silently retried.
+
 TransitionHistoryTimeline reads `meta.workflow_history` from the sanctioned
 workflow-discovery endpoint, not the obsolete inline `workflow_audit` field.
 The response is shape-validated, limited to successful transitions, ordered

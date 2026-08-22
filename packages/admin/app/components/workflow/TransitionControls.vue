@@ -6,6 +6,8 @@
 // CW-v1 transition (WP-4 Task C, #1920) and applies the chosen transition.
 import { useWorkflowTransitions, type WorkflowTransitionApplyResult } from '~/composables/useWorkflowTransitions'
 import { useLanguage } from '~/composables/useLanguage'
+import { requireAdminRuntime } from '~/composables/useAdminRuntime'
+import { isMutationTokenAware } from '~/contracts/transport'
 
 const props = defineProps<{
   entityType: string
@@ -37,6 +39,24 @@ async function apply(transitionId: string) {
   applyError.value = null
   try {
     const result = await applyTransition(props.entityType, props.entityId, transitionId)
+    // A committed transition writes a new revision, which supersedes the
+    // validator the admin-surface transport cached on its last read. Hand the
+    // successor over so a following save or delete is fenced by committed state
+    // instead of being refused with 412; when no successor was issued, drop the
+    // cached one so that write asks for a reload rather than presenting a stale
+    // validator. Failing to reach the runtime must not undo the transition.
+    try {
+      const { transport } = requireAdminRuntime()
+      if (isMutationTokenAware(transport)) {
+        if (mutationToken.value === null) {
+          transport.forgetMutationToken(props.entityType, props.entityId)
+        } else {
+          transport.adoptMutationToken(props.entityType, props.entityId, mutationToken.value)
+        }
+      }
+    } catch {
+      // No admin runtime in this mount; nothing caches a validator to refresh.
+    }
     emit('transitioned', result)
     await load()
   } catch (e: unknown) {
