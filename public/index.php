@@ -38,6 +38,24 @@ if (is_file($projectRoot . '/.env')) {
 // A fresh kernel is built per request so no container/entity state bleeds across
 // requests handled by the same long-lived FrankenPHP worker.
 $handler = static function () use ($projectRoot): void {
+    // Framework-owned worker-lane probe. Exact process env token + FrankenPHP
+    // SAPI. Idle otherwise. Request headers cannot activate (HTTP_* is ignored).
+    // Missing tests/ or a missing waaseyaa/frankenphp class is a no-op, never a
+    // 500. Worker env may appear in getenv(), $_ENV, or $_SERVER without HTTP_.
+    $acceptanceToken = getenv('WAASEYAA_FRANKENPHP_ACCEPTANCE');
+    if ($acceptanceToken !== 'worker-lane-v1') {
+        $processToken = $_ENV['WAASEYAA_FRANKENPHP_ACCEPTANCE']
+            ?? $_SERVER['WAASEYAA_FRANKENPHP_ACCEPTANCE']
+            ?? null;
+        $acceptanceToken = $processToken === 'worker-lane-v1' ? $processToken : false;
+    }
+    if ($acceptanceToken === 'worker-lane-v1' && \PHP_SAPI === 'frankenphp') {
+        $probeClass = 'Waaseyaa\\FrankenPhp\\WorkerAcceptance';
+        if (\class_exists($probeClass)) {
+            $probeClass::apply($projectRoot);
+        }
+    }
+
     try {
         $kernel = new HttpKernel($projectRoot);
         $response = $kernel->handle();

@@ -1082,6 +1082,95 @@ jobs:
           php "$work/prepare-runtime-schema.php"
           WAASEYAA_DB="$work/storage/core-only.sqlite" php "$work/boot.php"
 
+  frankenphp-worker:
+    # #2494: real FrankenPHP worker-runtime acceptance against the shipped
+    # production front controller. PHP built-in server and mocked processes
+    # are not substitutes. Missing binary is an infrastructure failure.
+    name: ci/frankenphp-worker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-8.5-vendor-${{ hashFiles('composer.lock') }}
+
+      - name: Install PHP dependencies
+        uses: ./.github/actions/composer-install-retry
+
+      - name: Install pinned FrankenPHP
+        env:
+          FRANKENPHP_BIN: ${{ runner.temp }}/frankenphp-v1.12.4
+        run: |
+          set -euo pipefail
+          pin=tools/frankenphp-runtime-pin.json
+          version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$pin")"
+          url="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["url"])' "$pin")"
+          sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$pin")"
+          echo "Pinned FrankenPHP ${version} from ${url}"
+          curl -fsSL -o "$FRANKENPHP_BIN" "$url"
+          echo "${sha}  ${FRANKENPHP_BIN}" | sha256sum -c -
+          chmod +x "$FRANKENPHP_BIN"
+          "$FRANKENPHP_BIN" version
+          echo "FRANKENPHP_BIN=$FRANKENPHP_BIN" >> "$GITHUB_ENV"
+
+      - name: Harness self-tests
+        run: bash scripts/acceptance-frankenphp-worker.sh --self-test
+
+      - name: Real FrankenPHP worker acceptance
+        run: bash scripts/acceptance-frankenphp-worker.sh
+        env:
+          FRANKENPHP_BINARY: ${{ env.FRANKENPHP_BIN }}
+
+      - name: Adversarial leak fixture must fail the lane
+        env:
+          FRANKENPHP_BINARY: ${{ env.FRANKENPHP_BIN }}
+          WAASEYAA_FRANKENPHP_ACCEPTANCE_PORT: '3057'
+          WAASEYAA_FRANKENPHP_CLASSIC_PORT: '3058'
+        run: |
+          set +e
+          bash scripts/acceptance-frankenphp-worker.sh --inject-leak
+          status=$?
+          set -e
+          if [ "$status" -ne 42 ]; then
+            echo "Adversarial leak fixture did not fail closed with exit 42 (got ${status})." >&2
+            exit 1
+          fi
+          echo "Leak fixture went red as required."
+
+      - name: Worker processes must not survive the harness
+        env:
+          FRANKENPHP_BINARY: ${{ env.FRANKENPHP_BIN }}
+        run: |
+          set -euo pipefail
+          leftover="$(ps -eo pid= | while read -r pid; do
+            exe="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
+            if [ "$exe" = "$(readlink -f "$FRANKENPHP_BINARY")" ]; then
+              echo "$pid"
+            fi
+          done)"
+          if [ -n "${leftover}" ]; then
+            echo "FrankenPHP still running after the acceptance harness: ${leftover}" >&2
+            exit 1
+          fi
+          if ss -ltn 2>/dev/null | grep -qE ':3055[[:space:]]|:3056[[:space:]]|:3057[[:space:]]|:3058[[:space:]]'; then
+            echo "Acceptance ports still listening after the harness." >&2
+            ss -ltn || true
+            exit 1
+          fi
+
   verify-gates:
     name: ci/verify-gates
     # The permanent "verify-only" boundary gates that `composer verify` runs but CI

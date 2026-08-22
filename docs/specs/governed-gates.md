@@ -24,9 +24,12 @@ Runs every **repo-state** gate that hosted CI blocks merge on, using the same co
 with the `run_gate` accumulator pattern from the `ci/verify-gates` job: every gate runs, all
 failures are reported in one pass, each failure names its exact repair command, and the script
 exits non-zero if any gate failed. Test suites (Unit / Integration / Architecture / frontend /
-e2e) are **not** preflight gates — they remain the long half of verification, run via
-`composer test` splits and CI. The preflight's job is that the long half never discovers what the
-fast half could have said in seconds.
+e2e) and the hosted FrankenPHP worker-runtime lane (`ci/frankenphp-worker`,
+`scripts/acceptance-frankenphp-worker.sh`) are **not** preflight gates — they
+remain the long half of verification. Local preflight does not download or
+execute FrankenPHP; missing the binary on a developer laptop must not become a
+skip inside the hosted job. The preflight's job is that the long half never
+discovers what the fast half could have said in seconds.
 
 Profiles:
 
@@ -149,3 +152,4 @@ Applies to all four S1 rosters: `s1-configuration-activation`, `s1-configuration
 | Recorded rosters | `support/s1-*-roster.json` |
 | Hook integration | `bin/project-hooks` (`pre_push`) |
 | CI ordering | `.github/workflows/ci.yml` (`needs: [support-contract, spec-drift]` on the three long jobs) |
+| Hosted FrankenPHP worker runtime | `.github/workflows/ci.yml` job `ci/frankenphp-worker`, pin `tools/frankenphp-runtime-pin.json`, harness `scripts/acceptance-frankenphp-worker.sh`. Owns real worker lifetime, Caddy/FrankenPHP identity, sequential/concurrent requests through one worker PID (concurrent burst captures per-request PID headers), hermetic runtime storage under `WAASEYAA_STORAGE_PATH`, account/community isolation at the HTTP boundary, streamed `/api/broadcast`, error-then-recovery, classic `php-server` fallback, and clean shutdown. Does **not** replace PHPUnit static lifetime gates (#2069, GraphQL schema-cache bleed, Twig environment replacement, CommunityMiddleware unit tests). |

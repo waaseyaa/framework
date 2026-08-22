@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added — ordinary Framework CI now requires a real FrankenPHP worker-runtime
+  lane (#2494).** Hosted job `ci/frankenphp-worker` installs pinned FrankenPHP
+  v1.12.4 from the upstream GitHub release, verifies a committed SHA-256 before
+  chmod or execution, and runs `scripts/acceptance-frankenphp-worker.sh` against
+  the shipped `public/index.php` in genuine worker mode — not PHP's built-in
+  server and not a mocked process. The harness retains one worker PID across 20
+  sequential requests, a concurrent burst with per-request PID headers, and a
+  post-burst request on the same worker PID, varies synthetic account and
+  community marks, exercises public / authenticated / forbidden / concealed /
+  streamed / error / maintenance-recovery paths, proves classic `php-server`
+  fallback, and asserts hermetic shutdown (git status unchanged, no
+  `public/storage`, runtime root removed, no leftover FrankenPHP, ports
+  3055–3058 free). A test-only adversarial fixture must make `--inject-leak`
+  exit 42; missing or changed concurrent PIDs fail the harness. Missing the
+  binary fails the job instead of skipping. PHPUnit static lifetime gates are
+  unchanged. The repo front controller arms `Waaseyaa\FrankenPhp\WorkerAcceptance`
+  only when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` and SAPI
+  is `frankenphp` (idle otherwise; no `tests/` require; no environment-supplied
+  path). Accidental `worker-lane-v1` without `tests/` or without
+  `waaseyaa/frankenphp` is inert, not a 500. `config/waaseyaa.php` maps
+  `AUTH_TOKEN_SECRET` independently of `WAASEYAA_APP_SECRET`, and
+  `WAASEYAA_STORAGE_PATH` so broadcast/runtime files stay out of `public/`.
+
 - **Fixed - the Admin SPA can apply workflow transitions again (#2481):** the
   transition POST is an aggregate mutation and `WorkflowTransitionController`
   requires a strong `If-Match` entity mutation ETag, but the shipped SPA never
