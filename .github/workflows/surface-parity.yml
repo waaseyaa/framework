@@ -47,11 +47,11 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run surface parity check
-        run: php tools/check-surface-parity.php
+        run: php tools/check-surface-parity.php --base=origin/${{ github.base_ref }}
 
       - name: Annotate PR on failure
         if: failure()
         run: |
           echo "::error::Public-surface-map parity check failed."
           echo "::error::See docs/specs/stability-charter.md §8.1 for the policy."
-          echo "::error::Fix: update docs/public-surface-map.php and/or add a deprecation entry."
+          echo "::error::Fix: keep the map loadable or add the exact current-change directive documented in stability-charter.md §8.1."

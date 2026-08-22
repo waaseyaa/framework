@@ -831,6 +831,31 @@ A CI job runs on every PR:
    - Symbol present in map, missing from source (removal without deprecation entry).
    - Symbol's classification downgraded (`public` → `internal`) without a deprecation entry in the matching changelog.
 
+Removal and deprecation authority is machine-verifiable and scoped to the
+current change. The gate compares `docs/public-surface-map.php` with the merge
+base, including governed concrete final classes that cannot be inferred from
+declaration shape. An authorization must be a line newly added by the candidate
+under the canonical `## [Unreleased]` section, using one of these exact forms:
+
+```markdown
+### Deprecated
+
+- Public surface deprecation: `Waaseyaa\Package\Contract`
+
+### Removed
+
+- Public surface removal: `Waaseyaa\Package\Contract`
+- Public surface rename: `Waaseyaa\Package\OldContract` -> `Waaseyaa\Package\NewContract`
+```
+
+FQCNs are case-sensitive and must be complete. A rename replacement must be
+present, mapped, and loadable in the candidate. Bare leaf names, Added or
+Changed entries, prose, examples, links, previously committed Unreleased text,
+and entries in historical release sections carry no authority. Deprecation
+authorizes a `public` disposition downgrade while the type remains loadable;
+actual source/map removal requires a Removed directive after the governed
+deprecation cycle.
+
 ### 8.2 CI: changelog discipline
 
 Every PR that touches a public-surface file must edit one of:

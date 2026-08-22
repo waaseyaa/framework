@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Enforces docs/specs/stability-charter.md §8.1 / §2.5. Run by
  * .github/workflows/surface-parity.yml and runnable locally:
  *
- *   php tools/check-surface-parity.php
+ *   php tools/check-surface-parity.php --base=origin/main
  *
  * Contract (the AST gate for tests/Integration/SurfaceMap/PublicSurfaceVerificationTest.php
  * — same scope and semantics, but a real php-parser walk instead of a single-match-
@@ -24,12 +24,11 @@ declare(strict_types=1);
  *                   "untracked surface" (a public contract shipped without a
  *                   stability disposition — charter §2.4 forbids indefinite
  *                   ambiguity).
- *   map -> source : every map FQCN MUST resolve to a loadable type, else
- *                   "removed-without-deprecation" — unless CHANGELOG.md carries a
- *                   removal/deprecation note naming it (charter §4 cycle). Existence
- *                   is autoload-based (class/interface/trait/enum_exists), so map
- *                   entries that live in a package's `testing/` autoload-dev surface
- *                   (the conformance bases) resolve without being scanned as src.
+ *   map -> source : every map FQCN MUST resolve to a loadable type. A map entry
+ *                   removed relative to the merge base requires a newly-added,
+ *                   exact-FQCN authorization in CHANGELOG.md's canonical
+ *                   [Unreleased] section. This delta check also governs concrete
+ *                   final classes already recorded in the map.
  *
  * This replaces the 2026-05-11 skeleton, which stubbed the scan and so could not
  * detect drift (audit finding C-14). The workflow's `continue-on-error` is removed
@@ -45,6 +44,7 @@ use PhpParser\Node;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
+use Waaseyaa\Tooling\SurfaceChangeAuthorization;
 
 $root = dirname(__DIR__);
 
@@ -63,6 +63,8 @@ if (!class_exists(ParserFactory::class)) {
 const SURFACE_MAP_REL = 'docs/public-surface-map.php';
 const CHANGELOG_REL = 'CHANGELOG.md';
 
+require_once __DIR__ . '/lib/SurfaceChangeAuthorization.php';
+
 /** Public element shapes — contracts/extension points, never concrete classes. */
 const PUBLIC_SHAPES = ['interface', 'abstract', 'trait', 'enum'];
 
@@ -75,6 +77,101 @@ function fail(string $msg, int $exit = 1): never
 {
     fwrite(STDERR, "surface-parity: {$msg}\n");
     exit($exit);
+}
+
+/** @return array{string, int} */
+function surfaceGit(string $root, array $arguments): array
+{
+    $bash = 'bash';
+    if (PHP_OS_FAMILY === 'Windows') {
+        $whereOutput = shell_exec('where git 2>NUL');
+        $gitExecutables = preg_split('/\R/', (string) $whereOutput);
+        foreach ($gitExecutables === false ? [] : $gitExecutables as $gitExecutable) {
+            $candidate = dirname(dirname($gitExecutable)) . '/bin/bash.exe';
+            if ($gitExecutable !== '' && is_file($candidate)) {
+                $bash = $candidate;
+                break;
+            }
+        }
+    }
+    $command = array_merge([$bash, $root . '/bin/git', '-C', $root], $arguments);
+    $pipes = [];
+    $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    if (!is_resource($process)) {
+        return ['', 127];
+    }
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+
+    return [(string) $stdout . ($exitCode === 0 ? '' : (string) $stderr), $exitCode];
+}
+
+/** @return array<string, string> */
+function loadBaseSurfaceMap(string $root, string $mergeBase): array
+{
+    [$source, $exitCode] = surfaceGit($root, ['show', $mergeBase . ':' . SURFACE_MAP_REL]);
+    if ($exitCode !== 0 || $source === '') {
+        fail("cannot read " . SURFACE_MAP_REL . " at merge base {$mergeBase}: " . trim($source), 2);
+    }
+
+    $temporary = tempnam(sys_get_temp_dir(), 'waaseyaa-surface-map-');
+    if ($temporary === false || file_put_contents($temporary, $source) === false) {
+        fail('could not materialize the merge-base surface map for comparison.', 2);
+    }
+    try {
+        /** @var mixed $map */
+        $map = require $temporary;
+    } finally {
+        @unlink($temporary);
+    }
+    if (!is_array($map)) {
+        fail("merge-base " . SURFACE_MAP_REL . ' must return an array.', 2);
+    }
+
+    return $map;
+}
+
+/** @return list<string> */
+function changelogAddedLines(string $root, string $mergeBase): array
+{
+    $lines = [];
+    foreach ([
+        ['diff', '--unified=0', $mergeBase . '...HEAD', '--', CHANGELOG_REL],
+        ['diff', '--unified=0', 'HEAD', '--', CHANGELOG_REL],
+    ] as $arguments) {
+        [$diff, $exitCode] = surfaceGit($root, $arguments);
+        if ($exitCode !== 0) {
+            fail('cannot compute current CHANGELOG.md additions: ' . trim($diff), 2);
+        }
+        $diffLines = preg_split('/\R/', $diff);
+        foreach ($diffLines === false ? [] : $diffLines as $line) {
+            if (str_starts_with($line, '+') && !str_starts_with($line, '+++')) {
+                $lines[] = substr($line, 1);
+            }
+        }
+    }
+
+    return $lines;
+}
+
+function surfaceTypeExists(string $fqcn): bool
+{
+    return class_exists($fqcn) || interface_exists($fqcn) || trait_exists($fqcn) || enum_exists($fqcn);
+}
+
+$baseRef = 'origin/main';
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if (str_starts_with($argument, '--base=')) {
+        $baseRef = substr($argument, strlen('--base='));
+        continue;
+    }
+    fail("unknown argument {$argument}; expected --base=<ref>.", 2);
+}
+if ($baseRef === '') {
+    fail('the comparison base cannot be empty.', 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -94,10 +191,13 @@ if (!is_array($surfaceMap) || $surfaceMap === []) {
 
 $allowedDispositions = ['public', 'internal', 'extract', 'remove'];
 $badDispositions = [];
+$validatedSurfaceMap = [];
 foreach ($surfaceMap as $fqcn => $disposition) {
     if (!is_string($fqcn) || !in_array($disposition, $allowedDispositions, true)) {
         $badDispositions[] = is_string($fqcn) ? "{$fqcn} => " . var_export($disposition, true) : '(non-string key)';
+        continue;
     }
+    $validatedSurfaceMap[$fqcn] = $disposition;
 }
 if ($badDispositions !== []) {
     fail(
@@ -106,15 +206,27 @@ if ($badDispositions !== []) {
         2,
     );
 }
+$surfaceMap = $validatedSurfaceMap;
 
 info('Loaded ' . count($surfaceMap) . ' entries from ' . SURFACE_MAP_REL . '.');
+
+[$mergeBase, $mergeBaseExit] = surfaceGit($root, ['merge-base', 'HEAD', $baseRef]);
+$mergeBase = trim($mergeBase);
+if ($mergeBaseExit !== 0 || $mergeBase === '') {
+    fail("cannot resolve merge base between HEAD and {$baseRef}; fetch the base ref or pass --base=<ref>.", 2);
+}
+$baseSurfaceMap = loadBaseSurfaceMap($root, $mergeBase);
+$changelog = is_file($root . '/' . CHANGELOG_REL) ? (string) file_get_contents($root . '/' . CHANGELOG_REL) : '';
+$authorizations = SurfaceChangeAuthorization::parse($changelog, changelogAddedLines($root, $mergeBase));
+info("Comparing governed map changes with merge base {$mergeBase} ({$baseRef}).");
 
 // ---------------------------------------------------------------------------
 // Phase 2: AST-scan src/ for declared public elements (contracts/extension points).
 // ---------------------------------------------------------------------------
 
 $scanDirs = [];
-foreach (glob($root . '/packages/*', GLOB_ONLYDIR) ?: [] as $pkg) {
+$packageDirectories = glob($root . '/packages/*', GLOB_ONLYDIR);
+foreach ($packageDirectories === false ? [] : $packageDirectories as $pkg) {
     if (is_dir("{$pkg}/src")) {
         $scanDirs[] = "{$pkg}/src";
     }
@@ -143,7 +255,7 @@ $collector = new class extends NodeVisitorAbstract {
             || $node instanceof Node\Stmt\Enum_
             || ($node instanceof Node\Stmt\Class_ && $node->name !== null && $node->isAbstract());
 
-        if ($isPublicShape && isset($node->name) && $node->name !== null) {
+        if ($isPublicShape && isset($node->name)) {
             $fqcn = ($this->ns !== '' ? $this->ns . '\\' : '') . $node->name->toString();
             $this->elements[$fqcn] = true;
         }
@@ -199,26 +311,61 @@ if ($untracked !== []) {
         . SURFACE_MAP_REL . " (add each with `public` or `internal`):\n  " . implode("\n  ", $untracked);
 }
 
-// map -> source : a map entry whose type no longer loads, with a CHANGELOG escape hatch.
-$changelog = is_file($root . '/' . CHANGELOG_REL) ? (string) file_get_contents($root . '/' . CHANGELOG_REL) : '';
-$removedWithoutNotice = [];
+// map -> source : every current map entry must still load. Authorization is
+// deliberately not an escape hatch for leaving a stale entry behind.
+$staleMapEntries = [];
 foreach (array_keys($surfaceMap) as $fqcn) {
-    if (class_exists($fqcn) || interface_exists($fqcn) || trait_exists($fqcn) || enum_exists($fqcn)) {
-        continue;
+    if (!surfaceTypeExists($fqcn)) {
+        $staleMapEntries[] = $fqcn;
     }
-    $shortName = (string) substr((string) strrchr($fqcn, '\\'), 1);
-    // Accept either the FQCN or its leaf name appearing in the changelog as the
-    // documented removal/deprecation note (charter §4).
-    if (str_contains($changelog, $fqcn) || ($shortName !== '' && str_contains($changelog, $shortName))) {
-        continue;
-    }
-    $removedWithoutNotice[] = $fqcn;
 }
-sort($removedWithoutNotice);
-if ($removedWithoutNotice !== []) {
-    $problems[] = count($removedWithoutNotice) . " map entry(ies) reference types that no longer load and have no "
-        . CHANGELOG_REL . " removal note (charter §4 requires a deprecation cycle + `### Removed` entry):\n  "
-        . implode("\n  ", $removedWithoutNotice);
+sort($staleMapEntries);
+if ($staleMapEntries !== []) {
+    $problems[] = count($staleMapEntries) . " current map entry(ies) reference types that no longer load. Remove the "
+        . "map entry in the same change and add the exact governed authorization under [Unreleased] / ### Removed:\n  "
+        . implode("\n  ", $staleMapEntries);
+}
+
+foreach ($authorizations['errors'] as $authorizationError) {
+    $problems[] = 'invalid ' . CHANGELOG_REL . " public-surface authorization: {$authorizationError}";
+}
+
+// base map -> candidate map : catches removal even when both the source and
+// map entry disappear, including concrete final classes the source scanner
+// intentionally does not infer as contracts.
+$unauthorizedRemovals = [];
+$invalidRenames = [];
+foreach (SurfaceChangeAuthorization::removedMapEntries($baseSurfaceMap, $surfaceMap) as $fqcn) {
+    if (isset($authorizations['removals'][$fqcn])) {
+        continue;
+    }
+    $renameTarget = $authorizations['renames'][$fqcn] ?? null;
+    if ($renameTarget === null) {
+        $unauthorizedRemovals[] = $fqcn;
+        continue;
+    }
+    if (!isset($surfaceMap[$renameTarget]) || !surfaceTypeExists($renameTarget)) {
+        $invalidRenames[] = "{$fqcn} -> {$renameTarget} (replacement must be mapped and loadable)";
+    }
+}
+if ($unauthorizedRemovals !== []) {
+    $problems[] = count($unauthorizedRemovals) . " governed map entry(ies) were removed without a newly-added exact-FQCN "
+        . CHANGELOG_REL . " authorization under [Unreleased] / ### Removed:\n  "
+        . implode("\n  ", $unauthorizedRemovals);
+}
+if ($invalidRenames !== []) {
+    $problems[] = count($invalidRenames) . " public-surface rename authorization(s) have no mapped, loadable replacement:\n  "
+        . implode("\n  ", $invalidRenames);
+}
+
+$unauthorizedDowngrades = array_values(array_filter(
+    SurfaceChangeAuthorization::publicDowngrades($baseSurfaceMap, $surfaceMap),
+    static fn(string $fqcn): bool => !isset($authorizations['deprecations'][$fqcn]),
+));
+if ($unauthorizedDowngrades !== []) {
+    $problems[] = count($unauthorizedDowngrades) . " public disposition(s) were downgraded without a newly-added exact-FQCN "
+        . CHANGELOG_REL . " authorization under [Unreleased] / ### Deprecated:\n  "
+        . implode("\n  ", $unauthorizedDowngrades);
 }
 
 if ($problems !== []) {
