@@ -43,3 +43,17 @@ hash universe. It also leaves Composer and ordinary PHPStan caches unchanged.
 No baseline additions, dead-code rule weakening, ordinary PHPStan cache
 redesign, Composer cache changes, required-check settings, release, tag,
 deployment, or downstream repository mutation.
+
+## Retained evidence
+
+- Red contract commit: `d6c733892a4ddcb29cd2eb1231ba9d2e40893718`.
+  Its focused Architecture test fails on the old workflow because the
+  `check-dead-code` job contains `restore-keys:`.
+- Historical adversarial reproduction: warm `tmp/phpstan-dead-code` on clean
+  commit `379deb7675856b43d10568e4ece18fe15f9625df`, retain that cache while
+  switching the same worktree to bad commit
+  `22ce3fc7c3dc8aa2fb1689b606872b0456ed4faa`, and run
+  `php bin/check-dead-code`: exit 0, no errors. Delete only
+  `tmp/phpstan-dead-code` and rerun on the same bad commit: exit 1 with eight
+  `shipmonk.deadMethod` findings (one `EntityQueryInterface::notExists` and
+  seven `EntityStorageInterface` methods).

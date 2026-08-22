@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — hosted dead-code analysis can no longer accept a stale PHPStan
+  result cache from another workflow run (#2485).** The `check-dead-code` job
+  now restores only its exact analyzer-config-hash plus `github.run_id` key;
+  the broad configuration-only `restore-keys` prefix is removed because a PHP
+  or PHPDoc change can alter the global reachability graph without changing
+  analyzer configuration. Restore and save retain the same exact-run key, so
+  retries remain cacheable without allowing a previous analyzed head to decide
+  the current one. The dead-code rules and shrink-only baseline are unchanged.
+
 - **Added — ordinary Framework CI now requires a real FrankenPHP worker-runtime
   lane (#2494).** Hosted job `ci/frankenphp-worker` installs pinned FrankenPHP
   v1.12.4 from the upstream GitHub release, verifies a committed SHA-256 before
