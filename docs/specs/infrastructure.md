@@ -1232,7 +1232,20 @@ Per spec §15 Q9, `extra.waaseyaa.migrations` also accepts an **ordered list** o
 
 **v2 ordering:** within a package, list entries traverse left-to-right. Across packages, the unified migration DAG (mission #529 / WP06) reorders nodes by their declared `dependencies()`; raw discovery order is only the input. Within an FQCN entry, classmap iteration order is implementation-defined — v2 plans should not depend on it. Use explicit `MigrationInterfaceV2::dependencies()` for cross-migration ordering.
 
-**Entity tables:** Kernel `SqlSchemaHandler::ensureTable()` creates base columns (`id`, `uuid`, `bundle`, label/langcode keys, `_data`, …) when storage is first resolved. **Additive** columns (field-backed lookups, indexes) belong in package migrations so they run on **`db:init`** / `migrate` paths that do not eagerly touch every entity type. Do **not** add recurring `SqlSchemaHandler::addFieldColumns()` calls in `ServiceProvider::boot()` for the same DDL — that duplicates schema truth and runs every request.
+**Entity tables:** Coordinated schema sync (`install:init`, `db:init`,
+`schema:sync`) materializes each registered type through
+`SqlSchemaHandler::ensureTable()` (base columns plus declared
+`#[StorageSchemaTransition]` healers such as attachment-specific columns).
+Production HTTP must not create missing entity-storage tables (#2478): the
+kernel fail-closes with `[S1-DB106]` before provider boot for Framework
+SQL-backed definitions. A valid custom `EntityStorageInterface` is not
+required to own an SQL table (#2482). `EntityStorageInterface` and
+`EntityQueryInterface` are class-level `@api`; malformed `storageClass`
+strings still fail the existing must-implement contract at runtime. Local/development
+boots may still materialize convenience schema. **Additive** columns that are
+not part of that coordinated path belong in package migrations so they run on
+**`db:init`** / `migrate`. Do **not** add recurring DDL in
+`ServiceProvider::boot()` for production HTTP.
 
 **SQLite / `down()`:** Additive column migrations may use a no-op `down()` when portable `DROP COLUMN` is not guaranteed; prefer compensating migrations for breaking changes.
 

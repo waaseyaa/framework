@@ -34,6 +34,9 @@ final class BootFailureMessageFormatter
             if (str_starts_with($msg, 'Database not found at ')) {
                 return 'SQLite database file is missing in production. Verify WAASEYAA_DB points to an existing file on the server, or run bin/waaseyaa db:init.';
             }
+            if (str_contains($msg, '[S1-DB106]')) {
+                return 'Required entity-storage schema is missing. Run waaseyaa schema:sync or waaseyaa install:init before serving production HTTP. Requests cannot create entity tables.';
+            }
         }
 
         if (str_contains($msg, 'PHPUnit\\Framework')) {

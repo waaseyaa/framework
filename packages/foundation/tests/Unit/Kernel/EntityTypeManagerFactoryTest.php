@@ -9,8 +9,12 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
@@ -197,5 +201,173 @@ final class EntityTypeManagerFactoryTest extends TestCase
         self::assertNull($repository->find('1'));
         self::assertNull($repository->loadRevision('1', 1));
         self::assertSame([], $repository->listRevisions('1'));
+    }
+
+    #[Test]
+    public function assert_registered_runtime_schemas_refuses_sql_backed_types_without_a_table(): void
+    {
+        $manager = $this->manager();
+        $manager->registerEntityType(new EntityType(
+            id: 'sql_widget',
+            label: 'SQL widget',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        ));
+
+        try {
+            new EntityTypeManagerFactory()->assertRegisteredRuntimeSchemas(
+                $this->database,
+                $manager,
+                $this->fieldRegistry,
+                $this->logger,
+            );
+            self::fail('SQL-backed definitions must fail closed without a table.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('S1-DB106', $exception->getMessage());
+            self::assertStringContainsString('sql_widget', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function assert_registered_runtime_schemas_accepts_valid_custom_storage_without_sql_table(): void
+    {
+        $manager = $this->manager();
+        $manager->registerEntityType(new EntityType(
+            id: 'custom_remote',
+            label: 'Custom remote',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+            storageClass: CustomRemoteEntityStorage::class,
+        ));
+
+        new EntityTypeManagerFactory()->assertRegisteredRuntimeSchemas(
+            $this->database,
+            $manager,
+            $this->fieldRegistry,
+            $this->logger,
+        );
+
+        self::assertFalse($this->database->schema()->tableExists('custom_remote'));
+    }
+
+    #[Test]
+    public function assert_registered_runtime_schemas_rejects_invalid_storage_class(): void
+    {
+        $manager = $this->manager();
+        $manager->registerEntityType(new EntityType(
+            id: 'broken_storage',
+            label: 'Broken storage',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+            storageClass: \stdClass::class,
+        ));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('must implement');
+        new EntityTypeManagerFactory()->assertRegisteredRuntimeSchemas(
+            $this->database,
+            $manager,
+            $this->fieldRegistry,
+            $this->logger,
+        );
+    }
+
+    private function manager(): EntityTypeManager
+    {
+        return new EntityTypeManagerFactory()->build(
+            database: $this->database,
+            dispatcher: $this->dispatcher,
+            fieldRegistry: $this->fieldRegistry,
+            logger: $this->logger,
+            accessHandlerResolver: static fn() => null,
+            communityScoreResolver: static fn() => null,
+            accountContextAttacher: static function (object $repo): void {},
+            fieldReadScope: $this->fieldReadScope,
+        );
+    }
+}
+
+final class CustomRemoteEntityStorage implements EntityStorageInterface
+{
+    public function create(array $values = []): EntityInterface
+    {
+        throw new \BadMethodCallException('Custom remote storage is not exercised by schema assertion.');
+    }
+
+    public function load(int|string $id): ?EntityInterface
+    {
+        return null;
+    }
+
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        return null;
+    }
+
+    public function loadMultiple(array $ids = []): array
+    {
+        return [];
+    }
+
+    public function save(EntityInterface $entity): int
+    {
+        throw new \BadMethodCallException('Custom remote storage is not exercised by schema assertion.');
+    }
+
+    public function delete(array $entities): void {}
+
+    public function getQuery(): EntityQueryInterface
+    {
+        return new class implements EntityQueryInterface {
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+
+            public function exists(string $field): static
+            {
+                return $this;
+            }
+
+            public function notExists(string $field): static
+            {
+                return $this;
+            }
+
+            public function sort(string $field, string $direction = 'ASC'): static
+            {
+                return $this;
+            }
+
+            public function range(int $offset, int $limit): static
+            {
+                return $this;
+            }
+
+            public function count(): static
+            {
+                return $this;
+            }
+
+            public function accessCheck(bool $check = true): static
+            {
+                return $this;
+            }
+
+            public function setAccount(?AccountInterface $account): static
+            {
+                return $this;
+            }
+
+            public function execute(): array
+            {
+                return [];
+            }
+        };
+    }
+
+    public function getEntityTypeId(): string
+    {
+        return 'custom_remote';
     }
 }

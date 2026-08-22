@@ -16,44 +16,18 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 /**
  * Schema-parity investigation (WP3 audit-remediation, 2026-07-01).
  *
- * Two independent paths can materialize the `attachment` table:
+ * Coordinated schema sync materializes `attachment` through
+ * {@see SqlSchemaHandler} plus the `#[StorageSchemaTransition]` declared on
+ * {@see Attachment}. Production HTTP must not CREATE this table (#2478).
+ * This file locks in:
  *
- *   - The GENERIC entity-storage schema-sync path — {@see SqlSchemaHandler},
- *     driven purely by the `Attachment` entity type definition. This is what
- *     `EntityTypeManagerFactory` (kernel boot) and `EntitySchemaSync` (CLI
- *     `db:init`/`schema:sync`) invoke for every entity type; NEITHER of them
- *     ever calls {@see AttachmentSchema} directly.
- *   - {@see AttachmentSchema} — this package's own hand-built schema class.
- *
- * Investigation finding: for a `sql-blob` backend entity type (what
- * `Attachment` uses — no `primaryStorageBackend` override), the GENERIC path
- * materializes ONLY the framework-standard base columns every content entity
- * gets (`id`, `uuid`, `bundle`, the label column, `langcode`, `_data`). It
- * has NO knowledge of `#[Field]`-declared entity-level columns for that
- * backend — that materialization (`SqlColumnSchemaBuilder`) exists only for
- * the `sql-column` backend. So the generic path alone NEVER produces
- * `parent_entity_type`, `parent_entity_id`, `is_active`, `created_at`,
- * `updated_at`, or any of the attachment-specific indexes — regardless of
- * how `Attachment`'s `#[Field]` attributes are declared.
- *
- * Before this WP, {@see AttachmentSchema::ensureTable()} was invoked from
- * NOWHERE in production code (verified: only test setUp() methods called
- * it) — `AttachmentServiceProvider::boot()` now wires it in (see that
- * class). This test file locks in:
- *
- *   1. The base-column SUBSET AttachmentSchema hand-builds is byte-for-byte
- *      identical (type/nullability/default) to what SqlSchemaHandler
- *      generates for the same entity type — the docblock claim
- *      "matching what SqlSchemaHandler would auto-generate" actually holds.
- *      (Regression pin: this behavior predates the WP and already passed
- *      before its fix — the value is preventing future drift.)
+ *   1. The base-column SUBSET AttachmentSchema hand-builds matches what
+ *      SqlSchemaHandler generates for the same entity type.
  *   2. AttachmentSchema's own build includes every documented index.
- *      (Regression pin, same caveat as 1.)
- *   3. AttachmentSchema::ensureTable() self-heals: run AFTER the generic
- *      path already created the (incomplete) base-only table — the ordering
- *      an out-of-order boot or a pre-fix install could produce — it
- *      converges to the exact same final shape as a from-scratch build.
- *      (The WP's red→green test: failed before the heal branch existed.)
+ *   3. schema:sync applies AttachmentSchema, so the coordinated path has the
+ *      attachment-specific columns.
+ *   4. AttachmentSchema::ensureTable() still self-heals a legacy base-only
+ *      table (pre-transition installs).
  *
  * Data-preservation and platform-robustness of the heal (value backfill
  * from `_data`, non-SQLite catalog probes, mid-heal failure posture) are
@@ -107,30 +81,20 @@ final class AttachmentSchemaParityTest extends TestCase
         }
     }
 
-    /**
-     * Confirms the generic path alone does NOT produce the
-     * attachment-specific columns — the root cause this WP fixes by wiring
-     * AttachmentSchema into AttachmentServiceProvider::boot(). If this
-     * assertion ever starts failing (i.e. the generic path starts producing
-     * these columns on its own), the self-healing branch in
-     * AttachmentSchema::ensureTable() becomes redundant, not wrong — revisit
-     * this test file rather than deleting the assertion silently.
-     */
     #[Test]
-    public function genericPathAloneDoesNotProduceAttachmentSpecificColumns(): void
+    public function schemaSyncAppliesDeclaredAttachmentTransition(): void
     {
-        $genericDb = DBALDatabase::createSqlite();
-        $entityType = EntityType::fromClass(Attachment::class);
-        new SqlSchemaHandler($entityType, $genericDb)->ensureTable();
+        $database = DBALDatabase::createSqlite();
+        new SqlSchemaHandler(EntityType::fromClass(Attachment::class), $database)->ensureTable();
 
-        $schema = $genericDb->schema();
+        $schema = $database->schema();
         foreach (self::ATTACHMENT_SPECIFIC_COLUMNS as $column) {
-            self::assertFalse(
+            self::assertTrue(
                 $schema->fieldExists('attachment', $column),
-                "Expected the generic schema-sync path to NOT create '{$column}' "
-                . '— if it now does, AttachmentSchema is no longer the sole source of this column.',
+                "Coordinated schema:sync must apply AttachmentSchema and create '{$column}'.",
             );
         }
+        $this->assertHasAllDocumentedIndexes($database);
     }
 
     #[Test]
@@ -143,21 +107,15 @@ final class AttachmentSchemaParityTest extends TestCase
     }
 
     /**
-     * The convergence test: when the GENERIC path creates the base-only
-     * table FIRST (simulating an out-of-order kernel boot, or a pre-existing
-     * install from before this WP wired AttachmentSchema into boot()),
-     * AttachmentSchema::ensureTable() run afterward must additively backfill
-     * every attachment-specific column and index rather than silently
-     * no-op'ing because the table already exists.
+     * A legacy base-only table (pre-transition install) must still converge
+     * when AttachmentSchema::ensureTable() runs during schema:sync.
      */
     #[Test]
     public function ensureTableSelfHealsWhenGenericPathCreatesTheBaseTableFirst(): void
     {
         $database = DBALDatabase::createSqlite();
-        $entityType = EntityType::fromClass(Attachment::class);
-        new SqlSchemaHandler($entityType, $database)->ensureTable();
+        $this->createBaseOnlyAttachmentTable($database);
 
-        // Sanity: the incomplete shape this test starts from.
         $schema = $database->schema();
         self::assertTrue($schema->tableExists('attachment'));
         self::assertFalse($schema->fieldExists('attachment', 'is_active'));
@@ -171,6 +129,14 @@ final class AttachmentSchemaParityTest extends TestCase
             );
         }
         $this->assertHasAllDocumentedIndexes($database);
+    }
+
+    private function createBaseOnlyAttachmentTable(DBALDatabase $database): void
+    {
+        $handler = new SqlSchemaHandler(EntityType::fromClass(Attachment::class), $database);
+        $spec = new \ReflectionMethod(SqlSchemaHandler::class, 'buildTableSpec')->invoke($handler);
+        self::assertIsArray($spec);
+        $database->schema()->createTable('attachment', $spec);
     }
 
     /**

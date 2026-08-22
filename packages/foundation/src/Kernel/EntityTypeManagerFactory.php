@@ -11,6 +11,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Concurrency\EntityMutationAuthority;
@@ -159,6 +160,44 @@ final class EntityTypeManagerFactory
         );
 
         return $manager;
+    }
+
+    public function assertRegisteredRuntimeSchemas(
+        DatabaseInterface $database,
+        EntityTypeManager $manager,
+        FieldDefinitionRegistryInterface $fieldRegistry,
+        LoggerInterface $logger,
+    ): void {
+        foreach ($manager->getDefinitions() as $definition) {
+            if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
+                continue;
+            }
+            $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger)->assertRuntimeSchema();
+        }
+    }
+
+    /**
+     * Framework SQL repositories own runtime table readiness. A valid custom
+     * {@see EntityStorageInterface} storageClass is a bring-your-own backend
+     * and must not be forced to own an SQL table (#2482).
+     */
+    private function usesFrameworkSqlRuntimeSchema(EntityTypeInterface $definition): bool
+    {
+        $storageClass = $definition->getStorageClass();
+        if ($storageClass === '') {
+            return true;
+        }
+        // Constructor PHPDoc allows any string; this is the runtime contract for
+        // malformed storageClass values that are not EntityStorageInterface.
+        if (!is_a($storageClass, EntityStorageInterface::class, true)) {
+            throw new \RuntimeException(\sprintf(
+                'Storage for entity type "%s" must implement %s.',
+                $definition->id(),
+                EntityStorageInterface::class,
+            ));
+        }
+
+        return false;
     }
 
     private function schemaHandlerFor(

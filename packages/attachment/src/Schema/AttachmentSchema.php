@@ -7,6 +7,7 @@ namespace Waaseyaa\Attachment\Schema;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\EntityStorage\Schema\EntityStorageSchemaTransitionInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -30,7 +31,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * ONLY provider of the attachment-specific columns
  * (`parent_entity_type`, `parent_entity_id`, `is_active`, `created_at`,
  * `updated_at`) and the composite/partial indexes below. It is wired into
- * every real kernel boot by {@see \Waaseyaa\Attachment\AttachmentServiceProvider::boot()}.
+ * It is applied by coordinated schema sync (`#[StorageSchemaTransition]` on
+ * {@see \Waaseyaa\Attachment\Attachment}) and may still run from
+ * {@see \Waaseyaa\Attachment\AttachmentServiceProvider::boot()} in
+ * local/development. Production HTTP must not call it (#2478).
  *
  * {@see ensureTable()} is written to converge to this canonical shape
  * regardless of which path creates the base table first: if the table does
@@ -71,7 +75,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * @api
  */
-final class AttachmentSchema
+final class AttachmentSchema implements EntityStorageSchemaTransitionInterface
 {
     private const TABLE = 'attachment';
 
@@ -119,85 +123,39 @@ final class AttachmentSchema
         $this->logger = $logger ?? new NullLogger();
     }
 
+    public function apply(DatabaseInterface $database, string $table): void
+    {
+        if ($table !== self::TABLE) {
+            throw new \LogicException(sprintf('AttachmentSchema cannot transition table "%s".', $table));
+        }
+        if ($database !== $this->database) {
+            throw new \LogicException('AttachmentSchema must be applied on the database it was constructed with.');
+        }
+        $this->ensureCanonicalSchema();
+    }
+
     /**
-     * Ensures the attachment table exists with all required columns and indexes.
-     *
-     * Idempotent, and self-healing regardless of call order: when the table
-     * does not exist, {@see createTable()} builds the complete canonical
-     * shape in one call. When it already exists — most likely because the
-     * generic sql-blob schema-sync path materialized the base-only table
-     * first (see the class docblock) — the heal branch additively adds the
-     * attachment-specific columns/indexes rather than silently no-op'ing on
-     * an incomplete table, AND backfills each newly-added column's VALUES
-     * from the `_data` JSON blob ({@see backfillNewColumnsFromDataBlob()}).
-     * The value backfill is load-bearing, not cosmetic: rows written under
-     * the degraded schema carry their parent linkage / active flag /
-     * timestamps in the blob, and `SqlStorageDriver::mergeFromRead()` lets
-     * real columns WIN over `_data` on key collision — adding the columns
-     * with their static defaults ('' / 0) and NOT backfilling would silently
-     * blank every pre-existing row at hydration (listFor() stops finding it;
-     * the download router's parent-delegated access check 404s it forever).
-     *
-     * Failure posture (final review round):
-     *
-     *   - Column adds + value backfill run in ONE database transaction
-     *     ({@see healMissingColumns()}). On SQLite and PostgreSQL, DDL is
-     *     transactional, so a mid-backfill failure rolls the column adds
-     *     back too — the next boot re-detects the missing columns and the
-     *     whole heal retries cleanly (convergent). On MySQL/MariaDB, DDL
-     *     implicitly commits, so a mid-backfill failure strands the added
-     *     columns and the backfill cannot re-trigger; the warning states
-     *     the honest per-platform recovery (automatic retry vs. manual
-     *     blob→column copy).
-     *   - The partial backstop index is created LAST, inside the same
-     *     try/catch — a failed heal must never leave the partial index in
-     *     place ahead of the composite indexes: the first cut did exactly
-     *     that, and the next boot's DBALSchema::addIndex()
-     *     introspect-diff-RECREATE then stripped the partial index's WHERE
-     *     clause and silently dropped the uuid unique constraint
-     *     mid-rebuild. Heal-path index creation therefore NEVER routes
-     *     through DBAL's recreate machinery — see {@see ensureIndexes()}.
-     *   - The whole heal is best-effort (try/catch + logged warning,
-     *     mirroring {@see ensureActivePartialUniqueIndex()}'s posture): it
-     *     runs on every kernel boot via `AttachmentServiceProvider::boot()`,
-     *     and a platform quirk or partial failure must degrade loudly in
-     *     the log — never crash boot.
-     *
-     * Cost when there is nothing to heal: a fresh table skips the heal
-     * branch entirely; an already-healed table does five fieldExists()
-     * probes plus idempotent CREATE INDEX IF NOT EXISTS statements (or one
-     * catalog probe per index on MySQL/MariaDB) — no row reads, no
-     * transaction.
+     * Local/development boot convenience. Failures are logged and must not crash
+     * kernel boot. Coordinated schema:sync uses {@see apply()} instead, which
+     * propagates planner signals and genuine apply failures (#2478).
      */
     public function ensureTable(): void
     {
-        $schema = $this->database->schema();
-
-        if (!$schema->tableExists(self::TABLE)) {
-            $this->createTable($schema);
-            $this->ensureActivePartialUniqueIndex();
-
-            return;
-        }
-
         try {
-            $this->healMissingColumns($schema);
-            $this->ensureIndexes();
-            // Deliberately LAST: the partial backstop may only materialize
-            // once the column backfill and composite indexes succeeded.
-            $this->ensureActivePartialUniqueIndex();
+            $this->ensureCanonicalSchema();
         } catch (\Throwable $e) {
             $recovery = match ($this->detectDatabasePlatform()) {
                 'sqlite', 'postgresql' => 'DDL is transactional on this platform: the partial heal '
-                    . 'was rolled back atomically and will retry automatically on the next boot.',
+                    . 'was rolled back atomically. Re-run waaseyaa schema:sync or waaseyaa db:init; '
+                    . 'production HTTP will not retry this heal.',
                 'mysql', 'mariadb' => 'MySQL/MariaDB DDL implicitly commits: columns already added '
                     . 'cannot be rolled back, and the value backfill will NOT re-run once the '
                     . 'columns exist. Pre-existing rows keep their values in the _data JSON blob '
                     . 'but read as blank — heal them manually by copying blob values into the real '
                     . 'columns (per row: UPDATE attachment SET parent_entity_type/parent_entity_id/'
                     . 'created_at/updated_at from the matching _data keys; set is_active = 1 only '
-                    . 'when the blob value is true, 1, or "1").',
-                default => 'Unknown platform: verify the attachment table schema and row values manually.',
+                    . 'when the blob value is true, 1, or "1"), then re-run waaseyaa schema:sync.',
+                default => 'Unknown platform: verify the attachment table schema and row values, then re-run waaseyaa schema:sync.',
             };
             $this->logger->warning(\sprintf(
                 'AttachmentSchema: best-effort self-heal of the "%s" table failed: %s. %s',
@@ -209,12 +167,34 @@ final class AttachmentSchema
     }
 
     /**
+     * Shared transition algorithm for coordinated apply and local boot convenience.
+     */
+    private function ensureCanonicalSchema(): void
+    {
+        $schema = $this->database->schema();
+
+        if (!$schema->tableExists(self::TABLE)) {
+            $this->createTable($schema);
+            $this->ensureActivePartialUniqueIndex();
+
+            return;
+        }
+
+        $this->healMissingColumns($schema);
+        $this->ensureIndexes();
+        // Deliberately LAST: the partial backstop may only materialize
+        // once the column backfill and composite indexes succeeded.
+        $this->ensureActivePartialUniqueIndex();
+    }
+
+    /**
      * Detects attachment-specific columns missing from an already-existing
      * table and — when any are missing — adds them AND backfills their
      * values from `_data` inside ONE database transaction, so on
      * transactional-DDL platforms (SQLite, PostgreSQL) a mid-backfill
-     * failure rolls everything back and the heal retries convergently on
-     * the next boot. See {@see ensureTable()} for the MySQL/MariaDB caveat
+     * failure rolls everything back. Coordinated schema:sync then retries
+     * the whole heal. Production HTTP does not retry (#2478). See
+     * {@see apply()} versus {@see ensureTable()} for the MySQL/MariaDB caveat
      * (implicit DDL commit makes the rollback partial there).
      *
      * No transaction is opened when nothing is missing — the steady state

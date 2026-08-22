@@ -1,3 +1,4 @@
+<!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP asserts Framework SQL-backed entity tables only (S1-DB106). Custom EntityStorageInterface storageClass is not forced to own an SQL table. EntityStorageInterface and EntityQueryInterface are class-level @api. AttachmentSchema::apply() is the strict coordinated transition; local boot ensureTable() is best-effort. -->
 # Entity System
 
 <!-- Spec reviewed 2026-08-20 - #2467 save-advisory exception hierarchy: AbortOperationException remains final. SaveAdvisoryAcknowledgementRequiredException is a sibling RuntimeException, not a subclass, so existing abort catches keep prior semantics while BeforeSaveEvent throws still perform no write. -->
@@ -450,7 +451,7 @@ interface EntityTypeManagerInterface
 
 `getRepository()` returns `EntityRepositoryInterface` (`EntityRepository` in practice) — the **sole persistence engine**, with hydration, lifecycle events, revisions, optimistic locking, save-time validation, two-axis translation, language fallback, `saveMany()`/`UnitOfWork`, and an access-checked `getQuery()`. The kernel registers a repository factory so consumers can wrap `EntityTypeManager::getRepository($entityTypeId)` in thin domain repositories without manually assembling `SqlStorageDriver`, `RevisionableStorageDriver`, and `EntityRepository` dependencies.
 
-`getStorage()` returns `EntityStorageInterface` — a **generic, unwired extension seam**, not a first-party persistence path. See "The legacy save engine is gone (C-22)" below.
+`getStorage()` returns `EntityStorageInterface` — a **generic, unwired extension seam**, not a first-party persistence path. See "The legacy save engine is gone (C-22)" below. `EntityStorageInterface` and `EntityQueryInterface` are class-level `@api`. Production runtime-schema readiness is owned by the storage backend: Framework SQL-backed definitions (empty `storageClass`) fail closed with `[S1-DB106]` when their table is missing; a definition whose `storageClass` is a valid `EntityStorageInterface` implementation is not forced to own an SQL table (#2482). An invalid `storageClass` still fails the existing "must implement EntityStorageInterface" contract.
 
 #### The legacy save engine is gone (C-22)
 

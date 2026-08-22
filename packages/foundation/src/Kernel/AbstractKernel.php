@@ -227,6 +227,7 @@ abstract class AbstractKernel
         $this->validateContentTypes();
         if (!$this->restrictedDiscoveryOnly && !$this->isDevelopmentMode()) {
             $this->assertFieldAccessActivationReady();
+            $this->assertProductionEntityStorageSchema();
         }
         if (!$this->restrictedDiscoveryOnly) {
             $this->composeApplicationMasterRekeyOwners();
@@ -696,6 +697,28 @@ abstract class AbstractKernel
         new FieldAccessActivationPreflight()->assertReady($this->projectRoot, $version, $schemaFingerprint);
     }
 
+    /**
+     * Production HTTP/CLI runtime must not CREATE missing entity tables (#2478).
+     *
+     * Field-access preflight fingerprints the physical schema before provider
+     * boot. Attachment and other entity schema must already exist from
+     * `install:init` / `schema:sync`. Missing tables fail closed here, before
+     * any provider `boot()` hook can mutate them.
+     */
+    private function assertProductionEntityStorageSchema(): void
+    {
+        $registry = $this->fieldRegistry;
+        if ($registry === null) {
+            throw new \LogicException('Production entity-schema assertion requires the field registry.');
+        }
+        new EntityTypeManagerFactory()->assertRegisteredRuntimeSchemas(
+            $this->database,
+            $this->entityTypeManager,
+            $registry,
+            $this->logger,
+        );
+    }
+
     protected function bootProviders(): void
     {
         new ProviderRegistry($this->logger)->boot($this->providers);
@@ -867,9 +890,10 @@ abstract class AbstractKernel
     /**
      * Boot-time guard that a registered entity type actually has a backing table.
      *
-     * Companion to {@see validateQueryDefinitions()}. Entity tables are created
-     * lazily on first storage access, so this check is **opt-in** and OFF by
-     * default — an existing consumer's behaviour is unchanged. Enable it after
+     * Entity tables are created by `schema:sync` / `install:init`, not lazily
+     * on first storage access. This check is **opt-in** and OFF by default for
+     * local/development. Production runtime always asserts the complete
+     * registered shape before provider boot (#2478). Enable the opt-in after
      * running `schema:sync` / `db:init --sync-schema` to assert the deploy left
      * no registered entity type tableless:
      *

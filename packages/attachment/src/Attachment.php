@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Attachment;
 
+use Waaseyaa\Attachment\Schema\AttachmentSchema;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
+use Waaseyaa\Entity\Attribute\StorageSchemaTransition;
 use Waaseyaa\Entity\ContentEntityBase;
 
 /**
@@ -24,14 +26,17 @@ use Waaseyaa\Entity\ContentEntityBase;
  * that only happens for the `sql-column` backend. The columns these three
  * fields need (plus `created_at`/`updated_at` and the composite/partial
  * indexes) are materialized by this package's own
- * {@see \Waaseyaa\Attachment\Schema\AttachmentSchema}, wired into every
- * kernel boot by {@see \Waaseyaa\Attachment\AttachmentServiceProvider::boot()}.
+ * {@see \Waaseyaa\Attachment\Schema\AttachmentSchema} during coordinated
+ * schema sync (`install:init`, `db:init`, `schema:sync`). Production HTTP
+ * must not create or heal this table (#2478). Local/development boots may
+ * still materialize it for convenience.
  * See {@see \Waaseyaa\Attachment\Schema\AttachmentSchema} for the full
  * canonical-shape rationale. Other descriptive fields (filename, content_type,
  * size, storage_uri, checksum) live in the `_data` JSON blob.
  */
 #[ContentEntityType(id: 'attachment', label: 'Attachment', description: 'File attachment linked to a parent entity.', api: true)]
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'filename')]
+#[StorageSchemaTransition(AttachmentSchema::class)]
 final class Attachment extends ContentEntityBase
 {
     #[Field(required: false, label: 'Filename', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

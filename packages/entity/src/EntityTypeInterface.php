@@ -14,7 +14,15 @@ interface EntityTypeInterface
 
     public function getClass(): string;
 
-    /** @return class-string<Storage\EntityStorageInterface> */
+    /**
+     * Storage class for the bring-your-own {@see Storage\EntityStorageInterface} seam.
+     *
+     * Empty string means Framework SQL repository ownership. Any other string is
+     * a runtime class name: valid implementors skip SQL table assertions, and
+     * malformed names still fail the existing must-implement contract.
+     *
+     * @return class-string<Storage\EntityStorageInterface>|string
+     */
     public function getStorageClass(): string;
 
     /** @return array<string, string> Entity keys (id, uuid, label, bundle, revision, langcode, etc.) */
