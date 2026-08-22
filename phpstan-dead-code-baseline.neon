@@ -37,12 +37,6 @@ parameters:
 			path: packages/entity-storage/src/Hydration/SqlColumnTranslationHydrator.php
 
 		-
-			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityQuery\:\:notExists$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/entity-storage/src/SqlEntityQuery.php
-
-		-
 			message: '#^Unused Waaseyaa\\Entity\\Community\\HasCommunityTrait\:\:getCommunityId$#'
 			identifier: shipmonk.deadMethod
 			count: 1

@@ -187,6 +187,8 @@ final class EntityTypeManagerFactory
         if ($storageClass === '') {
             return true;
         }
+        // Constructor PHPDoc allows any string; this is the runtime contract for
+        // malformed storageClass values that are not EntityStorageInterface.
         if (!is_a($storageClass, EntityStorageInterface::class, true)) {
             throw new \RuntimeException(\sprintf(
                 'Storage for entity type "%s" must implement %s.',

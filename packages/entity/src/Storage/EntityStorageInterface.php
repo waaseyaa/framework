@@ -6,6 +6,14 @@ namespace Waaseyaa\Entity\Storage;
 
 use Waaseyaa\Entity\EntityInterface;
 
+/**
+ * Bring-your-own persistence seam for entity types that declare `storageClass`.
+ *
+ * Framework SQL repositories do not implement this interface. Downstream
+ * custom/remote storage must.
+ *
+ * @api
+ */
 interface EntityStorageInterface
 {
     public function create(array $values = []): EntityInterface;
@@ -15,9 +23,8 @@ interface EntityStorageInterface
     /**
      * Load a single entity by an arbitrary unique key.
      *
-     * Convenience method that encapsulates the common query+load pattern:
-     *   $ids = $storage->getQuery()->condition($key, $value)->range(0, 1)->execute();
-     *   return $ids ? $storage->load(reset($ids)) : null;
+     * Convenience method that queries one unique field and loads the matching
+     * entity, or returns null when no row matches.
      */
     public function loadByKey(string $key, mixed $value): ?EntityInterface;
 

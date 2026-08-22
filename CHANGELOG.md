@@ -61,7 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   different shape and fail-closed as stale. Production runtime now asserts
   Framework SQL-backed entity schema before provider boot and refuses missing
   tables with `[S1-DB106]` / `schema:sync`. A valid custom
-  `EntityStorageInterface` is not forced to own an SQL table. Attachment's
+  `EntityStorageInterface` is not forced to own an SQL table. `EntityStorageInterface`
+  and `EntityQueryInterface` remain the public `@api` custom-storage seam.
+  Attachment's
   canonical columns are applied by coordinated schema sync
   (`#[StorageSchemaTransition]` / `AttachmentSchema::apply()`). Local/development
   boots may still materialize that schema as best-effort convenience. The

@@ -6,6 +6,11 @@ namespace Waaseyaa\Entity\Storage;
 
 use Waaseyaa\Access\AccountInterface;
 
+/**
+ * Query builder returned by custom {@see EntityStorageInterface} implementations.
+ *
+ * @api
+ */
 interface EntityQueryInterface
 {
     public function condition(string $field, mixed $value, string $operator = '='): static;
