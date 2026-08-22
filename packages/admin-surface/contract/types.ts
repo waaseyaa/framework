@@ -106,6 +106,13 @@ export interface AdminSurfaceCapabilities {
   update: boolean
   delete: boolean
   schema: boolean
+  /**
+   * Whether this type keeps revision history. A type that does not has no
+   * history surface at all: the endpoint answers 404 rather than an empty
+   * list, so a client must withhold the affordance instead of offering it and
+   * then being refused.
+   */
+  revisions: boolean
 }
 
 // ── Fields ───────────────────────────────────────────────────────

@@ -53,8 +53,9 @@ export interface AdminSurfaceCapabilities {
    * Whether this type keeps revision history. A type that does not has no
    * history surface at all: the endpoint answers 404 rather than an empty list,
    * so the affordance must be withheld rather than offered and then refused.
-   * Optional so a host that predates the capability reads as "no history"
-   * instead of failing to parse.
+   * Optional here, though this framework's host always emits it, so a
+   * consumer-built catalog that predates the capability reads as "no history"
+   * rather than failing to parse.
    */
   revisions?: boolean
 }
