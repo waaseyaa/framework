@@ -89,6 +89,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trailing, and binding nothing preserves the existing relative `/{entityTypeId}/{id}`
   locs, `?format=md` links, and empty-document degradation.
 
+  All six public types carry an explicit `public` disposition, including the
+  concrete finals the parity scanner cannot discover. `DiscoverySurfaceGovernanceTest`
+  keeps the annotations and the map in lockstep in both directions and is derived
+  from the filesystem, so a future `Waaseyaa\Seo\Discovery` type cannot ship
+  ungoverned. It also supplies the removal detection the parity gate cannot give
+  these types: that gate exempts any map key whose name appears in this file, and
+  does not distinguish a removal note from the entry that introduced the contract.
+  `SeoDiscoveryScopeTest` separately pins that enumeration establishes the
+  anonymous FIELD-READ SCOPE and not merely an anonymous query account, so the
+  crawler surfaces stay viewer-independent even for an application policy that
+  reads entity fields while building a URL.
+
 - **Fixed - the Admin SPA can apply workflow transitions again (#2481):** the
   transition POST is an aggregate mutation and `WorkflowTransitionController`
   requires a strong `If-Match` entity mutation ETag, but the shipped SPA never
