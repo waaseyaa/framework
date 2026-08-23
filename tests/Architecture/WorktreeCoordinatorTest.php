@@ -17,6 +17,8 @@ final class WorktreeCoordinatorTest extends TestCase
     private string $git;
     /** @var resource|null */
     private $activeProcess = null;
+    /** @var array<int, resource> */
+    private array $activePipes = [];
 
     protected function setUp(): void
     {
@@ -37,6 +39,9 @@ final class WorktreeCoordinatorTest extends TestCase
     {
         if (is_resource($this->activeProcess)) {
             proc_terminate($this->activeProcess);
+            foreach ($this->activePipes as $pipe) {
+                fclose($pipe);
+            }
             proc_close($this->activeProcess);
         }
         $this->removeTree($this->fixture);
@@ -64,12 +69,13 @@ final class WorktreeCoordinatorTest extends TestCase
 
         $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $this->activeProcess = proc_open(
-            ['bash', '-lc', 'cd ' . escapeshellarg($active) . ' && exec sleep 30'],
+            ['bash', '-lc', 'cd ' . escapeshellarg($active) . ' && echo ready && exec sleep 30'],
             $descriptors,
             $pipes,
         );
         self::assertIsResource($this->activeProcess);
-        usleep(150_000);
+        $this->activePipes = $pipes;
+        self::assertSame("ready\n", fgets($this->activePipes[1]));
 
         $this->release($branch, 'branch-owner', 'disposable');
         $this->release($detachedSafe, 'detached-owner', 'disposable');
