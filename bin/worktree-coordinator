@@ -1,0 +1,845 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+const INVENTORY_SCHEMA = 'waaseyaa.worktree-inventory.v1';
+const REGISTRY_SCHEMA = 'waaseyaa.worktree-leases.v1';
+const CLEANUP_SCHEMA = 'waaseyaa.worktree-cleanup.v1';
+
+$toolRoot = dirname(__DIR__);
+
+try {
+    exit(main(array_slice($_SERVER['argv'] ?? [], 1), $toolRoot));
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'worktree-coordinator: ' . $exception->getMessage() . "\n");
+    exit(1);
+}
+
+function main(array $arguments, string $toolRoot): int
+{
+    $positionals = [];
+    $options = [];
+    foreach ($arguments as $argument) {
+        if (!str_starts_with($argument, '--')) {
+            $positionals[] = $argument;
+            continue;
+        }
+        $parts = explode('=', substr($argument, 2), 2);
+        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+            throw new RuntimeException("options require --name=value: {$argument}");
+        }
+        $options[$parts[0]][] = $parts[1];
+    }
+
+    $command = $positionals[0] ?? 'help';
+    return match ($command) {
+        'inventory' => inventoryCommand($options, $toolRoot),
+        'lease' => leaseCommand($positionals[1] ?? '', $options, $toolRoot),
+        'cleanup' => cleanupCommand($positionals[1] ?? 'plan', $options, $toolRoot),
+        'help', '--help', '-h' => helpCommand(),
+        default => throw new RuntimeException("unknown command: {$command}"),
+    };
+}
+
+function helpCommand(): int
+{
+    fwrite(STDOUT, <<<'HELP'
+Usage:
+  bin/worktree-coordinator inventory --repo=/absolute/repo [--repo=...] [--format=json]
+  bin/worktree-coordinator lease acquire --repo=/absolute/repo --path=/absolute/worktree \
+      --owner=NAME --agent=NAME --task=ID --lifecycle=disposable|retained|custody [--format=json]
+  bin/worktree-coordinator lease release --repo=/absolute/repo --path=/absolute/worktree --lease-id=ID
+  bin/worktree-coordinator cleanup plan --repo=/absolute/repo [--repo=...] --output=/absolute/manifest.json
+  bin/worktree-coordinator cleanup apply --manifest=/absolute/manifest.json
+
+Inventory and cleanup planning are read-only with respect to repositories and worktrees.
+Cleanup application uses exact manifest paths and never passes --force.
+HELP);
+    fwrite(STDOUT, "\n");
+    return 0;
+}
+
+function inventoryCommand(array $options, string $toolRoot): int
+{
+    $repositories = requiredMany($options, 'repo');
+    $inventory = buildInventory($repositories, $toolRoot);
+    if (option($options, 'format') === 'json') {
+        fwrite(STDOUT, stableJson($inventory));
+        return 0;
+    }
+
+    $eligible = count(array_filter($inventory['worktrees'], static fn (array $entry): bool => $entry['cleanup_eligible']));
+    $protected = count($inventory['worktrees']) - $eligible;
+    fwrite(STDOUT, sprintf(
+        "Worktree inventory: %d repositories, %d entries\ncleanup eligible: %d\nprotected: %d\n",
+        count($inventory['repositories']),
+        count($inventory['worktrees']),
+        $eligible,
+        $protected,
+    ));
+    foreach ($inventory['worktrees'] as $entry) {
+        fwrite(STDOUT, sprintf(
+            "[%s] %s%s\n",
+            $entry['cleanup_eligible'] ? 'eligible' : 'protect',
+            $entry['path'],
+            $entry['protection_reasons'] === [] ? '' : ' — ' . implode(', ', $entry['protection_reasons']),
+        ));
+    }
+    return 0;
+}
+
+function leaseCommand(string $action, array $options, string $toolRoot): int
+{
+    $repository = canonicalExistingDirectory(requiredOne($options, 'repo'), 'repository');
+    $path = canonicalExistingDirectory(requiredOne($options, 'path'), 'worktree path');
+    $registered = registeredWorktrees($repository, $toolRoot);
+    if (!isset($registered[$path])) {
+        throw new RuntimeException("worktree is not registered in repository: {$path}");
+    }
+
+    if ($action === 'acquire') {
+        $owner = requiredOne($options, 'owner');
+        $agent = requiredOne($options, 'agent');
+        $task = requiredOne($options, 'task');
+        $lifecycle = requiredOne($options, 'lifecycle');
+        if (!in_array($lifecycle, ['disposable', 'retained', 'custody'], true)) {
+            throw new RuntimeException('lifecycle must be disposable, retained, or custody');
+        }
+        $record = withRegistryLock($repository, $toolRoot, static function (array &$registry) use (
+            $path,
+            $registered,
+            $owner,
+            $agent,
+            $task,
+            $lifecycle,
+        ): array {
+            $existing = $registry['records'][$path] ?? null;
+            if (is_array($existing) && ($existing['released_at'] ?? null) === null) {
+                throw new RuntimeException("active lease already exists for {$path}");
+            }
+            $entry = $registered[$path];
+            $record = [
+                'path' => $path,
+                'head' => $entry['head'],
+                'branch' => $entry['branch'],
+                'detached' => $entry['detached'],
+                'owner' => $owner,
+                'agent' => $agent,
+                'task' => $task,
+                'lifecycle' => $lifecycle,
+                'lease_id' => bin2hex(random_bytes(16)),
+                'acquired_at' => gmdate('Y-m-d\TH:i:s\Z'),
+                'released_at' => null,
+                'removed_at' => null,
+            ];
+            $registry['records'][$path] = $record;
+            return $record;
+        });
+        outputRecord($record, option($options, 'format'));
+        return 0;
+    }
+
+    if ($action === 'release') {
+        $leaseId = requiredOne($options, 'lease-id');
+        $record = withRegistryLock($repository, $toolRoot, static function (array &$registry) use ($path, $leaseId): array {
+            $record = $registry['records'][$path] ?? null;
+            if (!is_array($record)) {
+                throw new RuntimeException("no lease record exists for {$path}");
+            }
+            if (!hash_equals((string) $record['lease_id'], $leaseId)) {
+                throw new RuntimeException("lease id does not match {$path}");
+            }
+            if (($record['released_at'] ?? null) !== null) {
+                throw new RuntimeException("lease is already released for {$path}");
+            }
+            $record['released_at'] = gmdate('Y-m-d\TH:i:s\Z');
+            $registry['records'][$path] = $record;
+            return $record;
+        });
+        outputRecord($record, option($options, 'format'));
+        return 0;
+    }
+
+    throw new RuntimeException('lease action must be acquire or release');
+}
+
+function cleanupCommand(string $action, array $options, string $toolRoot): int
+{
+    if ($action === 'plan') {
+        $repositories = requiredMany($options, 'repo');
+        $output = literalAbsolutePath(requiredOne($options, 'output'), 'cleanup output');
+        if (file_exists($output) || is_link($output)) {
+            throw new RuntimeException("cleanup output already exists: {$output}");
+        }
+        $parent = dirname($output);
+        if (!is_dir($parent)) {
+            throw new RuntimeException("cleanup output parent does not exist: {$parent}");
+        }
+        $inventory = buildInventory($repositories, $toolRoot);
+        $items = [];
+        foreach ($inventory['worktrees'] as $entry) {
+            if (!$entry['cleanup_eligible']) {
+                continue;
+            }
+            $items[] = [
+                'repository' => $entry['repository'],
+                'path' => $entry['path'],
+                'head' => $entry['head'],
+                'branch' => $entry['branch'],
+                'detached' => $entry['detached'],
+                'lease_id' => $entry['lease']['lease_id'],
+                'fingerprint' => inventoryFingerprint($entry),
+            ];
+        }
+        usort($items, static fn (array $left, array $right): int => $left['path'] <=> $right['path']);
+        $payload = [
+            'schema' => CLEANUP_SCHEMA,
+            'created_at' => gmdate('Y-m-d\TH:i:s\Z'),
+            'items' => $items,
+        ];
+        $payload['manifest_id'] = hash('sha256', canonicalJson($payload));
+        $handle = fopen($output, 'x');
+        if ($handle === false) {
+            throw new RuntimeException("cannot create cleanup output: {$output}");
+        }
+        try {
+            if (fwrite($handle, stableJson($payload)) === false || !fflush($handle)) {
+                throw new RuntimeException("cannot write cleanup output: {$output}");
+            }
+        } finally {
+            fclose($handle);
+        }
+        chmod($output, 0o444);
+        fwrite(STDOUT, sprintf("cleanup dry-run: %d exact paths written to %s\n", count($items), $output));
+        return 0;
+    }
+
+    if ($action === 'apply') {
+        $manifestPath = literalAbsolutePath(requiredOne($options, 'manifest'), 'cleanup manifest');
+        $manifest = readJson($manifestPath);
+        if (($manifest['schema'] ?? null) !== CLEANUP_SCHEMA || !is_array($manifest['items'] ?? null)) {
+            throw new RuntimeException('cleanup manifest schema is invalid');
+        }
+        $manifestId = $manifest['manifest_id'] ?? null;
+        unset($manifest['manifest_id']);
+        if (!is_string($manifestId) || !hash_equals($manifestId, hash('sha256', canonicalJson($manifest)))) {
+            throw new RuntimeException('cleanup manifest identity does not match its contents');
+        }
+
+        $failed = false;
+        foreach ($manifest['items'] as $item) {
+            $path = literalAbsolutePath((string) ($item['path'] ?? ''), 'cleanup item path');
+            $repository = canonicalExistingDirectory((string) ($item['repository'] ?? ''), 'cleanup repository');
+            $inventory = buildInventory([$repository], $toolRoot);
+            $current = findInventoryEntry($inventory, $path);
+            $driftReasons = [];
+            if ($current === null) {
+                $driftReasons[] = 'missing_inventory_entry';
+            } else {
+                if (!$current['cleanup_eligible']) {
+                    $driftReasons = array_merge($driftReasons, $current['protection_reasons']);
+                }
+                if (!hash_equals((string) ($item['fingerprint'] ?? ''), inventoryFingerprint($current))) {
+                    $driftReasons[] = 'inventory_fingerprint';
+                }
+            }
+            if ($driftReasons !== []) {
+                $failed = true;
+                fwrite(STDOUT, sprintf(
+                    "skipped-drift %s: inventory drift (%s)\n",
+                    $path,
+                    implode(', ', array_values(array_unique($driftReasons))),
+                ));
+                continue;
+            }
+
+            [$exitCode, $output] = runProcess(array_merge([$toolRoot . '/bin/git', '-C', $repository, 'worktree', 'remove', '--', $path]));
+            $registeredAfter = isset(registeredWorktrees($repository, $toolRoot)[$path]);
+            $existsAfter = file_exists($path) || is_link($path);
+            $state = match (true) {
+                !$registeredAfter && !$existsAfter => 'removed',
+                $registeredAfter && $existsAfter => 'failed-no-change',
+                !$registeredAfter && $existsAfter => 'partial-residue',
+                default => 'partial-metadata',
+            };
+            if ($state === 'removed') {
+                markRemoved($repository, $toolRoot, $path, (string) $item['lease_id']);
+            } else {
+                $failed = true;
+            }
+            fwrite(STDOUT, sprintf(
+                "%s %s%s\n",
+                $state,
+                $path,
+                $exitCode === 0 || trim($output) === '' ? '' : ': ' . trim($output),
+            ));
+        }
+        return $failed ? 2 : 0;
+    }
+
+    throw new RuntimeException('cleanup action must be plan or apply');
+}
+
+function buildInventory(array $repositoryArguments, string $toolRoot): array
+{
+    $repositories = [];
+    $entries = [];
+    foreach ($repositoryArguments as $repositoryArgument) {
+        $repository = canonicalExistingDirectory($repositoryArgument, 'repository');
+        $commonDir = commonDirectory($repository, $toolRoot);
+        $registered = registeredWorktrees($repository, $toolRoot);
+        $registry = readRegistry($commonDir);
+        $paths = array_unique(array_merge(array_keys($registered), array_keys($registry['records'])));
+        sort($paths, SORT_STRING);
+        $processesByPath = processReferencesForPaths(array_values(array_filter(
+            $paths,
+            static fn (string $path): bool => is_dir($path),
+        )));
+        $primaryPath = array_key_first($registered);
+        $repositories[] = ['path' => $repository, 'common_git_dir' => $commonDir];
+
+        foreach ($paths as $path) {
+            $registration = $registered[$path] ?? null;
+            $lease = $registry['records'][$path] ?? null;
+            $exists = is_dir($path);
+            if ($registration === null && !$exists && is_array($lease) && ($lease['removed_at'] ?? null) !== null) {
+                continue;
+            }
+            $entry = inspectWorktree(
+                $repository,
+                $path,
+                $registration,
+                is_array($lease) ? $lease : null,
+                $primaryPath,
+                $processesByPath[$path] ?? [],
+                $toolRoot,
+            );
+            $entries[] = $entry;
+        }
+    }
+    usort($entries, static fn (array $left, array $right): int => [$left['repository'], $left['path']] <=> [$right['repository'], $right['path']]);
+
+    return [
+        'schema' => INVENTORY_SCHEMA,
+        'generated_at' => gmdate('Y-m-d\TH:i:s\Z'),
+        'repositories' => $repositories,
+        'worktrees' => $entries,
+    ];
+}
+
+function inspectWorktree(
+    string $repository,
+    string $path,
+    ?array $registration,
+    ?array $lease,
+    ?string $primaryPath,
+    array $processes,
+    string $toolRoot,
+): array {
+    $registered = $registration !== null;
+    $exists = is_dir($path);
+    $errors = [];
+    $status = ['staged' => 0, 'modified' => 0, 'untracked' => 0];
+    $ahead = null;
+    $behind = null;
+    $uniqueDetached = 0;
+    $operations = [];
+    if ($registered && $exists) {
+        try {
+            $status = worktreeStatus($path, $toolRoot);
+            [$ahead, $behind] = aheadBehind($path, $toolRoot);
+            $operations = activeOperations($path, $toolRoot);
+            if ($registration['detached']) {
+                // --all includes linked-worktree pseudo HEADs, which would make
+                // the detached commit being inspected appear durably anchored.
+                // Cleanup safety is based only on real refs that survive
+                // worktree removal.
+                [$code, $output] = runProcess([
+                    $toolRoot . '/bin/git', '-C', $path, 'rev-list', '--count',
+                    'HEAD', '--not', '--branches', '--remotes', '--tags',
+                ]);
+                if ($code !== 0 || !ctype_digit(trim($output))) {
+                    throw new RuntimeException('cannot count detached unique commits');
+                }
+                $uniqueDetached = (int) trim($output);
+            }
+        } catch (Throwable $exception) {
+            $errors[] = $exception->getMessage();
+        }
+    }
+    $reasons = [];
+    if ($lease === null) {
+        $reasons[] = 'unknown_ownership';
+    } elseif (($lease['released_at'] ?? null) === null) {
+        $reasons[] = 'active_lease';
+    }
+    if (is_array($lease) && in_array($lease['lifecycle'] ?? null, ['retained', 'custody'], true)) {
+        $reasons[] = 'custody_lifecycle';
+    }
+    $custodyName = implode(' ', array_filter([$path, $registration['branch'] ?? $lease['branch'] ?? null], 'is_string'));
+    if (preg_match('#(^|[/_.-])(custody|canonical|accepted|staging)([/_.-]|$)#i', $custodyName)) {
+        $reasons[] = 'custody_naming';
+    }
+    if ($path === $primaryPath) {
+        $reasons[] = 'primary_worktree';
+    }
+    if (($registration['locked'] ?? false) === true) {
+        $reasons[] = 'locked_worktree';
+    }
+    if (!$registered && $exists) {
+        $reasons[] = 'unregistered_residue';
+    }
+    if ($registered && !$exists) {
+        $reasons[] = 'registered_path_missing';
+    }
+    if (array_sum($status) > 0) {
+        $reasons[] = 'dirty';
+    }
+    if ($operations !== []) {
+        $reasons[] = 'active_git_operation';
+    }
+    if ($processes !== []) {
+        $reasons[] = 'live_process';
+    }
+    if ($uniqueDetached > 0) {
+        $reasons[] = 'detached_unique_commits';
+    }
+    if ($errors !== []) {
+        $reasons[] = 'inventory_error';
+    }
+    $reasons = array_values(array_unique($reasons));
+
+    return [
+        'repository' => $repository,
+        'path' => $path,
+        'registered' => $registered,
+        'filesystem_exists' => $exists,
+        'head' => $registration['head'] ?? ($lease['head'] ?? null),
+        'branch' => $registration['branch'] ?? ($lease['branch'] ?? null),
+        'detached' => $registration['detached'] ?? ($lease['detached'] ?? false),
+        'locked' => $registration['locked'] ?? false,
+        'prunable' => $registration['prunable'] ?? false,
+        'staged' => $status['staged'],
+        'modified' => $status['modified'],
+        'untracked' => $status['untracked'],
+        'ahead' => $ahead,
+        'behind' => $behind,
+        'detached_unique_commits' => $uniqueDetached,
+        'active_operations' => $operations,
+        'processes' => $processes,
+        'lease' => $lease,
+        'errors' => $errors,
+        'protection_reasons' => $reasons,
+        'cleanup_eligible' => $reasons === []
+            && is_array($lease)
+            && ($lease['lifecycle'] ?? null) === 'disposable'
+            && ($lease['released_at'] ?? null) !== null,
+    ];
+}
+
+function registeredWorktrees(string $repository, string $toolRoot): array
+{
+    [$code, $output] = runProcess([$toolRoot . '/bin/git', '-C', $repository, 'worktree', 'list', '--porcelain', '-z']);
+    if ($code !== 0) {
+        throw new RuntimeException("cannot list worktrees for {$repository}: " . trim($output));
+    }
+    $entries = [];
+    $current = null;
+    foreach (explode("\0", $output) as $field) {
+        if ($field === '') {
+            continue;
+        }
+        if (str_starts_with($field, 'worktree ')) {
+            if (is_array($current)) {
+                $entries[$current['path']] = $current;
+            }
+            $rawPath = substr($field, 9);
+            $path = realpath($rawPath);
+            $current = [
+                'path' => $path !== false ? $path : normalizeAbsolutePath($rawPath),
+                'head' => null,
+                'branch' => null,
+                'detached' => false,
+                'prunable' => false,
+                'locked' => false,
+            ];
+            continue;
+        }
+        if (!is_array($current)) {
+            continue;
+        }
+        if (str_starts_with($field, 'HEAD ')) {
+            $current['head'] = substr($field, 5);
+        } elseif (str_starts_with($field, 'branch ')) {
+            $current['branch'] = preg_replace('#^refs/heads/#', '', substr($field, 7));
+        } elseif ($field === 'detached') {
+            $current['detached'] = true;
+        } elseif (str_starts_with($field, 'prunable')) {
+            $current['prunable'] = true;
+        } elseif (str_starts_with($field, 'locked')) {
+            $current['locked'] = true;
+        }
+    }
+    if (is_array($current)) {
+        $entries[$current['path']] = $current;
+    }
+    return $entries;
+}
+
+function worktreeStatus(string $path, string $toolRoot): array
+{
+    [$code, $output] = runProcess([$toolRoot . '/bin/git', '-C', $path, 'status', '--porcelain=v1', '-z', '--untracked-files=all']);
+    if ($code !== 0) {
+        throw new RuntimeException("cannot read status for {$path}: " . trim($output));
+    }
+    $status = ['staged' => 0, 'modified' => 0, 'untracked' => 0];
+    foreach (explode("\0", $output) as $record) {
+        if ($record === '') {
+            continue;
+        }
+        $xy = substr($record, 0, 2);
+        if ($xy === '??') {
+            ++$status['untracked'];
+            continue;
+        }
+        if (($xy[0] ?? ' ') !== ' ') {
+            ++$status['staged'];
+        }
+        if (($xy[1] ?? ' ') !== ' ') {
+            ++$status['modified'];
+        }
+    }
+    return $status;
+}
+
+function aheadBehind(string $path, string $toolRoot): array
+{
+    [$code, $output] = runProcess([$toolRoot . '/bin/git', '-C', $path, 'rev-list', '--left-right', '--count', '@{upstream}...HEAD']);
+    if ($code !== 0) {
+        return [null, null];
+    }
+    if (!preg_match('/^(\d+)\s+(\d+)$/', trim($output), $matches)) {
+        throw new RuntimeException("cannot determine ahead/behind for {$path}");
+    }
+    return [(int) $matches[2], (int) $matches[1]];
+}
+
+function activeOperations(string $path, string $toolRoot): array
+{
+    [$code, $output] = runProcess([$toolRoot . '/bin/git', '-C', $path, 'rev-parse', '--absolute-git-dir']);
+    if ($code !== 0) {
+        throw new RuntimeException("cannot resolve worktree Git directory for {$path}");
+    }
+    $gitDirectory = trim($output);
+    $checks = [
+        'merge' => 'MERGE_HEAD',
+        'cherry-pick' => 'CHERRY_PICK_HEAD',
+        'revert' => 'REVERT_HEAD',
+        'rebase-merge' => 'rebase-merge',
+        'rebase-apply' => 'rebase-apply',
+        'bisect' => 'BISECT_START',
+    ];
+    $active = [];
+    foreach ($checks as $name => $gitPath) {
+        if (file_exists($gitDirectory . '/' . $gitPath)) {
+            $active[] = $name;
+        }
+    }
+    return $active;
+}
+
+function processReferencesForPaths(array $worktreePaths): array
+{
+    $matches = array_fill_keys($worktreePaths, []);
+    if (PHP_OS_FAMILY !== 'Linux' || !is_dir('/proc')) {
+        return $matches;
+    }
+    $self = getmypid();
+    foreach (glob('/proc/[0-9]*', GLOB_ONLYDIR) ?: [] as $processDirectory) {
+        $pid = (int) basename($processDirectory);
+        if ($pid <= 0 || $pid === $self) {
+            continue;
+        }
+        $targets = [];
+        $cwd = @readlink($processDirectory . '/cwd');
+        if (is_string($cwd)) {
+            $targets[] = ['kind' => 'cwd', 'path' => $cwd];
+        }
+        $fds = @scandir($processDirectory . '/fd');
+        if (is_array($fds)) {
+            foreach ($fds as $fd) {
+                if ($fd === '.' || $fd === '..') {
+                    continue;
+                }
+                $target = @readlink($processDirectory . '/fd/' . $fd);
+                if (is_string($target)) {
+                    $targets[] = ['kind' => 'fd', 'fd' => (int) $fd, 'path' => $target];
+                }
+            }
+        }
+        if ($targets === []) {
+            continue;
+        }
+        $command = trim((string) @file_get_contents($processDirectory . '/comm'));
+        foreach ($worktreePaths as $worktreePath) {
+            $references = [];
+            foreach ($targets as $target) {
+                $normalized = preg_replace('/ \(deleted\)$/', '', $target['path']) ?? $target['path'];
+                if (pathWithin($normalized, $worktreePath)) {
+                    $references[] = $target;
+                }
+            }
+            if ($references !== []) {
+                $matches[$worktreePath][] = ['pid' => $pid, 'command' => $command, 'references' => $references];
+            }
+        }
+    }
+    foreach ($matches as &$pathMatches) {
+        usort($pathMatches, static fn (array $left, array $right): int => $left['pid'] <=> $right['pid']);
+    }
+    unset($pathMatches);
+    return $matches;
+}
+
+function pathWithin(string $candidate, string $root): bool
+{
+    $candidate = rtrim($candidate, '/');
+    $root = rtrim($root, '/');
+    return $candidate === $root || str_starts_with($candidate, $root . '/');
+}
+
+function inventoryFingerprint(array $entry): string
+{
+    $facts = [
+        'repository' => $entry['repository'],
+        'path' => $entry['path'],
+        'registered' => $entry['registered'],
+        'filesystem_exists' => $entry['filesystem_exists'],
+        'head' => $entry['head'],
+        'branch' => $entry['branch'],
+        'detached' => $entry['detached'],
+        'locked' => $entry['locked'],
+        'prunable' => $entry['prunable'],
+        'staged' => $entry['staged'],
+        'modified' => $entry['modified'],
+        'untracked' => $entry['untracked'],
+        'detached_unique_commits' => $entry['detached_unique_commits'],
+        'active_operations' => $entry['active_operations'],
+        'processes' => $entry['processes'],
+        'lease_id' => $entry['lease']['lease_id'] ?? null,
+        'lease_released_at' => $entry['lease']['released_at'] ?? null,
+        'lifecycle' => $entry['lease']['lifecycle'] ?? null,
+        'protection_reasons' => $entry['protection_reasons'],
+        'cleanup_eligible' => $entry['cleanup_eligible'],
+    ];
+    return hash('sha256', canonicalJson($facts));
+}
+
+function findInventoryEntry(array $inventory, string $path): ?array
+{
+    foreach ($inventory['worktrees'] as $entry) {
+        if ($entry['path'] === $path) {
+            return $entry;
+        }
+    }
+    return null;
+}
+
+function withRegistryLock(string $repository, string $toolRoot, callable $callback): mixed
+{
+    $commonDir = commonDirectory($repository, $toolRoot);
+    $lockPath = $commonDir . '/waaseyaa-worktree-leases.lock';
+    $handle = fopen($lockPath, 'c+');
+    if ($handle === false || !flock($handle, LOCK_EX)) {
+        throw new RuntimeException("cannot lock worktree lease registry: {$lockPath}");
+    }
+    try {
+        $registry = readRegistry($commonDir);
+        $result = $callback($registry);
+        writeRegistry($commonDir, $registry);
+        return $result;
+    } finally {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+}
+
+function readRegistry(string $commonDir): array
+{
+    $path = $commonDir . '/waaseyaa-worktree-leases.json';
+    if (!is_file($path)) {
+        return ['schema' => REGISTRY_SCHEMA, 'records' => []];
+    }
+    $registry = readJson($path);
+    if (($registry['schema'] ?? null) !== REGISTRY_SCHEMA || !is_array($registry['records'] ?? null)) {
+        throw new RuntimeException("worktree lease registry has invalid schema: {$path}");
+    }
+    return $registry;
+}
+
+function writeRegistry(string $commonDir, array $registry): void
+{
+    ksort($registry['records'], SORT_STRING);
+    $path = $commonDir . '/waaseyaa-worktree-leases.json';
+    $temporary = $path . '.tmp.' . bin2hex(random_bytes(6));
+    if (file_put_contents($temporary, stableJson($registry), LOCK_EX) === false) {
+        throw new RuntimeException("cannot write worktree lease registry: {$temporary}");
+    }
+    chmod($temporary, 0o600);
+    if (!rename($temporary, $path)) {
+        @unlink($temporary);
+        throw new RuntimeException("cannot replace worktree lease registry: {$path}");
+    }
+}
+
+function markRemoved(string $repository, string $toolRoot, string $path, string $leaseId): void
+{
+    withRegistryLock($repository, $toolRoot, static function (array &$registry) use ($path, $leaseId): null {
+        $record = $registry['records'][$path] ?? null;
+        if (!is_array($record) || !hash_equals((string) ($record['lease_id'] ?? ''), $leaseId)) {
+            throw new RuntimeException("lease identity changed after removal: {$path}");
+        }
+        $record['removed_at'] = gmdate('Y-m-d\TH:i:s\Z');
+        $registry['records'][$path] = $record;
+        return null;
+    });
+}
+
+function commonDirectory(string $repository, string $toolRoot): string
+{
+    [$code, $output] = runProcess([$toolRoot . '/bin/git', '-C', $repository, 'rev-parse', '--path-format=absolute', '--git-common-dir']);
+    if ($code !== 0) {
+        throw new RuntimeException("cannot resolve Git common directory for {$repository}: " . trim($output));
+    }
+    return normalizeAbsolutePath(trim($output));
+}
+
+function runProcess(array $command): array
+{
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = proc_open($command, $descriptors, $pipes);
+    if (!is_resource($process)) {
+        throw new RuntimeException('cannot start command: ' . implode(' ', $command));
+    }
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $code = proc_close($process);
+    return [$code, (string) $stdout . (string) $stderr];
+}
+
+function readJson(string $path): array
+{
+    if (!is_file($path)) {
+        throw new RuntimeException("JSON file does not exist: {$path}");
+    }
+    try {
+        $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    } catch (Throwable $exception) {
+        throw new RuntimeException("cannot read JSON {$path}: {$exception->getMessage()}", previous: $exception);
+    }
+    if (!is_array($decoded)) {
+        throw new RuntimeException("JSON document is not an object: {$path}");
+    }
+    return $decoded;
+}
+
+function outputRecord(array $record, ?string $format): void
+{
+    if ($format === 'json') {
+        fwrite(STDOUT, stableJson($record));
+        return;
+    }
+    fwrite(STDOUT, sprintf(
+        "%s lease %s for %s (%s)\n",
+        ($record['released_at'] ?? null) === null ? 'acquired' : 'released',
+        $record['lease_id'],
+        $record['path'],
+        $record['lifecycle'],
+    ));
+}
+
+function canonicalExistingDirectory(string $path, string $label): string
+{
+    literalAbsolutePath($path, $label);
+    $resolved = realpath($path);
+    if ($resolved === false || !is_dir($resolved)) {
+        throw new RuntimeException("{$label} is not an existing directory: {$path}");
+    }
+    return $resolved;
+}
+
+function literalAbsolutePath(string $path, string $label): string
+{
+    if ($path === '' || $path[0] !== '/' || preg_match('/[\x00\$*?\[\]{}~]/', $path)) {
+        throw new RuntimeException("{$label} must be an absolute literal path without shell expansion: {$path}");
+    }
+    return normalizeAbsolutePath($path);
+}
+
+function normalizeAbsolutePath(string $path): string
+{
+    $segments = [];
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            array_pop($segments);
+            continue;
+        }
+        $segments[] = $segment;
+    }
+    return '/' . implode('/', $segments);
+}
+
+function requiredOne(array $options, string $name): string
+{
+    $values = $options[$name] ?? [];
+    if (count($values) !== 1) {
+        throw new RuntimeException("exactly one --{$name}=value is required");
+    }
+    return $values[0];
+}
+
+function requiredMany(array $options, string $name): array
+{
+    $values = $options[$name] ?? [];
+    if ($values === []) {
+        throw new RuntimeException("at least one --{$name}=value is required");
+    }
+    return $values;
+}
+
+function option(array $options, string $name): ?string
+{
+    $values = $options[$name] ?? [];
+    if (count($values) > 1) {
+        throw new RuntimeException("--{$name} may be supplied once");
+    }
+    return $values[0] ?? null;
+}
+
+function canonicalJson(array $value): string
+{
+    $normalize = static function (mixed $item) use (&$normalize): mixed {
+        if (!is_array($item)) {
+            return $item;
+        }
+        if (!array_is_list($item)) {
+            ksort($item, SORT_STRING);
+        }
+        foreach ($item as $key => $nested) {
+            $item[$key] = $normalize($nested);
+        }
+        return $item;
+    };
+    return json_encode($normalize($value), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+}
+
+function stableJson(array $value): string
+{
+    return json_encode($value, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+}
