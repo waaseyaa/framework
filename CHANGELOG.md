@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Test isolation — kernel boots no longer leak the process-wide field-read
+  registry:** `HttpKernelTest` (and sibling kernel unit tests) boot a kernel
+  that installs `User::$name` as Protected via `UserServiceProvider`. Under
+  random order, a later in-process test hydrating fixture `TestEntity` as type
+  `user` (`name` Public) then merged the leaked registry and threw
+  `LogicException: Conflicting field-read definitions for user.name`
+  (`ci/random-order-shard-2`, seed 442309391, alpha.297 Gate 2, #2513). Tear-down now
+  resets the process-wide registry, guard, and entity-type manager through
+  `ProcessFieldReadRuntime`; a regression test pins the exact `user.name`
+  contamination. Genuinely different definitions still fail closed; identical
+  User overlays remain allowed.
+
 - **Fixed — release constraint sync now fails in ordinary CI when local package
   dependency keys drift from the root lock (#2511):** Composer policy compares
   each path package's production `require` keys with the metadata copied into

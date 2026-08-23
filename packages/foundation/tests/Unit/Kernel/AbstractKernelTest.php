@@ -22,6 +22,7 @@ use Waaseyaa\Foundation\Security\SensitiveValue;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Scheduler\ScheduleEntriesInterface;
 use Waaseyaa\Scheduler\ScheduleInterface;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 #[CoversClass(AbstractKernel::class)]
 #[CoversClass(ScheduleEntryRegistry::class)]
@@ -76,6 +77,7 @@ final class AbstractKernelTest extends TestCase
 
     protected function tearDown(): void
     {
+        ProcessFieldReadRuntime::reset();
         putenv('WAASEYAA_APP_SECRET');
         $items = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),

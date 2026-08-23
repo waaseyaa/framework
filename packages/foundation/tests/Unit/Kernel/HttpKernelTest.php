@@ -39,6 +39,7 @@ use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\LanguageResolver;
 use Waaseyaa\SSR\SsrPageHandler;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
@@ -65,6 +66,7 @@ final class HttpKernelTest extends TestCase
 
     protected function tearDown(): void
     {
+        ProcessFieldReadRuntime::reset();
         putenv('WAASEYAA_APP_SECRET');
         $items = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),

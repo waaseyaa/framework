@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 /**
  * ConsoleKernel::handle() is a thin wrapper that delegates to the Symfony Console application.
@@ -41,6 +42,7 @@ final class ConsoleKernelTest extends TestCase
 
     protected function tearDown(): void
     {
+        ProcessFieldReadRuntime::reset();
         $_SERVER['argv'] = $this->originalArgv;
         $this->restoreEnvironment('APP_ENV', $this->originalAppEnv);
         $this->restoreEnvironment('WAASEYAA_DB', $this->originalDatabase);
