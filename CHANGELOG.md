@@ -93,9 +93,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   concrete finals the parity scanner cannot discover. `DiscoverySurfaceGovernanceTest`
   keeps the annotations and the map in lockstep in both directions and is derived
   from the filesystem, so a future `Waaseyaa\Seo\Discovery` type cannot ship
-  ungoverned. It also supplies the removal detection the parity gate cannot give
-  these types: that gate exempts any map key whose name appears in this file, and
-  does not distinguish a removal note from the entry that introduced the contract.
+  ungoverned. Removal in the other direction is the parity gate's job, which
+  #2510 made exact: deleting a governed type now requires an explicit `###
+  Removed` authorization rather than an incidental name match in this file.
   `SeoDiscoveryScopeTest` separately pins that enumeration establishes the
   anonymous FIELD-READ SCOPE and not merely an anonymous query account, so the
   crawler surfaces stay viewer-independent even for an application policy that

@@ -30,19 +30,14 @@ use PHPUnit\Framework\TestCase;
  *    than from a hardcoded list: a type added to this namespace with `@api` and
  *    no map entry fails immediately, so a future contract cannot ship
  *    ungoverned the way one already nearly did.
- *  - **type removed, map entry kept.** `tools/check-surface-parity.php` is
- *    supposed to fail this as removal-without-deprecation, and for most types it
- *    does. It does NOT here. The gate exempts a map key whose type name appears
- *    anywhere in `CHANGELOG.md`, on the reasoning that a removal note documents
- *    the deprecation cycle, and it does not distinguish a removal note from the
- *    `### Added` entry that introduced the contract. Measured against this
- *    namespace: deleting `SitemapPath` (unmentioned) fails the gate, while
- *    deleting `PublicUrlPolicyInterface`, `CrawlEligibilityPolicyInterface`,
- *    `SitemapContributorInterface`, `DiscoveryFailurePolicy`, or
- *    `NonPublicEntityTypes` (each named in the #2501 Added entry) passes it.
- *    {@see self::every_governed_entry_still_resolves()} is therefore not a
- *    convenience assertion restating the gate: for five of this namespace's six
- *    public types it is the ONLY thing that fails when the type is deleted.
+ *  - **type removed, map entry kept.** `tools/check-surface-parity.php` fails
+ *    this, for every one of this namespace's six public types, and requires an
+ *    explicit `### Removed` authorization to proceed (#2505 / #2510). An earlier
+ *    revision of this class claimed the gate was disarmed for five of the six by
+ *    a `CHANGELOG.md` name match; that was true of the gate as it stood, and
+ *    #2510 has since closed it. {@see self::every_governed_entry_still_resolves()}
+ *    is kept as a cheap local assertion of the same property, so this suite still
+ *    fails fast without shelling out to the gate, but the gate is the authority.
  *
  * `DiscoveryPath` is the negative control. It is `@internal` implementation
  * detail, so it must stay OUT of the map, and this test fails if it drifts in.
