@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add a read-only-first cross-repository worktree inventory, explicit lease registry, and exact-path cleanup manifest that protects dirty, active, detached-unique, custody, stale, and unknown worktrees while reporting partial removal outcomes (#2522).
+
 - **Fixed — targeted Packagist recovery can now finish a partially published
   release (#2518).** The manual GitHub Release workflow can rebuild the
   deterministic SBOM, provenance, and checksum set from an original split
