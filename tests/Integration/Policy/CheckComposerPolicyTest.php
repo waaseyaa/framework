@@ -286,6 +286,31 @@ final class CheckComposerPolicyTest extends TestCase
 
     // ── CP-NEW: cross-file consistency ────────────────────────────────────────
 
+    // CP008: path-package dependency keys match the root lock.
+    #[Test]
+    public function cp008_fails_before_release_when_path_package_require_keys_drift_from_root_lock(): void
+    {
+        $dir = $this->makeFixture(pkgRequire: ['ext-json' => '*']);
+        file_put_contents(
+            $dir . '/composer.lock',
+            json_encode([
+                'packages' => [[
+                    'name' => 'waaseyaa/example',
+                    'version' => 'dev-main',
+                    'require' => ['php' => '>=8.5'],
+                ]],
+                'packages-dev' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+        );
+
+        [$exitCode, $stdout] = $this->runScript($dir);
+
+        self::assertNotSame(0, $exitCode);
+        self::assertStringContainsString('FAIL [CP008] composer.lock', $stdout);
+        self::assertStringContainsString('waaseyaa/example missing=[ext-json] extra=[]', $stdout);
+    }
+
+    // CP-NEW: cross-file version consistency.
     #[Test]
     public function cp_new_passes_when_all_constraints_match_current_tag(): void
     {

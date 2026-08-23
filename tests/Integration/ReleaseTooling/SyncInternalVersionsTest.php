@@ -349,6 +349,40 @@ final class SyncInternalVersionsTest extends TestCase
     }
 
     #[Test]
+    public function dependency_key_drift_reports_missing_and_extra_keys_without_writing(): void
+    {
+        $dir = $this->makeTempPackageDir([
+            'packages/agent/composer.json' => json_encode([
+                'name' => 'waaseyaa/agent',
+                'require' => [
+                    'php' => '>=8.5',
+                    'waaseyaa/foundation' => '^0.1.0-alpha.150',
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+            'composer.lock' => json_encode([
+                'packages' => [[
+                    'name' => 'waaseyaa/agent',
+                    'version' => 'dev-main',
+                    'require' => [
+                        'php' => '>=8.5',
+                        'waaseyaa/legacy' => '^0.1.0-alpha.150',
+                    ],
+                ]],
+                'packages-dev' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+        ]);
+        $lockPath = $dir . '/composer.lock';
+        $before = (string) file_get_contents($lockPath);
+
+        self::assertSame([[
+            'package' => 'waaseyaa/agent',
+            'missing' => ['waaseyaa/foundation'],
+            'extra' => ['waaseyaa/legacy'],
+        ]], findRootLockDependencyKeyDrift($lockPath, discoverSyncManifests($dir)));
+        self::assertSame($before, file_get_contents($lockPath));
+    }
+
+    #[Test]
     public function sync_refuses_to_hide_structural_manifest_lock_drift(): void
     {
         $dir = $this->makeTempPackageDir([
