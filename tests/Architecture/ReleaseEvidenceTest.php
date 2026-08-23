@@ -138,9 +138,14 @@ final class ReleaseEvidenceTest extends TestCase
 
         $manualWorkflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/github-release.yml');
         self::assertStringContainsString('evidence_run_id:', $manualWorkflow);
+        self::assertStringContainsString('split_run_id:', $manualWorkflow);
         self::assertStringContainsString('actions/download-artifact@', $manualWorkflow);
         self::assertStringContainsString('name: waaseyaa-release-evidence', $manualWorkflow);
         self::assertStringContainsString('run-id: ${{ inputs.evidence_run_id }}', $manualWorkflow);
+        self::assertStringContainsString('pattern: split-provenance-*', $manualWorkflow);
+        self::assertStringContainsString('run-id: ${{ inputs.split_run_id }}', $manualWorkflow);
+        self::assertStringContainsString('bin/generate-release-evidence', $manualWorkflow);
+        self::assertStringContainsString('repo.packagist.org/p2/${package}.json', $manualWorkflow);
         self::assertStringContainsString('github-token: ${{ github.token }}', $manualWorkflow);
         self::assertStringContainsString('Verify retained release evidence', $manualWorkflow);
         self::assertStringContainsString('files: release-evidence/*', $manualWorkflow);

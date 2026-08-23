@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — targeted Packagist recovery can now finish a partially published
+  release (#2518).** The manual GitHub Release workflow can rebuild the
+  deterministic SBOM, provenance, and checksum set from an original split
+  run's retained per-package provenance after verifying tag parity and every
+  package in Packagist P2; it never repeats the full crawl fanout. The
+  post-tag Skeleton Smoke now crosses the governed `install:init` boundary
+  instead of creating tables with `migrate` while leaving CFG-02 inactive.
+
 ## [0.1.0-alpha.297] - 2026-08-23
 
 - **Test isolation — kernel boots no longer leak the process-wide field-read

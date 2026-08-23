@@ -87,6 +87,15 @@ final class FreshInstallBootGateTest extends TestCase
     }
 
     #[Test]
+    public function the_post_tag_skeleton_smoke_crosses_the_governed_install_boundary(): void
+    {
+        $workflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/skeleton-smoke.yml');
+
+        self::assertStringContainsString('./vendor/bin/waaseyaa install:init </dev/null', $workflow);
+        self::assertStringNotContainsString('./vendor/bin/waaseyaa migrate </dev/null', $workflow);
+    }
+
+    #[Test]
     public function the_release_cut_is_gated_on_the_proof(): void
     {
         $workflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/release-cut.yml');
