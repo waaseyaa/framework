@@ -530,6 +530,23 @@ return [
     'Waaseyaa\Relationship\VisibilityFilterInterface' => 'public',
 
     // Layer 3: Services — public
+    // seo discovery contracts (#2501): application-owned canonical URL and crawl
+    // eligibility policy for the crawler-facing surfaces. SitemapPath,
+    // DiscoveryConfigurationException, and NonPublicEntityTypes are concrete
+    // finals and so are not found by the parity gate's automatic discovery, but
+    // they are respectively the return type, the failure type, and the declared
+    // floor of @api interfaces, and are therefore public surface; they are listed
+    // deliberately so a removal is caught as removal-without-deprecation.
+    // DiscoverySurfaceGovernanceTest keeps this list and the @api annotations in
+    // lockstep in BOTH directions, so a new Discovery type cannot ship ungoverned
+    // and an existing entry cannot be quietly dropped.
+    'Waaseyaa\Seo\Discovery\PublicUrlPolicyInterface' => 'public',
+    'Waaseyaa\Seo\Discovery\CrawlEligibilityPolicyInterface' => 'public',
+    'Waaseyaa\Seo\Discovery\SitemapContributorInterface' => 'public',
+    'Waaseyaa\Seo\Discovery\DiscoveryFailurePolicy' => 'public',
+    'Waaseyaa\Seo\Discovery\SitemapPath' => 'public',
+    'Waaseyaa\Seo\Discovery\NonPublicEntityTypes' => 'public',
+    'Waaseyaa\Seo\Discovery\Exception\DiscoveryConfigurationException' => 'public',
     'Waaseyaa\Search\SearchProviderInterface' => 'public',
     'Waaseyaa\Search\SearchContentCatalogueInterface' => 'public',
     'Waaseyaa\Search\SearchCandidateResolverInterface' => 'public',

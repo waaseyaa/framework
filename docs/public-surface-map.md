@@ -411,6 +411,18 @@ Configuration Management v1 — active/sync store split, seven `config:*` CLI co
 
 ## Layer 3: Services
 
+### seo
+
+| Element | Type | Purpose |
+|---------|------|---------|
+| `Discovery\PublicUrlPolicyInterface` | interface | Application-owned canonical and Markdown-representation paths for the crawler-facing surfaces |
+| `Discovery\CrawlEligibilityPolicyInterface` | interface | Application-owned restriction of which entity types may be crawled |
+| `Discovery\SitemapContributorInterface` | interface | Contributes non-entity sitemap URLs without replacing the SEO controller |
+| `Discovery\DiscoveryFailurePolicy` | enum | Selects empty-document degradation or propagation for a failed crawler surface |
+| `Discovery\SitemapPath` | final class | Validated root-relative sitemap entry returned by a contributor |
+| `Discovery\NonPublicEntityTypes` | final class | Framework-owned floor of entity types that are never crawled; applications may narrow it, never widen it |
+| `Discovery\Exception\DiscoveryConfigurationException` | final class | Canonical URL policy is bound but no trusted public origin is configured |
+
 ### search
 
 | Element | Type | Purpose |

@@ -65,7 +65,21 @@ final readonly class CanonicalPublicOrigin
 
     public function sitemapUrl(): string
     {
-        return $this->origin . '/sitemap.xml';
+        return $this->absoluteUrl('/sitemap.xml');
+    }
+
+    /**
+     * Join a validated ROOT-RELATIVE path to the trusted origin.
+     *
+     * URL composition lives here rather than at the call sites so the trusted
+     * origin is never string-concatenated somewhere it could be substituted. The
+     * caller is responsible for having validated `$path` (see
+     * {@see \Waaseyaa\Seo\Discovery\DiscoveryPath}); an application-supplied
+     * path reaches this method only after that check.
+     */
+    public function absoluteUrl(string $path): string
+    {
+        return $this->origin . $path;
     }
 
     /**
