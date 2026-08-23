@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.297] - 2026-08-23
+
 - **Test isolation — kernel boots no longer leak the process-wide field-read
   registry:** `HttpKernelTest` (and sibling kernel unit tests) boot a kernel
   that installs `User::$name` as Protected via `UserServiceProvider`. Under
