@@ -19,10 +19,11 @@ final class AuthTokenRepositoryTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         AuthSchema::install($database);
-        $repo = new AuthTokenRepository($database, 'secret');
+        $secret = 'abcdefghijklmnopqrstuvwxyz012345';
+        $repo = new AuthTokenRepository($database, $secret);
 
         $before = $database->getConnection()->executeQuery(
-            "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name",
+            'SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name',
         )->fetchFirstColumn();
 
         $repo->ensureSchema();
@@ -33,8 +34,16 @@ final class AuthTokenRepositoryTest extends TestCase
         self::assertIsArray($validated);
         self::assertSame('7', $validated['user_id']);
         self::assertSame($before, $database->getConnection()->executeQuery(
-            "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name",
+            'SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name',
         )->fetchFirstColumn());
+        self::assertStringNotContainsString($secret, print_r($repo, true));
+
+        try {
+            serialize($repo);
+            self::fail('Auth token HMAC keys were serialized.');
+        } catch (\LogicException $exception) {
+            self::assertStringContainsString('cannot be serialized', $exception->getMessage());
+        }
     }
 
     #[Test]

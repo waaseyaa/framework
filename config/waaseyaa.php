@@ -64,8 +64,10 @@ return [
             getenv('WAASEYAA_DEV_FALLBACK_ACCOUNT') ?: false,
             FILTER_VALIDATE_BOOLEAN,
         ),
-        // HMAC key for reset/verify tokens. Production rejects empty/"change-me".
-        // AUTH_TOKEN_SECRET only — never WAASEYAA_APP_SECRET.
+        // Optional independent HMAC key for reset/verify/invite tokens.
+        // A valid AUTH_TOKEN_SECRET is an override. Empty/absent derives a
+        // versioned purpose key from application-secret custody. Invalid
+        // explicit values fail closed and never fall back to raw app_secret.
         'token_secret' => getenv('AUTH_TOKEN_SECRET') ?: '',
     ],
 

@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Security;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\AuditServiceProvider;
+use Waaseyaa\Auth\AuthServiceProvider;
 use Waaseyaa\Cache\CacheServiceProvider;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -35,6 +36,7 @@ final class ApplicationMasterPurposeRosterRetainedRedTest extends TestCase
         };
         $providers = [
             new AuditServiceProvider(),
+            new AuthServiceProvider(),
             new CacheServiceProvider(),
             new OidcServiceProvider(),
             new PublishingServiceProvider(),

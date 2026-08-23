@@ -9,10 +9,12 @@ namespace Waaseyaa\Auth\Config;
  */
 final readonly class AuthConfig
 {
+    public const int LONGEST_TOKEN_TTL_SECONDS = 604800;
+
     private const array DEFAULT_TOKEN_TTLS = [
         'password_reset' => 3600,
         'email_verification' => 86400,
-        'invite' => 604800,
+        'invite' => self::LONGEST_TOKEN_TTL_SECONDS,
     ];
 
     private const array VALID_REGISTRATION_MODES = ['admin', 'open', 'invite'];

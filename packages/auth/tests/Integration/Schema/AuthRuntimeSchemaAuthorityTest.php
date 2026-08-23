@@ -38,9 +38,9 @@ final class AuthRuntimeSchemaAuthorityTest extends TestCase
         $provider = new AuthServiceProvider();
         $provider->setKernelContext('', [
             'environment' => 'production',
-            'auth' => ['token_secret' => 'test-secret'],
+            'auth' => ['token_secret' => 'abcdefghijklmnopqrstuvwxyz012345'],
         ], []);
-        $provider->setKernelServices(new class($database) implements KernelServicesInterface {
+        $provider->setKernelServices(new class ($database) implements KernelServicesInterface {
             public function __construct(private readonly DBALDatabase $database) {}
 
             public function get(string $abstract): ?object

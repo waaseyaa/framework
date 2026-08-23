@@ -25,6 +25,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retries remain cacheable without allowing a previous analyzed head to decide
   the current one. The dead-code rules and shrink-only baseline are unchanged.
 
+- **Fixed — auth token HMAC keys no longer coalesce to raw `app_secret`
+  (#2500).** `AuthServiceProvider` used `auth.token_secret ?? app_secret`,
+  which treated the application-master bytes as the reset/verify/invite HMAC
+  key and accepted whitespace, mixed-case `Change-Me`, and arbitrarily short
+  explicit values. A valid explicit `auth.token_secret` remains an independent
+  override. Otherwise `waaseyaa/auth` derives `waaseyaa.auth.token-hmac.v1`
+  through `ApplicationSecret` and never uses raw master bytes. Trimming,
+  32-character minimum strength, placeholder refusal, and missing-custody
+  refusal live in `AuthTokenSecret`; invalid explicit values fail in every
+  environment. Stock skeletons still boot without a second secret (#1832).
+  Outstanding tokens signed with the raw fallback cannot be rehashed (longest
+  TTL is seven days); see `docs/upgrade-notes/auth-token-secret-derivation.md`.
+  Environment-parser consolidation stays on #2479.
+
+  `AuthTokenSecret` is the single authority on WHICH source is in use, and
+  `AuthServiceProvider` now contributes its application-master drain adapter only
+  under derived custody. It previously contributed unconditionally, so an
+  application holding a valid independent `AUTH_TOKEN_SECRET` had its outstanding
+  reset, verify, and invite tokens block a `WAASEYAA_APP_SECRET` rotation those
+  tokens are mathematically unaffected by. Classification runs before the database
+  authority is required, so explicit custody no longer needs an authority for a
+  contribution it never makes, and an invalid explicit value is never read as
+  absent: it throws from both entry points rather than silently deriving a key or
+  silently suppressing the adapter. The derived-mode purpose roster, drain
+  strategy, TTLs, and rollback behaviour are unchanged.
 - **Added — ordinary Framework CI now requires a real FrankenPHP worker-runtime
   lane (#2494).** Hosted job `ci/frankenphp-worker` installs pinned FrankenPHP
   v1.12.4 from the upstream GitHub release, verifies a committed SHA-256 before

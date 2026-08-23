@@ -18,6 +18,7 @@ final class AuthTokenRepository implements AuthTokenRepositoryInterface
 
     public function __construct(
         private readonly DatabaseInterface $db,
+        #[\SensitiveParameter]
         private readonly string $secret,
     ) {}
 
@@ -143,5 +144,17 @@ final class AuthTokenRepository implements AuthTokenRepositoryInterface
             ->execute();
 
         return $expired + $consumed;
+    }
+
+    /** @return array{secret: string} */
+    public function __debugInfo(): array
+    {
+        return ['secret' => '[REDACTED]'];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('Auth token HMAC keys cannot be serialized.');
     }
 }
