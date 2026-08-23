@@ -28,3 +28,21 @@ Rotating `WAASEYAA_APP_SECRET` invalidates derived auth-token HMACs the
 same way. Rotating only `AUTH_TOKEN_SECRET` invalidates tokens that used
 the explicit override. Outstanding rows expire or can be pruned; they
 cannot be migrated.
+
+Which mode you are in decides whether outstanding tokens can block an
+application-master rotation at all:
+
+- **Derived custody** (no explicit key). Outstanding tokens are signed with
+  material owned by the application master, so `waaseyaa/auth` contributes a
+  drain adapter and a rotation waits for them to drain or expire. The longest
+  wait is the invite TTL, seven days.
+- **Explicit independent custody** (a valid `AUTH_TOKEN_SECRET`). The signing
+  key has no relationship to the application master, so rotating the master
+  cannot invalidate a single outstanding token. `waaseyaa/auth` contributes
+  nothing to the rotation and outstanding tokens never block it. If you
+  previously saw a rotation held up by outstanding tokens while running an
+  independent secret, that was the defect fixed here, not a real dependency.
+
+An explicit value that is rejected as invalid is not treated as absent. It
+fails closed, so a mistyped secret can neither quietly fall back to derived
+custody nor quietly remove the rotation guard.

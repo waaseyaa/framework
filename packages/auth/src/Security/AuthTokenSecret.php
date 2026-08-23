@@ -7,7 +7,29 @@ namespace Waaseyaa\Auth\Security;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 
 /**
- * Resolves the reset/verify/invite HMAC key without using raw application-master bytes.
+ * Resolves the reset/verify/invite HMAC key without using raw application-master bytes,
+ * and is the single authority on WHERE that key came from.
+ *
+ * Two sources, and the difference decides whether the auth package participates in
+ * application-master rotation at all:
+ *
+ *  - **Derived custody.** `auth.token_secret` is absent or empty, so the key is an HKDF
+ *    output of {@see ApplicationSecret::PURPOSE_AUTH_TOKEN_HMAC}. Outstanding tokens are
+ *    signed with material owned by the application master, so rotating that master
+ *    invalidates them and the auth package must contribute its drain adapter.
+ *  - **Explicit independent custody.** A valid `AUTH_TOKEN_SECRET` was supplied. The
+ *    signing key has no relationship to the application master, so rotating the master
+ *    cannot invalidate a single outstanding token and the auth package must contribute
+ *    NOTHING to application-master rotation. Contributing anyway made independently signed
+ *    tokens block a rotation they are unaffected by.
+ *
+ * Classification lives here, not at the call sites, so `AuthServiceProvider`'s token
+ * binding and its rekey contribution can never disagree about which mode is active.
+ * {@see self::usesDerivedCustody()} answers the question without materialising the secret.
+ *
+ * Invalid explicit input is never classified as absent: it throws from both entry points,
+ * so a rejected secret can neither silently fall back to derived custody nor silently
+ * suppress the drain adapter.
  *
  * @api
  */
@@ -24,10 +46,8 @@ final class AuthTokenSecret
         ?ApplicationSecret $applicationSecret,
         string $environment,
     ): string {
-        $explicit = self::explicitValue($configured);
+        $explicit = self::validatedExplicit($configured, $environment);
         if ($explicit !== null) {
-            self::assertStrongExplicit($explicit, $environment);
-
             return $explicit;
         }
 
@@ -38,6 +58,45 @@ final class AuthTokenSecret
         }
 
         return $applicationSecret->derive(ApplicationSecret::PURPOSE_AUTH_TOKEN_HMAC);
+    }
+
+    /**
+     * Is the auth-token HMAC key derived from application-master custody?
+     *
+     * True exactly when {@see self::resolve()} would derive it, so the two can never
+     * disagree. Applies the SAME validation, which is why an invalid explicit value
+     * throws here rather than reporting "absent": a caller asking this question is
+     * deciding whether to contribute to a rotation, and answering "derived" for a secret
+     * that was actually supplied-but-rejected would be a fail-open answer.
+     *
+     * @param mixed $configured Explicit `auth.token_secret` value, or null when absent.
+     */
+    public static function usesDerivedCustody(
+        #[\SensitiveParameter]
+        mixed $configured,
+        string $environment,
+    ): bool {
+        return self::validatedExplicit($configured, $environment) === null;
+    }
+
+    /**
+     * The trimmed, validated explicit secret, or null when the key is genuinely absent.
+     *
+     * The single classification point. Both public entry points route through it, so
+     * "which source is this?" is answered once, by one rule set.
+     */
+    private static function validatedExplicit(
+        #[\SensitiveParameter]
+        mixed $configured,
+        string $environment,
+    ): ?string {
+        $explicit = self::explicitValue($configured);
+        if ($explicit === null) {
+            return null;
+        }
+        self::assertStrongExplicit($explicit, $environment);
+
+        return $explicit;
     }
 
     private static function explicitValue(#[\SensitiveParameter] mixed $configured): ?string

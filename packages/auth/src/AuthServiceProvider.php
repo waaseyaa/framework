@@ -77,8 +77,36 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         return [];
     }
 
+    /**
+     * Contribute to application-master rotation ONLY when the auth-token HMAC key is
+     * actually derived from that master.
+     *
+     * With a valid explicit `AUTH_TOKEN_SECRET` the signing key is independent, so
+     * rotating the application master cannot invalidate a single outstanding token.
+     * Contributing the drain adapter regardless made those independently signed tokens
+     * block a rotation they are unaffected by: an operator with a perfectly valid
+     * independent secret could not rotate `WAASEYAA_APP_SECRET` until every outstanding
+     * reset, verify, and invite token had expired, for no security reason at all.
+     *
+     * The classification is {@see AuthTokenSecret::usesDerivedCustody()}'s, the same
+     * authority the token binding in {@see self::register()} uses, so the two cannot
+     * disagree about which mode is active.
+     *
+     * Two orderings matter here and are deliberate. Classification runs FIRST, so an
+     * invalid explicit secret throws instead of being read as absent and silently
+     * contributing. The database authority is required only AFTER the derived branch is
+     * taken, so an application in explicit mode is not forced to stand up a database
+     * authority for a contribution it does not make.
+     */
     public function applicationMasterRekeyContributions(): iterable
     {
+        if (!AuthTokenSecret::usesDerivedCustody(
+            ($this->config['auth'] ?? [])['token_secret'] ?? null,
+            $this->resolveRuntimeEnvironment(),
+        )) {
+            return;
+        }
+
         $database = $this->resolveOptional(\Waaseyaa\Database\DatabaseInterface::class);
         if (!$database instanceof \Waaseyaa\Database\DatabaseInterface) {
             throw new \LogicException('Auth-token HMAC rekey composition requires the kernel database authority.');
