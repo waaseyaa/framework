@@ -89,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trailing, and binding nothing preserves the existing relative `/{entityTypeId}/{id}`
   locs, `?format=md` links, and empty-document degradation.
 
-  All six public types carry an explicit `public` disposition, including the
+  All seven public types carry an explicit `public` disposition, including the
   concrete finals the parity scanner cannot discover. `DiscoverySurfaceGovernanceTest`
   keeps the annotations and the map in lockstep in both directions and is derived
   from the filesystem, so a future `Waaseyaa\Seo\Discovery` type cannot ship

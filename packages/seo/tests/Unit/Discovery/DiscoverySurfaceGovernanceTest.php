@@ -31,9 +31,9 @@ use PHPUnit\Framework\TestCase;
  *    no map entry fails immediately, so a future contract cannot ship
  *    ungoverned the way one already nearly did.
  *  - **type removed, map entry kept.** `tools/check-surface-parity.php` fails
- *    this, for every one of this namespace's six public types, and requires an
+ *    this, for every one of this namespace's seven public types, and requires an
  *    explicit `### Removed` authorization to proceed (#2505 / #2510). An earlier
- *    revision of this class claimed the gate was disarmed for five of the six by
+ *    revision of this class claimed the gate was disarmed for six of the seven by
  *    a `CHANGELOG.md` name match; that was true of the gate as it stood, and
  *    #2510 has since closed it. {@see self::every_governed_entry_still_resolves()}
  *    is kept as a cheap local assertion of the same property, so this suite still
