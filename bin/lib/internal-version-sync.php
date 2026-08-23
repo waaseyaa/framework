@@ -275,19 +275,73 @@ function syncManifestFile(string $manifestPath, string $constraint): bool
 }
 
 /**
- * Synchronize path-package dependency metadata embedded in the root lock.
+ * Find structural drift between path-package manifests and root-lock metadata.
  *
- * Composer copies each path package's production `require` object into
- * composer.lock. The release cut mutates package manifests without running a
- * network-dependent Composer update, so that copied metadata must move in the
- * same deterministic operation. Third-party packages, content-hash, versions,
- * references, and every other lock field remain untouched.
+ * Composer copies each local package's production `require` object into the
+ * root lock. Internal constraint values intentionally move during a release
+ * sweep, but adding or removing a dependency key requires Composer to
+ * regenerate the lock entry first.
  *
  * @param list<string> $manifestPaths Absolute package manifest paths.
  *
- * @throws \RuntimeException On malformed JSON or read/write failure.
+ * @return list<array{package: string, missing: list<string>, extra: list<string>}>
+ *
+ * @throws \RuntimeException On malformed JSON or read failure.
  */
-function syncRootLockFile(string $lockPath, array $manifestPaths): bool
+function findRootLockDependencyKeyDrift(string $lockPath, array $manifestPaths): array
+{
+    [, $lock, $requiresByPackage] = readRootLockDependencyMetadata($lockPath, $manifestPaths);
+    $drift = [];
+
+    foreach (['packages', 'packages-dev'] as $section) {
+        $packages = $lock->{$section} ?? null;
+        if (!is_array($packages)) {
+            continue;
+        }
+
+        foreach ($packages as $package) {
+            if (!$package instanceof \stdClass) {
+                continue;
+            }
+            $name = $package->name ?? null;
+            if (!is_string($name) || !isset($requiresByPackage[$name])) {
+                continue;
+            }
+
+            $lockedRequireObject = $package->require ?? null;
+            $lockedRequire = $lockedRequireObject instanceof \stdClass
+                ? get_object_vars($lockedRequireObject)
+                : [];
+            $lockedKeys = array_keys($lockedRequire);
+            $expectedKeys = array_keys($requiresByPackage[$name]);
+            $missing = array_values(array_diff($expectedKeys, $lockedKeys));
+            $extra = array_values(array_diff($lockedKeys, $expectedKeys));
+            sort($missing);
+            sort($extra);
+
+            if ($missing !== [] || $extra !== []) {
+                $drift[] = [
+                    'package' => $name,
+                    'missing' => $missing,
+                    'extra' => $extra,
+                ];
+            }
+        }
+    }
+
+    return $drift;
+}
+
+/**
+ * Read the root lock and the production requirements of local package manifests.
+ *
+ * @param list<string> $manifestPaths Absolute package manifest paths.
+ *
+ * @return array{string, \stdClass, array<string, array<string, string>>}
+ *
+ * @throws \RuntimeException On malformed JSON or read failure.
+ */
+function readRootLockDependencyMetadata(string $lockPath, array $manifestPaths): array
 {
     $original = file_get_contents($lockPath);
     if ($original === false) {
@@ -325,6 +379,34 @@ function syncRootLockFile(string $lockPath, array $manifestPaths): bool
         }
     }
 
+    return [$original, $lock, $requiresByPackage];
+}
+
+/**
+ * Synchronize path-package dependency metadata embedded in the root lock.
+ *
+ * Composer copies each path package's production `require` object into
+ * composer.lock. The release cut mutates package manifests without running a
+ * network-dependent Composer update, so that copied metadata must move in the
+ * same deterministic operation. Third-party packages, content-hash, versions,
+ * references, and every other lock field remain untouched.
+ *
+ * @param list<string> $manifestPaths Absolute package manifest paths.
+ *
+ * @throws \RuntimeException On malformed JSON or read/write failure.
+ */
+function syncRootLockFile(string $lockPath, array $manifestPaths): bool
+{
+    $dependencyKeyDrift = findRootLockDependencyKeyDrift($lockPath, $manifestPaths);
+    if ($dependencyKeyDrift !== []) {
+        throw new \RuntimeException(sprintf(
+            '%s package %s has dependency-key drift; regenerate the root lock before release.',
+            $lockPath,
+            $dependencyKeyDrift[0]['package'],
+        ));
+    }
+    [$original, $lock, $requiresByPackage] = readRootLockDependencyMetadata($lockPath, $manifestPaths);
+
     $changed = false;
     foreach (['packages', 'packages-dev'] as $section) {
         $packages = $lock->{$section} ?? null;
@@ -345,18 +427,6 @@ function syncRootLockFile(string $lockPath, array $manifestPaths): bool
                 ? get_object_vars($lockedRequireObject)
                 : [];
             $expectedRequire = $requiresByPackage[$name];
-            $lockedKeys = array_keys($lockedRequire);
-            $expectedKeys = array_keys($expectedRequire);
-            sort($lockedKeys);
-            sort($expectedKeys);
-            if ($lockedKeys !== $expectedKeys) {
-                throw new \RuntimeException(sprintf(
-                    '%s package %s has dependency-key drift; regenerate the root lock before release.',
-                    $lockPath,
-                    $name,
-                ));
-            }
-
             foreach ($expectedRequire as $dependency => $constraint) {
                 if (!str_starts_with($dependency, 'waaseyaa/')) {
                     if (($lockedRequire[$dependency] ?? null) !== $constraint) {

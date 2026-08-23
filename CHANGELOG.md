@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — release constraint sync now fails in ordinary CI when local package
+  dependency keys drift from the root lock (#2511):** Composer policy compares
+  each path package's production `require` keys with the metadata copied into
+  `composer.lock`, reporting missing and extra keys before a release cut starts.
+  The alpha.297 attempt exposed the gap when `waaseyaa/attachment` required
+  `waaseyaa/entity-storage` but its root-lock entry did not. The lock is
+  regenerated through Composer with no package install, update, removal, or
+  dependency identity movement; release-time synchronization retains its
+  existing refusal as defense in depth.
+
 - **Fixed — public-surface removal governance now requires exact, current
   authorization (#2505).** `check-surface-parity.php` compares the governed map
   with the candidate's merge base, so deleting both a concrete final class and
