@@ -171,15 +171,16 @@ jobs:
           echo "Installed: ${installed} (expected ${CONSTRAINT})"
           [[ "$installed_normalized" == "$expected_normalized" ]] || { echo "version mismatch" >&2; exit 1; }
 
-      - name: Run migrations
+      - name: Initialize governed fresh install
         working-directory: smoke-app
         env:
           APP_ENV: local
         run: |
-          # migrate is non-interactive by design; redirect stdin from
-          # /dev/null so any future prompt EOF-falls-back to default.
-          # Avoids --no-interaction which wasn't a global option in alpha.187.
-          ./vendor/bin/waaseyaa migrate </dev/null
+          # `migrate` creates tables but does not activate the CFG-02 genesis
+          # generation. Runtime entity writes resolve active configuration, so
+          # a migration-only smoke tests an invalid installation state. Exercise
+          # the same governed boundary a real fresh deployment must use.
+          ./vendor/bin/waaseyaa install:init </dev/null
 
       - name: Entity round-trip smoke
         working-directory: smoke-app
