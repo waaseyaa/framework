@@ -6,6 +6,7 @@ namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 final class CloverCoverageMergerTest extends TestCase
 {
@@ -84,13 +85,15 @@ final class CloverCoverageMergerTest extends TestCase
     private function runMerger(string $output, string ...$inputs): array
     {
         $command = [PHP_BINARY, dirname(__DIR__, 2) . '/bin/merge-clover-coverage', '--output=' . $output, ...$inputs];
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        self::assertIsResource($process);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        // proc_open received neither a cwd nor an env array, so the child
+        // inherited both; timeout null keeps the call unbounded as before.
+        $process = new Process($command, null, null, null, null);
+        $exit = $process->run();
 
-        return ['exit' => proc_close($process), 'output' => (string) $stdout, 'error' => (string) $stderr];
+        return [
+            'exit' => $exit,
+            'output' => $process->getOutput(),
+            'error' => $process->getErrorOutput(),
+        ];
     }
 }

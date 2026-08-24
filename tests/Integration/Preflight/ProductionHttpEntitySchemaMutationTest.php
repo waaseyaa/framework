@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Process\Process;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Handler\FieldAccessPreflightHandler;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
@@ -192,32 +193,36 @@ final class ProductionHttpEntitySchemaMutationTest extends TestCase
         $this->sqlite()->exec('DROP TABLE IF EXISTS attachment');
         $this->writeReadyPreflight();
         $probe = __DIR__ . '/Fixtures/production_http_entity_schema_probe.php';
-        $command = sprintf(
-            '%s %s %s %s',
-            escapeshellarg(PHP_BINARY),
-            escapeshellarg($probe),
-            escapeshellarg($this->projectRoot),
-            escapeshellarg($this->secret),
-        );
-        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $one = proc_open($command, $descriptors, $pipesOne);
-        $two = proc_open($command, $descriptors, $pipesTwo);
-        self::assertIsResource($one);
-        self::assertIsResource($two);
-        $outOne = stream_get_contents($pipesOne[1]);
-        $errOne = stream_get_contents($pipesOne[2]);
-        $outTwo = stream_get_contents($pipesTwo[1]);
-        $errTwo = stream_get_contents($pipesTwo[2]);
-        fclose($pipesOne[1]);
-        fclose($pipesOne[2]);
-        fclose($pipesTwo[1]);
-        fclose($pipesTwo[2]);
-        $statusOne = proc_close($one);
-        $statusTwo = proc_close($two);
-        self::assertSame(0, $statusOne, (string) $outOne . (string) $errOne);
-        self::assertSame(0, $statusTwo, (string) $outTwo . (string) $errTwo);
-        $resultOne = json_decode((string) $outOne, true, flags: JSON_THROW_ON_ERROR);
-        $resultTwo = json_decode((string) $outTwo, true, flags: JSON_THROW_ON_ERROR);
+        // proc_open drained stdout to EOF before touching stderr, so a probe
+        // that filled the ~64KB stderr buffer wedged both sides (#2491).
+        //
+        // The old command string was a shell hop built purely from
+        // escapeshellarg'd tokens, so the array form below is exactly
+        // equivalent and drops the hop. proc_open got no cwd and no env
+        // argument, so the children inherited both — null for each preserves
+        // that. fd 0 was never declared, so the children inherited stdin; the
+        // probe does not read it, so $input null is equivalent. timeout null
+        // preserves the previous absence of any time bound.
+        //
+        // The CONCURRENCY IS THE TEST: both probes must be in flight at once so
+        // they race on the schema mutation. Hence start() on both BEFORE
+        // wait()ing on either — run() would drive the first to completion
+        // before the second was even spawned and silently void the scenario.
+        $command = [PHP_BINARY, $probe, $this->projectRoot, $this->secret];
+        $one = new Process($command, null, null, null, null);
+        $two = new Process($command, null, null, null, null);
+        $one->start();
+        $two->start();
+        $statusOne = $one->wait();
+        $statusTwo = $two->wait();
+        $outOne = $one->getOutput();
+        $errOne = $one->getErrorOutput();
+        $outTwo = $two->getOutput();
+        $errTwo = $two->getErrorOutput();
+        self::assertSame(0, $statusOne, $outOne . $errOne);
+        self::assertSame(0, $statusTwo, $outTwo . $errTwo);
+        $resultOne = json_decode($outOne, true, flags: JSON_THROW_ON_ERROR);
+        $resultTwo = json_decode($outTwo, true, flags: JSON_THROW_ON_ERROR);
         self::assertFalse($resultOne['booted']);
         self::assertFalse($resultTwo['booted']);
         self::assertStringContainsString('S1-DB106', (string) $resultOne['error']);

@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * Exercises bin/verify-random-order-vendor-archive against real fixture
@@ -144,15 +145,16 @@ final class RandomOrderVendorArchiveIntegrityTest extends TestCase
     private function runVerify(string $root, string $archiveDir, string $workDir): array
     {
         $command = [$this->repoRoot . '/bin/verify-random-order-vendor-archive', $archiveDir, $workDir];
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root);
-        self::assertIsResource($process);
+        // cwd preserved exactly ($root); env null because proc_open was given
+        // no env array, so the child inherited the parent's. timeout null
+        // keeps the verifier run unbounded as it was.
+        $process = new Process($command, $root, null, null, null);
+        $exitCode = $process->run();
 
-        $stdout = (string) stream_get_contents($pipes[1]);
-        $stderr = (string) stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        return ['exit_code' => proc_close($process), 'output' => $stdout . $stderr];
+        return [
+            'exit_code' => $exitCode,
+            'output' => $process->getOutput() . $process->getErrorOutput(),
+        ];
     }
 
     /**

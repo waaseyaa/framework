@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * Fixture-driven proof that `bin/check-package-layers` flags BOTH classes of
@@ -703,6 +704,61 @@ final class CheckPackageLayersGateTest extends TestCase
         );
     }
 
+    #[Test]
+    public function gate_child_cannot_see_the_suite_environment(): void
+    {
+        // Pins the env-REPLACEMENT semantics replacingEnv() restores (#2491).
+        // proc_open handed the child exactly the array runGate() builds; Symfony
+        // Process merges onto the inherited environment instead. That matters
+        // because bin/check-package-layers reads WAASEYAA_OUTPUT and switches to
+        // JSON when it is 'json' — every assertStringContainsString in this class
+        // would break. Without replacingEnv() this test fails.
+        // Capture all three stores. Under this repo's variables_order=GPCS,
+        // $_ENV is empty even for an exported variable, so restoring only
+        // $_ENV/$_SERVER would let the unconditional putenv() below destroy an
+        // inherited WAASEYAA_OUTPUT for every later test in the process —
+        // exactly the ordering coupling bin/test-random-order exists to catch.
+        $restore = [
+            'env' => $_ENV['WAASEYAA_OUTPUT'] ?? null,
+            'server' => $_SERVER['WAASEYAA_OUTPUT'] ?? null,
+            'environ' => getenv('WAASEYAA_OUTPUT'),
+        ];
+        $_ENV['WAASEYAA_OUTPUT'] = 'json';
+        $_SERVER['WAASEYAA_OUTPUT'] = 'json';
+        putenv('WAASEYAA_OUTPUT=json');
+
+        try {
+            $this->writeFixturePackage(
+                short: 'plugin',
+                require: ['php' => '>=8.5', 'waaseyaa/queue' => '^0.1'],
+                relativeSrcFile: 'src/Demo.php',
+                useStatements: ['Waaseyaa\\Queue\\QueueInterface'],
+            );
+
+            [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+            self::assertSame(0, $exit, $out);
+            self::assertStringContainsString('OK', $out);
+            self::assertStringNotContainsString('"findings"', $out);
+        } finally {
+            if ($restore['env'] === null) {
+                unset($_ENV['WAASEYAA_OUTPUT']);
+            } else {
+                $_ENV['WAASEYAA_OUTPUT'] = $restore['env'];
+            }
+            if ($restore['server'] === null) {
+                unset($_SERVER['WAASEYAA_OUTPUT']);
+            } else {
+                $_SERVER['WAASEYAA_OUTPUT'] = $restore['server'];
+            }
+            if ($restore['environ'] === false) {
+                putenv('WAASEYAA_OUTPUT');
+            } else {
+                putenv('WAASEYAA_OUTPUT=' . $restore['environ']);
+            }
+        }
+    }
+
     /**
      * @return array{0: int, 1: string} [exitCode, combinedOutput]
      */
@@ -730,23 +786,46 @@ final class CheckPackageLayersGateTest extends TestCase
             'PATH' => getenv('PATH') ?: '/usr/bin:/bin',
         ];
 
-        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $process = proc_open(
+        $process = new Process(
             [PHP_BINARY, $gatePath ?? $this->gate],
-            $descriptors,
-            $pipes,
             $this->tmpRoot,
-            $env,
+            self::replacingEnv($env),
+            null,
+            null,
         );
-        self::assertIsResource($process);
+        $exit = $process->run();
 
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exit = proc_close($process);
+        return [$exit, $process->getOutput() . $process->getErrorOutput()];
+    }
 
-        return [$exit, (string) $stdout . (string) $stderr];
+    /**
+     * Reproduce proc_open's environment-REPLACEMENT semantics.
+     *
+     * proc_open handed an explicit env array gives the child exactly that array
+     * and nothing else. Symfony Process instead MERGES the array onto the
+     * inherited environment (`$env += $this->getDefaultEnv()` in
+     * Process::start()), so a variable this fixture deliberately withholds would
+     * leak in from whoever ran the suite.
+     *
+     * That difference is load-bearing here, not theoretical:
+     * bin/check-package-layers reads WAASEYAA_OUTPUT and switches to JSON output
+     * when it is 'json', which would break every assertStringContainsString
+     * below. Symfony drops any variable whose value is false, so every inherited
+     * name the caller did not set is pinned to false.
+     *
+     * @param  array<string, string> $explicit
+     * @return array<string, string|false>
+     */
+    private static function replacingEnv(array $explicit): array
+    {
+        $env = $explicit;
+        foreach (array_keys($_ENV + getenv()) as $name) {
+            if (!array_key_exists((string) $name, $env)) {
+                $env[(string) $name] = false;
+            }
+        }
+
+        return $env;
     }
 
     private function removeTree(string $dir): void

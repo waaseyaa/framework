@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — every deadlock-prone `proc_open()` test harness now drives its
+  subprocesses through `symfony/process` (#2491):** 32 subprocess call sites
+  across 26 test files opened stdout and stderr as blocking pipes and drained
+  them sequentially — `stream_get_contents($pipes[1])` ran to EOF before
+  `$pipes[2]` was read — so a child filling the ~64KB stderr buffer wedged both
+  sides and hung the suite. These harnesses invoke composer, gate scripts, and
+  acceptance runners whose stderr is bounded by nothing. `symfony/process` and
+  `symfony/filesystem` are now declared explicitly in the root `require-dev`
+  (they were previously reachable only transitively via `php-cs-fixer` and
+  `infection`); neither enters any package's runtime `require`, so no consumer
+  of `core`, `cms`, or `full` gains a dependency.
+
+  Exactly **two** `proc_open()` call sites remain in test and benchmark scope,
+  both retained because they are already safe and both now documented in place:
+  `benchmarks/BenchmarkProcessRunner.php` (non-blocking pipes multiplexed with
+  `stream_select()`; additionally hash-frozen in
+  `tests/Integration/FieldReadPagePerformance/fixture-manifest.json` and running
+  with no autoloader, so a Symfony import could not resolve there) and
+  `PagePerformanceHarnessContractTest::runProbeWithDeadline()` (both pipes
+  non-blocking and drained together under a hard 3s deadline with SIGTERM
+  escalated to SIGKILL, kept independent so the deadlock probe it runs does not
+  become self-referential). Both are now proven at 256KiB on both streams.
+  `tests/Architecture/SubprocessHarnessContractTest.php` locks the result: it
+  tokenizes every file under `tests/`, `benchmarks/`, and `packages/*/tests/`
+  and fails if any `proc_open()` call site appears that is not on its
+  rationale-carrying allowlist.
+
+  Behaviour is preserved deliberately, not incidentally. Every converted call
+  passes `timeout: null`, because none of these harnesses was time-bounded
+  before and Symfony's constructor otherwise imposes 60 seconds — several of
+  them legitimately run longer. The seven harnesses that handed `proc_open()` an
+  explicit environment array keep their *replacement* semantics through
+  `Waaseyaa\Tests\Support\ReplacesProcessEnvironment`, because Symfony merges
+  onto the inherited environment instead; that difference is load-bearing, since
+  gate scripts read ambient switches such as `WAASEYAA_OUTPUT`, `TMPDIR`, and
+  `FRANKENPHP_BINARY`, and a merged environment silently changes which branch a
+  gate takes. Measured on this repository: a merged conversion hands the child
+  60 variables where `proc_open()` passed 2. Command arrays, cwd, stdin
+  payloads, exit codes, return-array shapes, and stdout/stderr concatenation
+  order are unchanged; concurrent and long-lived children keep
+  `start()`/`wait()`/`stop()` lifecycles rather than collapsing to `run()`.
+
+  The six intentional production `proc_open()` call sites under `packages/*/src`
+  are untouched. The recursive-remover conversion to `symfony/filesystem` is
+  Wave 2b and is not part of this change.
+
 - **Fixed — a stray nested `packages/*/vendor/` tree no longer poisons local
   PHPStan (#2128).** `phpstan.neon` analyses the whole `packages` root, and none
   of its `excludePaths.analyseAndScan` patterns matched a package-local Composer

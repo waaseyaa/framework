@@ -7,6 +7,7 @@ namespace Waaseyaa\Migration\Tests\Unit\Runner;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 use Waaseyaa\Migration\Exception\MigrationConcurrencyException;
 use Waaseyaa\Migration\Runner\MigrationLock;
 
@@ -233,27 +234,23 @@ PHP;
      */
     private function runChildScript(string $source): int
     {
-        $proc = \proc_open(
+        // The child PHP source arrives on stdin, which proc_open wrote and then
+        // closed; Symfony Process takes it as the constructor's $input and does
+        // the same. env null matches the omitted proc_open argument, and timeout
+        // null keeps the previous absence of any time bound — this test
+        // deliberately holds a contended lock while the child tries to acquire it.
+        $process = new Process(
             [\PHP_BINARY, '-d', 'error_reporting=E_ALL'],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
+            null,
+            null,
+            $source,
+            null,
         );
-
-        if (!\is_resource($proc)) {
-            self::fail('Could not spawn child PHP process.');
-        }
-
-        \fwrite($pipes[0], $source);
-        \fclose($pipes[0]);
-        \stream_get_contents($pipes[1]);
-        $stderr = \stream_get_contents($pipes[2]);
-        \fclose($pipes[1]);
-        \fclose($pipes[2]);
-
-        $exitCode = \proc_close($proc);
+        $exitCode = $process->run();
+        $stderr = $process->getErrorOutput();
 
         // Surface stderr to PHPUnit on failure paths for debuggability.
-        if ($exitCode !== 10 && \is_string($stderr) && $stderr !== '') {
+        if ($exitCode !== 10 && $stderr !== '') {
             \fwrite(\STDERR, "[child stderr] {$stderr}\n");
         }
 

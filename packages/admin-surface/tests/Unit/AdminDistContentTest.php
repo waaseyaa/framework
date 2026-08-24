@@ -7,6 +7,7 @@ namespace Waaseyaa\AdminSurface\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * D6 served-bundle content assertion.
@@ -161,19 +162,21 @@ final class AdminDistContentTest extends TestCase
     private function buildContentSignature(): string
     {
         $root = dirname(__DIR__, 4);
-        $process = proc_open(
+        // No env argument was passed to proc_open, so env null is the closest
+        // equivalent: Symfony hands the child $_ENV plus getenv() filtered
+        // through $_SERVER, which covers every genuinely exported variable
+        // (putenv()-only names are not propagated either way here). timeout null
+        // preserves the previous absence of any bound; Symfony otherwise
+        // imposes 60s.
+        $process = new Process(
             [PHP_BINARY, $root . '/bin/check-admin-dist-fresh', '--print-build-id'],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
             $root,
+            null,
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        self::assertSame(0, proc_close($process), (string) $stderr);
-        $signature = trim((string) $stdout);
+        self::assertSame(0, $process->run(), $process->getErrorOutput());
+        $signature = trim($process->getOutput());
         self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $signature);
 
         return $signature;

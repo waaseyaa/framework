@@ -7,6 +7,8 @@ namespace Waaseyaa\Tests\Integration\ReleaseTooling;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
 /**
  * Integration tests for the CP-NEW gate in bin/check-composer-policy.
@@ -23,6 +25,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class CpNewCheckTest extends TestCase
 {
+    use ReplacesProcessEnvironment;
+
     private string $tempDir = '';
 
     /** Path to the real check-composer-policy script. */
@@ -139,32 +143,28 @@ final class CpNewCheckTest extends TestCase
      */
     private function runGate(): array
     {
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
+        // proc_open drained stdout to EOF before touching stderr, so a gate that
+        // filled the ~64KB stderr buffer wedged both sides (#2491).
+        // proc_open received an EXPLICIT env array, which REPLACES the child
+        // environment; Symfony Process merges instead, so replacingEnv() pins
+        // every inherited name the caller did not set. stdin was opened but
+        // never written, so $input null is equivalent. timeout null preserves
+        // the previous absence of any time bound.
         $env = array_merge(getenv(), ['ROOT_DIR' => $this->tempDir]);
 
-        $proc = proc_open(
+        $process = new Process(
             [PHP_BINARY, $this->scriptPath],
-            $descriptors,
-            $pipes,
             $this->tempDir,
-            $env,
+            self::replacingEnv($env),
+            null,
+            null,
         );
-
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[0]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exit_code = proc_close($proc);
+        $exit_code = $process->run();
 
         return [
             'exit_code' => $exit_code,
-            'stdout'    => (string) $stdout,
-            'stderr'    => (string) $stderr,
+            'stdout'    => $process->getOutput(),
+            'stderr'    => $process->getErrorOutput(),
         ];
     }
 

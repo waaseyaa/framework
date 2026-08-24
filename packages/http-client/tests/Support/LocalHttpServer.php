@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\HttpClient\Tests\Support;
 
+use Symfony\Component\Process\Exception\ProcessStartFailedException;
+use Symfony\Component\Process\Process;
+
 /**
  * A throwaway `php -S` HTTP server for transport-level tests.
  *
@@ -15,11 +18,7 @@ final class LocalHttpServer
 {
     private const HOST = '127.0.0.1';
 
-    /** @var resource */
-    private $process;
-
-    /** @var array<int, resource> */
-    private array $pipes = [];
+    private readonly Process $process;
 
     private readonly string $logFile;
 
@@ -36,23 +35,25 @@ final class LocalHttpServer
         $this->logFile = $logFile;
         file_put_contents($this->logFile, '');
 
-        $process = proc_open(
+        // cwd null and timeout null match the previous proc_open call: the child
+        // inherited the caller's cwd and was never time-bounded. The server is
+        // long-lived, so Symfony's 60s default timeout must not apply.
+        $this->process = new Process(
             [PHP_BINARY, '-S', self::HOST . ':' . $this->port, __DIR__ . '/server-router.php'],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $this->pipes,
             null,
-            ['WAASEYAA_TEST_LOG' => $this->logFile, 'PATH' => getenv('PATH') ?: '/usr/bin:/bin'],
+            self::replacingEnv([
+                'WAASEYAA_TEST_LOG' => $this->logFile,
+                'PATH' => getenv('PATH') ?: '/usr/bin:/bin',
+            ]),
+            null,
+            null,
         );
 
-        if (!is_resource($process)) {
+        try {
+            $this->process->start();
+        } catch (ProcessStartFailedException $e) {
             @unlink($this->logFile);
-            throw new \RuntimeException('Could not start php -S server.');
-        }
-        $this->process = $process;
-        foreach ([1, 2] as $i) {
-            if (isset($this->pipes[$i]) && is_resource($this->pipes[$i])) {
-                stream_set_blocking($this->pipes[$i], false);
-            }
+            throw new \RuntimeException('Could not start php -S server.', 0, $e);
         }
 
         $this->waitUntilReady();
@@ -81,18 +82,38 @@ final class LocalHttpServer
 
     public function stop(): void
     {
-        if (is_resource($this->process)) {
-            proc_terminate($this->process);
-            foreach ($this->pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-            proc_close($this->process);
+        if ($this->process->isRunning()) {
+            $this->process->stop();
         }
         if (is_file($this->logFile)) {
             @unlink($this->logFile);
         }
+    }
+
+    /**
+     * Reproduce proc_open's environment-REPLACEMENT semantics.
+     *
+     * proc_open handed an explicit env array gave this `php -S` child exactly
+     * those two variables. Symfony Process instead MERGES the array onto the
+     * inherited environment (`$env += $this->getDefaultEnv()` in
+     * Process::start()), which would hand the router the whole suite
+     * environment — APP_ENV, APP_DEBUG, WAASEYAA_DB and friends included.
+     * Symfony drops any variable whose value is false, so every inherited name
+     * the caller did not set is pinned to false.
+     *
+     * @param  array<string, string> $explicit
+     * @return array<string, string|false>
+     */
+    private static function replacingEnv(array $explicit): array
+    {
+        $env = $explicit;
+        foreach (array_keys($_ENV + getenv()) as $name) {
+            if (!array_key_exists((string) $name, $env)) {
+                $env[(string) $name] = false;
+            }
+        }
+
+        return $env;
     }
 
     private function waitUntilReady(): void

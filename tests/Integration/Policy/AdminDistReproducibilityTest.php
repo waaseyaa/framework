@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Policy;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class AdminDistReproducibilityTest extends TestCase
@@ -177,37 +178,43 @@ final class AdminDistReproducibilityTest extends TestCase
 
     private function signature(string $root, string $mode): string
     {
-        $process = proc_open(
+        // #2491 names this file's runners directly: stdout was drained to EOF
+        // before stderr was touched, so a child filling the ~64KB stderr buffer
+        // wedged both sides. proc_open got neither a cwd nor an env argument,
+        // so the child inherited both: null for each, never []. timeout null
+        // because this was never time-bounded and the freshness check can
+        // legitimately outrun Symfony's 60-second constructor default.
+        $process = new Process(
             [PHP_BINARY, $root . '/bin/check-admin-dist-fresh', $mode],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
+            null,
+            null,
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        self::assertSame(0, proc_close($process), (string) $stderr);
+        $exit = $process->run();
+        self::assertSame(0, $exit, $process->getErrorOutput());
 
-        return trim((string) $stdout);
+        return trim($process->getOutput());
     }
 
     /** @return array{int, string, string} */
     private function normalize(string $dist): array
     {
-        $process = proc_open(
+        // Same sequential-drain defect as signature() above (#2491). The stdin
+        // pipe was opened and closed without a byte being written, so Symfony's
+        // $input of null is equivalent. cwd and env were both omitted and
+        // therefore inherited: null for each, never []. timeout null because
+        // normalisation walks a whole dist tree and was never time-bounded.
+        $process = new Process(
             [PHP_BINARY, self::BIN, $dist, self::SIGNATURE],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
+            null,
+            null,
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        $exit = $process->run();
 
-        return [proc_close($process), (string) $stdout, (string) $stderr];
+        return [$exit, $process->getOutput(), $process->getErrorOutput()];
     }
 
     /** @return array<string, string> */

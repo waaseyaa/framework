@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class GovernedSecretAccessContractTest extends TestCase
@@ -66,19 +67,12 @@ final class GovernedSecretAccessContractTest extends TestCase
      */
     private function runCommand(array $command): array
     {
-        $pipes = [];
-        $process = proc_open($command, [
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ], $pipes, $this->root);
-        self::assertIsResource($process);
+        // proc_open() received no env argument, so the child inherited this
+        // process's environment; Symfony reproduces that with a null $env.
+        // timeout: null keeps the gate untimed, as it was (#2491).
+        $process = new Process($command, $this->root, null, null, null);
+        $exit = $process->run();
 
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exit = proc_close($process);
-
-        return [$exit, (string) $stdout . (string) $stderr];
+        return [$exit, $process->getOutput() . $process->getErrorOutput()];
     }
 }

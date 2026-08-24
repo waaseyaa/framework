@@ -7,6 +7,8 @@ namespace Waaseyaa\Tests\Integration\Policy;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
 /**
  * Integration tests for bin/check-vendor-fresh — the pre-push fast guard that
@@ -17,7 +19,7 @@ use PHPUnit\Framework\TestCase;
  * Each test builds a minimal ephemeral fixture tree under sys_get_temp_dir()
  * (composer.json + composer.lock + vendor/composer/{installed.json,
  * autoload_psr4.php} + vendor/autoload.php), runs the live script via
- * proc_open with ROOT_DIR injected, and asserts the exit code + message.
+ * Symfony Process with ROOT_DIR injected, and asserts the exit code + message.
  *
  * Failing-first: against the pre-guard state (no bin/check-vendor-fresh) these
  * tests error because the script does not exist; they pass only once the guard
@@ -27,6 +29,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class CheckVendorFreshTest extends TestCase
 {
+    use ReplacesProcessEnvironment;
+
     private const BIN = __DIR__ . '/../../../bin/check-vendor-fresh';
 
     /** @var list<string> */
@@ -205,28 +209,25 @@ final class CheckVendorFreshTest extends TestCase
      */
     private function runScript(string $fixtureRoot): array
     {
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-
+        // proc_open drained stdout to EOF before touching stderr, so a script
+        // that filled the ~64KB stderr buffer wedged both sides (#2491).
+        // proc_open received an EXPLICIT env array, which REPLACES the child
+        // environment; Symfony Process merges instead, so replacingEnv() pins
+        // every inherited name the caller did not set. stdin was opened and
+        // immediately closed without a write, so $input null is equivalent.
+        // timeout null preserves the previous absence of any time bound.
         $env = array_merge(getenv(), ['ROOT_DIR' => $fixtureRoot]);
 
-        $process = proc_open([PHP_BINARY, self::BIN], $descriptors, $pipes, $fixtureRoot, $env);
-        self::assertIsResource($process, 'proc_open failed for bin/check-vendor-fresh');
+        $process = new Process(
+            [PHP_BINARY, self::BIN],
+            $fixtureRoot,
+            self::replacingEnv($env),
+            null,
+            null,
+        );
+        $exitCode = $process->run();
 
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exitCode = proc_close($process);
-
-        self::assertIsString($stdout);
-        self::assertIsString($stderr);
-
-        return [$exitCode, $stdout, $stderr];
+        return [$exitCode, $process->getOutput(), $process->getErrorOutput()];
     }
 
     private function removeDirectory(string $dir): void

@@ -6,6 +6,7 @@ namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 final class PhpUnitShardPlannerTest extends TestCase
 {
@@ -266,13 +267,7 @@ final class PhpUnitShardPlannerTest extends TestCase
             '--timings=' . $timings,
             '--shards=' . $shards,
         ];
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        self::assertIsResource($process);
-        $output = stream_get_contents($pipes[1]);
-        $error = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exit = proc_close($process);
+        ['exit' => $exit, 'output' => $output, 'error' => $error] = self::runProcess($command);
         self::assertSame('', $error);
 
         return ['exit' => $exit, 'output' => (string) $output];
@@ -289,13 +284,7 @@ final class PhpUnitShardPlannerTest extends TestCase
     private function runPlannerRaw(array $args): array
     {
         $command = array_merge([PHP_BINARY, dirname(__DIR__, 2) . '/bin/build-phpunit-shards'], $args);
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        self::assertIsResource($process);
-        $output = stream_get_contents($pipes[1]);
-        $error = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exit = proc_close($process);
+        ['exit' => $exit, 'output' => $output, 'error' => $error] = self::runProcess($command);
 
         return ['exit' => $exit, 'output' => (string) $output, 'error' => (string) $error];
     }
@@ -315,13 +304,7 @@ final class PhpUnitShardPlannerTest extends TestCase
             dirname(__DIR__, 2) . '/bin/build-phpunit-shards',
             '--timings=' . dirname(__DIR__, 2) . '/tools/phpunit-timings.json',
         ], $extraArgs);
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        self::assertIsResource($process);
-        $output = stream_get_contents($pipes[1]);
-        $error = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exit = proc_close($process);
+        ['exit' => $exit, 'output' => $output, 'error' => $error] = self::runProcess($command);
 
         return ['exit' => $exit, 'output' => (string) $output, 'error' => (string) $error];
     }
@@ -336,5 +319,28 @@ final class PhpUnitShardPlannerTest extends TestCase
         self::assertSame(0, $result['exit'], $result['error']);
 
         return json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Shared subprocess runner for the three planner helpers above, which
+     * previously repeated the same blocking proc_open() drain verbatim.
+     *
+     * cwd and environment are both inherited (proc_open was given neither),
+     * so both stay null, and timeout null keeps the run unbounded exactly as
+     * it was.
+     *
+     * @param  list<string> $command
+     * @return array{exit: int, output: string, error: string}
+     */
+    private static function runProcess(array $command): array
+    {
+        $process = new Process($command, null, null, null, null);
+        $exit = $process->run();
+
+        return [
+            'exit' => $exit,
+            'output' => $process->getOutput(),
+            'error' => $process->getErrorOutput(),
+        ];
     }
 }

@@ -7,6 +7,8 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
 /**
  * #2494. Hosted Framework CI must execute a real FrankenPHP worker against the
@@ -15,6 +17,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class FrankenPhpWorkerRuntimeGateTest extends TestCase
 {
+    use ReplacesProcessEnvironment;
+
     private const string PIN = 'tools/frankenphp-runtime-pin.json';
     private const string HARNESS = 'scripts/acceptance-frankenphp-worker.sh';
     private const string PROBE = 'tests/Acceptance/FrankenPhpWorker/probe.php';
@@ -129,23 +133,23 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
             $env = [];
         }
         $env['FRANKENPHP_BINARY'] = '';
-        $process = proc_open(
+        // proc_open() REPLACED the child environment with $env; Symfony merges
+        // onto the inherited one, so replacingEnv() pins every name $env does
+        // not carry and the child sees exactly $env. The explicit empty
+        // FRANKENPHP_BINARY above survives either way (an explicitly named key
+        // wins the merge), so the trait is used here for the same semantics as
+        // the sibling self-test case below, where withholding a name is what
+        // actually differs. timeout: null — never time-bounded (#2491).
+        $process = new Process(
             ['bash', $harness],
-            [
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ],
-            $pipes,
             $this->repoRoot,
-            $env,
+            self::replacingEnv($env),
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $status = proc_close($process);
+        $status = $process->run();
+        $stderr = $process->getErrorOutput();
         self::assertSame(1, $status);
-        self::assertIsString($stderr);
         self::assertStringContainsString('FRANKENPHP_BINARY', $stderr);
         self::assertStringNotContainsString('skipped', strtolower($stderr));
     }
@@ -159,24 +163,25 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
             $env = [];
         }
         unset($env['FRANKENPHP_BINARY']);
-        $process = proc_open(
+        // The unset() above is the case replacingEnv() exists for: the harness
+        // self-test branches on `[[ -x "${FRANKENPHP_BINARY:-}" ]]`, so a merged
+        // environment would hand an exported binary path straight back to the
+        // child this test deliberately withholds it from, and the child would
+        // take the "binary present" branch instead. Both branches exit 0 today,
+        // so this is about running the branch the fixture selected rather than
+        // about a currently failing assertion.
+        // timeout: null — this gate was never time-bounded (#2491).
+        $process = new Process(
             ['bash', $harness, '--self-test'],
-            [
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ],
-            $pipes,
             $this->repoRoot,
-            $env,
+            self::replacingEnv($env),
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $status = proc_close($process);
-        self::assertSame(0, $status, (string) $stderr);
-        self::assertIsString($stdout);
+        $status = $process->run();
+        $stdout = $process->getOutput();
+        $stderr = $process->getErrorOutput();
+        self::assertSame(0, $status, $stderr);
         self::assertStringContainsString('concurrent PID missing/changed proofs failed closed', $stdout);
         self::assertStringContainsString('absent-tests / request-only / wrong-sapi / path-override / repeat proofs stayed inert', $stdout);
         self::assertStringContainsString('public/storage artifact is treated as a custody failure', $stdout);
