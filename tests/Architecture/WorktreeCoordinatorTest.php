@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class WorktreeCoordinatorTest extends TestCase
@@ -15,10 +16,7 @@ final class WorktreeCoordinatorTest extends TestCase
     private string $fixture;
     private string $repository;
     private string $git;
-    /** @var resource|null */
-    private $activeProcess = null;
-    /** @var array<int, resource> */
-    private array $activePipes = [];
+    private ?Process $activeProcess = null;
 
     protected function setUp(): void
     {
@@ -37,13 +35,11 @@ final class WorktreeCoordinatorTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (is_resource($this->activeProcess)) {
-            proc_terminate($this->activeProcess);
-            foreach ($this->activePipes as $pipe) {
-                fclose($pipe);
-            }
-            proc_close($this->activeProcess);
-        }
+        // stop() sends SIGTERM and escalates to SIGKILL, matching the old
+        // proc_terminate()/proc_close() pair; it is a no-op on a process that
+        // was never started.
+        $this->activeProcess?->stop();
+        $this->activeProcess = null;
         $this->removeTree($this->fixture);
     }
 
@@ -67,15 +63,38 @@ final class WorktreeCoordinatorTest extends TestCase
         file_put_contents($dirty . '/tracked.txt', "dirty\n");
         file_put_contents($dirty . '/untracked.txt', "untracked\n");
 
-        $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $this->activeProcess = proc_open(
+        // A long-lived stand-in for an ACTIVE worktree: it must stay alive while
+        // the coordinator is inspected below, so this is start()/stop(), never
+        // run() (#2491). The command was already an array and its third element
+        // is real shell content, so it stays exactly as it was. proc_open()
+        // received no cwd and no env, so both are null — the child does its own
+        // `cd`. Its stdin pipe was opened but never written, which Symfony's
+        // null $input reproduces. timeout: null — never time-bounded before.
+        $this->activeProcess = new Process(
             ['bash', '-lc', 'cd ' . escapeshellarg($active) . ' && echo ready && exec sleep 30'],
-            $descriptors,
-            $pipes,
+            null,
+            null,
+            null,
+            null,
         );
-        self::assertIsResource($this->activeProcess);
-        $this->activePipes = $pipes;
-        self::assertSame("ready\n", fgets($this->activePipes[1]));
+        $this->activeProcess->start();
+
+        // Bounded replacement for the blocking fgets() readiness handshake.
+        // Liveness is sampled BEFORE the drain so a child that announces and
+        // exits in between is still credited with its announcement.
+        $announcement = '';
+        $deadline = microtime(true) + 10.0;
+        while (!str_contains($announcement, "\n")) {
+            $running = $this->activeProcess->isRunning();
+            $announcement .= $this->activeProcess->getIncrementalOutput();
+            if (str_contains($announcement, "\n")) {
+                break;
+            }
+            self::assertTrue($running, 'Stand-in process exited before announcing readiness: ' . $this->activeProcess->getErrorOutput());
+            self::assertLessThan($deadline, microtime(true), 'Timed out waiting for the stand-in process to announce readiness.');
+            usleep(10_000);
+        }
+        self::assertSame("ready\n", substr($announcement, 0, (int) strpos($announcement, "\n") + 1));
 
         $this->release($branch, 'branch-owner', 'disposable');
         $this->release($detachedSafe, 'detached-owner', 'disposable');

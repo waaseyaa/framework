@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\ReleaseTooling;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class ResolveSplitMainTargetsTest extends TestCase
@@ -159,18 +160,21 @@ final class ResolveSplitMainTargetsTest extends TestCase
     /** @return array{int, string, string} */
     private function runScript(string $selection): array
     {
-        $process = proc_open(
+        // proc_open drained stdout to EOF before touching stderr, so a script
+        // that filled the ~64KB stderr buffer wedged both sides (#2491).
+        // proc_open got no cwd and no env argument, so the child inherited both
+        // — null for each preserves that. stdin was opened and immediately
+        // closed without a write, so $input null is equivalent. timeout null
+        // preserves the previous absence of any time bound.
+        $process = new Process(
             [PHP_BINARY, $this->script, $selection],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
+            null,
+            null,
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        $exit = $process->run();
 
-        return [proc_close($process), (string) $stdout, (string) $stderr];
+        return [$exit, $process->getOutput(), $process->getErrorOutput()];
     }
 }

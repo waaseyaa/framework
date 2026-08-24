@@ -6,6 +6,7 @@ namespace Waaseyaa\Tests\Integration\FreshInstall;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * Reproduces #1980 through the operator-facing fresh-install commands.
@@ -44,27 +45,30 @@ final class MediaVersionSchemaFreshInstallTest extends TestCase
     /** @return array{exit: int, stdout: string, stderr: string} */
     private function runCli(array $arguments, string $database): array
     {
+        // proc_open drained stdout to EOF before touching stderr, so a CLI run
+        // that filled the ~64KB stderr buffer wedged both sides (#2491).
+        //
+        // The old command string was a shell hop whose only shell features were
+        // escapeshellarg'd tokens and two `VAR=value` prefixes. The array form
+        // below is exactly equivalent: bin/waaseyaa is an executable shebang
+        // script, and a `VAR=value` command prefix ADDS to the inherited
+        // environment, which is precisely what Symfony Process does with an env
+        // array (it merges onto the inherited environment). proc_open passed no
+        // env argument, so nothing here is a replacement — do not use
+        // ReplacesProcessEnvironment. cwd is preserved; stdin was opened and
+        // immediately closed without a write, so $input null is equivalent;
+        // timeout null preserves the previous absence of any time bound.
         $projectRoot = dirname(__DIR__, 3);
-        $command = sprintf(
-            'APP_ENV=testing WAASEYAA_DB=%s %s %s',
-            escapeshellarg($database),
-            escapeshellarg($projectRoot . '/bin/waaseyaa'),
-            implode(' ', array_map('escapeshellarg', $arguments)),
-        );
-        $process = proc_open(
-            $command,
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
+
+        $process = new Process(
+            [$projectRoot . '/bin/waaseyaa', ...$arguments],
             $projectRoot,
+            ['APP_ENV' => 'testing', 'WAASEYAA_DB' => $database],
+            null,
+            null,
         );
-        self::assertIsResource($process);
+        $exit = $process->run();
 
-        fclose($pipes[0]);
-        $stdout = (string) stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $stderr = (string) stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
-
-        return ['exit' => proc_close($process), 'stdout' => $stdout, 'stderr' => $stderr];
+        return ['exit' => $exit, 'stdout' => $process->getOutput(), 'stderr' => $process->getErrorOutput()];
     }
 }

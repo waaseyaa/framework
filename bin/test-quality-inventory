@@ -148,6 +148,10 @@ foreach ($phpTestFiles as $path) {
         $waitCategory = match ($path) {
             'tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php',
             'tests/Integration/FreshInstall/CutoverFreshInstallSmokeTest.php',
+            // #2491: the readiness handshake for the long-lived worktree stand-in
+            // polls Process::getIncrementalOutput() on a bounded deadline, which
+            // replaced a blocking fgets() on a raw pipe.
+            'tests/Architecture/WorktreeCoordinatorTest.php',
             'packages/foundation/tests/Integration/Migration/SchemaAuthorityConcurrencyTest.php' => 'subprocess_polling',
             'packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php' => 'subprocess_polling',
             'tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php' => 'filesystem_retry',

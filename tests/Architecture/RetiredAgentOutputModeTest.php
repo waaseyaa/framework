@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class RetiredAgentOutputModeTest extends TestCase
@@ -34,13 +35,14 @@ final class RetiredAgentOutputModeTest extends TestCase
     /** @param list<string> $command @return array{int, string} */
     private function runCommand(array $command, string $cwd): array
     {
-        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $process = proc_open($command, $descriptors, $pipes, $cwd);
-        self::assertIsResource($process);
-        $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        // proc_open drained stdout to EOF before touching stderr, so a child
+        // filling the ~64KB stderr buffer wedged both sides (#2491). No env
+        // argument was passed, so the child inherited the parent environment:
+        // null, never []. timeout null because this was never time-bounded and
+        // Symfony's constructor otherwise imposes 60 seconds.
+        $process = new Process($command, $cwd, null, null, null);
+        $exit = $process->run();
 
-        return [proc_close($process), $output];
+        return [$exit, $process->getOutput() . $process->getErrorOutput()];
     }
 }

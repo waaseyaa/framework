@@ -7,6 +7,8 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
 /**
  * Exercises the --install-only=<file> / --run-tests=<dir> seam added to
@@ -48,6 +50,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class IsolatedPackageInstallOnlyModeTest extends TestCase
 {
+    use ReplacesProcessEnvironment;
+
     /**
      * Deterministic, self-defined stdout noise (round 5 fix): stands in for
      * "whatever a subprocess during the install phase happens to print" —
@@ -304,15 +308,20 @@ final class IsolatedPackageInstallOnlyModeTest extends TestCase
         $env['PATH'] = $stubBin . ':' . (getenv('PATH') ?: '/usr/bin:/bin');
         $env['ISOLATED_PACKAGE_TEST_MARKER'] = $markerFile;
 
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->repoRoot, $env);
-        self::assertIsResource($process);
+        // proc_open() REPLACED the child environment with $env; Symfony merges
+        // onto the inherited one instead, so replacingEnv() pins every name
+        // $env does not carry and the child sees exactly $env, as before.
+        // $env starts from getenv() here, so on this repository's
+        // variables_order the merged set happens to coincide — this is
+        // faithfulness by construction, not a live bug fix: the moment anyone
+        // unsets a key from $env (as the FrankenPHP gate test does) a merge
+        // would silently hand it back from the parent.
+        // timeout: null — the script tar-copies a package tree and runs an
+        // install; it was never time-bounded (#2491).
+        $process = new Process($command, $this->repoRoot, self::replacingEnv($env), null, null);
+        $exitCode = $process->run();
 
-        $stdout = (string) stream_get_contents($pipes[1]);
-        $stderr = (string) stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        return ['exit_code' => proc_close($process), 'output' => $stdout . $stderr];
+        return ['exit_code' => $exitCode, 'output' => $process->getOutput() . $process->getErrorOutput()];
     }
 
     private function removeTree(string $path): void

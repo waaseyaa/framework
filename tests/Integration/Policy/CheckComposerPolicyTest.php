@@ -7,13 +7,15 @@ namespace Waaseyaa\Tests\Integration\Policy;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
+use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
 /**
  * Integration tests for bin/check-composer-policy.
  *
  * Each test creates a minimal ephemeral fixture tree under sys_get_temp_dir(),
- * runs the live script via proc_open with ROOT_DIR injected, and asserts the
- * expected exit code and FAIL-ID output for violation cases.
+ * runs the live script via Symfony Process with ROOT_DIR injected, and asserts
+ * the expected exit code and FAIL-ID output for violation cases.
  *
  * Because bin/lib/internal-version-sync.php exists in the repo, CP-NEW always
  * resolves the current git tag via Strategy A (PHP lib) and compares all
@@ -29,6 +31,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class CheckComposerPolicyTest extends TestCase
 {
+    use ReplacesProcessEnvironment;
+
     private const BIN = __DIR__ . '/../../../bin/check-composer-policy';
 
     /**
@@ -495,39 +499,37 @@ final class CheckComposerPolicyTest extends TestCase
      */
     private function runScript(string $fixtureRoot): array
     {
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-
+        /** @var array<string, string> $env */
         $env = array_merge(
             getenv(),
             ['ROOT_DIR' => $fixtureRoot],
         );
 
-        $process = proc_open(
+        // #2491 names this runner directly: stdout was drained to EOF before
+        // stderr was touched, so a fixture that fills the ~64KB stderr buffer
+        // wedged both sides.
+        //
+        // proc_open received an EXPLICIT env array, which REPLACES the child
+        // environment; Symfony merges onto the inherited one instead, so
+        // replacingEnv() pins every inherited name this array does not set.
+        // That is load-bearing here: bin/check-composer-policy reads
+        // WAASEYAA_OUTPUT and switches to JSON when it is 'json', which would
+        // break every FAIL-ID assertion in this class.
+        //
+        // The stdin pipe was opened and closed without a byte written, so
+        // Symfony's $input of null is equivalent. timeout null because the
+        // script shells out to git and php and was never time-bounded.
+        $process = new Process(
             [PHP_BINARY, self::BIN],
-            $descriptors,
-            $pipes,
             $fixtureRoot,
-            $env,
+            self::replacingEnv($env),
+            null,
+            null,
         );
 
-        self::assertIsResource($process, 'proc_open failed for bin/check-composer-policy');
+        $exitCode = $process->run();
 
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        $exitCode = proc_close($process);
-
-        self::assertIsString($stdout);
-        self::assertIsString($stderr);
-
-        return [$exitCode, $stdout, $stderr];
+        return [$exitCode, $process->getOutput(), $process->getErrorOutput()];
     }
 
     private function removeDirectory(string $dir): void

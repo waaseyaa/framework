@@ -487,7 +487,52 @@ final class PagePerformanceHarnessContractTest extends TestCase
         ];
     }
 
-    /** @param list<string> $command @return array{exit_code:int,stdout:string,stderr:string} */
+    #[Test]
+    public function retained_probe_collector_drains_large_stdout_and_stderr(): void
+    {
+        // #2491 Wave 2a: runProbeWithDeadline() is retained rather than
+        // converted, so its non-blocking both-stream drain needs its own volume
+        // proof. The existing deadlock probe only ever hands this collector a
+        // small JSON payload, so it never exercised the buffer-fill case that
+        // wedges the sequential-drain shape. 256KiB on BOTH streams is well past
+        // the ~64KB pipe buffer in either direction.
+        $bytes = 262_144;
+        $child = <<<'PHP'
+            $bytes = (int) $argv[1];
+            fwrite(STDERR, str_repeat('E', $bytes));
+            fwrite(STDOUT, str_repeat('O', $bytes));
+            exit(23);
+            PHP;
+
+        $result = $this->runProbeWithDeadline([PHP_BINARY, '-r', $child, (string) $bytes]);
+
+        self::assertSame(23, $result['exit_code'], $result['stderr']);
+        self::assertSame($bytes, strlen($result['stdout']));
+        self::assertSame($bytes, strlen($result['stderr']));
+        self::assertSame(hash('sha256', str_repeat('O', $bytes)), hash('sha256', $result['stdout']));
+        self::assertSame(hash('sha256', str_repeat('E', $bytes)), hash('sha256', $result['stderr']));
+    }
+
+    /**
+     * RETAINED proc_open (#2491 Wave 2a): this is one of two test/benchmark
+     * runners deliberately not converted to symfony/process, because it is
+     * already safe and because being an INDEPENDENT implementation is the point.
+     *
+     * Safety: both pipes are set non-blocking below, and both are drained on
+     * every iteration of the same loop — never one to EOF before the other — so
+     * the blocking sequential-drain deadlock cannot occur. The loop carries a
+     * hard 3.0s deadline with SIGTERM escalated to SIGKILL, and both streams get
+     * a final drain after the child exits. Proven at volume by
+     * {@see self::retained_probe_collector_drains_large_stdout_and_stderr()}.
+     *
+     * Independence: this collector runs the deadlock probe for
+     * benchmarks/BenchmarkProcessRunner.php. Routing it through the same
+     * component the rest of the suite now uses would make the probe partly
+     * self-referential; a hand-rolled collector keeps the measurement honest.
+     *
+     * @param  list<string> $command
+     * @return array{exit_code:int,stdout:string,stderr:string}
+     */
     private function runProbeWithDeadline(array $command): array
     {
         $pipes = [];

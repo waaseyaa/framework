@@ -7,6 +7,8 @@ namespace Waaseyaa\Migration\Tests\Integration;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Exception\ProcessStartFailedException;
+use Symfony\Component\Process\Process;
 use Waaseyaa\Migration\Exception\MigrationConcurrencyException;
 use Waaseyaa\Migration\Runner\MigrationLock;
 
@@ -246,25 +248,29 @@ PHP;
 
     private function runScript(string $source): int
     {
-        $proc = \proc_open(
-            [\PHP_BINARY],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
-        );
+        // proc_open drained stdout to EOF before touching stderr, so a child
+        // that filled the ~64KB stderr buffer wedged both sides (#2491).
+        //
+        // The child PHP source arrived on stdin, which proc_open wrote and then
+        // closed; Symfony Process takes it as the constructor's $input and does
+        // the same. proc_open got no cwd and no env argument, so the child
+        // inherited both — null for each preserves that (an explicit env array
+        // would need replacement semantics, and this file must not use the
+        // monorepo-root Waaseyaa\Tests\Support trait: that namespace does not
+        // exist in a split package install). timeout null preserves the
+        // previous absence of any time bound.
+        $process = new Process([\PHP_BINARY], null, null, $source, null);
 
-        if (!\is_resource($proc)) {
-            self::fail('Could not spawn child PHP process.');
+        try {
+            $exitCode = $process->run();
+        } catch (ProcessStartFailedException $e) {
+            // Preserves the old !is_resource($proc) guard's message; Symfony
+            // reports a failed spawn by throwing rather than returning false.
+            self::fail('Could not spawn child PHP process: ' . $e->getMessage());
         }
 
-        \fwrite($pipes[0], $source);
-        \fclose($pipes[0]);
-        \stream_get_contents($pipes[1]);
-        $stderr = \stream_get_contents($pipes[2]);
-        \fclose($pipes[1]);
-        \fclose($pipes[2]);
-
-        $exitCode = \proc_close($proc);
-        if (\is_string($stderr) && $stderr !== '') {
+        $stderr = $process->getErrorOutput();
+        if ($stderr !== '') {
             \fwrite(\STDERR, "[child stderr] {$stderr}\n");
         }
 

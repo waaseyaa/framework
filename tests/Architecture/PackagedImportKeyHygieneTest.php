@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * #2458 review finding 1.
@@ -172,20 +173,22 @@ final class PackagedImportKeyHygieneTest extends TestCase
     /** @return array{code:int, stderr:string} */
     private function detect(string $tree): array
     {
-        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $process = proc_open(
+        // proc_open drained one blocking pipe to EOF before the other, so a
+        // detector that fills the ~64KB buffer on the un-drained side wedged
+        // both (#2491). proc_open received neither a cwd nor an env argument,
+        // so the child inherited both: null for each, never []. timeout null
+        // because this call was never time-bounded and Symfony's constructor
+        // otherwise imposes 60 seconds.
+        $process = new Process(
             [$this->repoRoot . '/' . self::DETECTOR, $tree, $this->privateKeyFile],
-            $descriptors,
-            $pipes,
+            null,
+            null,
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        $stderr = (string) stream_get_contents($pipes[2]);
-        stream_get_contents($pipes[1]);
-        foreach ($pipes as $pipe) {
-            fclose($pipe);
-        }
+        $exit = $process->run();
 
-        return ['code' => proc_close($process), 'stderr' => $stderr];
+        return ['code' => $exit, 'stderr' => $process->getErrorOutput()];
     }
 
     private function tree(): string

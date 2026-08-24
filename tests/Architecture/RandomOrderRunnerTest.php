@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class RandomOrderRunnerTest extends TestCase
@@ -316,22 +317,17 @@ final class RandomOrderRunnerTest extends TestCase
     private function runCommand(array $arguments): array
     {
         $command = [PHP_BINARY, $this->repoRoot . '/bin/test-random-order', ...$arguments];
-        $process = proc_open(
-            $command,
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
-            $this->repoRoot,
-        );
-        self::assertIsResource($process);
-
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        // proc_open drained stdout to EOF before reading stderr, so a runner
+        // that fills the ~64KB stderr buffer wedged both sides (#2491). No env
+        // argument was passed, so the child inherited the parent environment:
+        // null, never []. timeout null because this runner was never
+        // time-bounded and legitimately exceeds Symfony's 60-second default.
+        $process = new Process($command, $this->repoRoot, null, null, null);
+        $exit = $process->run();
 
         return [
-            'exit_code' => proc_close($process),
-            'output' => (string) $stdout . (string) $stderr,
+            'exit_code' => $exit,
+            'output' => $process->getOutput() . $process->getErrorOutput(),
         ];
     }
 }

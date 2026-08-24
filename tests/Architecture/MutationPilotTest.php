@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class MutationPilotTest extends TestCase
@@ -66,14 +67,15 @@ final class MutationPilotTest extends TestCase
         }
 
         $command = [PHP_BINARY, $this->root . '/bin/test-mutation-pilot'];
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
-        self::assertIsResource($process);
+        // cwd preserved exactly; env null because proc_open was given no env
+        // array and the child inherited the parent's. timeout null keeps the
+        // gate run unbounded.
+        $process = new Process($command, $this->root, null, null, null);
+        $exitCode = $process->run();
 
-        $output = (string) stream_get_contents($pipes[1]) . (string) stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        $output = $process->getOutput() . $process->getErrorOutput();
 
-        self::assertSame(2, proc_close($process));
+        self::assertSame(2, $exitCode);
         self::assertStringContainsString('requires PCOV or Xdebug line coverage', $output);
     }
 }

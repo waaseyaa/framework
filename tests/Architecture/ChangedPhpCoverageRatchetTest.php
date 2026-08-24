@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class ChangedPhpCoverageRatchetTest extends TestCase
@@ -114,17 +115,19 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
         $path = $this->directory . '/summary-clover.xml';
         file_put_contents($path, $clover);
 
-        $process = proc_open(
+        // cwd inherited (proc_open received no cwd) and env inherited (no env
+        // argument), so both stay null; timeout null keeps the call unbounded.
+        $process = new Process(
             [PHP_BINARY, dirname(__DIR__, 2) . '/bin/summarize-php-coverage', $path],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
+            null,
+            null,
+            null,
+            null,
         );
-        self::assertIsResource($process);
-        $output = (string) stream_get_contents($pipes[1]);
-        $error = (string) stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        self::assertSame(0, proc_close($process), $error);
+        $exitCode = $process->run();
+        $output = $process->getOutput();
+        $error = $process->getErrorOutput();
+        self::assertSame(0, $exitCode, $error);
 
         $summary = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(75, $summary['overall']['line_percentage']);
@@ -218,12 +221,14 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
      */
     private function runProcess(array $command): array
     {
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        self::assertIsResource($process);
-        $output = (string) stream_get_contents($pipes[1]) . (string) stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        // Inherited cwd and environment (proc_open was given neither); timeout
+        // null preserves the previously unbounded call.
+        $process = new Process($command, null, null, null, null);
+        $exitCode = $process->run();
 
-        return ['exit_code' => proc_close($process), 'output' => $output];
+        return [
+            'exit_code' => $exitCode,
+            'output' => $process->getOutput() . $process->getErrorOutput(),
+        ];
     }
 }
