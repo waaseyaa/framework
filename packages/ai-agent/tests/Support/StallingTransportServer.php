@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Tests\Support;
 
+use Symfony\Component\Process\Exception\ProcessStartFailedException;
+use Symfony\Component\Process\Process;
+
 /**
  * A local TCP peer that reproduces the ways an upstream provider pins a worker:
  * accepting a connection and never finishing the handshake, answering with SSE
@@ -39,27 +42,31 @@ final class StallingTransportServer
      */
     public const MODE_CHAT_STALL = 'chat-stall';
 
-    /** @var resource */
-    private $process;
-
-    /** @var array<int, resource> */
-    private array $pipes = [];
+    private readonly Process $process;
 
     public readonly int $port;
 
     public function __construct(string $mode, float $lifetimeSeconds = 40.0)
     {
-        $process = proc_open(
+        // The previous proc_open call passed neither cwd nor env, so both are
+        // null here; Symfony hands the child $_ENV plus getenv() filtered
+        // through $_SERVER, and the peer reads no environment at all. timeout
+        // null is required — there was no parent-side time bound before, and
+        // Symfony's 60s default would abort the very stalls this fixture exists
+        // to produce. The peer bounds itself via $lifetimeSeconds.
+        $this->process = new Process(
             [PHP_BINARY, __DIR__ . '/stalling-transport-peer.php', $mode, (string) $lifetimeSeconds],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $this->pipes,
+            null,
+            null,
+            null,
+            null,
         );
 
-        if (!is_resource($process)) {
-            throw new \RuntimeException('Could not start the stalling transport peer.');
+        try {
+            $this->process->start();
+        } catch (ProcessStartFailedException $e) {
+            throw new \RuntimeException('Could not start the stalling transport peer.', 0, $e);
         }
-        $this->process = $process;
-        stream_set_blocking($this->pipes[2], false);
 
         $this->port = $this->awaitAnnouncedPort();
     }
@@ -78,14 +85,8 @@ final class StallingTransportServer
 
     public function stop(): void
     {
-        if (is_resource($this->process)) {
-            proc_terminate($this->process);
-            foreach ($this->pipes as $pipe) {
-                if (is_resource($pipe)) {
-                    fclose($pipe);
-                }
-            }
-            proc_close($this->process);
+        if ($this->process->isRunning()) {
+            $this->process->stop();
         }
     }
 
@@ -96,23 +97,31 @@ final class StallingTransportServer
      */
     private function awaitAnnouncedPort(): int
     {
-        stream_set_blocking($this->pipes[1], false);
         $deadline = microtime(true) + 10.0;
         $announcement = '';
 
         while (microtime(true) < $deadline) {
-            $announcement .= (string) fread($this->pipes[1], 64);
+            $announcement .= $this->process->getIncrementalOutput();
             if (preg_match('/^READY (\d+)\n/', $announcement, $matches) === 1) {
                 return (int) $matches[1];
             }
 
-            if (feof($this->pipes[1])) {
+            if (!$this->process->isRunning()) {
+                // The peer can announce and exit between the read above and this
+                // liveness check; drain once more before giving up so a
+                // fast-exiting child is not misreported as never having
+                // announced. This replaces the previous feof() break.
+                $announcement .= $this->process->getIncrementalOutput();
+                if (preg_match('/^READY (\d+)\n/', $announcement, $matches) === 1) {
+                    return (int) $matches[1];
+                }
+
                 break;
             }
             usleep(10_000);
         }
 
-        $diagnostic = trim((string) stream_get_contents($this->pipes[2]));
+        $diagnostic = trim($this->process->getErrorOutput());
         $this->stop();
 
         throw new \RuntimeException('Stalling transport peer never announced a port. ' . $diagnostic);

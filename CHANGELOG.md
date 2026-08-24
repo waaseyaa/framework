@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — six test harnesses now drive subprocesses through
+  `symfony/process` instead of hand-rolled `proc_open()` (#2491):** the
+  converted runners drained stdout and stderr sequentially while both pipes
+  stayed blocking, so a child filling the ~64KB stderr buffer wedged both sides
+  — the shape that already deadlocked a sibling repository. `symfony/process`
+  and `symfony/filesystem` are now declared explicitly in the root
+  `require-dev` (they were only reachable transitively via `php-cs-fixer` and
+  `infection`); neither enters any package's runtime `require`, so no consumer
+  of `core`, `cms`, or `full` gains a dependency. Behaviour is preserved
+  deliberately, not incidentally: every converted call passes `timeout: null`
+  because none of these harnesses was time-bounded before and Symfony's
+  constructor otherwise imposes 60 seconds, and the two harnesses that handed
+  `proc_open()` an explicit environment array keep their *replacement*
+  semantics through a local helper, because Symfony merges onto the inherited
+  environment instead. That difference is load-bearing —
+  `bin/check-package-layers` reads `WAASEYAA_OUTPUT` and switches to JSON, which
+  would break every string assertion in its gate test — and is now pinned by a
+  regression test. `benchmarks/BenchmarkProcessRunner.php` is deliberately
+  **not** converted: it is already a correct `stream_select` drain, its sha256
+  is frozen in `tests/Integration/FieldReadPagePerformance/fixture-manifest.json`
+  and re-checked at benchmark runtime, and the harness runs with no autoloader,
+  so a `Symfony\` import is unreachable there. The six intentional production
+  `proc_open()` call sites are untouched. Note what this does **not** yet
+  achieve: 22 files under `tests/`, `benchmarks/`, and `packages/*/tests/` still
+  call `proc_open()`, and 18 of them still use the blocking both-pipes
+  sequential drain described above — including
+  `tests/Integration/Policy/AdminDistReproducibilityTest.php` and
+  `tests/Integration/Policy/CheckComposerPolicyTest.php`, both named in #2491's
+  own report. #2491's acceptance criterion that the shape "no longer appears in
+  any test harness" is therefore **not** met by this change. For the same
+  reason, the two long-lived server harnesses were converted for uniformity
+  rather than as a deadlock fix: Symfony Process does not drain pipes in the
+  background either, and neither harness touches the process between `start()`
+  and `stop()`. This is Wave 2a; the remaining runners and the recursive-remover
+  conversion to `symfony/filesystem` follow separately.
+
 - **Fixed — a stray nested `packages/*/vendor/` tree no longer poisons local
   PHPStan (#2128).** `phpstan.neon` analyses the whole `packages` root, and none
   of its `excludePaths.analyseAndScan` patterns matched a package-local Composer

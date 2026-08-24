@@ -392,6 +392,8 @@
         "sendgrid/sendgrid": "^8.1",
         "shipmonk/composer-dependency-analyser": "^1.8",
         "shipmonk/dead-code-detector": "^1.1",
+        "symfony/filesystem": "^8.0",
+        "symfony/process": "^8.0",
         "waaseyaa/ai-agent": "self.version",
         "waaseyaa/ai-observability": "self.version",
         "waaseyaa/engagement": "self.version",

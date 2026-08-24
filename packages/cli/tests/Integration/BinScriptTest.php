@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * Integration tests for the CLI entry point (bin/waaseyaa).
@@ -90,26 +91,19 @@ final class BinScriptTest extends TestCase
     private function runBin(string $cwd, ?string $binPath = null): array
     {
         $bin = $binPath ?? self::canonicalBinPath();
-        $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($bin);
 
-        $descriptorspec = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
+        // The array form removes the shell hop the previous escapeshellarg()
+        // string needed; both arguments were already escaped, so the child
+        // command is unchanged. env null matches the omitted proc_open argument
+        // and timeout null keeps the previous absence of any time bound.
+        $process = new Process([PHP_BINARY, $bin], $cwd, null, null, null);
+        $exit = $process->run();
+
+        return [
+            'exit' => $exit,
+            'stdout' => $process->getOutput(),
+            'stderr' => $process->getErrorOutput(),
         ];
-        $proc = proc_open($cmd, $descriptorspec, $pipes, $cwd);
-        if (!is_resource($proc)) {
-            self::fail('proc_open failed for: ' . $cmd);
-        }
-
-        fclose($pipes[0]);
-        $stdout = (string) stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $stderr = (string) stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
-        $exit = proc_close($proc);
-
-        return ['exit' => $exit, 'stdout' => $stdout, 'stderr' => $stderr];
     }
 
     private static function canonicalBinPath(): string
