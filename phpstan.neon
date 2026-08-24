@@ -24,6 +24,19 @@ parameters:
             - packages/*/scripts/*
             - packages/*/config/*
             - packages/admin/*
+            # Stray nested Composer installs (#2128). A package-local
+            # `composer install` leaves a gitignored `packages/<pkg>/vendor/`
+            # whose own transitive deps are absent, so analysing it aborts the
+            # run with non-ignorable "class not found" errors. CI never sees it
+            # (clean checkout) but local `composer phpstan` / `bin/check-dead-code`
+            # break for anyone who has one on disk.
+            #
+            # PHPStan matches excludePaths with plain fnmatch() and no
+            # FNM_PATHNAME, so `*` crosses directory separators: this single
+            # pattern covers `packages/x/vendor/...` AND arbitrarily nested
+            # trees such as `packages/x/vendor/waaseyaa/foundation/vendor/...`.
+            # Guarded by tests/Architecture/PhpstanNestedVendorExclusionTest.php.
+            - packages/*/vendor/*
             # Recipe-only package; deployphp's global DSL functions need
             # project-specific stubs and there is no PSR-4 src/ tree.
             - packages/deployer/recipe/*

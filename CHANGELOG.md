@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — a stray nested `packages/*/vendor/` tree no longer poisons local
+  PHPStan (#2128).** `phpstan.neon` analyses the whole `packages` root, and none
+  of its `excludePaths.analyseAndScan` patterns matched a package-local Composer
+  install, so a gitignored tree such as
+  `packages/genealogy/vendor/waaseyaa/foundation/vendor/symfony/...` aborted
+  `composer phpstan` and `bin/check-dead-code` with non-ignorable "class not
+  found" errors. A `packages/*/vendor/*` exclusion now covers those trees at any
+  depth — PHPStan matches `excludePaths` with plain `fnmatch()` and no
+  `FNM_PATHNAME`, so `*` crosses directory separators — and
+  `phpstan-dead-code.neon` inherits it through its existing
+  `includes: - phpstan.neon`. CI behaviour is unchanged (a clean checkout never
+  had such a tree) and package `src/` coverage is untouched;
+  `tests/Architecture/PhpstanNestedVendorExclusionTest.php` fails if the
+  exclusion is removed.
+
 - Add a read-only-first cross-repository worktree inventory, explicit lease registry, and exact-path cleanup manifest that protects dirty, active, detached-unique, custody, stale, and unknown worktrees while reporting partial removal outcomes (#2522).
 
 - **Fixed — targeted Packagist recovery can now finish a partially published
