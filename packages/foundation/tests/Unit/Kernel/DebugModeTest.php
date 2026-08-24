@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 #[CoversClass(AbstractKernel::class)]
 final class DebugModeTest extends TestCase
@@ -29,6 +30,7 @@ final class DebugModeTest extends TestCase
 
     protected function tearDown(): void
     {
+        ProcessFieldReadRuntime::reset();
         putenv('APP_DEBUG');
         putenv('APP_ENV');
         putenv('LOG_LEVEL');

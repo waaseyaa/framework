@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Test isolation — remaining Foundation kernel unit tests reset the
+  process-wide field-read runtime (#2514):** after #2513, `HttpKernelTest`,
+  `AbstractKernelTest`, and `ConsoleKernelTest` called
+  `ProcessFieldReadRuntime::reset()` from `tearDown`, but other Foundation
+  unit tests still invoked `AbstractKernel::boot()` (or `HttpKernel::handle()`)
+  without that reset. `KernelBundleSubtableMaterializationTest` additionally
+  nulled `ContentEntityBase::$fieldRegistry` by reflection, which left
+  `EntityReadRuntime::$fieldRegistry` and the installed field-read guard in
+  place — `layoutFor()` reads the runtime copy. Tear-down now resets through
+  the shared helper, including when boot or an assertion throws. An
+  architecture scan of `packages/foundation/tests/Unit` fails closed if a
+  future kernel-boot test omits the helper. Leftover
+  `EntityReadRuntime::$immutableSemanticTemplates` survive the helper and do
+  not reproduce the `user.name` merge conflict; they are left uncleared.
+  Production worker shutdown is unchanged.
+
 - **Changed — every recursive directory remover in test scope now routes through
   `symfony/filesystem` (#2491):** 145 hand-rolled recursive tree removers across
   143 files under `tests/`, `benchmarks/`, and `packages/*/tests/` decided what to

@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BootFailureMessageFormatter;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 /**
  * Verifies that HttpKernel handles boot() failures gracefully.
@@ -26,6 +27,11 @@ use Waaseyaa\Foundation\Kernel\HttpKernel;
 #[CoversClass(BootFailureMessageFormatter::class)]
 final class HttpKernelBootFailureTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        ProcessFieldReadRuntime::reset();
+    }
+
     #[Test]
     public function boot_throws_when_database_path_is_inaccessible(): void
     {
