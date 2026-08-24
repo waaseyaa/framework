@@ -1855,7 +1855,7 @@ Per ratified C-005 (b), `bin/check-symfony-imports` is the codebase-wide gate th
 
 | Field | Purpose |
 |---|---|
-| `allowed_directories` | Path prefixes whose internal infrastructure is intentionally Symfony-coupled. Currently: `packages/foundation/`, `packages/routing/`, `packages/api/`, `packages/validation/`, `packages/cli/`. Tests are implicitly excluded — the gate only walks `packages/*/src/`, never `packages/*/tests/`. |
+| `allowed_directories` | Path prefixes whose internal infrastructure is intentionally Symfony-coupled. Currently: `packages/foundation/`, `packages/routing/`, `packages/api/`, `packages/validation/`, `packages/cli/`, `packages/frankenphp/`. Tests are implicitly excluded — the gate only walks `packages/*/src/`, never `packages/*/tests/`. |
 | `legacy_files` | Explicit list of source files that pre-date the boundary and still import Symfony. The gate locks the historical surface; new violations in any package fail CI. Refactor a file to use Waaseyaa surfaces, then remove its entry. |
 
 **Wiring.** Runs as part of `composer verify` (between `check-ingestion-defaults` and `test`). Standalone invocations:
@@ -1870,8 +1870,11 @@ bin/check-symfony-imports --list-stale # also reports legacy_files entries
 **Adding a new violation.** If a new file genuinely needs a Symfony import (e.g. a new directory acting as framework infrastructure), do one of:
 
 1. Replace the import with the equivalent Waaseyaa surface (`Waaseyaa\Foundation\Http\Request`, `Waaseyaa\Foundation\Event\EventDispatcherInterface`, `Waaseyaa\Api\Http\JsonApiResponse`).
-2. Add the file path to `legacy_files` in the JSON, with the rationale captured in the PR description.
-3. If a whole new directory should be allowed, add it to `allowed_directories` — but this should be rare and warrants discussion (every entry weakens the gate).
+2. Reference the class by its inline leading-backslash FQCN at the callsite instead of importing it — e.g. `\Symfony\Component\Uid\Uuid::v4()->toRfc4122()`. The gate matches `^\s*use\s+Symfony\\`, so a single-callsite dependency on a leaf utility does not need an allowlist entry at all. This is the established form in `packages/audit` (`AuditEventWriter`, `AuditCheckpointBuilder`) and, since #2492, in `packages/oidc` and `packages/ai-agent` too. Prefer it over widening the allowlist when the coupling is one expression deep; it keeps the file's `use` block free of Symfony and leaves the dependency visible at the point of use.
+3. Add the file path to `legacy_files` in the JSON, with the rationale captured in the PR description.
+4. If a whole new directory should be allowed, add it to `allowed_directories` — but this should be rare and warrants discussion (every entry weakens the gate).
+
+Note that the gate is an **import**-boundary gate, not a dependency gate: option 2 satisfies it without reducing the runtime coupling. The package's `composer.json` must still declare the Symfony package it calls — see `packages/oidc` and `packages/audit`, which both gained `symfony/uid` in #2492.
 
 **Refactoring legacy entries.** Replace the import with the Waaseyaa surface, run `bin/check-symfony-imports --list-stale` to confirm the file is reported as stale, and remove the entry from `legacy_files` in the same commit.
 

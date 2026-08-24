@@ -34,6 +34,7 @@
         "ext-sodium": "*",
         "lcobucci/jwt": "^5.3",
         "league/oauth2-server": "^9.0",
+        "symfony/uid": "^7.0",
         "waaseyaa/access": "^0.1.0-alpha.297",
         "waaseyaa/database-legacy": "^0.1.0-alpha.297",
         "waaseyaa/entity": "^0.1.0-alpha.297",

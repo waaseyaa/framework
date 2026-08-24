@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Fixed — foundation no longer ships two unused Symfony runtime requires, and now declares `psr/container` directly (#2489):** `packages/foundation` required `symfony/dependency-injection` and `symfony/messenger` without importing either. The dependency-injection require was not dead weight — it was the only supplier of `psr/container` to a `waaseyaa/core`-only install, which two foundation kernel classes import, so `psr/container: ^2.0` is declared first and the accidental supplier removed second. `symfony/messenger` has no such coupling: `waaseyaa/queue` is in the core graph and declares it itself. Manifest-only — no runtime code path, domain, or security behaviour changes, and the resolved Symfony versions are unchanged.
 
+- **Changed — five hand-rolled UUIDv4 generators now delegate to `symfony/uid` (#2492):**
+  `AccessTokenIssuer`, `RefreshTokenIssuer`, `SigningKeyRepository`, `AgentExecutor`,
+  and `StalledRunReaper` each carried a private copy of the same `random_bytes(16)`
+  version/variant bit-twiddling; all five now call
+  `\Symfony\Component\Uid\Uuid::v4()->toRfc4122()` inline, the form `waaseyaa/audit`
+  already used, so `bin/check-symfony-imports` passes with no allowlist change.
+  `symfony/uid` is now declared by `packages/oidc` and by `packages/audit`, which
+  had been calling `Uuid::v4()` with no manifest entry at all. Output is
+  format-identical: OIDC access/refresh token identifiers, signing-key identifiers,
+  agent-run identifiers, and reaper identifiers keep the same RFC 4122 v4 shape, no
+  stored identifier is rewritten, and no migration is implied.
+
 - Add a read-only-first cross-repository worktree inventory, explicit lease registry, and exact-path cleanup manifest that protects dirty, active, detached-unique, custody, stale, and unknown worktrees while reporting partial removal outcomes (#2522).
 
 - **Fixed — targeted Packagist recovery can now finish a partially published
