@@ -20,6 +20,7 @@ use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 /** Retained-red proof that the kernel freezes the complete active owner graph before provider boot. */
 final class ApplicationMasterRekeyKernelCompositionRetainedRedTest extends TestCase
@@ -44,6 +45,7 @@ final class ApplicationMasterRekeyKernelCompositionRetainedRedTest extends TestC
 
     protected function tearDown(): void
     {
+        ProcessFieldReadRuntime::reset();
         (new Filesystem())->remove($this->projectRoot);
     }
 

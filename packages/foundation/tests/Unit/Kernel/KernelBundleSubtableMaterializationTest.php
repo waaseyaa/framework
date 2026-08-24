@@ -9,10 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 /**
  * End-to-end assertion that kernel-registered definitions are materialized
@@ -99,10 +99,8 @@ PHP,
 
     protected function tearDown(): void
     {
-        $registryProperty = new \ReflectionProperty(ContentEntityBase::class, 'fieldRegistry');
-        $registryProperty->setValue(null, null);
-
-(new Filesystem())->remove($this->projectRoot);
+        ProcessFieldReadRuntime::reset();
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 #[CoversClass(AbstractKernel::class)]
 final class AbstractKernelExtensionRunnerTest extends TestCase
@@ -29,6 +30,7 @@ final class AbstractKernelExtensionRunnerTest extends TestCase
 
     protected function tearDown(): void
     {
+        ProcessFieldReadRuntime::reset();
         (new Filesystem())->remove($this->projectRoot);
     }
 

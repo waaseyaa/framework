@@ -12,6 +12,7 @@ use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Maintenance\MaintenanceState;
 use Waaseyaa\Foundation\Middleware\MaintenanceModeMiddleware;
+use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 
 /**
  * Proves the maintenance gate is a PRE-BOOT short-circuit: a maintenance 503 is
@@ -56,6 +57,7 @@ final class HttpKernelMaintenanceGateTest extends TestCase
 
     protected function tearDown(): void
     {
+        ProcessFieldReadRuntime::reset();
         $_SERVER = $this->serverBackup;
         putenv('WAASEYAA_APP_SECRET');
         (new Filesystem())->remove($this->root);
