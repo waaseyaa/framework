@@ -39,6 +39,7 @@
     ],
     "require": {
         "php": ">=8.5",
+        "symfony/uid": "^7.0",
         "waaseyaa/access": "^0.1.0-alpha.297",
         "waaseyaa/database-legacy": "^0.1.0-alpha.297",
         "waaseyaa/entity": "^0.1.0-alpha.297",
