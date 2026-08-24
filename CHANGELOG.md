@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/Architecture/PhpstanNestedVendorExclusionTest.php` fails if the
   exclusion is removed.
 
+- **Fixed — foundation no longer ships two unused Symfony runtime requires, and now declares `psr/container` directly (#2489):** `packages/foundation` required `symfony/dependency-injection` and `symfony/messenger` without importing either. The dependency-injection require was not dead weight — it was the only supplier of `psr/container` to a `waaseyaa/core`-only install, which two foundation kernel classes import, so `psr/container: ^2.0` is declared first and the accidental supplier removed second. `symfony/messenger` has no such coupling: `waaseyaa/queue` is in the core graph and declares it itself. Manifest-only — no runtime code path, domain, or security behaviour changes, and the resolved Symfony versions are unchanged.
+
 - Add a read-only-first cross-repository worktree inventory, explicit lease registry, and exact-path cleanup manifest that protects dirty, active, detached-unique, custody, stale, and unknown worktrees while reporting partial removal outcomes (#2522).
 
 - **Fixed — targeted Packagist recovery can now finish a partially published
