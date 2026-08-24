@@ -307,6 +307,119 @@ final class EntityLifecycleAuditListenerTest extends TestCase
         $this->assertSame(AuditEventKind::EntityDelete, $recorded[0]->kind);
         $this->assertSame(42, $recorded[0]->accountUid);
     }
+
+    #[Test]
+    public function interleaved_pre_pre_post_post_existing_then_new_keeps_per_entity_is_new(): void
+    {
+        $recorded = [];
+        $listener = new EntityLifecycleAuditListener($this->spyWriter($recorded));
+        $existing = $this->stubEntity(id: '1', isNew: false);
+        $new = $this->stubEntity(id: '2', isNew: true);
+
+        $this->dispatchInterleavedSavePair($listener, $existing, $new);
+
+        $this->assertSame([false, true], array_map(
+            static fn (AuditEventDescriptor $d): mixed => $d->attributes['is_new'] ?? null,
+            $recorded,
+        ));
+        $this->assertPendingMapEmpty($listener);
+    }
+
+    #[Test]
+    public function interleaved_pre_pre_post_post_new_then_existing_keeps_per_entity_is_new(): void
+    {
+        $recorded = [];
+        $listener = new EntityLifecycleAuditListener($this->spyWriter($recorded));
+        $new = $this->stubEntity(id: '2', isNew: true);
+        $existing = $this->stubEntity(id: '1', isNew: false);
+
+        $this->dispatchInterleavedSavePair($listener, $new, $existing);
+
+        $this->assertSame([true, false], array_map(
+            static fn (AuditEventDescriptor $d): mixed => $d->attributes['is_new'] ?? null,
+            $recorded,
+        ));
+        $this->assertPendingMapEmpty($listener);
+    }
+
+    #[Test]
+    public function listener_reuse_after_mixed_batch_does_not_leak_stale_is_new(): void
+    {
+        $recorded = [];
+        $listener = new EntityLifecycleAuditListener($this->spyWriter($recorded));
+        $this->dispatchInterleavedSavePair(
+            $listener,
+            $this->stubEntity(id: '1', isNew: false),
+            $this->stubEntity(id: '2', isNew: true),
+        );
+
+        $later = $this->stubEntity(id: '3', isNew: false);
+        $listener->onPreSave(new EntityEvent($later));
+        $listener->onPostSave(new EntityEvent($later));
+
+        $this->assertSame([false, true, false], array_map(
+            static fn (AuditEventDescriptor $d): mixed => $d->attributes['is_new'] ?? null,
+            $recorded,
+        ));
+        $this->assertPendingMapEmpty($listener);
+    }
+
+    #[Test]
+    public function swallowed_second_post_save_exception_does_not_rewrite_the_first_entity_is_new(): void
+    {
+        $calls = 0;
+        $recorded = [];
+        $writer = new class ($recorded, $calls) implements AuditWriterInterface {
+            public function __construct(private array &$recorded, private int &$calls) {}
+            public function record(AuditEventDescriptor $d): void
+            {
+                $this->calls++;
+                if ($this->calls === 2) {
+                    throw new \RuntimeException('audit-post-save-boom');
+                }
+                $this->recorded[] = $d;
+            }
+        };
+        $listener = new EntityLifecycleAuditListener($writer);
+        $existing = $this->stubEntity(id: '1', isNew: false);
+        $new = $this->stubEntity(id: '2', isNew: true);
+
+        $this->dispatchInterleavedSavePair($listener, $existing, $new);
+
+        $this->assertCount(1, $recorded, 'The second POST_SAVE writer failure is swallowed; the first entity must still record its own is_new.');
+        $this->assertFalse($recorded[0]->attributes['is_new'] ?? true);
+        $this->assertPendingMapEmpty($listener);
+    }
+
+    private function dispatchInterleavedSavePair(
+        EntityLifecycleAuditListener $listener,
+        EntityInterface $first,
+        EntityInterface $second,
+    ): void {
+        $listener->onPreSave(new EntityEvent($first));
+        $listener->onPreSave(new EntityEvent($second));
+        $listener->onPostSave(new EntityEvent($first));
+        $listener->onPostSave(new EntityEvent($second));
+    }
+
+    private function stubEntity(string $id, bool $isNew): EntityInterface
+    {
+        $entity = $this->createStub(EntityInterface::class);
+        $entity->method('isNew')->willReturn($isNew);
+        $entity->method('getEntityTypeId')->willReturn('note');
+        $entity->method('id')->willReturn($id);
+        $entity->method('uuid')->willReturn('00000000-0000-0000-0000-0000000000' . str_pad($id, 2, '0', STR_PAD_LEFT));
+
+        return $entity;
+    }
+
+    private function assertPendingMapEmpty(EntityLifecycleAuditListener $listener): void
+    {
+        $property = new \ReflectionProperty($listener, 'pendingIsNew');
+        $pending = $property->getValue($listener);
+        $this->assertInstanceOf(\WeakMap::class, $pending);
+        $this->assertCount(0, iterator_to_array($pending, false));
+    }
 }
 
 /** Minimal account stub: id-only. */

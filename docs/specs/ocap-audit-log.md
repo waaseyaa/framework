@@ -1,5 +1,6 @@
 # OCAP Audit Log Substrate
 
+<!-- Spec reviewed 2026-08-24 - #1856: EntityLifecycleAuditListener keys PRE_SAVE isNew() on the entity object (WeakMap) and consumes that entry at the start of POST_SAVE, including when the writer throws. Mixed saveMany create/update batches keep per-entity is_new provenance. Event order, transactions, and deleteMany PRE_DELETE buffering are unchanged; canonical pairing contract lives in docs/specs/entity-system.md. -->
 <!-- Spec reviewed 2026-08-20 - #2464: successful copy-forward rollback audit
 attributes now retain source_revision_id separately from from_revision_id and
 to_revision_id. The record remains metadata-only and best-effort; actor,
@@ -357,6 +358,8 @@ crashing primary requests (NFR-001).
 | `BroadcastAuditListener` | `BroadcastEvents::PUBLISH` | `broadcast.publish` |
 | `PublishPointerAuditListener` | `RevisionPointerMovedEvent::class` (typed FQCN subscription — audit requires entity-storage, L1→L1) | `revision.publish`, `revision.revert` |
 | `RollbackAuditListener` | `BeforeRevisionPointerMoveEvent::class` (arms on `operation === 'rollback'`) + `EntityEvents::REVISION_REVERTED->value` (consumes the armed slot) | `revision.rollback` |
+
+`entity.write` distinguishes create from update via `isNew()` captured at `PRE_SAVE`. That flag is keyed on the entity object (`WeakMap`) and consumed at the start of `POST_SAVE` (before the writer runs, including when the writer throws). `saveMany()` still dispatches `pre1, pre2, …, post1, post2, …`, so a listener-wide boolean would attribute every row from the last PRE event (#1856). Canonical pairing contract: `docs/specs/entity-system.md`.
 
 ### Per-listener actor source
 

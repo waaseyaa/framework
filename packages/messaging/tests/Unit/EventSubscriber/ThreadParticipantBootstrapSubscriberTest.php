@@ -161,6 +161,58 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
         );
     }
 
+    #[Test]
+    public function save_many_existing_then_new_seeds_only_the_new_thread(): void
+    {
+        [$manager] = $this->makeManagerAndSubscriber(self::CREATOR_UID);
+        $threadRepository = $manager->getRepository('message_thread');
+        $participantRepository = $manager->getRepository('thread_participant');
+
+        $existing = $threadRepository->create(['created_by' => self::CREATOR_UID, 'title' => 'Existing']);
+        $threadRepository->save($existing, validate: false);
+        $existing->set('title', 'Existing renamed');
+
+        $new = $threadRepository->create(['created_by' => self::CREATOR_UID, 'title' => 'Brand new']);
+        $threadRepository->saveMany([$existing, $new], validate: false);
+
+        self::assertCount(
+            1,
+            $participantRepository->findBy(['thread_id' => (int) $existing->id(), 'user_id' => self::CREATOR_UID]),
+            'Updating an existing thread in a mixed saveMany batch must not reseed its owner.',
+        );
+        self::assertCount(
+            1,
+            $participantRepository->findBy(['thread_id' => (int) $new->id(), 'user_id' => self::CREATOR_UID]),
+            'The new thread in saveMany([existing, new]) must still receive its owner participant.',
+        );
+    }
+
+    #[Test]
+    public function save_many_new_then_existing_seeds_only_the_new_thread(): void
+    {
+        [$manager] = $this->makeManagerAndSubscriber(self::CREATOR_UID);
+        $threadRepository = $manager->getRepository('message_thread');
+        $participantRepository = $manager->getRepository('thread_participant');
+
+        $existing = $threadRepository->create(['created_by' => self::CREATOR_UID, 'title' => 'Existing']);
+        $threadRepository->save($existing, validate: false);
+        $existing->set('title', 'Existing renamed');
+
+        $new = $threadRepository->create(['created_by' => self::CREATOR_UID, 'title' => 'Brand new']);
+        $threadRepository->saveMany([$new, $existing], validate: false);
+
+        self::assertCount(
+            1,
+            $participantRepository->findBy(['thread_id' => (int) $new->id(), 'user_id' => self::CREATOR_UID]),
+            'The new thread in saveMany([new, existing]) must still receive its owner participant.',
+        );
+        self::assertCount(
+            1,
+            $participantRepository->findBy(['thread_id' => (int) $existing->id(), 'user_id' => self::CREATOR_UID]),
+            'Updating an existing thread in a mixed saveMany batch must not reseed its owner.',
+        );
+    }
+
     /**
      * @return array{0: EntityTypeManager}
      */
