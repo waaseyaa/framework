@@ -147,6 +147,17 @@ final class SubprocessHarnessContractTest extends TestCase
                 if (!$file instanceof \SplFileInfo || $file->getExtension() !== 'php') {
                     continue;
                 }
+                // Skip installed dependencies. tests/PackagedForm/skeleton is a
+                // separate Composer project, so once ci/packaged-form installs
+                // it, phpunit's own JobRunner and four sebastian/* packages sit
+                // under tests/ calling proc_open(). They are third-party build
+                // output, not harnesses this gate governs, and whether they
+                // exist depends on whether the packaged-form job has run --
+                // which made this gate fail only on machines that had run it.
+                $normalised = str_replace('\\', '/', $file->getPathname());
+                if (str_contains($normalised, '/vendor/')) {
+                    continue;
+                }
                 $lines = self::procOpenLines((string) file_get_contents($file->getPathname()));
                 if ($lines === []) {
                     continue;

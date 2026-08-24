@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Maintenance\MaintenanceState;
@@ -57,7 +58,7 @@ final class HttpKernelMaintenanceGateTest extends TestCase
     {
         $_SERVER = $this->serverBackup;
         putenv('WAASEYAA_APP_SECRET');
-        $this->removeDirectory($this->root);
+        (new Filesystem())->remove($this->root);
     }
 
     #[Test]
@@ -93,18 +94,4 @@ final class HttpKernelMaintenanceGateTest extends TestCase
         self::assertSame([], $attributes, 'MaintenanceModeMiddleware must not be auto-discovered — it runs exactly once, pre-boot.');
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
-        }
-        @rmdir($dir);
-    }
 }

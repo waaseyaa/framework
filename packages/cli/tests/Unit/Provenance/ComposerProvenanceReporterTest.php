@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Provenance;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Provenance\ComposerProvenanceReporter;
 
 #[CoversClass(ComposerProvenanceReporter::class)]
@@ -23,7 +24,7 @@ final class ComposerProvenanceReporterTest extends TestCase
 
             self::assertNull($method->invoke($reporter, dirname($dir)));
         } finally {
-            $this->deleteTree($dir);
+            (new Filesystem())->remove($dir);
         }
     }
 
@@ -53,7 +54,7 @@ final class ComposerProvenanceReporterTest extends TestCase
             $this->assertTrue($report->hasDrift());
             $this->assertNotEmpty($report->driftMessages);
         } finally {
-            $this->deleteTree($dir);
+            (new Filesystem())->remove($dir);
         }
     }
 
@@ -88,7 +89,7 @@ final class ComposerProvenanceReporterTest extends TestCase
             }
             $this->assertFalse($constraintDrift);
         } finally {
-            $this->deleteTree($dir);
+            (new Filesystem())->remove($dir);
         }
     }
 
@@ -117,7 +118,7 @@ final class ComposerProvenanceReporterTest extends TestCase
             $this->assertSame(1, ComposerProvenanceReporter::main($dir, ['--strict']));
             $this->assertSame(0, ComposerProvenanceReporter::main($dir, ['--report-only']));
         } finally {
-            $this->deleteTree($dir);
+            (new Filesystem())->remove($dir);
         }
     }
 
@@ -145,22 +146,8 @@ final class ComposerProvenanceReporterTest extends TestCase
             $this->assertSame(0, ComposerProvenanceReporter::main($dir, []));
             $this->assertSame(0, ComposerProvenanceReporter::main($dir, ['--strict']));
         } finally {
-            $this->deleteTree($dir);
+            (new Filesystem())->remove($dir);
         }
     }
 
-    private function deleteTree(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-        $it = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($it as $file) {
-            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
-        }
-        rmdir($path);
-    }
 }

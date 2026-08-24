@@ -6,6 +6,7 @@ namespace Waaseyaa\SSR\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Twig\Loader\ChainLoader;
 use Twig\Loader\FilesystemLoader;
 use Waaseyaa\SSR\ThemeServiceProvider;
@@ -22,17 +23,7 @@ final class ThemeServiceProviderVendorTemplatesTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (!is_dir($this->root)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->root, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
-        }
-        @rmdir($this->root);
+(new Filesystem())->remove($this->root);
     }
 
     #[Test]

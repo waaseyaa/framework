@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\Migration\BackfillHelper;
 use Waaseyaa\CLI\Command\Migration\BackfillRowCountMismatchException;
 use Waaseyaa\CLI\Command\Migration\StorageMigrationEmitter;
@@ -48,7 +49,7 @@ final class EndToEndTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     // -------------------------------------------------------------------------
@@ -403,26 +404,4 @@ final class EndToEndTest extends TestCase
         return CliTester::for($definition, $container);
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = scandir($dir);
-        if ($items === false) {
-            return;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $item_path = $dir . '/' . $item;
-            if (is_dir($item_path)) {
-                $this->removeDir($item_path);
-            } else {
-                @unlink($item_path);
-            }
-        }
-        @rmdir($dir);
-    }
 }

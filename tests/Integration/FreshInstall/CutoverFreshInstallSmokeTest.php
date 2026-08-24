@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use Waaseyaa\Tests\Integration\FreshInstall\Fixtures\CutoverContentModelProvider;
 use Waaseyaa\Tests\Support\ComposerProjectFixture;
@@ -59,17 +60,7 @@ final class CutoverFreshInstallSmokeTest extends TestCase
     {
         $this->server?->stop(1);
 
-        if (!is_dir($this->projectRoot)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isFile() || $item->isLink() ? unlink($item->getPathname()) : rmdir($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]

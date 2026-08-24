@@ -6,6 +6,7 @@ namespace Waaseyaa\Inertia\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Inertia\RootTemplateRenderer;
 
 #[CoversClass(RootTemplateRenderer::class)]
@@ -91,7 +92,7 @@ final class RootTemplateRendererTest extends TestCase
             $this->assertStringContainsString('<link rel="stylesheet" href="/build/build/assets/app-def456.css">', $html);
             $this->assertStringContainsString('<div id="app">', $html);
         } finally {
-            $this->removeTmpDir($tmpDir);
+            (new Filesystem())->remove($tmpDir);
         }
     }
 
@@ -124,7 +125,7 @@ final class RootTemplateRendererTest extends TestCase
             $this->assertStringNotContainsString('app-abc123.js', $html);
             $this->assertStringContainsString('"component":"Test"', $html);
         } finally {
-            $this->removeTmpDir($tmpDir);
+            (new Filesystem())->remove($tmpDir);
         }
     }
 
@@ -136,18 +137,4 @@ final class RootTemplateRendererTest extends TestCase
         return $tmpDir;
     }
 
-    private function removeTmpDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

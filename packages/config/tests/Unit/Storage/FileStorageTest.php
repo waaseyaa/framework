@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Tests\Unit\Storage;
 
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Storage\FileStorage;
 use Waaseyaa\Config\StorageInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -24,7 +25,7 @@ final class FileStorageTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->directory);
+        (new Filesystem())->remove($this->directory);
     }
 
     public function testImplementsStorageInterface(): void
@@ -341,25 +342,4 @@ final class FileStorageTest extends TestCase
         $this->assertSame($data, $this->storage->read('nested'));
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($iterator as $fileInfo) {
-            if ($fileInfo->isDir()) {
-                rmdir($fileInfo->getPathname());
-            } else {
-                unlink($fileInfo->getPathname());
-            }
-        }
-
-        rmdir($dir);
-    }
 }

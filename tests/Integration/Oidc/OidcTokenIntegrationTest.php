@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Oidc;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 /**
@@ -81,19 +82,7 @@ final class OidcTokenIntegrationTest extends TestCase
             return;
         }
 
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            if ($item->isLink() || $item->isFile()) {
-                unlink($item->getPathname());
-                continue;
-            }
-            rmdir($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]

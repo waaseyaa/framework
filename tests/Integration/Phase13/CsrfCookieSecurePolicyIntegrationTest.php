@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase13;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Integration regression for issue #2149: a forced `session.cookie.secure =>
@@ -74,8 +75,8 @@ final class CsrfCookieSecurePolicyIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->projectRoot);
-        $this->removeDirectory($this->sessionPath);
+        new Filesystem()->remove($this->projectRoot);
+        new Filesystem()->remove($this->sessionPath);
 
         if (session_status() === \PHP_SESSION_ACTIVE) {
             session_destroy();
@@ -364,24 +365,4 @@ final class CsrfCookieSecurePolicyIntegrationTest extends TestCase
             PHP;
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            if ($item->isLink() || $item->isFile()) {
-                unlink($item->getPathname());
-                continue;
-            }
-            rmdir($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

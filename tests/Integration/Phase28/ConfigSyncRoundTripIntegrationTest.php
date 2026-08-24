@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase28;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigExporter;
 use Waaseyaa\Config\Sync\ConfigExportFileResult;
@@ -49,7 +50,7 @@ final class ConfigSyncRoundTripIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        new Filesystem()->remove($this->tempDir);
     }
 
     #[Test]
@@ -204,20 +205,6 @@ final class ConfigSyncRoundTripIntegrationTest extends TestCase
         return hash('sha256', json_encode($hashes, \JSON_THROW_ON_ERROR));
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        foreach (scandir($dir) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $full = $dir . '/' . $entry;
-            is_dir($full) ? $this->removeDir($full) : @unlink($full);
-        }
-        @rmdir($dir);
-    }
 }
 
 /**

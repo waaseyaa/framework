@@ -7,6 +7,7 @@ namespace Waaseyaa\Config\Tests\Unit\Manifest;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeFile;
 use Waaseyaa\Config\Manifest\ConfigManifestSignerInterface;
 use Waaseyaa\Config\Manifest\ConfigSyncBundleManifest;
@@ -31,7 +32,7 @@ final class ConfigManifestEnvelopeFileTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->root);
+        (new Filesystem())->remove($this->root);
     }
 
     /**
@@ -214,20 +215,6 @@ final class ConfigManifestEnvelopeFileTest extends TestCase
         return SignedConfigManifestEnvelope::sign($manifest, new EnvelopeFileTestSigner('test-secret'));
     }
 
-    private function removeDirectory(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() && !$item->isLink() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($directory);
-    }
 }
 
 /** Deterministic stand-in for CFG-04 custody; the private key never leaves the test. */

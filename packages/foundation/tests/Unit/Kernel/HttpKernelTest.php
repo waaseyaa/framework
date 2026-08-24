@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
@@ -68,14 +69,7 @@ final class HttpKernelTest extends TestCase
     {
         ProcessFieldReadRuntime::reset();
         putenv('WAASEYAA_APP_SECRET');
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]
@@ -767,7 +761,6 @@ final class HttpKernelTest extends TestCase
         $this->assertContains('discovery:status:published', $tags);
         $this->assertContains('discovery:direction:both', $tags);
     }
-
 
     #[Test]
     public function discovery_cache_listener_uses_tag_invalidation_when_available(): void

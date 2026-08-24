@@ -7,6 +7,7 @@ namespace Waaseyaa\Migration\Tests\Unit\Discovery;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Migration\Discovery\CycleDetector;
 use Waaseyaa\Migration\Discovery\DependencyGraph;
 use Waaseyaa\Migration\Discovery\FilesystemManifestLoader;
@@ -263,7 +264,7 @@ final class MigrationRegistryTest extends TestCase
             \array_map(static fn ($d) => $d->id, $registry->all()),
         );
 
-        $this->cleanupTempDir($tempDir);
+        (new Filesystem())->remove($tempDir);
     }
 
     #[Test]
@@ -402,27 +403,4 @@ final class MigrationRegistryTest extends TestCase
         return $base;
     }
 
-    private function cleanupTempDir(string $dir): void
-    {
-        if (!\is_dir($dir)) {
-            return;
-        }
-        $iter = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iter as $file) {
-            \assert($file instanceof \SplFileInfo);
-            $real = $file->getRealPath();
-            if ($real === false) {
-                continue;
-            }
-            if ($file->isDir()) {
-                \rmdir($real);
-            } else {
-                \unlink($real);
-            }
-        }
-        \rmdir($dir);
-    }
 }

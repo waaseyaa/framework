@@ -6,6 +6,7 @@ namespace Waaseyaa\Config\Tests\Unit\Authority;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityResolver;
 use Waaseyaa\Config\Authority\SyncArtifactStorageAdapter;
@@ -71,20 +72,6 @@ final class SyncArtifactStorageAdapterTest extends TestCase
 
     private function remove(string $path): void
     {
-        if (!is_dir($path)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            if ($entry->isLink() || $entry->isFile()) {
-                @unlink($entry->getPathname());
-            } else {
-                @rmdir($entry->getPathname());
-            }
-        }
-        @rmdir($path);
+(new Filesystem())->remove($path);
     }
 }

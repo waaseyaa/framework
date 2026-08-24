@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Support;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Support\AdminPackagePathResolver;
 
 #[CoversClass(AdminPackagePathResolver::class)]
@@ -34,7 +35,7 @@ final class AdminPackagePathResolverTest extends TestCase
             $this->assertSame(realpath($root . '/from-env'), $path);
         } finally {
             putenv('WAASEYAA_ADMIN_PATH');
-            $this->deleteTree($root);
+            (new Filesystem())->remove($root);
         }
     }
 
@@ -53,7 +54,7 @@ final class AdminPackagePathResolverTest extends TestCase
             $path = (new AdminPackagePathResolver($root))->resolve();
             $this->assertSame(realpath($root . '/admin-pkg'), $path);
         } finally {
-            $this->deleteTree($root);
+            (new Filesystem())->remove($root);
         }
     }
 
@@ -69,25 +70,8 @@ final class AdminPackagePathResolverTest extends TestCase
             $this->expectException(\RuntimeException::class);
             (new AdminPackagePathResolver($root))->resolve();
         } finally {
-            $this->deleteTree($root);
+            (new Filesystem())->remove($root);
         }
     }
 
-    private function deleteTree(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-
-        rmdir($path);
-    }
 }

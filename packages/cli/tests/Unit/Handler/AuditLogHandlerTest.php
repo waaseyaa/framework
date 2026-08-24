@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\AuditLogHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
@@ -29,28 +30,7 @@ final class AuditLogHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->tempDir);
-    }
-
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        foreach (scandir($dir) as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $target_path = $dir . '/' . $entry;
-            if (is_dir($target_path)) {
-                $this->removeDirectory($target_path);
-            } else {
-                unlink($target_path);
-            }
-        }
-
-        rmdir($dir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]

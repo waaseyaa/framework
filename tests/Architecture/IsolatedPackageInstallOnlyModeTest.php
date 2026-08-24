@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
@@ -75,7 +76,7 @@ final class IsolatedPackageInstallOnlyModeTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->cleanupPaths as $path) {
-            $this->removeTree($path);
+            new Filesystem()->remove($path);
         }
         $this->cleanupPaths = [];
     }
@@ -324,23 +325,4 @@ final class IsolatedPackageInstallOnlyModeTest extends TestCase
         return ['exit_code' => $exitCode, 'output' => $process->getOutput() . $process->getErrorOutput()];
     }
 
-    private function removeTree(string $path): void
-    {
-        if (is_link($path) || is_file($path)) {
-            @unlink($path);
-
-            return;
-        }
-        if (!is_dir($path)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            $entry->isLink() || $entry->isFile() ? unlink($entry->getPathname()) : rmdir($entry->getPathname());
-        }
-        rmdir($path);
-    }
 }

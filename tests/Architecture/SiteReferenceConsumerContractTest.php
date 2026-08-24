@@ -6,6 +6,7 @@ namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
@@ -49,14 +50,7 @@ final class SiteReferenceConsumerContractTest extends TestCase
                 $composer['repositories'][1]['options']['versions'],
             );
         } finally {
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($fixture, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST,
-            );
-            foreach ($iterator as $entry) {
-                $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-            }
-            rmdir($fixture);
+            new Filesystem()->remove($fixture);
         }
     }
 

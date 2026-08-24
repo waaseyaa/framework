@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase17;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
@@ -44,17 +45,7 @@ final class KernelBootValidationTest extends TestCase
         $registryProperty = new \ReflectionProperty(ContentEntityBase::class, 'fieldRegistry');
         $registryProperty->setValue(null, null);
 
-        if (!is_dir($this->projectRoot)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     private function writeEntityTypes(string $body): void

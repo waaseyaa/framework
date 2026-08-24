@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 require_once __DIR__ . '/../../../bin/lib/internal-version-sync.php';
 
@@ -26,7 +27,7 @@ final class SyncInternalVersionsTest extends TestCase
     {
         foreach ($this->tempDirs as $dir) {
             if (is_dir($dir)) {
-                $this->removeDirectory($dir);
+                new Filesystem()->remove($dir);
             }
         }
         $this->tempDirs = [];
@@ -521,23 +522,4 @@ final class SyncInternalVersionsTest extends TestCase
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        $items = scandir($dir);
-        if ($items === false) {
-            return;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $itemPath = $dir . '/' . $item;
-            if (is_dir($itemPath)) {
-                $this->removeDirectory($itemPath);
-            } else {
-                unlink($itemPath);
-            }
-        }
-        rmdir($dir);
-    }
 }

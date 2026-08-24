@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel\Bootstrap;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -32,14 +33,7 @@ final class DatabaseBootstrapperTest extends TestCase
         putenv('WAASEYAA_DB');
 
         // Clean up temp files recursively.
-        $files = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->tempDir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($files as $file) {
-            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
-        }
-        rmdir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]

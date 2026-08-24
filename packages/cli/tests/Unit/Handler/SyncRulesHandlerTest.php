@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\SyncRulesHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
@@ -29,8 +30,8 @@ final class SyncRulesHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->sourceDir);
-        $this->removeDir($this->targetDir);
+        (new Filesystem())->remove($this->sourceDir);
+        (new Filesystem())->remove($this->targetDir);
     }
 
     private function makeDefinition(SyncRulesHandler $handler): HandlerCommand
@@ -119,7 +120,7 @@ final class SyncRulesHandlerTest extends TestCase
     #[Test]
     public function it_creates_target_directory_if_missing(): void
     {
-        $this->removeDir($this->targetDir);
+        (new Filesystem())->remove($this->targetDir);
         file_put_contents($this->sourceDir . '/waaseyaa-framework.md', '# Framework');
 
         $handler = new SyncRulesHandler($this->sourceDir, $this->targetDir);
@@ -129,17 +130,4 @@ final class SyncRulesHandlerTest extends TestCase
         self::assertFileExists($this->targetDir . '/waaseyaa-framework.md');
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $files = glob($dir . '/*');
-        if ($files !== false) {
-            foreach ($files as $file) {
-                is_dir($file) ? $this->removeDir($file) : unlink($file);
-            }
-        }
-        rmdir($dir);
-    }
 }

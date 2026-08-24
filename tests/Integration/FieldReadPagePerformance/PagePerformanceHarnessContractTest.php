@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\FieldReadPagePerformance;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 #[CoversNothing]
 final class PagePerformanceHarnessContractTest extends TestCase
@@ -51,7 +52,7 @@ final class PagePerformanceHarnessContractTest extends TestCase
             Fixtures\IsolatedPageSession::restore();
         } finally {
             Fixtures\IsolatedPageSession::restore();
-            $this->removeDirectory($root);
+            new Filesystem()->remove($root);
         }
     }
 
@@ -79,7 +80,7 @@ final class PagePerformanceHarnessContractTest extends TestCase
             self::assertNotSame($original['save_path'], (string) ini_get('session.save_path'));
         } finally {
             Fixtures\IsolatedPageSession::restore();
-            $this->removeDirectory($root);
+            new Filesystem()->remove($root);
         }
 
         self::assertSame(PHP_SESSION_NONE, session_status());
@@ -577,18 +578,4 @@ final class PagePerformanceHarnessContractTest extends TestCase
         ];
     }
 
-    private function removeDirectory(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($path);
-    }
 }

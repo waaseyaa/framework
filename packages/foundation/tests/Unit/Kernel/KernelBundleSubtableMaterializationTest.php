@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
@@ -101,17 +102,7 @@ PHP,
         $registryProperty = new \ReflectionProperty(ContentEntityBase::class, 'fieldRegistry');
         $registryProperty->setValue(null, null);
 
-        if (!is_dir($this->projectRoot)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+(new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]

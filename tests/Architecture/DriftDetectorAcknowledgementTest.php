@@ -7,6 +7,8 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Exception\IOException;
+use Symfony\Component\Filesystem\Filesystem;
 
 #[CoversNothing]
 final class DriftDetectorAcknowledgementTest extends TestCase
@@ -34,7 +36,23 @@ final class DriftDetectorAcknowledgementTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTree($this->fixtureRoot);
+        // The retry loop this replaces was added by 965fc1855 ("tolerate drift
+        // fixture cleanup races") because a git object can vanish mid-teardown
+        // under random order. Filesystem::remove() already tolerates that: it
+        // renames the tree aside first, and a file that disappears between the
+        // scan and the unlink does not raise. The one thing it does not carry
+        // over is the labelled report, so keep that explicitly rather than
+        // letting an unlabelled IOException surface from tearDown.
+        try {
+            new Filesystem()->remove($this->fixtureRoot);
+        } catch (IOException) {
+            // Fall through to the assertion below, which names the fixture.
+        }
+
+        self::assertDirectoryDoesNotExist(
+            $this->fixtureRoot,
+            'Disposable drift-detector fixture could not be removed safely.',
+        );
     }
 
     #[Test]
@@ -554,41 +572,4 @@ final class DriftDetectorAcknowledgementTest extends TestCase
         return [$exitCode, $joined];
     }
 
-    private function removeTree(string $path, int $attempts = 3): void
-    {
-        for ($attempt = 0; $attempt < $attempts; ++$attempt) {
-            clearstatcache(true, $path);
-            if (!is_dir($path)) {
-                return;
-            }
-
-            $items = @scandir($path);
-            if ($items === false) {
-                continue;
-            }
-
-            foreach ($items as $item) {
-                if ($item === '.' || $item === '..') {
-                    continue;
-                }
-
-                $child = $path . '/' . $item;
-                clearstatcache(true, $child);
-                if (!file_exists($child) && !is_link($child)) {
-                    continue;
-                }
-                if (is_dir($child) && !is_link($child)) {
-                    $this->removeTree($child, $attempts);
-                } else {
-                    @unlink($child);
-                }
-            }
-
-            if (@rmdir($path) || !is_dir($path)) {
-                return;
-            }
-        }
-
-        self::assertDirectoryDoesNotExist($path, 'Disposable drift-detector fixture could not be removed safely.');
-    }
 }

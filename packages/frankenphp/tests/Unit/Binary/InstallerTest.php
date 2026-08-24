@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\FrankenPhp\Binary\FrankenPhpAsset;
 use Waaseyaa\FrankenPhp\Binary\InstallOutcome;
 use Waaseyaa\FrankenPhp\Binary\Installer;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Offline-safe installer tests: all I/O (download, digest, extraction, chmod) is
@@ -30,20 +31,10 @@ final class InstallerTest extends TestCase
 
     protected function tearDown(): void
     {
-        self::removeTree($this->dir);
-    }
-
-    private static function removeTree(string $dir): void
-    {
-        $entries = glob($dir . '/*');
-        foreach ($entries === false ? [] : $entries as $f) {
-            if (is_dir($f)) {
-                self::removeTree($f);
-            } else {
-                @unlink($f);
-            }
-        }
-        @rmdir($dir);
+        // glob($dir . '/*') skipped dotfiles, so a surviving
+        // .frankenphp-*.download staging file (see the checksum-refusal tests)
+        // left the whole temp directory behind. remove() takes the dotfiles too.
+        (new Filesystem())->remove($this->dir);
     }
 
     private function bareAsset(): FrankenPhpAsset

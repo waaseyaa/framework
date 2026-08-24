@@ -6,6 +6,7 @@ namespace Waaseyaa\Tests\Integration\Phase4;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Config;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigManager;
@@ -37,7 +38,7 @@ final class ConfigEntityLifecycleTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->recursiveDelete($this->tempDir);
+        new Filesystem()->remove($this->tempDir);
     }
 
     // ---- FileStorage YAML round-trip ----
@@ -445,33 +446,4 @@ final class ConfigEntityLifecycleTest extends TestCase
         $immutable->set('key', 'new_value');
     }
 
-    /**
-     * Recursively deletes a directory.
-     */
-    private function recursiveDelete(string $path): void
-    {
-        if (!file_exists($path)) {
-            return;
-        }
-
-        if (is_file($path)) {
-            unlink($path);
-            return;
-        }
-
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($iterator as $item) {
-            if ($item->isDir()) {
-                rmdir($item->getPathname());
-            } else {
-                unlink($item->getPathname());
-            }
-        }
-
-        rmdir($path);
-    }
 }

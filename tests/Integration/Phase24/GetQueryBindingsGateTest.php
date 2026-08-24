@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase24;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Integration test for bin/check-getquery-bindings.
@@ -35,7 +36,7 @@ final class GetQueryBindingsGateTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->tempDir);
+        new Filesystem()->remove($this->tempDir);
         if (file_exists($this->tempBaseline)) {
             unlink($this->tempBaseline);
         }
@@ -220,22 +221,4 @@ final class GetQueryBindingsGateTest extends TestCase
         self::assertStringContainsString('Incomplete baseline entries', implode("\n", $output));
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $iter = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iter as $file) {
-            if ($file->isDir()) {
-                rmdir($file->getPathname());
-            } else {
-                unlink($file->getPathname());
-            }
-        }
-        rmdir($dir);
-    }
 }

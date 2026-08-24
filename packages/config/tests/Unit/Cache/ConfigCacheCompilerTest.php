@@ -7,6 +7,7 @@ namespace Waaseyaa\Config\Tests\Unit\Cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Cache\ConfigCacheCompiler;
 use Waaseyaa\Config\Storage\MemoryStorage;
@@ -24,7 +25,7 @@ final class ConfigCacheCompilerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]
@@ -122,18 +123,4 @@ final class ConfigCacheCompilerTest extends TestCase
         $this->assertFalse($compiler->clear());
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

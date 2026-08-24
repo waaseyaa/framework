@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\AdminBuild;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\AdminBuild\AdminBuildDependencyCache;
 use Waaseyaa\CLI\AdminBuild\AdminBuildPolicyException;
 
@@ -26,7 +27,7 @@ final class AdminBuildDependencyCacheTest extends TestCase
             self::assertSame($first, $second);
             self::assertSame(realpath($root) . '/storage/framework/admin-build/npm-cache-v1', $first);
 
-            $this->removeTree($root . '/storage');
+            (new Filesystem())->remove($root . '/storage');
             $outside = $root . '-outside';
             mkdir($outside, 0o700);
             if (!@symlink($outside, $root . '/storage')) {
@@ -41,29 +42,11 @@ final class AdminBuildDependencyCacheTest extends TestCase
             unlink($root . '/storage');
             rmdir($outside);
         } finally {
-            $this->removeTree($root);
+            (new Filesystem())->remove($root);
             if (is_dir($root . '-outside')) {
                 rmdir($root . '-outside');
             }
         }
     }
 
-    private function removeTree(string $path): void
-    {
-        if (!is_dir($path) || is_link($path)) {
-            if (is_link($path)) {
-                unlink($path);
-            }
-
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            $entry->isDir() && !$entry->isLink() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-        }
-        rmdir($path);
-    }
 }

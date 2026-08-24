@@ -6,6 +6,7 @@ namespace Waaseyaa\Tests\Integration\PhaseN\BimaajiInstall;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Bimaaji\BimaajiServiceProvider;
 use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
@@ -47,7 +48,7 @@ abstract class BimaajiInstallTestCase extends TestCase
         if ($this->originalCwd !== null) {
             @chdir($this->originalCwd);
         }
-        $this->removeDirectory($this->tempDir);
+        new Filesystem()->remove($this->tempDir);
     }
 
     protected function writeSkillFixture(string $id, string $contents): void
@@ -154,26 +155,4 @@ abstract class BimaajiInstallTestCase extends TestCase
         };
     }
 
-    private function removeDirectory(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-        $entries = scandir($path);
-        if ($entries === false) {
-            return;
-        }
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $full = $path . DIRECTORY_SEPARATOR . $entry;
-            if (is_dir($full)) {
-                $this->removeDirectory($full);
-            } else {
-                @unlink($full);
-            }
-        }
-        @rmdir($path);
-    }
 }

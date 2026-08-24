@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\Config\ConfigValidateCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
@@ -29,7 +30,7 @@ final class ConfigValidateCommandTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]
@@ -208,18 +209,4 @@ final class ConfigValidateCommandTest extends TestCase
         new ConfigSyncRepository($this->tempDir)->put($file);
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        foreach (scandir($dir) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $full = $dir . '/' . $entry;
-            is_dir($full) ? $this->removeDir($full) : @unlink($full);
-        }
-        @rmdir($dir);
-    }
 }

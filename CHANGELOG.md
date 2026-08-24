@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — every recursive directory remover in test scope now routes through
+  `symfony/filesystem` (#2491):** 145 hand-rolled recursive tree removers across
+  143 files under `tests/`, `benchmarks/`, and `packages/*/tests/` decided what to
+  delete with `is_dir()`/`isDir()` and no `is_link()` companion. 113 of the 145
+  carried no link guard at all. 142 are gone; the private helpers were deleted
+  outright rather than left dormant, and test scope now holds 125
+  `(new Filesystem())->remove($path)` call sites. No Composer change was needed —
+  `symfony/filesystem` entered the root `require-dev` with the `symfony/process`
+  wave and enters no package's runtime `require`, so no consumer of `core`, `cms`,
+  or `full` gains a dependency.
+
+  Measured on PHP 8.5, the duplicated shapes failed in two *different* ways, and
+  `tests/Architecture/RecursiveRemoverContractTest.php` now reproduces both rather
+  than asserting them from prose. The `scandir()`-plus-self-recursion shape calls
+  `is_dir($child)`, which resolves a directory symlink, recurses through it, and
+  unlinks the contents of the link's **target** — data outside the temporary root
+  the harness owns. The `RecursiveIteratorIterator` shape does not escape, because
+  `RecursiveDirectoryIterator` does not follow links unless
+  `FilesystemIterator::FOLLOW_SYMLINKS` is set; instead it calls `rmdir()` on the
+  symlink itself, which fails with `ENOTDIR`, so the link is never removed and the
+  **entire temporary tree survives the run**. This corrects #2491's own framing,
+  which cited the iterator shape as the escaping one. `Filesystem::remove()`
+  exhibits neither, and the gate proves that with a sentinel file in a directory
+  outside the cleanup root, reached by a directory symlink inside it.
+
+  The gate is shape-driven, not name-driven: it tokenizes every function body and
+  asks whether that body removes directories *and* either calls itself or drives a
+  recursive directory iterator. Renaming `removeDir()` — or inlining it into
+  `tearDown()`, which is how 52 of the 145 were written — does not evade it.
+  Grepping the four historical method names would have found 79 of them.
+
+  Behaviour is preserved deliberately. `Filesystem::remove()` **throws**
+  `IOException` where the hand-rolled `@rmdir`/`@unlink` shapes silently swallowed,
+  so the two harnesses that depended on that swallow keep it explicitly:
+  `DbInitHandlerTest` (a booted `ConsoleKernel` can still hold SQLite WAL/SHM
+  handles at teardown on Windows) and `DriftDetectorAcknowledgementTest` (whose
+  retry loop from `965fc1855` is redundant against Symfony's own tolerance of a
+  vanished path, but whose labelled `assertDirectoryDoesNotExist` failure message
+  is not). Two conversions also fix latent leaks rather than merely relocating
+  them: `InstallerTest` and `SqliteArtifactInstallerTest` cleaned up with
+  `glob($dir . '/*')`, which never matched the dotfiles those tests create.
+
+  Shallow cleanups — `glob()` plus `unlink()` plus a single `rmdir()` — were left
+  alone on purpose. With no recursion there is no traversal, and `unlink()` on a
+  symlink always removes the link rather than its target, so they cannot exhibit
+  either failure above; converting them would have traded best-effort cleanup for
+  a throwing one inside two `pcntl_fork()` tests for no safety gain.
+
+  **Three** recursive removers remain, each allowlisted with a rationale the gate
+  re-checks mechanically rather than trusting as prose.
+  `benchmarks/field-read-pages.php` is sha256-frozen in
+  `tests/Integration/FieldReadPagePerformance/fixture-manifest.json` and bootstraps
+  with two bare `require` statements rather than an autoloader, so a Symfony import
+  could not resolve there. `WorktreeCoordinatorTest::removeTree` is already
+  link-guarded, and it `@chmod()`s each entry to `0o700` before removing it —
+  load-bearing, because `permission_residue_is_reported()` leaves a committed
+  worktree subdirectory at `0o500` across its assertions, where
+  `Filesystem::remove()` would raise from `tearDown()` and mask the real result.
+  `tests/PackagedForm/skeleton/tests/Integration/PackagedKernelPathTest.php` is
+  part of a separate Composer *project* whose `require-dev` is phpunit alone —
+  `ci/packaged-form` exists to prove a consumer install of `waaseyaa/core`
+  resolves and boots, so the root `require-dev` is deliberately out of scope there
+  and the class does not exist at runtime. Converting it was tried and caught by
+  that gate.
+
+- **Fixed — `SubprocessHarnessContractTest` no longer fails when
+  `ci/packaged-form` has been run locally (#2491):** its scanner walks everything
+  under `tests/`, and `tests/PackagedForm/skeleton` is a separate Composer
+  project, so once that job installs the skeleton, phpunit's own `JobRunner` and
+  four `sebastian/*` packages appear under `tests/` calling `proc_open()` and the
+  gate reports five third-party call sites it does not govern. CI never saw it
+  because the two run as separate jobs with separate checkouts. The scanner now
+  skips `/vendor/`, as the new `RecursiveRemoverContractTest` does for the same
+  reason. Found by running both gates in one working tree.
+
 - **Changed — every deadlock-prone `proc_open()` test harness now drives its
   subprocesses through `symfony/process` (#2491):** 32 subprocess call sites
   across 26 test files opened stdout and stderr as blocking pipes and drained

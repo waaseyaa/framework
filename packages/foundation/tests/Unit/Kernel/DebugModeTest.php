@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 
 #[CoversClass(AbstractKernel::class)]
@@ -33,14 +34,7 @@ final class DebugModeTest extends TestCase
         putenv('LOG_LEVEL');
         putenv('WAASEYAA_APP_SECRET');
 
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]

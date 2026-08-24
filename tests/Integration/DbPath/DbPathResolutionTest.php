@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\DbPath;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -45,14 +46,7 @@ final class DbPathResolutionTest extends TestCase
         }
         putenv('WAASEYAA_DB');
 
-        $files = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($files as $file) {
-            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
-        }
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]

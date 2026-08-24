@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Media\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\FileRepositoryInterface;
 use Waaseyaa\Media\LocalFileRepository;
@@ -29,14 +30,7 @@ final class LocalFileRepositoryTest extends TestCase
             return;
         }
 
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->rootDir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->rootDir);
+        (new Filesystem())->remove($this->rootDir);
     }
 
     public function testImplementsInterface(): void
