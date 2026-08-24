@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase24;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Attachment\AttachmentServiceProvider;
 use Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -54,16 +55,7 @@ final class AttachmentPolicyDiscoveryTest extends TestCase
             return;
         }
 
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]

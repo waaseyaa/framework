@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Auth;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Auth\Token\AuthTokenRepository;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -69,18 +70,7 @@ final class AuthTokenSecretKernelParityTest extends TestCase
                 $_ENV[$name] = $value;
             }
         }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            if ($item->isLink() || $item->isFile()) {
-                unlink($item->getPathname());
-                continue;
-            }
-            rmdir($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]

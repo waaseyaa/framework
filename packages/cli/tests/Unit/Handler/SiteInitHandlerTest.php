@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\SiteInitHandler;
 use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\Site\SiteInitializationService;
@@ -27,14 +28,7 @@ final class SiteInitHandlerTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->roots as $root) {
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST,
-            );
-            foreach ($iterator as $item) {
-                $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-            }
-            rmdir($root);
+            (new Filesystem())->remove($root);
         }
     }
 

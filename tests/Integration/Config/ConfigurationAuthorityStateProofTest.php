@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Config;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityResolver;
 use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
 use Waaseyaa\Config\Sync\ConfigDiffer;
@@ -41,14 +42,7 @@ final class ConfigurationAuthorityStateProofTest extends TestCase
 
     protected function tearDown(): void
     {
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->root, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->root);
+        new Filesystem()->remove($this->root);
     }
 
     #[Test]

@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\AddTranslationsMigrationGenerator;
 use Waaseyaa\CLI\Handler\MakeMigrationHandler;
 use Waaseyaa\CLI\Handler\MissingLangcodeColumnException;
@@ -35,7 +36,7 @@ final class MakeMigrationAddTranslationsTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]
@@ -428,18 +429,4 @@ final class MakeMigrationAddTranslationsTest extends TestCase
         return $files[0];
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        foreach (scandir($dir) ?: [] as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $item_path = $dir . '/' . $item;
-            is_dir($item_path) ? $this->removeDir($item_path) : unlink($item_path);
-        }
-        rmdir($dir);
-    }
 }

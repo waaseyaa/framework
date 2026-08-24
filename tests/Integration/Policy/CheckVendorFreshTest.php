@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Policy;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
@@ -40,7 +41,7 @@ final class CheckVendorFreshTest extends TestCase
     {
         foreach ($this->tempDirs as $dir) {
             if (is_dir($dir)) {
-                $this->removeDirectory($dir);
+                new Filesystem()->remove($dir);
             }
         }
         $this->tempDirs = [];
@@ -230,23 +231,4 @@ final class CheckVendorFreshTest extends TestCase
         return [$exitCode, $process->getOutput(), $process->getErrorOutput()];
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        $items = scandir($dir);
-        if ($items === false) {
-            return;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $path = $dir . '/' . $item;
-            if (is_dir($path) && !is_link($path)) {
-                $this->removeDirectory($path);
-            } else {
-                @unlink($path);
-            }
-        }
-        @rmdir($dir);
-    }
 }

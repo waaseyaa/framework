@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\AdminBuild;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\AdminBuild\AdminBuildArtifactScanner;
 use Waaseyaa\CLI\AdminBuild\AdminBuildInputPolicy;
 use Waaseyaa\CLI\AdminBuild\AdminBuildPlatform;
@@ -56,14 +57,7 @@ final class HermeticAdminBuildPipelineTest extends TestCase
 
     protected function tearDown(): void
     {
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-        }
-        rmdir($this->projectRoot);
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]

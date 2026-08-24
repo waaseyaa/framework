@@ -7,6 +7,7 @@ namespace Waaseyaa\Search\Tests\Unit\Document;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Search\Document\MarkdownDirectorySource;
 use Waaseyaa\Search\Document\SearchDocument;
 
@@ -28,7 +29,7 @@ final class MarkdownDirectorySourceSymlinkTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTree($this->base);
+        (new Filesystem())->remove($this->base);
     }
 
     #[Test]
@@ -58,27 +59,4 @@ final class MarkdownDirectorySourceSymlinkTest extends TestCase
         self::assertNotContains('spec:leak', $ids);
     }
 
-    private function removeTree(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        foreach (scandir($dir) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-
-            $path = $dir . '/' . $entry;
-            // is_link first: never recurse through a symlink, just unlink it.
-            if (is_link($path) || is_file($path)) {
-                @unlink($path);
-                continue;
-            }
-
-            $this->removeTree($path);
-        }
-
-        @rmdir($dir);
-    }
 }

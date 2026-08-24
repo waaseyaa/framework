@@ -7,6 +7,7 @@ namespace Waaseyaa\Config\Tests\Unit\Sync;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Audit\ConfigAuditChannel;
 use Waaseyaa\Config\Audit\ConfigAuditEvent;
@@ -32,7 +33,7 @@ final class ConfigResetterTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]
@@ -278,18 +279,4 @@ final class ConfigResetterTest extends TestCase
         };
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        foreach (scandir($dir) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $full = $dir . '/' . $entry;
-            is_dir($full) ? $this->removeDir($full) : @unlink($full);
-        }
-        @rmdir($dir);
-    }
 }

@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Diagnostic;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -34,7 +35,7 @@ final class HealthCheckerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->projectRoot);
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     // --- Boot checks ---
@@ -87,7 +88,7 @@ final class HealthCheckerTest extends TestCase
     #[Test]
     public function storageDirectoryCheckWarnsWhenMissing(): void
     {
-        $this->removeDir($this->projectRoot . '/storage');
+        (new Filesystem())->remove($this->projectRoot . '/storage');
         $checker = $this->createChecker(withTypes: true);
         $results = $checker->checkRuntime();
 
@@ -338,7 +339,7 @@ final class HealthCheckerTest extends TestCase
         $this->assertSame('pass', $sizeResult->status);
         $this->assertStringContainsString('1 entries', $sizeResult->message);
 
-        $this->removeDir($emptyRoot);
+        (new Filesystem())->remove($emptyRoot);
     }
 
     // --- Identifier quoting (PRAGMA table_info) ---
@@ -454,18 +455,4 @@ final class HealthCheckerTest extends TestCase
         return null;
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

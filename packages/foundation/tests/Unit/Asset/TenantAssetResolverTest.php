@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Tests\Unit\Asset;
 
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Asset\AssetManagerInterface;
 use Waaseyaa\Foundation\Asset\TenantAssetResolver;
 use Waaseyaa\Foundation\Asset\ViteAssetManager;
@@ -24,7 +25,7 @@ final class TenantAssetResolverTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->fixtureDir);
+        (new Filesystem())->remove($this->fixtureDir);
     }
 
     #[Test]
@@ -246,25 +247,4 @@ final class TenantAssetResolverTest extends TestCase
         file_put_contents($viteDir . '/manifest.json', json_encode($manifest));
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            if ($item->isDir()) {
-                rmdir($item->getPathname());
-            } else {
-                unlink($item->getPathname());
-            }
-        }
-
-        rmdir($dir);
-    }
 }

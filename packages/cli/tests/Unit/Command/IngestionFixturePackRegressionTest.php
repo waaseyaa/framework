@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\FixturePackRefreshHandler;
 use Waaseyaa\CLI\Handler\IngestRunHandler;
 use Waaseyaa\CLI\Provider\BundleFixtureServiceProvider;
@@ -28,14 +29,7 @@ final class IngestionFixturePackRegressionTest extends TestCase
 
     protected function tearDown(): void
     {
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->tempDir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        @rmdir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]

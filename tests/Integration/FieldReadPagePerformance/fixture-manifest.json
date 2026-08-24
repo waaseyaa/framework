@@ -9,6 +9,6 @@
     "tests/Integration/FieldReadPagePerformance/Fixtures/templates/layouts/base.html.twig": "b45f3f61bd8a326e9fe3ec8c2dbfe645ecaee642d54bddcdf65b866ec8fd0378",
     "tests/Integration/FieldReadPagePerformance/Fixtures/templates/members.html.twig": "35909ca0726876ca2d56b11c229c5ad6ba8e063943234173583b7ffc32b99882",
     "tests/Integration/FieldReadPagePerformance/Fixtures/templates/node.article.full.html.twig": "fe71f33106288bb943bc24dc43a846d8b777b11f8c3f92dd22369e13ccb1edca",
-    "tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php": "6b99438398a9013a783697c920528d68e25f664526779bf0e0655f56675bfcc4",
+    "tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php": "e9b8321643c9afe94d18b1fa7546432e768067d27cc91d1cb326064a44a605e2",
     "tests/Integration/FieldReadPagePerformance/PagePerformanceOrchestrator.php": "2b39229d05313391aba0cf83d8275606c436531e311c4b4606ea5d47ebc65311"
 }

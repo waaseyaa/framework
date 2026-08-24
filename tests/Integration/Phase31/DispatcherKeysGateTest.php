@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase31;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Integration test for bin/check-dispatcher-keys (WP4 framework-wide
@@ -46,7 +47,7 @@ final class DispatcherKeysGateTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->tempDir);
+        new Filesystem()->remove($this->tempDir);
         if (file_exists($this->tempBaseline)) {
             unlink($this->tempBaseline);
         }
@@ -318,22 +319,4 @@ final class DispatcherKeysGateTest extends TestCase
         return [implode("\n", $output), $exitCode];
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $iter = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iter as $file) {
-            if ($file->isDir()) {
-                rmdir($file->getPathname());
-            } else {
-                unlink($file->getPathname());
-            }
-        }
-        rmdir($dir);
-    }
 }

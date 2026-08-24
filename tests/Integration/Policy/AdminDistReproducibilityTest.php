@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Policy;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 #[CoversNothing]
@@ -22,7 +23,7 @@ final class AdminDistReproducibilityTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->tempDirs as $dir) {
-            $this->removeDirectory($dir);
+            new Filesystem()->remove($dir);
         }
     }
 
@@ -235,23 +236,4 @@ final class AdminDistReproducibilityTest extends TestCase
         return $hashes;
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = scandir($dir);
-        foreach (is_array($items) ? $items : [] as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $path = $dir . '/' . $item;
-            if (is_dir($path)) {
-                $this->removeDirectory($path);
-            } else {
-                unlink($path);
-            }
-        }
-        rmdir($dir);
-    }
 }

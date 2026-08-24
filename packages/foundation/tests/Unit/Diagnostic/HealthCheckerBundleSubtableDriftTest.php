@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Diagnostic;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -38,7 +39,7 @@ final class HealthCheckerBundleSubtableDriftTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->projectRoot);
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]
@@ -278,18 +279,4 @@ final class HealthCheckerBundleSubtableDriftTest extends TestCase
         return null;
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\BackendRegistry;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\Tests\Integration\BackendRegistry\Fixtures\BackendRegistryEntityProvider;
@@ -70,17 +71,7 @@ final class BuiltinBackendsAreRegisteredTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (!is_dir($this->projectRoot)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isFile() || $item->isLink() ? unlink($item->getPathname()) : rmdir($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     // ------------------------------------------------------------------

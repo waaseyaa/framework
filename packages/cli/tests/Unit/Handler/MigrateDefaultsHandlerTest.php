@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateDefaultsHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
@@ -48,7 +49,7 @@ final class MigrateDefaultsHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]
@@ -117,22 +118,4 @@ final class MigrateDefaultsHandlerTest extends TestCase
         return CliTester::for($definition, $container);
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = scandir($dir);
-        if ($items === false) {
-            return;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $target = $dir . '/' . $item;
-            is_dir($target) ? $this->removeDir($target) : unlink($target);
-        }
-        rmdir($dir);
-    }
 }

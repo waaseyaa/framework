@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 /**
@@ -55,17 +56,7 @@ final class PackagedImportKeyHygieneTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (!is_dir($this->work)) {
-            return;
-        }
-        $entries = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->work, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($entries as $entry) {
-            $entry->isDir() && !$entry->isLink() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-        }
-        rmdir($this->work);
+        new Filesystem()->remove($this->work);
     }
 
     #[Test]

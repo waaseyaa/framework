@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Integration\Kernel;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Audit\AuditServiceProvider;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
@@ -46,14 +47,7 @@ final class DefinitionValidatorBootTest extends TestCase
 
     protected function tearDown(): void
     {
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     // -------------------------------------------------------------------------

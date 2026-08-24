@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\AdminBuild;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\AdminBuild\AdminBuildOutputPublisher;
 
 #[CoversClass(AdminBuildOutputPublisher::class)]
@@ -28,14 +29,7 @@ final class AdminBuildOutputPublisherTest extends TestCase
             self::assertSame(0o755, fileperms($admin . '/.output/public/assets') & 0o777);
             self::assertSame(0o644, fileperms($admin . '/.output/public/assets/app.js') & 0o777);
         } finally {
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST,
-            );
-            foreach ($iterator as $entry) {
-                $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-            }
-            rmdir($root);
+            (new Filesystem())->remove($root);
         }
     }
 }

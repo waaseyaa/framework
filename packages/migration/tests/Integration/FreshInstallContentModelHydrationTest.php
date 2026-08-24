@@ -8,6 +8,7 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use Waaseyaa\Migration\Tests\Fixtures\FreshInstallContentModelProvider;
 
@@ -50,17 +51,7 @@ final class FreshInstallContentModelHydrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (!is_dir($this->projectRoot)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isLink() || $item->isFile() ? unlink($item->getPathname()) : rmdir($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+(new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]

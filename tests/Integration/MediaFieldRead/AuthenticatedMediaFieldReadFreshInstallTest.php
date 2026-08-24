@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
@@ -77,7 +78,7 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
         ContentEntityBase::setFieldRegistry(null);
         EntityReadRuntime::installFieldRegistry(null);
         if (is_dir($this->projectRoot)) {
-            $this->removeDirectory($this->projectRoot);
+            new Filesystem()->remove($this->projectRoot);
         }
     }
 
@@ -207,15 +208,4 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
             . "];\n";
     }
 
-    private function removeDirectory(string $path): void
-    {
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() && !$item->isLink() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($path);
-    }
 }

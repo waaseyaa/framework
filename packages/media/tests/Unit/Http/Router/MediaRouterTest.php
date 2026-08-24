@@ -7,6 +7,7 @@ namespace Waaseyaa\Media\Tests\Unit\Http\Router;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
@@ -222,7 +223,7 @@ final class MediaRouterTest extends TestCase
         self::assertSame(400, $response->getStatusCode());
         self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
         self::assertStringNotContainsString($filesRoot, $response->getContent());
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -238,7 +239,7 @@ final class MediaRouterTest extends TestCase
         self::assertSame(400, $response->getStatusCode());
         self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
         self::assertStringNotContainsString('../secret', $response->getContent());
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -254,7 +255,7 @@ final class MediaRouterTest extends TestCase
         self::assertSame(400, $response->getStatusCode());
         self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
         self::assertStringNotContainsString($filesRoot, $response->getContent());
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -272,7 +273,7 @@ final class MediaRouterTest extends TestCase
         self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
         self::assertStringNotContainsString('private_document', $response->getContent());
         self::assertStringNotContainsString('create private_document media', $response->getContent());
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -289,7 +290,7 @@ final class MediaRouterTest extends TestCase
         self::assertSame(403, $response->getStatusCode());
         self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
         self::assertStringNotContainsString('unregistered_bundle', $response->getContent());
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -311,7 +312,7 @@ final class MediaRouterTest extends TestCase
         self::assertSame('image/png', $decoded['data']['attributes']['mime_type']);
         self::assertArrayNotHasKey('path', $decoded['data']['attributes']);
         self::assertStringNotContainsString($filesRoot, $response->getContent());
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -356,7 +357,7 @@ final class MediaRouterTest extends TestCase
         );
 
         // Cleanup — use a recursive helper to handle any sub-directories created by the repo.
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -379,7 +380,7 @@ final class MediaRouterTest extends TestCase
         $decoded = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertStringContainsString('text/plain', $decoded['errors'][0]['detail']);
 
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -396,7 +397,7 @@ final class MediaRouterTest extends TestCase
 
         self::assertSame(415, $response->getStatusCode(), 'octet-stream must not be in the default allowlist');
 
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -413,7 +414,7 @@ final class MediaRouterTest extends TestCase
 
         self::assertSame(415, $response->getStatusCode(), 'SVG (script-capable) must not be in the default allowlist');
 
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -435,7 +436,7 @@ final class MediaRouterTest extends TestCase
         $decoded = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('image/svg+xml', $decoded['data']['attributes']['mime_type']);
 
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -466,7 +467,7 @@ final class MediaRouterTest extends TestCase
         $decoded = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertStringContainsString('could not be verified', $decoded['errors'][0]['detail']);
 
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -501,7 +502,7 @@ final class MediaRouterTest extends TestCase
         self::assertNotNull($sidecar);
         self::assertSame($originalName, $sidecar->originalName);
 
-        $this->removeDirectory($tmpDir);
+        (new Filesystem())->remove($tmpDir);
     }
 
     #[Test]
@@ -554,21 +555,4 @@ final class MediaRouterTest extends TestCase
         self::assertSame('/files/uploads/doc.pdf', $router->buildPublicFileUrl('uploads/doc.pdf'));
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $entries = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($entries as $entry) {
-            $entry->isDir() ? @rmdir($entry->getPathname()) : @unlink($entry->getPathname());
-        }
-
-        @rmdir($dir);
-    }
 }

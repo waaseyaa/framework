@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 /**
@@ -39,14 +40,7 @@ final class RandomOrderVendorArchiveIntegrityTest extends TestCase
             if (!is_dir($root)) {
                 continue;
             }
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST,
-            );
-            foreach ($iterator as $entry) {
-                $entry->isLink() || $entry->isFile() ? unlink($entry->getPathname()) : rmdir($entry->getPathname());
-            }
-            rmdir($root);
+            new Filesystem()->remove($root);
         }
         $this->fixtureRoots = [];
     }
@@ -133,7 +127,7 @@ final class RandomOrderVendorArchiveIntegrityTest extends TestCase
         // extracted vendor/waaseyaa/pkg symlink survives, but the target
         // package directory this checkout would resolve it against is gone.
         $root = $this->buildFixture();
-        $this->removeTree($root . '/packages/pkg');
+        new Filesystem()->remove($root . '/packages/pkg');
 
         $result = $this->runVerify($root, 'archive', '.');
 
@@ -183,7 +177,7 @@ final class RandomOrderVendorArchiveIntegrityTest extends TestCase
             'php -r \'echo hash_file("sha256", "vendor/composer/installed.php");\' > archive/installed.sha256',
         );
 
-        $this->removeTree($root . '/vendor');
+        new Filesystem()->remove($root . '/vendor');
 
         return $root;
     }
@@ -194,23 +188,4 @@ final class RandomOrderVendorArchiveIntegrityTest extends TestCase
         self::assertSame(0, $exitCode, implode("\n", $output));
     }
 
-    private function removeTree(string $path): void
-    {
-        if (is_link($path)) {
-            unlink($path);
-
-            return;
-        }
-        if (!is_dir($path)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            $entry->isLink() || $entry->isFile() ? unlink($entry->getPathname()) : rmdir($entry->getPathname());
-        }
-        rmdir($path);
-    }
 }

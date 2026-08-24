@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\AdminBuild;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\AdminBuild\AdminBuildPlatform;
 use Waaseyaa\CLI\AdminBuild\HermeticBuildEnvironmentFactory;
 
@@ -23,7 +24,7 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTree($this->tempRoot);
+        (new Filesystem())->remove($this->tempRoot);
     }
 
     #[Test]
@@ -189,18 +190,4 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
         return $path;
     }
 
-    private function removeTree(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            $entry->isDir() && !$entry->isLink() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-        }
-        rmdir($path);
-    }
 }

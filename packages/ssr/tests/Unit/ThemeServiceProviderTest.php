@@ -7,6 +7,7 @@ namespace Waaseyaa\SSR\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\SSR\Theme;
 use Waaseyaa\SSR\ThemeServiceProvider;
 
@@ -48,7 +49,7 @@ final class ThemeServiceProviderTest extends TestCase
         $this->assertSame([$normalizedRoot . '/vendor/acme/nebula/templates'], $themes['nebula']->templateDirectories());
         $this->assertSame([$normalizedRoot . '/vendor/acme/minimal/views'], $themes['minimal']->templateDirectories());
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
     #[Test]
@@ -76,7 +77,7 @@ final class ThemeServiceProviderTest extends TestCase
 
         $this->assertSame('theme', $twig->render('page.html.twig'));
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
     #[Test]
@@ -104,7 +105,7 @@ final class ThemeServiceProviderTest extends TestCase
 
         $this->assertSame('app', $twig->render('page.html.twig'));
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
     #[Test]
@@ -117,7 +118,7 @@ final class ThemeServiceProviderTest extends TestCase
 
         $this->assertFalse($twig->getCache(true), 'Cache must be false when no cache_dir is configured.');
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
     #[Test]
@@ -133,23 +134,7 @@ final class ThemeServiceProviderTest extends TestCase
         $this->assertNotFalse($cache, 'Cache must be enabled when cache_dir is configured.');
         $this->assertStringContainsString($cacheDir, (string) $cache);
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
-    private function removeDirectory(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($directory);
-    }
 }

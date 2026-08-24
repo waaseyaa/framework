@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\Config\ConfigManifestSignCommand;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
@@ -55,7 +56,7 @@ final class ConfigManifestSignCommandTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->root);
+        (new Filesystem())->remove($this->root);
     }
 
     #[Test]
@@ -238,20 +239,6 @@ final class ConfigManifestSignCommandTest extends TestCase
         file_put_contents($this->syncPath . '/' . $file->filename(), new ConfigSyncSerializer()->toYaml($file));
     }
 
-    private function removeDirectory(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() && !$item->isLink() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($directory);
-    }
 }
 
 /** Deterministic stand-in for CFG-04 custody. */

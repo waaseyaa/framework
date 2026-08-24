@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Site;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
 use Waaseyaa\CLI\Site\SiteDoctorService;
 use Waaseyaa\CLI\Site\SiteInitializationService;
@@ -107,14 +108,7 @@ final class PublishedContentRecipeTest extends TestCase
             self::assertTrue($report->passed, $report->canonicalJson());
         } finally {
             if (is_dir($root)) {
-                $iterator = new \RecursiveIteratorIterator(
-                    new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-                    \RecursiveIteratorIterator::CHILD_FIRST,
-                );
-                foreach ($iterator as $item) {
-                    $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-                }
-                rmdir($root);
+                (new Filesystem())->remove($root);
             }
         }
     }

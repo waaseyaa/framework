@@ -7,6 +7,7 @@ namespace Waaseyaa\Config\Tests\Unit\Manifest;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Config\Manifest\ConfigManifestBundleSigner;
 use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeFile;
 use Waaseyaa\Config\Manifest\ConfigManifestEnvelopeVerifier;
@@ -49,7 +50,7 @@ final class ConfigManifestBundleSignerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->root);
+        (new Filesystem())->remove($this->root);
     }
 
     /**
@@ -234,20 +235,6 @@ final class ConfigManifestBundleSignerTest extends TestCase
         return $digest;
     }
 
-    private function removeDirectory(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() && !$item->isLink() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($directory);
-    }
 }
 
 /** Deterministic stand-in for CFG-04 custody on the authoring host. */

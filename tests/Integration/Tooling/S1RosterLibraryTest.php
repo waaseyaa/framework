@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Tooling;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Unit tests for bin/lib/s1-roster.php — the shared roster scanner whose
@@ -32,7 +33,7 @@ final class S1RosterLibraryTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->tempDir);
+        new Filesystem()->remove($this->tempDir);
     }
 
     /** @return array<string, mixed> */
@@ -177,18 +178,4 @@ final class S1RosterLibraryTest extends TestCase
         $this->assertStringContainsString('packages/demo/src/Gone.php', $joined);
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

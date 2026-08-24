@@ -7,6 +7,7 @@ namespace Waaseyaa\Migration\Tests\Integration;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Migration\Discovery\FilesystemManifestLoader;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
@@ -44,7 +45,7 @@ final class DiscoveryBootstrapTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->tempDirs as $dir) {
-            $this->cleanupTempDir($dir);
+            (new Filesystem())->remove($dir);
         }
         $this->tempDirs = [];
         parent::tearDown();
@@ -276,27 +277,4 @@ final class DiscoveryBootstrapTest extends TestCase
         return $base;
     }
 
-    private function cleanupTempDir(string $dir): void
-    {
-        if (!\is_dir($dir)) {
-            return;
-        }
-        $iter = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iter as $file) {
-            \assert($file instanceof \SplFileInfo);
-            $real = $file->getRealPath();
-            if ($real === false) {
-                continue;
-            }
-            if ($file->isDir()) {
-                \rmdir($real);
-            } else {
-                \unlink($real);
-            }
-        }
-        \rmdir($dir);
-    }
 }

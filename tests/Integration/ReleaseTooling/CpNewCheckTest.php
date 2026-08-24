@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\ReleaseTooling;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use Waaseyaa\Tests\Support\ReplacesProcessEnvironment;
 
@@ -43,8 +44,12 @@ final class CpNewCheckTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        if ($this->tempDir !== '' && is_dir($this->tempDir)) {
-            $this->rmdirRecursive($this->tempDir);
+        if ($this->tempDir !== '') {
+            // chmod 0o666 on each file used to precede the unlink here; it was
+            // inert. POSIX unlink() is authorised by write permission on the
+            // PARENT directory, and every directory this fixture creates is
+            // 0o755, so git's read-only 0444 objects were never a problem.
+            new Filesystem()->remove($this->tempDir);
         }
     }
 
@@ -168,27 +173,6 @@ final class CpNewCheckTest extends TestCase
         ];
     }
 
-    private function rmdirRecursive(string $dir): void
-    {
-        $entries = scandir($dir);
-        if ($entries === false) {
-            return;
-        }
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $full = $dir . '/' . $entry;
-            if (is_dir($full)) {
-                $this->rmdirRecursive($full);
-                continue;
-            }
-
-            chmod($full, 0o666);
-            unlink($full);
-        }
-        rmdir($dir);
-    }
 
     // ------------------------------------------------------------------
     // Test cases

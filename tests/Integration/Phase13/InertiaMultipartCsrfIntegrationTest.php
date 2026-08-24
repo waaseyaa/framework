@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase13;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
 
 /**
@@ -61,7 +62,6 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
         // CsrfMiddleware and HttpKernel changes are loaded in subprocesses.
         $this->writeAutoloadWrapper();
 
-
         // Minimal framework config.
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
@@ -88,8 +88,8 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->projectRoot);
-        $this->removeDirectory($this->sessionPath);
+        new Filesystem()->remove($this->projectRoot);
+        new Filesystem()->remove($this->sessionPath);
 
         // Reset session state so subsequent tests start clean.
         if (session_status() === \PHP_SESSION_ACTIVE) {
@@ -635,24 +635,4 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
             PHP;
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            if ($item->isLink() || $item->isFile()) {
-                unlink($item->getPathname());
-                continue;
-            }
-            rmdir($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

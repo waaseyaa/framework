@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\SiteDoctorHandler;
 use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
@@ -18,11 +19,7 @@ final class SiteDoctorHandlerTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->roots as $root) {
-            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
-            foreach ($iterator as $item) {
-                $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-            }
-            rmdir($root);
+            (new Filesystem())->remove($root);
         }
     }
 

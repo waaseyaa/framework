@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\SiteInitializationService;
@@ -26,7 +27,7 @@ final class SiteInitializationServiceTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->roots as $root) {
-            $this->removeTree($root);
+            (new Filesystem())->remove($root);
         }
     }
 
@@ -430,18 +431,4 @@ final class SiteInitializationServiceTest extends TestCase
         return $snapshot;
     }
 
-    private function removeTree(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $item) {
-            $item->isLink() || !$item->isDir() ? unlink($item->getPathname()) : rmdir($item->getPathname());
-        }
-        rmdir($path);
-    }
 }

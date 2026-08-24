@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\HealthReportHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
@@ -29,7 +30,7 @@ final class HealthReportHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->projectRoot);
+        (new Filesystem())->remove($this->projectRoot);
     }
 
     #[Test]
@@ -138,18 +139,4 @@ final class HealthReportHandlerTest extends TestCase
         );
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }

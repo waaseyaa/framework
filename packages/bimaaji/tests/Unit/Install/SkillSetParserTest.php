@@ -7,6 +7,7 @@ namespace Waaseyaa\Bimaaji\Tests\Unit\Install;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
 
@@ -23,7 +24,7 @@ final class SkillSetParserTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     #[Test]
@@ -147,26 +148,4 @@ final class SkillSetParserTest extends TestCase
         file_put_contents($dir . '/SKILL.md', $contents);
     }
 
-    private function removeDirectory(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-        $entries = scandir($path);
-        if ($entries === false) {
-            return;
-        }
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $full = $path . DIRECTORY_SEPARATOR . $entry;
-            if (is_dir($full)) {
-                $this->removeDirectory($full);
-            } else {
-                @unlink($full);
-            }
-        }
-        @rmdir($path);
-    }
 }

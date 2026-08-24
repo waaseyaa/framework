@@ -7,6 +7,7 @@ namespace Waaseyaa\SSR\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\SSR\SsrServiceProvider;
 use Waaseyaa\SSR\ThemeServiceProvider;
 
@@ -28,7 +29,7 @@ final class SsrServiceProviderTest extends TestCase
         $this->assertSame('<h1>App /</h1>', $twig->render('page.html.twig', ['path' => '/']));
         $this->assertSame('<p>Package template</p>', $twig->render('demo.html.twig'));
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
     #[Test]
@@ -48,7 +49,7 @@ final class SsrServiceProviderTest extends TestCase
         SsrServiceProvider::setTwigEnvironment(null);
         $this->assertNull(SsrServiceProvider::getTwigEnvironment());
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
     #[Test]
@@ -73,7 +74,7 @@ final class SsrServiceProviderTest extends TestCase
         $this->assertNotNull($registry);
         $this->assertSame('&lt;b&gt;x&lt;/b&gt;', $registry->format('string', '<b>x</b>'));
 
-        $this->removeDirectory($projectRoot);
+        (new Filesystem())->remove($projectRoot);
     }
 
     #[Test]
@@ -113,24 +114,8 @@ final class SsrServiceProviderTest extends TestCase
         $this->assertSame($secondThemeEnvironment, $secondSsrEnvironment);
         $this->assertSame('second request', $secondSsrEnvironment->render('page.html.twig'));
 
-        $this->removeDirectory($firstRoot);
-        $this->removeDirectory($secondRoot);
+        (new Filesystem())->remove($firstRoot);
+        (new Filesystem())->remove($secondRoot);
     }
 
-    private function removeDirectory(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($directory);
-    }
 }

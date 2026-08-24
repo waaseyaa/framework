@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Waaseyaa\Foundation\Tests\Unit\Discovery;
 
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Discovery\MalformedConfigContractException;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
@@ -30,7 +31,7 @@ final class PackageManifestCompilerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tempDir);
+        (new Filesystem())->remove($this->tempDir);
     }
 
     /**
@@ -1957,20 +1958,6 @@ final class PackageManifestCompilerTest extends TestCase
         }
     }
 
-    private function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($dir);
-    }
 }
 
 #[ContentEntityType(id: 'compiler_content_fixture')]

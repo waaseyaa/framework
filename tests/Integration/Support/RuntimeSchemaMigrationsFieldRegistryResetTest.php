@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Support;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Api\Tests\Fixtures\NodeContentTestEntity;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityReadRuntime;
@@ -65,19 +66,7 @@ final class RuntimeSchemaMigrationsFieldRegistryResetTest extends TestCase
         if ($this->projectRoot === '' || !is_dir($this->projectRoot)) {
             return;
         }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $file) {
-            \assert($file instanceof \SplFileInfo);
-            if ($file->isDir() && !$file->isLink()) {
-                rmdir($file->getPathname());
-            } else {
-                unlink($file->getPathname());
-            }
-        }
-        rmdir($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]

@@ -6,6 +6,7 @@ namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 final class PhpUnitShardPlannerTest extends TestCase
@@ -34,14 +35,7 @@ final class PhpUnitShardPlannerTest extends TestCase
         if (!isset($this->fixtureRoot) || !is_dir($this->fixtureRoot)) {
             return;
         }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->fixtureRoot, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $entry) {
-            $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
-        }
-        rmdir($this->fixtureRoot);
+        new Filesystem()->remove($this->fixtureRoot);
     }
 
     #[Test]

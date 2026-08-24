@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Schema\DefaultsSchemaRegistry;
 use Waaseyaa\Foundation\Schema\SchemaEntry;
 
@@ -24,14 +25,7 @@ final class DefaultsSchemaRegistryTest extends TestCase
 
     protected function tearDown(): void
     {
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->defaultsDir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->defaultsDir);
+        (new Filesystem())->remove($this->defaultsDir);
     }
 
     #[Test]

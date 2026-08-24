@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Handler\FieldAccessPreflightHandler;
@@ -81,14 +82,7 @@ final class ProductionHttpEntitySchemaMutationTest extends TestCase
             }
         }
         if (is_dir($this->projectRoot)) {
-            $items = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($this->projectRoot, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST,
-            );
-            foreach ($items as $item) {
-                $item->isDir() && !$item->isLink() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-            }
-            rmdir($this->projectRoot);
+            new Filesystem()->remove($this->projectRoot);
         }
     }
 

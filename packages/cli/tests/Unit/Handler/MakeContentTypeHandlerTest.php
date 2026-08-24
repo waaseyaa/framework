@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\HandlerArgument;
 use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
@@ -33,17 +34,7 @@ final class MakeContentTypeHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (!is_dir($this->root)) {
-            return;
-        }
-        $it = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->root, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($it as $f) {
-            $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
-        }
-        @rmdir($this->root);
+(new Filesystem())->remove($this->root);
     }
 
     private function command(): HandlerCommand
@@ -280,14 +271,7 @@ final class MakeContentTypeHandlerTest extends TestCase
             exec('php -l ' . escapeshellarg($entityPath) . ' 2>&1', $lintOutput, $exitCode);
             self::assertSame(0, $exitCode, sprintf('%s failed php -l: %s', $entityPath, implode("\n", $lintOutput)));
         } finally {
-            $it = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST,
-            );
-            foreach ($it as $f) {
-                $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
-            }
-            @rmdir($root);
+            (new Filesystem())->remove($root);
         }
     }
 

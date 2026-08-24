@@ -8,6 +8,8 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Exception\IOException;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
@@ -35,7 +37,16 @@ final class DbInitHandlerTest extends TestCase
     protected function tearDown(): void
     {
         putenv('WAASEYAA_APP_SECRET');
-        $this->removeDirectory($this->projectRoot);
+        // Best-effort cleanup: the default-sync test boots a ConsoleKernel whose
+        // services hold SQLite handles freed only by the GC cycle collector, so
+        // on Windows the WAL/SHM files can still be locked at teardown. The leak
+        // is process-local and harmless (POSIX unlink-open-file just works on the
+        // Linux CI). Don't let temp-dir cleanup fail the test.
+        try {
+            (new Filesystem())->remove($this->projectRoot);
+        } catch (IOException) {
+            // Intentionally ignored -- see above.
+        }
     }
 
     #[Test]
@@ -347,23 +358,4 @@ final class DbInitHandlerTest extends TestCase
         return CliTester::for($definition, $container);
     }
 
-    private function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        // Best-effort cleanup: the default-sync test boots a ConsoleKernel whose
-        // services hold SQLite handles freed only by the GC cycle collector, so
-        // on Windows the WAL/SHM files can still be locked at teardown. The leak
-        // is process-local and harmless (POSIX unlink-open-file just works on the
-        // Linux CI). Don't let temp-dir cleanup fail the test.
-        foreach ($items as $item) {
-            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
-        }
-        @rmdir($dir);
-    }
 }
