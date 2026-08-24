@@ -126,23 +126,123 @@ final class EntityWriteAuditListenerTest extends TestCase
         $this->assertArrayHasKey(EntityEvents::POST_DELETE->value, $events);
     }
 
+    #[Test]
+    public function interleavedPrePrePostPostExistingThenNewKeepsPerEntityAction(): void
+    {
+        $existing = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 1], isNew: false);
+        $new      = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 2], isNew: true);
+
+        $this->dispatchInterleavedSavePair($existing, $new);
+
+        $this->assertSame(
+            ['update', 'create'],
+            array_column($this->logger->read(), 'action'),
+            'saveMany([existing, new]) buffers POST until after both PREs; each POST must use its own PRE isNew().',
+        );
+        $this->assertPendingMapEmpty();
+    }
+
+    #[Test]
+    public function interleavedPrePrePostPostNewThenExistingKeepsPerEntityAction(): void
+    {
+        $new      = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 2], isNew: true);
+        $existing = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 1], isNew: false);
+
+        $this->dispatchInterleavedSavePair($new, $existing);
+
+        $this->assertSame(
+            ['create', 'update'],
+            array_column($this->logger->read(), 'action'),
+            'saveMany([new, existing]) must not let the existing entity\'s PRE overwrite the new entity\'s create action.',
+        );
+        $this->assertPendingMapEmpty();
+    }
+
+    #[Test]
+    public function listenerReuseAfterMixedBatchDoesNotLeakStaleIsNew(): void
+    {
+        $existing = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 1], isNew: false);
+        $new      = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 2], isNew: true);
+        $this->dispatchInterleavedSavePair($existing, $new);
+
+        $laterExisting = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 3], isNew: false);
+        $this->listener->onPreSave(new EntityEvent($laterExisting));
+        $this->listener->onPostSave(new EntityEvent($laterExisting));
+
+        $actions = array_column($this->logger->read(), 'action');
+        $this->assertSame(['update', 'create', 'update'], $actions);
+        $this->assertPendingMapEmpty();
+    }
+
+    #[Test]
+    public function exceptionDuringSecondPostSaveDoesNotRewriteTheFirstEntityAction(): void
+    {
+        $existing = $this->makeEntity('note', ['tenant_id' => 'acme', 'id' => 10], isNew: false);
+        $exploding = $this->makeExplodingEntity('note', ['tenant_id' => 'acme', 'id' => 11], isNew: true);
+
+        $this->listener->onPreSave(new EntityEvent($existing));
+        $this->listener->onPreSave(new EntityEvent($exploding));
+        $this->listener->onPostSave(new EntityEvent($existing));
+        try {
+            $this->listener->onPostSave(new EntityEvent($exploding));
+            $this->fail('Expected the exploding entity to throw during POST_SAVE.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('audit-post-save-boom', $e->getMessage());
+        }
+
+        $this->assertSame(['update'], array_column($this->logger->read(), 'action'));
+        $this->assertPendingMapEmpty();
+    }
+
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 
+    private function dispatchInterleavedSavePair(EntityInterface $first, EntityInterface $second): void
+    {
+        $this->listener->onPreSave(new EntityEvent($first));
+        $this->listener->onPreSave(new EntityEvent($second));
+        $this->listener->onPostSave(new EntityEvent($first));
+        $this->listener->onPostSave(new EntityEvent($second));
+    }
+
+    private function assertPendingMapEmpty(): void
+    {
+        $property = new \ReflectionProperty($this->listener, 'pendingIsNew');
+        $pending = $property->getValue($this->listener);
+        $this->assertInstanceOf(\WeakMap::class, $pending);
+        $this->assertCount(0, iterator_to_array($pending, false));
+    }
+
     /** @param array<string, mixed> $values */
     private function makeEntity(string $typeId, array $values, bool $isNew): EntityInterface
     {
-        return new class($typeId, $values, $isNew) extends ContentEntityBase {
-            private bool $new;
+        return $this->makeExplodingEntity($typeId, $values, $isNew, explode: false);
+    }
 
-            public function __construct(string $typeId, array $values, bool $isNew)
-            {
+    /** @param array<string, mixed> $values */
+    private function makeExplodingEntity(string $typeId, array $values, bool $isNew, bool $explode = true): EntityInterface
+    {
+        return new class($typeId, $values, $isNew, $explode) extends ContentEntityBase {
+            public function __construct(
+                string $typeId,
+                array $values,
+                private readonly bool $new,
+                private readonly bool $explodeOnTypeId,
+            ) {
                 parent::__construct($values, $typeId, ['id' => 'id']);
-                $this->new = $isNew;
             }
 
             public function isNew(): bool { return $this->new; }
+
+            public function getEntityTypeId(): string
+            {
+                if ($this->explodeOnTypeId) {
+                    throw new \RuntimeException('audit-post-save-boom');
+                }
+
+                return parent::getEntityTypeId();
+            }
         };
     }
 }

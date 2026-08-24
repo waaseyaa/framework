@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — `saveMany()` mixed create/update batches mis-attributed audit
+  actions and skipped thread owner bootstrap (#1856):** PRE_SAVE now
+  dispatches per entity inside the batch transaction while POST_SAVE stays
+  buffered until commit, so a listener-wide `pendingIsNew` boolean made
+  every POST inherit the last PRE's create/update flag. `EntityWriteAuditListener`,
+  `EntityLifecycleAuditListener`, and `ThreadParticipantBootstrapSubscriber`
+  now correlate PRE→POST state per entity object via `WeakMap` and consume
+  the matching entry on POST. Mixed `[existing, new]` and `[new, existing]`
+  batches keep per-entity create vs update provenance; a new thread in a
+  mixed `saveMany()` still receives its owner participant. Event order,
+  transaction behavior, and deleteMany PRE_DELETE buffering (#1852) are
+  unchanged.
+
 - **Test isolation — remaining Foundation kernel unit tests reset the
   process-wide field-read runtime (#2514):** after #2513, `HttpKernelTest`,
   `AbstractKernelTest`, and `ConsoleKernelTest` called

@@ -31,10 +31,13 @@ use Waaseyaa\Messaging\MessageThread;
  * trusting a mutable entity field for "who is acting" is spoofable, the
  * request-scoped acting-account holder is not.
  *
- * `isNew()` is captured at PRE_SAVE (the same two-phase pattern
- * `EntityLifecycleAuditListener` uses) because by POST_SAVE the entity has
+ * `isNew()` is captured at PRE_SAVE, keyed on the entity object
+ * ({@see \WeakMap}) — the same two-phase pairing
+ * `EntityLifecycleAuditListener` uses — because by POST_SAVE the entity has
  * already been assigned a real id and `enforceIsNew(false)`, so `isNew()`
- * no longer distinguishes create from update at that point.
+ * no longer distinguishes create from update at that point. A listener-wide
+ * boolean slot is not safe under `saveMany()`: PRE events for the whole
+ * batch fire before any POST (#1856).
  *
  * Best-effort: seeding failures are logged, never thrown, so a storage hiccup
  * degrades to "thread has no participants yet" rather than breaking thread
@@ -42,7 +45,8 @@ use Waaseyaa\Messaging\MessageThread;
  */
 final class ThreadParticipantBootstrapSubscriber implements EventSubscriberInterface
 {
-    private bool $pendingIsNew = false;
+    /** @var \WeakMap<MessageThread, bool> */
+    private \WeakMap $pendingIsNew;
 
     private readonly LoggerInterface $logger;
 
@@ -51,6 +55,7 @@ final class ThreadParticipantBootstrapSubscriber implements EventSubscriberInter
         private readonly ?AccountContextInterface $accountContext = null,
         ?LoggerInterface $logger = null,
     ) {
+        $this->pendingIsNew = new \WeakMap();
         $this->logger = $logger ?? new NullLogger();
     }
 
@@ -69,7 +74,7 @@ final class ThreadParticipantBootstrapSubscriber implements EventSubscriberInter
         }
 
         try {
-            $this->pendingIsNew = $event->entity->isNew();
+            $this->pendingIsNew[$event->entity] = $event->entity->isNew();
         } catch (\Throwable $e) {
             $this->logger->warning('messaging.participant_bootstrap_failed', [
                 'phase' => 'pre_save',
@@ -85,8 +90,7 @@ final class ThreadParticipantBootstrapSubscriber implements EventSubscriberInter
             return;
         }
 
-        $wasNew = $this->pendingIsNew;
-        $this->pendingIsNew = false;
+        $wasNew = $this->consumePendingIsNew($entity);
 
         if (!$wasNew) {
             return;
@@ -139,5 +143,17 @@ final class ThreadParticipantBootstrapSubscriber implements EventSubscriberInter
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function consumePendingIsNew(MessageThread $entity): bool
+    {
+        if (!isset($this->pendingIsNew[$entity])) {
+            return false;
+        }
+
+        $isNew = $this->pendingIsNew[$entity];
+        unset($this->pendingIsNew[$entity]);
+
+        return $isNew === true;
     }
 }

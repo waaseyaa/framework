@@ -10,6 +10,7 @@ use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Entity\AuditEvent;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -29,17 +30,27 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Best-effort: exceptions are caught and logged; the primary request is
  * never disrupted (NFR-001).
  *
+ * PRE_SAVE isNew capture is keyed on the entity object ({@see \WeakMap}),
+ * not a single listener-wide slot. Batch `saveMany()` dispatches every
+ * PRE_SAVE inside the transaction and buffers POST_SAVE until after commit,
+ * so a boolean slot would attribute every row from the last PRE event
+ * (#1856). The matching POST consumes that entity's entry even when the
+ * writer throws, so leftovers cannot poison a later save.
+ *
  * @api
  */
 final class EntityLifecycleAuditListener implements EventSubscriberInterface
 {
-    private bool $pendingIsNew = false;
+    /** @var \WeakMap<EntityInterface, bool> */
+    private \WeakMap $pendingIsNew;
 
     public function __construct(
         private readonly AuditWriterInterface $writer,
         private readonly ?LoggerInterface $logger = null,
         private readonly ?AccountContextInterface $accountContext = null,
-    ) {}
+    ) {
+        $this->pendingIsNew = new \WeakMap();
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -53,7 +64,7 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
     public function onPreSave(EntityEvent $event): void
     {
         try {
-            $this->pendingIsNew = $event->entity->isNew();
+            $this->pendingIsNew[$event->entity] = $event->entity->isNew();
         } catch (\Throwable $e) {
             ($this->logger ?? new NullLogger())->warning('audit.listener_failed', [
                 'listener' => self::class,
@@ -64,6 +75,8 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
 
     public function onPostSave(EntityEvent $event): void
     {
+        $isNew = $this->consumePendingIsNew($event->entity);
+
         // Guard (#1587): auditing an AuditEvent re-enters the writer → save →
         // POST_SAVE, causing unbounded recursion. The audit log never audits itself.
         if ($event->entity instanceof AuditEvent) {
@@ -85,7 +98,7 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
                 attributes: [
                     'entity_type'  => $entity->getEntityTypeId(),
                     'entity_id'    => (string) ($entity->id() ?? ''),
-                    'is_new'       => $this->pendingIsNew,
+                    'is_new'       => $isNew,
                     'dirty_fields' => method_exists($entity, 'getDirty') ? $entity->getDirty() : [],
                 ],
             ));
@@ -142,5 +155,17 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
         $account = $this->accountContext?->current();
 
         return $account !== null ? (int) $account->id() : null;
+    }
+
+    private function consumePendingIsNew(EntityInterface $entity): bool
+    {
+        if (!isset($this->pendingIsNew[$entity])) {
+            return false;
+        }
+
+        $isNew = $this->pendingIsNew[$entity];
+        unset($this->pendingIsNew[$entity]);
+
+        return $isNew === true;
     }
 }
