@@ -164,10 +164,7 @@ final class RelationshipTraverseTool extends AbstractAgentTool
             ];
         }
 
-        return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['edges' => $edges, 'count' => count($edges)]]],
-            summary: sprintf('Found %d relationships from %s/%s', count($edges), $sourceType, (string) $sourceId),
-        );
+        return $this->traversalResult($edges, $sourceType, $sourceId);
     }
 
     /**
@@ -241,15 +238,45 @@ final class RelationshipTraverseTool extends AbstractAgentTool
 
     /**
      * The empty-edges success result returned when the source is not viewable.
-     * Byte-identical in `data` to a source with genuinely zero relationships,
-     * so a restricted source is indistinguishable from an empty/absent one (no
-     * existence oracle). The summary echoes only the caller's own input id.
+     * Byte-identical — in the emitted `text` content block AND in
+     * `structuredContent` — to the result for a source with genuinely zero
+     * relationships, so a restricted source is indistinguishable from an
+     * empty/absent one (no existence oracle). The summary echoes only the
+     * caller's own input id, so it discloses nothing about the outcome either.
+     * The property is structural, not merely asserted: both outcomes are built
+     * by {@see traversalResult()}, and `count([]) === 0` makes the zero-edge
+     * summary identical for a given source id.
      */
     private function emptyTraversalResult(string $sourceType, string|int $sourceId): AgentToolResult
     {
+        return $this->traversalResult([], $sourceType, $sourceId);
+    }
+
+    /**
+     * Build the single success shape this tool emits.
+     *
+     * MCP conformance (#2520): `json` is not an MCP content type — the bridge
+     * forwards $result->content verbatim, so the payload rides in a `text`
+     * block (and in structuredContent for machine consumers). Routing BOTH the
+     * populated and the source-forbidden outcome through here is what keeps
+     * them byte-identical; see {@see emptyTraversalResult()}.
+     *
+     * @param list<array<string, mixed>> $edges
+     */
+    private function traversalResult(array $edges, string $sourceType, string|int $sourceId): AgentToolResult
+    {
+        $data = ['edges' => $edges, 'count' => count($edges)];
+
+        try {
+            $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException $e) {
+            return $this->internalError('relationship.traverse', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['edges' => [], 'count' => 0]]],
-            summary: sprintf('Found 0 relationships from %s/%s', $sourceType, (string) $sourceId),
+            content: [['type' => 'text', 'text' => $json]],
+            summary: sprintf('Found %d relationships from %s/%s', count($edges), $sourceType, (string) $sourceId),
+            structuredContent: $data,
         );
     }
 

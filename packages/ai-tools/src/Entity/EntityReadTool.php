@@ -11,7 +11,6 @@ use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\EntityValues;
 
 /**
  * Read a single entity by type + id.
@@ -97,9 +96,21 @@ final class EntityReadTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.read: %s/%s not found', $entityType, $id));
         }
 
+        // MCP conformance (#2520): `json` is not an MCP content type — the
+        // bridge forwards $result->content verbatim, so the payload has to ride
+        // in a `text` block (and in structuredContent for machine consumers).
+        $data = $this->serialize($entity, $account);
+
+        try {
+            $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException $e) {
+            return $this->internalError('entity.read', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $this->serialize($entity, $account)]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Loaded %s/%s', $entityType, $id),
+            structuredContent: $data,
         );
     }
 
@@ -142,7 +153,10 @@ final class EntityReadTool extends AbstractAgentTool
         if ($entity instanceof EntityBase) {
             $names = EntityFieldRedaction::ordinaryFieldNames($this->entityTypeManager, $entity);
             $allowed = $this->applyFieldAccessFilter($entity, array_fill_keys($names, true), $account);
-            $values = EntityValues::toCastAwareMap($entity, array_values(array_filter(array_keys($allowed), is_string(...))));
+            $values = EntityFieldRedaction::toReadableCastAwareMap(
+                $entity,
+                array_values(array_filter(array_keys($allowed), is_string(...))),
+            );
         } else {
             $values = [];
             if (method_exists($entity, 'getValues')) {

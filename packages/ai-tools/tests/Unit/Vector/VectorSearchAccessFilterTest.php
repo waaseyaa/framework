@@ -190,7 +190,7 @@ final class VectorSearchAccessFilterTest extends TestCase
         $result = $tool->execute(['query' => 'find'], $this->account(['tool.vector.search']));
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $ids = $this->resultIds($data);
         $this->assertContains('1', $ids, 'the viewable hit is returned');
         $this->assertNotContains('2', $ids, 'the view-forbidden hit must not be returned');
@@ -211,7 +211,7 @@ final class VectorSearchAccessFilterTest extends TestCase
         $result = $tool->execute(['query' => 'find'], $this->account(['tool.vector.search']));
 
         $this->assertFalse($result->isError);
-        $this->assertCount(2, $result->content[0]['data']['results'] ?? []);
+        $this->assertCount(2, $result->structuredContent['results'] ?? []);
     }
 
     #[Test]
@@ -228,7 +228,7 @@ final class VectorSearchAccessFilterTest extends TestCase
         $result = $tool->execute(['query' => 'find'], $this->account(['tool.vector.search']));
 
         $this->assertFalse($result->isError);
-        $this->assertSame([], $result->content[0]['data']['results'] ?? null);
+        $this->assertSame([], $result->structuredContent['results'] ?? null);
     }
 
     #[Test]
@@ -271,7 +271,7 @@ final class VectorSearchAccessFilterTest extends TestCase
         $result = $tool->execute(['query' => 'find'], $this->account(['tool.vector.search']));
 
         $this->assertFalse($result->isError);
-        $metadata = $result->content[0]['data']['results'][0]['metadata'] ?? [];
+        $metadata = $result->structuredContent['results'][0]['metadata'] ?? [];
         $this->assertArrayHasKey('title', $metadata);
         $this->assertArrayNotHasKey('secret', $metadata, 'the field-access-forbidden metadata key must be dropped');
     }

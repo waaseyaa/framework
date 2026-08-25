@@ -94,14 +94,21 @@ final class ProposeMutationTool extends AbstractAgentTool
 
         $payload = $result->toArray();
 
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('bimaaji_propose_mutation', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $payload]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf(
                 'Mutation %s on %s: %s',
                 $request->operation,
                 $request->entityType,
                 $payload['status'],
             ),
+            structuredContent: $payload,
         );
     }
 

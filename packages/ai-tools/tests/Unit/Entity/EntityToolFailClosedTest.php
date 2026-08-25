@@ -203,7 +203,7 @@ final class EntityToolFailClosedTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $this->assertSame(0, $result->content[0]['data']['count'] ?? null);
+        $this->assertSame(0, $result->structuredContent['count'] ?? null);
     }
 
     #[Test]

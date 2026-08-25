@@ -312,7 +312,7 @@ final class EntityToolAccessTest extends TestCase
         $result = $tool->execute(['entity_type' => 'tool_test', 'id' => '1'], $this->account(['tool.entity.read']));
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $this->assertArrayHasKey('values', $data);
         $this->assertSame('Original', $data['values']['title'] ?? null);
         $this->assertArrayNotHasKey('mutation_token', $data, 'read-only callers never receive write-authority metadata');
@@ -329,7 +329,7 @@ final class EntityToolAccessTest extends TestCase
             $this->account(['tool.entity.read', 'tool.entity.update']),
         );
         $this->assertFalse($denied->isError);
-        $this->assertArrayNotHasKey('mutation_token', $denied->content[0]['data'] ?? []);
+        $this->assertArrayNotHasKey('mutation_token', $denied->structuredContent ?? []);
 
         $allowed = $tool->execute(
             ['entity_type' => 'tool_test', 'id' => '1'],
@@ -338,7 +338,7 @@ final class EntityToolAccessTest extends TestCase
         $this->assertFalse($allowed->isError);
         $this->assertSame(
             MutationTokenFixture::for($this->repo, 'tool_test', '1'),
-            $allowed->content[0]['data']['mutation_token'] ?? null,
+            $allowed->structuredContent['mutation_token'] ?? null,
         );
     }
 
@@ -349,7 +349,7 @@ final class EntityToolAccessTest extends TestCase
         $result = $tool->execute(['entity_type' => 'tool_test', 'query' => 'origin'], $this->account(['tool.entity.search']));
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $this->assertSame(1, $data['count']);
         $this->assertSame('1', (string) $data['items'][0]['id']);
     }
@@ -366,7 +366,7 @@ final class EntityToolAccessTest extends TestCase
 
         $result = $tool->execute(['entity_type' => 'tool_test', 'id' => '1'], $this->account(['tool.entity.read']));
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $this->assertCount(2, $data['revisions']);
         $this->assertSame(2, $data['revisions'][0]['revision_id']);
         $this->assertTrue($data['revisions'][0]['is_current']);

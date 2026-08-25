@@ -1894,7 +1894,12 @@ final readonly class McpEndpoint
             body: \json_encode([
                 'jsonrpc' => '2.0',
                 'id' => $id,
-                'result' => $result,
+                // A JSON-RPC Result is an object. PHP encodes the empty array
+                // as `[]`, which a conforming client rejects on schema — the
+                // outbound counterpart of isJsonObject()'s inbound reading of
+                // `[]` as the empty object. Normalized here, once, so no
+                // handler can emit the array form by returning nothing.
+                'result' => $result === [] ? new \stdClass() : $result,
             ], \JSON_THROW_ON_ERROR),
         );
     }

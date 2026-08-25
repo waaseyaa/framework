@@ -146,7 +146,7 @@ final class EntitySearchToolFieldFilterTest extends TestCase
         $result = $tool->execute(['entity_type' => 'story', 'query' => $query], $account);
         self::assertFalse($result->isError, 'search should succeed');
 
-        return $result->content[0]['data'] ?? [];
+        return $result->structuredContent ?? [];
     }
 
     #[Test]

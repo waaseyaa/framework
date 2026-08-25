@@ -153,7 +153,7 @@ final class EntityReadOracleClosureTest extends TestCase
         $result = $tool->execute(['entity_type' => 'tool_test', 'id' => '2'], $this->account(['tool.entity.read']));
 
         $this->assertFalse($result->isError, 'a viewable entity must still be readable (no over-block)');
-        $this->assertSame('2', (string) ($result->content[0]['data']['id'] ?? null));
+        $this->assertSame('2', (string) ($result->structuredContent['id'] ?? null));
     }
 
     #[Test]
@@ -195,6 +195,6 @@ final class EntityReadOracleClosureTest extends TestCase
         $result = $tool->execute(['entity_type' => 'tool_test', 'id' => '2'], $this->account(['tool.entity.read']));
 
         $this->assertFalse($result->isError, 'a viewable entity must still list revisions (no over-block)');
-        $this->assertSame('2', (string) ($result->content[0]['data']['id'] ?? null));
+        $this->assertSame('2', (string) ($result->structuredContent['id'] ?? null));
     }
 }

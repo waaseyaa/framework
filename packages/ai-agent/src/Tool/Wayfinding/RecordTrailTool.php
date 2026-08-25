@@ -85,16 +85,25 @@ final class RecordTrailTool extends AbstractTrailTool
             );
         }
 
+        $payload = [
+            'trail_id' => $trail->id,
+            'langcode' => $trail->langcode,
+            'title' => $trail->title,
+            'origin' => $trail->origin,
+            'owner_uid' => $trail->ownerUid,
+            'beacon_count' => \count($trail->beacons),
+        ];
+
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('wayfinding_record_trail', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => [
-                'trail_id' => $trail->id,
-                'langcode' => $trail->langcode,
-                'title' => $trail->title,
-                'origin' => $trail->origin,
-                'owner_uid' => $trail->ownerUid,
-                'beacon_count' => \count($trail->beacons),
-            ]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Recorded trail %s (%s) with %d beacon(s).', $trail->id, $trail->langcode, \count($trail->beacons)),
+            structuredContent: $payload,
         );
     }
 }
