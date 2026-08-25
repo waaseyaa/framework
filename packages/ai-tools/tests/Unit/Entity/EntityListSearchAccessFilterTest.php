@@ -148,7 +148,7 @@ final class EntityListSearchAccessFilterTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $ids = $this->ids($data['items'] ?? []);
         $this->assertContains('1', $ids, 'the viewable match is returned');
         $this->assertNotContains('2', $ids, 'the view-forbidden match must not be returned');
@@ -172,6 +172,6 @@ final class EntityListSearchAccessFilterTest extends TestCase
             $this->account(['tool.entity.search']),
         );
         $this->assertFalse($searchResult->isError);
-        $this->assertSame(2, ($searchResult->content[0]['data']['count'] ?? null));
+        $this->assertSame(2, ($searchResult->structuredContent['count'] ?? null));
     }
 }

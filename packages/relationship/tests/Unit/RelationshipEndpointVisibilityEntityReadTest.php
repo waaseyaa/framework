@@ -139,7 +139,7 @@ final class RelationshipEndpointVisibilityEntityReadTest extends TestCase
             EntityReadRuntime::installGuard($priorGuard);
         }
         self::assertFalse($result->isError, 'entity.read should succeed for a viewable relationship.');
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         self::assertIsArray($data);
 
         return \is_array($data['values'] ?? null) ? $data['values'] : [];

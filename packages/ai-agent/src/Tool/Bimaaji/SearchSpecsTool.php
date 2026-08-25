@@ -128,9 +128,18 @@ final class SearchSpecsTool extends AbstractAgentTool
             $matches = array_merge($matches, $this->searchInFile($file, $contents, $query, $queryLower, $limit - count($matches)));
         }
 
+        $payload = ['matches' => $matches];
+
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('bimaaji_search_specs', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['matches' => $matches]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('%d match%s for "%s"', count($matches), count($matches) === 1 ? '' : 'es', $query),
+            structuredContent: $payload,
         );
     }
 

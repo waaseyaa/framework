@@ -497,6 +497,56 @@ The two layers stack — schema shape first, editorial rules second.
 | `packages/mcp/tests/Unit/McpEndpointSchemaOrderingTest.php` | Unit — auth/rate-limit ordering, malformed `params` shapes |
 | `tests/Integration/PhaseN/Mcp/McpToolsCallSchemaEnforcementTest.php` | Production-shaped — the real `ContentToolSet` over revisionable SQLite through the real `/mcp/write` tier: the reported payload, wrong types, unexpected properties, the full draft→publish→rollback→unpublish lifecycle, idempotent replays, and both authenticated and unauthenticated surfaces |
 
+## Tool result content blocks
+
+Every tool result — success and failure alike — carries MCP content blocks, and
+MCP defines exactly five block types: `text`, `image`, `audio`, `resource` and
+`resource_link`. A block of any other type is unreadable to a schema-validating
+client, which is the whole population this endpoint exists to serve.
+
+A tool returning structured data emits **both** halves:
+
+```php
+return AgentToolResult::success(
+    content: [['type' => 'text', 'text' => $json]],
+    structuredContent: $data,
+);
+```
+
+The text block is what a client without schema support renders; the
+`structuredContent` is what a client with schema support consumes. They carry
+the same payload, and `json_decode($text)` must equal `structuredContent`.
+
+Before #2520 the entity, vector and relationship tools emitted `['type' =>
+'json', 'data' => …]` with no `structuredContent` and no text mirror. `type:
+"json"` is not an MCP content type, and `AgentToolRegistryBridge` forwards
+`$result->content` to the wire verbatim, so that is precisely what reached the
+client: four of the five tools on the anonymous tier returned a block a
+conforming client had to discard. `ContentSearchTool` was already conformant,
+which is why `content.search` was the one anonymous tool that worked.
+
+`packages/ai-tools/tests/Unit/AnonymousTierMcpContentBlockTest.php` and
+`packages/ai-agent/tests/Contract/Tool/` pin this for both tiers by executing
+the tools and asserting on real emitted results.
+
+### JSON-RPC results are objects
+
+A JSON-RPC `Result` is an object. PHP encodes an empty array as `[]`, so a
+handler returning `[]` puts `"result":[]` on the wire and the official
+TypeScript SDK rejects it on schema — `ping` did exactly this until #2520.
+`McpEndpoint::jsonRpcResult()` normalises an empty result to `new \stdClass()`
+at the single point where every handler crosses into JSON, so no future handler
+can reintroduce the array form by returning nothing.
+
+### Conformance runs over a real socket
+
+`packages/mcp/tests/Support/Http/` boots a `php -S` server and drives `/mcp`
+with a zero-dependency JSON-RPC client, asserting on response bytes and on a
+re-decode that preserves the `{}` versus `[]` distinction. This exists because
+every other MCP test is in-process: real wiring and real routing, but nothing is
+ever serialised, and all three #2520 defects lived in the encoding step. The
+harness skips rather than fails when the environment cannot host a server.
+
 ## Tool error envelope and exception sanitization
 
 Every tool failure returns inside the MCP result envelope with `isError: true` and a `text` content block holding a JSON object with a machine-readable `code`. There is one shape for all of them, so an agent parses a schema rejection, a missing tool and a domain refusal identically.

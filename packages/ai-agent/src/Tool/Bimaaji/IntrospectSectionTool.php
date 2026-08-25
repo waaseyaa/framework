@@ -93,9 +93,18 @@ final class IntrospectSectionTool extends AbstractAgentTool
             );
         }
 
+        $payload = $found->toArray();
+
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('bimaaji_introspect_section', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $found->toArray()]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Section "%s" (v%s)', $found->key, $found->version),
+            structuredContent: $payload,
         );
     }
 

@@ -103,16 +103,25 @@ final class EditTrailTool extends AbstractTrailTool
             );
         }
 
+        $payload = [
+            'trail_id' => $trail->id,
+            'langcode' => $trail->langcode,
+            'title' => $trail->title,
+            'origin' => $trail->origin,
+            'owner_uid' => $trail->ownerUid,
+            'beacon_count' => \count($trail->beacons),
+        ];
+
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('wayfinding_edit_trail', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => [
-                'trail_id' => $trail->id,
-                'langcode' => $trail->langcode,
-                'title' => $trail->title,
-                'origin' => $trail->origin,
-                'owner_uid' => $trail->ownerUid,
-                'beacon_count' => \count($trail->beacons),
-            ]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Edited trail %s (%s) as human; it is now human-owned and protected from re-record overwrites.', $trail->id, $trail->langcode),
+            structuredContent: $payload,
         );
     }
 }

@@ -119,6 +119,42 @@ shape before execution. A storage advisory remains the authored structured
 `meta.save_advisories`, so MCP callers can review and retry the same candidate;
 it is not routed through generic internal-error sanitization.
 
+### Result content blocks
+
+A tool result crosses into MCP as content blocks, and MCP defines exactly five
+block types: `text`, `image`, `audio`, `resource` and `resource_link`. A tool
+returning structured data emits a `text` block carrying the JSON alongside
+`structuredContent` carrying the same payload, so clients with and without
+schema support both get something usable:
+
+```php
+return AgentToolResult::success(
+    content: [['type' => 'text', 'text' => $json]],
+    structuredContent: $data,
+);
+```
+
+Until #2520 the entity, vector and relationship tools in `waaseyaa/ai-tools`
+and the ten Bimaaji and Wayfinding tools in `packages/ai-agent/src/Tool/`
+emitted `['type' => 'json', 'data' => …]` instead, with no `structuredContent`
+and no text mirror. `type: "json"` is not an MCP content type and
+`AgentToolRegistryBridge` forwards tool content to the wire unchanged, so a
+schema-validating client received a block it could only discard. The defect was
+invisible to the suite because tests asserted on `$result->content[0]['data']`
+in process, never on what a client decodes.
+
+Encoding is the tool's own responsibility: `json_encode` runs with
+`JSON_THROW_ON_ERROR` and the `\JsonException` arm routes through
+`AbstractAgentTool::internalError()`, since payloads carry arbitrary stored
+field values and invalid UTF-8 is a live path — `SearchSpecsTool`, which reads
+arbitrary spec-file bytes, could not fail this way before because nothing
+encoded.
+
+`packages/ai-agent/tests/Contract/Tool/` sweeps the agent-tier tools by
+executing them — `execute()` and `dryRun()` alike — and inspecting real emitted
+results, so a new tool that reintroduces a non-MCP block type lands as a
+failure rather than as a client-side surprise.
+
 ## Agent Execution
 
 ### AgentInterface

@@ -97,9 +97,21 @@ final class EntityReadTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.read: %s/%s not found', $entityType, $id));
         }
 
+        // MCP conformance (#2520): `json` is not an MCP content type — the
+        // bridge forwards $result->content verbatim, so the payload has to ride
+        // in a `text` block (and in structuredContent for machine consumers).
+        $data = $this->serialize($entity, $account);
+
+        try {
+            $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException $e) {
+            return $this->internalError('entity.read', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $this->serialize($entity, $account)]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Loaded %s/%s', $entityType, $id),
+            structuredContent: $data,
         );
     }
 

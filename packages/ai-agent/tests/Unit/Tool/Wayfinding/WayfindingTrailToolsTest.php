@@ -76,7 +76,7 @@ final class WayfindingTrailToolsTest extends TestCase
         ], $account);
 
         self::assertFalse($recorded->isError);
-        $data = $recorded->content[0]['data'];
+        $data = $recorded->structuredContent;
         self::assertSame('Onboarding', $data['title']);
         self::assertSame(42, $data['owner_uid']);
         self::assertSame('recorded', $data['origin']);
@@ -87,9 +87,9 @@ final class WayfindingTrailToolsTest extends TestCase
             $account,
         );
         self::assertFalse($got->isError);
-        self::assertSame('Onboarding', $got->content[0]['data']['title']);
-        self::assertCount(2, $got->content[0]['data']['beacons']);
-        self::assertSame('Now save', $got->content[0]['data']['beacons'][1]['content']);
+        self::assertSame('Onboarding', $got->structuredContent['title']);
+        self::assertCount(2, $got->structuredContent['beacons']);
+        self::assertSame('Now save', $got->structuredContent['beacons'][1]['content']);
     }
 
     #[Test]
@@ -101,7 +101,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'title' => 'Recorded',
             'beacons' => [['anchor_id' => 'a', 'content' => 'recorded one', 'order' => 0]],
         ], $account);
-        $trailId = $recorded->content[0]['data']['trail_id'];
+        $trailId = $recorded->structuredContent['trail_id'];
 
         // A human edits the trail directly (the SPA authoring path) — now human-owned.
         new TrailStore($this->repository)->editAsHuman($trailId, 'en', 'Human title', [
@@ -117,13 +117,13 @@ final class WayfindingTrailToolsTest extends TestCase
 
         self::assertFalse($reRecorded->isError);
         // Landed as a draft — not promoted — because the live value is human-owned.
-        self::assertFalse($reRecorded->content[0]['data']['promoted']);
+        self::assertFalse($reRecorded->structuredContent['promoted']);
 
         // The human's live trail survives unchanged (FR-011 through the tool layer).
         $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $account);
-        self::assertSame('Human title', $got->content[0]['data']['title']);
-        self::assertSame('human one', $got->content[0]['data']['beacons'][0]['content']);
-        self::assertSame('human', $got->content[0]['data']['origin']);
+        self::assertSame('Human title', $got->structuredContent['title']);
+        self::assertSame('human one', $got->structuredContent['beacons'][0]['content']);
+        self::assertSame('human', $got->structuredContent['origin']);
     }
 
     #[Test]
@@ -138,7 +138,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'title' => 'Recorded',
             'beacons' => [['anchor_id' => 'a', 'content' => 'recorded one', 'order' => 0]],
         ], $account);
-        $trailId = $recorded->content[0]['data']['trail_id'];
+        $trailId = $recorded->structuredContent['trail_id'];
 
         // A human edits the trail THROUGH THE TOOL — origin latches to human.
         $edited = new EditTrailTool($this->entityTypeManager)->execute([
@@ -147,7 +147,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'beacons' => [['anchor_id' => 'a', 'content' => 'human one', 'order' => 0]],
         ], $account);
         self::assertFalse($edited->isError);
-        self::assertSame('human', $edited->content[0]['data']['origin'], 'the edit tool latches origin = human');
+        self::assertSame('human', $edited->structuredContent['origin'], 'the edit tool latches origin = human');
 
         // The agent re-records over it — must land as a draft, never overwrite.
         $reRecorded = new ReRecordTrailTool($this->entityTypeManager)->execute([
@@ -156,13 +156,13 @@ final class WayfindingTrailToolsTest extends TestCase
             'beacons' => [['anchor_id' => 'a', 'content' => 'agent one', 'order' => 0]],
         ], $account);
         self::assertFalse($reRecorded->isError);
-        self::assertFalse($reRecorded->content[0]['data']['promoted'], 're-record of a human-owned trail lands a draft');
+        self::assertFalse($reRecorded->structuredContent['promoted'], 're-record of a human-owned trail lands a draft');
 
         // The human's live trail survives byte-for-byte — entirely via tools.
         $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $account);
-        self::assertSame('Human title', $got->content[0]['data']['title']);
-        self::assertSame('human one', $got->content[0]['data']['beacons'][0]['content']);
-        self::assertSame('human', $got->content[0]['data']['origin']);
+        self::assertSame('Human title', $got->structuredContent['title']);
+        self::assertSame('human one', $got->structuredContent['beacons'][0]['content']);
+        self::assertSame('human', $got->structuredContent['origin']);
     }
 
     #[Test]
@@ -186,7 +186,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'title' => 'v1',
             'beacons' => [['anchor_id' => 'a', 'content' => 'one', 'order' => 0]],
         ], $account);
-        $trailId = $recorded->content[0]['data']['trail_id'];
+        $trailId = $recorded->structuredContent['trail_id'];
 
         $reRecorded = new ReRecordTrailTool($this->entityTypeManager)->execute([
             'trail_id' => $trailId,
@@ -195,11 +195,11 @@ final class WayfindingTrailToolsTest extends TestCase
         ], $account);
 
         self::assertFalse($reRecorded->isError);
-        self::assertTrue($reRecorded->content[0]['data']['promoted']);
+        self::assertTrue($reRecorded->structuredContent['promoted']);
 
         $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $account);
-        self::assertSame('v2', $got->content[0]['data']['title']);
-        self::assertSame('two', $got->content[0]['data']['beacons'][0]['content']);
+        self::assertSame('v2', $got->structuredContent['title']);
+        self::assertSame('two', $got->structuredContent['beacons'][0]['content']);
     }
 
     #[Test]
@@ -271,7 +271,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'beacons' => [['anchor_id' => 'a', 'content' => 'owner content', 'order' => 0]],
         ], $owner);
         self::assertFalse($recorded->isError);
-        $trailId = $recorded->content[0]['data']['trail_id'];
+        $trailId = $recorded->structuredContent['trail_id'];
 
         $editTool = new EditTrailTool($this->entityTypeManager);
         $editTool->setAccessHandler($handler);
@@ -287,8 +287,8 @@ final class WayfindingTrailToolsTest extends TestCase
 
         // The victim's trail content is unchanged — no write happened.
         $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $owner);
-        self::assertSame('Owner trail', $got->content[0]['data']['title']);
-        self::assertSame('owner content', $got->content[0]['data']['beacons'][0]['content']);
+        self::assertSame('Owner trail', $got->structuredContent['title']);
+        self::assertSame('owner content', $got->structuredContent['beacons'][0]['content']);
     }
 
     #[Test]
@@ -305,7 +305,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'beacons' => [['anchor_id' => 'a', 'content' => 'owner content', 'order' => 0]],
         ], $owner);
         self::assertFalse($recorded->isError);
-        $trailId = $recorded->content[0]['data']['trail_id'];
+        $trailId = $recorded->structuredContent['trail_id'];
 
         $reRecordTool = new ReRecordTrailTool($this->entityTypeManager);
         $reRecordTool->setAccessHandler($handler);
@@ -321,8 +321,8 @@ final class WayfindingTrailToolsTest extends TestCase
 
         // The victim's trail content is unchanged — no write happened.
         $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $owner);
-        self::assertSame('Owner trail', $got->content[0]['data']['title']);
-        self::assertSame('owner content', $got->content[0]['data']['beacons'][0]['content']);
+        self::assertSame('Owner trail', $got->structuredContent['title']);
+        self::assertSame('owner content', $got->structuredContent['beacons'][0]['content']);
     }
 
     #[Test]
@@ -337,7 +337,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'title' => 'Owner trail',
             'beacons' => [['anchor_id' => 'a', 'content' => 'v1', 'order' => 0]],
         ], $owner);
-        $trailId = $recorded->content[0]['data']['trail_id'];
+        $trailId = $recorded->structuredContent['trail_id'];
 
         $editTool = new EditTrailTool($this->entityTypeManager);
         $editTool->setAccessHandler($handler);
@@ -348,7 +348,7 @@ final class WayfindingTrailToolsTest extends TestCase
             'beacons' => [['anchor_id' => 'a', 'content' => 'v2', 'order' => 0]],
         ], $owner);
         self::assertFalse($edited->isError, 'the owner must still be able to edit their own trail');
-        self::assertSame('Owner edit', $edited->content[0]['data']['title']);
+        self::assertSame('Owner edit', $edited->structuredContent['title']);
 
         $reRecordTool = new ReRecordTrailTool($this->entityTypeManager);
         $reRecordTool->setAccessHandler($handler);

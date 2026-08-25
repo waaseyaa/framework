@@ -102,9 +102,19 @@ final class EntitySearchTool extends AbstractAgentTool
             }
         }
 
+        // MCP conformance (#2520): `json` is not an MCP content type.
+        $data = ['items' => $matches, 'count' => count($matches)];
+
+        try {
+            $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException $e) {
+            return $this->internalError('entity.search', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['items' => $matches, 'count' => count($matches)]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Found %d %s matches for "%s"', count($matches), $entityType, $query),
+            structuredContent: $data,
         );
     }
 

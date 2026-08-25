@@ -168,7 +168,7 @@ final class EntityListLabelFieldAccessTest extends TestCase
         );
 
         self::assertFalse($result->isError, 'entity-level view is Allowed, so the tool still succeeds');
-        $revisions = $result->content[0]['data']['revisions'] ?? [];
+        $revisions = $result->structuredContent['revisions'] ?? [];
         self::assertNotSame([], $revisions);
         foreach ($revisions as $row) {
             self::assertArrayNotHasKey('label', $row, 'a field-access-forbidden label must be omitted, not emitted');
@@ -188,7 +188,7 @@ final class EntityListLabelFieldAccessTest extends TestCase
         );
 
         self::assertFalse($result->isError);
-        $revisions = $result->content[0]['data']['revisions'] ?? [];
+        $revisions = $result->structuredContent['revisions'] ?? [];
         self::assertSame('classified title', $revisions[0]['label'] ?? null);
     }
 
@@ -206,7 +206,7 @@ final class EntityListLabelFieldAccessTest extends TestCase
         );
 
         self::assertFalse($result->isError);
-        $revisions = $result->content[0]['data']['revisions'] ?? [];
+        $revisions = $result->structuredContent['revisions'] ?? [];
         self::assertSame('classified title', $revisions[0]['label'] ?? null);
     }
 

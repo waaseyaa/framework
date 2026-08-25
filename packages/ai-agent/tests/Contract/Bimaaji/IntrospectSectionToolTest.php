@@ -23,7 +23,7 @@ final class IntrospectSectionToolTest extends TestCase
         $result = $tool->execute(['section' => 'routing'], $this->accountWithPermission('bimaaji.read'));
 
         self::assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? null;
+        $data = $result->structuredContent ?? null;
         self::assertIsArray($data);
         self::assertSame('routing', $data['key']);
         self::assertSame('1.0', $data['version']);

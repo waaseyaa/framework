@@ -129,7 +129,7 @@ final class EntityToolRevisionExposureTest extends TestCase
         $result = $tool->execute(['entity_type' => 'test_revisionable', 'id' => '1'], $this->account());
 
         $this->assertFalse($result->isError, $result->summary ?? '');
-        $data = $result->content[0]['data'] ?? null;
+        $data = $result->structuredContent ?? null;
         $this->assertIsArray($data);
         $this->assertSame(1, $data['revision_id']);
 
@@ -140,7 +140,7 @@ final class EntityToolRevisionExposureTest extends TestCase
         $this->revisionableRepo->save($entity);
 
         $again = $tool->execute(['entity_type' => 'test_revisionable', 'id' => '1'], $this->account());
-        $this->assertSame(2, $again->content[0]['data']['revision_id'] ?? null);
+        $this->assertSame(2, $again->structuredContent['revision_id'] ?? null);
     }
 
     #[Test]
@@ -150,7 +150,7 @@ final class EntityToolRevisionExposureTest extends TestCase
         $result = $tool->execute(['entity_type' => 'test_plain', 'id' => '1'], $this->account());
 
         $this->assertFalse($result->isError, $result->summary ?? '');
-        $data = $result->content[0]['data'] ?? null;
+        $data = $result->structuredContent ?? null;
         $this->assertIsArray($data);
         $this->assertArrayNotHasKey('revision_id', $data, 'absence means "no expectation formable"');
     }

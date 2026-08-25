@@ -110,9 +110,19 @@ final class EntityListRevisionsTool extends AbstractAgentTool
             $rows[] = $row;
         }
 
+        // MCP conformance (#2520): `json` is not an MCP content type.
+        $data = ['entity_type' => $entityType, 'id' => $id, 'revisions' => $rows];
+
+        try {
+            $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException $e) {
+            return $this->internalError('entity.list_revisions', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['entity_type' => $entityType, 'id' => $id, 'revisions' => $rows]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('%d revision(s) for %s/%s', count($rows), $entityType, (string) $id),
+            structuredContent: $data,
         );
     }
 
