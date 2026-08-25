@@ -26,9 +26,9 @@ use Waaseyaa\Oidc\Entity\OidcClient;
  * Unit coverage for the dedicated OIDC client mutation fence.
  *
  * HTTP-level agreement with the auto-generated JSON:API surface lives in
- * {@see \Waaseyaa\Api\Tests\Integration\OidcClientMutationFenceTest}
- * (`#[CoversNothing]`). ci/coverage records Clover from `#[CoversClass]`
- * tests, so this file is what ratchets the changed executable lines.
+ * {@see \Waaseyaa\Api\Tests\Integration\OidcClientMutationFenceTest}.
+ * That file is coverage-neutral; this unit file ratchets the changed
+ * executable lines for ci/coverage.
  */
 #[CoversClass(OidcClientController::class)]
 #[CoversClass(OidcClientApiRouter::class)]
