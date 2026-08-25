@@ -1177,6 +1177,7 @@ jobs:
     # <script>` aliases so this job stays byte-identical to what `composer verify` enforces.
     # (check-phpstan-paths — the PHPStan coverage invariant — was added for audit C-19.)
     # (check-admin-dist-fresh — the D6 admin-SPA-dist freshness gate — was added here so a stale committed admin dist fails the PR in blocking CI, not only via the out-of-band admin-dist.yml fix-up workflow.)
+    # (check-admin-dist-manifest — the #2524 acceptance-manifest gate — re-derives packages/admin-surface/dist.manifest.json from the committed bytes: published-tree digest/counts, source-signature parity, Nuxt build identity, and every declared source-contract marker. Additive to check-admin-dist-fresh, which stays authoritative for staleness.)
     #
     # check-external-consumers is intentionally NOT here: it is a mission-scoped pre-deletion
     # tripwire (WP01 ai-tools migration, key 'ai-agent-orphans'), not a permanent invariant —
@@ -1239,6 +1240,7 @@ jobs:
           run_gate check-admin-coercion-patterns
           run_gate check-admin-coercion-self-test
           run_gate check-admin-dist-fresh
+          run_gate check-admin-dist-manifest
           run_gate check-field-guards
           run_gate check-access-hardening
           run_gate check-openapi

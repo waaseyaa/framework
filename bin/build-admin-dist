@@ -1,33 +1,91 @@
 #!/usr/bin/env bash
-# Rebuild the committed admin SPA dist from packages/admin/app source and refresh
-# the freshness signature (D6). This is the single reproducible step that keeps
-# the committed packages/admin-surface/dist bundle and its content signature in
-# lockstep, so a stale bundle can never be tagged into a release.
+# THE canonical combined-source Admin dist rebuild + acceptance operation (#2524).
 #
-# Usage:  bin/build-admin-dist   (run from anywhere; resolves the repo root)
+# Admin-source branches commit generated packages/admin-surface/dist output, so
+# every transplant across another Admin change conflicts in many hashed chunks.
+# The correct repair is never to merge those chunks: it is to discard BOTH
+# generated sides and rebuild the complete bundle from the combined source.
+# This script is that operation, and it is the only supported way to change a
+# byte under packages/admin-surface/dist.
+#
+# What it does, in order:
+#   1. Refuses an ambiguous Admin source / generated-output boundary
+#      (unmerged paths, conflict markers, untracked app source, a partially
+#      staged dist, a signature without its tree).
+#   2. Derives the deterministic source signature and Nuxt build identity, and
+#      resolves the exact node/npm the hermetic child will execute.
+#   3. Builds TWICE, each in its own hermetic child, into two independent
+#      disposable snapshot directories.
+#   4. Requires the two published trees to be byte-identical.
+#   5. Replaces packages/admin-surface/dist WHOLESALE from the build output and
+#      proves every obsolete generated path is gone.
+#   6. Requires every declared source-contract marker
+#      (packages/admin-surface/dist.markers.json) to be in the compiled bundle.
+#   7. Writes dist.signature and the versioned dist.manifest.json, then
+#      re-verifies the committed state with both blocking gates.
+#
+# Re-running on identical input produces zero diff and leaves the manifest
+# byte-unchanged. The pinned Node 24 runtime is required; any other runtime is
+# refused. Usage:  bin/build-admin-dist   (run from anywhere; resolves the repo root)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "==> Guarding the Admin source and generated-output boundary"
+php "$ROOT/bin/admin-dist-acceptance" guard
+
 SIGNATURE="$(php "$ROOT/bin/check-admin-dist-fresh" --print)"
 BUILD_ID_SIGNATURE="$(php "$ROOT/bin/check-admin-dist-fresh" --print-build-id)"
 BUILD_ID="waaseyaa-${BUILD_ID_SIGNATURE:0:32}"
 
-echo "==> Installing and generating the static Nuxt SPA in a hermetic child"
-WAASEYAA_ADMIN_BUILD_ID="$BUILD_ID" \
-WAASEYAA_ADMIN_BUILD_ALLOW_PUBLIC_REGISTRY=1 \
-php "$ROOT/bin/run-hermetic-admin-build"
+# Report the runtime the BUILD resolves, not whatever `node` this shell finds
+# first: the hermetic child resolves node/npm from a sanitized PATH honouring
+# NODE_BINARY / NPM_BINARY, so with those unset the two can diverge and the
+# manifest would name a runtime that did not produce the bundle. Resolved up
+# front, so an unusable toolchain is refused before any Nuxt run.
+echo "==> Resolving the pinned build toolchain"
+{ read -r BUILD_NODE; read -r BUILD_NPM_CLI; } < <(php "$ROOT/bin/run-hermetic-admin-build" --print-toolchain)
+NODE_RUNTIME="$("$BUILD_NODE" --version)"
+NPM_RUNTIME="$("$BUILD_NODE" "$BUILD_NPM_CLI" --version)"
+echo "    node ${NODE_RUNTIME} (${BUILD_NODE}), npm ${NPM_RUNTIME}"
 
-echo "==> Normalizing volatile Nuxt metadata"
-php "$ROOT/bin/normalize-admin-dist" "$ROOT/packages/admin/.output/public" "$BUILD_ID_SIGNATURE"
+SNAPSHOTS="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-admin-dist-XXXXXXXXXX")"
+cleanup() { rm -rf "$SNAPSHOTS"; }
+trap cleanup EXIT
 
-echo "==> Copying build output to packages/admin-surface/dist"
-rm -rf "$ROOT/packages/admin-surface/dist"
-cp -r "$ROOT/packages/admin/.output/public" "$ROOT/packages/admin-surface/dist"
+build_once() {
+  local target="$1"
 
-echo "==> Scanning final publishable and ignored build artifacts"
-php "$ROOT/bin/run-hermetic-admin-build" --scan-only
+  echo "==> Installing and generating the static Nuxt SPA in a hermetic child (${target##*/})"
+  WAASEYAA_ADMIN_BUILD_ID="$BUILD_ID" \
+  WAASEYAA_ADMIN_BUILD_ALLOW_PUBLIC_REGISTRY=1 \
+  php "$ROOT/bin/run-hermetic-admin-build"
 
-echo "==> Writing admin dist freshness signature"
-php "$ROOT/bin/check-admin-dist-fresh" --write
+  echo "==> Normalizing volatile Nuxt metadata"
+  php "$ROOT/bin/normalize-admin-dist" "$ROOT/packages/admin/.output/public" "$BUILD_ID_SIGNATURE"
 
-echo "==> Done. Commit packages/admin-surface/dist/ and packages/admin-surface/dist.signature together."
+  echo "==> Scanning final publishable and ignored build artifacts"
+  php "$ROOT/bin/run-hermetic-admin-build" --scan-only
+
+  mkdir -p "$target"
+  cp -R "$ROOT/packages/admin/.output/public/." "$target/"
+}
+
+build_once "$SNAPSHOTS/first"
+build_once "$SNAPSHOTS/second"
+
+echo "==> Accepting the combined-source output"
+php "$ROOT/bin/admin-dist-acceptance" accept \
+  --first="$SNAPSHOTS/first" \
+  --second="$SNAPSHOTS/second" \
+  --source-signature="$SIGNATURE" \
+  --build-id-signature="$BUILD_ID_SIGNATURE" \
+  --intermediate="$ROOT/packages/admin/.output" \
+  --node-runtime="$NODE_RUNTIME" \
+  --npm-runtime="$NPM_RUNTIME"
+
+echo "==> Verifying the committed acceptance state"
+php "$ROOT/bin/check-admin-dist-fresh"
+php "$ROOT/bin/admin-dist-acceptance" verify
+
+echo "==> Done. Commit packages/admin-surface/dist/, dist.signature and dist.manifest.json together."

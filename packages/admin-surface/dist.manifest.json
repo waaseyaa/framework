@@ -1,0 +1,68 @@
+{
+    "manifestVersion": 1,
+    "identityDigest": "02309423a4c90099ffabbb013daf4908caa822b093d78ed18fe80ab39777ba63",
+    "identityExcludes": [
+        "acceptance"
+    ],
+    "release": {
+        "package": "waaseyaa/admin-surface",
+        "distPath": "dist",
+        "manifestPath": "dist.manifest.json",
+        "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
+    },
+    "source": {
+        "signature": "2e067681690605401120d111a3e89b2df1a2f2a0f6dd3b90d1ddbe007f950c09",
+        "buildIdSignature": "3c57f1b0bf8e04fe78a4e42769b1145e6aa1882a4558c7d1be4a26d74711b1fa",
+        "buildId": "waaseyaa-3c57f1b0bf8e04fe78a4e42769b1145e"
+    },
+    "published": {
+        "treeDigest": "e46b6d90cd9b2070144e6216ccea5637bd96d1a80f08d1e50349d32959c0b9bb",
+        "fileCount": 98,
+        "byteCount": 590951
+    },
+    "markers": {
+        "version": 1,
+        "digest": "20eeb5bda97f18206a068a8c5f9299f757c5fc7fcffee8659cae98ca07409290",
+        "ids": [
+            "admin-design-system-tokens",
+            "authoritative-transition-result",
+            "edit-busy-feedback",
+            "embed-lifecycle-v2",
+            "entity-editor-client-identity",
+            "entity-editor-embed",
+            "form-other-details-section",
+            "form-section-identity",
+            "mcp-approvals-decision-gate",
+            "mcp-approvals-page",
+            "mcp-approvals-route",
+            "page-builder-client-identity",
+            "page-builder-embed",
+            "public-projection-refresh-signal",
+            "structured-editor-fields",
+            "structured-editor-initial-bundle",
+            "task-oriented-form-sections",
+            "wayfinding-anchors",
+            "wayfinding-beacon-overlay"
+        ]
+    },
+    "acceptance": {
+        "builds": 2,
+        "reproducible": true,
+        "intermediate": {
+            "root": "packages/admin/.output",
+            "artifactCount": 99,
+            "inventoryDigest": "e94b36fd8462fce7b9158e93b1566054ec625db3973a7561619d52342083544c"
+        },
+        "previousPublishedTreeDigest": "e46b6d90cd9b2070144e6216ccea5637bd96d1a80f08d1e50349d32959c0b9bb",
+        "changed": {
+            "added": [],
+            "modified": [],
+            "removed": []
+        },
+        "toolchain": {
+            "nodePin": "24",
+            "nodeRuntime": "v24.19.0",
+            "npmRuntime": "11.17.0"
+        }
+    }
+}

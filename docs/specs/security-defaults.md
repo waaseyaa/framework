@@ -147,6 +147,8 @@ The legacy `api_keys` map and raw provider-key configuration are not compliant w
 | `bin/check-no-secrets` | Repository-wide shell scan for token patterns | CI: `security-defaults` job |
 | `DefaultsSecretsIntegrationTest` | Structural YAML/JSON value scanning | CI: PHPUnit `--filter Phase22` |
 | `HermeticAdminBuildPipeline` | Closed child environment, pinned Node/npm execution, credential-free lock-integrity cache, bounded line-sanitized output/runtime, deterministic generated/publishable artifact inventory and byte scan | `admin:build` and `bin/build-admin-dist` |
+| `AdminDistWorkspaceGuard` + `AdminDistAcceptance` | Refuses an ambiguous source/generated boundary (unmerged paths, conflict markers, untracked app source, partially staged output); refuses an unpinned Node major, a single build snapshot presented twice, and a non-reproducible build pair; replaces the published tree wholesale and proves obsolete paths are gone; refuses a bundle missing a declared source-contract marker | `bin/build-admin-dist` via `bin/admin-dist-acceptance` |
+| `AdminDistAcceptanceVerifier` | Committed-state re-derivation of the published tree digest, source-signature parity, Nuxt build identity and marker satisfaction; consumer-verifiable release identity in `packages/admin-surface/dist.manifest.json` | `bin/admin-dist-acceptance verify` (`check-admin-dist-manifest`) |
 
 Patterns checked: `sk-*` (OpenAI), `ghp_*` (GitHub), `xox[bp]-*` (Slack), `ya29.*` (Google OAuth), `AIza*` (Google API), PEM private keys, DSN with embedded credentials.
 
