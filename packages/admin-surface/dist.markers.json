@@ -1,0 +1,101 @@
+{
+    "markersVersion": 1,
+    "_comment": "Source-contract markers (#2524): named strings a change asserts must be present in the COMPILED admin bundle. bin/build-admin-dist refuses to publish a bundle that does not satisfy every marker, and bin/admin-dist-acceptance verify re-checks them against the committed tree, so a feature can never ship in packages/admin/app while being absent from the served bytes. Add a marker in the same PR that adds the feature; every string AdminDistContentTest asserts against the served bundle must be declared here (AdminDistCanonicalOperationTest derives that list from the test source, so the two cannot become competing vocabularies); changing a marker's value without a rebuild turns the gate red. Scopes: bundle-js (all dist/**/*.js), stylesheet (all dist/**/*.css), published-path (a file that must exist under dist/).",
+    "markers": [
+        {
+            "id": "admin-design-system-tokens",
+            "scope": "stylesheet",
+            "value": "--admin-target-size:44px"
+        },
+        {
+            "id": "authoritative-transition-result",
+            "scope": "bundle-js",
+            "value": "public_changed"
+        },
+        {
+            "id": "edit-busy-feedback",
+            "scope": "bundle-js",
+            "value": "Opening"
+        },
+        {
+            "id": "embed-lifecycle-v2",
+            "scope": "bundle-js",
+            "value": "waaseyaa.admin.embed.lifecycle.v2"
+        },
+        {
+            "id": "entity-editor-client-identity",
+            "scope": "bundle-js",
+            "value": "data-entity-editor-client"
+        },
+        {
+            "id": "entity-editor-embed",
+            "scope": "bundle-js",
+            "value": "entity-editor-embed"
+        },
+        {
+            "id": "form-other-details-section",
+            "scope": "bundle-js",
+            "value": "form_other_details"
+        },
+        {
+            "id": "form-section-identity",
+            "scope": "bundle-js",
+            "value": "data-section-id"
+        },
+        {
+            "id": "mcp-approvals-decision-gate",
+            "scope": "bundle-js",
+            "value": "mcp.approval.decide"
+        },
+        {
+            "id": "mcp-approvals-page",
+            "scope": "bundle-js",
+            "value": "mcp_approvals_title"
+        },
+        {
+            "id": "mcp-approvals-route",
+            "scope": "published-path",
+            "value": "mcp/approvals/index.html"
+        },
+        {
+            "id": "page-builder-client-identity",
+            "scope": "bundle-js",
+            "value": "data-page-builder-client"
+        },
+        {
+            "id": "page-builder-embed",
+            "scope": "bundle-js",
+            "value": "page-builder-embed"
+        },
+        {
+            "id": "public-projection-refresh-signal",
+            "scope": "bundle-js",
+            "value": "publicChanged"
+        },
+        {
+            "id": "structured-editor-fields",
+            "scope": "stylesheet",
+            "value": ".field-input"
+        },
+        {
+            "id": "structured-editor-initial-bundle",
+            "scope": "bundle-js",
+            "value": "initialBundle"
+        },
+        {
+            "id": "task-oriented-form-sections",
+            "scope": "bundle-js",
+            "value": "x-form-sections"
+        },
+        {
+            "id": "wayfinding-anchors",
+            "scope": "bundle-js",
+            "value": "data-anchor"
+        },
+        {
+            "id": "wayfinding-beacon-overlay",
+            "scope": "bundle-js",
+            "value": "wf-beacon"
+        }
+    ]
+}

@@ -5,13 +5,36 @@ declare(strict_types=1);
 
 use Waaseyaa\CLI\AdminBuild\AdminBuildArtifactScanException;
 use Waaseyaa\CLI\AdminBuild\AdminBuildArtifactScanner;
+use Waaseyaa\CLI\AdminBuild\AdminBuildPlatform;
 use Waaseyaa\CLI\AdminBuild\AdminBuildPolicyException;
 use Waaseyaa\CLI\AdminBuild\AdminBuildProcessException;
 use Waaseyaa\CLI\AdminBuild\HermeticAdminBuildPipeline;
+use Waaseyaa\CLI\AdminBuild\HermeticBuildEnvironmentFactory;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
+
+// `--print-toolchain` prints the absolute node executable and npm CLI the
+// hermetic child WILL execute, one per line. bin/build-admin-dist reports the
+// build's runtime from these, so the recorded versions always come from the
+// binaries that produced the bundle rather than from whatever `node` the parent
+// shell resolves first (#2524).
+if (in_array('--print-toolchain', $argv, true)) {
+    try {
+        /** @var array<string, string> $parentEnvironment */
+        $parentEnvironment = getenv();
+        $toolchain = new HermeticBuildEnvironmentFactory()->resolveToolchain(
+            $parentEnvironment,
+            AdminBuildPlatform::host(),
+        );
+    } catch (AdminBuildPolicyException $e) {
+        fwrite(STDERR, sprintf('%s [%s]%s', $e->getMessage(), $e->errorCode, PHP_EOL));
+        exit(1);
+    }
+    fwrite(STDOUT, $toolchain['node'] . "\n" . $toolchain['npm'] . "\n");
+    exit(0);
+}
 
 try {
     if (in_array('--scan-only', $argv, true)) {

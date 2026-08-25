@@ -1,0 +1,148 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * The acceptance surface of the ONE canonical Admin dist operation (#2524).
+ *
+ *   bin/admin-dist-acceptance guard
+ *       Refuse an ambiguous Admin source / generated-output boundary.
+ *
+ *   bin/admin-dist-acceptance accept --first=<dir> --second=<dir> \
+ *       --source-signature=<64hex> --build-id-signature=<64hex> \
+ *       [--intermediate=<dir>] [--node-runtime=<v24.x.y>] [--npm-runtime=<x.y.z>]
+ *       Require two INDEPENDENT byte-identical build snapshots, replace the
+ *       committed published tree wholesale, prove obsolete paths are gone, and
+ *       write dist.signature + dist.manifest.json.
+ *
+ *   bin/admin-dist-acceptance verify
+ *       Committed-state gate: re-derive every manifest claim from the committed
+ *       bytes. Additive to bin/check-admin-dist-fresh, which stays authoritative.
+ *
+ * Do not run `accept` by hand — bin/build-admin-dist is the canonical operation
+ * and is the only thing that produces the two snapshots this command requires.
+ */
+
+use Waaseyaa\CLI\AdminBuild\AdminDistAcceptance;
+use Waaseyaa\CLI\AdminBuild\AdminDistAcceptanceException;
+use Waaseyaa\CLI\AdminBuild\AdminDistAcceptanceVerifier;
+use Waaseyaa\CLI\AdminBuild\AdminDistWorkspaceGuard;
+
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+
+$command = $argv[1] ?? '';
+$options = [];
+foreach (array_slice($argv, 2) as $argument) {
+    if (preg_match('/^--([a-z-]+)=(.*)$/D', $argument, $match) === 1) {
+        $options[$match[1]] = $match[2];
+    }
+}
+
+try {
+    exit(match ($command) {
+        'guard' => guardWorkspace($root),
+        'accept' => acceptBuild($root, $options),
+        'verify' => verifyCommittedState($root),
+        default => usage(),
+    });
+} catch (AdminDistAcceptanceException $exception) {
+    fwrite(STDERR, 'ERROR: ' . $exception->getMessage() . "\n");
+    fwrite(STDERR, "       Rebuild and re-accept with: bin/build-admin-dist\n");
+    exit(1);
+}
+
+function usage(): int
+{
+    fwrite(STDERR, "Usage: bin/admin-dist-acceptance <guard|accept|verify> [--option=value ...]\n");
+
+    return 2;
+}
+
+function guardWorkspace(string $root): int
+{
+    $porcelain = [];
+    $exitCode = 0;
+    exec(sprintf('git -C %s status --porcelain 2>/dev/null', escapeshellarg($root)), $porcelain, $exitCode);
+    if ($exitCode !== 0) {
+        fwrite(STDERR, "ERROR: could not read the Git worktree state for the Admin boundary guard.\n");
+
+        return 1;
+    }
+    new AdminDistWorkspaceGuard()->assertAcceptable($root, array_values($porcelain));
+    fwrite(STDOUT, "OK: Admin source and generated-output boundary are unambiguous.\n");
+
+    return 0;
+}
+
+/** @param array<string, string> $options */
+function acceptBuild(string $root, array $options): int
+{
+    foreach (['first', 'second', 'source-signature', 'build-id-signature'] as $required) {
+        if (($options[$required] ?? '') === '') {
+            return usage();
+        }
+    }
+    $pin = trim((string) @file_get_contents($root . '/.nvmrc'));
+    if (preg_match('/^[0-9]+$/D', $pin) !== 1) {
+        throw new AdminDistAcceptanceException('node-pin-invalid');
+    }
+    $nodeRuntime = $options['node-runtime'] ?? '';
+    if (preg_match('/^v([0-9]+)\.[0-9]+\.[0-9]+$/D', $nodeRuntime, $match) !== 1 || $match[1] !== $pin) {
+        throw new AdminDistAcceptanceException('node-runtime-unpinned', [$nodeRuntime === '' ? 'absent' : $nodeRuntime]);
+    }
+
+    $result = new AdminDistAcceptance()->accept(
+        projectRoot: $root,
+        firstBuild: $options['first'],
+        secondBuild: $options['second'],
+        sourceSignature: $options['source-signature'],
+        buildIdSignature: $options['build-id-signature'],
+        toolchain: [
+            'nodePin' => $pin,
+            'nodeRuntime' => $nodeRuntime,
+            'npmRuntime' => $options['npm-runtime'] ?? '',
+        ],
+        intermediateRoot: ($options['intermediate'] ?? '') === '' ? null : $options['intermediate'],
+    );
+
+    fwrite(STDOUT, sprintf(
+        "Accepted combined-source Admin dist:\n"
+        . "  published tree : %s (%d files, %d bytes)\n"
+        . "  build identity : %s\n"
+        . "  changed        : +%d added, ~%d modified, -%d obsolete removed\n"
+        . "  manifest       : %s (%s)\n",
+        $result->published->digest,
+        $result->published->fileCount,
+        $result->published->byteCount,
+        $result->manifest->document['source']['buildId'] ?? '?',
+        count($result->added),
+        count($result->modified),
+        count($result->removed),
+        $result->manifest->identityDigest(),
+        $result->manifestRewritten ? 'rewritten' : 'unchanged (no-op re-run)',
+    ));
+    foreach ($result->removed as $obsolete) {
+        fwrite(STDOUT, '  removed: ' . $obsolete . "\n");
+    }
+
+    return 0;
+}
+
+function verifyCommittedState(string $root): int
+{
+    $problems = new AdminDistAcceptanceVerifier()->verify($root);
+    if ($problems === []) {
+        fwrite(STDOUT, "OK: the committed admin dist matches its acceptance manifest.\n");
+
+        return 0;
+    }
+    fwrite(STDERR, "ERROR: admin dist acceptance verification failed.\n");
+    foreach ($problems as $problem) {
+        fwrite(STDERR, '       - ' . $problem . "\n");
+    }
+    fwrite(STDERR, "       Rebuild and re-accept with: bin/build-admin-dist\n");
+
+    return 1;
+}

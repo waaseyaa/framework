@@ -6,6 +6,7 @@ namespace Waaseyaa\Publishing;
 
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
@@ -17,6 +18,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException;
 use Waaseyaa\EntityStorage\SaveContext;
+use Waaseyaa\EntityStorage\SqlEntityQuery;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\Exception\ContentNotFoundException;
 use Waaseyaa\Publishing\Exception\ContentSaveAdvisoryException;
@@ -60,18 +62,24 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     // Reads (capability-gated: this surface is for publishers)
     // ------------------------------------------------------------------
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * List content the acting principal is actually allowed to view.
+     *
+     * With an access handler composed in, the candidate window comes from the
+     * ACCESS-CHECKED query API bound to the acting principal — never from a
+     * full unchecked read that is post-filtered (#2516). No total or cursor
+     * derived from the unchecked candidate set is returned, so a hidden row
+     * cannot be inferred from the response shape.
+     *
+     * @return list<array<string, mixed>>
+     */
     public function list(AuthorizationPrincipalInterface $actor, bool $publishedOnly = false, int $limit = 50, int $offset = 0): array
     {
         $this->requireCapability($actor);
 
-        $criteria = $this->bundleCriteria();
-        if ($publishedOnly) {
-            $criteria[$this->descriptor->statusField] = 1;
-        }
-
-        $entities = $this->repository->findBy($criteria, null, $limit + $offset);
-        $entities = \array_slice($this->filterBundle($entities), $offset, $limit);
+        $entities = $this->accessHandler === null
+            ? $this->listWithoutPolicyAuthority($publishedOnly, $limit, $offset)
+            : $this->listAccessChecked($actor, $publishedOnly, $limit, $offset);
 
         return array_map($this->snapshot(...), $entities);
     }
@@ -81,14 +89,14 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     {
         $this->requireCapability($actor);
 
-        return $this->snapshot($this->load($idOrSlug));
+        return $this->snapshot($this->loadViewable($actor, $idOrSlug));
     }
 
     /** @return list<array<string, mixed>> */
     public function revisions(AuthorizationPrincipalInterface $actor, string $id): array
     {
         $this->requireCapability($actor);
-        $this->load($id); // NOT_FOUND if absent
+        $this->loadViewable($actor, $id); // NOT_FOUND if absent OR not viewable
 
         $out = [];
         $workingCopy = $this->repository->loadWorkingCopy($id);
@@ -97,6 +105,11 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             ? (int) $currentRevisionId
             : null;
         foreach ($this->repository->listRevisions($id) as $revision) {
+            if (!$this->allowsRevisionView($actor, $revision)) {
+                // Per-revision decision, applied BEFORE any historical field
+                // data is projected into the response (#2516).
+                continue;
+            }
             $meta = $revision instanceof RevisionableEntityInterface ? $revision->revisionMetadata() : null;
             $revisionId = (int) ($revision instanceof RevisionableEntityInterface ? $revision->revisionId() : 0);
             $out[] = [
@@ -118,9 +131,14 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     public function revision(AuthorizationPrincipalInterface $actor, string $id, int $revisionId): array
     {
         $this->requireCapability($actor);
-        $this->load($id);
+        $this->loadViewable($actor, $id);
         $revision = $this->repository->loadRevision($id, $revisionId);
-        if ($revision === null || !$this->matchesBundle($revision)) {
+        if ($revision === null
+            || !$this->matchesBundle($revision)
+            || !$this->allowsRevisionView($actor, $revision)
+        ) {
+            // A refused revision is reported exactly as a missing one: same
+            // exception type, same NOT_FOUND code, same message (#2516).
             throw new ContentNotFoundException("Content revision {$revisionId} was not found.");
         }
 
@@ -151,7 +169,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     public function preview(AuthorizationPrincipalInterface $actor, string $idOrSlug, Preview\PreviewLinkService $links, int $ttlSeconds = 1800): array
     {
         $this->requireCapability($actor);
-        $entity = $this->load($idOrSlug);
+        $entity = $this->loadViewable($actor, $idOrSlug);
 
         $token = $links->issue($this->descriptor->entityTypeId, (string) $entity->id(), $ttlSeconds);
         $this->auditRecord(AuditEventKind::ContentPreviewIssued, $actor, $entity, ['expires_at' => $token->expiresAt]);
@@ -167,6 +185,13 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     /**
      * Issue a preview grant bound to the exact observed working-copy revision.
      *
+     * The grant is fenced at the REVISION level, not only the entity level: the
+     * only revision this operation can ever grant is the working copy (the
+     * assertion below pins `$expectedRevisionId` to it), so the working copy's
+     * own `view_revision` decision is the decision that governs the grant. A
+     * principal refused that revision is refused exactly as if the revision did
+     * not exist, matching {@see revision()} (#2516).
+     *
      * @return array{id: int|string|null, entity_type: string, revision_id: int, expires_at: int, signature: string}
      */
     public function previewRevision(
@@ -177,7 +202,13 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         int $ttlSeconds = 1800,
     ): array {
         $this->requireCapability($actor);
-        $entity = $this->load($idOrSlug);
+        $entity = $this->loadViewable($actor, $idOrSlug);
+        if (!$this->allowsRevisionView($actor, $entity)) {
+            // Refuse BEFORE assertExpectedRevision(): a RevisionConflictException
+            // would disclose the current revision id to a principal who may not
+            // read that revision at all.
+            throw new ContentNotFoundException("Content revision {$expectedRevisionId} was not found.");
+        }
         $this->assertExpectedRevision($entity, $expectedRevisionId);
 
         $token = $links->issueRevision(
@@ -312,6 +343,13 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     /**
      * Restore a prior revision AS A NEW revision — history is never deleted.
      *
+     * Rollback copies the target revision's stored content forward into the new
+     * current revision and returns that content, so it is also a READ of the
+     * target revision. It therefore carries the same per-revision fence as
+     * {@see revision()}: a principal refused `view_revision` on the target
+     * cannot obtain that revision's content through the mutation door, and the
+     * refusal is indistinguishable from the revision being absent (#2516).
+     *
      * @return array<string, mixed>
      */
     public function rollback(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId, string $idempotencyKey, string $note = '', ?int $expectedCurrentRevisionId = null): array
@@ -330,6 +368,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         return $this->idempotency->execute($idempotencyKey, 'rollback', $request, function () use ($actor, $id, $targetRevisionId, $note, $expectedCurrentRevisionId): array {
             $entity = $this->load($id);
             $this->requireEntityUpdateAccess($actor, $entity);
+            $this->requireTargetRevisionReadable($actor, $id, $targetRevisionId);
 
             // rollback() itself cuts exactly ONE new revision (with the
             // framework's revert events/audit); the operator note travels on
@@ -431,6 +470,136 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         $result = $this->accessHandler->checkCreateAccess($this->descriptor->entityTypeId, $this->descriptor->bundle ?? '', $actor);
         if (!$result->isAllowed()) {
             throw new ContentAuthorizationException('Entity create access denied.');
+        }
+    }
+
+    /**
+     * Candidate window for a publisher composed WITHOUT policy authority.
+     *
+     * Preserves the pre-#2516 behaviour exactly: no access handler means this
+     * surface has no entity-level decision to consult, so the capability gate
+     * remains the only authority — the same rule
+     * {@see requireEntityCreateAccess()} and {@see requireEntityUpdateAccess()}
+     * already apply to mutations.
+     *
+     * @return list<EntityInterface>
+     */
+    private function listWithoutPolicyAuthority(bool $publishedOnly, int $limit, int $offset): array
+    {
+        $criteria = $this->bundleCriteria();
+        if ($publishedOnly) {
+            $criteria[$this->descriptor->statusField] = 1;
+        }
+
+        $entities = $this->repository->findBy($criteria, null, $limit + $offset);
+
+        return \array_slice($this->filterBundle($entities), $offset, $limit);
+    }
+
+    /**
+     * Candidate window from the access-checked query API, bound to the acting
+     * principal (#2516).
+     *
+     * The identifiers are resolved by `getQuery()->setAccount($actor)` — the
+     * framework's fail-closed, deny-unless-granted listing path, which decides
+     * each candidate row against the bound principal and returns only the ids
+     * that survive — and only those ids are then hydrated with `findMany()`.
+     * (The decision itself happens inside the query, which hydrates its
+     * candidate window to evaluate the policy; nothing that fails the decision
+     * is returned.) A refused row therefore reaches the caller in no form: not
+     * as content, and not as cardinality, since the response carries no total
+     * or cursor derived from the candidate set.
+     *
+     * Note the ordering consequence: SQL `LIMIT`/`OFFSET` bound the candidate
+     * window BEFORE the per-row decision, so a page may come back short — or
+     * empty — while viewable content exists beyond the window. That is
+     * fail-closed and leaks nothing, but an empty page is not evidence of "no
+     * content"; see the spec's "Read authorization" section.
+     *
+     * A publisher composed with policy authority requires a query-capable
+     * repository; `EntityRepository::getQuery()` is the only path that can
+     * prove per-row viewability, and falling back to an unchecked read would
+     * reintroduce exactly the defect this closes.
+     *
+     * @return list<EntityInterface>
+     */
+    private function listAccessChecked(AuthorizationPrincipalInterface $actor, bool $publishedOnly, int $limit, int $offset): array
+    {
+        $query = $this->repository->getQuery();
+        if ($query instanceof SqlEntityQuery && $this->accessHandler !== null) {
+            // The publisher's handler is the decision authority for every one
+            // of its six read operations; bind it so the listing cannot be
+            // decided by a differently composed (or absent) repository handler.
+            $query = $query->withAccessHandler($this->accessHandler);
+        }
+        $query = $query->setAccount($actor);
+        foreach ($this->bundleCriteria() as $field => $value) {
+            $query = $query->condition($field, $value);
+        }
+        if ($publishedOnly) {
+            $query = $query->condition($this->descriptor->statusField, 1);
+        }
+
+        $ids = $query->range($offset, $limit)->execute();
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->filterBundle($this->repository->findMany(array_values($ids)));
+    }
+
+    /**
+     * Load content the acting principal is allowed to view, or refuse.
+     *
+     * The refusal is deliberately INDISTINGUISHABLE from absence — same
+     * exception type, same `NOT_FOUND` code, same message. Reporting
+     * `UNAUTHORIZED` here would turn every read operation into an existence
+     * oracle for content the caller may not see (#2516).
+     */
+    private function loadViewable(AuthorizationPrincipalInterface $actor, string $idOrSlug): EntityInterface
+    {
+        $entity = $this->load($idOrSlug);
+        if ($this->accessHandler !== null
+            && !$this->accessHandler->check($entity, GateInterface::VIEW, $actor)->isAllowed()
+        ) {
+            throw new ContentNotFoundException($idOrSlug);
+        }
+
+        return $entity;
+    }
+
+    /**
+     * Per-revision view decision over a historical snapshot.
+     *
+     * `view_revision` is composed by the handler through
+     * {@see \Waaseyaa\Access\Policy\RevisionPolicyComposition} against the
+     * supplied snapshot, and falls back to the entity-level `view` decision
+     * when no policy expresses a revision-level opinion.
+     */
+    private function allowsRevisionView(AuthorizationPrincipalInterface $actor, EntityInterface $revision): bool
+    {
+        if ($this->accessHandler === null) {
+            return true;
+        }
+
+        return $this->accessHandler->check($revision, GateInterface::VIEW_REVISION, $actor)->isAllowed();
+    }
+
+    /**
+     * Fence a rollback target at the revision level.
+     *
+     * Only the ACCESS decision is made here — an absent or otherwise
+     * unresolvable target is left to the repository, so this adds no new
+     * failure shape for a target that simply does not exist.
+     */
+    private function requireTargetRevisionReadable(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId): void
+    {
+        if ($this->accessHandler === null) {
+            return;
+        }
+        $target = $this->repository->loadRevision($id, $targetRevisionId);
+        if ($target !== null && !$this->allowsRevisionView($actor, $target)) {
+            throw new ContentNotFoundException("Content revision {$targetRevisionId} was not found.");
         }
     }
 
@@ -597,6 +766,18 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         }
     }
 
+    /**
+     * Slug uniqueness pre-check — DELIBERATELY on the non-access-checked
+     * repository path (#2516 carve-out).
+     *
+     * This is not a read of user-visible content: nothing from the conflicting
+     * row is returned to the caller, only the fact that the slug is taken.
+     * Routing it through the access-checked query would hide the conflicting
+     * row from an unprivileged caller and let them create a colliding slug, so
+     * two rows would share one slug and the app's slug route would resolve to
+     * whichever the storage engine happened to return. Pinned by
+     * ContentPublisherReadAccessTest::slug_uniqueness_still_sees_entities_the_caller_may_not_view().
+     */
     private function assertSlugFree(string $slug, ?string $excludeId): void
     {
         $matches = $this->filterBundle($this->repository->findBy([$this->descriptor->slugField => $slug], null, 2));

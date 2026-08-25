@@ -21,7 +21,11 @@ declare(strict_types=1);
  *   php bin/check-admin-dist-fresh            # verify (CI gate; non-zero on stale)
  *   php bin/check-admin-dist-fresh --print    # print the deterministic source signature
  *   php bin/check-admin-dist-fresh --print-build-id # print content-only build identity
- *   php bin/check-admin-dist-fresh --write    # (re)write the signature; called by bin/build-admin-dist
+ *
+ * There is deliberately no write mode here. packages/admin-surface/dist.signature
+ * is written by exactly one thing — AdminDistAcceptance::accept(), reached only
+ * through bin/build-admin-dist — so the marker can never be refreshed without an
+ * accepted, reproducible, marker-satisfying rebuild behind it (#2524).
  */
 
 $root = dirname(__DIR__);
@@ -36,12 +40,6 @@ if (in_array('--print-build-id', $argv, true)) {
 
 if (in_array('--print', $argv, true)) {
     fwrite(STDOUT, $signature . "\n");
-    exit(0);
-}
-
-if (in_array('--write', $argv, true)) {
-    file_put_contents($marker, $signature . "\n");
-    fwrite(STDOUT, "admin dist source signature written: {$signature}\n");
     exit(0);
 }
 
@@ -76,6 +74,7 @@ function computeAdminSourceSignature(string $root): string
     // policy changes, but it is intentionally excluded from the emitted Nuxt
     // build ID so a policy-only change does not rewrite every HTML file.
     $procedureFiles = [
+        'bin/admin-dist-acceptance',
         'bin/build-admin-dist',
         'bin/check-admin-dist-fresh',
         'bin/normalize-admin-dist',

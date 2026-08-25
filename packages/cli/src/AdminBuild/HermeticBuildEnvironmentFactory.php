@@ -30,9 +30,7 @@ final class HermeticBuildEnvironmentFactory
         $workspace = $this->validatedDirectory($workspace, 'workspace-invalid');
         $dependencyCache = $this->validatedDirectory($dependencyCache, 'dependency-cache-invalid');
         $path = $this->validatedPath($parent['PATH'] ?? '', $platform);
-        $npmLauncher = $this->resolveBinary('npm', 'NPM_BINARY', $parent, $path, $platform);
-        $npm = $this->resolveNpmCli($npmLauncher, $platform);
-        $node = $this->resolveBinary('node', 'NODE_BINARY', $parent, $path, $platform);
+        ['node' => $node, 'npm' => $npm] = $this->resolveToolchainOn($parent, $path, $platform);
 
         $variables = [
             'CI' => 'true',
@@ -95,6 +93,46 @@ final class HermeticBuildEnvironmentFactory
         ksort($variables, SORT_STRING);
 
         return new AdminBuildEnvironment($npm, $node, $variables);
+    }
+
+    /**
+     * The node and npm-cli.js the hermetic child will actually execute, resolved
+     * from the same sanitized PATH and the same NODE_BINARY / NPM_BINARY
+     * overrides as a real build.
+     *
+     * Callers that need to REPORT the build's runtime must resolve it through
+     * here rather than measuring whatever `node` the parent shell happens to
+     * find: with NODE_BINARY unset the two can differ, and a runtime the build
+     * did not use is not evidence about the build.
+     *
+     * @param array<string, string> $parent
+     *
+     * @return array{node: string, npm: string}
+     *
+     * @api Consumed by bin/run-hermetic-admin-build, outside the analysed path set.
+     */
+    public function resolveToolchain(array $parent, AdminBuildPlatform $platform): array
+    {
+        return $this->resolveToolchainOn(
+            $parent,
+            $this->validatedPath($parent['PATH'] ?? '', $platform),
+            $platform,
+        );
+    }
+
+    /**
+     * @param array<string, string> $parent
+     *
+     * @return array{node: string, npm: string}
+     */
+    private function resolveToolchainOn(array $parent, string $path, AdminBuildPlatform $platform): array
+    {
+        $npmLauncher = $this->resolveBinary('npm', 'NPM_BINARY', $parent, $path, $platform);
+
+        return [
+            'node' => $this->resolveBinary('node', 'NODE_BINARY', $parent, $path, $platform),
+            'npm' => $this->resolveNpmCli($npmLauncher, $platform),
+        ];
     }
 
     private function resolveNpmCli(string $launcher, AdminBuildPlatform $platform): string

@@ -123,6 +123,18 @@
             }
         },
         {
+            "id": "check-admin-dist-manifest",
+            "alias": "check-admin-dist-manifest",
+            "run": "php bin/admin-dist-acceptance verify",
+            "repair": "rebuild and re-accept the admin dist with bin/build-admin-dist and commit dist/, dist.signature and dist.manifest.json together",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-admin-dist-manifest",
+            "refresh": {
+                "mode": "auto",
+                "write": "bash bin/build-admin-dist"
+            }
+        },
+        {
             "id": "check-field-guards",
             "alias": "check-field-guards",
             "run": "bash tests/Tooling/FieldGuardsTest.sh",

@@ -20,6 +20,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   404. Successful response envelopes, strong ETags, and Admin body
   `mutation_token` / page-builder revision-fingerprint transport are
   unchanged. 412 bodies still omit the winning token.
+- **Security — `ContentPublisher` read operations were capability-only and
+  bypassed every entity access policy (#2516):** `list()`, `get()`,
+  `revisions()`, `revision()`, `preview()` and `previewRevision()` authorized on
+  the caller's coarse publish capability and then read through the
+  non-access-checked repository path, so no per-entity policy was consulted —
+  an already-injected `EntityAccessHandler` sat unused on all six. Any surface
+  built on them (the MCP `*.list` / `*.get` / `*.revisions` / `*.preview` tool
+  set included) therefore granted read of every entity in the bundle to anyone
+  holding the authoring credential, including entities a bundle- or
+  entity-level policy was meant to restrict. `list()` now resolves its
+  candidate window through the access-checked query API bound to the acting
+  principal (`getQuery()->setAccount($actor)` then `findMany()`), never by
+  post-filtering an unchecked read; the single reads require an `Allowed`
+  entity-level `view`; `revisions()` and `revision()` apply a per-revision
+  `view_revision` decision (composed through `RevisionPolicyComposition`,
+  falling back to `view`) **before** any historical field data is projected.
+  Every refusal is indistinguishable from absence — same
+  `ContentNotFoundException`, same `NOT_FOUND` code, same message — so no read
+  becomes an existence oracle. `assertSlugFree()` deliberately KEEPS the
+  non-access-checked path (a uniqueness pre-check, not a content read;
+  converting it would let an unprivileged caller create a slug colliding with a
+  row invisible to them) and a regression test pins that carve-out. A publisher
+  composed with an access handler now requires a query-capable
+  (database-backed) repository; composed without one, the capability gate
+  remains the only authority, exactly as before. Mutation authorization,
+  field-read policy, tenancy, workflow transitions, audit attribution,
+  idempotency and If-Match concurrency are unchanged.
+
+  Two revision-targeted operations carried the same half of the gap and are
+  closed with it. `previewRevision()` checked only the entity-level `view`
+  before issuing (and auditing) a signed grant, so a principal refused
+  `view_revision` on the working copy still received a grant that `revision()`
+  would have refused; it now applies the per-revision decision, and applies it
+  *before* the revision-conflict assertion so a refused principal cannot learn
+  the current revision id from a `RevisionConflictException`. `rollback()`
+  copies the target revision's stored content forward and RETURNS it, so it is
+  also a read of that revision; it now requires `view_revision` on the target,
+  which closes the same bypass at the `*.rollback` MCP tool. Both refuse as
+  `NOT_FOUND` for the requested revision, exactly as `revision()` does, and
+  neither changes behaviour for a target revision that does not exist.
+
+  One documented caveat, unchanged by this fix but previously unstated: SQL
+  `LIMIT`/`OFFSET` bound `list()`'s candidate window before the per-row
+  decision is applied, so a page can come back short — or empty — while
+  viewable content exists beyond that window. This is fail-closed and leaks
+  nothing, but an empty page is not evidence of "no content"; the spec's "Read
+  authorization" section now says so.
 
 - **Breaking (alpha) — purpose-built OIDC client PATCH/DELETE now require
   `If-Match` (#2493):** `PATCH` and `DELETE /api/oidc-clients/{id}` previously
@@ -34,6 +81,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `meta.mutation_token`. Alpha clients that PATCHed or DELETEd OIDC
   clients without `If-Match` will start receiving 428. Revertible; no stored
   token format change.
+
+- **Tooling — the Admin dist combined-source rebuild and its acceptance are now
+  one deterministic operation (#2524):** Admin-source branches commit generated
+  `packages/admin-surface/dist` output, so every transplant across another Admin
+  change conflicted in many hashed chunks and agents kept rediscovering that the
+  repair is to discard BOTH generated sides and rebuild from combined source.
+  `bin/build-admin-dist` is now that whole procedure and the only supported way
+  to change a byte under `dist/`. It refuses an ambiguous starting boundary
+  (unmerged index entries, unresolved conflict markers, an untracked file under
+  `packages/admin/app`, a partially staged `dist/`, a `dist.signature` without
+  its tree) via the new `AdminDistWorkspaceGuard`; refuses any runtime whose
+  major is not the `.nvmrc` pin; builds **twice** in independent disposable
+  snapshot directories and refuses a single snapshot presented twice or a pair
+  whose published trees are not byte-identical; replaces the committed tree
+  **wholesale** and re-checks on disk that every obsolete path is gone; and
+  requires every declared source-contract marker in the new
+  `packages/admin-surface/dist.markers.json` to be present in the compiled
+  bundle before anything is published. It then emits the new versioned
+  `packages/admin-surface/dist.manifest.json` (`manifestVersion: 1`) recording
+  the source signature, build-id signature and Nuxt build identity, the
+  published tree digest with file and byte counts, the marker roster digest and
+  ids, and — in an evidence-only `acceptance` section excluded from
+  `identityDigest` — the build count, reproducibility verdict, the broader
+  **intermediate** `packages/admin/.output` artifact count and digest, the
+  previous published digest, the added/modified/removed path inventory, and the
+  exact Node/npm runtime. Published and intermediate output are never
+  conflated. Because the excluded section holds the volatile provenance, a
+  re-run on identical input produces zero diff and leaves the committed manifest
+  byte-unchanged. The manifest ships inside `waaseyaa/admin-surface` beside the
+  tree it describes, so a downstream distribution accepts exact **released**
+  bytes by scanning `vendor/waaseyaa/admin-surface/dist` against
+  `published.treeDigest` from the installed package instead of copying a
+  candidate-branch hash (procedure in
+  `packages/admin-surface/contract/README.md`). New blocking gate
+  `check-admin-dist-manifest` (`php bin/admin-dist-acceptance verify`) re-derives
+  every manifest claim from committed bytes with no Node toolchain and is wired
+  into `composer verify`, `tools/preflight-gates.json`, and `ci/verify-gates`;
+  `check-admin-dist-fresh` remains the authoritative D6 staleness gate and is
+  not weakened: its only behavioural change is that the uncalled `--write` mode
+  is **gone**, so `dist.signature` is now written by exactly one thing —
+  `AdminDistAcceptance::accept()`, reachable only through `bin/build-admin-dist`
+  — and cannot be refreshed without an accepted, reproducible,
+  marker-satisfying rebuild behind it. A source-contract marker must now occur
+  inside a **single** compiled file rather than in a concatenation of the tree,
+  so no marker can be satisfied by a string that exists only because two chunks
+  were glued together in an unspecified iteration order. The runtime the
+  manifest records is resolved through the new
+  `bin/run-hermetic-admin-build --print-toolchain`
+  (`HermeticBuildEnvironmentFactory::resolveToolchain()`) — the same sanitized
+  `PATH` and `NODE_BINARY`/`NPM_BINARY` overrides the hermetic child uses — so
+  the recorded version always names the binary that actually built the bundle,
+  and an unusable toolchain is refused before any Nuxt run. A published bundle
+  with no `_nuxt/builds/latest.json` now fails verification instead of passing
+  the build-identity half in silence. The marker roster is the single served-
+  bundle vocabulary: `AdminDistCanonicalOperationTest` derives the pinned list
+  from `AdminDistContentTest`'s own source, so a new served-bundle assertion is
+  forced into `dist.markers.json` (seven previously undeclared assertions are
+  now declared). Verified end to end: two separate double builds (four
+  independent Node 24.19.0 / npm 11.17.0 Nuxt runs) produced byte-identical
+  published trees, the rebuilt bundle is byte-for-byte the committed one
+  (`+0 added, ~0 modified, -0 removed`, published tree digest unchanged), and
+  the second double build left `dist.manifest.json` and `dist.signature`
+  byte-identical (`manifest: unchanged (no-op re-run)`).
 
 - **Fixed — `saveMany()` mixed create/update batches mis-attributed audit
   actions and skipped thread owner bootstrap (#1856):** PRE_SAVE now

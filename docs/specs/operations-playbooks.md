@@ -70,6 +70,66 @@ For full-stack local development, run `composer dev:php` in one terminal and `co
 
 **The admin SPA's realtime SSE and worker usage.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). The `BroadcastRouter` loop is **bounded** (see `docs/specs/broadcasting.md`): it returns on client disconnect or after a per-connection time budget (`DEFAULT_MAX_DURATION_SEC`, 30s), so a worker is never pinned indefinitely and the client's `EventSource` reconnects automatically. A short keepalive cadence (2s) makes disconnect detection prompt so the worker is released soon after a tab navigates away. Even so, each *concurrently open* admin tab uses one worker for the duration of its stream, so the server still needs **>1 worker**. PHP's built-in server is single-worker by default, so `bin/waaseyaa serve` defaults `PHP_CLI_SERVER_WORKERS=4`.
 
+### Playbook: rebuilding the committed Admin SPA bundle
+
+`packages/admin-surface/dist` is generated output that is committed and shipped
+through Composer. There is exactly **one** supported way to change it:
+
+```bash
+bin/build-admin-dist
+```
+
+Run it whenever `check-admin-dist-fresh` or `check-admin-dist-manifest` is red,
+and whenever an Admin change must reach the served bundle. Commit
+`packages/admin-surface/dist/`, `dist.signature`, and `dist.manifest.json`
+together. Never hand-edit a hashed chunk, and never resolve a `dist/` merge
+conflict by picking a side.
+
+**Resolving a transplanted Admin change that conflicts in `dist/`.** Discard
+both generated sides, keep the combined source, and rebuild:
+
+```bash
+# Resolve the SOURCE conflicts normally. Pick ONE of these, or merge by hand —
+# running both in sequence silently leaves whichever ran last:
+#   git checkout --ours   packages/admin/     # keep this branch's source
+#   git checkout --theirs packages/admin/     # keep the incoming source
+# Then discard BOTH generated sides and rebuild:
+git rm -r --cached packages/admin-surface/dist >/dev/null
+bin/build-admin-dist                          # rebuilds the whole tree from combined source
+git add packages/admin-surface/dist packages/admin-surface/dist.signature \
+        packages/admin-surface/dist.manifest.json
+```
+
+The operation refuses to start while the boundary is still ambiguous — unmerged
+paths, unresolved conflict markers, an untracked file under `packages/admin/app`,
+or a partially staged `dist/` — so a half-resolved conflict cannot be baked into
+a published bundle. Two conflicting generated trees converge on the same bytes
+regardless of which side you started from.
+
+**Toolchain.** The pinned `.nvmrc` runtime (Node 24) is mandatory; any other
+major is refused. Point the build at a specific keg with `NODE_BINARY` /
+`NPM_BINARY` and a sanitized `PATH`, exactly as `admin-dist.yml` does:
+
+```bash
+NODE_BINARY="$(command -v node)"
+NPM_BINARY="$(realpath "$(command -v npm)")"
+PATH="$(dirname "$NODE_BINARY"):/usr/local/bin:/usr/bin:/bin"
+export NODE_BINARY NPM_BINARY PATH
+bin/build-admin-dist
+```
+
+**Adding a source-contract marker.** When a change must be provably present in
+the compiled bundle, add an entry to `packages/admin-surface/dist.markers.json`
+in the same PR (`bundle-js`, `stylesheet`, or `published-path` scope). A missing
+or changed marker fails both the rebuild and the committed-state gate.
+
+**What the manifest is for.** `dist.manifest.json` is the acceptance record that
+travels with the release. Downstream distributions verify the Admin bytes they
+installed against `published.treeDigest` from
+`vendor/waaseyaa/admin-surface/dist.manifest.json` — see
+`packages/admin-surface/contract/README.md`. Nothing inside its `acceptance`
+section is identity; do not pin on it.
+
 ### Two runtimes, two launchers
 
 Waaseyaa is runtime-agnostic and **never wraps a runtime binary in a framework subcommand** — the Symfony Runtime / Laravel Octane / Drupal-DDEV convention. There are exactly two supported ways to serve the app, and the choice mirrors that convention:

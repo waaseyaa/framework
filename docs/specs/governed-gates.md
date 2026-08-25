@@ -36,8 +36,8 @@ Profiles:
 - **default (`bin/check-pr-preflight`)** — every fast repo-state gate: composer policy, portable
   paths, package layers, symfony imports, the four S1 roster/contract gates, support contract,
   surface parity, changelog shape, ingestion defaults, secrets, governed secret access, dispatcher
-  keys, getquery bindings, admin coercion patterns, admin dist freshness, field guards, access
-  hardening, contract-suite coverage, openapi, phpstan/phpunit path checks, distribution
+  keys, getquery bindings, admin coercion patterns, admin dist freshness, admin dist acceptance
+  manifest, field guards, access hardening, contract-suite coverage, openapi, phpstan/phpunit path checks, distribution
   extensions, spec drift, changelog discipline, cs-check.
 - **`--full`** — adds the phpstan-engine gates (`composer phpstan`, `bin/check-dead-code`). These
   are in CI's blocking set; they are separated locally only because the PHPStan worker layer is
