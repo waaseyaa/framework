@@ -19,6 +19,7 @@ on:
       - 'docs/public-surface-map.php'
       - 'docs/public-surface-map.md'
       - 'CHANGELOG.md'
+      - 'changes/unreleased/**'
       - 'tools/check-surface-parity.php'
       - '.github/workflows/surface-parity.yml'
 

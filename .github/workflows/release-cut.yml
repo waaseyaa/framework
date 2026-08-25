@@ -1,16 +1,15 @@
 name: Cut Release
 
 # Canonical release path (#1385). Replaces the manual scripts/release.sh
-# ritual: validate, mutate CHANGELOG, commit, tag, push — all in CI.
+# ritual: validate fragments, compile CHANGELOG, commit, tag, push — all in CI.
 #
 # Trigger via the GitHub Actions UI ("Run workflow") or `gh workflow run`:
 #
 #   gh workflow run release-cut.yml -f version=v0.1.0-alpha.172
 #
-# Mirrors scripts/release.sh checks (semver regex, [Unreleased] non-empty,
-# tag must not exist, monorepo shape) but eliminates the interactive
-# `gh release create` prompt — `.github/workflows/split.yml` already
-# creates the GitHub Release in its `publish-github-release` job.
+# The workflow is the sole canonical release path. It validates a non-empty
+# deterministic fragment set, the tag, and monorepo shape. split.yml creates
+# the GitHub Release in its publish-github-release job.
 #
 # RELEASE GATE (alpha.200–202 red-at-tag post-mortem): a tag cannot be
 # created unless the repository's proofs are green on the EXACT commit being
@@ -202,15 +201,12 @@ jobs:
           fi
           echo "::notice::Tag $VERSION is available."
 
-      - name: Verify CHANGELOG [Unreleased] has content
+      - name: Validate and render pending changelog fragments
         run: |
           php bin/check-changelog-shape
-          unreleased=$(sed -n '/^## \[Unreleased\]/,/^## \[/{/^## \[/d;/^$/d;/^### /d;p;}' CHANGELOG.md)
-          if [ -z "$unreleased" ]; then
-            echo "::error::[Unreleased] section has no entries — add bullets before cutting a release"
-            exit 1
-          fi
-          echo "::notice::[Unreleased] has content."
+          php bin/changelog-fragments validate
+          php bin/changelog-fragments render --output="$RUNNER_TEMP/release-notes.md"
+          echo "::notice::Pending changelog fragments are valid and non-empty."
 
       - name: Install dependencies
         # Must run BEFORE the version sweep: the S1 dependency-authority
@@ -232,8 +228,7 @@ jobs:
           SEMVER="${VERSION#v}"
           bin/sync-internal-versions "$SEMVER"
 
-      - name: Mutate CHANGELOG and VERSION, capture tag message
-        id: changelog
+      - name: Compile fragments into CHANGELOG and stamp VERSION
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -245,17 +240,13 @@ jobs:
           # lockstep with the tag from this release forward. The value is bare
           # semver (no leading 'v'), matching the file's existing format.
           printf '%s\n' "$semver" > VERSION
-          # Capture content for the tag message before mutation.
-          tag_msg=$(sed -n '/^## \[Unreleased\]/,/^## \[/{/^## \[Unreleased\]/d;/^## \[/d;p;}' CHANGELOG.md)
-          # Rename [Unreleased] → [X.Y.Z] - DATE, insert fresh [Unreleased].
-          sed -i "s/^## \[Unreleased\]/## [${semver}] - ${today}/" CHANGELOG.md
-          sed -i "/^## \[${semver}\] - ${today}/i\\## [Unreleased]\\n" CHANGELOG.md
-          # Stash tag_msg via heredoc-safe delimiter for downstream step.
-          {
-            echo "tag_msg<<RELEASE_TAG_MSG_EOF"
-            echo "$tag_msg"
-            echo "RELEASE_TAG_MSG_EOF"
-          } >> "$GITHUB_OUTPUT"
+          # One compiler result feeds both the versioned CHANGELOG section and
+          # the annotated tag. Fragments are archived exactly once; no arbitrary
+          # Markdown crosses the GITHUB_OUTPUT command channel.
+          php bin/changelog-fragments release \
+            --version="$semver" \
+            --date="$today" \
+            --tag-message="$RUNNER_TEMP/release-notes.md"
 
       - name: Regenerate the S1 dependency-byte authority for the swept tree
         # bin/sync-internal-versions rewrites every packages/*/composer.json
@@ -292,7 +283,7 @@ jobs:
           # whose manifests disagree with its install or consumer metadata.
           # See alpha.178 (unstaged packages) and alpha.287 gate attempt 1
           # (unstaged skeleton and stale root-lock metadata).
-          git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json
+          git add -A -- CHANGELOG.md changes/unreleased changes/released VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json
           git commit -m "chore: release ${VERSION}"
           # The release commit goes to a throwaway gate branch FIRST. Main is
           # only fast-forwarded after Gate 2 proves CI green on this exact SHA.
@@ -398,13 +389,14 @@ jobs:
       - name: Tag the gated commit and fast-forward main (atomic)
         env:
           VERSION: ${{ inputs.version }}
-          TAG_MSG: ${{ steps.changelog.outputs.tag_msg }}
           RELEASE_TOKEN: ${{ steps.release_identity.outputs.token }}
           REPO: ${{ github.repository }}
         run: |
-          git tag -a "$VERSION" -m "Release ${VERSION}
-
-          ${TAG_MSG}"
+          {
+            printf 'Release %s\n\n' "$VERSION"
+            cat "$RUNNER_TEMP/release-notes.md"
+          } > "$RUNNER_TEMP/tag-message.md"
+          git tag -a "$VERSION" -F "$RUNNER_TEMP/tag-message.md"
 
           # Push as the release App.
           #

@@ -487,6 +487,7 @@
     "scripts": {
         "check-composer-policy": "php bin/check-composer-policy",
         "check-changelog-shape": "php bin/check-changelog-shape",
+        "check-changelog-fragments": "php bin/changelog-fragments validate",
         "check-distribution-extensions": "php bin/check-distribution-extensions",
         "check-openapi": "bash bin/check-openapi",
         "check-external-consumers": "php bin/check-external-consumers ai-agent-orphans",
@@ -544,6 +545,7 @@
             "@cs-check",
             "@phpstan",
             "@check-changelog-shape",
+            "@check-changelog-fragments",
             "@check-portable-paths",
             "@check-phpstan-paths",
             "@check-phpunit-paths",

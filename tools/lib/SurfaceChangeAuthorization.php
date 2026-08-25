@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Waaseyaa\Tooling;
 
 /**
- * Parses the machine-verifiable public-surface directives in CHANGELOG.md.
+ * Parses machine-verifiable public-surface directives from rendered fragments.
  *
- * Only directives newly added by the candidate under the canonical
- * ## [Unreleased] section carry authority. Historical release sections and
- * pre-existing Unreleased text are evidence, not authorization.
+ * Only directives from fragments newly added by the candidate carry authority.
+ * Historical release sections and fragments already pending on the base are
+ * evidence, not authorization.
  */
 final class SurfaceChangeAuthorization
 {
     private const FQCN = '[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)+';
 
     /**
-     * @param list<string> $addedLines Lines added to CHANGELOG.md by the candidate.
+     * @param list<string> $addedLines Lines from current-change fragments.
      *
      * @return array{
      *   removals: array<string, true>,

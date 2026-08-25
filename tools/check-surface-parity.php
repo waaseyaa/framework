@@ -26,8 +26,8 @@ declare(strict_types=1);
  *                   ambiguity).
  *   map -> source : every map FQCN MUST resolve to a loadable type. A map entry
  *                   removed relative to the merge base requires a newly-added,
- *                   exact-FQCN authorization in CHANGELOG.md's canonical
- *                   [Unreleased] section. This delta check also governs concrete
+ *                   exact-FQCN authorization in a newly added validated
+ *                   changelog fragment. This delta check also governs concrete
  *                   final classes already recorded in the map.
  *
  * This replaces the 2026-05-11 skeleton, which stubbed the scan and so could not
@@ -45,6 +45,7 @@ use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
 use Waaseyaa\Tooling\SurfaceChangeAuthorization;
+use Waaseyaa\Tooling\ChangelogFragments;
 
 $root = dirname(__DIR__);
 
@@ -61,9 +62,10 @@ if (!class_exists(ParserFactory::class)) {
 }
 
 const SURFACE_MAP_REL = 'docs/public-surface-map.php';
-const CHANGELOG_REL = 'CHANGELOG.md';
+const FRAGMENT_DIR_REL = 'changes/unreleased';
 
 require_once __DIR__ . '/lib/SurfaceChangeAuthorization.php';
+require_once __DIR__ . '/lib/ChangelogFragments.php';
 
 /** Public element shapes — contracts/extension points, never concrete classes. */
 const PUBLIC_SHAPES = ['interface', 'abstract', 'trait', 'enum'];
@@ -135,26 +137,29 @@ function loadBaseSurfaceMap(string $root, string $mergeBase): array
 }
 
 /** @return list<string> */
-function changelogAddedLines(string $root, string $mergeBase): array
+function addedFragmentFilenames(string $root, string $mergeBase): array
 {
-    $lines = [];
+    $paths = [];
     foreach ([
-        ['diff', '--unified=0', $mergeBase . '...HEAD', '--', CHANGELOG_REL],
-        ['diff', '--unified=0', 'HEAD', '--', CHANGELOG_REL],
+        ['diff', '--name-only', '--diff-filter=A', $mergeBase . '...HEAD', '--', FRAGMENT_DIR_REL],
+        ['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', FRAGMENT_DIR_REL],
+        ['ls-files', '--others', '--exclude-standard', '--', FRAGMENT_DIR_REL],
     ] as $arguments) {
-        [$diff, $exitCode] = surfaceGit($root, $arguments);
+        [$output, $exitCode] = surfaceGit($root, $arguments);
         if ($exitCode !== 0) {
-            fail('cannot compute current CHANGELOG.md additions: ' . trim($diff), 2);
+            fail('cannot compute current changelog-fragment additions: ' . trim($output), 2);
         }
-        $diffLines = preg_split('/\R/', $diff);
-        foreach ($diffLines === false ? [] : $diffLines as $line) {
-            if (str_starts_with($line, '+') && !str_starts_with($line, '+++')) {
-                $lines[] = substr($line, 1);
+        foreach (preg_split('/\R/', trim($output)) ?: [] as $path) {
+            if ($path !== '' && str_ends_with($path, '.md')) {
+                $paths[basename($path)] = true;
             }
         }
     }
 
-    return $lines;
+    $filenames = array_keys($paths);
+    usort($filenames, 'strcmp');
+
+    return $filenames;
 }
 
 function surfaceTypeExists(string $fqcn): bool
@@ -216,8 +221,16 @@ if ($mergeBaseExit !== 0 || $mergeBase === '') {
     fail("cannot resolve merge base between HEAD and {$baseRef}; fetch the base ref or pass --base=<ref>.", 2);
 }
 $baseSurfaceMap = loadBaseSurfaceMap($root, $mergeBase);
-$changelog = is_file($root . '/' . CHANGELOG_REL) ? (string) file_get_contents($root . '/' . CHANGELOG_REL) : '';
-$authorizations = SurfaceChangeAuthorization::parse($changelog, changelogAddedLines($root, $mergeBase));
+$allFragments = ChangelogFragments::load($root . '/' . FRAGMENT_DIR_REL);
+$addedFilenames = array_fill_keys(addedFragmentFilenames($root, $mergeBase), true);
+$candidateFragments = array_values(array_filter(
+    $allFragments,
+    static fn(array $fragment): bool => isset($addedFilenames[$fragment['filename']]),
+));
+$candidateBody = $candidateFragments === [] ? '' : ChangelogFragments::render($candidateFragments);
+$candidateChangelog = "## [Unreleased]\n\n" . $candidateBody;
+$candidateLines = preg_split('/\n/', $candidateBody) ?: [];
+$authorizations = SurfaceChangeAuthorization::parse($candidateChangelog, $candidateLines);
 info("Comparing governed map changes with merge base {$mergeBase} ({$baseRef}).");
 
 // ---------------------------------------------------------------------------
@@ -322,12 +335,12 @@ foreach (array_keys($surfaceMap) as $fqcn) {
 sort($staleMapEntries);
 if ($staleMapEntries !== []) {
     $problems[] = count($staleMapEntries) . " current map entry(ies) reference types that no longer load. Remove the "
-        . "map entry in the same change and add the exact governed authorization under [Unreleased] / ### Removed:\n  "
+        . "map entry in the same change and add the exact governed Removed fragment authorization:\n  "
         . implode("\n  ", $staleMapEntries);
 }
 
 foreach ($authorizations['errors'] as $authorizationError) {
-    $problems[] = 'invalid ' . CHANGELOG_REL . " public-surface authorization: {$authorizationError}";
+    $problems[] = "invalid current-change changelog-fragment public-surface authorization: {$authorizationError}";
 }
 
 // base map -> candidate map : catches removal even when both the source and
@@ -350,7 +363,7 @@ foreach (SurfaceChangeAuthorization::removedMapEntries($baseSurfaceMap, $surface
 }
 if ($unauthorizedRemovals !== []) {
     $problems[] = count($unauthorizedRemovals) . " governed map entry(ies) were removed without a newly-added exact-FQCN "
-        . CHANGELOG_REL . " authorization under [Unreleased] / ### Removed:\n  "
+        . "changelog-fragment authorization of type removed:\n  "
         . implode("\n  ", $unauthorizedRemovals);
 }
 if ($invalidRenames !== []) {
@@ -364,7 +377,7 @@ $unauthorizedDowngrades = array_values(array_filter(
 ));
 if ($unauthorizedDowngrades !== []) {
     $problems[] = count($unauthorizedDowngrades) . " public disposition(s) were downgraded without a newly-added exact-FQCN "
-        . CHANGELOG_REL . " authorization under [Unreleased] / ### Deprecated:\n  "
+        . "changelog-fragment authorization of type deprecated:\n  "
         . implode("\n  ", $unauthorizedDowngrades);
 }
 

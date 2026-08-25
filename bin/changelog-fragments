@@ -1,0 +1,121 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Waaseyaa\Tooling\ChangelogFragments;
+
+require_once dirname(__DIR__) . '/tools/lib/ChangelogFragments.php';
+
+$root = dirname(__DIR__);
+$command = $argv[1] ?? '';
+$options = [];
+foreach (array_slice($argv, 2) as $argument) {
+    if (preg_match('/^--([^=]+)=(.*)$/', $argument, $matches) !== 1) {
+        fwrite(STDERR, "changelog-fragments: invalid argument {$argument}; expected --name=value.\n");
+        exit(2);
+    }
+    $options[$matches[1]] = $matches[2];
+}
+
+$directory = $options['dir'] ?? $root . '/changes/unreleased';
+
+try {
+    $fragments = ChangelogFragments::load($directory);
+    if ($command === 'validate') {
+        fwrite(STDOUT, sprintf("changelog-fragments: %d fragment(s) valid.\n", count($fragments)));
+        exit(0);
+    }
+
+    $rendered = ChangelogFragments::render($fragments);
+    if ($command === 'render') {
+        $output = $options['output'] ?? '-';
+        if ($output === '-') {
+            fwrite(STDOUT, $rendered);
+        } elseif (file_put_contents($output, $rendered) === false) {
+            throw new RuntimeException("cannot write rendered output to {$output}");
+        }
+        exit(0);
+    }
+
+    if ($command !== 'release') {
+        fwrite(STDERR, "Usage: bin/changelog-fragments validate|render|release [--name=value ...]\n");
+        exit(2);
+    }
+
+    $version = $options['version'] ?? '';
+    $date = $options['date'] ?? '';
+    $changelogPath = $options['changelog'] ?? $root . '/CHANGELOG.md';
+    $archiveRoot = $options['archive-root'] ?? $root . '/changes/released';
+    $tagMessagePath = $options['tag-message'] ?? '';
+    if ($version === '' || $date === '' || $tagMessagePath === '') {
+        throw new RuntimeException('release requires --version, --date, and --tag-message');
+    }
+    $changelog = file_get_contents($changelogPath);
+    if ($changelog === false) {
+        throw new RuntimeException("cannot read changelog {$changelogPath}");
+    }
+    $assembled = ChangelogFragments::assemble($changelog, $version, $date, $rendered);
+    $archive = rtrim($archiveRoot, '/\\') . DIRECTORY_SEPARATOR . $version;
+    if (file_exists($archive)) {
+        throw new RuntimeException("release archive already exists: {$archive}");
+    }
+
+    $tagMessageExisted = is_file($tagMessagePath);
+    $tagMessageOriginal = $tagMessageExisted ? file_get_contents($tagMessagePath) : false;
+    if ($tagMessageExisted && $tagMessageOriginal === false) {
+        throw new RuntimeException("cannot snapshot existing tag message {$tagMessagePath}");
+    }
+    $transaction = dirname($archive) . DIRECTORY_SEPARATOR . '.tmp-' . $version . '-' . bin2hex(random_bytes(6));
+    if (!mkdir($transaction, 0o777, true)) {
+        throw new RuntimeException("cannot create transaction directory {$transaction}");
+    }
+    $moved = [];
+    $archivePublished = false;
+    $changelogTemporary = $changelogPath . '.tmp-' . bin2hex(random_bytes(6));
+    try {
+        foreach ($fragments as $fragment) {
+            $destination = $transaction . DIRECTORY_SEPARATOR . $fragment['filename'];
+            if (!rename($fragment['path'], $destination)) {
+                throw new RuntimeException("cannot archive fragment {$fragment['filename']}");
+            }
+            $moved[$destination] = $fragment['path'];
+        }
+        if (file_put_contents($changelogTemporary, $assembled) === false) {
+            throw new RuntimeException('cannot write assembled changelog transaction');
+        }
+        if (file_put_contents($tagMessagePath, $rendered) === false) {
+            throw new RuntimeException("cannot write tag message {$tagMessagePath}");
+        }
+        if (!rename($transaction, $archive)) {
+            throw new RuntimeException("cannot publish fragment archive {$archive}");
+        }
+        $archivePublished = true;
+        $transaction = $archive;
+        if (!rename($changelogTemporary, $changelogPath)) {
+            throw new RuntimeException("cannot replace changelog {$changelogPath}");
+        }
+    } catch (Throwable $exception) {
+        @unlink($changelogTemporary);
+        if ($tagMessageExisted) {
+            @file_put_contents($tagMessagePath, (string) $tagMessageOriginal);
+        } elseif (is_file($tagMessagePath)) {
+            @unlink($tagMessagePath);
+        }
+        foreach ($moved as $from => $to) {
+            $restoreFrom = $archivePublished
+                ? $archive . DIRECTORY_SEPARATOR . basename($from)
+                : $from;
+            if (is_file($restoreFrom)) {
+                @rename($restoreFrom, $to);
+            }
+        }
+        @rmdir($transaction);
+        throw $exception;
+    }
+
+    fwrite(STDOUT, sprintf("changelog-fragments: released %d fragment(s) as %s.\n", count($fragments), $version));
+} catch (Throwable $exception) {
+    fwrite(STDERR, "changelog-fragments: {$exception->getMessage()}\n");
+    exit(1);
+}

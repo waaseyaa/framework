@@ -193,7 +193,7 @@ Any breaking change to a stable symbol — and any deliberate reshape of a provi
 1. **Introduce.** Land the new API in its target shape.
 2. **Shim.** Make the old API call through to the new one, or wrap it in a compatibility adapter. If a shim is impossible, the merge checklist (§8.3) requires a written argument.
 3. **Emit.** Deprecation notices fire on every use of the old surface (§4.3).
-4. **Document.** Add an entry to the next upgrade guide (§7) and to the package's `CHANGELOG.md` under `### Deprecated`.
+4. **Document.** Add an entry to the next upgrade guide (§7) and a `deprecated` changelog fragment.
 5. **Remove.** After the removal window (§4.5), delete the shim and the old API in a single PR. Move the deprecation entry to `### Removed`.
 
 ### 4.2 Worked example A — the implicit-array dispatcher shim
@@ -203,7 +203,7 @@ The post-framework-#1390 dispatcher shim is the canonical example.
 - **Step 1 — Introduce:** the new controller-attribute resolution path was added.
 - **Step 2 — Shim:** controllers with implicit-array signatures still resolve via the shim.
 - **Step 3 — Emit:** notices fire on channel `dispatcher.deprecation`, event `implicit_array_shim`, format `Controller <FQCN> parameter $<name> needs add #[<Attribute>]`. Deduped per `(class::method::parameter)` triple per worker lifetime.
-- **Step 4 — Document:** the implicit form is listed under `### Deprecated` in the package changelog and in the upgrade guide for the alpha that introduced the shim.
+- **Step 4 — Document:** the implicit form uses a `deprecated` changelog fragment and is listed in the upgrade guide for the alpha that introduced the shim.
 - **Step 5 — Remove:** scheduled after Minoo's implicit-array backlog (audit finding F4/M9) is empty *and* the removal window has elapsed.
 
 This is how every future deprecation should look.
@@ -786,7 +786,7 @@ Ordered list of steps an app must take. Each step:
 
 ## Removal of shims
 
-List of shims removed in this train (i.e. the "Removed" entries from `CHANGELOG.md ### Removed`). Each entry:
+List of shims removed in this train (i.e. the `removed` fragments compiled into `CHANGELOG.md`). Each entry:
 
 ### <symbol>
 
@@ -834,36 +834,36 @@ A CI job runs on every PR:
 Removal and deprecation authority is machine-verifiable and scoped to the
 current change. The gate compares `docs/public-surface-map.php` with the merge
 base, including governed concrete final classes that cannot be inferred from
-declaration shape. An authorization must be a line newly added by the candidate
-under the canonical `## [Unreleased]` section, using one of these exact forms:
+declaration shape. An authorization must be a line in a fragment newly added by
+the candidate. The fragment type supplies the release section, using one of
+these exact forms:
 
 ```markdown
-### Deprecated
-
 - Public surface deprecation: `Waaseyaa\Package\Contract`
-
-### Removed
-
 - Public surface removal: `Waaseyaa\Package\Contract`
 - Public surface rename: `Waaseyaa\Package\OldContract` -> `Waaseyaa\Package\NewContract`
 ```
 
 FQCNs are case-sensitive and must be complete. A rename replacement must be
 present, mapped, and loadable in the candidate. Bare leaf names, Added or
-Changed entries, prose, examples, links, previously committed Unreleased text,
-and entries in historical release sections carry no authority. Deprecation
-authorizes a `public` disposition downgrade while the type remains loadable;
+Changed entries, prose, examples, links, fragments already present on the base,
+and entries in historical release sections carry no authority. A `deprecated`
+fragment authorizes a `public` disposition downgrade while the type remains loadable;
 actual source/map removal requires a Removed directive after the governed
 deprecation cycle.
 
 ### 8.2 CI: changelog discipline
 
-Every PR that touches a public-surface file must edit one of:
+Every PR that touches a public-surface file must add or edit one of:
 
-- `CHANGELOG.md` under `### Added`, `### Changed`, `### Deprecated`, `### Removed`, or `### Fixed` (Keep-a-Changelog format).
+- A validated `changes/unreleased/<issue>.<unique-slice>.<type>.md` fragment.
 - An upgrade-guide file under `docs/upgrades/`.
 
-CI fails the PR if neither is touched. This is a soft check — the merge checklist (§8.3) is the final gate, and maintainers may override with a documented rationale.
+CI fails the PR if neither is touched. Pending fragments are append-only and
+ordinary PRs cannot edit root `CHANGELOG.md`; historical maintenance requires
+the documented `changelog-maintenance:` PR marker. This is a soft check — the
+merge checklist (§8.3) is the final gate, and maintainers may override release
+prose with a documented `no-changelog:` rationale.
 
 ### 8.3 Merge checklist for breaking changes
 
@@ -877,7 +877,7 @@ Maintainers merging a PR labeled `breaking-change` must confirm each item:
 - [ ] Upgrade-guide entry written (§7) under docs/upgrades/.
 - [ ] Tracking issue exists and is linked.
 - [ ] Public-surface-map updated.
-- [ ] Changelog entry under correct heading.
+- [ ] Changelog fragment uses the correct release type.
 - [ ] CI green on `surface-parity` and `changelog-discipline` jobs.
 - [ ] At least one non-author maintainer reviewed the breaking-change section of the PR description.
 ```
