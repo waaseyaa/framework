@@ -46,6 +46,17 @@ final readonly class InstallInitHandler
 
     public function execute(SymfonyCommandIO $io): int
     {
+        // Report the resolved identity before doing anything. Every lifecycle
+        // row is keyed by authority, and the database path is resolved from
+        // config before WAASEYAA_DB, so an operator who believes they are
+        // installing into a copied database has no other way to discover they
+        // are not (#2545).
+        $io->writeln(sprintf(
+            'Configuration authority %s (database identity %s, sync path %s).',
+            $this->authority->authorityId,
+            $this->authority->databaseIdentity,
+            $this->authority->syncPath,
+        ));
         $io->writeln('Applying migrations and synchronizing entity schema...');
         ($this->prepareSchema)();
 

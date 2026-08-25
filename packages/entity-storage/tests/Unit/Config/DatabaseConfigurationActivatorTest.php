@@ -352,6 +352,45 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         self::assertNull($activator->currentToken());
     }
 
+    /**
+     * The one branch that maps a unique violation to a typed conflict had no
+     * coverage at all, and its message named neither the authority nor the
+     * violated key — so #2545 was diagnosed from a string that could not say
+     * which database committed. Reaching it needs a genuine racing duplicate:
+     * the activator's own idempotency check clears before the INSERT, so the
+     * conflicting row is injected between them by a trigger.
+     */
+    #[Test]
+    public function aRacingDuplicateRequestNamesTheAuthorityAndTheViolatedKey(): void
+    {
+        $activator = $this->activator();
+        $first = $activator->activate($this->request('request-good', null, [$this->file('system', 'site', ['name' => 'A'])]));
+        $this->database->query(<<<'SQL'
+            CREATE TRIGGER race_duplicate_activation_request
+            BEFORE INSERT ON waaseyaa_config_activation_v2
+            BEGIN
+                INSERT INTO waaseyaa_config_activation_v2 (
+                    authority_id, activation_sequence, activation_request_id, generation_id,
+                    plan_hash, operation, activated_at
+                ) VALUES (
+                    NEW.authority_id, NEW.activation_sequence + 1000, NEW.activation_request_id,
+                    NEW.generation_id, NEW.plan_hash, NEW.operation, NEW.activated_at
+                );
+            END
+            SQL);
+
+        try {
+            $activator->activate($this->request('request-races', $first->token, [$this->file('system', 'site', ['name' => 'B'])]));
+            self::fail('A duplicate activation request id was reported as success.');
+        } catch (ConfigurationActivationConflictException $exception) {
+            self::assertStringContainsString('UNIQUE constraint failed', $exception->getMessage());
+            self::assertStringContainsString('request-races', $exception->getMessage());
+            self::assertStringContainsString($this->context->authorityId, $exception->getMessage());
+        }
+
+        self::assertEquals($first->token, $activator->currentToken());
+    }
+
     #[Test]
     public function failedLedgerAppendRollsBackCounterAndLeavesPriorHeadServing(): void
     {

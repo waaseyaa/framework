@@ -210,6 +210,32 @@ final class InstallInitHandlerTest extends TestCase
     }
 
     /** @return array{SymfonyCommandIO, BufferedOutput} */
+    /**
+     * Every configuration lifecycle row is keyed by authority, and
+     * DatabaseBootstrapper resolves the database path from config BEFORE
+     * WAASEYAA_DB. An operator who believes they are installing into a copied
+     * database therefore has no way to discover they are not, which is how
+     * #2545 was misdiagnosed. Reporting identity is the whole remedy, so it is
+     * asserted on the run that does the least: the already-initialized path.
+     */
+    #[Test]
+    public function it_reports_the_resolved_authority_before_doing_anything(): void
+    {
+        [$io, $output] = $this->io();
+
+        new InstallInitHandler(
+            prepareSchema: static function (): void {},
+            activator: $this->activator($this->token(), null),
+            genesis: $this->genesisActivator($this->token()),
+            authority: $this->authority,
+        )->execute($io);
+
+        $written = $output->fetch();
+        self::assertStringContainsString('Configuration authority ' . str_repeat('a', 64), $written);
+        self::assertStringContainsString('database identity database:v1:test', $written);
+        self::assertStringContainsString($this->syncPath, $written);
+    }
+
     private function io(): array
     {
         $output = new BufferedOutput();

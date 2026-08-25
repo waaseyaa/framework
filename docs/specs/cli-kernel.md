@@ -161,6 +161,14 @@ an active generation reports it and exits successfully, a repeated installation
 request replays its committed result, and contradictory partial state is refused
 rather than resolved by minting a second generation.
 
+It reports the configuration authority, database identity, and sync path it
+resolved before it does anything else. Every configuration lifecycle row is
+keyed by authority, and `DatabaseBootstrapper::resolveDatabasePath` gives
+`config['database']` precedence over `WAASEYAA_DB`, so an operator who believes
+they are installing into a copied database otherwise has no way to discover
+that they are not. Reporting identity is diagnostic only; it does not widen what
+the command may do, and `install:init` remains not a rebinding path.
+
 It is distinct from `install`, which seeds site content and an admin account
 through ordinary runtime boot. A fresh site runs `install:init` first; `install`
 could not previously succeed on a new site at all, because it writes

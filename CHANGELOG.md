@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — a configuration activation conflict now names the authority and
+  the violated key, and `install:init` reports the identity it resolved
+  (#2545):** the conflict raised when a unique violation reaches the activation
+  commit said only `Configuration activation identity conflicted at commit.` —
+  fifty-five characters carrying neither the authority that committed nor the
+  constraint that fired, while every primary and unique key in the lifecycle
+  schema is authority-prefixed. A report of this error against a cloned
+  database could not be diagnosed from the message at all, and the branch had
+  no test: the activator's own idempotency check clears before the INSERT, so
+  reaching it requires a genuinely racing duplicate.
+
+  `install:init` now reports the resolved authority, database identity and sync
+  path before it does anything. `DatabaseBootstrapper::resolveDatabasePath`
+  gives `config['database']` precedence over `WAASEYAA_DB`, so an operator who
+  believes they are installing into a copied database has otherwise no way to
+  discover that they are not.
+
+  No lifecycle semantics change. This is diagnostic surface only.
+
 - **Changed — If-Match mutation-precondition envelopes share one JSON:API
   adapter (#2537):** `JsonApiRouter`, dedicated OIDC client PATCH/DELETE,
   translation mutations, workflow transition POST, field auto-save, and
