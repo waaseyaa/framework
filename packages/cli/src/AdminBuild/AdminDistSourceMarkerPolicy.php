@@ -94,8 +94,8 @@ final readonly class AdminDistSourceMarkerPolicy
         foreach ($this->markers as $marker) {
             $satisfied = match ($marker['scope']) {
                 'published-path' => is_file($real . '/' . $marker['value']),
-                'bundle-js' => str_contains($bundleJs ??= $this->concatenate($real, '.js'), $marker['value']),
-                default => str_contains($stylesheets ??= $this->concatenate($real, '.css'), $marker['value']),
+                'bundle-js' => $this->containedInSomeFile($bundleJs ??= $this->read($real, '.js'), $marker['value']),
+                default => $this->containedInSomeFile($stylesheets ??= $this->read($real, '.css'), $marker['value']),
             };
             if (!$satisfied) {
                 $unsatisfied[] = $marker['id'];
@@ -105,18 +105,44 @@ final readonly class AdminDistSourceMarkerPolicy
         return $unsatisfied;
     }
 
-    private function concatenate(string $distRoot, string $extension): string
+    /**
+     * A marker must occur inside ONE compiled file. Matching against a
+     * concatenation of the whole tree would let a value be satisfied by a string
+     * that only exists because two files were glued together — and directory
+     * iteration order is unspecified, so which boundaries exist is not even
+     * deterministic.
+     *
+     * @param list<string> $files
+     */
+    private function containedInSomeFile(array $files, string $value): bool
     {
-        $contents = '';
+        foreach ($files as $contents) {
+            if (str_contains($contents, $value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Contents of every file with the given extension, in a deterministic order.
+     *
+     * @return list<string>
+     */
+    private function read(string $distRoot, string $extension): array
+    {
+        $paths = [];
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($distRoot, \FilesystemIterator::SKIP_DOTS),
         );
         foreach ($iterator as $file) {
             if ($file->isFile() && !$file->isLink() && str_ends_with($file->getFilename(), $extension)) {
-                $contents .= (string) file_get_contents($file->getPathname());
+                $paths[] = $file->getPathname();
             }
         }
+        sort($paths, SORT_STRING);
 
-        return $contents;
+        return array_map(static fn(string $path): string => (string) file_get_contents($path), $paths);
     }
 }

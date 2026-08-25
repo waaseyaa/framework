@@ -12,7 +12,8 @@
 #   1. Refuses an ambiguous Admin source / generated-output boundary
 #      (unmerged paths, conflict markers, untracked app source, a partially
 #      staged dist, a signature without its tree).
-#   2. Derives the deterministic source signature and Nuxt build identity.
+#   2. Derives the deterministic source signature and Nuxt build identity, and
+#      resolves the exact node/npm the hermetic child will execute.
 #   3. Builds TWICE, each in its own hermetic child, into two independent
 #      disposable snapshot directories.
 #   4. Requires the two published trees to be byte-identical.
@@ -36,6 +37,17 @@ php "$ROOT/bin/admin-dist-acceptance" guard
 SIGNATURE="$(php "$ROOT/bin/check-admin-dist-fresh" --print)"
 BUILD_ID_SIGNATURE="$(php "$ROOT/bin/check-admin-dist-fresh" --print-build-id)"
 BUILD_ID="waaseyaa-${BUILD_ID_SIGNATURE:0:32}"
+
+# Report the runtime the BUILD resolves, not whatever `node` this shell finds
+# first: the hermetic child resolves node/npm from a sanitized PATH honouring
+# NODE_BINARY / NPM_BINARY, so with those unset the two can diverge and the
+# manifest would name a runtime that did not produce the bundle. Resolved up
+# front, so an unusable toolchain is refused before any Nuxt run.
+echo "==> Resolving the pinned build toolchain"
+{ read -r BUILD_NODE; read -r BUILD_NPM_CLI; } < <(php "$ROOT/bin/run-hermetic-admin-build" --print-toolchain)
+NODE_RUNTIME="$("$BUILD_NODE" --version)"
+NPM_RUNTIME="$("$BUILD_NODE" "$BUILD_NPM_CLI" --version)"
+echo "    node ${NODE_RUNTIME} (${BUILD_NODE}), npm ${NPM_RUNTIME}"
 
 SNAPSHOTS="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-admin-dist-XXXXXXXXXX")"
 cleanup() { rm -rf "$SNAPSHOTS"; }
@@ -61,9 +73,6 @@ build_once() {
 
 build_once "$SNAPSHOTS/first"
 build_once "$SNAPSHOTS/second"
-
-NODE_RUNTIME="$("${NODE_BINARY:-node}" --version)"
-NPM_RUNTIME="$("${NODE_BINARY:-node}" "${NPM_BINARY:-$(command -v npm)}" --version)"
 
 echo "==> Accepting the combined-source output"
 php "$ROOT/bin/admin-dist-acceptance" accept \

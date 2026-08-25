@@ -128,21 +128,45 @@ final class AdminDistCanonicalOperationTest extends TestCase
         $values = array_column($markers['markers'], 'value');
 
         // The served-bundle assertions in AdminDistContentTest and the declared
-        // marker roster must not become two competing vocabularies (#2524).
-        foreach ([
-            'Opening',
-            'data-anchor',
-            'mcp_approvals_title',
-            'mcp.approval.decide',
-            'page-builder-embed',
-            'entity-editor-embed',
-            'waaseyaa.admin.embed.lifecycle.v2',
-        ] as $pinned) {
+        // marker roster must not become two competing vocabularies (#2524), so
+        // the pinned list is DERIVED from the test source rather than restated
+        // here — a new served-bundle assertion is forced into the roster.
+        $pinned = $this->servedBundleAssertions();
+        self::assertGreaterThanOrEqual(
+            15,
+            count($pinned),
+            'The served-bundle assertion extraction found almost nothing; the derivation, not the bundle, is broken.',
+        );
+
+        foreach ($pinned as $marker) {
             self::assertContains(
-                $pinned,
+                $marker,
                 $values,
-                sprintf('The served-bundle marker "%s" must be declared in dist.markers.json.', $pinned),
+                sprintf(
+                    'AdminDistContentTest asserts "%s" against the served bundle, so it must be declared in dist.markers.json.',
+                    $marker,
+                ),
             );
         }
+    }
+
+    /**
+     * Every string AdminDistContentTest requires to be present in the compiled
+     * bundle, read out of the test source itself.
+     *
+     * @return list<string>
+     */
+    private function servedBundleAssertions(): array
+    {
+        $source = (string) file_get_contents(
+            $this->root() . '/packages/admin-surface/tests/Unit/AdminDistContentTest.php',
+        );
+        preg_match_all(
+            "/assertStringContainsString\(\s*'([^'\\\\]+)',\s*\\\$(?:js|globalCss)\b/",
+            $source,
+            $matches,
+        );
+
+        return array_values(array_unique($matches[1]));
     }
 }

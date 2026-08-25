@@ -31,6 +31,8 @@ final class AdminDistAcceptanceTest extends TestCase
 {
     private const SOURCE_SIGNATURE = 'aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffff0000000011111111';
     private const BUILD_SIGNATURE = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    private const BUILD_ID = 'waaseyaa-0123456789abcdef0123456789abcdef';
+    private const BUILD_MANIFEST = '_nuxt/builds/latest.json';
 
     /** @var list<string> */
     private array $tempDirs = [];
@@ -279,7 +281,10 @@ final class AdminDistAcceptanceTest extends TestCase
     public function a_changed_source_marker_turns_the_committed_state_verification_red(): void
     {
         $root = $this->projectFixture();
-        $output = ['_nuxt/entry.6666.js' => 'Opening data-anchor'];
+        $output = [
+            '_nuxt/entry.6666.js' => 'Opening data-anchor',
+            self::BUILD_MANIFEST => '{"id":"' . self::BUILD_ID . '"}',
+        ];
         new AdminDistAcceptance()->accept(
             projectRoot: $root,
             firstBuild: $this->buildSnapshot($output),
@@ -382,6 +387,61 @@ final class AdminDistAcceptanceTest extends TestCase
     {
         self::assertSame('packages/admin-surface/dist.manifest.json', AdminDistAcceptanceManifest::PATH);
         self::assertSame('packages/admin-surface/dist.markers.json', AdminDistSourceMarkerPolicy::PATH);
+    }
+
+    #[Test]
+    public function a_marker_is_never_satisfied_by_a_string_that_only_spans_a_file_boundary(): void
+    {
+        // "Opening" exists only if two compiled chunks are glued together. A
+        // per-file check refuses it; a whole-tree concatenation would have
+        // accepted it, and unspecified iteration order made even that
+        // nondeterministic.
+        $root = $this->projectFixture();
+        $output = [
+            '_nuxt/a.0001.js' => 'data-anchor Open',
+            '_nuxt/b.0002.js' => 'ing chunk',
+        ];
+
+        try {
+            new AdminDistAcceptance()->accept(
+                projectRoot: $root,
+                firstBuild: $this->buildSnapshot($output),
+                secondBuild: $this->buildSnapshot($output),
+                sourceSignature: self::SOURCE_SIGNATURE,
+                buildIdSignature: self::BUILD_SIGNATURE,
+                toolchain: $this->toolchain(),
+            );
+            self::fail('A marker satisfied only across a file boundary must be refused.');
+        } catch (AdminDistAcceptanceException $exception) {
+            self::assertSame('source-marker-unsatisfied', $exception->errorCode);
+            self::assertSame(['edit-busy-feedback'], $exception->details);
+        }
+    }
+
+    #[Test]
+    public function a_published_bundle_without_a_nuxt_build_manifest_fails_verification(): void
+    {
+        $root = $this->projectFixture();
+        $output = [
+            '_nuxt/entry.bbbb.js' => 'Opening data-anchor',
+            self::BUILD_MANIFEST => '{"id":"' . self::BUILD_ID . '"}',
+        ];
+        new AdminDistAcceptance()->accept(
+            projectRoot: $root,
+            firstBuild: $this->buildSnapshot($output),
+            secondBuild: $this->buildSnapshot($output),
+            sourceSignature: self::SOURCE_SIGNATURE,
+            buildIdSignature: self::BUILD_SIGNATURE,
+            toolchain: $this->toolchain(),
+        );
+        self::assertSame([], new AdminDistAcceptanceVerifier()->verify($root));
+
+        unlink($root . '/packages/admin-surface/dist/' . self::BUILD_MANIFEST);
+
+        $problems = new AdminDistAcceptanceVerifier()->verify($root);
+
+        self::assertNotSame([], $problems);
+        self::assertStringContainsString('latest.json', implode("\n", $problems));
     }
 
     /** @param array<string, string> $distFiles */

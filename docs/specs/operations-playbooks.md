@@ -89,9 +89,11 @@ conflict by picking a side.
 both generated sides, keep the combined source, and rebuild:
 
 ```bash
-git checkout --ours   packages/admin/         # or --theirs / a real source merge
-git checkout --theirs packages/admin/         # whichever side the source needs
-# resolve the SOURCE conflicts normally, then:
+# Resolve the SOURCE conflicts normally. Pick ONE of these, or merge by hand —
+# running both in sequence silently leaves whichever ran last:
+#   git checkout --ours   packages/admin/     # keep this branch's source
+#   git checkout --theirs packages/admin/     # keep the incoming source
+# Then discard BOTH generated sides and rebuild:
 git rm -r --cached packages/admin-surface/dist >/dev/null
 bin/build-admin-dist                          # rebuilds the whole tree from combined source
 git add packages/admin-surface/dist packages/admin-surface/dist.signature \

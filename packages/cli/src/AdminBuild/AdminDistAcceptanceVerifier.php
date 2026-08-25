@@ -134,7 +134,10 @@ final class AdminDistAcceptanceVerifier
     {
         $latest = $publishedPath . '/_nuxt/builds/latest.json';
         if (!is_file($latest)) {
-            return [];
+            // A published bundle that lost its Nuxt build manifest must not pass
+            // the build-identity half in silence just because the claim has
+            // nothing to compare against.
+            return ['the committed bundle has no _nuxt/builds/latest.json to carry the manifest build id.'];
         }
         try {
             $document = json_decode((string) file_get_contents($latest), true, 16, JSON_THROW_ON_ERROR);

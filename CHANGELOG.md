@@ -57,12 +57,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `check-admin-dist-manifest` (`php bin/admin-dist-acceptance verify`) re-derives
   every manifest claim from committed bytes with no Node toolchain and is wired
   into `composer verify`, `tools/preflight-gates.json`, and `ci/verify-gates`;
-  `check-admin-dist-fresh` is unchanged and remains the authoritative D6
-  staleness gate. Verified end to end: two independent Node 24.19.0 builds
-  produced byte-identical published trees and the rebuilt bundle is byte-for-byte
-  the committed one (`+0 added, ~0 modified, -0 removed`); only
-  `dist.signature` advanced, because the procedure roster it covers now includes
-  `bin/admin-dist-acceptance`.
+  `check-admin-dist-fresh` remains the authoritative D6 staleness gate and is
+  not weakened: its only behavioural change is that the uncalled `--write` mode
+  is **gone**, so `dist.signature` is now written by exactly one thing —
+  `AdminDistAcceptance::accept()`, reachable only through `bin/build-admin-dist`
+  — and cannot be refreshed without an accepted, reproducible,
+  marker-satisfying rebuild behind it. A source-contract marker must now occur
+  inside a **single** compiled file rather than in a concatenation of the tree,
+  so no marker can be satisfied by a string that exists only because two chunks
+  were glued together in an unspecified iteration order. The runtime the
+  manifest records is resolved through the new
+  `bin/run-hermetic-admin-build --print-toolchain`
+  (`HermeticBuildEnvironmentFactory::resolveToolchain()`) — the same sanitized
+  `PATH` and `NODE_BINARY`/`NPM_BINARY` overrides the hermetic child uses — so
+  the recorded version always names the binary that actually built the bundle,
+  and an unusable toolchain is refused before any Nuxt run. A published bundle
+  with no `_nuxt/builds/latest.json` now fails verification instead of passing
+  the build-identity half in silence. The marker roster is the single served-
+  bundle vocabulary: `AdminDistCanonicalOperationTest` derives the pinned list
+  from `AdminDistContentTest`'s own source, so a new served-bundle assertion is
+  forced into `dist.markers.json` (seven previously undeclared assertions are
+  now declared). Verified end to end: two separate double builds (four
+  independent Node 24.19.0 / npm 11.17.0 Nuxt runs) produced byte-identical
+  published trees, the rebuilt bundle is byte-for-byte the committed one
+  (`+0 added, ~0 modified, -0 removed`, published tree digest unchanged), and
+  the second double build left `dist.manifest.json` and `dist.signature`
+  byte-identical (`manifest: unchanged (no-op re-run)`).
 
 - **Fixed — `saveMany()` mixed create/update batches mis-attributed audit
   actions and skipped thread owner bootstrap (#1856):** PRE_SAVE now
