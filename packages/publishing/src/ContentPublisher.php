@@ -185,6 +185,13 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     /**
      * Issue a preview grant bound to the exact observed working-copy revision.
      *
+     * The grant is fenced at the REVISION level, not only the entity level: the
+     * only revision this operation can ever grant is the working copy (the
+     * assertion below pins `$expectedRevisionId` to it), so the working copy's
+     * own `view_revision` decision is the decision that governs the grant. A
+     * principal refused that revision is refused exactly as if the revision did
+     * not exist, matching {@see revision()} (#2516).
+     *
      * @return array{id: int|string|null, entity_type: string, revision_id: int, expires_at: int, signature: string}
      */
     public function previewRevision(
@@ -196,6 +203,12 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     ): array {
         $this->requireCapability($actor);
         $entity = $this->loadViewable($actor, $idOrSlug);
+        if (!$this->allowsRevisionView($actor, $entity)) {
+            // Refuse BEFORE assertExpectedRevision(): a RevisionConflictException
+            // would disclose the current revision id to a principal who may not
+            // read that revision at all.
+            throw new ContentNotFoundException("Content revision {$expectedRevisionId} was not found.");
+        }
         $this->assertExpectedRevision($entity, $expectedRevisionId);
 
         $token = $links->issueRevision(
@@ -330,6 +343,13 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     /**
      * Restore a prior revision AS A NEW revision — history is never deleted.
      *
+     * Rollback copies the target revision's stored content forward into the new
+     * current revision and returns that content, so it is also a READ of the
+     * target revision. It therefore carries the same per-revision fence as
+     * {@see revision()}: a principal refused `view_revision` on the target
+     * cannot obtain that revision's content through the mutation door, and the
+     * refusal is indistinguishable from the revision being absent (#2516).
+     *
      * @return array<string, mixed>
      */
     public function rollback(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId, string $idempotencyKey, string $note = '', ?int $expectedCurrentRevisionId = null): array
@@ -348,6 +368,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         return $this->idempotency->execute($idempotencyKey, 'rollback', $request, function () use ($actor, $id, $targetRevisionId, $note, $expectedCurrentRevisionId): array {
             $entity = $this->load($id);
             $this->requireEntityUpdateAccess($actor, $entity);
+            $this->requireTargetRevisionReadable($actor, $id, $targetRevisionId);
 
             // rollback() itself cuts exactly ONE new revision (with the
             // framework's revert events/audit); the operator note travels on
@@ -480,9 +501,20 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
      * principal (#2516).
      *
      * The identifiers are resolved by `getQuery()->setAccount($actor)` — the
-     * framework's fail-closed, deny-unless-granted listing path — and only then
-     * hydrated with `findMany()`. A row the principal may not view never leaves
-     * storage, so it can leak neither content nor cardinality.
+     * framework's fail-closed, deny-unless-granted listing path, which decides
+     * each candidate row against the bound principal and returns only the ids
+     * that survive — and only those ids are then hydrated with `findMany()`.
+     * (The decision itself happens inside the query, which hydrates its
+     * candidate window to evaluate the policy; nothing that fails the decision
+     * is returned.) A refused row therefore reaches the caller in no form: not
+     * as content, and not as cardinality, since the response carries no total
+     * or cursor derived from the candidate set.
+     *
+     * Note the ordering consequence: SQL `LIMIT`/`OFFSET` bound the candidate
+     * window BEFORE the per-row decision, so a page may come back short — or
+     * empty — while viewable content exists beyond the window. That is
+     * fail-closed and leaks nothing, but an empty page is not evidence of "no
+     * content"; see the spec's "Read authorization" section.
      *
      * A publisher composed with policy authority requires a query-capable
      * repository; `EntityRepository::getQuery()` is the only path that can
@@ -551,6 +583,24 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         }
 
         return $this->accessHandler->check($revision, GateInterface::VIEW_REVISION, $actor)->isAllowed();
+    }
+
+    /**
+     * Fence a rollback target at the revision level.
+     *
+     * Only the ACCESS decision is made here — an absent or otherwise
+     * unresolvable target is left to the repository, so this adds no new
+     * failure shape for a target that simply does not exist.
+     */
+    private function requireTargetRevisionReadable(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId): void
+    {
+        if ($this->accessHandler === null) {
+            return;
+        }
+        $target = $this->repository->loadRevision($id, $targetRevisionId);
+        if ($target !== null && !$this->allowsRevisionView($actor, $target)) {
+            throw new ContentNotFoundException("Content revision {$targetRevisionId} was not found.");
+        }
     }
 
     private function requireEntityUpdateAccess(AuthorizationPrincipalInterface $actor, EntityInterface $entity): void

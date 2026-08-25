@@ -32,6 +32,7 @@ use Waaseyaa\Publishing\Tests\Fixtures\PublisherAccount;
 use Waaseyaa\Publishing\Tests\Fixtures\SlugScopedViewPolicy;
 use Waaseyaa\Publishing\Tests\Fixtures\SpyAuditWriter;
 use Waaseyaa\Publishing\Tests\Fixtures\TestArticleEntity;
+use Waaseyaa\Publishing\Tests\Fixtures\TestBundledArticleEntity;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 /**
@@ -259,6 +260,184 @@ final class ContentPublisherReadAccessTest extends TestCase
         self::assertNotContains('content.preview_issued', $this->audit->kinds());
     }
 
+    /**
+     * `previewRevision()` grants exactly one revision — the working copy — so
+     * the working copy's own `view_revision` decision must fence the grant.
+     * Holding entity-level `view` is not enough.
+     */
+    #[Test]
+    public function preview_revision_refuses_a_revision_the_principal_may_not_view(): void
+    {
+        $seeder = $this->publisher();
+        $draft = $seeder->createDraft($this->actor, $this->values('open-post', 'Open'), 'seed-1');
+        $links = new PreviewLinkService('preview-secret', static fn(): int => 1_000_000);
+
+        // The entity stays viewable; only the working-copy revision is hidden.
+        $restricted = $this->publisher(deniedRevisionIds: [(int) $draft['revision_id']]);
+        self::assertSame([], $restricted->revisions($this->actor, (string) $draft['id']));
+
+        $thrown = $this->capture(fn(): mixed => $restricted->previewRevision(
+            $this->actor,
+            (string) $draft['id'],
+            (int) $draft['revision_id'],
+            $links,
+            600,
+        ));
+
+        self::assertInstanceOf(ContentNotFoundException::class, $thrown);
+        self::assertSame('NOT_FOUND', $thrown->errorCode);
+        self::assertNotContains('content.preview_issued', $this->audit->kinds());
+    }
+
+    /**
+     * The refusal must not degrade into a revision conflict: a
+     * `RevisionConflictException` carries the current revision id, which a
+     * principal refused that revision must not learn.
+     */
+    #[Test]
+    public function preview_revision_refuses_a_hidden_revision_without_disclosing_the_current_revision_id(): void
+    {
+        $seeder = $this->publisher();
+        $draft = $seeder->createDraft($this->actor, $this->values('open-post', 'Open'), 'seed-1');
+        $seeder->updateDraft($this->actor, (string) $draft['id'], ['summary' => 'v2'], $draft['revision_id'], 'seed-2');
+        $links = new PreviewLinkService('preview-secret', static fn(): int => 1_000_000);
+
+        $working = $seeder->get($this->actor, (string) $draft['id']);
+        $restricted = $this->publisher(deniedRevisionIds: [(int) $working['revision_id']]);
+
+        // A deliberately STALE expectation: without the fence this surfaces a
+        // RevisionConflictException naming the current revision id.
+        $thrown = $this->capture(fn(): mixed => $restricted->previewRevision(
+            $this->actor,
+            (string) $draft['id'],
+            (int) $draft['revision_id'],
+            $links,
+            600,
+        ));
+
+        self::assertInstanceOf(ContentNotFoundException::class, $thrown);
+        self::assertStringNotContainsString((string) $working['revision_id'], $thrown->getMessage());
+    }
+
+    // ------------------------------------------------------------------
+    // Revision-targeted mutation (rollback reads the target revision)
+    // ------------------------------------------------------------------
+
+    /**
+     * `rollback()` copies the target revision's stored content forward and
+     * RETURNS it, so it is also a read of that revision. A principal refused
+     * `view_revision` on the target must not obtain its content through the
+     * mutation door.
+     */
+    #[Test]
+    public function rollback_refuses_a_target_revision_the_principal_may_not_view(): void
+    {
+        $seeder = $this->publisher();
+        $draft = $seeder->createDraft(
+            $this->actor,
+            ['slug' => 'open-post', 'title' => 'Open', 'summary' => 'ORIGINAL-SECRET'],
+            'seed-1',
+        );
+        $seeder->updateDraft($this->actor, (string) $draft['id'], ['summary' => 'v2'], $draft['revision_id'], 'seed-2');
+
+        $restricted = $this->publisher(deniedRevisionIds: [(int) $draft['revision_id']]);
+
+        // The direct read is already refused...
+        self::assertInstanceOf(
+            ContentNotFoundException::class,
+            $this->capture(fn(): mixed => $restricted->revision($this->actor, (string) $draft['id'], (int) $draft['revision_id'])),
+        );
+
+        // ...and the mutation door must not return it either.
+        $thrown = $this->capture(fn(): mixed => $restricted->rollback(
+            $this->actor,
+            (string) $draft['id'],
+            (int) $draft['revision_id'],
+            'rollback-key',
+            'Restore original',
+        ));
+
+        self::assertInstanceOf(ContentNotFoundException::class, $thrown);
+        self::assertSame('NOT_FOUND', $thrown->errorCode);
+        self::assertNotContains('content.rolled_back', $this->audit->kinds());
+
+        // The hidden revision's content did not become the working copy.
+        self::assertSame('v2', $seeder->get($this->actor, (string) $draft['id'])['summary']);
+    }
+
+    #[Test]
+    public function rollback_still_succeeds_for_a_target_revision_the_principal_may_view(): void
+    {
+        $seeder = $this->publisher();
+        $draft = $seeder->createDraft(
+            $this->actor,
+            ['slug' => 'open-post', 'title' => 'Open', 'summary' => 'original'],
+            'seed-1',
+        );
+        $seeder->updateDraft($this->actor, (string) $draft['id'], ['summary' => 'v2'], $draft['revision_id'], 'seed-2');
+
+        $rolled = $this->publisher()->rollback(
+            $this->actor,
+            (string) $draft['id'],
+            (int) $draft['revision_id'],
+            'rollback-key',
+            'Restore original',
+        );
+
+        self::assertSame('original', $rolled['summary']);
+    }
+
+    // ------------------------------------------------------------------
+    // Bundled descriptor (production node/article shape)
+    // ------------------------------------------------------------------
+
+    /**
+     * Every other case here uses a bundle-less descriptor, so the `type`
+     * condition `bundleCriteria()` contributes to the access-checked listing
+     * query is never executed. `ContentTypeDescriptor` documents the bundled
+     * shape as the production case, so pin it.
+     */
+    #[Test]
+    public function bundled_descriptor_lists_only_bundle_rows_the_principal_may_view(): void
+    {
+        $repo = $this->bundledRepository();
+
+        $seeder = $this->bundledPublisher($repo);
+        $seeder->createDraft($this->actor, $this->values('visible-post', 'Visible'), 'seed-1');
+        $seeder->createDraft($this->actor, $this->values('secret-post', 'Secret'), 'seed-2');
+
+        // Sanity: the bundled composition lists both rows for an unrestricted
+        // principal, so an empty restricted result is a decision, not a
+        // silently broken bundle condition.
+        $all = array_map(static fn(array $row): string => (string) $row['slug'], $seeder->list($this->actor));
+        sort($all);
+        self::assertSame(['secret-post', 'visible-post'], $all);
+
+        $restricted = $this->bundledPublisher($repo, ['secret-post']);
+        $listed = $restricted->list($this->actor);
+
+        self::assertCount(1, $listed);
+        self::assertSame('visible-post', $listed[0]['slug']);
+    }
+
+    #[Test]
+    public function bundled_descriptor_refuses_a_hidden_entity_on_single_reads(): void
+    {
+        $repo = $this->bundledRepository();
+
+        $seeder = $this->bundledPublisher($repo);
+        $draft = $seeder->createDraft($this->actor, $this->values('secret-post', 'Secret'), 'seed-1');
+
+        $restricted = $this->bundledPublisher($repo, ['secret-post']);
+
+        $forbidden = $this->capture(fn(): mixed => $restricted->get($this->actor, (string) $draft['id']));
+        $absent = $this->capture(fn(): mixed => $restricted->get($this->actor, '999999'));
+
+        self::assertInstanceOf(ContentNotFoundException::class, $forbidden);
+        self::assertInstanceOf(ContentNotFoundException::class, $absent);
+        self::assertSame('NOT_FOUND', $forbidden->errorCode);
+    }
+
     // ------------------------------------------------------------------
     // Deliberate carve-out
     // ------------------------------------------------------------------
@@ -322,11 +501,50 @@ final class ContentPublisherReadAccessTest extends TestCase
         );
     }
 
-    private function descriptor(): ContentTypeDescriptor
+    /** Bundled (`type` column) counterpart of the setUp() repository. */
+    private function bundledRepository(): EntityRepository
+    {
+        $entityType = new EntityType(
+            id: 'test_bundled_article',
+            label: 'Test bundled article',
+            class: TestBundledArticleEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'type', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
+        );
+        $schema = new SqlSchemaHandler($entityType, $this->db);
+        $schema->ensureTable();
+        $schema->ensureRevisionTable();
+        $resolver = new SingleConnectionResolver($this->db);
+
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+            $entityType,
+            new SqlStorageDriver($resolver),
+            new EventDispatcher(),
+            new RevisionableStorageDriver($resolver, $entityType),
+            $this->db,
+        );
+    }
+
+    /** @param list<string> $deniedSlugs */
+    private function bundledPublisher(EntityRepository $repo, array $deniedSlugs = []): ContentPublisher
+    {
+        return new ContentPublisher(
+            $this->descriptor(entityTypeId: 'test_bundled_article', bundle: 'article'),
+            $repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            new EntityAccessHandler([
+                new SlugScopedViewPolicy('test_bundled_article', $deniedSlugs),
+            ]),
+        );
+    }
+
+    private function descriptor(string $entityTypeId = 'test_article', ?string $bundle = null): ContentTypeDescriptor
     {
         return new ContentTypeDescriptor(
-            entityTypeId: 'test_article',
-            bundle: null,
+            entityTypeId: $entityTypeId,
+            bundle: $bundle,
             slugField: 'slug',
             statusField: 'status',
             writableFields: [

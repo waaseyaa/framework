@@ -156,19 +156,54 @@ final class ContentToolSetReadAccessTest extends TestCase
         );
     }
 
+    /**
+     * `article.rollback` restores a revision's CONTENT and returns it, so it is
+     * also a read of that revision. The per-revision fence must therefore hold
+     * at the agent surface too, with the same NOT_FOUND envelope the read tools
+     * use (#2516).
+     */
+    #[Test]
+    public function the_rollback_tool_refuses_a_target_revision_the_credential_may_not_view(): void
+    {
+        $seeder = $this->publisher();
+        $draft = $seeder->createDraft(
+            $this->actor,
+            ['slug' => 'open-post', 'title' => 'Open', 'summary' => 'ORIGINAL-SECRET'],
+            'seed-1',
+        );
+        $seeder->updateDraft($this->actor, (string) $draft['id'], ['summary' => 'v2'], $draft['revision_id'], 'seed-2');
+
+        $tools = $this->tools($this->publisher(deniedRevisionIds: [(int) $draft['revision_id']]));
+
+        $error = $this->callExpectingError($tools, 'article.rollback', [
+            'id' => (string) $draft['id'],
+            'target_revision_id' => (int) $draft['revision_id'],
+            'idempotency_key' => 'rollback-key-1',
+        ]);
+
+        self::assertSame('NOT_FOUND', $error['code']);
+        self::assertStringNotContainsString('ORIGINAL-SECRET', json_encode($error, JSON_THROW_ON_ERROR));
+
+        // The hidden revision did not become the working copy either.
+        self::assertSame('v2', $seeder->get($this->actor, (string) $draft['id'])['summary']);
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 
-    /** @param list<string> $deniedSlugs */
-    private function publisher(array $deniedSlugs = []): ContentPublisher
+    /**
+     * @param list<string> $deniedSlugs
+     * @param list<int>    $deniedRevisionIds
+     */
+    private function publisher(array $deniedSlugs = [], array $deniedRevisionIds = []): ContentPublisher
     {
         return new ContentPublisher(
             $this->descriptor,
             $this->repo,
             new IdempotencyStore($this->db),
             null,
-            new EntityAccessHandler([new SlugScopedViewPolicy('test_article', $deniedSlugs)]),
+            new EntityAccessHandler([new SlugScopedViewPolicy('test_article', $deniedSlugs, $deniedRevisionIds)]),
         );
     }
 

@@ -35,6 +35,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   field-read policy, tenancy, workflow transitions, audit attribution,
   idempotency and If-Match concurrency are unchanged.
 
+  Two revision-targeted operations carried the same half of the gap and are
+  closed with it. `previewRevision()` checked only the entity-level `view`
+  before issuing (and auditing) a signed grant, so a principal refused
+  `view_revision` on the working copy still received a grant that `revision()`
+  would have refused; it now applies the per-revision decision, and applies it
+  *before* the revision-conflict assertion so a refused principal cannot learn
+  the current revision id from a `RevisionConflictException`. `rollback()`
+  copies the target revision's stored content forward and RETURNS it, so it is
+  also a read of that revision; it now requires `view_revision` on the target,
+  which closes the same bypass at the `*.rollback` MCP tool. Both refuse as
+  `NOT_FOUND` for the requested revision, exactly as `revision()` does, and
+  neither changes behaviour for a target revision that does not exist.
+
+  One documented caveat, unchanged by this fix but previously unstated: SQL
+  `LIMIT`/`OFFSET` bound `list()`'s candidate window before the per-row
+  decision is applied, so a page can come back short — or empty — while
+  viewable content exists beyond that window. This is fail-closed and leaks
+  nothing, but an empty page is not evidence of "no content"; the spec's "Read
+  authorization" section now says so.
+
 - **Breaking (alpha) — purpose-built OIDC client PATCH/DELETE now require
   `If-Match` (#2493):** `PATCH` and `DELETE /api/oidc-clients/{id}` previously
   accepted mutations with no precondition while the auto-generated
