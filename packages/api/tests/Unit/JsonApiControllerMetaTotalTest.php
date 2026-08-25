@@ -95,9 +95,8 @@ final class JsonApiControllerMetaTotalTest extends TestCase
 
         $controller = $this->controllerWithTitlePrefixViewPolicy('Visible');
 
-        // Last page (offset 4, limit 2) of the 6 visible rows — pagination here
-        // is over the unfiltered candidate window, so the page may carry fewer
-        // visible rows, but meta.total must not drift.
+        // Last page (offset 4, limit 2) of the 6 visible rows. Offset addresses
+        // the authorized result set and meta.total must not drift.
         $doc = $controller->index('article', [
             'page' => ['offset' => '4', 'limit' => '2'],
         ]);

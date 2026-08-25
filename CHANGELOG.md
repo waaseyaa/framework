@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   EntityValidator opt-out that does **not** bypass the listener, and includes a
   negative control that removes the listener to show the pre-fix unwired path.
 
+- **Changed — access-checked entity-query ranges now page authorized rows
+  (#2541):** `range(offset, limit)` previously applied SQL `LIMIT/OFFSET`
+  before the entity policy decision, so a page could be short or empty while
+  authorized rows remained later in the result. With access checking enabled,
+  offset and limit now apply to the policy-surviving IDs; pages remain dense
+  until that authorized result is exhausted. Explicit `accessCheck(false)`
+  system-context queries retain raw SQL range and count fast paths.
+
 - **Changed — a configuration activation conflict now names the authority and
   the violated key, and `install:init` reports the identity it resolved
   (#2545):** the conflict raised when a unique violation reaches the activation

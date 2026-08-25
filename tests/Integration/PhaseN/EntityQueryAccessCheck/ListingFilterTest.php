@@ -96,12 +96,12 @@ final class ListingFilterTest extends TestCase
         // 2 owned by A, 2 owned by B, 2 with no owner — for everyone except
         // an admin (not tested here), no-owner rows are Forbidden.
         $rows = [
-            ['title' => 'a1', 'owner_id' => self::ACCOUNT_A_ID],
-            ['title' => 'a2', 'owner_id' => self::ACCOUNT_A_ID],
             ['title' => 'b1', 'owner_id' => self::ACCOUNT_B_ID],
             ['title' => 'b2', 'owner_id' => self::ACCOUNT_B_ID],
             ['title' => 'n1', 'owner_id' => 0],
             ['title' => 'n2', 'owner_id' => 0],
+            ['title' => 'a1', 'owner_id' => self::ACCOUNT_A_ID],
+            ['title' => 'a2', 'owner_id' => self::ACCOUNT_A_ID],
         ];
         foreach ($rows as $row) {
             $this->repository->save($this->repository->create($row), validate: false);
@@ -153,6 +153,30 @@ final class ListingFilterTest extends TestCase
         // SqlEntityQuery with the bound account and returns 2.
         $this->assertArrayHasKey('meta', $body);
         $this->assertSame(2, $body['meta']['total'], 'meta.total reflects post-filter cardinality');
+    }
+
+    #[Test]
+    public function indexBackfillsThePagePastForbiddenLeadingCandidates(): void
+    {
+        $accountA = $this->makeAccount(self::ACCOUNT_A_ID);
+        $controller = new JsonApiController(
+            $this->entityTypeManager,
+            new ResourceSerializer($this->entityTypeManager),
+            $this->accessHandler,
+            $accountA,
+        );
+
+        $body = $controller->index('article', [
+            'sort' => 'id',
+            'page' => ['offset' => '0', 'limit' => '2'],
+        ])->toArray();
+
+        $this->assertCount(2, $body['data']);
+        $this->assertSame(
+            ['a1', 'a2'],
+            array_column(array_column($body['data'], 'attributes'), 'title'),
+        );
+        $this->assertSame(2, $body['meta']['total']);
     }
 
     private function makeAccount(int $id): AccountInterface

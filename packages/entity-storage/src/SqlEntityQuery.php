@@ -214,15 +214,12 @@ final class SqlEntityQuery implements EntityQueryInterface
     }
 
     /**
-     * Set the SQL `LIMIT`/`OFFSET` for the candidate page.
+     * Set the offset and limit for the observable result page.
      *
-     * Cursor contract (FR-007): the page cursor advances by the **unfiltered
-     * candidate window**. Paginated callers MUST advance by adding `$limit` to
-     * the previous `$offset`, NOT by adding `count(execute())`. Example: a
-     * 25-row page request may return 18 surviving rows after access
-     * filtering; the next-page cursor is `offset + 25` (not `offset + 18`).
-     * This guarantees successive page requests do not re-scan candidates
-     * already evaluated for the same query.
+     * With access checking enabled, the range is applied after policy
+     * evaluation: offset counts authorized survivors and a page is dense until
+     * the authorized result set is exhausted. System-context queries using
+     * accessCheck(false) retain the raw SQL LIMIT/OFFSET fast path.
      */
     public function range(int $offset, int $limit): static
     {
@@ -519,9 +516,6 @@ final class SqlEntityQuery implements EntityQueryInterface
             return $this->isCount ? [0] : [];
         }
 
-        // FR-007: the candidate window is the unfiltered SQL `LIMIT/OFFSET`
-        // window. Hydration here does not advance the cursor — successive
-        // pages still index by `$offset + $limit`, not by survivor count.
         $entities = $this->entityLoader !== null
             ? ($this->entityLoader)($candidateIds)
             : [];
@@ -1270,8 +1264,12 @@ final class SqlEntityQuery implements EntityQueryInterface
             }
         }
 
+        // An access-checked range addresses the observable survivor set, not
+        // the pre-policy SQL candidate set. Applying LIMIT/OFFSET in SQL would
+        // produce short or empty pages while authorized rows remain later in
+        // the result and would make an offset describe inaccessible ranks.
+        // System-context queries retain the SQL fast path below.
         $deferRangeUntilAfterAccess = $this->accessCheckEnabled
-            && ($hasClassifiedProtectedRead || $this->activeContextualPlan !== null)
             && $this->rangeLimit !== null;
 
         $select = $this->database->select($this->tableName);
