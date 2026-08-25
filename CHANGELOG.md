@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Security — `ContentPublisher` read operations were capability-only and
+  bypassed every entity access policy (#2516):** `list()`, `get()`,
+  `revisions()`, `revision()`, `preview()` and `previewRevision()` authorized on
+  the caller's coarse publish capability and then read through the
+  non-access-checked repository path, so no per-entity policy was consulted —
+  an already-injected `EntityAccessHandler` sat unused on all six. Any surface
+  built on them (the MCP `*.list` / `*.get` / `*.revisions` / `*.preview` tool
+  set included) therefore granted read of every entity in the bundle to anyone
+  holding the authoring credential, including entities a bundle- or
+  entity-level policy was meant to restrict. `list()` now resolves its
+  candidate window through the access-checked query API bound to the acting
+  principal (`getQuery()->setAccount($actor)` then `findMany()`), never by
+  post-filtering an unchecked read; the single reads require an `Allowed`
+  entity-level `view`; `revisions()` and `revision()` apply a per-revision
+  `view_revision` decision (composed through `RevisionPolicyComposition`,
+  falling back to `view`) **before** any historical field data is projected.
+  Every refusal is indistinguishable from absence — same
+  `ContentNotFoundException`, same `NOT_FOUND` code, same message — so no read
+  becomes an existence oracle. `assertSlugFree()` deliberately KEEPS the
+  non-access-checked path (a uniqueness pre-check, not a content read;
+  converting it would let an unprivileged caller create a slug colliding with a
+  row invisible to them) and a regression test pins that carve-out. A publisher
+  composed with an access handler now requires a query-capable
+  (database-backed) repository; composed without one, the capability gate
+  remains the only authority, exactly as before. Mutation authorization,
+  field-read policy, tenancy, workflow transitions, audit attribution,
+  idempotency and If-Match concurrency are unchanged.
+
 - **Breaking (alpha) — purpose-built OIDC client PATCH/DELETE now require
   `If-Match` (#2493):** `PATCH` and `DELETE /api/oidc-clients/{id}` previously
   accepted mutations with no precondition while the auto-generated
