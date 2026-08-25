@@ -1,5 +1,13 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-25 - #2520 FieldReadDenied mapping: `entity.read`
+and `entity.search` omit a WP4 `FieldReadDenied` / `MissingFieldReadContext`
+on a view-authorized entity, matching
+`ResourceSerializer::attributesFromEntity()`. The call is a well-formed
+success, never `INTERNAL_ERROR` and never a distinguishable field-forbidden
+envelope. Absent vs view-forbidden entities stay the identical R8-c not-found
+error. Pinned by `EntityToolFieldReadDeniedMappingTest`. -->
+
 <!-- Spec reviewed 2026-08-05 - #2225 current-protocol resources: MCP 2026-07-28 server/discover now advertises resources exactly when the strict default-off resource flag and a non-empty provider registry are both present, and that same gate serves resources/list, resources/templates/list, and resources/read. Modern reads bind the required Mcp-Name mirror to params.uri using the protocol's canonical plain-ASCII/Base64-sentinel decoding. Capability authorization precedes provider selection and URI parsing; unavailable resources use the current -32602 contract without exposing URI data, while legacy -32002 bytes remain unchanged. Modern complete resource results carry resultType, server identity, ttlMs=0, cacheScope=private, and HTTP no-store. Each accepted read closes with exactly one cause-honest terminal audit stage. -->
 
 <!-- Spec reviewed 2026-08-05 - #2196: the enabled anonymous MCP tier contributes one deployment-neutral mcp:public artifact to the separate experimental AI Catalog seam. It points to the Waaseyaa compatibility card as application/json and is never mislabeled as an MCP Server Card. Disabling the public tier removes the contribution; write/auth/approval/admin surfaces and representative site queries are excluded. -->
@@ -529,6 +537,29 @@ which is why `content.search` was the one anonymous tool that worked.
 `packages/ai-agent/tests/Contract/Tool/` pin this for both tiers by executing
 the tools and asserting on real emitted results.
 
+### FieldReadDenied on anonymous `entity.read` / `entity.search`
+
+These two tools project stored fields through the WP4 accessor after the
+legacy open-by-default `FieldAccessPolicyInterface` filter. A Neutral policy
+still lets a Protected field name through; `FieldReadGuard` then denies the
+`get()`. That denial is mapped **per field** by
+`EntityFieldRedaction::toReadableCastAwareMap()`:
+
+- On a **view-authorized** entity the denied field is omitted from
+  `entity.read` `values` and from the `entity.search` haystack. The tool
+  returns success. This is the same mapping
+  `ResourceSerializer::attributesFromEntity()` already applies on JSON:API
+  (`FieldReadDenied | MissingFieldReadContext` → skip).
+- The field is **never named** in an error envelope. A distinguishable
+  `FIELD_FORBIDDEN` would let an anonymous caller tell "exists but a field is
+  fenced" from "absent" — the existence oracle `EntityReadTool` closed (R8-c).
+- Absent and view-forbidden **entities** still collapse to the identical
+  `"%s/%s not found"` envelope. Field-level omission does not reuse that
+  envelope, so a published page with Protected `status`/`uid` remains readable.
+
+Pinned by `EntityToolFieldReadDeniedMappingTest` (anonymous published-content
+read/search plus the not-found oracle byte-identity).
+
 ### JSON-RPC results are objects
 
 A JSON-RPC `Result` is an object. PHP encodes an empty array as `[]`, so a
@@ -544,7 +575,7 @@ can reintroduce the array form by returning nothing.
 with a zero-dependency JSON-RPC client, asserting on response bytes and on a
 re-decode that preserves the `{}` versus `[]` distinction. This exists because
 every other MCP test is in-process: real wiring and real routing, but nothing is
-ever serialised, and all three #2520 defects lived in the encoding step. The
+ever serialised, and the #2520 encoding defects lived in that step. The
 harness skips rather than fails when the environment cannot host a server.
 
 ## Tool error envelope and exception sanitization
@@ -1163,6 +1194,10 @@ in this spec. `/mcp` is served by `McpEndpoint` over the `Bridge\` + ai-tools
 > transiently resolves to null the read is **denied** rather than served unfiltered.
 > Proven by `EntityReadToolFieldFilterTest::never_leaks_field_access_forbidden_fields`
 > (a forbidden `secret_note` value is absent from the `entity.read` result).
+> Independently, a WP4 `FieldReadDenied` on a view-authorized entity is
+> omitted by `EntityFieldRedaction::toReadableCastAwareMap()` — the same
+> per-field catch JSON:API uses — so Protected fields such as `node.status`
+> cannot turn an anonymous published-page read into `INTERNAL_ERROR`.
 >
 > What was **never built** is only the documented *marker shape*:
 > `McpEntityFieldFilter` (`packages/mcp/src/Serializer/McpEntityFieldFilter.php`),

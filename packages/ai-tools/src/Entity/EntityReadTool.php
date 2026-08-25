@@ -11,7 +11,6 @@ use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\EntityValues;
 
 /**
  * Read a single entity by type + id.
@@ -154,7 +153,10 @@ final class EntityReadTool extends AbstractAgentTool
         if ($entity instanceof EntityBase) {
             $names = EntityFieldRedaction::ordinaryFieldNames($this->entityTypeManager, $entity);
             $allowed = $this->applyFieldAccessFilter($entity, array_fill_keys($names, true), $account);
-            $values = EntityValues::toCastAwareMap($entity, array_values(array_filter(array_keys($allowed), is_string(...))));
+            $values = EntityFieldRedaction::toReadableCastAwareMap(
+                $entity,
+                array_values(array_filter(array_keys($allowed), is_string(...))),
+            );
         } else {
             $values = [];
             if (method_exists($entity, 'getValues')) {

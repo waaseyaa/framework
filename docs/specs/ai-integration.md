@@ -1,5 +1,11 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-25 - #2520: `entity.read` / `entity.search` map
+WP4 `FieldReadDenied` to per-field omission at the tool boundary (JSON:API
+parity), not `INTERNAL_ERROR` and not a distinguishable field-forbidden
+error. R8-c not-found for absent vs view-forbidden entities is unchanged.
+See docs/specs/mcp-endpoint.md. -->
+
 <!-- Spec reviewed 2026-08-20 - #2464: EntityRollbackTool and
 EntitySetCurrentRevisionTool keep EntityRevisionRestoreGuard as the AI-facing
 wrapper; the changed-field set is RevisionRestoreChangedFields so Admin and AI
@@ -154,6 +160,12 @@ encoded.
 executing them — `execute()` and `dryRun()` alike — and inspecting real emitted
 results, so a new tool that reintroduces a non-MCP block type lands as a
 failure rather than as a client-side surprise.
+
+`entity.read` and `entity.search` additionally map a WP4 `FieldReadDenied`
+during field projection to **omission** of that field (success result, no
+`INTERNAL_ERROR`, no named-field error). That is JSON:API parity, not a new
+disclosure policy; see docs/specs/mcp-endpoint.md "FieldReadDenied on
+anonymous `entity.read` / `entity.search`".
 
 ## Agent Execution
 

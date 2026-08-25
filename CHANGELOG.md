@@ -32,21 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `jsonRpcResult()` rather than at the `ping` callsite, so no future handler can
   reintroduce the array form by returning nothing.
 
-  A `FieldReadDenied` raised during field read still escapes `entity.read` and
-  `entity.search` unmapped and reaches the caller as `INTERNAL_ERROR`. It fails
-  closed and discloses nothing, and mapping it means choosing whether a denied
-  field is redacted, collapsed into the existing not-found response, or reported
-  distinguishably — the last reopens an existence oracle `EntityReadTool`
-  deliberately closed. That decision is deferred;
-  `EntityToolFieldReadDeniedCharacterizationTest` pins the current behaviour so
-  the change arrives as a visible diff. Its absence is why this shipped: no
-  entity-tool test installed a `FieldReadGuard` at all.
+  A `FieldReadDenied` raised while projecting a view-authorized entity is now
+  mapped at the agent-tool boundary the same way JSON:API already does: the
+  denied field is omitted from `entity.read` values and from the
+  `entity.search` haystack. The call returns a well-formed success, never
+  `INTERNAL_ERROR`, never a distinguishable field-forbidden envelope, and never
+  the R8-c not-found envelope (that envelope stays byte-identical for absent
+  versus view-forbidden entities). The inaccessible field is not named.
+  `EntityToolFieldReadDeniedMappingTest` pins anonymous published-content
+  reads and searches.
 
 - **Added — MCP conformance now runs over a real socket
   (`packages/mcp/tests/Support/Http/`, #2520):** every prior MCP test was
   in-process — `Request::create()` in, a `Response` object out — which never
-  serialises anything. All three defects above lived in JSON encoding and were
-  invisible to that. The harness boots a `php -S` server and speaks raw JSON-RPC
+  serialises anything. The encoding defects above were invisible to that. The harness boots a `php -S` server and speaks raw JSON-RPC
   with no framework help, asserting on response bytes and on a re-decode that
   distinguishes `{}` from `[]`. It skips, rather than fails, when the
   environment cannot host a server.

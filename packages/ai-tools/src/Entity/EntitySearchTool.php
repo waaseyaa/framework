@@ -11,7 +11,6 @@ use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\EntityValues;
 
 /**
  * Full-text search across entities of a given type.
@@ -134,7 +133,10 @@ final class EntitySearchTool extends AbstractAgentTool
             $allowed = $this->applyFieldAccessFilter($entity, array_fill_keys($names, true), $account);
 
             return $this->haystackMatches(
-                EntityValues::toCastAwareMap($entity, array_values(array_filter(array_keys($allowed), is_string(...)))),
+                EntityFieldRedaction::toReadableCastAwareMap(
+                    $entity,
+                    array_values(array_filter(array_keys($allowed), is_string(...))),
+                ),
                 $needle,
             );
         }
