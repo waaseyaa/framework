@@ -33,7 +33,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * 6. Build the query by translating filters → criteria + in-process refinement.
  * 7. Execute query (full result set; pagination clamps + slices post-access).
  * 8. Per-row access policy application (FR-029) + FR-032 fast-path opt-in.
- * 9. Pagination metadata (FR-025/FR-027 page clamp; FR-030 short pages;
+ * 9. Pagination metadata (FR-025/FR-027 page clamp; FR-030 dense pages;
  *    FR-031 total-rows reflects access-filtered count).
  * 10. Compute cache tags (FR-023) + contexts (FR-024 + FR-048).
  * 11. Build {@see ListingResult}.

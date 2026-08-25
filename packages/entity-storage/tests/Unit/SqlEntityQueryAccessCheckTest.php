@@ -34,7 +34,8 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
  * - the C-006 / FR-005 fail-closed throw on missing account
  * - count() returns post-filter cardinality when access checking is on,
  *   pre-filter cardinality when bypassed (FR-006)
- * - range() cursor advances by the unfiltered window (FR-007)
+ * - access-checked range() pages the authorized survivor set (#2541)
+ * - accessCheck(false) keeps raw SQL range semantics
  * - anonymous account against a deny-all policy yields the empty set
  * - NFR-002: 25-row page check completes well under 100 ms
  */
@@ -199,7 +200,7 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
     }
 
     #[Test]
-    public function rangeCursorAdvancesByUnfilteredWindow(): void
+    public function accessCheckedRangeIsDenseAcrossForbiddenCandidates(): void
     {
         $accountA = $this->makeAccount(1);
 
@@ -214,7 +215,7 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
         $handler->addPolicy($this->ownerOnlyPolicy());
 
         $pages = [];
-        foreach ([[0, 25], [25, 25], [50, 25], [75, 25]] as [$offset, $limit]) {
+        foreach ([[0, 25], [25, 25]] as [$offset, $limit]) {
             $pages[] = $this->newQuery()
                 ->withAccessHandler($handler)
                 ->setAccount($accountA)
@@ -226,15 +227,58 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
         $union = array_merge(...$pages);
         $unique = array_unique($union);
 
-        // Survivors across the full 100-row table are the 50 even-indexed rows.
+        self::assertCount(25, $pages[0]);
+        self::assertCount(25, $pages[1]);
+        self::assertSame(range(2, 50, 2), $pages[0]);
+        self::assertSame(range(52, 100, 2), $pages[1]);
+
+        // The authorized result contains 50 rows. Its two pages are dense,
+        // ordered, disjoint, and complete even though every other SQL
+        // candidate is forbidden.
         $this->assertCount(50, $unique, 'union of paginated survivors equals full owned set');
         $this->assertCount(\count($union), $unique, 'pages are disjoint (no overlap across windows)');
+    }
 
-        // Each page's survivors are bounded above by the window size (25) and
-        // below by 0 — the filter never widens the window.
-        foreach ($pages as $page) {
-            $this->assertLessThanOrEqual(25, \count($page));
+    #[Test]
+    public function accessCheckedFinalPageIsShortOnlyWhenAuthorizedRowsAreExhausted(): void
+    {
+        $accountA = $this->makeAccount(1);
+
+        $rows = [];
+        for ($i = 1; $i <= 21; ++$i) {
+            $rows[] = ['title' => 'row-' . $i, 'owner_id' => ($i % 2 === 0) ? 2 : 1];
         }
+        $this->seedRows($rows);
+
+        $handler = new EntityAccessHandler([$this->ownerOnlyPolicy()]);
+
+        $finalPage = $this->newQuery()
+            ->withAccessHandler($handler)
+            ->setAccount($accountA)
+            ->sort('id', 'ASC')
+            ->range(10, 10)
+            ->execute();
+
+        self::assertSame([21], $finalPage);
+    }
+
+    #[Test]
+    public function systemContextRangeRemainsARawSqlCandidateWindow(): void
+    {
+        $this->seedRows([
+            ['title' => 'row-1', 'owner_id' => 2],
+            ['title' => 'row-2', 'owner_id' => 1],
+            ['title' => 'row-3', 'owner_id' => 2],
+            ['title' => 'row-4', 'owner_id' => 1],
+        ]);
+
+        $ids = $this->newQuery()
+            ->accessCheck(false)
+            ->sort('id', 'ASC')
+            ->range(1, 2)
+            ->execute();
+
+        self::assertSame([2, 3], $ids);
     }
 
     #[Test]

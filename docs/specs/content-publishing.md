@@ -117,13 +117,10 @@ restrict (framework #2516).
   handler therefore requires a query-capable (database-backed) repository:
   `getQuery()` is the only path that can prove per-row viewability, and there
   is deliberately no fallback to an unchecked read.
-- **Paging is not a cardinality signal.** SQL `LIMIT`/`OFFSET` bound the
-  candidate window **before** the per-row decision is applied, so a page can
-  come back short — or entirely empty — while viewable content exists beyond
-  that window. This is fail-closed and leaks nothing, but callers (agents
-  included) **must not** read an empty page as "no content": raise the limit or
-  advance the offset. `list()` deliberately exposes no total and no cursor, so
-  there is no exact-count guarantee to lean on.
+- **Paging is over viewable content.** For an access-checked query, offset and
+  limit apply after the per-row decision. Offset therefore counts viewable
+  rows, and a page is dense until the viewable result set is exhausted. The
+  response still exposes no total derived from inaccessible candidates.
 - **Single reads.** `get()` and `preview()` load the entity and require an
   `Allowed` entity-level `view` decision.
 - **History.** `revisions()` and `revision()` apply a decision at the

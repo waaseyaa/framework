@@ -57,7 +57,7 @@ use Waaseyaa\Listing\Tests\Contract\Fixtures\TranslatableArticleEntity;
  *  - FR-026              : resolveRespectsPageSize
  *  - FR-027              : pageClampsBelowOne / pageClampsAboveTotal
  *  - FR-029              : resolveAppliesAccessPolicyPerRow
- *  - FR-030              : resolveProducesShortPagesAfterAccessFilter
+ *  - FR-030              : resolveProducesShortFinalPageWhenAuthorizedRowsAreExhausted
  *  - FR-031              : totalRowsReflectsAccessFilteredCount
  *  - FR-023              : cacheTagsIncludeEntityRows
  *  - FR-024              : cacheContextsIncludeDefinitionContexts
@@ -399,7 +399,7 @@ abstract class ListingResolverContract extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // FR-029, FR-021, FR-030, FR-031 — access policy + short pages + counts
+    // FR-029, FR-021, FR-030, FR-031 — access policy + final short page + counts
     // ------------------------------------------------------------------
 
     #[Test]
@@ -433,7 +433,7 @@ abstract class ListingResolverContract extends TestCase
     }
 
     #[Test]
-    public function resolveProducesShortPagesAfterAccessFilter(): void
+    public function resolveProducesShortFinalPageWhenAuthorizedRowsAreExhausted(): void
     {
         $driver = $this->createDriver();
         // Seed 4 rows. Even ids are denied, leaving 2 visible (ids 1 and 3).
@@ -449,7 +449,7 @@ abstract class ListingResolverContract extends TestCase
 
         $result = $resolver->resolve($def);
 
-        // pageSize=3 but only 2 rows are accessible -> short page.
+        // pageSize=3 but the complete accessible result has only 2 rows.
         self::assertCount(2, $this->materialise($result));
         self::assertSame(2, $result->pagination->totalRows);
     }

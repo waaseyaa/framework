@@ -65,7 +65,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     /**
      * List content the acting principal is actually allowed to view.
      *
-     * With an access handler composed in, the candidate window comes from the
+     * With an access handler composed in, the authorized page comes from the
      * ACCESS-CHECKED query API bound to the acting principal — never from a
      * full unchecked read that is post-filtered (#2516). No total or cursor
      * derived from the unchecked candidate set is returned, so a hidden row
@@ -505,16 +505,13 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
      * each candidate row against the bound principal and returns only the ids
      * that survive — and only those ids are then hydrated with `findMany()`.
      * (The decision itself happens inside the query, which hydrates its
-     * candidate window to evaluate the policy; nothing that fails the decision
+     * candidate set to evaluate the policy; nothing that fails the decision
      * is returned.) A refused row therefore reaches the caller in no form: not
      * as content, and not as cardinality, since the response carries no total
      * or cursor derived from the candidate set.
      *
-     * Note the ordering consequence: SQL `LIMIT`/`OFFSET` bound the candidate
-     * window BEFORE the per-row decision, so a page may come back short — or
-     * empty — while viewable content exists beyond the window. That is
-     * fail-closed and leaks nothing, but an empty page is not evidence of "no
-     * content"; see the spec's "Read authorization" section.
+     * Range is evaluated after the per-row decision, so offset counts viewable
+     * rows and the page is dense until the viewable result set is exhausted.
      *
      * A publisher composed with policy authority requires a query-capable
      * repository; `EntityRepository::getQuery()` is the only path that can

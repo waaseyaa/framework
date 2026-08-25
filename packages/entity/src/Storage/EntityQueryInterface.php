@@ -21,6 +21,14 @@ interface EntityQueryInterface
 
     public function sort(string $field, string $direction = 'ASC'): static;
 
+    /**
+     * Limit the observable result set.
+     *
+     * Access-checked implementations apply offset and limit after the access
+     * decision, so offset counts authorized rows and pages remain dense until
+     * those rows are exhausted. An explicit accessCheck(false) system context
+     * may apply the range directly in storage.
+     */
     public function range(int $offset, int $limit): static;
 
     public function count(): static;
