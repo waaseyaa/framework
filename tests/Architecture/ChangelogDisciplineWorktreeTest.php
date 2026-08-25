@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 #[CoversNothing]
 final class ChangelogDisciplineWorktreeTest extends TestCase
@@ -154,7 +155,6 @@ final class ChangelogDisciplineWorktreeTest extends TestCase
     /** @return array{int, string} */
     private function executeCommand(string $command, bool $allowFailure = false, array $environment = []): array
     {
-        $pipes = [];
         $bash = 'bash';
         if (PHP_OS_FAMILY === 'Windows') {
             $gitExecutables = preg_split('/\R/', (string) shell_exec('where git 2>NUL')) ?: [];
@@ -166,19 +166,13 @@ final class ChangelogDisciplineWorktreeTest extends TestCase
                 }
             }
         }
-        $process = proc_open(
+        $process = new Process(
             [$bash, '-c', $command],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
             $this->fixtureRoot,
             $environment === [] ? null : array_merge($_ENV, $environment),
         );
-        self::assertIsResource($process);
-        $joined = (string) stream_get_contents($pipes[1]) . (string) stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $exitCode = proc_close($process);
-        $joined = trim($joined);
+        $exitCode = $process->run();
+        $joined = trim($process->getOutput() . $process->getErrorOutput());
         if (!$allowFailure) {
             self::assertSame(0, $exitCode, $joined);
         }
