@@ -66,8 +66,12 @@ command advances the aggregate version exactly once.
 
 HTTP reads return one canonical quoted strong ETag. Existing-entity mutation
 requires exactly one strong `If-Match`; absence returns 428, stale state returns
-412, and weak, wildcard, or list validators are rejected. Conflict responses do
-not disclose the current token or mutable entity data.
+412, and weak, wildcard, or list validators are rejected. JSON:API If-Match
+surfaces share `Waaseyaa\Api\Http\EntityMutationPrecondition` for that envelope.
+Conflict responses do not disclose the current token or mutable entity data.
+Admin surface mutations keep the body `mutation_token` transport
+(`fromOpaqueString()`); page-builder keeps revision/fingerprint fencing and
+does not carry `EntityMutationToken`.
 
 Admin, JSON:API, GraphQL, MCP/AI, CLI, workflow, publishing, migration, worker,
 translation, and batch surfaces carry the same opaque expectation. Arbitrary

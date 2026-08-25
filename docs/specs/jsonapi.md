@@ -1,5 +1,7 @@
 # JSON:API — cast-aware attributes
 
+<!-- Spec reviewed 2026-08-24 - #2537: If-Match JSON:API mutation envelopes are owned
+     by Waaseyaa\Api\Http\EntityMutationPrecondition. See docs/specs/api-layer.md. -->
 <!-- Spec reviewed 2026-08-24 - #2493: purpose-built `/api/oidc-clients/{id}`
      PATCH/DELETE now share JsonApiRouter's strong If-Match fence; GET `{id}`
      emits ETag + meta.mutation_token. See docs/specs/api-layer.md. -->

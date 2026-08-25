@@ -1,5 +1,9 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-24 - #2537: Admin GenericAdminSurfaceHost keeps body
+`mutation_token` (`fromOpaqueString()`). It does not switch to If-Match.
+Page-builder continues to fence on revision/fingerprint, not EntityMutationToken.
+JSON:API If-Match envelopes are owned by EntityMutationPrecondition. -->
 <!-- Spec reviewed 2026-08-20 - #2467 save-advisory Admin envelope: Generic Admin
 projects JSON:API errors through AdminSurfaceResultData::fromJsonApiError().
 Ordinary errors keep status/title/detail; only SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED

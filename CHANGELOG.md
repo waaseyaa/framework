@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed — If-Match mutation-precondition envelopes share one JSON:API
+  adapter (#2537):** `JsonApiRouter`, dedicated OIDC client PATCH/DELETE,
+  translation mutations, workflow transition POST, field auto-save, and
+  `JsonApiController`'s 412 document now build 428/400/412 through
+  `Waaseyaa\Api\Http\EntityMutationPrecondition`, which wraps
+  `EntityMutationToken::fromHttpIfMatch()` and never calls
+  `Request::getETags()`. Field auto-save codes become
+  `MUTATION_PRECONDITION_*` (breaking for alpha clients that parsed the
+  previous snake_case codes) and a missing `If-Match` on a known entity type
+  is 428 before entity lookup. Unknown entity types remain F3's historical
+  404. Successful response envelopes, strong ETags, and Admin body
+  `mutation_token` / page-builder revision-fingerprint transport are
+  unchanged. 412 bodies still omit the winning token.
+
 - **Breaking (alpha) — purpose-built OIDC client PATCH/DELETE now require
   `If-Match` (#2493):** `PATCH` and `DELETE /api/oidc-clients/{id}` previously
   accepted mutations with no precondition while the auto-generated

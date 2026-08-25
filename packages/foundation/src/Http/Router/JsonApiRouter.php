@@ -8,13 +8,13 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\EntityTypeApiExposurePolicy;
+use Waaseyaa\Api\Http\EntityMutationPrecondition;
 use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 
@@ -53,28 +53,9 @@ final class JsonApiRouter implements DomainRouterInterface
     {
         $expectation = null;
         if (in_array($request->getMethod(), ['PATCH', 'DELETE'], true)) {
-            $ifMatch = $request->headers->get('If-Match');
-            if ($ifMatch === null || trim($ifMatch) === '') {
-                return $this->jsonApiResponse(428, JsonApiDocument::fromErrors([
-                    new JsonApiError(
-                        status: '428',
-                        title: 'Precondition Required',
-                        detail: 'Existing-entity mutation requires exactly one strong If-Match value from the loaded resource.',
-                        code: 'MUTATION_PRECONDITION_REQUIRED',
-                    ),
-                ], statusCode: 428)->toArray());
-            }
-            try {
-                $expectation = EntityMutationToken::fromHttpIfMatch(trim($ifMatch));
-            } catch (\InvalidArgumentException $exception) {
-                return $this->jsonApiResponse(400, JsonApiDocument::fromErrors([
-                    new JsonApiError(
-                        status: '400',
-                        title: 'Bad Request',
-                        detail: $exception->getMessage(),
-                        code: 'INVALID_MUTATION_PRECONDITION',
-                    ),
-                ], statusCode: 400)->toArray());
+            $expectation = EntityMutationPrecondition::fromRequest($request);
+            if ($expectation instanceof JsonApiDocument) {
+                return $this->jsonApiResponse($expectation->statusCode, $expectation->toArray());
             }
         }
 

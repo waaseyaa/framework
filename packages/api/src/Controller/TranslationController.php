@@ -9,6 +9,7 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Exception\JsonApiDocumentException;
+use Waaseyaa\Api\Http\EntityMutationPrecondition;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\JsonApiResource;
@@ -448,24 +449,9 @@ final class TranslationController
         string $entityId,
         EntityInterface $entity,
     ): EntityMutationToken|JsonApiDocument {
-        $ifMatch = $request->headers->get('If-Match');
-        if ($ifMatch === null || trim($ifMatch) === '') {
-            return $this->errorDocument(new JsonApiError(
-                status: '428',
-                title: 'Precondition Required',
-                detail: 'If-Match is required for an existing aggregate mutation.',
-                code: 'MUTATION_PRECONDITION_REQUIRED',
-            ));
-        }
-        try {
-            $expected = EntityMutationToken::fromHttpIfMatch($ifMatch);
-        } catch (\InvalidArgumentException) {
-            return $this->errorDocument(new JsonApiError(
-                status: '400',
-                title: 'Bad Request',
-                detail: 'If-Match must contain exactly one strong entity mutation ETag.',
-                code: 'INVALID_MUTATION_PRECONDITION',
-            ));
+        $expected = EntityMutationPrecondition::fromRequest($request);
+        if ($expected instanceof JsonApiDocument) {
+            return $expected;
         }
         if (!$entity instanceof EntityBase
             || $expected->entityTypeId !== $entityTypeId
@@ -482,12 +468,7 @@ final class TranslationController
 
     private function mutationConflictDocument(): JsonApiDocument
     {
-        return $this->errorDocument(new JsonApiError(
-            status: '412',
-            title: 'Precondition Failed',
-            detail: 'The resource changed after the supplied mutation precondition was observed.',
-            code: 'MUTATION_PRECONDITION_FAILED',
-        ));
+        return EntityMutationPrecondition::failedDocument();
     }
 
     private function readableMutationToken(

@@ -23,6 +23,7 @@ use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -150,7 +151,57 @@ final class FieldAutoSaveTest extends TestCase
         $response = $this->makeController($this->allowAllHandler)->update($request, 'article', $entityId, 'title');
 
         $this->assertSame(428, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('MUTATION_PRECONDITION_REQUIRED', $body['errors'][0]['code']);
+        $this->assertSame('1.1', $body['jsonapi']['version'] ?? null);
         $this->assertSame('Original', $this->storage->load($entity->id())?->get('title'));
+    }
+
+    #[Test]
+    public function unknownEntityWithoutIfMatchReturns428BeforeLookup(): void
+    {
+        $request = $this->makePutRequest('9999', 'title', 'Blind write', $this->account);
+        $request->headers->remove('If-Match');
+
+        $response = $this->makeController($this->allowAllHandler)->update($request, 'article', '9999', 'title');
+
+        $this->assertSame(428, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('MUTATION_PRECONDITION_REQUIRED', $body['errors'][0]['code']);
+    }
+
+    /**
+     * @return iterable<string, array{0: string}>
+     */
+    public static function malformedIfMatchValues(): iterable
+    {
+        yield 'weak' => ['W/"emt1.invalid"'];
+        yield 'wildcard' => ['*'];
+        yield 'quoted-wildcard' => ['"*"'];
+        yield 'comma-list' => ['"one", "two"'];
+        yield 'unquoted' => ['emt1.not-an-etag'];
+        yield 'empty-quotes' => ['""'];
+    }
+
+    #[Test]
+    #[DataProvider('malformedIfMatchValues')]
+    public function malformedIfMatchReturns400WithoutWriting(string $ifMatch): void
+    {
+        $entity = $this->createSavedEntity(['title' => 'Original', 'type' => 'article']);
+        $entityId = (string) $entity->id();
+        $request = $this->makePutRequest($entityId, 'title', 'No write', $this->account);
+        $request->headers->set('If-Match', $ifMatch);
+
+        $response = $this->makeController($this->allowAllHandler)->update($request, 'article', $entityId, 'title');
+
+        $this->assertSame(400, $response->getStatusCode(), $ifMatch);
+        $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('INVALID_MUTATION_PRECONDITION', $body['errors'][0]['code']);
+        $this->assertSame('Original', $this->storage->load($entity->id())?->get('title'));
+        $this->assertStringNotContainsString(
+            $this->storage->load($entity->id())?->mutationToken()?->toOpaqueString() ?? 'emt1.',
+            (string) $response->getContent(),
+        );
     }
 
     #[Test]
@@ -166,6 +217,10 @@ final class FieldAutoSaveTest extends TestCase
         $response = $controller->update($loser, 'article', $entityId, 'title');
 
         $this->assertSame(412, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('MUTATION_PRECONDITION_FAILED', $body['errors'][0]['code']);
+        $this->assertArrayNotHasKey('meta', $body['errors'][0]);
+        $this->assertStringNotContainsString('emt1.', (string) $response->getContent());
         $this->assertSame('Winner', $this->storage->load($entity->id())?->get('title'));
     }
 

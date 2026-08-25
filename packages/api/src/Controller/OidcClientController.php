@@ -7,8 +7,8 @@ namespace Waaseyaa\Api\Controller;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Api\Http\EntityMutationPrecondition;
 use Waaseyaa\Api\JsonApiDocument;
-use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -275,30 +275,12 @@ final class OidcClientController
 
     private function requireMutationExpectation(Request $request): EntityMutationToken|Response
     {
-        $ifMatch = $request->headers->get('If-Match');
-        if ($ifMatch === null || trim($ifMatch) === '') {
-            return $this->jsonApiResponse(428, JsonApiDocument::fromErrors([
-                new JsonApiError(
-                    status: '428',
-                    title: 'Precondition Required',
-                    detail: 'Existing-entity mutation requires exactly one strong If-Match value from the loaded resource.',
-                    code: 'MUTATION_PRECONDITION_REQUIRED',
-                ),
-            ], statusCode: 428)->toArray());
+        $expectation = EntityMutationPrecondition::fromRequest($request);
+        if ($expectation instanceof JsonApiDocument) {
+            return $this->jsonApiResponse($expectation->statusCode, $expectation->toArray());
         }
 
-        try {
-            return EntityMutationToken::fromHttpIfMatch(trim($ifMatch));
-        } catch (\InvalidArgumentException $exception) {
-            return $this->jsonApiResponse(400, JsonApiDocument::fromErrors([
-                new JsonApiError(
-                    status: '400',
-                    title: 'Bad Request',
-                    detail: $exception->getMessage(),
-                    code: 'INVALID_MUTATION_PRECONDITION',
-                ),
-            ], statusCode: 400)->toArray());
-        }
+        return $expectation;
     }
 
     private function applyMutationExpectation(OidcClient $client, EntityMutationToken $expected): ?Response
@@ -318,14 +300,9 @@ final class OidcClientController
 
     private function mutationConflict(): Response
     {
-        return $this->jsonApiResponse(412, JsonApiDocument::fromErrors([
-            new JsonApiError(
-                status: '412',
-                title: 'Precondition Failed',
-                detail: 'The resource changed after the supplied mutation precondition was observed.',
-                code: 'MUTATION_PRECONDITION_FAILED',
-            ),
-        ], statusCode: 412)->toArray());
+        $document = EntityMutationPrecondition::failedDocument();
+
+        return $this->jsonApiResponse($document->statusCode, $document->toArray());
     }
 
     private function clientResponse(OidcClient $client, int $status = 200): JsonResponse

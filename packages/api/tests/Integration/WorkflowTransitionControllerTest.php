@@ -346,7 +346,29 @@ final class WorkflowTransitionControllerTest extends TestCase
 
         $this->assertSame(428, $response->getStatusCode());
         $this->assertSame('MUTATION_PRECONDITION_REQUIRED', $this->decode($response)['errors'][0]['code']);
+        $this->assertSame('1.1', $this->decode($response)['jsonapi']['version'] ?? null);
         $this->assertSame('draft', $entity->get('workflow_state'));
+    }
+
+    #[Test]
+    public function unknownEntityWithoutIfMatchRemains404AfterTheViewGate(): void
+    {
+        [$controller, , , $account] = $this->boundWorld(denyView: false);
+        $request = Request::create(
+            '/api/wf_article/999/workflow/transition',
+            'POST',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            '{"transition":"submit_for_review"}',
+        );
+        $request->attributes->set('_account', $account);
+
+        $response = $controller->transition($request, self::ENTITY_TYPE_ID, '999');
+
+        $this->assertSame(404, $response->getStatusCode());
+        $this->assertSame('404', $this->decode($response)['errors'][0]['status']);
     }
 
     #[Test]
@@ -365,6 +387,8 @@ final class WorkflowTransitionControllerTest extends TestCase
 
         $this->assertSame(412, $response->getStatusCode());
         $this->assertSame('MUTATION_PRECONDITION_FAILED', $this->decode($response)['errors'][0]['code']);
+        $this->assertArrayNotHasKey('meta', $this->decode($response)['errors'][0]);
+        $this->assertStringNotContainsString('emt1.', (string) $response->getContent());
         $this->assertSame('draft', $entity->get('workflow_state'));
     }
 
