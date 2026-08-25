@@ -1704,7 +1704,7 @@ This kernel-adjacent registrar runs once at boot (called from `HttpKernel`) and 
 | Media versions | `GET /api/media/{uuid}/versions[/{vid}]` | `_authenticated` |
 | OCAP audit log | `GET /api/audit/events` | `_role: admin` |
 | MCP-admin REST | `GET /api/mcp/tools`; `GET /api/mcp/tools/{name}`; `GET /api/mcp/server-config` | `_role: admin` |
-| OIDC client CRUD | `GET\|POST\|PATCH\|DELETE /api/oidc-clients[/{id}[/regenerate-secret]]` | `_role: admin` |
+| OIDC client CRUD | `GET\|POST\|PATCH\|DELETE /api/oidc-clients[/{id}[/regenerate-secret]]` (PATCH/DELETE require strong `If-Match`) | `_role: admin` |
 | Classification retention policies | `GET\|POST\|PATCH\|DELETE /api/classification/policies[/{id}]` | mixed |
 | JSON:API CRUD (all entity types) | `GET\|POST\|PATCH\|DELETE /api/{entity_type}[/{id}]` | per entity access policy |
 

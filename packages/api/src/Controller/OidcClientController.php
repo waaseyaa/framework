@@ -7,8 +7,14 @@ namespace Waaseyaa\Api\Controller;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Api\JsonApiDocument;
+use Waaseyaa\Api\JsonApiError;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
+use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
 /**
@@ -24,12 +30,20 @@ use Waaseyaa\Oidc\Entity\OidcClient;
  *   it ONCE in the response, stores only its password_hash().
  * - index + show: secret field is ABSENT from the response (not null, not [hidden]).
  *
+ * Existing-entity PATCH/DELETE require the same strong If-Match fence as
+ * JsonApiRouter: absence is 428, malformed/weak/list/wildcard is 400, and a
+ * valid but stale token is 412. Tokens are derived per request from current
+ * entity state and are never retained on this controller.
+ *
  * @api
  */
 final class OidcClientController
 {
+    use JsonApiResponseTrait;
+
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
+        private readonly OidcClientSystemReader $systemReader = new OidcClientSystemReader(),
     ) {}
 
     /**
@@ -63,7 +77,7 @@ final class OidcClientController
             return $this->notFound($id);
         }
 
-        return new JsonResponse(['data' => $this->serialize($client)]);
+        return $this->clientResponse($client);
     }
 
     /**
@@ -95,9 +109,19 @@ final class OidcClientController
      */
     public function update(string $id, Request $request): Response
     {
+        $expectation = $this->requireMutationExpectation($request);
+        if ($expectation instanceof Response) {
+            return $expectation;
+        }
+
         $client = $this->loadOrFail($id);
         if ($client === null) {
             return $this->notFound($id);
+        }
+
+        $conflict = $this->applyMutationExpectation($client, $expectation);
+        if ($conflict !== null) {
+            return $conflict;
         }
 
         $body = $this->parseBody($request);
@@ -106,22 +130,40 @@ final class OidcClientController
         }
 
         $this->hydrateFromBody($client, $body);
-        $this->repository()->save($client);
+        try {
+            $this->repository()->save($client);
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflict();
+        }
 
-        return new JsonResponse(['data' => $this->serialize($client)]);
+        return $this->clientResponse($client);
     }
 
     /**
      * DELETE /api/oidc-clients/{id} — delete a client.
      */
-    public function delete(string $id): Response
+    public function delete(string $id, Request $request): Response
     {
+        $expectation = $this->requireMutationExpectation($request);
+        if ($expectation instanceof Response) {
+            return $expectation;
+        }
+
         $client = $this->loadOrFail($id);
         if ($client === null) {
             return $this->notFound($id);
         }
 
-        $this->repository()->delete($client);
+        $conflict = $this->applyMutationExpectation($client, $expectation);
+        if ($conflict !== null) {
+            return $conflict;
+        }
+
+        try {
+            $this->repository()->delete($client);
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflict();
+        }
 
         return new Response('', 204);
     }
@@ -153,14 +195,16 @@ final class OidcClientController
      */
     private function serialize(OidcClient $client): array
     {
+        $registration = $this->systemReader->registration($client);
+
         return [
             'id' => (string) $client->id(),
             'client_id' => $client->getClientId(),
-            'name' => $client->getName(),
-            'redirect_uris' => $client->getRedirectUris(),
-            'scopes' => $client->getScopes(),
-            'grant_types' => $client->getGrantTypes(),
-            'is_confidential' => $client->isConfidential(),
+            'name' => $registration->name,
+            'redirect_uris' => $registration->redirectUris,
+            'scopes' => $registration->scopes,
+            'grant_types' => $registration->grantTypes,
+            'is_confidential' => $registration->confidential,
             // client_secret intentionally absent from index/show
         ];
     }
@@ -227,6 +271,74 @@ final class OidcClientController
         $decoded = json_decode($content, true);
 
         return is_array($decoded) ? $decoded : null;
+    }
+
+    private function requireMutationExpectation(Request $request): EntityMutationToken|Response
+    {
+        $ifMatch = $request->headers->get('If-Match');
+        if ($ifMatch === null || trim($ifMatch) === '') {
+            return $this->jsonApiResponse(428, JsonApiDocument::fromErrors([
+                new JsonApiError(
+                    status: '428',
+                    title: 'Precondition Required',
+                    detail: 'Existing-entity mutation requires exactly one strong If-Match value from the loaded resource.',
+                    code: 'MUTATION_PRECONDITION_REQUIRED',
+                ),
+            ], statusCode: 428)->toArray());
+        }
+
+        try {
+            return EntityMutationToken::fromHttpIfMatch(trim($ifMatch));
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonApiResponse(400, JsonApiDocument::fromErrors([
+                new JsonApiError(
+                    status: '400',
+                    title: 'Bad Request',
+                    detail: $exception->getMessage(),
+                    code: 'INVALID_MUTATION_PRECONDITION',
+                ),
+            ], statusCode: 400)->toArray());
+        }
+    }
+
+    private function applyMutationExpectation(OidcClient $client, EntityMutationToken $expected): ?Response
+    {
+        $current = $client->mutationToken();
+        if ($expected->entityTypeId !== 'oidc_client'
+            || $expected->entityId !== (string) $client->id()
+            || $current === null
+            || !hash_equals($current->toOpaqueString(), $expected->toOpaqueString())
+        ) {
+            return $this->mutationConflict();
+        }
+        $client->_hydrateMutationToken($expected);
+
+        return null;
+    }
+
+    private function mutationConflict(): Response
+    {
+        return $this->jsonApiResponse(412, JsonApiDocument::fromErrors([
+            new JsonApiError(
+                status: '412',
+                title: 'Precondition Failed',
+                detail: 'The resource changed after the supplied mutation precondition was observed.',
+                code: 'MUTATION_PRECONDITION_FAILED',
+            ),
+        ], statusCode: 412)->toArray());
+    }
+
+    private function clientResponse(OidcClient $client, int $status = 200): JsonResponse
+    {
+        $payload = ['data' => $this->serialize($client)];
+        $headers = [];
+        $token = $client->mutationToken();
+        if ($token !== null) {
+            $headers['ETag'] = $token->toStrongEtag();
+            $payload['meta'] = ['mutation_token' => $token->toOpaqueString()];
+        }
+
+        return new JsonResponse($payload, $status, $headers);
     }
 
     private function notFound(string $id): Response

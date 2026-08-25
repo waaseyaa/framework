@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Breaking (alpha) — purpose-built OIDC client PATCH/DELETE now require
+  `If-Match` (#2493):** `PATCH` and `DELETE /api/oidc-clients/{id}` previously
+  accepted mutations with no precondition while the auto-generated
+  `/api/oidc_client/{id}` JSON:API route already returned 428. The dedicated
+  admin route now uses the same `EntityMutationToken` fence and JSON:API
+  error envelope as `JsonApiRouter`: missing `If-Match` is **428**
+  `MUTATION_PRECONDITION_REQUIRED`, malformed/weak/list/`*` validators are
+  **400** `INVALID_MUTATION_PRECONDITION`, and a valid but stale token is
+  **412** `MUTATION_PRECONDITION_FAILED` with no write. Authorized
+  `GET /api/oidc-clients/{id}` emits the current token as a strong `ETag`
+  and `meta.mutation_token`. Alpha clients that PATCHed or DELETEd OIDC
+  clients without `If-Match` will start receiving 428. Revertible; no stored
+  token format change.
+
 - **Fixed — `saveMany()` mixed create/update batches mis-attributed audit
   actions and skipped thread owner bootstrap (#1856):** PRE_SAVE now
   dispatches per entity inside the batch transaction while POST_SAVE stays

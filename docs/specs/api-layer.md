@@ -1,5 +1,13 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-24 - #2493: purpose-built `PATCH|DELETE /api/oidc-clients/{id}`
+now requires the same strong aggregate `If-Match` fence as `JsonApiRouter`
+(`MUTATION_PRECONDITION_REQUIRED` 428, `INVALID_MUTATION_PRECONDITION` 400,
+`MUTATION_PRECONDITION_FAILED` 412, JsonApiDocument envelope). Authorized
+`GET /api/oidc-clients/{id}` emits the current token as `ETag` plus
+`meta.mutation_token`. Tokens are derived per request from loaded entity
+state. The auto-generated `/api/oidc_client/{id}` surface already enforced
+this fence; both mutation surfaces now agree. -->
 <!-- Spec reviewed 2026-08-15 - S1-FW-CFG-04: the JWKS endpoint's response is
 now governed by the OIDC signing-key lifecycle. `JwksDocumentBuilder` publishes
 only keys whose lifecycle state can verify (revoked keys are excluded) and
@@ -550,7 +558,14 @@ it implements no conflict check of its own.
 > compatibility input for the narrower historical revision-head contract; it
 > is not a substitute for the aggregate precondition. Because
 > `WaaseyaaContext` does not carry headers, the public HTTP router parses and
-> validates `If-Match` before dispatching to `JsonApiController`.
+> validates `If-Match` before dispatching to `JsonApiController`. The
+> purpose-built admin OIDC client controller (`PATCH|DELETE /api/oidc-clients/{id}`)
+> applies the same `EntityMutationToken::fromHttpIfMatch()` policy and the
+> same JSON:API error codes before load, so a missing precondition cannot
+> distinguish an unknown id from an existing one. Authorized
+> `GET /api/oidc-clients/{id}` returns the current token as a strong `ETag`
+> and `meta.mutation_token`. The auto-generated `/api/oidc_client/{id}`
+> JSON:API route remains fenced by `JsonApiRouter`; the two surfaces agree.
 
 **Historical revision-head seam.** The optional revision expectation rides the
 PATCH body:
