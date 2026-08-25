@@ -96,6 +96,72 @@ that the requested revision is still the working copy before issuing and
 auditing the grant. The application preview route must load that exact revision;
 loading whichever working copy happens to be current is not compliant.
 
+#### Read authorization
+
+The six read operations — `list()`, `get()`, `revisions()`, `revision()`,
+`preview()`, `previewRevision()` — are **not** capability-only. The publish
+capability is a coarse editorial credential; on its own it cannot substitute for
+the per-entity decision, because a namespace-scoped authoring credential
+necessarily covers entities a bundle- or entity-level policy is meant to
+restrict (framework #2516).
+
+- **Collections.** `list()` resolves its candidate window through the
+  access-checked query API — `EntityRepository::getQuery()->setAccount($actor)`
+  — which decides each candidate row against the bound principal and returns
+  only the surviving ids; only those ids are then hydrated with `findMany()`.
+  (The decision is made inside the query, which hydrates its candidate window
+  in order to evaluate the policy; nothing that fails the decision is
+  returned.) A refused row therefore reaches the caller in no form — not as
+  content, and not as cardinality, because the response carries no total or
+  cursor derived from the candidate set. A publisher composed with an access
+  handler therefore requires a query-capable (database-backed) repository:
+  `getQuery()` is the only path that can prove per-row viewability, and there
+  is deliberately no fallback to an unchecked read.
+- **Paging is not a cardinality signal.** SQL `LIMIT`/`OFFSET` bound the
+  candidate window **before** the per-row decision is applied, so a page can
+  come back short — or entirely empty — while viewable content exists beyond
+  that window. This is fail-closed and leaks nothing, but callers (agents
+  included) **must not** read an empty page as "no content": raise the limit or
+  advance the offset. `list()` deliberately exposes no total and no cursor, so
+  there is no exact-count guarantee to lean on.
+- **Single reads.** `get()` and `preview()` load the entity and require an
+  `Allowed` entity-level `view` decision.
+- **History.** `revisions()` and `revision()` apply a decision at the
+  **revision** level, through the handler's `view_revision` operation
+  (composed by `RevisionPolicyComposition`, which falls back to the
+  entity-level `view` decision when no policy expresses a revision-level
+  opinion). The decision is applied **before** any historical field data is
+  projected into the response: `revisions()` omits refused revisions,
+  `revision()` refuses outright.
+- **Revision-targeted operations carry the same revision fence.**
+  `previewRevision()` grants only the working copy (it asserts the supplied
+  revision id *is* the working copy), so the working copy's own
+  `view_revision` decision fences the grant; it is applied before the
+  revision-conflict assertion, so a refused principal never learns the current
+  revision id. `rollback()` is a mutation, but it copies the target revision's
+  stored content forward and returns it — a read of that revision — so it too
+  requires `view_revision` on the target. Both refuse as `NOT_FOUND` for the
+  requested revision, exactly as `revision()` does. Neither fence changes the
+  behaviour for a target revision that simply does not exist.
+- **Refusal is not an oracle.** Every refusal raises exactly what absence
+  raises: `ContentNotFoundException`, code `NOT_FOUND`, identical message. A
+  distinct `UNAUTHORIZED` outcome would let a caller enumerate content it may
+  not see.
+- **Composed without an access handler**, the publisher has no entity-level
+  decision authority and the capability gate remains the only authority — the
+  same rule the create/update gates already follow.
+
+**Deliberate carve-out — `assertSlugFree()`.** The slug-uniqueness pre-check
+keeps reading through the **non-access-checked** repository path. It is not a
+read of user-visible content: nothing from the conflicting row reaches the
+caller, only the fact that the slug is taken. Routing it through the
+access-checked query would hide the conflicting row from an unprivileged caller
+and let them create a colliding slug, so two rows would share one slug and the
+app's slug route would resolve to whichever row storage happened to return. The
+carve-out is pinned by
+`ContentPublisherReadAccessTest::slug_uniqueness_still_sees_entities_the_caller_may_not_view()`
+and must not be converted in a later sweep.
+
 All mutations require: (1) the descriptor's `publishCapability` on the acting principal (`AccountInterface::hasPermission`), (2) the entity-level gate (`EntityAccessHandler` create/update) — defense in depth, (3) a non-empty **idempotency key**, (4) validation + sanitization pass. Every mutation stamps `revision_log` and cuts a revision (repository semantics); actor comes from the ambient `AccountContextInterface` (already scoped by the MCP endpoint).
 
 Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.
@@ -104,12 +170,12 @@ Publisher reads and mutation responses expose only a closed projection fixed by 
 
 | Method | Semantics |
 |---|---|
-| `list(query)` / `get(idOrSlug)` / `revisions(id)` | Reads via repository + access filter; `get` returns `revision_id` (the concurrency token) and full payload. |
+| `list(query)` / `get(idOrSlug)` / `revisions(id)` / `revision(id, revisionId)` / `preview(idOrSlug)` / `previewRevision(idOrSlug, revisionId)` | Capability **and** per-entity access decision (see "Read authorization" above); `get` returns `revision_id` (the concurrency token) and full payload. |
 | `createDraft(values, idemKey)` | `status=false` forced; slug required + unique (bundle-scoped query); returns id + revision_id. Draft is never public. |
 | `updateDraft(id, values, expectedRevisionId, idemKey)` | Optimistic concurrency via `SaveContext::withExpectedRevisionId` → `RevisionConflictException` maps to a structured `REVISION_CONFLICT` error carrying expected/current. Slug change re-checked for uniqueness. |
 | `publish(id, expectedRevisionId, idemKey, note)` | Optimistically guarded publication. Workflow-bound content uses the canonical transition to a published default revision; unbound content uses one revision-cutting save setting `status=true`. Listings/search/render-cache update via the existing POST_SAVE listeners (best-effort, outside the write transaction — publish never blocks on ingestion). |
 | `unpublish(id, expectedRevisionId, idemKey, note)` | Optimistically guarded unpublication. Workflow-bound content uses the canonical transition to an unpublished default revision; unbound content saves `status=false`. Record and full history are preserved. |
-| `rollback(id, targetRevisionId, idemKey, note)` | `EntityRepository::rollback()` — a NEW revision restoring the target; history never deleted. Publication status is DELIBERATELY untouched (framework rollback never moves `status`/pointers — CW-v1 decision 2); restoring a published look requires an explicit `publish()` after rollback. |
+| `rollback(id, targetRevisionId, idemKey, note)` | `EntityRepository::rollback()` — a NEW revision restoring the target; history never deleted. The target revision must satisfy `view_revision` for the acting principal (see "Read authorization" above): rollback returns the restored content, so it is a read of that revision. Publication status is DELIBERATELY untouched (framework rollback never moves `status`/pointers — CW-v1 decision 2); restoring a published look requires an explicit `publish()` after rollback. |
 
 Sanitization is **lossy-at-input by design** for this surface (unlike the read-boundary `RichTextSanitizer`): HTML fields are sanitized against the descriptor's allowlist *before* persistence, so unsanitized markup never enters storage from an agent. (The read boundary still sanitizes on output; belt and braces.)
 
