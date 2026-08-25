@@ -24,6 +24,7 @@ use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
+use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceRequest;
 use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Entity\ContentEntityBase;
@@ -693,6 +694,171 @@ final class AdminSurfaceServiceProviderTest extends TestCase
             $envelope,
             json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
         );
+    }
+
+    /**
+     * Coverage-bearing companion for the page-builder promotion (#2409).
+     *
+     * The seven-route end-to-end matrix lives in
+     * `tests/Integration/AdminSurface/PageBuilderRefusalWireStatusTest`, but
+     * integration tests are `#[CoversNothing]` by repository convention and so
+     * contribute no coverage. These cases keep the promotion branch covered by a
+     * test that carries real coverage metadata, using the same discipline:
+     * registered route closures through a real dispatcher, no reflection.
+     */
+    #[Test]
+    public function refusedPageBuilderRequestsCarryTheirStatusOnTheWire(): void
+    {
+        $envelope = AdminSurfaceResultData::error(403, 'Page builder access denied')->toArray();
+
+        $response = $this->dispatchPageBuilderRoute(
+            $envelope,
+            'admin_surface.page_builder.definitions',
+            ['surface' => 'pages'],
+        );
+
+        self::assertSame(403, $response->getStatusCode());
+        self::assertSame('application/vnd.api+json', $response->headers->get('Content-Type'));
+        self::assertSame(
+            json_encode($envelope, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+            $response->getContent(),
+        );
+    }
+
+    /**
+     * `428` is the #2475 save-advisory review, the refusal the SPA reads the
+     * most machine detail out of, so it is the one worth pinning here.
+     */
+    #[Test]
+    public function heldLayoutSavesReachTheClientAsARealPreconditionRequired(): void
+    {
+        $envelope = AdminSurfaceResultData::error(428, 'Precondition Required', 'Review this edit.')->toArray();
+
+        $response = $this->dispatchPageBuilderRoute(
+            $envelope,
+            'admin_surface.page_builder.command',
+            ['surface' => 'pages', 'id' => '42'],
+            'POST',
+        );
+
+        self::assertSame(428, $response->getStatusCode());
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(428, $body['error']['status']);
+        self::assertArrayNotHasKey('statusCode', $body, 'The transport key must not leak into the envelope');
+    }
+
+    #[Test]
+    public function successfulPageBuilderOperationsAreLeftAtHttpOk(): void
+    {
+        $envelope = AdminSurfaceResultData::success(['definitions' => []])->toArray();
+
+        $response = $this->dispatchPageBuilderRoute(
+            $envelope,
+            'admin_surface.page_builder.definitions',
+            ['surface' => 'pages'],
+        );
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(
+            json_encode($envelope, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+            $response->getContent(),
+        );
+    }
+
+    /**
+     * `PageBuilderSurfaceHostInterface` types its handlers as bare
+     * `array<string, mixed>`, so a third-party host can return an envelope whose
+     * `error.status` is not a promotable 400-599 integer. Passing that through
+     * would reach the `Response` constructor and turn a clean refusal into a
+     * 500, so it must retain the prior behaviour instead.
+     */
+    #[Test]
+    public function pageBuilderRefusalsWithAnUnpromotableStatusRetainTheirPreviousBehaviour(): void
+    {
+        $envelope = ['ok' => false, 'error' => ['status' => '403', 'title' => 'Page builder access denied']];
+
+        $response = $this->dispatchPageBuilderRoute(
+            $envelope,
+            'admin_surface.page_builder.draft',
+            ['surface' => 'pages', 'id' => '42'],
+        );
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(
+            $envelope,
+            json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * Drive a registered page-builder route closure through a real dispatcher.
+     *
+     * @param array<string, mixed>  $envelope   Answered by every handler on the fake host.
+     * @param array<string, string> $routeParams
+     */
+    private function dispatchPageBuilderRoute(
+        array $envelope,
+        string $routeName,
+        array $routeParams = [],
+        string $method = 'GET',
+    ): Response {
+        $router = new WaaseyaaRouter(new RequestContext('', $method));
+        AdminSurfaceServiceProvider::registerPageBuilderRoutes($router, $this->createPageBuilderHost($envelope));
+
+        $route = $router->getRouteCollection()->get($routeName);
+        self::assertNotNull($route);
+
+        $request = Request::create('/', $method);
+        $request->attributes->set('_controller', $route->getDefault('_controller'));
+        foreach ($routeParams as $name => $value) {
+            $request->attributes->set($name, $value);
+        }
+
+        return new ControllerDispatcher([])->dispatch($request);
+    }
+
+    /** @param array<string, mixed> $envelope */
+    private function createPageBuilderHost(array $envelope): PageBuilderSurfaceHostInterface
+    {
+        return new class ($envelope) implements PageBuilderSurfaceHostInterface {
+            /** @param array<string, mixed> $envelope */
+            public function __construct(private readonly array $envelope) {}
+
+            public function handleDefinitions(PageBuilderSurfaceRequest $request, string $surface): array
+            {
+                return $this->envelope;
+            }
+
+            public function handleDraft(PageBuilderSurfaceRequest $request, string $surface, string $id): array
+            {
+                return $this->envelope;
+            }
+
+            public function handleCommand(PageBuilderSurfaceRequest $request, string $surface, string $id): array
+            {
+                return $this->envelope;
+            }
+
+            public function handlePreview(PageBuilderSurfaceRequest $request, string $surface, string $id): array
+            {
+                return $this->envelope;
+            }
+
+            public function handleHistory(PageBuilderSurfaceRequest $request, string $surface, string $id): array
+            {
+                return $this->envelope;
+            }
+
+            public function handleRevision(PageBuilderSurfaceRequest $request, string $surface, string $id, string $revision): array
+            {
+                return $this->envelope;
+            }
+
+            public function handleRestore(PageBuilderSurfaceRequest $request, string $surface, string $id): array
+            {
+                return $this->envelope;
+            }
+        };
     }
 
     /**

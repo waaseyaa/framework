@@ -360,33 +360,33 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $router->addRoute('admin_surface.page_builder.definitions', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DEFINITIONS)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $surface) => $host->handleDefinitions(self::pageBuilderRequest($request), $surface))
+            ->controller(fn($request, $surface) => self::pageBuilderResponse($host->handleDefinitions(self::pageBuilderRequest($request), $surface)))
             ->build());
 
         $router->addRoute('admin_surface.page_builder.command', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_COMMAND)
             ->methods('POST')
             ->requireAuthentication()
             ->requireCsrf()
-            ->controller(fn($request, $surface, $id) => $host->handleCommand(self::pageBuilderRequest($request), $surface, $id))
+            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleCommand(self::pageBuilderRequest($request), $surface, $id)))
             ->build());
 
         $router->addRoute('admin_surface.page_builder.preview', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_PREVIEW)
             ->methods('POST')
             ->requireAuthentication()
             ->requireCsrf()
-            ->controller(fn($request, $surface, $id) => $host->handlePreview(self::pageBuilderRequest($request), $surface, $id))
+            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handlePreview(self::pageBuilderRequest($request), $surface, $id)))
             ->build());
 
         $router->addRoute('admin_surface.page_builder.history', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_HISTORY)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $surface, $id) => $host->handleHistory(self::pageBuilderRequest($request), $surface, $id))
+            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleHistory(self::pageBuilderRequest($request), $surface, $id)))
             ->build());
 
         $router->addRoute('admin_surface.page_builder.revision', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_REVISION)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $surface, $id, $revision) => $host->handleRevision(self::pageBuilderRequest($request), $surface, $id, $revision))
+            ->controller(fn($request, $surface, $id, $revision) => self::pageBuilderResponse($host->handleRevision(self::pageBuilderRequest($request), $surface, $id, $revision)))
             ->requirement('revision', '[1-9][0-9]*')
             ->build());
 
@@ -394,14 +394,59 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             ->methods('POST')
             ->requireAuthentication()
             ->requireCsrf()
-            ->controller(fn($request, $surface, $id) => $host->handleRestore(self::pageBuilderRequest($request), $surface, $id))
+            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleRestore(self::pageBuilderRequest($request), $surface, $id)))
             ->build());
 
         $router->addRoute('admin_surface.page_builder.draft', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DRAFT)
             ->methods('GET')
             ->requireAuthentication()
-            ->controller(fn($request, $surface, $id) => $host->handleDraft(self::pageBuilderRequest($request), $surface, $id))
+            ->controller(fn($request, $surface, $id) => self::pageBuilderResponse($host->handleDraft(self::pageBuilderRequest($request), $surface, $id)))
             ->build());
+    }
+
+    /**
+     * Move a page-builder refusal's status onto the wire.
+     *
+     * Every `PageBuilderSurfaceHostInterface::handle*` method answers with the
+     * Admin Surface `{ok, data, error, meta}` envelope, and every refusal
+     * `GenericPageBuilderSurfaceHost` can produce is an
+     * `AdminSurfaceResultData::error()` array. Returned bare, all seven land on
+     * `ControllerDispatcher::handleCallable()`'s `statusCode ?? 200` default, so
+     * a 401/403/404/409/422/428/501 shipped as HTTP 200 and the real status was
+     * legible only inside the body (#2409, the page-builder half of #2161).
+     *
+     * The dispatcher's own `statusCode`/`body` contract carries the status. The
+     * body keeps the JSON:API media type and pretty-printing these routes have
+     * always emitted, unlike `surfaceResponse()`, which additionally converts
+     * the five `admin_surface.*` routes to a compact `application/json`
+     * document. Only the status line changes here.
+     *
+     * Only a genuine 400-599 integer is promoted. The interface types the
+     * handlers as bare `array<string, mixed>`, so a third-party host may return
+     * an envelope whose status is absent, a string, a float, or out of range;
+     * handing that to the dispatcher would reach the `Response` constructor and
+     * turn a clean refusal into a 500. An envelope that already carries its own
+     * `statusCode`/`body` transport keys is likewise left alone — the dispatcher
+     * already honours those. Anything unrecognised is returned untouched, so the
+     * response is byte-for-byte what it was before this promotion existed.
+     *
+     * @param  array<string, mixed> $envelope
+     * @return array<string, mixed>
+     */
+    private static function pageBuilderResponse(array $envelope): array
+    {
+        $status = $envelope['error']['status'] ?? null;
+        if (($envelope['ok'] ?? null) !== false
+            || !is_int($status)
+            || $status < 400
+            || $status > 599
+            || array_key_exists('statusCode', $envelope)
+            || array_key_exists('body', $envelope)
+        ) {
+            return $envelope;
+        }
+
+        return ['statusCode' => $status, 'body' => $envelope];
     }
 
     private static function pageBuilderRequest(Request $request): PageBuilderSurfaceRequest
