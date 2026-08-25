@@ -57,6 +57,7 @@ jobs:
           path: |
             packages/admin-surface/dist
             packages/admin-surface/dist.signature
+            packages/admin-surface/dist.manifest.json
           if-no-files-found: error
           retention-days: 1
 
@@ -87,7 +88,8 @@ jobs:
           set -euo pipefail
           test -d "$ARTIFACT_ROOT/dist"
           test -f "$ARTIFACT_ROOT/dist.signature"
-          test "$(find "$ARTIFACT_ROOT" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = 'dist dist.signature '
+          test -f "$ARTIFACT_ROOT/dist.manifest.json"
+          test "$(find "$ARTIFACT_ROOT" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = 'dist dist.manifest.json dist.signature '
           if find "$ARTIFACT_ROOT" ! -type d ! -type f -print -quit | grep -q .; then
             echo 'Artifact contains a non-regular filesystem entry.' >&2
             exit 1
@@ -96,6 +98,10 @@ jobs:
           rm -rf packages/admin-surface/dist
           cp -a "$ARTIFACT_ROOT/dist" packages/admin-surface/dist
           cp "$ARTIFACT_ROOT/dist.signature" packages/admin-surface/dist.signature
+          cp "$ARTIFACT_ROOT/dist.manifest.json" packages/admin-surface/dist.manifest.json
+          # The acceptance manifest must describe the bytes that just landed
+          # here, not the bytes some other tree produced (#2524).
+          php bin/admin-dist-acceptance verify
 
       - name: Commit rebuilt dist to the Dependabot branch
         id: commit
@@ -104,7 +110,7 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
-          git add packages/admin-surface/dist/ packages/admin-surface/dist.signature
+          git add packages/admin-surface/dist/ packages/admin-surface/dist.signature packages/admin-surface/dist.manifest.json
           if git diff --cached --quiet; then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
             exit 0

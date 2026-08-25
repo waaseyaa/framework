@@ -1,0 +1,61 @@
+{
+    "manifestVersion": 1,
+    "identityDigest": "cc8469c882b8af35198592514d06e7b1693f4113f74bb237b321a143278e73a3",
+    "identityExcludes": [
+        "acceptance"
+    ],
+    "release": {
+        "package": "waaseyaa/admin-surface",
+        "distPath": "dist",
+        "manifestPath": "dist.manifest.json",
+        "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
+    },
+    "source": {
+        "signature": "d9609917c7b6ffc728f9d1b2a78fef6da13568e0c2da933b21773fd7ee80d294",
+        "buildIdSignature": "3c57f1b0bf8e04fe78a4e42769b1145e6aa1882a4558c7d1be4a26d74711b1fa",
+        "buildId": "waaseyaa-3c57f1b0bf8e04fe78a4e42769b1145e"
+    },
+    "published": {
+        "treeDigest": "e46b6d90cd9b2070144e6216ccea5637bd96d1a80f08d1e50349d32959c0b9bb",
+        "fileCount": 98,
+        "byteCount": 590951
+    },
+    "markers": {
+        "version": 1,
+        "digest": "d2b9b6ac71e52f0dafbb256d4147b08552bf8692b326904d7157c589941b774f",
+        "ids": [
+            "admin-design-system-tokens",
+            "edit-busy-feedback",
+            "embed-lifecycle-v2",
+            "entity-editor-embed",
+            "mcp-approvals-decision-gate",
+            "mcp-approvals-page",
+            "mcp-approvals-route",
+            "page-builder-embed",
+            "structured-editor-fields",
+            "task-oriented-form-sections",
+            "wayfinding-anchors",
+            "wayfinding-beacon-overlay"
+        ]
+    },
+    "acceptance": {
+        "builds": 2,
+        "reproducible": true,
+        "intermediate": {
+            "root": "packages/admin/.output",
+            "artifactCount": 99,
+            "inventoryDigest": "1a4fca6b448b7adbf9a9eeb7c47148a4144c33039050f26ec11b52b62f3bcc70"
+        },
+        "previousPublishedTreeDigest": "e46b6d90cd9b2070144e6216ccea5637bd96d1a80f08d1e50349d32959c0b9bb",
+        "changed": {
+            "added": [],
+            "modified": [],
+            "removed": []
+        },
+        "toolchain": {
+            "nodePin": "24",
+            "nodeRuntime": "v24.19.0",
+            "npmRuntime": "11.17.0"
+        }
+    }
+}

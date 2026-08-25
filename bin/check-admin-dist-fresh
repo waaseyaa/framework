@@ -76,6 +76,7 @@ function computeAdminSourceSignature(string $root): string
     // policy changes, but it is intentionally excluded from the emitted Nuxt
     // build ID so a policy-only change does not rewrite every HTML file.
     $procedureFiles = [
+        'bin/admin-dist-acceptance',
         'bin/build-admin-dist',
         'bin/check-admin-dist-fresh',
         'bin/normalize-admin-dist',

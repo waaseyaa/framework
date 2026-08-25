@@ -40,6 +40,58 @@ SPA behavior, including `x-list-display`.
 4. The cross-boundary integration tests will pick up the new field automatically.
 5. If `docs/specs/admin-spa.md` references the field, update it to use the same name and casing.
 
+## Accepting a released Admin bundle (installation contract)
+
+The pre-built SPA that ships in this package is generated output. A consuming
+distribution should not trust it because a branch said so — it should verify the
+bytes it actually installed against the manifest that travels inside the same
+release.
+
+`dist.manifest.json` (`manifestVersion: 1`) ships beside `dist/` and is the
+authoritative description of the published tree:
+
+| Field | Meaning |
+|---|---|
+| `release.package` | Always `waaseyaa/admin-surface`. |
+| `release.distPath` | Directory the digest describes, relative to this package (`dist`). |
+| `published.treeDigest` | SHA-256 over the sorted `path\0size\0sha256` roster of every file under `dist/`. |
+| `published.fileCount` / `published.byteCount` | Counts for the **published** tree only. |
+| `source.signature` | The D6 admin-source content signature; equals the committed `dist.signature`. |
+| `source.buildId` | The deterministic Nuxt build identity compiled into the bundle. |
+| `markers.digest` / `markers.ids` | The declared source-contract markers the bundle is required to contain. |
+| `identityDigest` | SHA-256 over the whole manifest except itself and every key in `identityExcludes`. |
+| `identityExcludes` | Exactly `["acceptance"]` — see below. |
+| `acceptance` | Evidence, **not** identity: build count, reproducibility verdict, the broader intermediate `packages/admin/.output` artifact count and digest, the previous published digest, the added/modified/removed path inventory, and the exact Node/npm runtime. |
+
+**Consumer procedure.** Pin `waaseyaa/admin-surface` to a Framework release in
+`composer.json` as usual, then, after `composer install`:
+
+1. Read `vendor/waaseyaa/admin-surface/dist.manifest.json`.
+2. Recompute `identityDigest` over the document with `identityDigest` and every
+   `identityExcludes` key removed, canonicalised with recursively key-sorted
+   objects (lists keep their order). Reject a mismatch — the manifest was
+   hand-edited.
+3. Walk `vendor/waaseyaa/admin-surface/dist`, build the sorted
+   `path\0size\0sha256` roster, SHA-256 it, and require the result to equal
+   `published.treeDigest`.
+4. Record `published.treeDigest` in your own installation contract.
+
+Because the manifest is inside the installed package, the identity you record
+comes from the **release tag** you resolved, not from a candidate branch. Never
+copy a digest out of an in-flight Framework PR: a candidate branch's bytes are
+not the released bytes, and the manifest is the only thing that makes the
+difference checkable.
+
+`acceptance` is deliberately outside the identity digest because it carries the
+exact toolchain patch versions and the transition record of the run that last
+changed the tree. Two machines on different Node 24 patch releases publishing
+the same bytes agree on identity; do not pin on anything inside `acceptance`.
+
+Framework side, the manifest is produced only by `bin/build-admin-dist` (the one
+canonical combined-source rebuild + acceptance operation) and re-verified in
+blocking CI by `bin/admin-dist-acceptance verify`. See
+`docs/specs/admin-spa.md` § "Pre-built SPA distribution".
+
 ## Naming convention
 
 Payload keys are **camelCase** in both the TypeScript contract and the PHP emit (`emailVerified`, `requireVerifiedEmail`, `description`). Do not introduce snake_case variants. The audit (#851) flagged exactly this kind of split — a third vocabulary in the spec contradicting the contract — and the fix is to keep this package as the single source and align everything else to it.

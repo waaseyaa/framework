@@ -47,10 +47,14 @@ jobs:
       - name: Install PHP build runtime
         run: composer install --no-interaction --prefer-dist --no-progress --no-scripts --no-plugins
 
-      # Single reproducible step (npm ci + generate + copy + freshness signature)
-      # so the committed dist and packages/admin-surface/dist.signature stay in
-      # lockstep with the admin source (D6 / check-admin-dist-fresh gate).
-      - name: Build admin SPA dist (+ freshness signature)
+      # The ONE canonical combined-source rebuild + acceptance operation (#2524):
+      # boundary guard, two independent Node 24 builds required to be
+      # byte-identical, wholesale replacement with a proven obsolete-path removal
+      # inventory, source-contract marker enforcement, then dist.signature and
+      # the versioned dist.manifest.json. Keeps the committed dist, its signature
+      # and its acceptance manifest in lockstep with the admin source
+      # (D6 / check-admin-dist-fresh + check-admin-dist-manifest gates).
+      - name: Build admin SPA dist (+ freshness signature and acceptance manifest)
         run: |
           NODE_BINARY="$(command -v node)"
           NPM_BINARY="$(realpath "$(command -v npm)")"
@@ -61,8 +65,8 @@ jobs:
       - name: Check for changes
         id: diff
         run: |
-          git add packages/admin-surface/dist/ packages/admin-surface/dist.signature
-          if git diff --cached --quiet packages/admin-surface/dist/ packages/admin-surface/dist.signature; then
+          git add packages/admin-surface/dist/ packages/admin-surface/dist.signature packages/admin-surface/dist.manifest.json
+          if git diff --cached --quiet packages/admin-surface/dist/ packages/admin-surface/dist.signature packages/admin-surface/dist.manifest.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -116,6 +120,7 @@ jobs:
 
           ## Test plan
 
+          - [ ] \`php bin/admin-dist-acceptance verify\` is green on the pushed head
           - [ ] Verify \`packages/admin-surface/dist/index.html\` exists and is valid HTML
           - [ ] \`composer create-project\` install serves \`/admin\` from vendor dist
           - [ ] \`/admin/_surface/*\` API endpoints still work

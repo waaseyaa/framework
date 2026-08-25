@@ -21,6 +21,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clients without `If-Match` will start receiving 428. Revertible; no stored
   token format change.
 
+- **Tooling — the Admin dist combined-source rebuild and its acceptance are now
+  one deterministic operation (#2524):** Admin-source branches commit generated
+  `packages/admin-surface/dist` output, so every transplant across another Admin
+  change conflicted in many hashed chunks and agents kept rediscovering that the
+  repair is to discard BOTH generated sides and rebuild from combined source.
+  `bin/build-admin-dist` is now that whole procedure and the only supported way
+  to change a byte under `dist/`. It refuses an ambiguous starting boundary
+  (unmerged index entries, unresolved conflict markers, an untracked file under
+  `packages/admin/app`, a partially staged `dist/`, a `dist.signature` without
+  its tree) via the new `AdminDistWorkspaceGuard`; refuses any runtime whose
+  major is not the `.nvmrc` pin; builds **twice** in independent disposable
+  snapshot directories and refuses a single snapshot presented twice or a pair
+  whose published trees are not byte-identical; replaces the committed tree
+  **wholesale** and re-checks on disk that every obsolete path is gone; and
+  requires every declared source-contract marker in the new
+  `packages/admin-surface/dist.markers.json` to be present in the compiled
+  bundle before anything is published. It then emits the new versioned
+  `packages/admin-surface/dist.manifest.json` (`manifestVersion: 1`) recording
+  the source signature, build-id signature and Nuxt build identity, the
+  published tree digest with file and byte counts, the marker roster digest and
+  ids, and — in an evidence-only `acceptance` section excluded from
+  `identityDigest` — the build count, reproducibility verdict, the broader
+  **intermediate** `packages/admin/.output` artifact count and digest, the
+  previous published digest, the added/modified/removed path inventory, and the
+  exact Node/npm runtime. Published and intermediate output are never
+  conflated. Because the excluded section holds the volatile provenance, a
+  re-run on identical input produces zero diff and leaves the committed manifest
+  byte-unchanged. The manifest ships inside `waaseyaa/admin-surface` beside the
+  tree it describes, so a downstream distribution accepts exact **released**
+  bytes by scanning `vendor/waaseyaa/admin-surface/dist` against
+  `published.treeDigest` from the installed package instead of copying a
+  candidate-branch hash (procedure in
+  `packages/admin-surface/contract/README.md`). New blocking gate
+  `check-admin-dist-manifest` (`php bin/admin-dist-acceptance verify`) re-derives
+  every manifest claim from committed bytes with no Node toolchain and is wired
+  into `composer verify`, `tools/preflight-gates.json`, and `ci/verify-gates`;
+  `check-admin-dist-fresh` is unchanged and remains the authoritative D6
+  staleness gate. Verified end to end: two independent Node 24.19.0 builds
+  produced byte-identical published trees and the rebuilt bundle is byte-for-byte
+  the committed one (`+0 added, ~0 modified, -0 removed`); only
+  `dist.signature` advanced, because the procedure roster it covers now includes
+  `bin/admin-dist-acceptance`.
+
 - **Fixed — `saveMany()` mixed create/update batches mis-attributed audit
   actions and skipped thread owner bootstrap (#1856):** PRE_SAVE now
   dispatches per entity inside the batch transaction while POST_SAVE stays

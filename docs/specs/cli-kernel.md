@@ -16,6 +16,8 @@
 
 <!-- Spec reviewed 2026-07-14 - R21 WP6 (#2010): queue:retry now shares FailedJobRepositoryInterface's atomic retry claim with the HTTP API. A claim loser exits 1 without dispatching; dispatch exceptions release the claim; successful dispatch forgets the row. Command parsing, IO, and registration contracts are unchanged. -->
 
+<!-- Spec reviewed 2026-08-24 - #2524: packages/cli/src/AdminBuild/ hosts REPOSITORY BUILD TOOLING, not console commands. Only HermeticAdminBuildPipeline is reachable from a console command (admin:build via AdminBuildHandler); the AdminDist* classes (AdminDistWorkspaceGuard, AdminDistTreeInventory, AdminDistSourceMarkerPolicy, AdminDistAcceptance, AdminDistAcceptanceManifest, AdminDistAcceptanceVerifier, AdminDistAcceptanceResult, AdminDistAcceptanceException) are invoked exclusively by the repo-root bin entrypoints bin/build-admin-dist and bin/admin-dist-acceptance, which sit outside the analysed package path set and outside command discovery. They register no command, participate in no provider, and are marked @api for that reason. Their behavioural contract is owned by docs/specs/admin-spa.md, not by this spec; nothing here changes command parsing, discovery, IO, or exit codes. -->
+
 ## Purpose
 
 `packages/cli/` provides the Symfony Console based command-line interface for Waaseyaa applications. The CLI entry point boots the Waaseyaa Foundation console kernel, constructs a `Symfony\Component\Console\Application`, registers framework and app commands from service providers, and delegates command parsing, help rendering, input/output handling, and execution to Symfony Console.
