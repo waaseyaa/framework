@@ -156,13 +156,11 @@ final class JsonApiController
                     && !$this->queryFieldForbidden($entity, $gatedQueryFields),
             );
             // meta.total must reflect the access-filtered total ACROSS all
-            // pages, not the size of the current page. The storage COUNT alone
-            // is the wrong source here: the query layer drops only Forbidden
-            // rows (open-by-default), whereas the collection contract is
-            // deny-by-default (isAllowed), so Neutral rows would inflate it.
-            // Recompute the true total by re-running the filter set without
-            // pagination and counting rows this account may actually view AND
-            // whose filter/sort fields it may read (R14).
+            // pages, not the size of the current page. The storage query already
+            // applies deny-by-default entity access; this second pass is still
+            // required because the collection contract also excludes entities
+            // whose filter/sort fields the account may not read (R14).
+            // Recompute the true total without pagination using both gates.
             $total = $this->accessFilteredTotal($repository, $parsedQuery, $gatedQueryFields);
         }
 
@@ -213,9 +211,9 @@ final class JsonApiController
      *
      * This applies the SAME `isAllowed()` predicate as the per-page filter in
      * {@see index()} (and as {@see show()}), so meta.total is consistent with
-     * the data the consumer receives over successive pages — never the page
-     * size, never the open-by-default storage COUNT. Filters only: sorts and
-     * pagination are intentionally omitted.
+     * the data the consumer receives over successive pages — never merely the
+     * page size or a count that omits the R14 field-read gate. Filters only:
+     * sorts and pagination are intentionally omitted.
      *
      * Only invoked when both an access handler and an account are bound; the
      * system / no-account path keeps the storage COUNT computed in index().

@@ -527,6 +527,12 @@ interface EntityQueryInterface
 }
 ```
 
+With access checking enabled, a bound account is required and only rows whose
+entity-level `view` decision is `Allowed` survive. `range(offset, limit)` is
+then applied to that authorized result: offset counts survivors and the page is
+dense until the authorized result is exhausted. Explicit `accessCheck(false)`
+system-context queries retain raw storage `LIMIT/OFFSET` behavior.
+
 ### RevisionableStorageInterface
 
 File: `packages/entity/src/Storage/RevisionableStorageInterface.php`
@@ -1352,7 +1358,12 @@ LIKE wildcard escaping: `str_replace(['%', '_'], ['\\%', '\\_'], $value)` before
 
 Count mode: `count()` switches `execute()` to return `[(int) $count]` instead of IDs.
 
-`accessCheck()` is a no-op in v0.1.0.
+`accessCheck(true)` is the default and requires `setAccount()` before execution.
+The query hydrates candidates, applies the deny-by-default entity policy, and
+returns only authorized IDs; `count()` reports that post-policy cardinality.
+For ranged queries the policy decision precedes offset/limit slicing, so
+inaccessible candidates do not consume observable ranks. `accessCheck(false)`
+is the audited system-context bypass and keeps SQL count and range fast paths.
 
 **Memoization**: When a `SqlEntityQueryResultCache` is provided, `execute()` fingerprints conditions, sorts, range, and count mode (`xxh128` of a normalized payload), stores `{entityTypeId, fingerprint} → result`, and returns cached ID lists or `[(int)count]` on hits. There is no cross-table invalidation: cache entries for a type are dropped only when that type’s `SqlEntityStorage` completes `save()` or `delete()` that performs a write.
 
