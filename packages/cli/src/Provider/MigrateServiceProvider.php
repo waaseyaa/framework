@@ -30,9 +30,9 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 final class MigrateServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     /**
-     * Memoised migration runtime: [Migrator, MigrationRepository, MigrationLoader, Connection].
+     * Memoised migration runtime: [Migrator, MigrationRepository, MigrationLoader, Connection, database path].
      *
-     * @var array{0: Migrator, 1: MigrationRepository, 2: MigrationLoader, 3: Connection}|null
+     * @var array{0: Migrator, 1: MigrationRepository, 2: MigrationLoader, 3: Connection, 4: string}|null
      */
     private ?array $runtime = null;
 
@@ -65,7 +65,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
         // sequences that and the initial activation, which closes the lifecycle
         // transition a fresh site was missing.
         $this->singleton(InstallInitHandler::class, function (): InstallInitHandler {
-            [$migrator, , $loader, ] = $this->migrationRuntime();
+            [$migrator, , $loader, , $databasePath] = $this->migrationRuntime();
             $entityTypeManager = $this->resolve(\Waaseyaa\Entity\EntityTypeManager::class);
             $database = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
             assert($entityTypeManager instanceof \Waaseyaa\Entity\EntityTypeManager);
@@ -88,6 +88,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
                 activator: $activator,
                 genesis: $genesis,
                 authority: $authority,
+                databasePath: $databasePath,
             );
         });
 
@@ -121,7 +122,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
      * Build (once) the migration runtime against the app's SQLite database,
      * mirroring DbInitHandler / AbstractKernel::bootMigrations().
      *
-     * @return array{0: Migrator, 1: MigrationRepository, 2: MigrationLoader, 3: Connection}
+     * @return array{0: Migrator, 1: MigrationRepository, 2: MigrationLoader, 3: Connection, 4: string}
      */
     private function migrationRuntime(): array
     {
@@ -149,7 +150,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
 
         $migrator = new Migrator($connection, $repository);
 
-        return $this->runtime = [$migrator, $repository, $loader, $connection];
+        return $this->runtime = [$migrator, $repository, $loader, $connection, $dbPath];
     }
 
     /**

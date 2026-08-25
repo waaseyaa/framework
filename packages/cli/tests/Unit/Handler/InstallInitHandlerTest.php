@@ -30,6 +30,8 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 #[CoversClass(InstallInitHandler::class)]
 final class InstallInitHandlerTest extends TestCase
 {
+    private const string DATABASE_PATH = '/srv/waaseyaa/storage/site.sqlite';
+
     private ConfigurationAuthorityContext $authority;
 
     private string $syncPath;
@@ -64,6 +66,7 @@ final class InstallInitHandlerTest extends TestCase
             activator: $this->activator(null, null),
             genesis: $this->genesisActivator($this->token()),
             authority: $this->authority,
+            databasePath: self::DATABASE_PATH,
         )->execute($io);
 
         self::assertSame("existing\n", file_get_contents($this->syncPath . '/system.site.yml'));
@@ -86,6 +89,7 @@ final class InstallInitHandlerTest extends TestCase
             activator: $this->activator(null, null),
             genesis: $this->genesisActivator($this->token()),
             authority: $this->authority,
+            databasePath: self::DATABASE_PATH,
         )->execute($io);
 
         self::assertSame(0, $exit, 'A surprising sync path must not block installation.');
@@ -106,6 +110,7 @@ final class InstallInitHandlerTest extends TestCase
             activator: $this->activator(null, null),
             genesis: $genesis,
             authority: $this->authority,
+            databasePath: self::DATABASE_PATH,
         )->execute($io);
 
         self::assertSame(0, $exit);
@@ -131,6 +136,7 @@ final class InstallInitHandlerTest extends TestCase
             activator: $this->activator(null, null),
             genesis: $genesis,
             authority: $this->authority,
+            databasePath: self::DATABASE_PATH,
         )->execute($io);
 
         self::assertSame(0, $exit);
@@ -152,6 +158,7 @@ final class InstallInitHandlerTest extends TestCase
             activator: $this->activator($this->token(), null),
             genesis: $genesis,
             authority: $this->authority,
+            databasePath: self::DATABASE_PATH,
         )->execute($io);
 
         self::assertSame(0, $exit);
@@ -176,6 +183,7 @@ final class InstallInitHandlerTest extends TestCase
             activator: $this->activator(null, $committed),
             genesis: $genesis,
             authority: $this->authority,
+            databasePath: self::DATABASE_PATH,
         )->execute($io);
 
         self::assertSame(1, $exit, 'Contradictory partial state must refuse, not activate.');
@@ -209,7 +217,6 @@ final class InstallInitHandlerTest extends TestCase
         );
     }
 
-    /** @return array{SymfonyCommandIO, BufferedOutput} */
     /**
      * Every configuration lifecycle row is keyed by authority, and
      * DatabaseBootstrapper resolves the database path from config BEFORE
@@ -228,14 +235,22 @@ final class InstallInitHandlerTest extends TestCase
             activator: $this->activator($this->token(), null),
             genesis: $this->genesisActivator($this->token()),
             authority: $this->authority,
+            databasePath: self::DATABASE_PATH,
         )->execute($io);
 
         $written = $output->fetch();
         self::assertStringContainsString('Configuration authority ' . str_repeat('a', 64), $written);
+        self::assertStringContainsString('database path ' . self::DATABASE_PATH, $written);
         self::assertStringContainsString('database identity database:v1:test', $written);
         self::assertStringContainsString($this->syncPath, $written);
+        $identityPosition = strpos($written, 'Configuration authority ');
+        $migrationPosition = strpos($written, 'Applying migrations');
+        self::assertIsInt($identityPosition);
+        self::assertIsInt($migrationPosition);
+        self::assertLessThan($migrationPosition, $identityPosition, 'Resolved identity must be printed before schema work starts.');
     }
 
+    /** @return array{SymfonyCommandIO, BufferedOutput} */
     private function io(): array
     {
         $output = new BufferedOutput();

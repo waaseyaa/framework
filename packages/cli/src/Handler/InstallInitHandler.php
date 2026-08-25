@@ -42,6 +42,7 @@ final readonly class InstallInitHandler
         private ConfigurationActivatorInterface $activator,
         private ConfigurationGenesisActivatorInterface $genesis,
         private ConfigurationAuthorityContext $authority,
+        private string $databasePath,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -52,8 +53,9 @@ final readonly class InstallInitHandler
         // installing into a copied database has no other way to discover they
         // are not (#2545).
         $io->writeln(sprintf(
-            'Configuration authority %s (database identity %s, sync path %s).',
+            'Configuration authority %s (database path %s, database identity %s, sync path %s).',
             $this->authority->authorityId,
+            $this->databasePath,
             $this->authority->databaseIdentity,
             $this->authority->syncPath,
         ));

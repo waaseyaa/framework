@@ -18,8 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no test: the activator's own idempotency check clears before the INSERT, so
   reaching it requires a genuinely racing duplicate.
 
-  `install:init` now reports the resolved authority, database identity and sync
-  path before it does anything. `DatabaseBootstrapper::resolveDatabasePath`
+  `install:init` now reports the resolved authority, database path, database
+  identity, and sync path before it does anything.
+  `DatabaseBootstrapper::resolveDatabasePath`
   gives `config['database']` precedence over `WAASEYAA_DB`, so an operator who
   believes they are installing into a copied database has otherwise no way to
   discover that they are not.

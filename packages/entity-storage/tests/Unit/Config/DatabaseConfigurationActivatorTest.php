@@ -384,11 +384,14 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             self::fail('A duplicate activation request id was reported as success.');
         } catch (ConfigurationActivationConflictException $exception) {
             self::assertStringContainsString('UNIQUE constraint failed', $exception->getMessage());
+            self::assertStringContainsString('activation_request_id', $exception->getMessage());
             self::assertStringContainsString('request-races', $exception->getMessage());
             self::assertStringContainsString($this->context->authorityId, $exception->getMessage());
         }
 
         self::assertEquals($first->token, $activator->currentToken());
+        self::assertSame(1, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
+        self::assertSame(0, $this->scalar("SELECT COUNT(*) FROM waaseyaa_config_activation_v2 WHERE activation_request_id = 'request-races'"));
     }
 
     #[Test]
