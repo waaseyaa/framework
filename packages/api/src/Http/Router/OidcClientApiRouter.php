@@ -58,7 +58,7 @@ final class OidcClientApiRouter implements DomainRouterInterface
             'show' => $this->controller->show($idStr),
             'create' => $this->controller->create($request),
             'update' => $this->controller->update($idStr, $request),
-            'delete' => $this->controller->delete($idStr),
+            'delete' => $this->controller->delete($idStr, $request),
             'regenerateSecret' => $this->controller->regenerateSecret($idStr),
             default => self::errorResponse(404, 'Not Found', "Unknown OIDC client action: {$action}"),
         };

@@ -1499,7 +1499,7 @@ Admin surface for registering external OIDC clients (apps that authenticate via 
 
 - **Pages:** `packages/admin/app/pages/oidc/clients/index.vue` (list + create), `[id].vue` (detail + edit + revoke).
 - **Composable:** `packages/admin/app/composables/useOidcClients.ts` — CRUD wrapper over `/api/oidc/clients` JSON:API endpoints + consent-revocation actions.
-- **Backing API:** `packages/api/src/Controller/OidcClientController.php` + `packages/api/src/Http/Router/OidcClientApiRouter.php` (admin-only routes, AccessChecker-gated).
+- **Backing API:** `packages/api/src/Controller/OidcClientController.php` + `packages/api/src/Http/Router/OidcClientApiRouter.php` (admin-only routes, AccessChecker-gated). Existing-entity `PATCH`/`DELETE` on `/api/oidc-clients/{id}` require the strong aggregate `If-Match` also used by auto-generated `/api/oidc_client/{id}`; an authorized GET returns that token as `ETag` / `meta.mutation_token`.
 - **Permission:** `oidc.client.administer` (granted to admin role by default; configurable per Nation in distribution charters).
 - **Distinct from end-user surfaces:** the consent screen lives at `packages/oidc/src/Consent/ConsentScreenController.php` (server-rendered, NOT admin SPA).
 

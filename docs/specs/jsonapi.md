@@ -1,5 +1,8 @@
 # JSON:API — cast-aware attributes
 
+<!-- Spec reviewed 2026-08-24 - #2493: purpose-built `/api/oidc-clients/{id}`
+     PATCH/DELETE now share JsonApiRouter's strong If-Match fence; GET `{id}`
+     emits ETag + meta.mutation_token. See docs/specs/api-layer.md. -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): parity matrix rows for the retired workflow
      dry-run endpoint and the workflow-guards endpoint are removed/collapsed (both deleted, no
      compat shim). "Workflow definitions — list + dry-run" is now "Workflow definitions — list";
@@ -102,7 +105,7 @@ The following matrix enumerates every entity, query, and mutation exposed by `pa
 | Notification — channels (list/test) | `GET\|POST /api/notification/channels[/{channel}/test]` | not exposed | JSON:API only | — |
 | Mercure monitor — channels/events/subscribers | `GET /api/mercure/…` | not exposed | JSON:API only | — |
 | Audit events — list | `GET /api/audit/events` | not exposed | JSON:API only | — |
-| OIDC clients — CRUD + secret regeneration | `GET\|POST\|PATCH\|DELETE /api/oidc-clients[/{id}]` | not exposed | JSON:API only | — |
+| OIDC clients — CRUD + secret regeneration | `GET\|POST\|PATCH\|DELETE /api/oidc-clients[/{id}]` (PATCH/DELETE require strong `If-Match`; GET `{id}` emits `ETag` + `meta.mutation_token`) | not exposed | JSON:API only | — |
 | Field auto-save | `PATCH /api/{entity_type}/{id}/fields/{key}` → `FieldAutoSaveController` | not exposed | JSON:API only | — |
 | Translations | `TranslationController` | not exposed | JSON:API only | — |
 
