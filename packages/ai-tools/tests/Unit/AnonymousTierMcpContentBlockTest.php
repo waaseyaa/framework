@@ -46,6 +46,9 @@ final class AnonymousTierMcpContentBlockTest extends TestCase
     /** The complete set of MCP content-block types. */
     private const MCP_CONTENT_TYPES = ['text', 'image', 'audio', 'resource', 'resource_link'];
 
+    /** A lone continuation byte: valid in storage, not encodable as JSON. */
+    private const INVALID_UTF8 = "\x80";
+
     #[Test]
     #[DataProvider('anonymousTierTools')]
     public function the_result_carries_only_mcp_content_blocks(string $toolName): void
@@ -96,6 +99,77 @@ final class AnonymousTierMcpContentBlockTest extends TestCase
     }
 
     /** @return iterable<string, array{string}> */
+    /**
+     * A stored value that is not valid UTF-8 makes json_encode throw, which is
+     * a live path rather than a defensive one: these payloads carry arbitrary
+     * stored field values, and migrated content routinely holds bytes no one
+     * validated. The encode failure must surface as the sanitized tool error —
+     * never as an escaping exception, which the bridge would turn into the same
+     * uninformative INTERNAL_ERROR this issue is about.
+     */
+    /**
+     * `entity.search` is deliberately absent: its payload is
+     * `[['entity_type' => ..., 'id' => ...], ...]` plus a count — a registered
+     * type id and an entity key, both framework-controlled — so no stored value
+     * reaches its encoder and its guard cannot fire from data. Contriving a
+     * trigger would prove nothing about the path a consumer can reach.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function toolsCarryingStoredValues(): iterable
+    {
+        yield 'entity.read' => ['entity.read'];
+        yield 'entity.list_revisions' => ['entity.list_revisions'];
+        yield 'vector.search' => ['vector.search'];
+        yield 'relationship.traverse' => ['relationship.traverse'];
+    }
+
+    #[Test]
+    #[DataProvider('toolsCarryingStoredValues')]
+    public function an_unencodable_stored_value_returns_the_sanitized_tool_error(string $toolName): void
+    {
+        $result = $this->executeWithUnencodableValue($toolName);
+
+        self::assertTrue($result->isError, sprintf('%s reported an unencodable payload as success', $toolName));
+
+        // Pin the specific arm: only internalError() emits the sanitized
+        // INTERNAL_ERROR envelope, so this cannot be satisfied by the
+        // not-found or access refusals that share isError.
+        $decoded = json_decode($result->content[0]['text'] ?? '{}', true);
+        self::assertSame('INTERNAL_ERROR', $decoded['code'] ?? null, sprintf('%s did not reach the encode guard', $toolName));
+
+        self::assertStringNotContainsString(
+            self::INVALID_UTF8,
+            json_encode($result->content, JSON_INVALID_UTF8_SUBSTITUTE) ?: '',
+            'The offending bytes must not reach the caller.',
+        );
+    }
+
+    private function executeWithUnencodableValue(string $toolName): AgentToolResult
+    {
+        $poisoned = 'a findable story ' . self::INVALID_UTF8;
+
+        return match ($toolName) {
+            'entity.read' => new EntityReadTool($this->entityEtm($poisoned))->execute(
+                ['entity_type' => 'tool_test', 'id' => '1'],
+                $this->account(['tool.entity.read']),
+            ),
+            'entity.list_revisions' => new EntityListRevisionsTool($this->revisionEtm($poisoned))->execute(
+                ['entity_type' => 'tool_test', 'id' => '1'],
+                $this->account(['tool.entity.read']),
+            ),
+            'vector.search' => $this->vectorTool($poisoned)->execute(
+                ['query' => 'findable'],
+                $this->account(['tool.vector.search']),
+            ),
+            'relationship.traverse' => new RelationshipTraverseTool($this->relationshipEtm($poisoned))->execute(
+                ['source_entity_type' => 'relationship', 'source_id' => '10'],
+                $this->account(['tool.relationship.traverse']),
+            ),
+            default => throw new \LogicException('Unknown tool ' . $toolName),
+        };
+    }
+
     public static function anonymousTierTools(): iterable
     {
         yield 'entity.read' => ['entity.read'];
@@ -132,48 +206,48 @@ final class AnonymousTierMcpContentBlockTest extends TestCase
         };
     }
 
-    private function entityEtm(): SingleTypeEntityTypeManager
+    private function entityEtm(string $title = 'a findable story'): SingleTypeEntityTypeManager
     {
         $repo = new InMemoryToolRepository();
-        $repo->seed(new ToolTestEntity(['id' => '1', 'title' => 'a findable story', 'revision_id' => 1]));
+        $repo->seed(new ToolTestEntity(['id' => '1', 'title' => $title, 'revision_id' => 1]));
 
         return new SingleTypeEntityTypeManager($this->entityType('tool_test'), $repo);
     }
 
-    private function revisionEtm(): SingleTypeEntityTypeManager
+    private function revisionEtm(string $title = 'v2'): SingleTypeEntityTypeManager
     {
         $repo = new InMemoryToolRepository();
-        $repo->seed(new ToolTestEntity(['id' => '1', 'title' => 'v2', 'revision_id' => 2]));
+        $repo->seed(new ToolTestEntity(['id' => '1', 'title' => $title, 'revision_id' => 2]));
         $repo->revisions = [
-            new ToolTestEntity(['id' => '1', 'title' => 'v2', 'revision_id' => 2, 'is_current' => true]),
+            new ToolTestEntity(['id' => '1', 'title' => $title, 'revision_id' => 2, 'is_current' => true]),
             new ToolTestEntity(['id' => '1', 'title' => 'v1', 'revision_id' => 1]),
         ];
 
         return new SingleTypeEntityTypeManager($this->entityType('tool_test'), $repo);
     }
 
-    private function relationshipEtm(): SingleTypeEntityTypeManager
+    private function relationshipEtm(string $toId = '1'): SingleTypeEntityTypeManager
     {
         $repo = new InMemoryToolRepository();
         $repo->seed(new ToolTestEntity([
             'id' => '1',
             'from_entity_type' => 'relationship', 'from_entity_id' => '10',
-            'to_entity_type' => 'relationship', 'to_entity_id' => '1',
+            'to_entity_type' => 'relationship', 'to_entity_id' => $toId,
         ]));
 
         return new SingleTypeEntityTypeManager($this->entityType('relationship'), $repo);
     }
 
-    private function vectorTool(): VectorSearchTool
+    private function vectorTool(string $title = 'a findable story'): VectorSearchTool
     {
         $repo = new InMemoryToolRepository();
-        $repo->seed(new ToolTestEntity(['id' => '1', 'title' => 'a findable story']));
+        $repo->seed(new ToolTestEntity(['id' => '1', 'title' => $title]));
         $etm = new SingleTypeEntityTypeManager($this->entityType('node'), $repo);
 
         $embedding = new \stdClass();
         $embedding->entityTypeId = 'node';
         $embedding->entityId = '1';
-        $embedding->metadata = ['title' => 'a findable story'];
+        $embedding->metadata = ['title' => $title];
         $hit = new \stdClass();
         $hit->embedding = $embedding;
         $hit->score = 0.9;
