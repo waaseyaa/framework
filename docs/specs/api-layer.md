@@ -1254,9 +1254,11 @@ final class PaginationLinks
 
 Returns `self`, `first`, and optionally `prev` and `next` links. Format: `{basePath}?page[offset]={N}&page[limit]={M}`.
 
-## Post-Fetch Access Filtering
+## Access Filtering
 
-Entity-level access is applied **after** query execution in `JsonApiController::index()`:
+The storage query applies deny-by-default entity-level access before its
+authorized range is sliced. `JsonApiController::index()` then repeats that
+entity gate while applying the API-specific field-read gate:
 
 ```php
 if ($this->accessHandler !== null && $this->account !== null) {
@@ -1270,11 +1272,11 @@ if ($this->accessHandler !== null && $this->account !== null) {
 ```
 
 This means:
-- On the authenticated path the SQL query binds the request account via `setAccount($this->account)`, so the storage layer performs per-row access checking (open-by-default: it drops only `Forbidden` rows). `accessCheck(false)` is used only on the system / no-account path.
-- Entities for the current page are loaded, then re-filtered by view access in PHP with `isAllowed()` (deny-by-default entity-level semantics — a `Neutral` row is not visible), mirroring `show()`.
-- `meta.total` reflects the **access-filtered total of matching rows the current account may view ACROSS ALL PAGES** — computed via `accessFilteredTotal()` using the same `isAllowed()` predicate as the per-page filter — **not** the size of the current page (audit C-26: the previous `$total = count($entities)` recount collapsed it to page size on the authenticated path) and **not** the open-by-default storage `COUNT` (which would inflate it with `Neutral` rows). On a paginated collection `count($data) <= meta.limit` while `meta.total` may be larger, and `meta.total` is page-invariant for a fixed query + account.
+- On the authenticated path the SQL query binds the request account via `setAccount($this->account)`, performs a deny-by-default per-row check, and applies page offset/limit to the authorized survivors. `accessCheck(false)` is used only on the system / no-account path.
+- Entities for the authorized page are loaded, then re-filtered by view access in PHP with `isAllowed()` (a `Neutral` row is not visible), mirroring `show()`. The controller also excludes a row when the account may not read a field used to filter or sort it (R14).
+- `meta.total` reflects the **access-filtered total of matching rows the current account may view ACROSS ALL PAGES** — computed via `accessFilteredTotal()` using the same entity and R14 field-read predicates as the per-page filter — **not** the size of the current page (audit C-26: the previous `$total = count($entities)` recount collapsed it to page size on the authenticated path). On a paginated collection `count($data) <= meta.limit` while `meta.total` may be larger, and `meta.total` is page-invariant for a fixed query + account.
 
-<!-- Spec reviewed 2026-06-21 - issue #1702 (audit C-7): the GraphQL list resolver now matches the REST `meta.total` contract above. `GraphQL\Resolver\EntityResolver::resolveList()` previously took `total` from the open-by-default storage `COUNT` (admits `Allowed` AND `Neutral`) while `items` were deny-by-default via `GraphQlAccessGuard::canView()` — so a restricted collection's `total` leaked its full cardinality (Neutral/policy-less rows inflated it) even though those rows never appeared in `items`. `resolveList()` now recomputes `total` across ALL matching rows (filters only, no pagination) with the SAME `guard->canView()` predicate as the per-item filter, so `total` and `items` reconcile and `total` is page-invariant. The query-layer survivor test (Layer 3) is unchanged and remains the open-by-default candidate window (see access-control.md "Layer 3 contract details"); deny-by-default stays a serializer/consumer concern. Acceptance: EntityResolverTest (`resolveListFiltersOutDeniedEntities`, `resolveListTotalReconcilesAcrossPagesWithAccessFilteredItems`). -->
+<!-- Spec reviewed 2026-06-21 - issue #1702 (audit C-7): the GraphQL list resolver now matches the REST `meta.total` contract above. `GraphQL\Resolver\EntityResolver::resolveList()` previously took `total` from the then-open-by-default storage `COUNT` while `items` were deny-by-default via `GraphQlAccessGuard::canView()`. It now recomputes `total` across all matching rows with the same guard predicate. The historical query-layer characterization in this note was superseded by audit C-6 and #2541: storage is deny-by-default and ranged access-checked queries page authorized survivors. Acceptance: EntityResolverTest (`resolveListFiltersOutDeniedEntities`, `resolveListTotalReconcilesAcrossPagesWithAccessFilteredItems`). -->
 
 
 **Empty `data` is access-filtering, not missing data.** When a restrictive view policy is registered for the entity type and filters out *every* matched row, `index()` returns HTTP **200** with `data: []` and `meta.total: 0` -- there is no logger on this controller and no error/warning is emitted, by design (an authenticated principal seeing nothing they may view is a normal authorization outcome, not a fault). Consumers debugging an unexpectedly empty collection should therefore not assume the rows are absent: check whether a registered `AccessPolicy` denied `view` for the current account before concluding the data does not exist. A genuinely empty table and a fully access-filtered table are indistinguishable on the wire by intent (no enumeration oracle). To tell them apart during development, re-issue the query in a system context (no account bound, `accessCheck(false)`) or inspect the policy directly.
