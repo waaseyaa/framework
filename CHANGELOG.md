@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — RelationshipPreSaveListener is production-proven and registers
+  exactly once (#1958):** `RelationshipServiceProvider::boot()` already wired
+  the listener on `EntityEvents::PRE_SAVE` (#1992), but re-entering `boot()` on
+  the same provider/dispatcher could stack duplicate listeners, and there was
+  no production-shaped kernel proof that invalid relationship writes fail
+  before persistence. Boot is now idempotent per provider instance. A kernel
+  integration suite proves registration without manual wiring, rejects missing
+  source/target/type/endpoint cases before any row write or POST_SAVE, retains
+  one PRE_SAVE + one POST_SAVE for valid edges, pins `validate: false` as an
+  EntityValidator opt-out that does **not** bypass the listener, and includes a
+  negative control that removes the listener to show the pre-fix unwired path.
+
 - **Changed — a configuration activation conflict now names the authority and
   the violated key, and `install:init` reports the identity it resolved
   (#2545):** the conflict raised when a unique violation reaches the activation

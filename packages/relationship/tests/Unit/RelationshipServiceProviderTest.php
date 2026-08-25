@@ -94,9 +94,57 @@ final class RelationshipServiceProviderTest extends TestCase
         $provider->register();
         $provider->boot();
 
-        $listeners = $dispatcher->getListeners(EntityEvents::PRE_SAVE->value);
-        $this->assertNotEmpty($listeners, 'Relationship saves must be validated on the production lifecycle event');
-        $this->assertInstanceOf(RelationshipPreSaveListener::class, $listeners[0]);
+        $listeners = $this->listenersOfType($dispatcher, EntityEvents::PRE_SAVE->value, RelationshipPreSaveListener::class);
+        $this->assertCount(1, $listeners, 'Relationship saves must be validated on the production lifecycle event exactly once');
+    }
+
+    #[Test]
+    public function boot_twice_on_the_same_provider_registers_the_pre_save_listener_once(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $entityTypeManager = new StubEntityTypeManager();
+        $provider = new RelationshipServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+            EntityTypeManager::class => $entityTypeManager,
+        ]));
+        $provider->register();
+        $provider->boot();
+        $provider->boot();
+
+        $preSave = $this->listenersOfType($dispatcher, EntityEvents::PRE_SAVE->value, RelationshipPreSaveListener::class);
+        $preDelete = $this->listenersOfType($dispatcher, EntityEvents::PRE_DELETE->value, RelationshipDeleteGuardListener::class);
+        $this->assertCount(1, $preSave);
+        $this->assertCount(1, $preDelete);
+    }
+
+    #[Test]
+    public function pre_save_listener_is_kernel_scoped_and_does_not_capture_an_account(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $entityTypeManager = new StubEntityTypeManager();
+        $provider = new RelationshipServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+            EntityTypeManager::class => $entityTypeManager,
+        ]));
+        $provider->register();
+        $provider->boot();
+
+        $listeners = $this->listenersOfType($dispatcher, EntityEvents::PRE_SAVE->value, RelationshipPreSaveListener::class);
+        $this->assertCount(1, $listeners);
+        $constructor = new \ReflectionClass(RelationshipPreSaveListener::class)->getConstructor();
+        $this->assertNotNull($constructor);
+        foreach ($constructor->getParameters() as $parameter) {
+            $type = $parameter->getType();
+            $this->assertFalse(
+                $type instanceof \ReflectionNamedType && str_contains($type->getName(), 'Account'),
+                'RelationshipPreSaveListener must not capture a request principal',
+            );
+        }
+        $validator = new \ReflectionProperty(RelationshipPreSaveListener::class, 'validator')->getValue($listeners[0]);
+        $capturedManager = new \ReflectionProperty(\Waaseyaa\Relationship\RelationshipValidator::class, 'entityTypeManager')->getValue($validator);
+        $this->assertSame($entityTypeManager, $capturedManager);
     }
 
     #[Test]
@@ -124,5 +172,22 @@ final class RelationshipServiceProviderTest extends TestCase
                 return $this->services[$abstract] ?? null;
             }
         };
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $type
+     * @return list<T>
+     */
+    private function listenersOfType(SymfonyEventDispatcherAdapter $dispatcher, string $eventName, string $type): array
+    {
+        $matched = [];
+        foreach ($dispatcher->getListeners($eventName) as $listener) {
+            if ($listener instanceof $type) {
+                $matched[] = $listener;
+            }
+        }
+
+        return $matched;
     }
 }
