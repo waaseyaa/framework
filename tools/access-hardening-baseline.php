@@ -13,6 +13,8 @@ declare(strict_types=1);
 return [
     'packages/api/src/JsonApiRouteProvider.php::$structuralRouteCache'
         => 'Two-shape FIFO of clone-only Symfony Route templates keyed by scalar base path, workflow mode, entity-type IDs, and API exposure; retains no managers, providers, services, requests, accounts, guards, decisions, or entity values.',
+    'packages/api/src/Sanitizer/RichTextSanitizer.php::$shared'
+        => 'Process-lifetime immutable symfony/html-sanitizer instance built once from a hardcoded allowlist; compiling it costs ~1.4 MB and every ResourceSerializer constructs one. It holds only the compiled element/attribute tables (no managers, requests, accounts, entities, or decisions), sanitize() is pure, and the config is never mutated after construction, so the shared instance is indistinguishable from a per-instance one.',
     'packages/auth/src/Token/Bearer/IssuedBearerToken.php::$secrets'
         => 'Process-lifetime WeakMap custody keyed by short-lived one-time reveal objects; each entry disappears with its holder, is never persisted or serialized, and cannot cross holders, requests, accounts, or token rotations.',
     'packages/foundation/src/Security/ApplicationSecret.php::$secrets'

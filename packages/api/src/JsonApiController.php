@@ -44,6 +44,22 @@ final class JsonApiController
      */
     private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
+    /**
+     * The sanitized projection every consumer has always received, and the
+     * value of `meta.representation` when nothing is opted into (#2552).
+     */
+    private const REPRESENTATION_RENDERED = 'rendered';
+
+    /**
+     * The lossless editor projection (#2552): HTML-bearing attributes are the
+     * stored value byte-for-byte. Opt-in only, and only alongside
+     * `?workingCopy=1` so it inherits that branch's entity-`update` gate.
+     */
+    private const REPRESENTATION_EDITING = 'editing';
+
+    /** @var list<string> */
+    private const REPRESENTATIONS = [self::REPRESENTATION_RENDERED, self::REPRESENTATION_EDITING];
+
     private readonly InternalFieldVisibilityPolicy $internalFieldVisibility;
 
     /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
@@ -89,6 +105,18 @@ final class JsonApiController
         $queryFieldError = $this->validateQueryFields($parsedQuery, $entityTypeId);
         if ($queryFieldError !== null) {
             return $queryFieldError;
+        }
+
+        // #2552: a collection read has no per-entity `update` gate to hang the
+        // lossless editor projection on, so it can only ever serve `rendered`.
+        // Refuse `?representation=editing` LOUDLY rather than silently serving
+        // the sanitized projection under a name that promises stored bytes --
+        // a silent downgrade is exactly the defect #2552 reports one layer up
+        // (the client believes it holds stored bytes and PATCHes stripped ones
+        // back).
+        $representationError = $this->representationError($query, allowEditing: false);
+        if ($representationError !== null) {
+            return $representationError;
         }
 
         // R14 (audit A11): reject a SORT on a field the caller may not read on
@@ -369,7 +397,9 @@ final class JsonApiController
      * @param string               $entityTypeId The entity type.
      * @param int|string           $id           The entity ID.
      * @param array<string, mixed> $query        Query parameters (supports 'fields' for sparse
-     *                                            fieldsets and CW-v1 option-1's `workingCopy`).
+     *                                            fieldsets, CW-v1 option-1's `workingCopy`, and
+     *                                            #2552's `representation` — see
+     *                                            {@see representationError()}).
      */
     public function show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument
     {
@@ -383,6 +413,16 @@ final class JsonApiController
         if ($queryFieldError !== null) {
             return $queryFieldError;
         }
+
+        // #2552: structural validation of `?representation=`, deliberately
+        // BEFORE the entity is loaded. Its outcome depends only on the query
+        // string, never on whether the entity exists or is visible, so it
+        // cannot become an existence oracle the way a post-load 400 would.
+        $representationError = $this->representationError($query, allowEditing: true);
+        if ($representationError !== null) {
+            return $representationError;
+        }
+        $editingRepresentation = $this->editingRepresentationRequested($query);
 
         $entity = $this->loadByIdOrUuid($entityTypeId, $id);
 
@@ -424,11 +464,19 @@ final class JsonApiController
         }
 
         $canMutate = $this->canMutate($entity);
+        // $editingRepresentation is reachable ONLY through the working-copy
+        // branch above, which has already required entity `update` access
+        // (or returned 403) — see representationError()'s pairing rule. So a
+        // caller receiving stored bytes here provably holds the authority to
+        // overwrite those same bytes; the projection grants no new WRITE
+        // power, only a read of markup other authors stored that the
+        // sanitized projection strips.
         $resource = $this->serializer->serialize(
             $entity,
             $this->accessHandler,
             $this->account,
             includeMutationToken: $canMutate,
+            losslessHtml: $editingRepresentation,
         );
 
         // Apply sparse fieldsets per JSON:API spec (attributes and relationships).
@@ -440,8 +488,84 @@ final class JsonApiController
         return JsonApiDocument::fromResource(
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
+            // Stated on EVERY single-entity read, not just the opted-in one,
+            // so a consumer can always tell which projection it is holding
+            // without inferring it from the request it thinks it made.
+            meta: ['representation' => $editingRepresentation ? self::REPRESENTATION_EDITING : self::REPRESENTATION_RENDERED],
             headers: $canMutate ? $this->mutationHeaders($entity) : [],
         );
+    }
+
+    /**
+     * Structural validation of `?representation=` (#2552).
+     *
+     * `rendered` (the default) is the sanitized projection every consumer has
+     * always received. `editing` is the LOSSLESS editor projection: for any
+     * field whose type is in {@see \Waaseyaa\Api\Sanitizer\RichTextSanitizer::HTML_FIELD_TYPES} the
+     * served attribute is the stored value byte-for-byte, so a GET →
+     * modify → PATCH round trip cannot silently rewrite markup the sanitizer
+     * would otherwise normalize away (`class` hooks, `data-*`, `style`,
+     * inline SVG, `<table>` structure).
+     *
+     * Two rules, both loud:
+     *   1. An unrecognized value is a 400, never a fallback to `rendered`.
+     *   2. `editing` REQUIRES `?workingCopy=1`. That pairing is what binds the
+     *      lossless projection to the existing entity-`update` gate in
+     *      {@see show()} — without it the flag would have no authorization
+     *      anchor at all. Requesting `editing` alone is a 400; requesting it
+     *      with `workingCopy` but without update access is the working-copy
+     *      403. Neither ever degrades silently to the sanitized value, because
+     *      a client that believes it holds stored bytes and holds stripped
+     *      ones is precisely the destructive round trip #2552 reports.
+     *
+     * @param array<string, mixed> $query
+     */
+    private function representationError(array $query, bool $allowEditing): ?JsonApiDocument
+    {
+        $value = $query['representation'] ?? null;
+        if ($value === null) {
+            return null;
+        }
+
+        if (!is_string($value) || !in_array($value, self::REPRESENTATIONS, true)) {
+            // The submitted value is NOT echoed back: it is unvalidated caller
+            // input, and the supported set is short enough to state outright.
+            return $this->errorDocument(JsonApiError::badRequest(
+                "Unsupported 'representation'. Supported values: '"
+                . self::REPRESENTATION_RENDERED . "' (default), '" . self::REPRESENTATION_EDITING . "'.",
+            ));
+        }
+
+        if ($value !== self::REPRESENTATION_EDITING) {
+            return null;
+        }
+
+        if (!$allowEditing) {
+            return $this->errorDocument(JsonApiError::badRequest(
+                "The '" . self::REPRESENTATION_EDITING . "' representation is available only on a single-entity "
+                . 'read with ?workingCopy=1, not on a collection.',
+            ));
+        }
+
+        if (!$this->workingCopyRequested($query)) {
+            return $this->errorDocument(JsonApiError::badRequest(
+                "The '" . self::REPRESENTATION_EDITING . "' representation requires ?workingCopy=1.",
+            ));
+        }
+
+        return null;
+    }
+
+    /**
+     * True when the caller opted into the lossless editor projection. Only
+     * meaningful after {@see representationError()} has passed, which is what
+     * guarantees the value is a known string AND paired with `?workingCopy=1`.
+     *
+     * @param array<string, mixed> $query
+     */
+    private function editingRepresentationRequested(array $query): bool
+    {
+        return ($query['representation'] ?? null) === self::REPRESENTATION_EDITING;
     }
 
     /**

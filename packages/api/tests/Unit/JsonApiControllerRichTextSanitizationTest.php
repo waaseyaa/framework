@@ -203,6 +203,35 @@ final class JsonApiControllerRichTextSanitizationTest extends TestCase
         $this->assertStringNotContainsString('<script', $servedOnShow);
     }
 
+    // --- #2552: the default projection is fail-closed AND keeps site hooks ---
+
+    #[Test]
+    public function defaultProjectionStillStripsComponentClassesAlongWithScript(): void
+    {
+        $doc = $this->controller->store('article', [
+            'data' => [
+                'type' => 'article',
+                'attributes' => [
+                    'title' => 'Program contacts',
+                    'body' => '<div class="sfn-program-contact"><span class="sfn-program-contact-label">Program contacts</span>'
+                        . '</div><script>alert(1)</script><div class="sfn-card" onclick="alert(2)">card</div>',
+                ],
+            ],
+        ]);
+        $served = $doc->toArray()['data']['attributes']['body'];
+
+        // #2552 deliberately did NOT widen this shared allowlist: it is the
+        // same object anonymous JSON:API, GraphQL, the admin surface and the
+        // markdown presenter all read through. Classes still go.
+        $this->assertStringNotContainsString('class="sfn-program-contact"', $served);
+        $this->assertStringNotContainsString('class="sfn-card"', $served);
+
+        // ...without carrying anything else through with them.
+        $this->assertStringNotContainsString('<script', $served);
+        $this->assertStringNotContainsString('onclick', $served);
+        $this->assertStringNotContainsString('alert(', $served);
+    }
+
     // --- 1d: orthography preservation ---
 
     #[Test]

@@ -64,6 +64,60 @@ flowchart TD
 // JSON attribute after pipeline: "state" => "active" (backing value), not a PHP enum object
 ```
 
+## Representations: rendered vs editing (#2552)
+
+A `GET` returns the **rendered** representation by default: HTML-bearing fields
+(`RichTextSanitizer::HTML_FIELD_TYPES`, currently `text_long`) pass through the
+sanitizer on the way out. Stored bytes are never modified — sanitization is a
+read-time projection, and the write path stores author input verbatim.
+
+That projection is lossy, and not only for unsafe markup. `allowSafeElements()`
+also drops `class`, `style`, `data-*`, relative URLs, inline SVG and ARIA state,
+and it normalizes structure (a bare `<tr>` gains a `<tbody>`). So a client that
+reads a body, edits it, and writes it back destroys whatever the projection
+dropped. That is what #2552 reported: a routine read-modify-write silently
+stripped a site's `sfn-*` component hooks and broke public styling.
+
+An authorized editor therefore opts into the **editing** representation:
+
+```
+GET /api/node/{id}?workingCopy=1&representation=editing
+```
+
+which returns the HTML field byte-for-byte as stored. Every response carries
+`meta.representation`, so a client can tell which one it holds before writing
+anything back.
+
+The opt-in is gated, not merely declared:
+
+- `representation=editing` requires `?workingCopy=1`, and the working copy is
+  already gated on entity **update** access — an anonymous or read-only caller
+  receives 403, not a lossless body.
+- It is refused on collections (`index`), where no single entity's update access
+  has been established.
+- An unsupported value is a 400 rather than a silent fallback.
+
+**The shared sanitizer allowlist was deliberately NOT widened.** Admitting
+`class` there would have widened anonymous JSON:API, GraphQL, the admin surface
+and the markdown presenter simultaneously — and `class` cannot be admitted
+without `allowRelativeLinks()`/`allowRelativeMedias()`, which also admit
+protocol-relative `//host/…` URLs. Those carry no scheme, so `forceHttpsUrls()`
+never sees them, and any author could plant a tracking pixel that fires for
+every anonymous reader. The remedy is a gated projection for one authorized
+caller, not a looser baseline for everyone.
+
+**Known limitation.** The `PATCH` response echoes the *rendered* projection, so
+a client that keeps the mutation response as its next edit state is still lossy
+on the following save. The GET → PATCH round trip this issue reported is fixed;
+making mutation echoes lossless for authorized writers is a separate contract
+decision, tracked in #2553.
+
+Where sanitization belongs, stated plainly: **at each output boundary, not at
+rest and not once centrally.** Storage keeps author bytes; every rendering
+surface sanitizes for its own audience; the editing representation is the one
+projection that deliberately does neither, and it is reachable only by a caller
+who may already rewrite the field.
+
 ## Writes (`store` / `update`)
 
 Incoming JSON:API attributes are applied with `$entity->set($field, $value)` (`JsonApiController::update`). **`set()` runs `castOut`**, so clients may send JSON-native scalars (strings, numbers, booleans) that match storage expectations; the entity persists storage-canonical values into `$values` before `toArray()` is snapshotted on save.

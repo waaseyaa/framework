@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — an authorized editor can now read a body back byte-for-byte
+  (#2552):** `GET /api/node/{id}?workingCopy=1` returned the sanitized
+  projection, which drops `class`, `style`, `data-*`, relative URLs, inline SVG
+  and ARIA state and normalizes structure. A routine read-modify-write therefore
+  destroyed whatever the projection dropped — on the reporting consumer, the
+  `sfn-*` component hooks its theme and view models key off. Adding
+  `&representation=editing` now returns the stored bytes unchanged, and every
+  response carries `meta.representation` so a client knows which projection it
+  holds before writing it back.
+
+  The opt-in is gated rather than declared: it requires `?workingCopy=1`, which
+  is already gated on entity update access, so an anonymous or read-only caller
+  gets 403 rather than a lossless body. It is refused on collections, where no
+  single entity's update access has been established, and an unsupported value
+  is a 400 rather than a silent fallback.
+
+  The shared sanitizer allowlist was deliberately left alone. Widening it to
+  admit `class` would have loosened anonymous JSON:API, GraphQL, the admin
+  surface and the markdown presenter at once — and `class` cannot be admitted
+  without also admitting protocol-relative `//host/…` URLs, which carry no
+  scheme and so never reach `forceHttpsUrls()`. That would let any author plant
+  a tracking pixel that fires for every anonymous reader. Public output is
+  byte-identical to before.
+
+  Known limitation: the `PATCH` response still echoes the rendered projection,
+  so a client that keeps the mutation response as its next edit state remains
+  lossy on the following save. Making mutation echoes lossless for authorized
+  writers is a separate contract decision, tracked in #2553.
+
 ## [0.1.0-alpha.298] - 2026-08-25
 
 - **Fixed — RelationshipPreSaveListener is production-proven and registers
