@@ -111,4 +111,57 @@ final class RichTextSanitizerTest extends TestCase
     {
         $this->assertSame('', $this->sanitizer->sanitize(''));
     }
+
+    // --- #2552: the shared allowlist must stay the origin/main baseline. ---
+
+    #[Test]
+    public function classAttributesStayStripped(): void
+    {
+        $this->assertSame(
+            '<div>x</div>',
+            $this->sanitizer->sanitize('<div class="sfn-program-contact">x</div>'),
+        );
+    }
+
+    #[Test]
+    public function protocolRelativeMediaIsStrippedNotRewritten(): void
+    {
+        $this->assertSame(
+            '<p>x</p><img alt="px" />',
+            $this->sanitizer->sanitize('<p>x</p><img src="//evil.example/px" alt="px">'),
+            'Protocol-relative img src must not survive public output (#2552).',
+        );
+        $this->assertSame(
+            '<a>click</a>',
+            $this->sanitizer->sanitize('<a href="//evil.example/phish">click</a>'),
+            'Protocol-relative href must not survive public output (#2552).',
+        );
+    }
+
+    #[Test]
+    public function relativeUrlsStayStrippedBecauseRelativeAllowancesWouldAdmitProtocolRelativeHosts(): void
+    {
+        $this->assertSame('<a>Contact</a>', $this->sanitizer->sanitize('<a href="/contact">Contact</a>'));
+        $this->assertSame(
+            '<img alt="logo" />',
+            $this->sanitizer->sanitize('<img src="/media/logo.png" alt="logo">'),
+        );
+    }
+
+    #[Test]
+    public function publicProjectionOfTheReportedBodyStaysBytePinnedToMain(): void
+    {
+        $stored = '<div class="sfn-program-contact">'
+            . '<span class="sfn-program-contact-label">Program contacts</span>'
+            . '<a class="sfn-icon" href="/contact-us">Contact us</a>'
+            . '</div>'
+            . '<table data-sfn-grid="programs"><tr><td>Hours</td></tr></table>';
+
+        $this->assertSame(
+            '<div><span>Program contacts</span><a>Contact us</a></div>'
+            . '<table><tbody><tr><td>Hours</td></tr></tbody></table>',
+            $this->sanitizer->sanitize($stored),
+            'Public sanitizer output must remain byte-identical to origin/main.',
+        );
+    }
 }

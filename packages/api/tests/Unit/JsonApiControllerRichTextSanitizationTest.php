@@ -232,6 +232,25 @@ final class JsonApiControllerRichTextSanitizationTest extends TestCase
         $this->assertStringNotContainsString('alert(', $served);
     }
 
+    #[Test]
+    public function defaultProjectionStripsProtocolRelativeMedia(): void
+    {
+        $doc = $this->controller->store('article', [
+            'data' => [
+                'type' => 'article',
+                'attributes' => [
+                    'title' => 'Pixel',
+                    'body' => '<p>x</p><img src="//evil.example/px" alt="px"><a href="//evil.example/phish">click</a>',
+                ],
+            ],
+        ]);
+        $served = $doc->toArray()['data']['attributes']['body'];
+
+        $this->assertStringNotContainsString('//evil.example', $served);
+        $this->assertStringNotContainsString('evil.example', $served);
+        $this->assertSame('<p>x</p><img alt="px" /><a>click</a>', $served);
+    }
+
     // --- 1d: orthography preservation ---
 
     #[Test]

@@ -7,9 +7,9 @@ namespace Waaseyaa\Api\Tests\Integration;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Api\JsonApiController;
@@ -71,6 +71,15 @@ final class EditorProjectionLosslessFlowTest extends TestCase
         . '</div>'
         . '<table data-sfn-grid="programs"><tr><td>Hours</td></tr></table>';
 
+    /**
+     * Public/default JSON:API projection of {@see STORED_BODY}. Pinned to the
+     * origin/main {@see \Waaseyaa\Api\Sanitizer\RichTextSanitizer} bytes so a
+     * widened allowlist cannot ship as a "better editor" side effect.
+     */
+    private const PUBLIC_BODY =
+        '<div><span>Program contacts</span><a>Contact us</a></div>'
+        . '<table><tbody><tr><td>Hours</td></tr></tbody></table>';
+
     /** Stored markup that must never survive to a public reader. */
     private const UNSAFE_BODY =
         '<p>BEGIN</p><script>alert(document.cookie)</script>'
@@ -96,6 +105,12 @@ final class EditorProjectionLosslessFlowTest extends TestCase
 
         $body = $this->bodyOf($controllers['editor']->show('article', $id));
 
+        self::assertSame(self::PUBLIC_BODY, $body, 'Default show() must stay the origin/main sanitized projection.');
+        self::assertSame(
+            self::PUBLIC_BODY,
+            $this->bodyOf($controllers['anonymous']->show('article', $id)),
+            'Anonymous public output must be byte-identical to the shared sanitizer projection.',
+        );
         self::assertStringNotContainsString('class="sfn-program-contact"', $body);
         self::assertStringNotContainsString('class="sfn-icon"', $body);
     }
@@ -156,6 +171,7 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             'data' => ['type' => 'article', 'attributes' => $attributes],
         ]);
         self::assertSame(200, $patchDoc->statusCode, 'PATCH must succeed: ' . json_encode($patchDoc->toArray(), JSON_THROW_ON_ERROR));
+        \assert($patchDoc->data instanceof JsonApiResource);
 
         // 3. The unrelated change landed; the body did not move a byte.
         self::assertSame('Corrected title', $patchDoc->data->attributes['title']);
@@ -164,6 +180,13 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             $this->rawStoredBody($db, $id),
             'A GET(editing) -> PATCH round trip with an unrelated change must not alter the stored body by one byte (#2552).',
         );
+        // #2553 is a separate contract: the mutation echo stays rendered.
+        self::assertSame(
+            self::PUBLIC_BODY,
+            $patchDoc->data->attributes['body'],
+            'PATCH must not absorb #2553: the mutation response stays the sanitized projection.',
+        );
+        self::assertSame([], $patchDoc->meta, 'PATCH must not grow a representation meta key in this PR.');
     }
 
     /**
@@ -201,8 +224,7 @@ final class EditorProjectionLosslessFlowTest extends TestCase
 
         $doc = $controllers['anonymous']->show('article', $id, ['workingCopy' => '1', 'representation' => 'editing']);
 
-        self::assertSame(403, $doc->statusCode);
-        self::assertNull($doc->data, 'A denied editing request must carry no resource at all, sanitized or otherwise.');
+        $this->assertEditingDeniedClosed($doc);
     }
 
     #[Test]
@@ -216,7 +238,23 @@ final class EditorProjectionLosslessFlowTest extends TestCase
 
         $doc = $controllers['viewer']->show('article', $id, ['workingCopy' => '1', 'representation' => 'editing']);
 
-        self::assertSame(403, $doc->statusCode, 'The editing projection rides the working-copy entity-update gate.');
+        $this->assertEditingDeniedClosed($doc);
+    }
+
+    #[Test]
+    public function missing_authorization_context_cannot_reach_the_editing_representation(): void
+    {
+        [, , $id, $unwired] = $this->seed(self::STORED_BODY);
+
+        self::assertSame(
+            self::PUBLIC_BODY,
+            $this->bodyOf($unwired->show('article', $id)),
+            'An unwired controller may still serve the public sanitized projection.',
+        );
+
+        $doc = $unwired->show('article', $id, ['workingCopy' => '1', 'representation' => 'editing']);
+
+        $this->assertEditingDeniedClosed($doc);
     }
 
     #[Test]
@@ -341,7 +379,7 @@ final class EditorProjectionLosslessFlowTest extends TestCase
     // --- Harness. ---
 
     /**
-     * @return array{0: array<string, AccountScopedJsonApiController>, 1: DBALDatabase, 2: string}
+     * @return array{0: array<string, AccountScopedJsonApiController>, 1: DBALDatabase, 2: string, 3: JsonApiController}
      */
     private function seed(string $body): array
     {
@@ -391,7 +429,12 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             );
         }
 
-        return [$controllers, $db, $id];
+        $unwired = new JsonApiController(
+            $entityTypeManager,
+            new ResourceSerializer($entityTypeManager),
+        );
+
+        return [$controllers, $db, $id, $unwired];
     }
 
     /**
@@ -408,6 +451,19 @@ final class EditorProjectionLosslessFlowTest extends TestCase
         self::assertIsString($data['body'] ?? null);
 
         return $data['body'];
+    }
+
+    private function assertEditingDeniedClosed(\Waaseyaa\Api\JsonApiDocument $document): void
+    {
+        self::assertSame(403, $document->statusCode, 'Editing projection must fail closed without update access.');
+        self::assertNull($document->data, 'A denied editing request must carry no resource at all, sanitized or otherwise.');
+        $wire = json_encode($document->toArray(), JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString(
+            'sfn-program-contact',
+            $wire,
+            'A 403 must never leak stored HTML, including in error details.',
+        );
+        self::assertStringNotContainsString(self::STORED_BODY, $wire);
     }
 
     private function bodyOf(\Waaseyaa\Api\JsonApiDocument $document): string
@@ -429,7 +485,7 @@ final class EditorProjectionLosslessFlowTest extends TestCase
     {
         // Anonymous classes, not createMock(): PHPUnit cannot mock an
         // intersection type (CLAUDE.md, Testing gotchas).
-        return new class () implements AccessPolicyInterface, FieldAccessPolicyInterface {
+        return new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
                 return match ($operation) {
@@ -462,13 +518,34 @@ final class EditorProjectionLosslessFlowTest extends TestCase
         return new class ($id, $permissions) implements \Waaseyaa\Access\AuthorizationPrincipalInterface {
             /** @param list<string> $permissions */
             public function __construct(private readonly int $accountId, private readonly array $permissions) {}
-            public function id(): int|string { return $this->accountId; }
-            public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
-            public function getRoles(): array { return []; }
-            public function isAuthenticated(): bool { return true; }
-            public function claimsGeneration(): string { return 'editor-projection-test'; }
-            public function tenantId(): ?string { return null; }
-            public function communityId(): ?string { return null; }
+            public function id(): int|string
+            {
+                return $this->accountId;
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return \in_array($permission, $this->permissions, true);
+            }
+            public function getRoles(): array
+            {
+                return [];
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+            public function claimsGeneration(): string
+            {
+                return 'editor-projection-test';
+            }
+            public function tenantId(): ?string
+            {
+                return null;
+            }
+            public function communityId(): ?string
+            {
+                return null;
+            }
         };
     }
 }
