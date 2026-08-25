@@ -84,16 +84,25 @@ final class GetTrailTool extends AbstractTrailTool
             );
         }
 
+        $payload = [
+            'trail_id' => $trail->id,
+            'langcode' => $trail->langcode,
+            'title' => $trail->title,
+            'origin' => $trail->origin,
+            'owner_uid' => $trail->ownerUid,
+            'beacons' => $trail->beacons,
+        ];
+
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('wayfinding_get_trail', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => [
-                'trail_id' => $trail->id,
-                'langcode' => $trail->langcode,
-                'title' => $trail->title,
-                'origin' => $trail->origin,
-                'owner_uid' => $trail->ownerUid,
-                'beacons' => $trail->beacons,
-            ]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Trail %s (%s): %d beacon(s), origin %s.', $trail->id, $trail->langcode, \count($trail->beacons), $trail->origin),
+            structuredContent: $payload,
         );
     }
 }

@@ -97,9 +97,19 @@ final class VectorSearchTool extends AbstractAgentTool
 
         $filtered = $this->applyAccessGate(is_array($results) ? $results : [], $account);
 
+        // MCP conformance (#2520): `json` is not an MCP content type.
+        $data = ['results' => $filtered];
+
+        try {
+            $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException $e) {
+            return $this->internalError('vector.search', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['results' => $filtered]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Vector search for "%s"', $query),
+            structuredContent: $data,
         );
     }
 

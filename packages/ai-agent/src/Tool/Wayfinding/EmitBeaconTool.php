@@ -146,9 +146,16 @@ final class EmitBeaconTool extends AbstractAgentTool
             );
         }
 
+        try {
+            $json = json_encode($beacon, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('wayfinding_emit_beacon', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $beacon]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Emitted beacon for anchor %s to the target session.', $anchorId),
+            structuredContent: $beacon,
         );
     }
 }

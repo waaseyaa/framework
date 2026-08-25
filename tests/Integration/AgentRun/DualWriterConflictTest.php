@@ -129,8 +129,8 @@ final class DualWriterConflictTest extends TestCase
         // Writer A reads the head via the read surface and notes R.
         $read = $this->readTool->execute(['entity_type' => 'test_revisionable', 'id' => '1'], $account);
         self::assertFalse($read->isError, $read->summary ?? '');
-        $headR = $read->content[0]['data']['revision_id'] ?? null;
-        $tokenR = $read->content[0]['data']['mutation_token'] ?? null;
+        $headR = $read->structuredContent['revision_id'] ?? null;
+        $tokenR = $read->structuredContent['mutation_token'] ?? null;
         self::assertSame(1, $headR, 'writer A forms its expectation from the read surface');
         self::assertIsString($tokenR);
 
@@ -167,8 +167,8 @@ final class DualWriterConflictTest extends TestCase
         // Recovery loop: writer A re-reads the moved head and restates.
         $reread = $this->readTool->execute(['entity_type' => 'test_revisionable', 'id' => '1'], $account);
         self::assertFalse($reread->isError);
-        $newHead = $reread->content[0]['data']['revision_id'] ?? null;
-        $newToken = $reread->content[0]['data']['mutation_token'] ?? null;
+        $newHead = $reread->structuredContent['revision_id'] ?? null;
+        $newToken = $reread->structuredContent['mutation_token'] ?? null;
         self::assertSame(2, $newHead);
         self::assertIsString($newToken);
 
@@ -194,8 +194,8 @@ final class DualWriterConflictTest extends TestCase
 
         // Writer A reads head 1 (and then ignores it — no expectation stated).
         $read = $this->readTool->execute(['entity_type' => 'test_revisionable', 'id' => '2'], $account);
-        self::assertSame(1, $read->content[0]['data']['revision_id'] ?? null);
-        $token = $read->content[0]['data']['mutation_token'] ?? null;
+        self::assertSame(1, $read->structuredContent['revision_id'] ?? null);
+        $token = $read->structuredContent['mutation_token'] ?? null;
         self::assertIsString($token);
 
         // Writer B updates the same field first.

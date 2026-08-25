@@ -27,7 +27,7 @@ final class ProposeMutationToolTest extends TestCase
         );
 
         self::assertFalse($result->isError);
-        $payload = $result->content[0]['data'] ?? null;
+        $payload = $result->structuredContent ?? null;
         self::assertIsArray($payload);
         self::assertSame('success', $payload['status']);
         self::assertSame(
@@ -66,7 +66,7 @@ final class ProposeMutationToolTest extends TestCase
         );
 
         self::assertFalse($result->isError, 'Validator denials ride the success envelope; only tool-level failures flip isError.');
-        $payload = $result->content[0]['data'] ?? null;
+        $payload = $result->structuredContent ?? null;
         self::assertIsArray($payload);
         self::assertSame('failure', $payload['status']);
         self::assertContains('UNKNOWN_ENTITY_TYPE', $payload['errors']);
@@ -131,7 +131,7 @@ final class ProposeMutationToolTest extends TestCase
             $this->accountWithPermission('bimaaji.mutate'),
         );
 
-        $payload = $result->content[0]['data'] ?? null;
+        $payload = $result->structuredContent ?? null;
         self::assertIsArray($payload);
         $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
         $decoded = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);

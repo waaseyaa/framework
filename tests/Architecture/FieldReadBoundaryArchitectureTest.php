@@ -208,6 +208,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/ai-agent/src/Security/AccountScopedAgentRunProjectionReader.php' => 'Closed account-scoped agent-run projection retains only a third-party EntityInterface guarded-accessor fallback.',
         'packages/ai-agent/src/Service/AgentRunService.php' => 'AI agent service input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/ai-tools/src/AbstractAgentTool.php' => 'AI tool label projection is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-tools/src/Entity/EntityFieldRedaction.php' => 'Anonymous entity.read/search project named fields through the guarded accessor and omit Protected denials without observing the value (JSON:API parity).',
         'packages/ai-vector/src/EntityEmbedder.php' => 'Embedding label projection is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/ai-vector/src/EntityEmbeddingListener.php' => 'Embedding listener label projection is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/api/src/Audit/ApiAuditQueryAdapter.php' => 'Audit query adapter input is reviewed activation-compatible through the canonical guarded accessor.',

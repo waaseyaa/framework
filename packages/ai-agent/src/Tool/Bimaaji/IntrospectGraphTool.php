@@ -66,9 +66,16 @@ final class IntrospectGraphTool extends AbstractAgentTool
         $payload = $graph->toArray();
         $sectionCount = count($payload['sections']);
 
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('bimaaji_introspect_graph', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $payload]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: sprintf('Application graph: %d sections', $sectionCount),
+            structuredContent: $payload,
         );
     }
 

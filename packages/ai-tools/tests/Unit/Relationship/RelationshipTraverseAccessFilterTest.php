@@ -196,7 +196,7 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $ids = $this->edgeIds($data['edges'] ?? []);
         $this->assertContains('1', $ids, 'the viewable relationship is returned');
         $this->assertNotContains('2', $ids, 'the view-forbidden relationship must not be returned');
@@ -221,7 +221,7 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $this->assertSame(2, ($result->content[0]['data']['count'] ?? null));
+        $this->assertSame(2, ($result->structuredContent['count'] ?? null));
     }
 
     #[Test]
@@ -259,7 +259,7 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $ids = $this->edgeIds($data['edges'] ?? []);
         $this->assertContains('edge-visible', $ids, 'an edge whose endpoint is viewable is still returned (no over-drop)');
         $this->assertNotContains('edge-secret', $ids, 'an edge pointing at a non-viewable endpoint must be dropped entirely');
@@ -303,7 +303,7 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $this->assertSame([], $data['edges'] ?? null, 'a view-forbidden source must disclose no edges (no existence oracle)');
         $this->assertSame(0, $data['count'] ?? null);
     }
@@ -362,9 +362,16 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         $this->assertFalse($forbidden->isError);
         $this->assertFalse($absent->isError);
         $this->assertSame(
-            $absent->content[0]['data'] ?? null,
-            $forbidden->content[0]['data'] ?? null,
+            $absent->structuredContent ?? null,
+            $forbidden->structuredContent ?? null,
             'restricted-source and empty/absent-source results must be indistinguishable',
+        );
+        // The content blocks are what actually reach the wire (#2520), so the
+        // oracle closure has to hold there too, not only in structuredContent.
+        $this->assertSame(
+            $absent->content,
+            $forbidden->content,
+            'the emitted content blocks must be byte-identical too',
         );
     }
 
@@ -390,7 +397,7 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $ids = $this->edgeIds($data['edges'] ?? []);
         $this->assertContains('edge-from-visible-source', $ids, 'a viewable source must still surface its edges (no over-block)');
         $this->assertSame(1, $data['count'] ?? null);
@@ -421,7 +428,7 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         );
 
         $this->assertFalse($result->isError);
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
         $this->assertSame([], $data['edges'] ?? null);
         $this->assertSame(0, $data['count'] ?? null);
     }

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — four of the five tools on the anonymous MCP tier are now consumable
+  by a conforming client (#2520):** `entity.read`, `entity.search`,
+  `entity.list_revisions`, `vector.search` and `relationship.traverse` emitted a
+  content block of `type: "json"`. MCP defines five content types and that is
+  not one of them, and `AgentToolRegistryBridge` forwards tool content to the
+  wire verbatim, so a schema-validating client received a block it could only
+  discard. All six sites now emit a `text` block carrying the JSON plus
+  `structuredContent`, following `ContentSearchTool`, which was already
+  conformant — and which is why `content.search` was the one anonymous tool that
+  worked. The same defect is fixed across the ten Bimaaji and Wayfinding tools
+  in `waaseyaa/ai-agent`. None of the converted tools declares an `outputSchema`,
+  so adding `structuredContent` arms no new validation path.
+
+  `RelationshipTraverseTool` now builds both outcomes through one
+  `traversalResult()` helper. Its forbidden-source result was documented as
+  byte-identical to a genuinely empty traversal — an oracle closure that had
+  been maintained by keeping two literals in sync. It is now identical by
+  construction.
+
+  `ping` returned `jsonRpcResult($id, [])`, and PHP encodes an empty array as
+  `[]`, so the wire carried `"result":[]` where JSON-RPC requires an object; the
+  official TypeScript SDK v1.29.0 rejects it. The normalisation lives in
+  `jsonRpcResult()` rather than at the `ping` callsite, so no future handler can
+  reintroduce the array form by returning nothing.
+
+  A `FieldReadDenied` raised while projecting a view-authorized entity is now
+  mapped at the agent-tool boundary the same way JSON:API already does: the
+  denied field is omitted from `entity.read` values and from the
+  `entity.search` haystack. The call returns a well-formed success, never
+  `INTERNAL_ERROR`, never a distinguishable field-forbidden envelope, and never
+  the R8-c not-found envelope (that envelope stays byte-identical for absent
+  versus view-forbidden entities). The inaccessible field is not named.
+  `EntityToolFieldReadDeniedMappingTest` pins anonymous published-content
+  reads and searches.
+
+- **Added — MCP conformance now runs over a real socket
+  (`packages/mcp/tests/Support/Http/`, #2520):** every prior MCP test was
+  in-process — `Request::create()` in, a `Response` object out — which never
+  serialises anything. The encoding defects above were invisible to that. The
+  harness boots a `php -S` server and speaks raw JSON-RPC with no framework
+  help, asserting on response bytes and on a re-decode that distinguishes
+  `{}` from `[]`. It skips, rather than fails, when the environment cannot
+  host a server.
+
 - **Fixed — the seven page-builder routes now carry their refusal status on the
   wire (#2409):** #2161 promoted refusal statuses for the five canonical
   `admin_surface.*` routes but excluded `admin_surface.page_builder.*`, on the

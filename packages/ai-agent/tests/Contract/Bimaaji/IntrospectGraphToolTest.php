@@ -26,9 +26,10 @@ final class IntrospectGraphToolTest extends TestCase
 
         $content = $result->content;
         self::assertNotEmpty($content);
-        self::assertSame('json', $content[0]['type']);
-        $data = $content[0]['data'];
+        self::assertSame('text', $content[0]['type']);
+        $data = $result->structuredContent;
         self::assertIsArray($data);
+        self::assertSame($data, json_decode($content[0]['text'], true, 512, JSON_THROW_ON_ERROR));
         self::assertArrayHasKey('version', $data);
         self::assertArrayHasKey('sections', $data);
         self::assertSame(
@@ -44,7 +45,7 @@ final class IntrospectGraphToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute([], $this->accountWithPermission('bimaaji.read'));
 
-        $payload = $result->content[0]['data'] ?? null;
+        $payload = $result->structuredContent ?? null;
         self::assertIsArray($payload);
         $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
         $decoded = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);

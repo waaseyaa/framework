@@ -53,7 +53,7 @@ final class SearchSpecsToolTest extends TestCase
         $result = $tool->execute(['query' => 'entities'], $this->accountWithPermission('bimaaji.read'));
 
         self::assertFalse($result->isError);
-        $matches = $result->content[0]['data']['matches'] ?? [];
+        $matches = $result->structuredContent['matches'] ?? [];
         self::assertIsArray($matches);
         self::assertCount(2, $matches);
 
@@ -141,7 +141,7 @@ final class SearchSpecsToolTest extends TestCase
         $result = $tool->execute(['query' => 'zzzzz-nonsense'], $this->accountWithPermission('bimaaji.read'));
 
         self::assertFalse($result->isError);
-        self::assertSame([], $result->content[0]['data']['matches']);
+        self::assertSame([], $result->structuredContent['matches']);
         self::assertStringContainsString('0 matches', $result->summary ?? '');
     }
 
@@ -162,7 +162,7 @@ final class SearchSpecsToolTest extends TestCase
         );
 
         self::assertFalse($result->isError);
-        self::assertCount(2, $result->content[0]['data']['matches']);
+        self::assertCount(2, $result->structuredContent['matches']);
     }
 
     private function makeTool(): SearchSpecsTool

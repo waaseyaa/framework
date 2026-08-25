@@ -122,7 +122,7 @@ final class EntityReadToolFieldFilterTest extends TestCase
     {
         $result = $tool->execute(['entity_type' => 'story', 'id' => 1], $account);
         self::assertFalse($result->isError, 'read should succeed');
-        $data = $result->content[0]['data'] ?? [];
+        $data = $result->structuredContent ?? [];
 
         return \is_array($data['values'] ?? null) ? $data['values'] : [];
     }

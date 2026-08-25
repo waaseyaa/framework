@@ -100,16 +100,25 @@ final class ReRecordTrailTool extends AbstractTrailTool
             );
         }
 
+        $payload = [
+            'trail_id' => $trailId,
+            'langcode' => $langcode,
+            'promoted' => $result->promoted,
+            'revision_id' => $result->revisionId,
+        ];
+
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return $this->internalError('wayfinding_rerecord_trail', $e);
+        }
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => [
-                'trail_id' => $trailId,
-                'langcode' => $langcode,
-                'promoted' => $result->promoted,
-                'revision_id' => $result->revisionId,
-            ]]],
+            content: [['type' => 'text', 'text' => $json]],
             summary: $result->promoted
                 ? sprintf('Re-recording promoted to the live trail %s (%s).', $trailId, $langcode)
                 : sprintf('Re-recording saved as draft revision %d on human-owned trail %s (%s); live value untouched.', $result->revisionId, $trailId, $langcode),
+            structuredContent: $payload,
         );
     }
 }

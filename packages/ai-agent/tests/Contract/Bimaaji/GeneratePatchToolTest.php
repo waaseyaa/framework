@@ -48,7 +48,7 @@ final class GeneratePatchToolTest extends TestCase
         );
 
         self::assertFalse($result->isError);
-        $payload = $result->content[0]['data'] ?? null;
+        $payload = $result->structuredContent ?? null;
         self::assertIsArray($payload);
         self::assertArrayHasKey('patches', $payload);
         self::assertCount(1, $payload['patches'], 'add_field on a known entity must yield exactly one patch.');
@@ -88,7 +88,7 @@ final class GeneratePatchToolTest extends TestCase
             'GeneratePatchTool must not create/modify/delete any files in the controlled temp directory.',
         );
 
-        $payload = $result->content[0]['data'] ?? null;
+        $payload = $result->structuredContent ?? null;
         self::assertIsArray($payload);
         foreach ($payload['patches'] as $patch) {
             $advertisedPath = $patch['file_path'] ?? '';
@@ -109,7 +109,7 @@ final class GeneratePatchToolTest extends TestCase
             $this->accountWithPermission('bimaaji.mutate'),
         );
 
-        $payload = $result->content[0]['data'] ?? null;
+        $payload = $result->structuredContent ?? null;
         self::assertIsArray($payload);
         $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
         $decoded = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);
