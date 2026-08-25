@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Tests\Contract\Tool;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -62,7 +62,16 @@ use Waaseyaa\Wayfinding\Http\EmitBeaconController;
  * through. The covered set is cross-checked against a filesystem scan of
  * `src/Tool/`, so a tool added later fails this suite until it is covered.
  */
-#[CoversNothing]
+#[CoversClass(IntrospectGraphTool::class)]
+#[CoversClass(IntrospectSectionTool::class)]
+#[CoversClass(SearchSpecsTool::class)]
+#[CoversClass(ProposeMutationTool::class)]
+#[CoversClass(GeneratePatchTool::class)]
+#[CoversClass(RecordTrailTool::class)]
+#[CoversClass(ReRecordTrailTool::class)]
+#[CoversClass(GetTrailTool::class)]
+#[CoversClass(EditTrailTool::class)]
+#[CoversClass(EmitBeaconTool::class)]
 final class McpContentBlockConformanceTest extends TestCase
 {
     /** Content-block types a conforming MCP client accepts. */
