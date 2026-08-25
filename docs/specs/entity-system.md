@@ -1708,6 +1708,14 @@ CAS; omission retains an entry and deletion requires a hash-bound tombstone.
 After commit, cached immutable config reads are invalidated by the runtime epoch
 rather than switching to a second active store.
 
+Every primary and unique key in the configuration lifecycle schema is prefixed by
+`authority_id`, so a unique violation reaching the activation commit always
+implicates one authority. That conflict names the authority, the activation
+request, and the driver's violated constraint, because the message is the only
+evidence an operator has: the activator's own idempotency check clears before
+the INSERT, so the branch is reachable only by a genuinely racing duplicate and
+cannot be reproduced by inspection (#2545).
+
 <!-- Spec reviewed 2026-08-12 - S1-FW-CFG-01 typed authority supersedes the former config/active FileStorage binding. -->
 
 ### ConfigManagerInterface

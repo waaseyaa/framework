@@ -235,7 +235,19 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                 // Preserve the initiating exception; the DB connection owns rollback health.
             }
             if ($exception instanceof UniqueConstraintViolationException) {
-                throw new ConfigurationActivationConflictException('Configuration activation identity conflicted at commit.', previous: $exception);
+                // Name the authority and the violated constraint. Every unique
+                // key in the lifecycle schema is authority-prefixed, so which
+                // authority committed is the first thing an operator needs and
+                // the message used to withhold it (#2545).
+                throw new ConfigurationActivationConflictException(
+                    sprintf(
+                        'Configuration activation identity conflicted at commit for authority %s (request %s): %s',
+                        $this->context->authorityId,
+                        $request->requestId,
+                        $exception->getMessage(),
+                    ),
+                    previous: $exception,
+                );
             }
             throw $exception;
         }
