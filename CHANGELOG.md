@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Security — `ContentPublisher` read operations were capability-only and
+  bypassed every entity access policy (#2516):** `list()`, `get()`,
+  `revisions()`, `revision()`, `preview()` and `previewRevision()` authorized on
+  the caller's coarse publish capability and then read through the
+  non-access-checked repository path, so no per-entity policy was consulted —
+  an already-injected `EntityAccessHandler` sat unused on all six. Any surface
+  built on them (the MCP `*.list` / `*.get` / `*.revisions` / `*.preview` tool
+  set included) therefore granted read of every entity in the bundle to anyone
+  holding the authoring credential, including entities a bundle- or
+  entity-level policy was meant to restrict. `list()` now resolves its
+  candidate window through the access-checked query API bound to the acting
+  principal (`getQuery()->setAccount($actor)` then `findMany()`), never by
+  post-filtering an unchecked read; the single reads require an `Allowed`
+  entity-level `view`; `revisions()` and `revision()` apply a per-revision
+  `view_revision` decision (composed through `RevisionPolicyComposition`,
+  falling back to `view`) **before** any historical field data is projected.
+  Every refusal is indistinguishable from absence — same
+  `ContentNotFoundException`, same `NOT_FOUND` code, same message — so no read
+  becomes an existence oracle. `assertSlugFree()` deliberately KEEPS the
+  non-access-checked path (a uniqueness pre-check, not a content read;
+  converting it would let an unprivileged caller create a slug colliding with a
+  row invisible to them) and a regression test pins that carve-out. A publisher
+  composed with an access handler now requires a query-capable
+  (database-backed) repository; composed without one, the capability gate
+  remains the only authority, exactly as before. Mutation authorization,
+  field-read policy, tenancy, workflow transitions, audit attribution,
+  idempotency and If-Match concurrency are unchanged.
+
+  Two revision-targeted operations carried the same half of the gap and are
+  closed with it. `previewRevision()` checked only the entity-level `view`
+  before issuing (and auditing) a signed grant, so a principal refused
+  `view_revision` on the working copy still received a grant that `revision()`
+  would have refused; it now applies the per-revision decision, and applies it
+  *before* the revision-conflict assertion so a refused principal cannot learn
+  the current revision id from a `RevisionConflictException`. `rollback()`
+  copies the target revision's stored content forward and RETURNS it, so it is
+  also a read of that revision; it now requires `view_revision` on the target,
+  which closes the same bypass at the `*.rollback` MCP tool. Both refuse as
+  `NOT_FOUND` for the requested revision, exactly as `revision()` does, and
+  neither changes behaviour for a target revision that does not exist.
+
+  One documented caveat, unchanged by this fix but previously unstated: SQL
+  `LIMIT`/`OFFSET` bound `list()`'s candidate window before the per-row
+  decision is applied, so a page can come back short — or empty — while
+  viewable content exists beyond that window. This is fail-closed and leaks
+  nothing, but an empty page is not evidence of "no content"; the spec's "Read
+  authorization" section now says so.
+
 - **Breaking (alpha) — purpose-built OIDC client PATCH/DELETE now require
   `If-Match` (#2493):** `PATCH` and `DELETE /api/oidc-clients/{id}` previously
   accepted mutations with no precondition while the auto-generated
