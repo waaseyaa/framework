@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed — the seven page-builder routes now carry their refusal status on the
+  wire (#2409):** #2161 promoted refusal statuses for the five canonical
+  `admin_surface.*` routes but excluded `admin_surface.page_builder.*`, on the
+  premise that a different host contract implied a different envelope. It does
+  not: `GenericPageBuilderSurfaceHost::execute()` funnels every refusal through
+  the same `AdminSurfaceResultData::error()`, so all seven emitted
+  `{ok:false, error:{status}}` and all seven were flattened to HTTP 200 by
+  `ControllerDispatcher`'s default. A caller could not distinguish a 403 from a
+  404 from a success without parsing the body.
+
+  The promotion is deliberately not the five routes' `surfaceResponse()`: the
+  page-builder closures reach the wire through `jsonApiResponse()`, so adopting
+  it would have changed both the media type and the pretty-printed bytes. The
+  closures instead return the `statusCode`/`body` shape `ControllerDispatcher`
+  already honours, leaving the response bytes and Content-Type untouched —
+  verified by hashing 17 envelope shapes across all seven routes before and
+  after, where exactly the promoted rows differ and only in the status line.
+
+  Fail-closed on #2161's terms: only an integer 400–599 promotes. Absent,
+  string, float, array, `null`, `0`, `99`, `600`, `ok:true`, and a host-supplied
+  `statusCode`/`body` all keep HTTP 200 with unchanged bytes rather than
+  reaching the `Response` constructor and turning a clean refusal into a 500.
+  Foundation is untouched.
+
 - **Changed — If-Match mutation-precondition envelopes share one JSON:API
   adapter (#2537):** `JsonApiRouter`, dedicated OIDC client PATCH/DELETE,
   translation mutations, workflow transition POST, field auto-save, and
