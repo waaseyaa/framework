@@ -40,18 +40,18 @@
     "require": {
         "php": ">=8.5",
         "symfony/uid": "^7.0",
-        "waaseyaa/access": "^0.1.0-alpha.297",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.297",
-        "waaseyaa/entity": "^0.1.0-alpha.297",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.297",
-        "waaseyaa/foundation": "^0.1.0-alpha.297",
-        "waaseyaa/scheduler": "^0.1.0-alpha.297"
+        "waaseyaa/access": "^0.1.0-alpha.298",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.298",
+        "waaseyaa/entity": "^0.1.0-alpha.298",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.298",
+        "waaseyaa/foundation": "^0.1.0-alpha.298",
+        "waaseyaa/scheduler": "^0.1.0-alpha.298"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.297",
-        "waaseyaa/testing": "^0.1.0-alpha.297",
-        "waaseyaa/user": "^0.1.0-alpha.297"
+        "waaseyaa/entity-storage": "^0.1.0-alpha.298",
+        "waaseyaa/testing": "^0.1.0-alpha.298",
+        "waaseyaa/user": "^0.1.0-alpha.298"
     },
     "autoload": {
         "psr-4": {

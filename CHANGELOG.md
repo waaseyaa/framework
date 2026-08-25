@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.298] - 2026-08-25
+
 - **Fixed — RelationshipPreSaveListener is production-proven and registers
   exactly once (#1958):** `RelationshipServiceProvider::boot()` already wired
   the listener on `EntityEvents::PRE_SAVE` (#1992), but re-entering `boot()` on
