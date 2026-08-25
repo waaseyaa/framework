@@ -346,6 +346,15 @@ final class TranslationControllerTest extends TestCase
         $this->assertSame('MUTATION_PRECONDITION_REQUIRED', $doc->toArray()['errors'][0]['code'] ?? null);
         $this->assertFalse($entity->hasTranslation('es'));
 
+        $unknown = $this->controller->store(
+            $this->makeRequest(),
+            'article',
+            '9999',
+            'es',
+            ['data' => ['attributes' => ['title' => 'Hola']]],
+        );
+        $this->assertSame(404, $unknown->statusCode);
+
         $entity->addTranslation('fr')->set('title', 'Bonjour');
         $this->repository->save($entity);
         $update = $this->controller->update(
@@ -385,6 +394,8 @@ final class TranslationControllerTest extends TestCase
 
             $this->assertSame(400, $doc->statusCode, $invalid);
             $this->assertSame('INVALID_MUTATION_PRECONDITION', $doc->toArray()['errors'][0]['code'] ?? null);
+            $this->assertSame('1.1', $doc->toArray()['jsonapi']['version'] ?? null);
+            $this->assertStringNotContainsString('emt1.', json_encode($doc->toArray(), JSON_THROW_ON_ERROR));
         }
         $this->assertSame('Bonjour', $entity->getTranslation('fr')->get('title'));
     }
@@ -495,6 +506,8 @@ final class TranslationControllerTest extends TestCase
 
         $this->assertSame(412, $doc->statusCode);
         $this->assertSame('MUTATION_PRECONDITION_FAILED', $doc->toArray()['errors'][0]['code'] ?? null);
+        $this->assertArrayNotHasKey('meta', $doc->toArray()['errors'][0]);
+        $this->assertStringNotContainsString('emt1.', json_encode($doc->toArray(), JSON_THROW_ON_ERROR));
         $reloaded = $this->repository->find((string) $entity->id());
         $this->assertInstanceOf(TranslatableTestEntity::class, $reloaded);
         $this->assertSame('Winner', $reloaded->getTranslation('fr')->get('title'));

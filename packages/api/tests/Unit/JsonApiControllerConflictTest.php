@@ -194,6 +194,7 @@ final class JsonApiControllerConflictTest extends TestCase
         $this->assertSame(412, $document->statusCode);
         $this->assertSame('MUTATION_PRECONDITION_FAILED', $document->toArray()['errors'][0]['code']);
         $this->assertArrayNotHasKey('meta', $document->toArray()['errors'][0]);
+        $this->assertStringNotContainsString('emt1.', json_encode($document->toArray(), JSON_THROW_ON_ERROR));
         $this->assertSame('v2-winner', $this->repo->find('1')?->label());
     }
 

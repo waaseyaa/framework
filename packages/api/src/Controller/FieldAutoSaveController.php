@@ -8,10 +8,11 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\Http\EntityMutationPrecondition;
 use Waaseyaa\Api\Http\JsonApiResponse;
+use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
 use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
-use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
@@ -96,9 +97,14 @@ final class FieldAutoSaveController
             return $this->error(422, 'malformed_body', 'Body must be {"value": "<string>"}');
         }
 
-        // 4. Load entity type and entity (404 if missing).
+        // 4. Unknown entity type is a catalog 404, even without If-Match.
         if (!$this->entityTypeManager->hasDefinition($entityType)) {
             return $this->error(404, 'entity_type_not_found', "Unknown entity type '{$entityType}'");
+        }
+
+        $expectedMutation = EntityMutationPrecondition::fromRequest($request);
+        if ($expectedMutation instanceof JsonApiDocument) {
+            return EntityMutationPrecondition::response($expectedMutation);
         }
 
         // C-22 WP3: read/write path now goes through the canonical repository.
@@ -106,16 +112,6 @@ final class FieldAutoSaveController
         $entity = $repository->find($id);
         if ($entity === null) {
             return $this->error(404, 'entity_not_found', "Entity '{$entityType}/{$id}' not found");
-        }
-
-        $ifMatch = $request->headers->get('If-Match');
-        if (!is_string($ifMatch) || trim($ifMatch) === '') {
-            return $this->error(428, 'mutation_precondition_required', 'If-Match is required');
-        }
-        try {
-            $expectedMutation = EntityMutationToken::fromHttpIfMatch($ifMatch);
-        } catch (\InvalidArgumentException) {
-            return $this->error(400, 'invalid_mutation_precondition', 'If-Match must contain one strong entity mutation ETag');
         }
 
         // 5. Validate field key against bundle fields (404 if not registered).
@@ -165,7 +161,7 @@ final class FieldAutoSaveController
             || $expectedMutation->entityTypeId !== $entityType
             || $expectedMutation->entityId !== (string) $target->id()
         ) {
-            return $this->error(412, 'mutation_precondition_failed', 'The entity changed after it was read');
+            return EntityMutationPrecondition::response(EntityMutationPrecondition::failedDocument());
         }
         $target->_hydrateMutationToken($expectedMutation);
 
@@ -184,7 +180,7 @@ final class FieldAutoSaveController
             $repository->save($target);
         } catch (EntityMutationConflictException) {
             $target->set($key, $previousValue);
-            return $this->error(412, 'mutation_precondition_failed', 'The entity changed after it was read');
+            return EntityMutationPrecondition::response(EntityMutationPrecondition::failedDocument());
         } catch (TransitionDeniedException $e) {
             return $this->workflowTransitionDeniedError($e);
         }

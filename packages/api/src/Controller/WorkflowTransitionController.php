@@ -12,7 +12,9 @@ use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Audit\AuditQueryDto;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
+use Waaseyaa\Api\Http\EntityMutationPrecondition;
 use Waaseyaa\Api\Http\JsonApiResponse;
+use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
@@ -371,25 +373,9 @@ final class WorkflowTransitionController
         string $entityId,
         EntityInterface $entity,
     ): EntityMutationToken|JsonApiResponse {
-        $ifMatch = $request->headers->get('If-Match');
-        if ($ifMatch === null || trim($ifMatch) === '') {
-            return $this->errorResponse(new JsonApiError(
-                status: '428',
-                title: 'Precondition Required',
-                detail: 'If-Match is required for an existing aggregate mutation.',
-                code: 'MUTATION_PRECONDITION_REQUIRED',
-            ));
-        }
-
-        try {
-            $expected = EntityMutationToken::fromHttpIfMatch($ifMatch);
-        } catch (\InvalidArgumentException) {
-            return $this->errorResponse(new JsonApiError(
-                status: '400',
-                title: 'Bad Request',
-                detail: 'If-Match must contain exactly one strong entity mutation ETag.',
-                code: 'INVALID_MUTATION_PRECONDITION',
-            ));
+        $expected = EntityMutationPrecondition::fromRequest($request);
+        if ($expected instanceof JsonApiDocument) {
+            return EntityMutationPrecondition::response($expected);
         }
 
         if (!$entity instanceof EntityBase
@@ -407,11 +393,6 @@ final class WorkflowTransitionController
 
     private function mutationConflictResponse(): JsonApiResponse
     {
-        return $this->errorResponse(new JsonApiError(
-            status: '412',
-            title: 'Precondition Failed',
-            detail: 'The resource changed after the supplied mutation precondition was observed.',
-            code: 'MUTATION_PRECONDITION_FAILED',
-        ));
+        return EntityMutationPrecondition::response(EntityMutationPrecondition::failedDocument());
     }
 }

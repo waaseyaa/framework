@@ -1,4 +1,8 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-24 - #2537: JsonApiRouter PATCH/DELETE If-Match parse
+and 428/400 JSON:API envelopes go through Waaseyaa\Api\Http\EntityMutationPrecondition.
+EntityMutationToken::fromHttpIfMatch() remains the policy authority; Request::getETags()
+is not used. Canonical envelope contract: docs/specs/api-layer.md. -->
 <!-- Spec reviewed 2026-08-22 - #2500: ApplicationSecret adds PURPOSE_AUTH_TOKEN_HMAC (waaseyaa.auth.token-hmac.v1), owned by waaseyaa/auth. Auth reset/verify/invite HMACs derive from that purpose unless a valid explicit AUTH_TOKEN_SECRET overrides; raw master bytes are never the HMAC key. Kernel custody, HKDF salt, and non-disclosure rules are unchanged. -->
 
 <!-- Spec reviewed 2026-08-16 - #2113: HttpKernel resolves the boot-scoped InternalFieldVisibilityPolicy and threads the same instance into JSON:API, translation, and search routers. Every ResourceSerializer created by those infrastructure adapters therefore consumes application `entity.internal_fields_by_type` metadata consistently; routing and controller dispatch semantics are unchanged. -->
@@ -1657,7 +1661,7 @@ Optional follow-ups (full header map API, lazy adapter, JSON:API adoption) are t
 
 | Router | Controller key(s) | Purpose |
 |--------|-------------------|---------|
-| `JsonApiRouter` | `jsonapi.*` | JSON:API CRUD delegation to `JsonApiController`. `handle()` now threads `$ctx->query` into single-resource `show()` calls too (CW-v1 option-1, #1920 PR-3 — previously only the collection `index()` call received it), needed for the new `?workingCopy=1` toggle (`docs/specs/api-layer.md` "GET single") and, as a side effect, fixing a pre-existing gap where sparse fieldsets (`fields[type]`) never reached a single-resource GET over HTTP. |
+| `JsonApiRouter` | `jsonapi.*` | JSON:API CRUD delegation to `JsonApiController`. PATCH/DELETE parse `If-Match` through `Waaseyaa\Api\Http\EntityMutationPrecondition` before dispatch (428/400 shared envelope; `EntityMutationToken::fromHttpIfMatch()` remains the policy). `handle()` also threads `$ctx->query` into single-resource `show()` calls (CW-v1 option-1, #1920 PR-3 — previously only the collection `index()` call received it), needed for the new `?workingCopy=1` toggle (`docs/specs/api-layer.md` "GET single") and, as a side effect, fixing a pre-existing gap where sparse fieldsets (`fields[type]`) never reached a single-resource GET over HTTP. |
 | `EntityTypeLifecycleRouter` | `entity_types`, `entity_type.disable`, `entity_type.enable` | Entity type listing and lifecycle management |
 | `SchemaRouter` | `openapi`, `schema.*` | OpenAPI and JSON Schema endpoints |
 | `DiscoveryRouter` (`Waaseyaa\Api\Http\Router`) | `discovery.topic_hub`, `discovery.cluster`, `discovery.timeline`, `discovery.endpoint` | Discovery API for topic hubs, clusters, timelines (registered from `ApiServiceProvider::httpDomainRouters()`) |

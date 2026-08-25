@@ -105,14 +105,36 @@ final class JsonApiRouterTest extends TestCase
     public function weak_or_wildcard_if_match_is_rejected_before_dispatch(): void
     {
         $router = $this->createRouter();
-        foreach (['W/"anything"', '*', '"one", "two"'] as $ifMatch) {
+        foreach (['W/"anything"', '*', '"*"', '"one", "two"', 'emt1.not-an-etag', '""'] as $ifMatch) {
             $request = Request::create('/api/node/1', 'DELETE');
             $request->attributes->set('_controller', 'Waaseyaa\\Api\\JsonApiController::destroy');
             $request->attributes->set('_entity_type', 'node');
             $request->attributes->set('id', '1');
             $request->headers->set('If-Match', $ifMatch);
 
-            self::assertSame(400, $router->handle($request)->getStatusCode(), $ifMatch);
+            $response = $router->handle($request);
+            self::assertSame(400, $response->getStatusCode(), $ifMatch);
+            $body = json_decode((string) $response->getContent(), true);
+            self::assertSame('INVALID_MUTATION_PRECONDITION', $body['errors'][0]['code'] ?? null, $ifMatch);
+            self::assertSame('1.1', $body['jsonapi']['version'] ?? null);
+            self::assertStringNotContainsString('emt1.', (string) $response->getContent());
         }
+    }
+
+    #[Test]
+    public function unknown_id_without_if_match_is_428_before_lookup(): void
+    {
+        $router = $this->createRouter();
+        $request = Request::create('/api/node/9999', 'PATCH', content: '{}');
+        $request->attributes->set('_controller', 'Waaseyaa\\Api\\JsonApiController::update');
+        $request->attributes->set('_entity_type', 'node');
+        $request->attributes->set('id', '9999');
+
+        $response = $router->handle($request);
+
+        self::assertSame(428, $response->getStatusCode());
+        $body = json_decode((string) $response->getContent(), true);
+        self::assertSame('MUTATION_PRECONDITION_REQUIRED', $body['errors'][0]['code']);
+        self::assertSame('1.1', $body['jsonapi']['version'] ?? null);
     }
 }

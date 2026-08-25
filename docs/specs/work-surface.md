@@ -1,3 +1,6 @@
+<!-- Spec reviewed 2026-08-24 - #2537: F3 If-Match mutations share EntityMutationPrecondition
+(428/400/412 MUTATION_PRECONDITION_* JSON:API document); missing If-Match is
+evaluated before entity lookup. Other F3 errors keep the historical shape. -->
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP must not CREATE or heal attachment schema; coordinated schema:sync applies AttachmentSchema::apply() strictly. Custom EntityStorageInterface storageClass is not forced to own an SQL table. -->
 # Work Surface
 
@@ -94,16 +97,23 @@ Content-Type: application/json
 {"value": "<string>"}
 ```
 
-**Status codes** (per contracts/README.md F3):
+**Status codes** (per contracts/README.md F3, plus the shared aggregate fence):
 
 | Code | Condition |
 |------|-----------|
 | 200 | Field saved |
+| 400 | `If-Match` malformed, weak, wildcard, or a list (`INVALID_MUTATION_PRECONDITION`) |
 | 401 | No `_account` on request |
 | 403 | Entity-level or field-level access denied |
-| 404 | Unknown entity type, entity not found, or field not registered |
+| 404 | Unknown entity type, entity not found (with a valid If-Match), or field not registered |
+| 412 | Stale or identity-mismatched aggregate token (`MUTATION_PRECONDITION_FAILED`); body does not disclose the winner |
 | 415 | Content-Type is not `application/json` |
 | 422 | Body too large (> 65 536 bytes), malformed JSON, or missing `value` key |
+| 428 | Missing `If-Match`, evaluated after body-shape and entity-type checks and before entity lookup (`MUTATION_PRECONDITION_REQUIRED`) |
+
+Mutation-precondition errors use the shared `EntityMutationPrecondition` JSON:API
+document (`jsonapi` 1.1 + `MUTATION_PRECONDITION_*` codes). Other F3 errors keep
+this controller's historical `{status, code, title}` shape.
 
 **Constructor**:
 ```php

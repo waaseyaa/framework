@@ -1689,6 +1689,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     private function mutationExpectation(array $payload): EntityMutationToken|AdminSurfaceResultData
     {
         $opaque = $payload['mutation_token'] ?? null;
+        // Body-token transport is intentional for this host. Do not read
+        // If-Match here; JSON:API If-Match envelopes live on
+        // EntityMutationPrecondition. Page-builder uses revision/fingerprint
+        // fencing, not EntityMutationToken.
         if (!is_string($opaque) || trim($opaque) === '') {
             return AdminSurfaceResultData::error(
                 428,

@@ -7,6 +7,7 @@ namespace Waaseyaa\Api;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\Http\EntityMutationPrecondition;
 use Waaseyaa\Api\Query\PaginationLinks;
 use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
@@ -1182,14 +1183,7 @@ final class JsonApiController
 
     private function mutationConflictDocument(): JsonApiDocument
     {
-        return JsonApiDocument::fromErrors([
-            new JsonApiError(
-                status: '412',
-                title: 'Precondition Failed',
-                detail: 'The resource changed after the supplied mutation precondition was observed.',
-                code: 'MUTATION_PRECONDITION_FAILED',
-            ),
-        ], statusCode: 412);
+        return EntityMutationPrecondition::failedDocument();
     }
 
     /** @return array<string, string> */

@@ -1,5 +1,12 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-24 - #2537: If-Match JSON:API mutation surfaces share
+`Waaseyaa\Api\Http\EntityMutationPrecondition`, which wraps
+`EntityMutationToken::fromHttpIfMatch()` and owns the 428/400/412
+`MUTATION_PRECONDITION_*` JsonApiDocument envelope. Admin/page-builder keep
+body `mutation_token` / revision-fingerprint transport; they do not switch to
+If-Match. Field auto-save now uses the same codes and evaluates a missing
+If-Match before entity lookup. -->
 <!-- Spec reviewed 2026-08-24 - #2493: purpose-built `PATCH|DELETE /api/oidc-clients/{id}`
 now requires the same strong aggregate `If-Match` fence as `JsonApiRouter`
 (`MUTATION_PRECONDITION_REQUIRED` 428, `INVALID_MUTATION_PRECONDITION` 400,
@@ -558,14 +565,23 @@ it implements no conflict check of its own.
 > compatibility input for the narrower historical revision-head contract; it
 > is not a substitute for the aggregate precondition. Because
 > `WaaseyaaContext` does not carry headers, the public HTTP router parses and
-> validates `If-Match` before dispatching to `JsonApiController`. The
-> purpose-built admin OIDC client controller (`PATCH|DELETE /api/oidc-clients/{id}`)
-> applies the same `EntityMutationToken::fromHttpIfMatch()` policy and the
-> same JSON:API error codes before load, so a missing precondition cannot
-> distinguish an unknown id from an existing one. Authorized
+> validates `If-Match` before dispatching to `JsonApiController` through
+> `Waaseyaa\Api\Http\EntityMutationPrecondition` (the L4 JSON:API envelope
+> adapter; `EntityMutationToken::fromHttpIfMatch()` remains the policy
+> authority). The same helper is used by the purpose-built admin OIDC client
+> controller (`PATCH|DELETE /api/oidc-clients/{id}`), translation mutations,
+> workflow transition POST, and field auto-save. Missing preconditions return
+> 428 before entity lookup on the JSON:API router and OIDC client mutations,
+> so a missing header cannot distinguish an unknown id from an existing one.
+> Field auto-save returns 404 for an unknown entity type first (F3 catalog
+> contract), then applies the same missing-If-Match 428 before entity-id
+> lookup. Translation and workflow POST still apply the view/load
+> gate first (403/404, including R8 byte-identical missing vs view-denied),
+> then the same envelope. Authorized
 > `GET /api/oidc-clients/{id}` returns the current token as a strong `ETag`
 > and `meta.mutation_token`. The auto-generated `/api/oidc_client/{id}`
 > JSON:API route remains fenced by `JsonApiRouter`; the two surfaces agree.
+> Conflict documents never include the winning token.
 
 **Historical revision-head seam.** The optional revision expectation rides the
 PATCH body:
