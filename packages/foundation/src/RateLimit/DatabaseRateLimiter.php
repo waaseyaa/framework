@@ -22,10 +22,9 @@ use Waaseyaa\Database\Schema\SchemaRequirement;
  * limit is exceeded once the count passes `maxAttempts`, and the window resets
  * after `windowSeconds`.
  *
- * The shipped default binding stays {@see InMemoryRateLimiter} (it needs no
- * writable table); bind {@see RateLimiterInterface} to this in an app service
- * provider — passing the kernel's persistent `DatabaseInterface` — when a limit
- * must hold across requests.
+ * `HttpKernel` constructs this implementation with its canonical database for
+ * the default HTTP rate-limit boundary. {@see InMemoryRateLimiter} remains
+ * available for isolated tests and deliberately process-local consumers.
  *
  * @api
  */

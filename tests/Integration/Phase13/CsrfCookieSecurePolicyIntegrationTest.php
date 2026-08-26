@@ -55,6 +55,7 @@ final class CsrfCookieSecurePolicyIntegrationTest extends TestCase
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
         $database = \Waaseyaa\Database\DBALDatabase::createSqlite($this->projectRoot . '/storage/waaseyaa.sqlite');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::foundation($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::auth($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($database);
@@ -355,6 +356,12 @@ final class CsrfCookieSecurePolicyIntegrationTest extends TestCase
                 'environment' => 'testing',
                 'app'         => ['url' => 'http://localhost', 'name' => 'CSRF Secure Policy Integration Test'],
                 'cors_origins' => ['http://localhost:3000'],
+                'security_headers' => [
+                    'csp' => "default-src 'none'",
+                    'hsts_enabled' => true,
+                    'hsts_max_age' => 3600,
+                    'frame_options' => 'SAMEORIGIN',
+                ],
                 'session'     => [
                     'cookie' => [
                         'secure'   => true,

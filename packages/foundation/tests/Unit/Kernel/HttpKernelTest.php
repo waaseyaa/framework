@@ -28,6 +28,8 @@ use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Middleware\BodySizeLimitMiddleware;
+use Waaseyaa\Foundation\Middleware\RateLimitMiddleware;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -43,8 +45,8 @@ use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
-use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
+use Waaseyaa\User\Middleware\SessionMiddleware;
 
 #[CoversClass(HttpKernel::class)]
 final class HttpKernelTest extends TestCase
@@ -69,7 +71,7 @@ final class HttpKernelTest extends TestCase
     {
         ProcessFieldReadRuntime::reset();
         putenv('WAASEYAA_APP_SECRET');
-        (new Filesystem())->remove($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]
@@ -471,6 +473,17 @@ final class HttpKernelTest extends TestCase
 
         self::assertContains(CommunityMiddleware::class, $classes);
         self::assertContains(ResponseCacheControlMiddleware::class, $classes);
+        self::assertSame(1, array_count_values($classes)[RateLimitMiddleware::class] ?? 0);
+        self::assertSame(1, array_count_values($classes)[BodySizeLimitMiddleware::class] ?? 0);
+        self::assertSame(
+            [
+                ResponseCacheControlMiddleware::class,
+                SecurityHeadersMiddleware::class,
+                RateLimitMiddleware::class,
+                BodySizeLimitMiddleware::class,
+            ],
+            array_slice($classes, 0, 4),
+        );
         self::assertLessThan(
             array_search(SecurityHeadersMiddleware::class, $classes, true),
             array_search(ResponseCacheControlMiddleware::class, $classes, true),
@@ -483,6 +496,23 @@ final class HttpKernelTest extends TestCase
             array_search(FieldReadContextMiddleware::class, $classes, true),
             array_search(CommunityMiddleware::class, $classes, true),
         );
+    }
+
+    #[Test]
+    public function security_controls_have_an_explicit_configuration_rollback(): void
+    {
+        $kernel = new HttpKernel('/tmp/test-project');
+        $config = new \ReflectionProperty(AbstractKernel::class, 'config');
+        $config->setValue($kernel, [
+            'http_security' => [
+                'rate_limit' => ['enabled' => false],
+                'body_size_limit' => ['enabled' => false],
+            ],
+        ]);
+        $enabled = new \ReflectionMethod(HttpKernel::class, 'httpSecurityControlEnabled');
+
+        self::assertFalse($enabled->invoke($kernel, 'rate_limit'));
+        self::assertFalse($enabled->invoke($kernel, 'body_size_limit'));
     }
 
     /**

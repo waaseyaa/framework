@@ -11,7 +11,6 @@ use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
-use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -40,12 +39,6 @@ final class CsrfTestServiceProvider extends ServiceProvider implements HasHttpDo
     public function middleware(EntityTypeManager $entityTypeManager): array
     {
         return [
-            new SecurityHeadersMiddleware(
-                csp: "default-src 'none'",
-                hstsEnabled: true,
-                hstsMaxAge: 3600,
-                frameOptions: 'SAMEORIGIN',
-            ),
             new FinalResponseProbeMiddleware(),
         ];
     }

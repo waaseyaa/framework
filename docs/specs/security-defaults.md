@@ -1,4 +1,5 @@
 # Security Defaults
+<!-- Spec reviewed 2026-08-26 - #2490 reconciles the documented HTTP boundary with runtime: HttpKernel now activates durable shared-database rate limiting and the request body-size limit exactly once through the authoritative stack composer. Both controls default on with explicit configuration rollback. -->
 
 ## Purpose
 
@@ -79,15 +80,15 @@ media metadata cannot opt the route into a looser framing policy.
 
 Provider-contributed HTTP middleware uses the same onion response phase: code after `$next->handle()` receives the final response. This is the supported app hook for response headers, cookies, compression, and equivalent response decoration. See [middleware-pipeline.md](middleware-pipeline.md).
 
-`Content-Security-Policy` and `Strict-Transport-Security` are **opt-in**, NOT applied by the kernel defaults: `default-src 'self'` would break consumer SPAs and same-origin inline previews, and HSTS needs HTTPS certainty. A deployment that wants them contributes an explicitly configured `SecurityHeadersMiddleware($csp, $hstsEnabled, $hstsMaxAge)` from its provider (the constructor defaults remain `default-src 'self'` / `X-Frame-Options: DENY` / HSTS-on for that explicit path).
+`Content-Security-Policy` and `Strict-Transport-Security` are **opt-in**, NOT applied by the kernel defaults: `default-src 'self'` would break consumer SPAs and same-origin inline previews, and HSTS needs HTTPS certainty. A deployment configures the one kernel-owned instance through `security_headers.csp`, `.hsts_enabled`, and `.hsts_max_age`; providers must not contribute a second `SecurityHeadersMiddleware`. The constructor defaults remain `default-src 'self'` / `X-Frame-Options: DENY` / HSTS-on for standalone use.
 
 ### Rate limiting
 
-`RateLimitMiddleware` (priority 80) enforces IP-based rate limiting: 60 requests per 60-second window by default. Exceeding the limit returns HTTP 429 with `Retry-After` header.
+`HttpKernel` activates `RateLimitMiddleware` exactly once at priority 80. It enforces IP-based rate limiting at 60 requests per 60-second fixed window by default. Exceeding the limit returns HTTP 429 with `Retry-After`. Production uses `DatabaseRateLimiter` over the kernel's canonical database, so windows are shared across requests and workers; `InMemoryRateLimiter` is only a process-local test or explicit standalone option. Operators may override positive integers at `http_security.rate_limit.max_attempts` and `.window_seconds`, or set `.enabled` to `false` for emergency rollback.
 
 ### Request body limits
 
-`BodySizeLimitMiddleware` (priority 70) rejects payloads exceeding 1 MB with HTTP 413.
+`HttpKernel` activates `BodySizeLimitMiddleware` exactly once at priority 70 and rejects payloads exceeding 1 MiB (1,048,576 bytes) with HTTP 413. Operators may override the positive integer at `http_security.body_size_limit.max_bytes`, or set `.enabled` to `false` for emergency rollback.
 
 ### CSRF token cookie
 
@@ -174,6 +175,9 @@ Patterns checked: `sk-*` (OpenAI), `ghp_*` (GitHub), `xox[bp]-*` (Slack), `ya29.
 | `packages/foundation/src/Middleware/SecurityHeadersMiddleware.php` | CSP, HSTS, X-Frame-Options |
 | `packages/foundation/src/Middleware/RateLimitMiddleware.php` | IP-based rate limiting (60/60s) |
 | `packages/foundation/src/Middleware/BodySizeLimitMiddleware.php` | 1 MB body size limit |
+| `packages/foundation/src/Middleware/HttpMiddlewareStackComposer.php` | Exactly-once runtime composition and stable priority ordering |
+| `packages/foundation/src/RateLimit/DatabaseRateLimiter.php` | Durable shared fixed-window state for the HTTP default |
+| `config/waaseyaa.php` / `skeleton/config/waaseyaa.php` | Shipped limits and explicit rollback controls |
 | `packages/user/src/Middleware/BearerAuthMiddleware.php` | JWT + API key bearer auth |
 | `packages/note/src/NoteAccessPolicy.php` | Entity + field access for core.note |
 | `defaults/core.note.yaml` | Governance manifest with encryption_policy |

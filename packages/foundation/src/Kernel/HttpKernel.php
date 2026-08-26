@@ -23,7 +23,6 @@ use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
-use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Community\CommunityMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
@@ -40,11 +39,15 @@ use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Maintenance\MaintenanceSettings;
 use Waaseyaa\Foundation\Maintenance\MaintenanceState;
+use Waaseyaa\Foundation\Middleware\BodySizeLimitMiddleware;
 use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
+use Waaseyaa\Foundation\Middleware\HttpMiddlewareStackComposer;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Foundation\Middleware\MaintenanceModeMiddleware;
+use Waaseyaa\Foundation\Middleware\RateLimitMiddleware;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
+use Waaseyaa\Foundation\RateLimit\DatabaseRateLimiter;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochCacheBackend;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
@@ -577,10 +580,9 @@ final class HttpKernel extends AbstractKernel
     /**
      * Build the ordered middleware pipeline around real request dispatch.
      *
-     * Collects built-in middleware (BearerAuth, Session, CSRF, Authorization),
-     * optional debug header middleware, and any provider-contributed middleware,
-     * sorts by priority (highest first — outermost onion layer), and returns
-     * the assembled HttpPipeline.
+     * Collects the explicit built-ins, optional debug header middleware, and
+     * provider contributions through one exactly-once composer. Attribute
+     * discovery supplies priority metadata; it is not a construction path.
      */
     private function buildMiddlewareStack(): HttpPipeline
     {
@@ -594,18 +596,38 @@ final class HttpKernel extends AbstractKernel
             throw new \LogicException('The HTTP pipeline requires the Foundation community context binding.');
         }
 
-        $middlewares = [
+        $builtIns = [
             // Outermost response policy: it unwinds after every cookie writer
             // and replaces public cache directives on session-bound responses.
             new ResponseCacheControlMiddleware(),
             new SecurityHeadersMiddleware(
-                csp: null,
-                hstsEnabled: false,
+                csp: is_array($this->config['security_headers'] ?? null)
+                    && is_string($this->config['security_headers']['csp'] ?? null)
+                    ? $this->config['security_headers']['csp']
+                    : null,
+                hstsEnabled: is_array($this->config['security_headers'] ?? null)
+                    && ($this->config['security_headers']['hsts_enabled'] ?? false) === true,
+                hstsMaxAge: is_array($this->config['security_headers'] ?? null)
+                    && is_int($this->config['security_headers']['hsts_max_age'] ?? null)
+                    ? $this->config['security_headers']['hsts_max_age']
+                    : 31_536_000,
                 frameOptions: is_array($this->config['security_headers'] ?? null)
                     && is_string($this->config['security_headers']['frame_options'] ?? null)
                     ? $this->config['security_headers']['frame_options']
                     : 'SAMEORIGIN',
             ),
+            ...($this->httpSecurityControlEnabled('rate_limit') ? [
+                new RateLimitMiddleware(
+                    new DatabaseRateLimiter($this->database),
+                    $this->httpSecurityPositiveInt('rate_limit', 'max_attempts', 60),
+                    $this->httpSecurityPositiveInt('rate_limit', 'window_seconds', 60),
+                ),
+            ] : []),
+            ...($this->httpSecurityControlEnabled('body_size_limit') ? [
+                new BodySizeLimitMiddleware(
+                    $this->httpSecurityPositiveInt('body_size_limit', 'max_bytes', 1_048_576),
+                ),
+            ] : []),
             new BearerAuthMiddleware(
                 $userRepository,
                 (string) ($this->config['jwt_secret'] ?? ''),
@@ -622,9 +644,6 @@ final class HttpKernel extends AbstractKernel
                 accountContext: $this->accountContext(),
                 statelessPathPrefixes: $this->sessionStatelessPaths(),
             ),
-            // Explicit built-in until the declarative middleware/runtime contract
-            // is resolved in #2330. Provider discovery alone does not instantiate
-            // #[AsMiddleware] classes in the HTTP pipeline.
             new CommunityMiddleware($communityContext),
             // Same resolved session.cookie policy as SessionMiddleware, so a
             // forced `secure => true` governs the XSRF-TOKEN cookie too (#2149).
@@ -633,21 +652,22 @@ final class HttpKernel extends AbstractKernel
         ];
 
         if ($this->isDebugMode()) {
-            $middlewares[] = new DebugHeaderMiddleware(
+            $builtIns[] = new DebugHeaderMiddleware(
                 startTime: $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true),
             );
         }
 
+        $providerMiddleware = [];
         foreach ($this->providers as $provider) {
             if (!$provider instanceof HasMiddlewareInterface) {
                 continue;
             }
             foreach ($provider->middleware($this->entityTypeManager) as $mw) {
-                $middlewares[] = $mw;
+                $providerMiddleware[] = ['middleware' => $mw, 'provider' => $provider::class];
             }
         }
 
-        usort($middlewares, fn(object $a, object $b) => $this->getMiddlewarePriority($b) <=> $this->getMiddlewarePriority($a));
+        $middlewares = new HttpMiddlewareStackComposer()->compose($builtIns, $providerMiddleware);
 
         $pipeline = new HttpPipeline();
         foreach ($middlewares as $middleware) {
@@ -655,6 +675,36 @@ final class HttpKernel extends AbstractKernel
         }
 
         return $pipeline;
+    }
+
+    private function httpSecurityControlEnabled(string $control): bool
+    {
+        $httpSecurity = $this->config['http_security'] ?? [];
+        if (!is_array($httpSecurity)) {
+            throw new \LogicException('http_security configuration must be an object.');
+        }
+        $controlConfig = $httpSecurity[$control] ?? [];
+        if (!is_array($controlConfig)) {
+            throw new \LogicException(sprintf('http_security.%s configuration must be an object.', $control));
+        }
+        $enabled = $controlConfig['enabled'] ?? true;
+        if (!is_bool($enabled)) {
+            throw new \LogicException(sprintf('http_security.%s.enabled must be a boolean.', $control));
+        }
+
+        return $enabled;
+    }
+
+    private function httpSecurityPositiveInt(string $control, string $setting, int $default): int
+    {
+        $httpSecurity = $this->config['http_security'] ?? [];
+        $controlConfig = is_array($httpSecurity) ? ($httpSecurity[$control] ?? []) : [];
+        $value = is_array($controlConfig) ? ($controlConfig[$setting] ?? $default) : $default;
+        if (!is_int($value) || $value < 1) {
+            throw new \LogicException(sprintf('http_security.%s.%s must be a positive integer.', $control, $setting));
+        }
+
+        return $value;
     }
 
     /**
@@ -807,21 +857,6 @@ final class HttpKernel extends AbstractKernel
                 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']],
             ]);
         }
-    }
-
-    private function getMiddlewarePriority(object $middleware): int
-    {
-        $reflection = new \ReflectionClass($middleware);
-        $attributes = $reflection->getAttributes(AsMiddleware::class);
-        if (empty($attributes)) {
-            return 0;
-        }
-        $instance = $attributes[0]->newInstance();
-        if ($instance->pipeline !== 'http') {
-            return 0;
-        }
-
-        return $instance->priority;
     }
 
     private function bootFailureJsonResponse(\Throwable $e): HttpResponse

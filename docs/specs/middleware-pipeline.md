@@ -1,7 +1,8 @@
 # Middleware Pipeline
+<!-- Spec reviewed 2026-08-26 - #2490 makes HttpKernel's explicit built-in factories the sole production construction path. HttpMiddlewareStackComposer combines those instances with provider contributions, rejects duplicate concrete classes, and stably sorts by AsMiddleware priority. RateLimitMiddleware (durable DatabaseRateLimiter) and BodySizeLimitMiddleware are now active by default; CompressionMiddleware, RequestLoggingMiddleware, and ETagMiddleware remain provider opt-ins pending their documented boundary audits. -->
 <!-- Spec reviewed 2026-08-16 - #2150: ResponseCacheControlMiddleware is the outermost HTTP response-policy layer. SessionMiddleware marks every stateful request and disables PHP's independent session cache limiter before startup; after all inner cookie writers unwind, the response layer replaces any cache policy with private, no-store when the request is session-bound or the Symfony response carries Set-Cookie. Cookie-free stateless responses preserve their public SSR policy. -->
 <!-- Spec reviewed 2026-08-22 - #2494 FrankenPHP worker mode includes auto_prepend_file once per process, not once per request. The repo `public/index.php` `$handler` therefore arms `Waaseyaa\FrankenPhp\WorkerAcceptance` via string `class_exists` only when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` and SAPI is `frankenphp`. The seam ignores request headers and environment-supplied paths, loads no `tests/` path from the front controller, and stays inert if the class or extras are missing. Production leaves the env unset. Skeleton / `make:public` stub / golden stay unchanged. -->
-<!-- Spec reviewed 2026-08-10 - #2327 corrected runtime wiring: HttpKernel explicitly installs CommunityMiddleware at priority 20 because compiled AsMiddleware metadata is not itself an executable registration path (#2330 tracks that broader discovery/runtime mismatch). CommunityMiddleware preserves route/session precedence, falls back to the authoritative active configured context, writes `_community_id` before FieldReadContextMiddleware, and restores the prior configured context after dispatch for long-lived workers. Fixed-community immutable principals therefore align with storage/controllers; inactive contexts remain unscoped. -->
+<!-- Spec reviewed 2026-08-10 - #2327 corrected runtime wiring: HttpKernel explicitly installs CommunityMiddleware at priority 20 because compiled AsMiddleware metadata is inventory rather than executable registration. CommunityMiddleware preserves route/session precedence, falls back to the authoritative active configured context, writes `_community_id` before FieldReadContextMiddleware, and restores the prior configured context after dispatch for long-lived workers. Fixed-community immutable principals therefore align with storage/controllers; inactive contexts remain unscoped. -->
 <!-- Spec reviewed 2026-07-30 - #2154 (follow-up to #2146): a session.stateless_paths entry of exactly "/" now means the ROOT PATH only, not a prefix of every path. Prefix-matching it made every anonymous GET stateless including /admin/login (a GET that must mint a CSRF token, withheld when no session exists), so an app could not express a cookie-free homepage without silently breaking its own authentication. Named prefixes are unchanged. See middleware-pipeline.md "Stateless path gate". -->
 
 <!-- Spec reviewed 2026-07-30 - #2146 stateless session paths: SessionMiddleware gains an opt-in session.stateless_paths gate (anonymous GET/HEAD on configured prefixes skip session_start; session-cookie-carrying requests resume; other methods unchanged; default [] is exact behavior parity). Access-control semantics unchanged: skipped sessions resolve to AnonymousUser under deny-unless-granted. Full contract in middleware-pipeline.md "SessionMiddleware". -->
@@ -12,7 +13,7 @@
 <!-- Spec reviewed 2026-06-04 - PR #1614: the front controller (`public/index.php`) now supports three runtimes ahead of the same authorization pipeline: (1) FrankenPHP worker mode — boot once then loop on `frankenphp_handle_request()` so the app stays warm and requests are served concurrently across threads (a long-lived SSE `/api/broadcast` stream pins one thread while the rest stay responsive); (2) FrankenPHP/FPM classic — one request per invocation; (3) `php -S` cli-server — single request with static-file passthrough. The middleware pipeline (SessionMiddleware -> AuthorizationMiddleware) and its onion/attribute model are unchanged; only the request-loop wrapper differs by runtime. -->
 <!-- Spec reviewed 2026-04-22 - public/index.php: optional Dotenv loadEnv(..., APP_ENV, production), REQUEST_URI ?? '/' in cli-server guard, outer Throwable catch JSON:API 500 -->
 
-Waaseyaa implements typed middleware pipelines for two execution contexts: HTTP requests and background jobs. Each pipeline uses the onion pattern with separate, type-safe interface pairs. Middleware is discovered via PHP 8 attributes and compiled into sorted stacks.
+Waaseyaa implements typed middleware pipelines for two execution contexts: HTTP requests and background jobs. Each pipeline uses the onion pattern with separate, type-safe interface pairs. For HTTP, `HttpKernel` explicitly constructs the built-ins and accepts provider contributions; `HttpMiddlewareStackComposer` reads PHP 8 attributes for priority metadata, rejects duplicate concrete classes, and stably sorts the one runtime stack. Compiled discovery metadata is inventory only and never instantiates middleware.
 
 ## Packages
 
@@ -154,7 +155,7 @@ A middleware can short-circuit by returning a response without calling `$next->h
 The production HTTP pipeline in `HttpKernel::serveHttpRequest()` wires middleware in priority order around the real dispatch handler:
 
 ```
-ResponseCacheControlMiddleware -> SecurityHeadersMiddleware -> SessionMiddleware -> CommunityMiddleware -> CsrfMiddleware -> FieldReadContextMiddleware -> AuthorizationMiddleware -> controller/domain-router dispatch
+ResponseCacheControlMiddleware -> SecurityHeadersMiddleware -> RateLimitMiddleware -> BodySizeLimitMiddleware -> BearerAuthMiddleware -> SessionMiddleware -> CommunityMiddleware -> CsrfMiddleware -> FieldReadContextMiddleware -> AuthorizationMiddleware -> controller/domain-router dispatch
 ```
 
 ### Pre-boot maintenance gate (outside this pipeline)
@@ -186,9 +187,10 @@ contract; no separate app response hook is required.
 
 `CommunityMiddleware` is an explicit kernel built-in. Its `#[AsMiddleware]`
 attribute supplies priority metadata, but compiled manifest metadata is not an
-executable registration path in the current kernel. Issue #2330 tracks that
-broader discovery/runtime contract without implicitly activating or
-double-registering other attribute-only middleware.
+executable registration path. The same rule applies to every built-in: exactly
+one factory owns construction. If a provider contributes a concrete class that
+is already present, composition fails with both owners instead of silently
+running it twice.
 Like the field-read principal middleware, it rebinds its request community
 around deferred streamed-response callbacks before restoring worker state.
 
@@ -355,20 +357,32 @@ $raw = $request->getContent();  // reads from the Request object, not php://inpu
 
 ## Built-in HTTP Middleware
 
-All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(pipeline: 'http', priority: N)]` for auto-discovery. Higher priority runs first (outer onion layer).
+All HTTP middleware implement `HttpMiddlewareInterface`. `#[AsMiddleware(pipeline: 'http', priority: N)]` supplies ordering and inventory metadata; it is not auto-instantiation. Higher priority runs first (outer onion layer), and equal priorities preserve built-in/provider registration order.
 
 | Priority | Class | Package | Purpose |
 |----------|-------|---------|---------|
-| 100 | `SecurityHeadersMiddleware` | foundation | Runtime-safe defaults (`X-Frame-Options: SAMEORIGIN` + `nosniff`) around the final response; CSP and HSTS remain opt-in. Constructor: `(?string $csp, bool $hstsEnabled, int $hstsMaxAge, string $frameOptions)`. Explicit construction retains the historical CSP/HSTS-on defaults; `HttpKernel` passes `null`/`false` for those deployment-sensitive headers. |
-| 90 | `CompressionMiddleware` | foundation | gzip compression for responses above minimum size. Constructor: `(int $minimumSize = 1024)` |
-| 80 | `RateLimitMiddleware` | foundation | IP-based rate limiting via `RateLimiterInterface`. Constructor: `(RateLimiterInterface, int $maxAttempts = 60, int $windowSeconds = 60)` |
-| 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over max bytes (413). Constructor: `(int $maxBytes = 1_048_576)` |
-| 60 | `RequestLoggingMiddleware` | foundation | Logs method, URI, status, duration. Constructor: `(?Closure $logger = null)` |
-| 50 | `ETagMiddleware` | foundation | ETag generation + 304 Not Modified for GET/HEAD |
+| 110 | `ResponseCacheControlMiddleware` | user | Outermost response cache reconciliation for session-bound and cookie-bearing responses. |
+| 100 | `SecurityHeadersMiddleware` | foundation | Runtime-safe defaults (`X-Frame-Options: SAMEORIGIN` + `nosniff`) around the final response; CSP and HSTS remain opt-in through `security_headers` configuration on this one kernel-owned instance. Constructor: `(?string $csp, bool $hstsEnabled, int $hstsMaxAge, string $frameOptions)`. Standalone construction retains the historical CSP/HSTS-on defaults. |
+| 80 | `RateLimitMiddleware` | foundation | IP-based 60 requests / 60 seconds by default, backed by the kernel's durable shared database. |
+| 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over 1 MiB by default with 413. |
 | 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityRepositoryInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
 | 30 | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
+| 20 | `CommunityMiddleware` | foundation | Resolves and bounds the request community before principal construction. |
 | 20 | `CsrfMiddleware` | user | Double-submit / header CSRF validation for state-changing requests. JSON content types are exempt by default; a route with `_csrf = true` (`RouteBuilder::requireCsrf()`) validates every content type, and `_csrf = false` (`csrfExempt()`) skips validation. Writes the `XSRF-TOKEN` cookie on `text/html` responses and on any response carrying an authenticated `_account` plus the `waaseyaa_uid` login-session marker (SPA boot via JSON; bearer-only requests excluded); the cookie's `Secure`/`SameSite` attributes come from the resolved `session.cookie` policy shared with the session cookie (`SessionCookiePolicy`, #2149) |
+| 15 | `FieldReadContextMiddleware` | access (audit provider) | Provider contribution that binds the audited immutable principal. |
 | 10 | `AuthorizationMiddleware` | access | Route-level access enforcement via `AccessChecker` |
+
+`DebugHeaderMiddleware` is a conditional kernel built-in in debug mode. Three
+attribute-bearing foundation middleware remain dormant unless a provider opts
+in after deployment-specific review: compression (priority 90) needs cache,
+`Vary`, and streaming analysis; request logging (60) needs privacy, redaction,
+and volume policy; ETag generation (50) needs representation, authorization,
+and cache-context analysis.
+
+Both active security controls have an emergency configuration rollback under
+`http_security`: set `rate_limit.enabled` or `body_size_limit.enabled` to
+`false`. Positive integer overrides are `rate_limit.max_attempts` (60),
+`rate_limit.window_seconds` (60), and `body_size_limit.max_bytes` (1048576).
 
 ## File Reference
 
