@@ -19,9 +19,9 @@ use Waaseyaa\Field\FieldDefinition;
 
 /**
  * #2552: `?representation=` is a JsonApiController gate. The integration
- * flow pins the HTTP contract with #[CoversNothing]; this unit file is what
- * attributes those branches to JsonApiController for the changed-line
- * coverage ratchet.
+ * flow pins the HTTP contract without attributing coverage to this class;
+ * this unit file is what attributes those branches to JsonApiController
+ * for the changed-line coverage ratchet.
  */
 #[CoversClass(JsonApiController::class)]
 final class JsonApiControllerEditorRepresentationTest extends TestCase
