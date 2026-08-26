@@ -246,6 +246,14 @@
             }
         },
         {
+            "id": "check-covers-nothing-companions",
+            "run": "php bin/check-covers-nothing-companions --base={base}",
+            "base": true,
+            "repair": "add a changed coverage-bearing Unit/Contract companion that exercises the affected branch through a real public boundary",
+            "profile": "default",
+            "enforced_by": "architecture-test:CoversNothingCompanionDiagnosticTest.php"
+        },
+        {
             "id": "check-changelog-shape",
             "alias": "check-changelog-shape",
             "run": "php bin/check-changelog-shape",

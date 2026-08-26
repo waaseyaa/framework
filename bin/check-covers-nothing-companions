@@ -1,0 +1,174 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser;
+
+/**
+ * Warn before push when changed production statements are exercised only by
+ * changed tests that opt out of PHPUnit coverage with #[CoversNothing].
+ */
+
+$toolRoot = dirname(__DIR__);
+require $toolRoot . '/vendor/autoload.php';
+
+$options = getopt('', ['base::', 'diff-file::', 'root::']);
+$root = realpath((string) ($options['root'] ?? dirname(__DIR__)));
+$base = (string) ($options['base'] ?? 'origin/main');
+$diffFile = (string) ($options['diff-file'] ?? '');
+
+if ($root === false) {
+    fwrite(STDERR, "covers-nothing-companions: invalid repository root.\n");
+    exit(2);
+}
+
+if ($diffFile !== '') {
+    $diff = file_get_contents($diffFile);
+    if ($diff === false) {
+        fwrite(STDERR, "covers-nothing-companions: unable to read diff {$diffFile}.\n");
+        exit(2);
+    }
+} else {
+    $process = proc_open(
+        [$root . '/bin/git', '-C', $root, 'diff', '--unified=0', $base . '...HEAD', '--', 'packages', 'tests'],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+    );
+    if (!is_resource($process)) {
+        fwrite(STDERR, "covers-nothing-companions: unable to start git diff.\n");
+        exit(2);
+    }
+    $diff = stream_get_contents($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    if (proc_close($process) !== 0 || $diff === false) {
+        fwrite(STDERR, trim((string) $error) . "\n");
+        exit(2);
+    }
+}
+
+/** @var array<string, array<int, true>> $changedSourceLines */
+$changedSourceLines = [];
+/** @var array<string, true> $changedTests */
+$changedTests = [];
+$path = null;
+foreach (preg_split('/\R/', $diff) ?: [] as $line) {
+    if (str_starts_with($line, 'diff --git ')) {
+        $path = null;
+        continue;
+    }
+    if (str_starts_with($line, '+++ ')) {
+        if (preg_match('#^\+\+\+ b/(packages/[^/]+/src/.+\.php)$#', $line, $matches) === 1) {
+            $path = $matches[1];
+        } elseif (preg_match('#^\+\+\+ b/((?:packages/[^/]+/tests|tests)/.+Test\.php)$#', $line, $matches) === 1) {
+            $path = null;
+            $changedTests[$matches[1]] = true;
+        } else {
+            $path = null;
+        }
+        continue;
+    }
+    if ($path !== null && preg_match('/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/', $line, $matches) === 1) {
+        $start = (int) $matches[1];
+        $count = isset($matches[2]) ? (int) $matches[2] : 1;
+        for ($number = $start; $number < $start + $count; ++$number) {
+            $changedSourceLines[$path][$number] = true;
+        }
+    }
+}
+
+if ($changedSourceLines === [] || $changedTests === []) {
+    echo "covers-nothing-companions: no changed source/test pair to inspect.\n";
+    exit(0);
+}
+
+/** @var array<string, string> $testContents */
+$testContents = [];
+foreach (array_keys($changedTests) as $testPath) {
+    $contents = @file_get_contents($root . '/' . $testPath);
+    if ($contents !== false) {
+        $testContents[$testPath] = $contents;
+    }
+}
+
+$failures = [];
+foreach ($changedSourceLines as $sourcePath => $lines) {
+    $contents = @file_get_contents($root . '/' . $sourcePath);
+    if ($contents === false) {
+        continue;
+    }
+
+    $analysis = (new ParsingSourceAnalyser)->analyse($root . '/' . $sourcePath, $contents, true, false);
+    $symbols = [
+        ...array_values($analysis->classes()),
+        ...array_values($analysis->interfaces()),
+        ...array_values($analysis->traits()),
+    ];
+    if ($symbols === []) {
+        continue;
+    }
+    $shortName = $symbols[0]->name();
+    $fqcn = $symbols[0]->namespacedName();
+
+    $coversNothingTests = [];
+    $hasCompanion = false;
+    foreach ($testContents as $testPath => $testContent) {
+        if (!preg_match('/\b' . preg_quote($shortName, '/') . '\b/', $testContent)) {
+            continue;
+        }
+        if (preg_match('/#\[CoversNothing\b/', $testContent) === 1) {
+            $coversNothingTests[] = $testPath;
+            continue;
+        }
+        if (preg_match('/#\[Covers(?:Class|Method)\(\s*(?:\\\\?' . preg_quote($fqcn, '/') . '|' . preg_quote($shortName, '/') . ')::class\b/', $testContent) === 1) {
+            $hasCompanion = true;
+        }
+    }
+    if ($coversNothingTests === [] || $hasCompanion) {
+        continue;
+    }
+
+    $executable = executableChangedLines($analysis->executableLines(), array_keys($lines));
+    if ($executable !== []) {
+        $failures[] = [$sourcePath, $executable, $coversNothingTests, $shortName];
+    }
+}
+
+if ($failures === []) {
+    echo "covers-nothing-companions: changed CoversNothing tests have a coverage-bearing companion.\n";
+    exit(0);
+}
+
+foreach ($failures as [$sourcePath, $lines, $tests, $shortName]) {
+    fwrite(STDERR, sprintf(
+        "covers-nothing-companions: %s changed executable line(s) %s are referenced only by #[CoversNothing] test(s): %s\n",
+        $sourcePath,
+        implode(', ', $lines),
+        implode(', ', $tests),
+    ));
+    fwrite(STDERR, sprintf(
+        "  Add or extend a Unit/Contract test with #[CoversClass(%s::class)] (or #[CoversMethod]) and exercise the branch through its real public dispatcher/service boundary. Do not use reflection or synthetic line touches.\n",
+        $shortName,
+    ));
+}
+exit(1);
+
+/**
+ * Return the intersection with php-code-coverage's executable-line analysis,
+ * the same analyser that gives Clover its denominator in hosted CI.
+ *
+ * @param array<int, int> $executableLines
+ * @param list<int>       $changedLines
+ * @return list<int>
+ */
+function executableChangedLines(array $executableLines, array $changedLines): array
+{
+    $result = array_values(array_filter(
+        $changedLines,
+        static fn(int $line): bool => isset($executableLines[$line]),
+    ));
+    sort($result);
+    return $result;
+}
