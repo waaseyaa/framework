@@ -1,0 +1,316 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Waaseyaa\Tooling\DevRuntime;
+
+require_once dirname(__DIR__) . '/tools/lib/DevRuntime.php';
+
+$root = dirname(__DIR__);
+$command = $argv[1] ?? '';
+$arguments = array_slice($argv, 2);
+$json = false;
+$cacheRoot = null;
+$evidencePath = null;
+$childCommand = [];
+
+foreach ($arguments as $index => $argument) {
+    if ($command === 'exec' && $argument === '--') {
+        $childCommand = array_slice($arguments, $index + 1);
+        break;
+    }
+    if ($argument === '--json') {
+        $json = true;
+        continue;
+    }
+    if (str_starts_with($argument, '--cache-root=')) {
+        $cacheRoot = substr($argument, strlen('--cache-root='));
+        continue;
+    }
+    if (str_starts_with($argument, '--evidence=')) {
+        $evidencePath = substr($argument, strlen('--evidence='));
+        continue;
+    }
+    fwrite(STDERR, "dev-runtime: unknown argument {$argument}\n");
+    exit(2);
+}
+
+if (!in_array($command, ['bootstrap', 'doctor', 'exec'], true)) {
+    fwrite(STDERR, "Usage: bin/dev-runtime bootstrap|doctor|exec [--cache-root=PATH] [--json] [--evidence=PATH] [-- COMMAND...]\n");
+    exit(2);
+}
+if ($command === 'exec' && $childCommand === []) {
+    fwrite(STDERR, "dev-runtime: exec requires -- followed by a command\n");
+    exit(2);
+}
+
+/** @return string */
+function resolveCacheRoot(?string $override): string
+{
+    if (is_string($override) && $override !== '') {
+        if (!str_starts_with($override, '/')) {
+            throw new RuntimeException('--cache-root must be an absolute path');
+        }
+
+        return rtrim($override, '/');
+    }
+    $xdg = getenv('XDG_CACHE_HOME');
+    if (is_string($xdg) && str_starts_with($xdg, '/')) {
+        return rtrim($xdg, '/');
+    }
+    $userHome = getenv('HOME');
+    if (!is_string($userHome) || !str_starts_with($userHome, '/')) {
+        throw new RuntimeException('HOME or XDG_CACHE_HOME must resolve an absolute user cache root');
+    }
+
+    return rtrim($userHome, '/') . '/.cache';
+}
+
+/** @param list<string> $command @return array{exit: int, stdout: string, stderr: string} */
+function runProcess(array $command, ?string $workingDirectory = null, ?array $environment = null): array
+{
+    $descriptors = [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = proc_open($command, $descriptors, $pipes, $workingDirectory, $environment);
+    if (!is_resource($process)) {
+        throw new RuntimeException('cannot start child process: ' . implode(' ', $command));
+    }
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exit = proc_close($process);
+
+    return ['exit' => $exit, 'stdout' => (string) $stdout, 'stderr' => (string) $stderr];
+}
+
+function downloadVerified(string $url, string $sha256, string $destination): void
+{
+    $context = stream_context_create([
+        'http' => ['timeout' => 120, 'follow_location' => 1, 'max_redirects' => 5],
+        'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+    ]);
+    $input = @fopen($url, 'rb', false, $context);
+    if (!is_resource($input)) {
+        throw new RuntimeException("cannot download {$url}");
+    }
+    $output = @fopen($destination, 'xb');
+    if (!is_resource($output)) {
+        fclose($input);
+        throw new RuntimeException("cannot create download {$destination}");
+    }
+    $copied = stream_copy_to_stream($input, $output);
+    fclose($input);
+    fclose($output);
+    if ($copied === false || !hash_equals($sha256, (string) hash_file('sha256', $destination))) {
+        throw new RuntimeException("checksum mismatch for {$url}");
+    }
+}
+
+function removeStagingTree(string $path, string $cacheParent): void
+{
+    $expectedPrefix = rtrim($cacheParent, '/') . '/.tmp-';
+    if (!str_starts_with($path, $expectedPrefix) || !is_dir($path)) {
+        return;
+    }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST,
+    );
+    foreach ($iterator as $entry) {
+        if ($entry->isLink() || $entry->isFile()) {
+            unlink($entry->getPathname());
+        } else {
+            rmdir($entry->getPathname());
+        }
+    }
+    rmdir($path);
+}
+
+/** @param array<string, mixed> $manifest @return array<string, array{path: string, sha256: string}> */
+function installedArtifacts(string $cache, array $manifest): array
+{
+    $statePath = $cache . '/runtime-state.json';
+    if (!is_file($statePath)) {
+        throw new RuntimeException('managed runtime state is missing');
+    }
+    $state = json_decode((string) file_get_contents($statePath), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($state) || !is_array($state['artifacts'] ?? null)) {
+        throw new RuntimeException('managed runtime state is malformed');
+    }
+    $stateErrors = DevRuntime::stateErrors($state, $manifest);
+    if ($stateErrors !== []) {
+        throw new RuntimeException(implode("\n", $stateErrors));
+    }
+
+    return DevRuntime::expectedArtifacts($manifest);
+}
+
+/** @param array<string, mixed> $manifest */
+function bootstrap(string $cache, string $cacheParent, array $manifest): void
+{
+    if (!is_dir($cacheParent) && !mkdir($cacheParent, 0o700, true) && !is_dir($cacheParent)) {
+        throw new RuntimeException("cannot create cache parent {$cacheParent}");
+    }
+    $lockPath = $cacheParent . '/.' . basename($cache) . '.lock';
+    $lock = fopen($lockPath, 'c+');
+    if (!is_resource($lock) || !flock($lock, LOCK_EX)) {
+        throw new RuntimeException("cannot acquire runtime cache lock {$lockPath}");
+    }
+
+    try {
+        if (is_dir($cache)) {
+            $errors = DevRuntime::artifactErrors($cache, installedArtifacts($cache, $manifest));
+            if ($errors === []) {
+                fwrite(STDOUT, "dev-runtime: verified cache already present at {$cache}\n");
+                return;
+            }
+            $quarantine = $cache . '.corrupt-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(3));
+            if (!rename($cache, $quarantine)) {
+                throw new RuntimeException("cannot quarantine corrupt cache {$cache}");
+            }
+            fwrite(STDERR, "dev-runtime: preserved corrupt cache at {$quarantine}\n");
+        }
+
+        $stage = $cacheParent . '/.tmp-' . basename($cache) . '-' . getmypid() . '-' . bin2hex(random_bytes(4));
+        if (!mkdir($stage . '/downloads', 0o700, true) || !mkdir($stage . '/bin', 0o700, true)) {
+            throw new RuntimeException("cannot create runtime staging directory {$stage}");
+        }
+        try {
+            $node = $manifest['resolved_tools']['node'];
+            $composer = $manifest['resolved_tools']['composer'];
+            $frankenphp = $manifest['resolved_tools']['frankenphp'];
+            $nodeArchive = $stage . '/downloads/' . $node['archive'];
+            downloadVerified($node['url'], $node['sha256'], $nodeArchive);
+            $listing = runProcess(['tar', '-tJf', $nodeArchive]);
+            if ($listing['exit'] !== 0) {
+                throw new RuntimeException('cannot list verified Node archive: ' . trim($listing['stderr']));
+            }
+            $entries = array_values(array_filter(explode("\n", trim($listing['stdout'])), static fn(string $line): bool => $line !== ''));
+            DevRuntime::assertArchiveEntriesSafe($entries, $node['root']);
+            $extract = runProcess(['tar', '-xJf', $nodeArchive, '-C', $stage]);
+            if ($extract['exit'] !== 0) {
+                throw new RuntimeException('cannot extract verified Node archive: ' . trim($extract['stderr']));
+            }
+            foreach (['node', 'npm', 'npx'] as $binary) {
+                $source = '../' . $node['root'] . '/bin/' . $binary;
+                if (!symlink($source, $stage . '/bin/' . $binary)) {
+                    throw new RuntimeException("cannot link managed {$binary}");
+                }
+            }
+
+            downloadVerified($composer['url'], $composer['sha256'], $stage . '/bin/composer');
+            chmod($stage . '/bin/composer', 0o755);
+            downloadVerified($frankenphp['url'], $frankenphp['sha256'], $stage . '/bin/frankenphp');
+            chmod($stage . '/bin/frankenphp', 0o755);
+
+            $artifacts = DevRuntime::expectedArtifacts($manifest);
+            $artifactErrors = DevRuntime::artifactErrors($stage, $artifacts);
+            if ($artifactErrors !== []) {
+                throw new RuntimeException(implode("\n", $artifactErrors));
+            }
+            $state = [
+                'schema_version' => 1,
+                'manifest_sha256' => $manifest['manifest_sha256'],
+                'versions' => [
+                    'node' => $node['version'],
+                    'composer' => $composer['version'],
+                    'frankenphp' => $frankenphp['version'],
+                ],
+                'artifacts' => $artifacts,
+            ];
+            file_put_contents(
+                $stage . '/runtime-state.json',
+                json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+            );
+            if (!rename($stage, $cache)) {
+                throw new RuntimeException("cannot publish runtime cache {$cache}");
+            }
+        } catch (Throwable $exception) {
+            removeStagingTree($stage, $cacheParent);
+            throw $exception;
+        }
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
+/** @return array<string, string> */
+function inheritedEnvironment(): array
+{
+    $environment = getenv();
+    if (!is_array($environment)) {
+        return [];
+    }
+    $strings = [];
+    foreach ($environment as $key => $value) {
+        if (is_string($key) && is_string($value)) {
+            $strings[$key] = $value;
+        }
+    }
+
+    return $strings;
+}
+
+try {
+    $manifest = DevRuntime::loadManifest($root . '/tools/dev-runtime-manifest.json', $root);
+    $resolvedCacheRoot = resolveCacheRoot($cacheRoot);
+    $cache = DevRuntime::cachePath($resolvedCacheRoot, $manifest['manifest_bytes'], $manifest['pin_bytes']);
+    $cacheParent = dirname($cache);
+    $system = DevRuntime::captureSystem();
+    $systemErrors = DevRuntime::systemErrors($system);
+    if ($systemErrors !== []) {
+        throw new RuntimeException(implode("\n", [...$systemErrors, DevRuntime::repairAction()]));
+    }
+
+    if ($command === 'bootstrap') {
+        bootstrap($cache, $cacheParent, $manifest);
+    }
+
+    $artifactErrors = is_dir($cache)
+        ? DevRuntime::artifactErrors($cache, installedArtifacts($cache, $manifest))
+        : ['managed runtime cache is missing; run `bin/dev-runtime bootstrap`'];
+    $errors = [...$systemErrors, ...$artifactErrors];
+    $state = is_file($cache . '/runtime-state.json')
+        ? json_decode((string) file_get_contents($cache . '/runtime-state.json'), true, flags: JSON_THROW_ON_ERROR)
+        : [];
+    $commitResult = runProcess([$root . '/bin/git', 'rev-parse', 'HEAD'], $root);
+    $commit = $commitResult['exit'] === 0 ? trim($commitResult['stdout']) : null;
+    $identity = DevRuntime::identity($system, is_array($state) ? $state : [], $manifest['manifest_sha256'], $commit, $command, $errors);
+
+    if (is_string($evidencePath)) {
+        if ($evidencePath === '' || !str_starts_with($evidencePath, '/')) {
+            throw new RuntimeException('--evidence must be an absolute path');
+        }
+        $temporary = $evidencePath . '.tmp-' . getmypid() . '-' . bin2hex(random_bytes(3));
+        file_put_contents($temporary, json_encode($identity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        if (!rename($temporary, $evidencePath)) {
+            throw new RuntimeException("cannot publish evidence {$evidencePath}");
+        }
+    }
+
+    if ($errors !== []) {
+        throw new RuntimeException(implode("\n", [...$errors, DevRuntime::repairAction()]));
+    }
+    if ($json) {
+        fwrite(STDOUT, json_encode($identity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    } else {
+        fwrite(STDOUT, "dev-runtime: verified {$manifest['profile']} cache {$cache}\n");
+    }
+
+    if ($command === 'exec') {
+        $environment = DevRuntime::childEnvironment(inheritedEnvironment(), $cache . '/bin');
+        $resolvedChildCommand = DevRuntime::resolveChildCommand($childCommand, $cache . '/bin');
+        $process = proc_open($resolvedChildCommand, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, $root, $environment);
+        if (!is_resource($process)) {
+            throw new RuntimeException('cannot execute managed child command');
+        }
+        exit(proc_close($process));
+    }
+} catch (Throwable $exception) {
+    foreach (explode("\n", $exception->getMessage()) as $line) {
+        fwrite(STDERR, "dev-runtime: ERROR: {$line}\n");
+    }
+    exit(1);
+}

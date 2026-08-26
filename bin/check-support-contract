@@ -3,6 +3,10 @@
 
 declare(strict_types=1);
 
+use Waaseyaa\Tooling\DevRuntime;
+
+require_once dirname(__DIR__) . '/tools/lib/DevRuntime.php';
+
 /**
  * Fail-closed parity gate for the versioned S1 platform/lifecycle contract.
  *
@@ -208,6 +212,10 @@ try {
     $adminPackage = readJsonObject($root . '/packages/admin/package.json');
     requireSame(trim((string) file_get_contents($root . '/.nvmrc')), '24', '.nvmrc', $errors);
     requireSame($adminPackage['engines']['node'] ?? null, '>=24 <25', 'packages/admin/package.json engines.node', $errors);
+    $devRuntime = DevRuntime::loadManifest($root . '/tools/dev-runtime-manifest.json', $root);
+    requireSame($devRuntime['resolved_tools']['node']['version'] ?? null, 'v24.20.0', 'managed Node version', $errors);
+    requireSame($devRuntime['resolved_tools']['composer']['version'] ?? null, '2.10.2', 'managed Composer version', $errors);
+    requireSame($devRuntime['tools']['frankenphp']['pin'] ?? null, 'tools/frankenphp-runtime-pin.json', 'managed FrankenPHP pin authority', $errors);
 
     $adminLock = readJsonObject($root . '/packages/admin/package-lock.json');
     $lockedPlaywright = $adminLock['packages']['node_modules/@playwright/test']['version'] ?? null;
@@ -276,17 +284,11 @@ try {
         }
     }
 
-    $runtime = [
-        'php' => PHP_VERSION,
-        'composer' => null,
-        'node' => null,
-        'npm' => null,
-        'sqlite' => class_exists(SQLite3::class) ? SQLite3::version()['versionString'] : null,
-        'os' => null,
-        'architecture' => php_uname('m'),
-        'runner_image_os' => getenv('ImageOS') ?: null,
-        'runner_image_version' => getenv('ImageVersion') ?: null,
-    ];
+    $capturedRuntime = DevRuntime::captureSystem();
+    $runtime = array_intersect_key($capturedRuntime, array_flip([
+        'php', 'composer', 'node', 'npm', 'frankenphp', 'sqlite', 'os',
+        'architecture', 'wsl', 'runner_image_os', 'runner_image_version',
+    ]));
 
     if ($ci) {
         requireVersionRange(PHP_VERSION, '8.5.0', '8.6.0', 'runtime PHP', $errors);
@@ -296,22 +298,17 @@ try {
             requireVersionRange($runtime['sqlite'], '3.40.0', '4.0.0', 'runtime SQLite', $errors);
         }
 
-        $composerVersion = runVersionCommand('composer --no-ansi --version');
-        if ($composerVersion['exit'] !== 0 || preg_match('/Composer version (\d+\.\d+\.\d+)/', $composerVersion['output'], $composerMatch) !== 1) {
+        if (!is_string($runtime['composer'])) {
             $errors[] = 'Unable to resolve the CI Composer version';
         } else {
-            $runtime['composer'] = $composerMatch[1];
-            requireVersionRange($composerMatch[1], '2.10.0', '3.0.0', 'runtime Composer', $errors);
-            requireSame(implode('.', array_slice(explode('.', $composerMatch[1]), 0, 2)), $composerPlatform['feature_line'] ?? null, 'runtime Composer feature line', $errors);
+            requireVersionRange($runtime['composer'], '2.10.0', '3.0.0', 'runtime Composer', $errors);
+            requireSame(implode('.', array_slice(explode('.', $runtime['composer']), 0, 2)), $composerPlatform['feature_line'] ?? null, 'runtime Composer feature line', $errors);
         }
 
-        foreach (['node' => 'node --version', 'npm' => 'npm --version'] as $name => $command) {
-            $result = runVersionCommand($command);
-            if ($result['exit'] !== 0) {
+        foreach (['node', 'npm'] as $name) {
+            if (!is_string($runtime[$name])) {
                 $errors[] = "Unable to resolve the CI {$name} version";
-                continue;
             }
-            $runtime[$name] = ltrim($result['output'], 'v');
         }
         if (is_string($runtime['node'])) {
             requireVersionRange($runtime['node'], '24.0.0', '25.0.0', 'runtime Node', $errors);

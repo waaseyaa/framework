@@ -78,6 +78,8 @@ function s1SqliteConstructionClass(string $path, string $patternId): string
         'bin/check-s1-sqlite-contract|sqlite_dsn_token' => 'tooling-query',
         'bin/check-support-contract|pdo_sqlite_token' => 'tooling-query',
         'bin/test-quality-inventory|sqlite_dsn_token' => 'tooling-query',
+        'tools/lib/DevRuntime.php|pdo_sqlite_token' => 'tooling-query',
+        'tools/lib/DevRuntime.php|sqlite_dsn_token' => 'tooling-query',
     ];
 
     return $reviewed[$path . '|' . $patternId] ?? 'unclassified';
