@@ -141,4 +141,26 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         self::assertStringContainsString('<p>', $result, 'The safe <p> wrapper must survive.');
         self::assertStringNotContainsString('<script', $result);
     }
+
+    #[Test]
+    public function componentClassesStayStrippedOnTheGraphqlReadPath(): void
+    {
+        $resolve = $this->bodyFieldResolver();
+        $result = $resolve(['body' => '<div class="sfn-program-contact">x</div>']);
+
+        self::assertIsString($result);
+        self::assertSame('<div>x</div>', $result);
+        self::assertStringNotContainsString('class=', $result);
+    }
+
+    #[Test]
+    public function protocolRelativeMediaStaysStrippedOnTheGraphqlReadPath(): void
+    {
+        $resolve = $this->bodyFieldResolver();
+        $result = $resolve(['body' => '<p>x</p><img src="//evil.example/px" alt="px">']);
+
+        self::assertIsString($result);
+        self::assertSame('<p>x</p><img alt="px" />', $result);
+        self::assertStringNotContainsString('evil.example', $result);
+    }
 }
