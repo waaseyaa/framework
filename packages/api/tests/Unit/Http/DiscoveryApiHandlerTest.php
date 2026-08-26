@@ -185,7 +185,7 @@ final class DiscoveryApiHandlerTest extends TestCase
     #[Test]
     public function media_without_explicit_status_is_discovery_public(): void
     {
-        // Regression for audit #1915 R16: WorkflowVisibility::isEntityPublic()
+        // Regression for audit #1915 R16: served visibility
         // now fails closed on a missing 'status' key. That flip is only safe
         // because Media::__construct() backfills 'status' => true (matching its
         // documented isPublished()-defaults-true semantics), so a media entity

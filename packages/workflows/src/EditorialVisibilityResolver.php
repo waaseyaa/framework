@@ -7,6 +7,7 @@ namespace Waaseyaa\Workflows;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Read\EditorialPreviewSubjectReader;
 use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 
@@ -18,15 +19,19 @@ final class EditorialVisibilityResolver
     private readonly Workflow $workflow;
     private readonly WorkflowEntitySnapshotReader $workflowValues;
     private readonly EditorialPreviewSubjectReader $previewSubject;
+    private readonly WorkflowVisibility $visibility;
 
     public function __construct(
         ?Workflow $workflow = null,
         ?WorkflowEntitySnapshotReader $workflowValues = null,
         ?EditorialPreviewSubjectReader $previewSubject = null,
+        ?WorkflowVisibility $visibility = null,
+        private readonly ?WorkflowBindingResolver $bindings = null,
     ) {
-        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+        $this->workflow = $workflow ?? new Workflow(DefaultWorkflows::EDITORIAL);
         $this->workflowValues = $workflowValues ?? new WorkflowEntitySnapshotReader();
         $this->previewSubject = $previewSubject ?? new EditorialPreviewSubjectReader();
+        $this->visibility = $visibility ?? new WorkflowVisibility($this->workflowValues);
     }
 
     public function canRender(EntityInterface $entity, AccountInterface $account, bool $previewRequested = false): AccessResult
@@ -35,9 +40,13 @@ final class EditorialVisibilityResolver
             return AccessResult::allowed('Entity type is not workflow-gated for SSR.');
         }
 
-        $state = $this->stateForEntity($entity);
-        if ($state === EditorialWorkflowPreset::STATE_PUBLISHED) {
-            return AccessResult::allowed('Published node is publicly visible.');
+        $workflow = $this->workflowForEntity($entity);
+        $state = $this->stateForEntity($entity, $workflow);
+        $isPublic = $previewRequested
+            ? $this->visibility->isCandidateStatePublic($workflow, $state)
+            : $this->visibility->isEntityServedPublicForEntity($entity);
+        if ($isPublic) {
+            return AccessResult::allowed('Node is publicly visible.');
         }
 
         if (!$previewRequested) {
@@ -90,23 +99,31 @@ final class EditorialVisibilityResolver
      */
     public function buildRenderContext(EntityInterface $entity, bool $previewRequested): array
     {
-        $state = $this->stateForEntity($entity);
+        $workflow = $this->workflowForEntity($entity);
+        $state = $this->stateForEntity($entity, $workflow);
 
         return [
             'state' => $state,
-            'is_public' => $state === EditorialWorkflowPreset::STATE_PUBLISHED,
+            'is_public' => $previewRequested
+                ? $this->visibility->isCandidateStatePublic($workflow, $state)
+                : $this->visibility->isEntityServedPublicForEntity($entity),
             'preview_requested' => $previewRequested,
         ];
     }
 
-    public function stateForEntity(EntityInterface $entity): string
+    public function stateForEntity(EntityInterface $entity, ?Workflow $workflow = null): string
     {
         $values = $this->workflowValues->read($entity);
 
-        return EditorialWorkflowPreset::normalizeState(
-            workflowState: $values->workflowState,
-            status: $values->status,
-        );
+        return is_string($values->workflowState) && trim($values->workflowState) !== ''
+            ? strtolower(trim($values->workflowState))
+            : ($workflow ?? $this->workflowForEntity($entity))->getInitialState();
+    }
+
+    private function workflowForEntity(EntityInterface $entity): Workflow
+    {
+        return $this->bindings?->resolve($entity->getEntityTypeId(), $this->bundleForEntity($entity))
+            ?? $this->workflow;
     }
 
     private function bundleForEntity(EntityInterface $entity): string

@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Ingestion\ValidationGateValidator;
+use Waaseyaa\Workflows\Workflow;
+use Waaseyaa\Workflows\WorkflowState;
 
 #[CoversClass(ValidationGateValidator::class)]
 final class ValidationGateValidatorTest extends TestCase
@@ -83,5 +85,40 @@ final class ValidationGateValidatorTest extends TestCase
         );
         $this->assertNotNull($mismatch);
         $this->assertSame('/nodes/node_a/status', $mismatch['location']);
+    }
+
+    #[Test]
+    public function it_uses_custom_state_declarations_instead_of_literal_ids(): void
+    {
+        $workflow = new Workflow(['id' => 'custom', 'label' => 'Custom']);
+        $workflow->addState(new WorkflowState(id: 'live', label: 'Live', published: true));
+        $workflow->addState(new WorkflowState(id: 'published', label: 'Published', published: false));
+        $validator = new ValidationGateValidator($workflow);
+
+        $violations = $validator->validate(
+            nodes: [
+                'live_node' => [
+                    'workflow_state' => 'live',
+                    'status' => 1,
+                    'body' => 'Custom live content has enough semantic tokens.',
+                ],
+                'private_node' => [
+                    'workflow_state' => 'published',
+                    'status' => 0,
+                    'body' => '',
+                ],
+            ],
+            relationships: [[
+                'key' => 'r1',
+                'from' => 'live_node',
+                'to' => 'private_node',
+                'status' => 1,
+            ]],
+        );
+        $codes = array_column($violations, 'code');
+
+        self::assertNotContains('validation.workflow.status_state_mismatch', $codes);
+        self::assertNotContains('validation.semantic.missing_publishable_body', $codes);
+        self::assertContains('validation.visibility.relationship_requires_public_endpoints', $codes);
     }
 }

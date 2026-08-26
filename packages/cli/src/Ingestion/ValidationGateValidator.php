@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Ingestion;
 
-use Waaseyaa\Workflows\EditorialWorkflowPreset;
+use Waaseyaa\Workflows\DefaultWorkflows;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
@@ -18,7 +18,7 @@ final class ValidationGateValidator
         ?Workflow $workflow = null,
         private readonly WorkflowVisibility $visibility = new WorkflowVisibility(),
     ) {
-        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+        $this->workflow = $workflow ?? new Workflow(DefaultWorkflows::EDITORIAL);
     }
 
     /**
@@ -50,7 +50,8 @@ final class ValidationGateValidator
             }
 
             $status = $this->normalizeStatus($node['status'] ?? 0);
-            $expectedStatus = EditorialWorkflowPreset::statusForState($state);
+            $stateIsPublic = $this->visibility->isCandidateStatePublic($this->workflow, $state);
+            $expectedStatus = $stateIsPublic ? 1 : 0;
             if ($status !== $expectedStatus) {
                 $violations[] = [
                     'code' => 'validation.workflow.status_state_mismatch',
@@ -64,8 +65,8 @@ final class ValidationGateValidator
                 ];
             }
 
-            $nodePublic[$key] = $this->visibility->isNodePublic($node);
-            if ($state === EditorialWorkflowPreset::STATE_PUBLISHED) {
+            $nodePublic[$key] = $stateIsPublic;
+            if ($stateIsPublic) {
                 $body = trim((string) ($node['body'] ?? ''));
                 if ($body === '') {
                     $violations[] = [

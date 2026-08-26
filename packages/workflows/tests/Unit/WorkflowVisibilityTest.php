@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Workflows\Workflow;
+use Waaseyaa\Workflows\WorkflowState;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 /**
@@ -17,30 +19,31 @@ use Waaseyaa\Workflows\WorkflowVisibility;
 final class WorkflowVisibilityTest extends TestCase
 {
     #[Test]
-    public function nodeVisibilityRespectsWorkflowStateFirst(): void
+    public function candidate_visibility_uses_the_bound_workflow_state_declaration(): void
     {
         $visibility = new WorkflowVisibility();
+        $workflow = new Workflow(['id' => 'custom', 'label' => 'Custom']);
+        $workflow->addState(new WorkflowState(id: 'live', label: 'Live', published: true));
+        $workflow->addState(new WorkflowState(id: 'published', label: 'Published', published: false));
 
-        $this->assertTrue($visibility->isNodePublic([
-            'workflow_state' => 'published',
-            'status' => 0,
-        ]));
-
-        $this->assertFalse($visibility->isNodePublic([
-            'workflow_state' => 'review',
-            'status' => 1,
-        ]));
+        self::assertTrue($visibility->isCandidateStatePublic($workflow, 'live'));
+        self::assertFalse($visibility->isCandidateStatePublic($workflow, 'published'));
+        self::assertFalse($visibility->isCandidateStatePublic($workflow, 'missing'));
     }
 
     #[Test]
-    public function nodeVisibilityFallsBackToStatusWhenWorkflowStateMissing(): void
+    public function served_visibility_uses_the_materialized_publication_projection(): void
     {
         $visibility = new WorkflowVisibility();
 
-        $this->assertTrue($visibility->isNodePublic(['status' => 1]));
-        $this->assertFalse($visibility->isNodePublic(['status' => 0]));
-        $this->assertTrue($visibility->isNodePublic(['status' => 'published']));
-        $this->assertFalse($visibility->isNodePublic(['status' => 'draft']));
+        self::assertTrue($visibility->isEntityServedPublic('node', [
+            'workflow_state' => 'draft',
+            'status' => 1,
+        ]));
+        self::assertFalse($visibility->isEntityServedPublic('node', [
+            'workflow_state' => 'published',
+            'status' => 0,
+        ]));
     }
 
     #[Test]
@@ -48,14 +51,14 @@ final class WorkflowVisibilityTest extends TestCase
     {
         $visibility = new WorkflowVisibility();
 
-        $this->assertTrue($visibility->isEntityPublic('relationship', ['status' => 1]));
-        $this->assertFalse($visibility->isEntityPublic('relationship', ['status' => 0]));
-        $this->assertTrue($visibility->isEntityPublic('relationship', ['status' => 'yes']));
+        $this->assertTrue($visibility->isEntityServedPublic('relationship', ['status' => 1]));
+        $this->assertFalse($visibility->isEntityServedPublic('relationship', ['status' => 0]));
+        $this->assertTrue($visibility->isEntityServedPublic('relationship', ['status' => 'yes']));
 
         // A non-node entity type without a `status` key at all must fail closed
         // (not-visibly-published), the same as a present-but-garbage status value.
         // Previously this returned true (fail-open); audit #1915 R16.
-        $this->assertFalse($visibility->isEntityPublic('taxonomy_term', []));
+        $this->assertFalse($visibility->isEntityServedPublic('taxonomy_term', []));
     }
 
     #[Test]
@@ -63,8 +66,8 @@ final class WorkflowVisibilityTest extends TestCase
     {
         $visibility = new WorkflowVisibility();
 
-        $this->assertFalse($visibility->isEntityPublic('workflow', []));
-        $this->assertFalse($visibility->isEntityPublic('workflow', ['other_field' => 'x']));
+        $this->assertFalse($visibility->isEntityServedPublic('workflow', []));
+        $this->assertFalse($visibility->isEntityServedPublic('workflow', ['other_field' => 'x']));
     }
 
     #[Test]
@@ -72,9 +75,9 @@ final class WorkflowVisibilityTest extends TestCase
     {
         $visibility = new WorkflowVisibility();
 
-        $this->assertTrue($visibility->isEntityPublic('workflow', ['status' => 1]));
-        $this->assertTrue($visibility->isEntityPublic('workflow', ['status' => true]));
-        $this->assertTrue($visibility->isEntityPublic('workflow', ['status' => 'published']));
+        $this->assertTrue($visibility->isEntityServedPublic('workflow', ['status' => 1]));
+        $this->assertTrue($visibility->isEntityServedPublic('workflow', ['status' => true]));
+        $this->assertTrue($visibility->isEntityServedPublic('workflow', ['status' => 'published']));
     }
 
     #[Test]
@@ -82,13 +85,13 @@ final class WorkflowVisibilityTest extends TestCase
     {
         $visibility = new WorkflowVisibility();
 
-        $this->assertFalse($visibility->isEntityPublic('workflow', ['status' => 0]));
-        $this->assertFalse($visibility->isEntityPublic('workflow', ['status' => false]));
-        $this->assertFalse($visibility->isEntityPublic('workflow', ['status' => 'garbage']));
+        $this->assertFalse($visibility->isEntityServedPublic('workflow', ['status' => 0]));
+        $this->assertFalse($visibility->isEntityServedPublic('workflow', ['status' => false]));
+        $this->assertFalse($visibility->isEntityServedPublic('workflow', ['status' => 'garbage']));
     }
 
     #[Test]
-    public function isNodePublicForEntityUsesCastAwareStatus(): void
+    public function served_entity_visibility_uses_cast_aware_status(): void
     {
         $entity = new class (['type' => 'article', 'status' => 1]) extends ContentEntityBase {
             /** @var array<string, string> */
@@ -107,6 +110,6 @@ final class WorkflowVisibilityTest extends TestCase
 
         $visibility = new WorkflowVisibility();
 
-        $this->assertTrue($visibility->isNodePublicForEntity($entity));
+        $this->assertTrue($visibility->isEntityServedPublicForEntity($entity));
     }
 }

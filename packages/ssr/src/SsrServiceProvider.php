@@ -34,6 +34,7 @@ use Waaseyaa\SSR\Http\Router\AppControllerRouter;
 use Waaseyaa\SSR\Http\Router\SsrRouter;
 use Waaseyaa\SSR\Http\SeoPublicController;
 use Waaseyaa\SSR\Twig\FlashTwigExtension;
+use Waaseyaa\Workflows\EditorialVisibilityResolver;
 
 final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttpKernelInterface, HasHttpDomainRoutersInterface, HasRenderCacheListenersInterface, LanguagePathStripperInterface
 {
@@ -203,7 +204,7 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             return;
         }
         $internalFieldVisibility = $this->resolveOptional(InternalFieldVisibilityPolicy::class);
-
+        $editorialVisibilityResolver = $this->resolveOptional(EditorialVisibilityResolver::class);
 
         $this->ssrPageHandler = new SsrPageHandler(
             entityTypeManager: $kernel->getEntityTypeManager(),
@@ -229,6 +230,9 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             internalFieldVisibility: $internalFieldVisibility instanceof InternalFieldVisibilityPolicy
                 ? $internalFieldVisibility
                 : InternalFieldVisibilityPolicy::fromConfig($this->config),
+            editorialVisibilityResolver: $editorialVisibilityResolver instanceof EditorialVisibilityResolver
+                ? $editorialVisibilityResolver
+                : null,
         );
     }
 

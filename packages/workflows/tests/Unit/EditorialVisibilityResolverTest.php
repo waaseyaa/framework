@@ -9,6 +9,8 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Workflows\EditorialVisibilityResolver;
+use Waaseyaa\Workflows\Workflow;
+use Waaseyaa\Workflows\WorkflowState;
 
 /**
  * @covers \Waaseyaa\Workflows\EditorialVisibilityResolver
@@ -36,6 +38,46 @@ final class EditorialVisibilityResolverTest extends TestCase
         $result = $resolver->canRender($entity, $account, false);
 
         $this->assertTrue($result->isAllowed());
+    }
+
+    public function testServedForwardDraftUsesThePublishedProjection(): void
+    {
+        $resolver = new EditorialVisibilityResolver();
+        $entity = new VisibilityTestNode([
+            'nid' => 1,
+            'type' => 'article',
+            'uid' => 10,
+            'status' => 1,
+            'workflow_state' => 'draft',
+        ]);
+        $account = new VisibilityTestAccount(0, [], ['anonymous'], false);
+
+        self::assertTrue($resolver->canRender($entity, $account, false)->isAllowed());
+    }
+
+    public function testCustomCandidateStatesUsePublishedDeclarations(): void
+    {
+        $workflow = new Workflow(['id' => 'custom', 'label' => 'Custom']);
+        $workflow->addState(new WorkflowState(id: 'live', label: 'Live', published: true));
+        $workflow->addState(new WorkflowState(id: 'published', label: 'Published', published: false));
+        $resolver = new EditorialVisibilityResolver($workflow);
+        $account = new VisibilityTestAccount(0, [], ['anonymous'], false);
+
+        $live = new VisibilityTestNode([
+            'nid' => 1,
+            'type' => 'article',
+            'status' => 0,
+            'workflow_state' => 'live',
+        ]);
+        $literalPublished = new VisibilityTestNode([
+            'nid' => 2,
+            'type' => 'article',
+            'status' => 1,
+            'workflow_state' => 'published',
+        ]);
+
+        self::assertTrue($resolver->canRender($live, $account, true)->isAllowed());
+        self::assertTrue($resolver->canRender($literalPublished, $account, true)->isForbidden());
     }
 
     public function testDraftIsHiddenWithoutPreview(): void

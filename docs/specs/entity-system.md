@@ -219,7 +219,8 @@ File: `packages/entity/src/EntityValues.php`
 |--------|----------------|----------------------------------|
 | Persistence (`entity-storage`, `EntityRepository`) | `toArray()` for save / `splitForStorage` | Calling `ValueCaster` or `EntityValues` inside drivers — hydration stays raw at the row boundary |
 | Presentation (JSON:API, GraphQL, SSR, MCP, discovery, `ai-*` pipelines, workflow listeners, relationship) | `get($field)`, `EntityValues::toCastAwareMap()`, `EntityValues::toJsonReadyMap()` | `toArray()` for attribute/visibility/embedding text when the entity defines `$casts` |
-| Workflow visibility | `WorkflowVisibility::isNodePublicForEntity(EntityInterface)` or an array already built with `toCastAwareMap` | `isNodePublic($entity->toArray())` for nodes with enum/bool `status` casts |
+| Served workflow visibility | `WorkflowVisibility::isEntityServedPublicForEntity(EntityInterface)` or `isEntityServedPublic()` with an array already built with `toCastAwareMap` | Comparing a literal workflow-state id, or calling `toArray()` for entities with enum/bool `status` casts |
+| Candidate workflow visibility | `WorkflowVisibility::isCandidateStatePublic(Workflow, stateId)` | Assuming a state named `published` is public |
 
 **Circular dependencies:** Package `composer.json` `require` must respect the Layer Architecture table in root `CLAUDE.md` (lower layers never depend on higher layers). `waaseyaa/entity` must not require `waaseyaa/api`; shared JSON shaping lives on `EntityValues` in `entity`.
 

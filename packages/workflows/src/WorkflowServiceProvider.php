@@ -69,6 +69,12 @@ final class WorkflowServiceProvider extends ServiceProvider
             );
         });
 
+        $this->singleton(EditorialVisibilityResolver::class, function (): EditorialVisibilityResolver {
+            return new EditorialVisibilityResolver(
+                bindings: $this->resolve(WorkflowBindingResolver::class),
+            );
+        });
+
         // CW-v1 WP-3 (#1920): group-constraint gate. Resolved from
         // `waaseyaa/groups` (L2, downward from workflows' L3 — see
         // docs/specs/content-workflow.md "Layering").

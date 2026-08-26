@@ -90,7 +90,7 @@ Deterministic ordering contract:
 
 Visibility normalization invariant:
 
-- Relationship/public discovery checks must use shared workflow/status normalization (`Waaseyaa\Workflows\WorkflowVisibility`) rather than per-surface custom logic, so `workflow_state` and fallback `status` semantics stay identical across SSR/search/MCP/relationship browse.
+- Relationship/public discovery checks ask the served-visibility question through `WorkflowVisibilityFilter`, which resolves the materialized `status` projection. They never infer public serving from a working-copy `workflow_state` or a literal state id.
 
 ### Endpoint visibility (traverse and browse, fail-closed)
 

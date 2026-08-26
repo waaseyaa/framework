@@ -1,5 +1,6 @@
 # CLI Console
 
+<!-- Spec reviewed 2026-08-26 - #2569: ValidationGateValidator now derives candidate publication from the supplied WorkflowState declaration rather than a literal state id. Command discovery, parsing, boot, I/O, and exit-code contracts are unchanged. -->
 <!-- Spec reviewed 2026-08-16 - S1-FW-DB-03: workflows:backfill-state remains an explicit operator command, but every publication-pointer establishment now reads the current entity snapshot and supplies its opaque aggregate mutation token to setPublishedRevision(). A concurrent mutation therefore fails that item without emitting a pointer event or overwriting the newer aggregate; the command records the failure in its existing per-item accounting. Canonical concurrency contract: s1-concurrency-fencing.md. -->
 
 <!-- Spec reviewed 2026-08-09 - issue #2322: HealthSchemaServiceProvider registers tenancy:repair-translation-peers <entity_type> with --dry-run and --json through CommunityTranslationPeerRepairHandler. It is a normal fully booted operator command, never a pre-boot exception, and performs no mutation unless invoked without --dry-run. -->
