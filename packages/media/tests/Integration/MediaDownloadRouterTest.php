@@ -48,6 +48,10 @@ final class MediaDownloadRouterTest extends TestCase
         $this->filesRoot = sys_get_temp_dir() . '/waaseyaa_media_dl_' . bin2hex(random_bytes(6));
         mkdir($this->filesRoot, 0o755, true);
         file_put_contents($this->filesRoot . '/teaching.txt', 'AANIIN');
+        file_put_contents($this->filesRoot . '/minutes.pdf', "%PDF-1.4\nAANIIN MINUTES\n%%EOF\n");
+        file_put_contents($this->filesRoot . '/disguised.pdf', '<!doctype html><script>alert(1)</script>');
+        file_put_contents($this->filesRoot . '/active.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+        file_put_contents($this->filesRoot . '/quoted"minutes.pdf', "%PDF-1.4\nQUOTED\n%%EOF\n");
         $this->fieldReadScope = new AccountFieldReadScope();
         $accessHandler = new EntityAccessHandler([new MediaAccessPolicy()]);
         EntityReadRuntime::installGuard(new FieldReadGuard(
@@ -73,6 +77,10 @@ final class MediaDownloadRouterTest extends TestCase
     protected function tearDown(): void
     {
         @unlink($this->filesRoot . '/teaching.txt');
+        @unlink($this->filesRoot . '/minutes.pdf');
+        @unlink($this->filesRoot . '/disguised.pdf');
+        @unlink($this->filesRoot . '/active.svg');
+        @unlink($this->filesRoot . '/quoted"minutes.pdf');
         @rmdir($this->filesRoot);
         EntityReadRuntime::installGuard(null);
     }
@@ -108,6 +116,163 @@ final class MediaDownloadRouterTest extends TestCase
         self::assertSame('attachment; filename="teaching.txt"', $response->headers->get('Content-Disposition'));
         self::assertSame('6', $response->headers->get('Content-Length'));
         self::assertSame('AANIIN', $response->getContent());
+    }
+
+    #[Test]
+    public function authorized_iframe_view_returns_only_sniffed_pdf_inline_with_same_origin_frame_policy(): void
+    {
+        $request = $this->viewRequest(accountId: 7);
+        $request->headers->set('Sec-Fetch-Dest', 'iframe');
+        $request->headers->set('Sec-Fetch-Mode', 'navigate');
+        $request->headers->set('Sec-Fetch-Site', 'same-origin');
+
+        $response = $this->router('public://minutes.pdf', allowedAccountId: 7)->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/pdf', $response->headers->get('Content-Type'));
+        self::assertSame('inline; filename="minutes.pdf"', $response->headers->get('Content-Disposition'));
+        self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        self::assertSame('none', $response->headers->get('Accept-Ranges'));
+        self::assertSame((string) strlen("%PDF-1.4\nAANIIN MINUTES\n%%EOF\n"), $response->headers->get('Content-Length'));
+        self::assertSame("%PDF-1.4\nAANIIN MINUTES\n%%EOF\n", $response->getContent());
+    }
+
+    #[Test]
+    public function view_route_never_promotes_scriptable_content_from_filename_metadata_or_headers(): void
+    {
+        foreach (['public://disguised.pdf', 'public://active.svg'] as $sourceUri) {
+            foreach (['iframe', 'document'] as $destination) {
+                $request = $this->viewRequest(accountId: 7);
+                $request->headers->set('Sec-Fetch-Dest', $destination);
+                $request->headers->set('Sec-Fetch-Mode', 'navigate');
+                $request->headers->set('Accept', 'application/pdf');
+                $request->headers->set('Content-Type', 'application/pdf');
+
+                $response = $this->router(
+                    $sourceUri,
+                    allowedAccountId: 7,
+                    storedMimeType: 'application/pdf',
+                    storedFilename: 'trusted.pdf',
+                )->handle($request);
+
+                self::assertSame(200, $response->getStatusCode());
+                self::assertStringStartsWith('attachment; filename=', (string) $response->headers->get('Content-Disposition'));
+                self::assertNotSame('application/pdf', $response->headers->get('Content-Type'));
+                self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+            }
+        }
+    }
+
+    #[Test]
+    public function view_route_sanitizes_disposition_and_denies_cross_origin_framing(): void
+    {
+        $request = $this->viewRequest(7);
+        $request->headers->set('Sec-Fetch-Dest', 'iframe');
+        $request->headers->set('Sec-Fetch-Mode', 'navigate');
+        $request->headers->set('Sec-Fetch-Site', 'cross-site');
+        $response = $this->router('public://quoted"minutes.pdf', 7)->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('inline; filename="quoted_minutes.pdf"', $response->headers->get('Content-Disposition'));
+    }
+
+    #[Test]
+    public function symlink_escape_is_indistinguishable_from_missing_bytes(): void
+    {
+        $outside = sys_get_temp_dir() . '/waaseyaa_media_outside_' . bin2hex(random_bytes(6)) . '.pdf';
+        file_put_contents($outside, "%PDF-1.4\nOUTSIDE\n%%EOF\n");
+        $link = $this->filesRoot . '/escape.pdf';
+        try {
+            if (!symlink($outside, $link)) {
+                self::markTestSkipped('Symlinks are unavailable on this host.');
+            }
+            $escaped = $this->router('public://escape.pdf', 7)->handle($this->viewRequest(7));
+            $missing = $this->router('public://missing.pdf', 7)->handle($this->viewRequest(7));
+
+            self::assertSame($this->responseFingerprint($missing), $this->responseFingerprint($escaped));
+        } finally {
+            @unlink($link);
+            @unlink($outside);
+        }
+    }
+
+    #[Test]
+    public function view_route_keeps_denied_missing_malformed_and_absent_bytes_indistinguishable(): void
+    {
+        $router = $this->router('public://minutes.pdf', allowedAccountId: 7);
+        $missing = $this->viewRequest(accountId: 7);
+        $missing->attributes->set('id', '999');
+        $malformed = $this->viewRequest(accountId: 7);
+        $malformed->attributes->set('id', 'not-a-real-id');
+
+        $responses = [
+            $router->handle($this->viewRequest(accountId: 8)),
+            $router->handle($missing),
+            $this->router('public://minutes.pdf', 7, uuidLookupFinds: false)->handle($malformed),
+            $this->router('public://absent.pdf', 7)->handle($this->viewRequest(7)),
+            $this->router('', 7)->handle($this->viewRequest(7)),
+            $this->router('public://../minutes.pdf', 7)->handle($this->viewRequest(7)),
+        ];
+        $expected = $this->responseFingerprint($responses[0]);
+
+        foreach ($responses as $response) {
+            self::assertSame($expected, $this->responseFingerprint($response));
+            self::assertFalse($response->headers->has('Content-Disposition'));
+            self::assertFalse($response->headers->has('Content-Length'));
+            self::assertFalse($response->headers->has('Accept-Ranges'));
+        }
+    }
+
+    #[Test]
+    public function view_route_ignores_allowed_ranges_and_denied_ranges_disclose_nothing(): void
+    {
+        foreach (['bytes=0-3', 'bytes=999-1000', 'not-a-range'] as $range) {
+            $request = $this->viewRequest(accountId: 7);
+            $request->headers->set('Range', $range);
+            $response = $this->router('public://minutes.pdf', 7)->handle($request);
+
+            self::assertSame(200, $response->getStatusCode());
+            self::assertSame("%PDF-1.4\nAANIIN MINUTES\n%%EOF\n", $response->getContent());
+            self::assertSame('none', $response->headers->get('Accept-Ranges'));
+            self::assertFalse($request->headers->has('Range'));
+        }
+
+        $denied = $this->viewRequest(accountId: 8);
+        $denied->headers->set('Range', 'bytes=0-0');
+        self::assertSame(
+            $this->responseFingerprint($this->router('public://minutes.pdf', 7)->handle($this->viewRequest(8))),
+            $this->responseFingerprint($this->router('public://minutes.pdf', 7)->handle($denied)),
+        );
+    }
+
+    #[Test]
+    public function one_router_instance_retains_no_principal_or_disposition_across_requests(): void
+    {
+        $router = $this->router('public://minutes.pdf', allowedAccountId: 7);
+
+        $allowedView = $router->handle($this->viewRequest(7));
+        $deniedView = $router->handle($this->viewRequest(8));
+        $allowedDownload = $router->handle($this->request(7));
+
+        self::assertSame('inline; filename="minutes.pdf"', $allowedView->headers->get('Content-Disposition'));
+        self::assertSame(404, $deniedView->getStatusCode());
+        self::assertSame('attachment; filename="minutes.pdf"', $allowedDownload->headers->get('Content-Disposition'));
+    }
+
+    #[Test]
+    public function denied_request_never_opens_the_source_reader(): void
+    {
+        $sourceReader = $this->createMock(MediaDownloadSourceReaderInterface::class);
+        $sourceReader->expects(self::never())->method('sourceUri');
+        $original = $this->sourceReader;
+        $this->sourceReader = $sourceReader;
+        try {
+            $response = $this->router('public://minutes.pdf', allowedAccountId: 7)->handle($this->viewRequest(8));
+        } finally {
+            $this->sourceReader = $original;
+        }
+
+        self::assertSame(404, $response->getStatusCode());
     }
 
     #[Test]
@@ -178,7 +343,13 @@ final class MediaDownloadRouterTest extends TestCase
         self::assertSame(404, $this->router('public://../outside.txt', 7)->handle($this->request(7))->getStatusCode());
     }
 
-    private function router(string $sourceUri, int $allowedAccountId): MediaDownloadRouter
+    private function router(
+        string $sourceUri,
+        int $allowedAccountId,
+        bool $uuidLookupFinds = true,
+        string $storedMimeType = 'text/plain',
+        string $storedFilename = 'teaching.txt',
+    ): MediaDownloadRouter
     {
         $policy = new class ($allowedAccountId) implements AccessPolicyInterface {
             public function __construct(private readonly int $allowedAccountId) {}
@@ -198,18 +369,24 @@ final class MediaDownloadRouterTest extends TestCase
             }
         };
 
-        return $this->routerWithPolicy($sourceUri, $policy);
+        return $this->routerWithPolicy($sourceUri, $policy, $uuidLookupFinds, $storedMimeType, $storedFilename);
     }
 
-    private function routerWithPolicy(string $sourceUri, AccessPolicyInterface $policy): MediaDownloadRouter
+    private function routerWithPolicy(
+        string $sourceUri,
+        AccessPolicyInterface $policy,
+        bool $uuidLookupFinds = true,
+        string $storedMimeType = 'text/plain',
+        string $storedFilename = 'teaching.txt',
+    ): MediaDownloadRouter
     {
         $media = new Media([
             'mid' => 10,
             'uuid' => 'e14dcf5b-042c-4d88-9f34-aeace1764b66',
             'bundle' => 'document',
             'source_uri' => $sourceUri,
-            'filename' => 'teaching.txt',
-            'mime_type' => 'text/plain',
+            'filename' => $storedFilename,
+            'mime_type' => $storedMimeType,
             'status' => 1,
             'uid' => 99,
         ]);
@@ -221,7 +398,7 @@ final class MediaDownloadRouterTest extends TestCase
         $query->method('accessCheck')->willReturnSelf();
         $query->method('condition')->willReturnSelf();
         $query->method('range')->willReturnSelf();
-        $query->method('execute')->willReturn([10]);
+        $query->method('execute')->willReturn($uuidLookupFinds ? [10] : []);
         $storage->method('getQuery')->willReturn($query);
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getRepository')->willReturnMap([
@@ -235,6 +412,7 @@ final class MediaDownloadRouterTest extends TestCase
     {
         $request = Request::create('/media/10/download');
         $request->attributes->set('id', '10');
+        $request->attributes->set('_controller', MediaDownloadRouter::CONTROLLER);
         $account = new class ($accountId) implements AccountInterface {
             public function __construct(private readonly int $id) {}
             public function id(): int|string { return $this->id; }
@@ -254,6 +432,14 @@ final class MediaDownloadRouterTest extends TestCase
         return $request;
     }
 
+    private function viewRequest(int $accountId): Request
+    {
+        $request = $this->request($accountId);
+        $request->attributes->set('_controller', MediaDownloadRouter::VIEW_CONTROLLER);
+
+        return $request;
+    }
+
     private function requestFor(AccountInterface $account, AuthorizationPrincipalInterface $principal): Request
     {
         $request = Request::create('/media/10/download');
@@ -262,6 +448,19 @@ final class MediaDownloadRouterTest extends TestCase
         $request->attributes->set('_authorization_principal', $principal);
 
         return $request;
+    }
+
+    /** @return array{status: int, content: string, headers: array<string, list<string|null>>} */
+    private function responseFingerprint(Response $response): array
+    {
+        $headers = $response->headers->all();
+        unset($headers['date']);
+
+        return [
+            'status' => $response->getStatusCode(),
+            'content' => (string) $response->getContent(),
+            'headers' => $headers,
+        ];
     }
 
     private function assertUserIdentityFieldsRemainSealed(User $user): void

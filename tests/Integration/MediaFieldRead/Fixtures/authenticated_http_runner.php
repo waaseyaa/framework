@@ -46,6 +46,11 @@ $_SERVER = [
     'SERVER_PORT' => '80',
     'HTTPS' => 'off',
 ];
+if (str_ends_with($path, '/view')) {
+    $_SERVER['HTTP_SEC_FETCH_DEST'] = 'iframe';
+    $_SERVER['HTTP_SEC_FETCH_MODE'] = 'navigate';
+    $_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-origin';
+}
 
 $response = new HttpKernel($projectRoot)->handle();
 echo json_encode([

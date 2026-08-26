@@ -70,6 +70,13 @@ Access enforcement happens at the resolver level via `GraphQlAccessGuard`. Mutat
 | `X-Frame-Options` | `SAMEORIGIN` | Blocks cross-origin framing (clickjacking) while preserving same-origin inline previews. Configurable via `security_headers.frame_options`. **Omitted** when the matched route set the `_frame_exempt` request attribute (`SecurityHeadersMiddleware::FRAME_EXEMPT_ATTRIBUTE`) — the per-route opt-out for content meant to be framed cross-origin. |
 | `X-Content-Type-Options` | `nosniff` | Always applied. |
 
+The protected-media inline surface (`GET /media/{id}/view`) does not use the
+framing exemption, so the canonical `X-Frame-Options: SAMEORIGIN` response
+policy denies cross-origin framing while permitting a same-origin iframe. It
+does not set its own CSP: an explicitly configured deployment CSP remains
+authoritative and is not suppressed by the media response. Request headers and
+media metadata cannot opt the route into a looser framing policy.
+
 Provider-contributed HTTP middleware uses the same onion response phase: code after `$next->handle()` receives the final response. This is the supported app hook for response headers, cookies, compression, and equivalent response decoration. See [middleware-pipeline.md](middleware-pipeline.md).
 
 `Content-Security-Policy` and `Strict-Transport-Security` are **opt-in**, NOT applied by the kernel defaults: `default-src 'self'` would break consumer SPAs and same-origin inline previews, and HSTS needs HTTPS certainty. A deployment that wants them contributes an explicitly configured `SecurityHeadersMiddleware($csp, $hstsEnabled, $hstsMaxAge)` from its provider (the constructor defaults remain `default-src 'self'` / `X-Frame-Options: DENY` / HSTS-on for that explicit path).

@@ -1,4 +1,11 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-25 - protected-inline-media-20260825 (#2564):
+BuiltinRouteRegistrar adds GET /media/{id}/view with the same allowAll transport
+posture and MediaDownloadRouter entity-view enforcement as /download. The view
+route is inline only for content-sniffed application/pdf, receives the kernel's
+canonical SAMEORIGIN plus nosniff response policy without replacing a host CSP,
+ignores ranges, and preserves the existing indistinguishable 404 and confined
+public:// source contract. -->
 <!-- Spec reviewed 2026-08-24 - #2537: JsonApiRouter PATCH/DELETE If-Match parse
 and 428/400 JSON:API envelopes go through Waaseyaa\Api\Http\EntityMutationPrecondition.
 EntityMutationToken::fromHttpIfMatch() remains the policy authority; Request::getETags()
@@ -1667,6 +1674,7 @@ Optional follow-ups (full header map API, lazy adapter, JSON:API adoption) are t
 | `DiscoveryRouter` (`Waaseyaa\Api\Http\Router`) | `discovery.topic_hub`, `discovery.cluster`, `discovery.timeline`, `discovery.endpoint` | Discovery API for topic hubs, clusters, timelines (registered from `ApiServiceProvider::httpDomainRouters()`) |
 | `SearchRouter` | `search.semantic` | Semantic search via embedding storage |
 | `MediaRouter` (`Waaseyaa\Media\Http\Router`) | `media.upload` | Authenticated `GET /api/media/upload` exposes only safe size/MIME constraints; authenticated `POST` retains the existing multipart upload with `access media` plus bundle-specific create access enforced before persistence. File validation includes size limits, sanitization, and move error handling (`MediaServiceProvider`). MIME validation is **sniff-only and fail-closed** (2026-07-01 WP4 hardening): the type is detected from file contents via `UploadHandler::detectMimeType()` (ext-fileinfo) — the client-declared MIME is never consulted (Symfony `getMimeType()` is not called; symfony/mime is not installed), and undetectable types are rejected 415 (`File type could not be verified.`). Allowlist matching is shared with `UploadHandler` (`mimeTypeMatches()`, exact + `type/*` wildcards). Default allowlist deliberately EXCLUDES `image/svg+xml` (script-capable; `/files/` serving adds no attachment/nosniff headers) and `application/octet-stream` (finfo's answer for any unrecognized binary); sites opt back in explicitly via `upload_allowed_mime_types`. The stored `File.mimeType` is the sniffed type. |
+| `MediaDownloadRouter` (`Waaseyaa\Media\Http\Router`) | `media.download`, `media.view` | Both routes resolve numeric IDs or bounded UUIDs, require the same entity `view` decision before audited `source_uri` access, confine `public://` paths under the configured files root, and collapse every denial/absence to the same 404. `/download` retains top-level document-navigation compatibility. `/view` is an explicit same-origin iframe surface: only content-sniffed `application/pdf` becomes inline; all other MIME types remain attachments regardless of navigation headers. The kernel's canonical response policy supplies `SAMEORIGIN` and `nosniff` without replacing a deployment CSP. Both return complete 200 bodies and advertise `Accept-Ranges: none`. |
 | `GraphQlRouter` (`Waaseyaa\GraphQL\Http\Router`) | `graphql.endpoint` | GraphQL query/mutation execution (`GraphQlServiceProvider`) |
 | `McpRouter` | `mcp.endpoint` | MCP JSON-RPC endpoint |
 | `SsrRouter` (`Waaseyaa\SSR\Http\Router`) | `render.page` | Server-side page rendering (`SsrServiceProvider`) |
@@ -1688,7 +1696,7 @@ This kernel-adjacent registrar runs once at boot (called from `HttpKernel`) and 
 | OpenAPI schema doc | `GET /api/openapi.json` | `_authenticated` |
 | Entity-type catalog + lifecycle | `GET /api/entity-types`; `POST /api/entity-types/{entity_type}/{enable,disable}` | `_role: admin` |
 | Broadcast (SSE) | `GET /api/broadcast` | default |
-| Media upload/download | `POST /api/media/upload`; `GET /media/{id}/download` | `access media`; `allowAll` transport posture + download handler entity-view enforcement |
+| Media upload/download/view | `POST /api/media/upload`; `GET /media/{id}/{download,view}` | `access media`; byte routes use `allowAll` transport posture + shared handler entity-view enforcement |
 | Attachment download | `GET /attachment/{id}/download` | option-less (handler enforces) |
 | Semantic search | `GET /api/search` | default |
 | Discovery endpoints | `GET /api/discovery/{hub,cluster,timeline,endpoint}/…` | default |
