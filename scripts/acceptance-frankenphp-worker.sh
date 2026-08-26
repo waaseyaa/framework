@@ -244,6 +244,7 @@ cat >"$CADDYFILE" <<EOF
 		worker {
 			file ${ROOT}/public/index.php
 			num 1
+            env WAASEYAA_FRANKENPHP_WORKER "1"
 			env APP_ENV "${APP_ENV}"
 			env APP_DEBUG "${APP_DEBUG}"
 			env WAASEYAA_DEV_FALLBACK_ACCOUNT "${WAASEYAA_DEV_FALLBACK_ACCOUNT}"
@@ -648,4 +649,5 @@ wait_ready "$CLASSIC_PORT"
 mapfile -t META < <(request GET "http://127.0.0.1:${CLASSIC_PORT}/.well-known/waaseyaa-anchors.json")
 [[ "${META[0]}" == "200" ]] || fail "classic FrankenPHP php-server expected 200, got ${META[0]}"
 echo "${META[1]}" | grep -Ei 'frankenphp|caddy' >/dev/null || fail "classic Server header did not identify FrankenPHP/Caddy: ${META[1]}"
+[[ "${META[8]}" =~ ^[1-9][0-9]*$ ]] || fail "classic FrankenPHP returned an empty response body"
 echo "classic FrankenPHP fallback 200 server=${META[1]}"

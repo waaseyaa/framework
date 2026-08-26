@@ -15,7 +15,6 @@
 #
 # `waaseyaa serve` is the plain single-worker php -S dev server and does NOT use
 # this file — it is not for the admin SPA's concurrent SSE or for production.
-
 {
 	# Worker mode: boot public/index.php ONCE and keep it warm, then loop on
 	# frankenphp_handle_request() (the runtime adapter in public/index.php).
@@ -23,7 +22,10 @@
 	# long-lived /api/broadcast SSE stream pins one thread while the rest stay
 	# responsive.
 	frankenphp {
-		worker ./public/index.php
+		worker {
+			file ./public/index.php
+			env WAASEYAA_FRANKENPHP_WORKER "1"
+		}
 	}
 }
 

@@ -84,39 +84,31 @@ $handler = static function () use ($projectRoot): void {
     $response->send();
 };
 
-// FrankenPHP worker mode: boot the handler once, then loop on
-// frankenphp_handle_request() so the app stays warm. CAVEAT: that function is
-// ALSO defined under classic FrankenPHP (php-server / FPM), where calling it
-// throws "called while not in worker mode" — so its mere existence does not
-// prove worker mode. Attempt the worker loop; if the FIRST call throws before
-// any request is handled, this process is not a worker, so fall through to a
-// single synchronous request (classic FrankenPHP, php -S, or FPM).
-if (function_exists('frankenphp_handle_request')) {
+// The shipped Caddy worker block sets this marker inside the worker process.
+// Classic FrankenPHP also defines frankenphp_handle_request(); depending on the
+// runtime build, calling it outside worker mode either throws or returns false.
+// Function existence is therefore never a runtime-mode signal.
+$workerMode = ($_SERVER['WAASEYAA_FRANKENPHP_WORKER'] ?? getenv('WAASEYAA_FRANKENPHP_WORKER')) === '1';
+if ($workerMode) {
+    if (!function_exists('frankenphp_handle_request')) {
+        throw new \RuntimeException('FrankenPHP worker mode is enabled but the worker API is unavailable.');
+    }
+
     ignore_user_abort(true);
 
     // Optional recycle bound; 0 = unlimited.
     $maxRequestsRaw = getenv('FRANKENPHP_WORKER_MAX_REQUESTS');
     $maxRequests = $maxRequestsRaw === false ? 0 : (int) $maxRequestsRaw;
 
-    $handled = 0;
-    try {
-        for (; $maxRequests === 0 || $handled < $maxRequests; ++$handled) {
-            $keepRunning = \frankenphp_handle_request($handler);
-            gc_collect_cycles();
-            if (!$keepRunning) {
-                break;
-            }
-        }
-
-        return;
-    } catch (\Throwable $e) {
-        // A throw AFTER the first handled request is a real worker-loop error —
-        // re-raise it. A throw on the first call means this process is not a
-        // worker; fall through and serve this one request classically.
-        if ($handled > 0) {
-            throw $e;
+    for ($handled = 0; $maxRequests === 0 || $handled < $maxRequests; ++$handled) {
+        $keepRunning = \frankenphp_handle_request($handler);
+        gc_collect_cycles();
+        if (!$keepRunning) {
+            break;
         }
     }
+
+    return;
 }
 
 $handler();

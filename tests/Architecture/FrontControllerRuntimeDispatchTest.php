@@ -13,14 +13,11 @@ use PHPUnit\Framework\TestCase;
  *
  * Two invariants are enforced here:
  *
- *  1. CLASSIC-FRANKENPHP FALLBACK. `frankenphp_handle_request()` is defined under
- *     BOTH FrankenPHP worker mode and classic FrankenPHP (php-server / FPM); in
- *     classic mode it throws "called while not in worker mode". So branching on
- *     `function_exists('frankenphp_handle_request')` alone is not enough — the
- *     loop must tolerate that first-call throw and fall through to a single
- *     synchronous request. Regression guard for the alpha.225 entry file, which
- *     500'd under `frankenphp php-server` until the worker loop learned to fall
- *     back (verified against a real FrankenPHP 1.12 binary).
+ *  1. EXPLICIT RUNTIME SELECTION. `frankenphp_handle_request()` is defined under
+ *     BOTH FrankenPHP worker mode and classic FrankenPHP (php-server / FPM).
+ *     Classic builds may throw or return false when it is called, so function
+ *     existence is not a runtime-mode signal. The shipped worker block sets an
+ *     exact process marker; every other runtime serves one synchronous request.
  *
  *  2. FOUR-COPY SYNC. The runtime adapter is duplicated across the repo front
  *     controller, the skeleton front controller, the `make:public` template stub,
@@ -61,43 +58,43 @@ final class FrontControllerRuntimeDispatchTest extends TestCase
     }
 
     #[Test]
-    public function everyFrontControllerFallsBackToClassicWhenNotInWorkerMode(): void
+    public function everyFrontControllerSelectsWorkerModeExplicitly(): void
     {
         foreach (self::allFrontControllers() as $relative) {
             $source = self::read($relative);
 
-            // Still gated on the worker API existing...
             $this->assertStringContainsString(
-                "function_exists('frankenphp_handle_request')",
+                "\$_SERVER['WAASEYAA_FRANKENPHP_WORKER'] ?? getenv('WAASEYAA_FRANKENPHP_WORKER')",
                 $source,
-                "{$relative} must still detect the FrankenPHP worker API.",
-            );
-
-            // ...but the first-call throw must be caught and, when no request has
-            // been handled yet, swallowed so we fall through to $handler().
-            $this->assertStringContainsString(
-                'catch (\Throwable $e)',
-                $source,
-                "{$relative} must guard the worker loop so classic FrankenPHP (which throws) falls back.",
+                "{$relative} must require the exact worker-process marker.",
             );
             $this->assertStringContainsString(
-                'if ($handled > 0)',
+                "if (!function_exists('frankenphp_handle_request'))",
                 $source,
-                "{$relative} must only re-throw worker errors AFTER the first request (classic mode throws on call #1).",
+                "{$relative} must fail closed when an explicitly selected worker lacks its API.",
+            );
+            $this->assertStringNotContainsString(
+                "if (function_exists('frankenphp_handle_request'))",
+                $source,
+                "{$relative} must not infer worker mode from function existence.",
             );
             $this->assertStringContainsString(
                 '$handler();',
                 $source,
                 "{$relative} must retain the single-request fallback path.",
             );
-
-            // Guard against reverting to the buggy unconditional loop / comment.
-            $this->assertStringNotContainsString(
-                'Without this function we are',
-                $source,
-                "{$relative} carries the pre-fix comment — the classic-mode fallback was reverted.",
-            );
         }
+    }
+
+    #[Test]
+    public function shipped_and_acceptance_worker_blocks_set_the_explicit_marker(): void
+    {
+        $caddy = self::read('skeleton/config/frankenphp/Caddyfile');
+        $harness = self::read('scripts/acceptance-frankenphp-worker.sh');
+
+        $this->assertStringContainsString('env WAASEYAA_FRANKENPHP_WORKER "1"', $caddy);
+        $this->assertStringContainsString('env WAASEYAA_FRANKENPHP_WORKER "1"', $harness);
+        $this->assertStringContainsString('classic FrankenPHP returned an empty response body', $harness);
     }
 
     #[Test]

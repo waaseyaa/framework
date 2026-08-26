@@ -22,7 +22,8 @@ request-loop wrapper differs:
    `frankenphp_handle_request($handler)` so the app stays warm and requests are
    served concurrently across threads (a long-lived `/api/broadcast` SSE stream
    pins one thread). Launched by the **native** `frankenphp run --config
-   config/frankenphp/Caddyfile` (the Caddyfile's `worker ./public/index.php`).
+   config/frankenphp/Caddyfile` (the Caddyfile's worker block sets
+   `WAASEYAA_FRANKENPHP_WORKER=1` for `public/index.php`).
 2. **FrankenPHP / FPM classic** — one request per invocation.
 3. **`php -S` (cli-server)** — one request per invocation with static-file
    passthrough; this is what `waaseyaa serve` runs (single-worker dev only).
@@ -34,14 +35,12 @@ The runtime-specific logic embedded in the file:
 - the `$handler` closure: **fresh `HttpKernel` per request** (no container/entity
   state bleeds across requests in a long-lived worker) + a **debug-gated**
   boot-failure JSON:API 500 (never leaks `$e->getMessage()` outside `APP_DEBUG`);
-- the worker loop: `function_exists('frankenphp_handle_request')` guard,
+- the worker loop: exact `WAASEYAA_FRANKENPHP_WORKER=1` selection,
+  fail-closed verification that `frankenphp_handle_request()` exists,
   `ignore_user_abort(true)`, an optional `FRANKENPHP_WORKER_MAX_REQUESTS`
-  recycle bound, `gc_collect_cycles()` each turn, and a **first-call-throw
-  heuristic** — because `frankenphp_handle_request()` is *also* defined under
-  classic FrankenPHP (where calling it throws "not in worker mode"), a throw
-  **before** the first handled request means "not a worker → fall through to one
-  synchronous request"; a throw **after** is a real worker-loop error and is
-  re-raised.
+  recycle bound, and `gc_collect_cycles()` each turn. Classic FrankenPHP also
+  exposes the worker function and may throw or return `false` outside worker
+  mode, so the front controller never calls it without the explicit marker.
 
 ### The byte-locked copies (the actual debt)
 
@@ -110,10 +109,10 @@ Proposed shape (Symfony-Runtime / Laravel-Octane-style, adapted):
   owns: the per-request fresh-kernel `$handler`, the debug-gated boot-failure
   responder, and a `serveOnce()` path for classic FPM / `php -S`. This is the
   zero-dependency default — no optional package required.
-- A **runtime detector** that selects a serving strategy: if
-  `frankenphp_handle_request` exists, use the worker-loop strategy (incl. the
-  first-call-throw fallthrough heuristic, `ignore_user_abort`, the recycle
-  bound); else `serveOnce()`. The worker strategy is the *only* FrankenPHP-aware
+- A **runtime selector** that uses the worker-process marker to select the
+  worker-loop strategy (including `ignore_user_abort` and the recycle bound),
+  then fails closed if `frankenphp_handle_request` is absent; every unmarked
+  runtime uses `serveOnce()`. The worker strategy is the *only* FrankenPHP-aware
   code; it can live in foundation guarded purely by `function_exists()` (no
   dependency on `waaseyaa/frankenphp`), OR — cleaner separation — in
   `waaseyaa/frankenphp` as a strategy the detector loads **only if class_exists**,
@@ -126,8 +125,9 @@ Proposed shape (Symfony-Runtime / Laravel-Octane-style, adapted):
   500 body), injected into `RuntimeServer`.
 
 **Recommended variant:** keep the worker-loop strategy in **foundation**, gated
-by `function_exists('frankenphp_handle_request')` only. Rationale: it is ~25
-lines, has no FrankenPHP *code* dependency (only the runtime-injected global
+by the exact worker-process marker and guarded by
+`function_exists('frankenphp_handle_request')`. Rationale: it is ~25 lines, has
+no FrankenPHP *code* dependency (only the runtime-injected global
 function), and keeping it in core avoids a foundation→optional-package indirection
 while still leaving `waaseyaa/frankenphp` as binary-management-only. This holds
 the runtime-agnostic invariant (the code is inert when the symbol is absent) and
@@ -139,7 +139,7 @@ collapses the four-copy duplication to a one-line bootstrap.
 
 | Risk | Severity | Notes |
 |------|----------|-------|
-| Worker-loop semantics regressions | **High** | The first-call-throw fallthrough heuristic, `ignore_user_abort`, fresh-kernel-per-request, and the recycle bound are load-bearing for production concurrency + the SSE stream. A subtle change (e.g. catching the wrong throw, or reusing a kernel) breaks prod warmth or leaks request state. Hard to cover in CI (no FrankenPHP worker in the test runner). |
+| Worker-loop semantics regressions | **High** | Explicit marker custody, `ignore_user_abort`, fresh-kernel-per-request, and the recycle bound are load-bearing for production concurrency + the SSE stream. A missing marker strands the worker; a marker in classic mode suppresses the synchronous path. The native hosted lane covers both modes. |
 | Boot-failure leak re-introduction | **High** | The debug-gate is a fixed audit-Medium (#1755). Any refactor must preserve "never emit `$e->getMessage()` outside APP_DEBUG" across **every** entry path, and keep `FrontControllerRuntimeDispatchTest`'s no-leak invariant green. |
 | Breaking the php-S / FPM fallback | **Med-High** | The zero-dependency path must keep working for apps without `waaseyaa/frankenphp`. Easy to regress if the bootstrap accidentally references an optional symbol. |
 | Scaffolding drift (`make:public`, skeleton, golden) | **Med** | Four copies + the architecture test must move together; the stub generator (`MakePublicHandler`) emits the new thin bootstrap; the golden/byte-identity test must be re-pinned to the new content. |
@@ -154,10 +154,9 @@ collapses the four-copy duplication to a one-line bootstrap.
   response; boot-failure produces a debug-gated 500 (production hides the
   message, debug shows it); the recycle bound stops after N; the worker-detection
   branch is selected when the global function is present (inject a fake).
-- **Worker-loop heuristic:** unit-test the first-call-throw fallthrough by
-  injecting a fake `frankenphp_handle_request` that throws on the first call
-  (→ falls through to one synchronous serve) vs throws after the first
-  (→ re-raises). This is the riskiest logic and is the prime regression target.
+- **Runtime selection:** contract-test that every front controller requires the
+  exact worker marker, fails closed when a selected worker lacks its API, and
+  retains the synchronous path for every unmarked runtime.
 - **Architecture:** keep `FrontControllerRuntimeDispatchTest` — re-pin the
   byte-identity to the new thin bootstrap, keep the no-raw-boot-leak invariant
   across all four copies.
@@ -189,18 +188,19 @@ collapses the four-copy duplication to a one-line bootstrap.
 
 **Defer — low urgency, real (but bounded) risk; not a blocker.**
 
-- It is **cosmetic/architectural debt, not a defect**: the current four-copy
-  design is correct and secure (the boot-leak invariant is enforced by an
-  architecture test). Nothing is broken or reachable; this is purely about
-  collapsing duplication and tidying the runtime seam.
+- The **four-copy duplication** remains architectural debt, not a reason to
+  extract the adapter immediately. The classic empty-response defect is fixed
+  independently by explicit runtime selection; extraction would now be a
+  structural simplification rather than remediation.
 - The highest-risk surface (worker-loop semantics, boot-leak gate) is **load-
   bearing for production**. #2494 added a real-worker HTTP lane; a refactor
-  still trades a tidier seam for production-regression risk around the
-  first-call-throw heuristic, which remains a PHPUnit/architecture concern.
+  still trades a tidier seam for production-regression risk around explicit
+  marker custody and the worker loop, both covered by Architecture and native
+  worker/classic acceptance.
 - If undertaken, do it as a **single, self-contained mission** with the test
-  strategy above landed *first* (unit-cover the worker heuristic before moving
-  it), the recommended "worker strategy stays in foundation, `function_exists`-
-  gated" variant, and a real out-of-CI FrankenPHP smoke check before merge.
+  strategy above landed *first*, the recommended "worker strategy stays in
+  foundation, explicit-marker-selected and API-guarded" variant, and a real
+  out-of-CI FrankenPHP smoke check before merge.
 
 **Suggested trigger to revisit:** when the worker loop next needs a *behavioral*
 change anyway (e.g. a new recycle policy, graceful-drain on SSE, or a second
