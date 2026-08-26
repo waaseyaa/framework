@@ -7,6 +7,9 @@ Usage:
 Options:
   -f, --force           Overwrite existing files
       --dry-run         Show what would be copied without writing
+      --check           Report upstream and consumer drift without writing files
+      --strict          Return a failure when --check reports drift
+      --accept-current  Record reviewed upstream and consumer files as the new baseline
   -h, --help            Display help for the given command. When no command is given display help for the list command
       --silent          Do not output any message
   -q, --quiet           Only errors are displayed. All other output is suppressed

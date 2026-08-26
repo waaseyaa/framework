@@ -34,4 +34,12 @@ composer validate --no-check-publish
 composer install --no-interaction --dry-run
 
 ./bin/maintenance/waaseyaa-version --report-only
+
+# Published auth UI is application-owned, so drift is advisory here. The check
+# is also what safely diagnoses published files whose manifest is missing.
+# Teams that require a blocking CI policy invoke `scaffold:auth --check --strict` directly.
+if ! ./vendor/bin/waaseyaa scaffold:auth --check; then
+    echo "waaseyaa-audit-site: WARNING auth UI drift could not be evaluated; review the diagnostic above" >&2
+fi
+
 echo "waaseyaa-audit-site: OK"

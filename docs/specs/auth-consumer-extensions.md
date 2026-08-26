@@ -9,6 +9,29 @@ security model, credential hashing and verification, sessions, CSRF, reset and
 verification tokens, two-factor state, rate limits, and authorization reads.
 An application does not customize auth by replacing one of those services.
 
+## Published auth UI ownership and drift
+
+`scaffold:auth` publishes only the login page, login form, brand panel,
+`useAuth` presentation composable, and auth CSS. It never publishes backend
+authentication, session, CSRF, credential, token, rate-limit, or two-factor
+implementation code. Once published, those presentation files are
+application-owned and Framework updates never overwrite them automatically.
+
+The versioned `app/.waaseyaa/scaffold-manifest.json` records, per file, the
+stable upstream source path, originating Framework version, digest algorithm,
+upstream digest, and reviewed consumer digest. `scaffold:auth --check` is
+read-only and deterministically reports `added`, `removed`,
+`changed-upstream`, `changed-consumer`, and `conflict` states. Ordinary site
+audit treats this as a non-blocking diagnostic; a repository may opt into a
+blocking policy with `scaffold:auth --check --strict`.
+
+Missing or malformed manifests never trigger repair or file publication. A
+missing manifest alongside consumer auth files and every malformed manifest
+return a failure with no write. After manually reviewing and merging upstream
+changes, `scaffold:auth --accept-current` advances only the recorded upstream
+and consumer baselines. It refuses if any current source or consumer file is
+missing and never writes an application file.
+
 ## Provider contract
 
 An application service provider implements
@@ -64,3 +87,7 @@ composition, and conflict diagnostic. Controller tests pin security ordering
 and prove extensions cannot receive credential/token material. A packaged
 consumer enables every slot while an auth regression test proves the current
 Framework credential/session invariant remains load-bearing.
+
+CLI tests additionally pin every drift classification, legacy checksum
+compatibility, malformed-manifest refusal, packaged-consumer source discovery,
+strict-policy exit behavior, and the no-overwrite invariant.

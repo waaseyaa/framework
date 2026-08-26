@@ -159,6 +159,21 @@ final class OtherScaffoldsServiceProvider extends ServiceProvider implements Pro
                     mode: HandlerOptionMode::None,
                     description: 'Show what would be copied without writing',
                 ),
+                new HandlerOption(
+                    name: 'check',
+                    mode: HandlerOptionMode::None,
+                    description: 'Report upstream and consumer drift without writing files',
+                ),
+                new HandlerOption(
+                    name: 'strict',
+                    mode: HandlerOptionMode::None,
+                    description: 'Return a failure when --check reports drift',
+                ),
+                new HandlerOption(
+                    name: 'accept-current',
+                    mode: HandlerOptionMode::None,
+                    description: 'Record reviewed upstream and consumer files as the new baseline',
+                ),
             ],
             handler: \Closure::fromCallable([$scaffoldAuthHandler, 'execute']),
         );
