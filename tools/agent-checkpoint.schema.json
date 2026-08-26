@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://waaseyaa.org/schemas/agent-checkpoint-v1.json",
+  "title": "Waaseyaa bounded agent checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "task", "verdict", "cwd", "repository", "pins", "worktrees", "processes", "mutations", "blockers", "evidence", "next_authorized_action"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "task": {"type": "string", "minLength": 1, "maxLength": 160},
+    "verdict": {"enum": ["complete", "in-progress", "blocked", "failed"]},
+    "cwd": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "repository": {"$ref": "#/$defs/gitState"},
+    "pins": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/pin"}},
+    "worktrees": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/worktree"}},
+    "processes": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/process"}},
+    "mutations": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/mutation"}},
+    "blockers": {"type": "array", "maxItems": 64, "items": {"type": "string", "maxLength": 500}},
+    "evidence": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/evidence"}},
+    "next_authorized_action": {"type": "string", "maxLength": 1000}
+  },
+  "$defs": {
+    "gitState": {
+      "type": "object",
+      "required": ["path", "repository_top_level", "branch", "detached", "head", "porcelain", "active_operation"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "repository_top_level": {"type": ["string", "null"], "maxLength": 4096},
+        "branch": {"type": ["string", "null"], "maxLength": 500},
+        "detached": {"type": "boolean"},
+        "head": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+        "porcelain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["staged", "unstaged", "untracked", "conflicted"],
+          "properties": {
+            "staged": {"type": "integer", "minimum": 0},
+            "unstaged": {"type": "integer", "minimum": 0},
+            "untracked": {"type": "integer", "minimum": 0},
+            "conflicted": {"type": "integer", "minimum": 0}
+          }
+        },
+        "active_operation": {"type": ["string", "null"], "enum": [null, "rebase", "merge", "cherry-pick", "revert", "bisect"]}
+      }
+    },
+    "worktree": {
+      "allOf": [
+        {"$ref": "#/$defs/gitState"},
+        {
+          "type": "object",
+          "required": ["role", "task_created"],
+          "properties": {
+            "role": {"enum": ["active-edit", "task-active-edit", "read-only-evidence", "task-read-only-evidence"]},
+            "task_created": {"type": "boolean"}
+          }
+        }
+      ]
+    },
+    "pin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha"],
+      "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 120}, "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}}
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "pid", "alive"],
+      "properties": {"label": {"type": "string", "minLength": 1, "maxLength": 120}, "pid": {"type": "integer", "minimum": 1}, "alive": {"type": "boolean"}}
+    },
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "action", "target"],
+      "properties": {
+        "system": {"type": "string", "minLength": 1, "maxLength": 40},
+        "action": {"type": "string", "minLength": 1, "maxLength": 80},
+        "target": {"type": "string", "minLength": 1, "maxLength": 500}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "path", "sha256", "bytes"],
+      "properties": {
+        "classification": {"enum": ["tracked-deliverable", "disposable-local", "sensitive-private"]},
+        "path": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

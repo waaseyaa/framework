@@ -1,0 +1,268 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+const MAX_CHECKPOINT_BYTES = 16_384;
+const MAX_ITEMS = 64;
+
+$options = getopt('', [
+    'task:', 'verdict:', 'evidence-dir:', 'output::', 'cwd::', 'worktree::',
+    'pid::', 'evidence::', 'pin::', 'mutation::', 'blocker::', 'next::',
+]);
+
+try {
+    $task = boundedString($options['task'] ?? null, 'task', 160);
+    $verdict = boundedString($options['verdict'] ?? null, 'verdict', 32);
+    if (!in_array($verdict, ['complete', 'in-progress', 'blocked', 'failed'], true)) {
+        throw new InvalidArgumentException('verdict must be complete, in-progress, blocked, or failed');
+    }
+    $cwd = realpath((string) ($options['cwd'] ?? getcwd()));
+    $evidenceDir = realpath((string) ($options['evidence-dir'] ?? ''));
+    if ($cwd === false || !is_dir($cwd)) {
+        throw new InvalidArgumentException('cwd must be an existing directory');
+    }
+    if ($evidenceDir === false || !is_dir($evidenceDir)) {
+        throw new InvalidArgumentException('evidence-dir must be an existing directory');
+    }
+
+    $repository = gitState($cwd);
+    $worktrees = [];
+    $activeEdits = 0;
+    foreach (optionList($options, 'worktree') as $value) {
+        [$role, $path] = splitValue($value, 2, 'worktree');
+        if (!in_array($role, ['active-edit', 'task-active-edit', 'read-only-evidence', 'task-read-only-evidence'], true)) {
+            throw new InvalidArgumentException("invalid worktree role {$role}");
+        }
+        if (str_contains($role, 'active-edit')) {
+            ++$activeEdits;
+        }
+        $resolved = realpath($path);
+        if ($resolved === false || !is_dir($resolved)) {
+            throw new InvalidArgumentException("worktree path does not exist: {$path}");
+        }
+        $worktrees[] = ['role' => $role, 'task_created' => str_starts_with($role, 'task-')] + gitState($resolved);
+    }
+    if ($activeEdits > 1) {
+        throw new InvalidArgumentException('at most one worktree may have an active-edit role');
+    }
+
+    $processes = [];
+    foreach (optionList($options, 'pid') as $value) {
+        [$label, $pidValue] = splitValue($value, 2, 'pid');
+        if (!ctype_digit($pidValue) || (int) $pidValue < 1) {
+            throw new InvalidArgumentException("invalid PID: {$pidValue}");
+        }
+        $pid = (int) $pidValue;
+        $processes[] = ['label' => boundedString($label, 'PID label', 120), 'pid' => $pid, 'alive' => processAlive($pid)];
+    }
+
+    $evidence = [];
+    foreach (optionList($options, 'evidence') as $value) {
+        [$classification, $path] = splitValue($value, 2, 'evidence');
+        if (!in_array($classification, ['tracked-deliverable', 'disposable-local', 'sensitive-private'], true)) {
+            throw new InvalidArgumentException("invalid evidence classification {$classification}");
+        }
+        $resolved = realpath($path);
+        if ($resolved === false || !is_file($resolved)) {
+            throw new InvalidArgumentException("evidence file does not exist: {$path}");
+        }
+        if (!pathWithin($resolved, $evidenceDir)) {
+            throw new InvalidArgumentException("evidence must be inside evidence-dir: {$resolved}");
+        }
+        $evidence[] = [
+            'classification' => $classification,
+            'path' => normalizePath($resolved),
+            'sha256' => hash_file('sha256', $resolved),
+            'bytes' => filesize($resolved),
+        ];
+    }
+
+    $pins = [];
+    foreach (optionList($options, 'pin') as $value) {
+        [$name, $sha] = splitValue($value, 2, 'pin');
+        if (preg_match('/^[0-9a-f]{40}$/', $sha) !== 1) {
+            throw new InvalidArgumentException("pin must be a 40-character lowercase SHA: {$value}");
+        }
+        $pins[] = ['name' => boundedString($name, 'pin name', 120), 'sha' => $sha];
+    }
+
+    $mutations = [];
+    foreach (optionList($options, 'mutation') as $value) {
+        [$system, $action, $target] = splitValue($value, 3, 'mutation');
+        $mutations[] = [
+            'system' => boundedString($system, 'mutation system', 40),
+            'action' => boundedString($action, 'mutation action', 80),
+            'target' => boundedString($target, 'mutation target', 500),
+        ];
+    }
+
+    $manifest = [
+        'schema_version' => 1,
+        'generated_at' => gmdate('c'),
+        'task' => $task,
+        'verdict' => $verdict,
+        'cwd' => normalizePath($cwd),
+        'repository' => $repository,
+        'pins' => $pins,
+        'worktrees' => $worktrees,
+        'processes' => $processes,
+        'mutations' => $mutations,
+        'blockers' => array_map(static fn(string $value): string => boundedString($value, 'blocker', 500), optionList($options, 'blocker')),
+        'evidence' => $evidence,
+        'next_authorized_action' => boundedString($options['next'] ?? '', 'next authorized action', 1_000, allowEmpty: true),
+    ];
+
+    $json = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+    if (strlen($json) > MAX_CHECKPOINT_BYTES) {
+        throw new InvalidArgumentException('checkpoint exceeds the 16384-byte bounded-return contract; move detail into an evidence file');
+    }
+    $output = (string) ($options['output'] ?? ($evidenceDir . '/checkpoint.json'));
+    if (!isAbsolutePath($output)) {
+        $output = $evidenceDir . '/' . $output;
+    }
+    $outputParent = realpath(dirname($output));
+    if ($outputParent === false || !pathWithin($outputParent, $evidenceDir)) {
+        throw new InvalidArgumentException('output must be inside evidence-dir');
+    }
+    $temporary = $output . '.tmp.' . getmypid();
+    if (file_put_contents($temporary, $json, LOCK_EX) === false || !rename($temporary, $output)) {
+        @unlink($temporary);
+        throw new RuntimeException("unable to write checkpoint {$output}");
+    }
+    fwrite(STDOUT, $json);
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'agent-checkpoint: ' . $exception->getMessage() . "\n");
+    exit(2);
+}
+
+/** @return list<string> */
+function optionList(array $options, string $name): array
+{
+    if (!isset($options[$name])) {
+        return [];
+    }
+    $values = is_array($options[$name]) ? $options[$name] : [$options[$name]];
+    if (count($values) > MAX_ITEMS) {
+        throw new InvalidArgumentException("{$name} accepts at most " . MAX_ITEMS . ' values');
+    }
+    return array_map(static fn(mixed $value): string => (string) $value, $values);
+}
+
+/** @return list<string> */
+function splitValue(string $value, int $parts, string $name): array
+{
+    $result = explode(':', $value, $parts);
+    if (count($result) !== $parts || in_array('', $result, true)) {
+        throw new InvalidArgumentException("invalid {$name} value: {$value}");
+    }
+    return $result;
+}
+
+function boundedString(mixed $value, string $name, int $maximum, bool $allowEmpty = false): string
+{
+    if (!is_string($value) || (!$allowEmpty && $value === '') || strlen($value) > $maximum) {
+        throw new InvalidArgumentException("{$name} must be " . ($allowEmpty ? 'at most' : '1 to') . " {$maximum} bytes");
+    }
+    return $value;
+}
+
+/** @return array<string, mixed> */
+function gitState(string $path): array
+{
+    $top = git($path, ['rev-parse', '--show-toplevel'], allowFailure: true);
+    if ($top === null) {
+        return ['path' => normalizePath($path), 'repository_top_level' => null, 'branch' => null, 'detached' => false, 'head' => null, 'porcelain' => ['staged' => 0, 'unstaged' => 0, 'untracked' => 0, 'conflicted' => 0], 'active_operation' => null];
+    }
+    $top = trim($top);
+    $branch = git($top, ['symbolic-ref', '--quiet', '--short', 'HEAD'], allowFailure: true);
+    $status = git($top, ['status', '--porcelain=v1', '--untracked-files=all']) ?? '';
+    $counts = ['staged' => 0, 'unstaged' => 0, 'untracked' => 0, 'conflicted' => 0];
+    foreach (preg_split('/\R/', trim($status)) ?: [] as $line) {
+        if ($line === '') {
+            continue;
+        }
+        $xy = substr($line, 0, 2);
+        if ($xy === '??') {
+            ++$counts['untracked'];
+            continue;
+        }
+        if (strpbrk($xy, 'U') !== false || in_array($xy, ['AA', 'DD'], true)) {
+            ++$counts['conflicted'];
+        }
+        if ($xy[0] !== ' ') {
+            ++$counts['staged'];
+        }
+        if ($xy[1] !== ' ') {
+            ++$counts['unstaged'];
+        }
+    }
+    $gitDir = trim((string) git($top, ['rev-parse', '--absolute-git-dir']));
+    $operation = null;
+    foreach (['rebase-merge' => 'rebase', 'rebase-apply' => 'rebase', 'MERGE_HEAD' => 'merge', 'CHERRY_PICK_HEAD' => 'cherry-pick', 'REVERT_HEAD' => 'revert', 'BISECT_LOG' => 'bisect'] as $marker => $label) {
+        if (file_exists($gitDir . '/' . $marker)) {
+            $operation = $label;
+            break;
+        }
+    }
+    return [
+        'path' => normalizePath($path),
+        'repository_top_level' => normalizePath($top),
+        'branch' => $branch === null ? null : trim($branch),
+        'detached' => $branch === null,
+        'head' => trim((string) git($top, ['rev-parse', 'HEAD'])),
+        'porcelain' => $counts,
+        'active_operation' => $operation,
+    ];
+}
+
+/** @param list<string> $arguments */
+function git(string $path, array $arguments, bool $allowFailure = false): ?string
+{
+    $process = proc_open(array_merge(['git', '-C', $path], $arguments), [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    if (!is_resource($process)) {
+        throw new RuntimeException('unable to start git');
+    }
+    $output = stream_get_contents($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exit = proc_close($process);
+    if ($exit !== 0) {
+        if ($allowFailure) {
+            return null;
+        }
+        throw new RuntimeException(trim((string) $error));
+    }
+    return (string) $output;
+}
+
+function processAlive(int $pid): bool
+{
+    if (PHP_OS_FAMILY !== 'Windows') {
+        return is_dir('/proc/' . $pid) || (function_exists('posix_kill') && @posix_kill($pid, 0));
+    }
+    exec('tasklist /FI ' . escapeshellarg('PID eq ' . $pid) . ' /NH', $output, $exit);
+    return $exit === 0 && preg_match('/\b' . $pid . '\b/', implode("\n", $output)) === 1;
+}
+
+function pathWithin(string $path, string $parent): bool
+{
+    $path = rtrim(normalizePath($path), '/');
+    $parent = rtrim(normalizePath($parent), '/');
+    if (PHP_OS_FAMILY === 'Windows') {
+        $path = strtolower($path);
+        $parent = strtolower($parent);
+    }
+    return $path === $parent || str_starts_with($path, $parent . '/');
+}
+
+function isAbsolutePath(string $path): bool
+{
+    return str_starts_with($path, '/') || preg_match('#^[A-Za-z]:[\\\\/]#', $path) === 1;
+}
+
+function normalizePath(string $path): string
+{
+    return str_replace('\\', '/', $path);
+}
