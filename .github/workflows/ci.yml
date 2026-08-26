@@ -1231,6 +1231,7 @@ jobs:
           run_gate check-phpstan-paths
           run_gate check-portable-paths
           run_gate check-phpunit-paths
+          run_gate check-phpunit-skip-policy
           run_gate check-s1-configuration-authority
           run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions

@@ -234,6 +234,7 @@ Design docs in `docs/history/plans/` are session artifacts (implementation histo
 
 **Code quality:**
 - `php bin/check-pr-preflight` — run every fast repo-state gate CI blocks on (~10s; `--full` adds phpstan + dead-code; `--list` prints the roster). Run this before claiming gates green — see `docs/specs/governed-gates.md`
+- `php bin/check-phpunit-skip-policy` — report the complete governed skip inventory and reject new/unclassified skips, broad exception-to-skip conversion, or skips in required-hosted transport proofs. See `docs/specs/phpunit-skip-governance.md`
 - `php bin/refresh-governance-artifacts` — repair stale recorded rosters/baselines (auto-regenerates mechanical ones, prints instructions for judgment ones)
 - `composer cs-check` — check code style (dry-run PHP-CS-Fixer)
 - `composer cs-fix` — auto-fix code style

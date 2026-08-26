@@ -152,11 +152,7 @@ final class OpenAiCompatibleProviderTransportTest extends TestCase
 
     private function startServer(string $mode): StallingTransportServer
     {
-        try {
-            $server = new StallingTransportServer($mode);
-        } catch (\Throwable $failure) {
-            self::markTestSkipped('Local transport server unavailable: ' . $failure->getMessage());
-        }
+        $server = new StallingTransportServer($mode);
         $this->servers[] = $server;
 
         return $server;
