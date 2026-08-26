@@ -400,6 +400,7 @@ final class WorkflowPointerMoveGuardTest extends TestCase
 
         $guard->onBeforePointerMove($event);
         $this->assertTrue($event->defaultRevisionSemantics());
+        $this->assertSame(1, $event->materializedStatus(), 'Published serving status is derived from the workflow declaration.');
     }
 
     #[Test]
@@ -801,6 +802,7 @@ final class WorkflowPointerMoveGuardTest extends TestCase
         $guard->onBeforePointerMove($event);
 
         $this->assertTrue($event->defaultRevisionSemantics(), "'publish' must set the discipline flag even when previously unpublished (no prior published pointer).");
+        $this->assertSame(1, $event->materializedStatus());
     }
 
     #[Test]

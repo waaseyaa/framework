@@ -9,6 +9,7 @@ use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\WorkflowsAuditServingProjectionHandler;
 use Waaseyaa\CLI\Handler\WorkflowsBackfillStateHandler;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -31,6 +32,24 @@ final class WorkflowsServiceProvider extends ServiceProvider implements Provides
 
     public function consoleCommands(): iterable
     {
+        yield new HandlerCommand(
+            name: 'workflows:audit-serving-projection',
+            description: 'Report impossible workflow serving projections and optionally repair one operator-confirmed finding.',
+            options: [
+                new HandlerOption(
+                    name: 'repair',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Repair exactly one reported entity id. Requires its current --confirm fingerprint.',
+                ),
+                new HandlerOption(
+                    name: 'confirm',
+                    mode: HandlerOptionMode::Required,
+                    description: 'The exact finding fingerprint from a prior report.',
+                ),
+            ],
+            handler: [WorkflowsAuditServingProjectionHandler::class, 'execute'],
+        );
+
         yield new HandlerCommand(
             name: 'workflows:backfill-state',
             description: 'Stamp a workflow_state onto every existing row of an entity type/bundle that does not yet carry one. Run BEFORE adding the workflows.assignments binding (docs/specs/operations-playbooks.md).',

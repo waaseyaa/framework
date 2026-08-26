@@ -148,6 +148,16 @@ final class WorkflowPointerMoveGuard
         }
 
         $newState = $this->explicitState($event->revisionValues) ?? $workflow->getInitialState();
+        if ($event->operation === 'publish') {
+            $targetState = $workflow->getState($newState);
+            if ($targetState !== null) {
+                // The base serving projection belongs to the pointer and the
+                // workflow declaration, not to a possibly stale status value
+                // persisted inside a legacy revision. The repository applies
+                // this only to the base row; revision history stays immutable.
+                $event->applyMaterializedStatus($targetState->published ? 1 : 0);
+            }
+        }
 
         // CW-v1 option-1 PR-5 (design §6, #1920, final-review finding #5): a
         // first publish (`publish` with NO prior published pointer) is

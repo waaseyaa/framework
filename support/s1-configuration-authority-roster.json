@@ -213,6 +213,20 @@
             "occurrence": 3
         },
         {
+            "path": "packages/cli/src/Handler/WorkflowsAuditServingProjectionHandler.php",
+            "pattern": "factory_compatibility",
+            "class": "command-adapter",
+            "match_sha256": "d1a2019907f9e523e061ce96bc5508c497c5be4a8278914f0acd071637d8f537",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/Handler/WorkflowsAuditServingProjectionHandler.php",
+            "pattern": "factory_compatibility",
+            "class": "command-adapter",
+            "match_sha256": "d1a2019907f9e523e061ce96bc5508c497c5be4a8278914f0acd071637d8f537",
+            "occurrence": 2
+        },
+        {
             "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
             "pattern": "active_bridge",
             "class": "command-composition",

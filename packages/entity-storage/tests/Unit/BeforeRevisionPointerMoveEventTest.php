@@ -38,6 +38,18 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
     private EventDispatcher $dispatcher;
     private RequestAccountContext $accountContext;
 
+    #[Test]
+    public function materialized_status_override_is_closed_and_explicit(): void
+    {
+        $event = new BeforeRevisionPointerMoveEvent('subject', '1', 'publish', null, 1, null, []);
+        self::assertNull($event->materializedStatus());
+        $event->applyMaterializedStatus(1);
+        self::assertSame(1, $event->materializedStatus());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $event->applyMaterializedStatus(2);
+    }
+
     protected function setUp(): void
     {
         $this->db = DBALDatabase::createSqlite();
