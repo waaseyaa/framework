@@ -844,6 +844,16 @@ transaction, for the multi-write translation paths). Full contract, payload shap
 `Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard` consumer: `docs/specs/revision-system-unified.md`
 §4a.
 
+For a workflow-bound `publish` move, the pointer guard may also supply a closed
+`0|1` materialized-status value derived from the target revision's declared
+workflow state. Under default-revision discipline, `setPublishedRevision()`
+applies that value to the base serving projection after canonicalizing the
+target revision, without changing the historical revision row. This prevents a
+legacy revision's stale stored status from being copied into the serving row;
+content and selectors still come only from the authoritative pointer revision.
+An absent override preserves the repository's prior behavior for unbound and
+non-workflow consumers.
+
 **Copy-forward restore changed fields (#2464).** Surfaces that authorize a whole-row rollback
 by the fields that would actually change must use `Waaseyaa\Entity\RevisionRestoreChangedFields`
 (name-only `EntityValueComparator` for `EntityBase` views). Revision bookkeeping and values

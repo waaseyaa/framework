@@ -1958,6 +1958,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 // snapshot in the transaction; otherwise the subtable's old
                 // value would override the promoted `_data` value on read.
                 $targetRow = $this->canonicalizeBooleanFieldValues($targetRow, entityId: $entityId);
+                if ($beforeEvent->materializedStatus() !== null) {
+                    $targetRow['status'] = $beforeEvent->materializedStatus();
+                }
                 $outgoingRow = $targetRow;
                 $bundleValues = [];
                 $bundleName = null;

@@ -962,6 +962,7 @@ asserted via exit code, portable across every supported runtime.
 | `maintenance:status` | Report state. Exit 0 = serving, 1 = in maintenance (incl. fail-closed). | `--json` |
 | `sync-rules` | Sync framework rules from Waaseyaa to app | `--force` / `-f`, `--dry-run` |
 | `tenancy:repair-translation-peers` | Audit or repair historical empty-owner two-axis translation peers for one entity type | `entity_type`; `--dry-run`; `--json` |
+| `workflows:audit-serving-projection` | Report impossible workflow serving projections; optionally repair one confirmed finding | `--repair=<entity-id>`; `--confirm=<fingerprint>` |
 
 ## Translation Peer Tenancy Repair
 
@@ -976,6 +977,36 @@ Use this playbook only for a community-scoped, translatable entity type after up
 7. Run schema verification, field-access activation preflight, and the application's local test suite before restoring service.
 
 The command never runs on boot and does not rewrite non-empty ownership. Keep service quiesced for the applying run so candidate validation and ownership updates observe a stable database.
+
+## Workflow Serving-Projection Recovery
+
+Use this playbook only after workflow bindings and published pointers have been
+deployed. The command is report-only unless both repair options are present.
+
+1. Create and verify a restorable database backup. Record its location and the
+   application version before continuing.
+2. Audit without mutation: `php bin/waaseyaa workflows:audit-serving-projection`.
+3. Investigate every `FAIL-CLOSED` line. Do not repair while a workflow,
+   published pointer, authoritative state, storage shape, or record read is
+   unresolved. A draft working revision over a live pointer is expected and is
+   deliberately absent from findings.
+4. Review one `FINDING` line. It contains selectors and projection metadata, not
+   content. Confirm the binding, working revision, published revision/state,
+   current projection, proposed projection, and `repairable: 1`.
+5. Quiesce application writers. Apply exactly that finding with
+   `php bin/waaseyaa workflows:audit-serving-projection --repair=<entity-id> --confirm=<fingerprint>`.
+   A stale fingerprint or aggregate race exits nonzero without a confirmed
+   correction; re-run the report rather than reusing the old fingerprint.
+6. Preserve the emitted `FINDING` and `REPAIRED` lines as before/after audit
+   evidence. Re-run report-only mode and require that the finding is absent.
+7. Restore normal service only after application smoke tests pass.
+
+Rollback/recovery: the repair uses the existing published revision as its only
+source and does not delete history. If the process is interrupted, reports a
+post-repair verification failure, or produces an unexpected projection, keep
+writers quiesced, preserve logs, and restore the verified database backup before
+another attempt. Do not reverse it with direct SQL or by copying the working
+copy; investigate the binding and pointer history first.
 
 ## Queue Operations Playbook
 

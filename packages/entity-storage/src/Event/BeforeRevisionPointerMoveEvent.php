@@ -73,6 +73,9 @@ final class BeforeRevisionPointerMoveEvent extends Event
      */
     private bool $defaultRevisionSemantics = false;
 
+    /** Workflow-derived serving status for the base-row projection, when known. */
+    private ?int $materializedStatus = null;
+
     /**
      * @param 'rollback'|'revert'|'publish'|'translation_save' $operation
      * @param array<string, mixed> $revisionValues
@@ -104,5 +107,20 @@ final class BeforeRevisionPointerMoveEvent extends Event
     public function defaultRevisionSemantics(): bool
     {
         return $this->defaultRevisionSemantics;
+    }
+
+    /** Supply a derived serving projection without mutating revision history. @api */
+    public function applyMaterializedStatus(int $status): void
+    {
+        if ($status !== 0 && $status !== 1) {
+            throw new \InvalidArgumentException('Materialized status must be 0 or 1.');
+        }
+        $this->materializedStatus = $status;
+    }
+
+    /** @api */
+    public function materializedStatus(): ?int
+    {
+        return $this->materializedStatus;
     }
 }

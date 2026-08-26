@@ -1799,6 +1799,20 @@
             "occurrence": 1
         },
         {
+            "path": "packages/cli/tests/Unit/Handler/WorkflowsAuditServingProjectionHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/WorkflowsAuditServingProjectionHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 2
+        },
+        {
             "path": "packages/cli/tests/Unit/Security/DatabaseFieldAccessInventoryScannerTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
