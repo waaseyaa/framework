@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Config\MailMissingPolicy;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -19,6 +20,7 @@ use Waaseyaa\User\AuthMailer;
 final class ForgotPasswordController
 {
     private readonly LoggerInterface $logger;
+    private readonly AuthExtensionRegistry $extensions;
 
     public function __construct(
         private readonly AuthConfig $config,
@@ -28,8 +30,10 @@ final class ForgotPasswordController
         private readonly RateLimiterInterface $rateLimiter,
         private readonly UserIdentityLookupInterface $identityLookup,
         ?LoggerInterface $logger = null,
+        ?AuthExtensionRegistry $extensions = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
     }
 
     public function __invoke(Request $request): JsonResponse
@@ -76,7 +80,11 @@ final class ForgotPasswordController
 
             if ($mailConfigured) {
                 // 6. User found + mail configured: send email
-                $this->authMailer->sendPasswordReset($user, $token);
+                $this->authMailer->sendPasswordReset(
+                    $user,
+                    $token,
+                    $this->extensions->mail('password_reset', (string) $user->id()),
+                );
             } elseif ($this->config->mailMissingPolicy === MailMissingPolicy::DevLog) {
                 // 7. User found + not configured + DevLog: log reset URL
                 $this->logger->info('Password reset URL for ' . $email . ': /reset-password?token=' . $token);

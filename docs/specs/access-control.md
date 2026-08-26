@@ -1103,3 +1103,12 @@ unauthenticated calls. Track via the M-B.1 follow-up issue
 <!-- Spec reviewed 2026-05-17 - dead-code Phase 3 Bucket 4: @api PHPDoc sweep on additional public-API classes. No behavioural change. -->
 
 <!-- Spec reviewed 2026-05-18 - WP07 (agent-executor mission) rebase + rewire: no behavioural change to this subsystem; touch refreshes drift-detector timestamp. -->
+# Consumer auth policy boundary
+
+Application authentication customization is governed by
+`docs/specs/auth-consumer-extensions.md`. Consumer providers may contribute
+narrow registration, profile, redirect, mail-presentation, lifecycle, and
+initial-role policy, but cannot replace credential, session, token, CSRF, 2FA,
+rate-limit, controller, or authorization services. Role ids and permissions are
+expanded through the canonical `RoleRepository`; duplicate definitions and
+unknown initial assignments fail closed.

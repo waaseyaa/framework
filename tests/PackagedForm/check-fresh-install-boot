@@ -47,6 +47,8 @@ mkdir -p "$source_root" "$consumer" "$old_source_root" "$legacy_consumer" "$upgr
 
 # Mirror the skeleton app: its config, its entity types, its front controller.
 cp -R "$source_root/skeleton/." "$consumer/"
+cp "$source_root/tests/FreshInstallBoot/AuthExtensionConsumerServiceProvider.php" \
+    "$consumer/src/Provider/AuthExtensionConsumerServiceProvider.php"
 rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
 mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
 
@@ -60,6 +62,7 @@ php -r '
         ["type" => "path", "url" => $argv[2]],
     ];
     $composer["require"]["waaseyaa/framework"] = "*";
+    $composer["extra"]["waaseyaa"]["providers"][] = "App\\Provider\\AuthExtensionConsumerServiceProvider";
     // The merge plugin only matters for per-developer overrides that this
     // disposable consumer does not have, and it is not installed here.
     unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
@@ -104,6 +107,7 @@ grep -Fq 'fresh-install kernel boot OK' "$work/boot.out"
 # Booting is necessary but not sufficient — alpha.296 booted and could not
 # write. Require the day-one round-trip too.
 grep -Fq 'fresh-install entity round-trip OK' "$work/boot.out"
+grep -Fq 'fresh-install auth extension consumer OK' "$work/boot.out"
 
 # Build an actual released pre-DB-03 consumer, persist its stock editorial
 # workflow, then install the candidate cohort over the durable database. This

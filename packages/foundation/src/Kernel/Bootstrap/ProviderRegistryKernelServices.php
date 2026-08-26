@@ -24,6 +24,7 @@ use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -62,6 +63,8 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
 
     private ?EntityAccessHandler $gateHandler = null;
 
+    private ?ProviderCapabilitySource $providerCapabilities = null;
+
     /**
      * @param \Closure(): list<ServiceProvider> $providersAccessor
      * @param AccountContextInterface|null $accountContext The kernel's shared acting-account
@@ -99,6 +102,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
 
     public function get(string $abstract): ?object
     {
+        if ($abstract === ProviderCapabilitySource::class) {
+            return $this->providerCapabilities ??= new ProviderCapabilitySource($this->providersAccessor);
+        }
         if ($abstract === RequestContext::class) {
             // #2167: per-request state. The listing ServiceProvider binds an
             // anonymous default so it works without a kernel; when a real

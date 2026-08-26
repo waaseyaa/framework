@@ -34,73 +34,73 @@ class AuthMailer
         return $this->authEmailConfigured && $this->twig !== null;
     }
 
-    public function sendPasswordReset(EntityInterface $user, string $token): void
+    public function sendPasswordReset(EntityInterface $user, string $token, ?AuthMailPresentation $presentation = null): void
     {
         if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
         $identity = $this->internalFields->mailDelivery($user);
-        $vars = [
+        $vars = array_replace($presentation === null ? [] : $presentation->variables, [
             'user_name' => $identity->name,
             'reset_url' => $this->baseUrl . '/reset-password?token=' . rawurlencode($token),
-        ];
+        ]);
 
-        $html = $this->twig->render('email/password-reset.html.twig', $vars);
-        $text = $this->twig->render('email/password-reset.txt.twig', $vars);
+        $html = $this->twig->render($presentation === null ? 'email/password-reset.html.twig' : $presentation->htmlTemplate, $vars);
+        $text = $this->twig->render($presentation === null ? 'email/password-reset.txt.twig' : $presentation->textTemplate, $vars);
 
         $this->mailer->send(new Envelope(
             to: $this->recipientList($identity->mail),
             from: '',
-            subject: "Reset your {$this->appName} password",
+            subject: $presentation === null ? "Reset your {$this->appName} password" : $presentation->subject,
             textBody: $text,
             htmlBody: $html,
         ));
     }
 
-    public function sendEmailVerification(EntityInterface $user, string $token): void
+    public function sendEmailVerification(EntityInterface $user, string $token, ?AuthMailPresentation $presentation = null): void
     {
         if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
         $identity = $this->internalFields->mailDelivery($user);
-        $vars = [
+        $vars = array_replace($presentation === null ? [] : $presentation->variables, [
             'user_name' => $identity->name,
             'verify_url' => $this->baseUrl . '/verify-email?token=' . rawurlencode($token),
-        ];
+        ]);
 
-        $html = $this->twig->render('email/email-verification.html.twig', $vars);
-        $text = $this->twig->render('email/email-verification.txt.twig', $vars);
+        $html = $this->twig->render($presentation === null ? 'email/email-verification.html.twig' : $presentation->htmlTemplate, $vars);
+        $text = $this->twig->render($presentation === null ? 'email/email-verification.txt.twig' : $presentation->textTemplate, $vars);
 
         $this->mailer->send(new Envelope(
             to: $this->recipientList($identity->mail),
             from: '',
-            subject: "Verify your email for {$this->appName}",
+            subject: $presentation === null ? "Verify your email for {$this->appName}" : $presentation->subject,
             textBody: $text,
             htmlBody: $html,
         ));
     }
 
-    public function sendWelcome(EntityInterface $user): void
+    public function sendWelcome(EntityInterface $user, ?AuthMailPresentation $presentation = null): void
     {
         if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
         $identity = $this->internalFields->mailDelivery($user);
-        $vars = [
+        $vars = array_replace($presentation === null ? [] : $presentation->variables, [
             'user_name' => $identity->name,
             'home_url' => $this->baseUrl,
-        ];
+        ]);
 
-        $html = $this->twig->render('email/welcome.html.twig', $vars);
-        $text = $this->twig->render('email/welcome.txt.twig', $vars);
+        $html = $this->twig->render($presentation === null ? 'email/welcome.html.twig' : $presentation->htmlTemplate, $vars);
+        $text = $this->twig->render($presentation === null ? 'email/welcome.txt.twig' : $presentation->textTemplate, $vars);
 
         $this->mailer->send(new Envelope(
             to: $this->recipientList($identity->mail),
             from: '',
-            subject: "Welcome to {$this->appName}",
+            subject: $presentation === null ? "Welcome to {$this->appName}" : $presentation->subject,
             textBody: $text,
             htmlBody: $html,
         ));

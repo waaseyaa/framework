@@ -9,6 +9,10 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
+use Waaseyaa\Auth\Extension\RegisteredUserReference;
+use Waaseyaa\Auth\Extension\RegistrationContext;
+use Waaseyaa\Auth\Extension\RegistrationProfileValidationException;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -20,6 +24,7 @@ use Waaseyaa\User\User;
 final class RegisterController
 {
     private readonly LoggerInterface $logger;
+    private readonly AuthExtensionRegistry $extensions;
 
     public function __construct(
         private readonly AuthConfig $config,
@@ -30,8 +35,10 @@ final class RegisterController
         private readonly UserIdentityLookupInterface $identityLookup,
         private readonly UserInternalFieldReaderInterface $internalFields,
         ?LoggerInterface $logger = null,
+        ?AuthExtensionRegistry $extensions = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
     }
 
     public function __invoke(Request $request): JsonResponse
@@ -89,6 +96,17 @@ final class RegisterController
             return new JsonResponse(['errors' => $errors], 422);
         }
 
+        $decision = $this->extensions->registration(new RegistrationContext($name, $email, $this->config->registration));
+        if (!$decision->allowed) {
+            return new JsonResponse(['error' => 'registration_disabled'], 403);
+        }
+
+        try {
+            $profile = $this->extensions->validateProfile($body['profile'] ?? null);
+        } catch (RegistrationProfileValidationException $error) {
+            return new JsonResponse(['errors' => $error->errors], 422);
+        }
+
         // 6. Check email uniqueness (anti-enumeration: generic 422). C-22 WP3:
         // loadByKey() has no repository equivalent, so this is a bounded query + find().
         $repository = $this->entityTypeManager->getRepository('user');
@@ -102,7 +120,7 @@ final class RegisterController
         $user = new User([
             'name' => $name,
             'mail' => $email,
-            'status' => 1,
+            'status' => $decision->requiresApproval ? 0 : 1,
             'email_verified' => $emailVerified,
         ]);
 
@@ -110,6 +128,26 @@ final class RegisterController
         $user->setRawPassword($password);
         $user->enforceIsNew();
         $repository->save($user);
+
+        $reference = new RegisteredUserReference((string) $user->id(), $name, $decision->requiresApproval);
+        try {
+            $this->extensions->applyInitialRoles($user, $reference);
+            if (isset($this->extensions->owners()['initial_roles'])) {
+                $repository->save($user);
+            }
+            $this->extensions->storeProfile($reference, $profile);
+        } catch (\Throwable $error) {
+            try {
+                $repository->delete($user);
+            } catch (\Throwable $rollbackFailure) {
+                $this->logger->error(sprintf(
+                    'Registration extension failed and user rollback also failed: %s; rollback: %s',
+                    $error->getMessage(),
+                    $rollbackFailure->getMessage(),
+                ));
+            }
+            throw $error;
+        }
 
         // 9. Consume invite token if applicable
         if ($this->config->registration === 'invite' && $inviteTokenData !== null) {
@@ -125,7 +163,11 @@ final class RegisterController
             );
 
             if ($this->authMailer->isConfigured()) {
-                $this->authMailer->sendEmailVerification($user, $verifyToken);
+                $this->authMailer->sendEmailVerification(
+                    $user,
+                    $verifyToken,
+                    $this->extensions->mail('email_verification', (string) $user->id()),
+                );
             } elseif ($this->config->mailMissingPolicy === \Waaseyaa\Auth\Config\MailMissingPolicy::DevLog) {
                 $this->logger->info('Email verification URL for ' . $email . ': /verify-email?token=' . $verifyToken);
             }
@@ -133,16 +175,25 @@ final class RegisterController
 
         // 11. Send welcome email (best-effort)
         try {
-            $this->authMailer->sendWelcome($user);
+            $this->authMailer->sendWelcome(
+                $user,
+                $this->extensions->mail('welcome', (string) $user->id()),
+            );
         } catch (\Throwable $e) {
             $this->logger->warning('Welcome email failed: ' . $e->getMessage());
         }
 
         // 12. Auto-login: regenerate session, set waaseyaa_uid
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            session_regenerate_id(true);
+        if (!$decision->requiresApproval) {
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_regenerate_id(true);
+            }
+            $_SESSION['waaseyaa_uid'] = $user->id();
         }
-        $_SESSION['waaseyaa_uid'] = $user->id();
+
+        $this->extensions->dispatch('registered', (string) $user->id(), [
+            'approval_required' => $decision->requiresApproval,
+        ]);
 
         // 13. Return 201 with user data
         $identity = $this->internalFields->verification($user);
@@ -156,6 +207,10 @@ final class RegisterController
                 'name' => $name,
                 'email' => $identity->mail,
                 'email_verified' => $identity->emailVerified,
+            ],
+            'meta' => [
+                'approval_required' => $decision->requiresApproval,
+                'redirect' => $this->extensions->redirect('registration', (string) $user->id())->path,
             ],
         ], 201);
     }

@@ -6,17 +6,23 @@ namespace Waaseyaa\Auth;
 
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
+use Waaseyaa\Auth\Extension\ProvidesAuthExtensionsInterface;
 use Waaseyaa\Auth\Rekey\AuthTokenHmacRekeyAdapter;
 use Waaseyaa\Auth\Security\AuthTokenSecret;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\User\RoleRepository;
 
 final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface, ProvidesApplicationMasterRekeyContributionsInterface
 {
@@ -36,6 +42,19 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         $appEnv = $this->config['app_env'] ?? ($_ENV['APP_ENV'] ?? 'production');
 
         $this->singleton(Config\AuthConfig::class, fn() => Config\AuthConfig::fromArray($authConfig, $appEnv));
+
+        $this->singleton(AuthExtensionRegistry::class, function (): AuthExtensionRegistry {
+            $source = $this->resolve(ProviderCapabilitySource::class);
+            assert($source instanceof ProviderCapabilitySource);
+            $events = $this->resolve(EventDispatcherInterface::class);
+            assert($events instanceof EventDispatcherInterface);
+
+            return AuthExtensionRegistry::fromProviders(
+                $source->implementing(ProvidesAuthExtensionsInterface::class),
+                RoleRepository::fromProviders($source->implementing(ProvidesRolesInterface::class)),
+                $events,
+            );
+        });
 
         $this->singleton(Token\AuthTokenRepositoryInterface::class, function () use ($authConfig) {
             $applicationSecret = $this->resolveOptional(ApplicationSecret::class);

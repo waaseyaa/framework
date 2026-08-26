@@ -681,3 +681,11 @@ Factory/
     PluginFactoryInterface.php   -- createInstance(pluginId, configuration)
     ContainerFactory.php         -- instantiates via new $class($pluginId, $definition, $configuration)
 ```
+# Runtime capability composition
+
+The compiled provider list is also the deterministic runtime order for typed
+capability contribution. `ProviderCapabilitySource::implementing()` filters
+that live list without re-instantiating providers. Package-specific registries
+must define collision semantics explicitly; the auth extension registry uses
+exclusive named slots and refuses a second owner with both provider classes in
+the diagnostic.
