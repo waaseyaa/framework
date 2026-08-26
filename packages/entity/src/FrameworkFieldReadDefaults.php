@@ -22,6 +22,7 @@ final class FrameworkFieldReadDefaults
         'group|*|name' => 'public',
         'media_type|*|label' => 'public',
         'menu|*|label' => 'public',
+        'pipeline|*|label' => 'public',
         'retention_policy|*|name' => 'protected',
 
         'relationship|*|confidence' => 'protected',
