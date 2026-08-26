@@ -16,7 +16,7 @@ it cannot expand authorization or weaken the shared contract.
   - `@dev` is forbidden everywhere (CP002) — published artifacts cannot resolve it
   - `self.version` is allowed only in root `composer.json` (CP006) — sibling metapackage shape
   - wildcard internal constraints for `waaseyaa/*` are forbidden (CP003)
-  - internal `waaseyaa/*` constraints in `packages/*/composer.json` must equal `^<checked-out VERSION>` (CP-NEW), enforced cross-file against the tracked `VERSION` file so a freshly fetched release commit is deterministic even before its tag ref is fetched; repositories without `VERSION` retain the legacy `git describe --tags --abbrev=0 --match='v*.*.*'` fallback. The literal advances automatically at each release-cut via `bin/sync-internal-versions` (invoked from `release-cut.yml` and `scripts/release.sh`)
+  - internal `waaseyaa/*` constraints in `packages/*/composer.json` must equal `^<checked-out VERSION>` (CP-NEW), enforced cross-file against the tracked `VERSION` file so a freshly fetched release commit is deterministic even before its tag ref is fetched; repositories without `VERSION` retain the legacy `git describe --tags --abbrev=0 --match='v*.*.*'` fallback. The literal advances automatically at each release-cut via `bin/sync-internal-versions` in `release-cut.yml`.
   - package-local path repositories and internal `require`/`require-dev` entries must correspond in both directions (CP007), preventing stale local resolutions and undeclared package-local paths
 - Authorization pipeline in `public/index.php`: SessionMiddleware → AuthorizationMiddleware. Session always sets `_account` on request; authorization reads it.
 - Route access control via route options: `_public`, `_authenticated`, `_session`, `_permission`, `_role`, `_gate` — checked by `AccessChecker`
@@ -195,7 +195,8 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 
 ### Commit & PR hygiene (imperative)
 
-- Add changelog entries under `## [Unreleased]`.
+- Add a validated `changes/unreleased/<issue>.<slice>.<type>.md` fragment; the
+  governed release cut alone compiles root `CHANGELOG.md`.
 - After design review, carry a `spec-reviewed:` trailer on the commit (lowercase — the drift detector parses that exact key).
 - Never `git stash`. Commit to a branch instead.
 - `composer test` must pass before any commit.

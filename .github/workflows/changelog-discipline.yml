@@ -1,8 +1,7 @@
 name: changelog-discipline
 
 # Enforces charter §8.2 — every PR that touches public-surface files must
-# also touch CHANGELOG.md (under an appropriate section) or an upgrade-guide
-# file under docs/upgrades/.
+# also add a validated fragment under changes/unreleased/ or an upgrade-guide.
 #
 # This is a soft check: maintainers may override with a documented rationale
 # in the PR description containing the marker "no-changelog: <reason>".
@@ -31,6 +30,6 @@ jobs:
         if: failure()
         run: |
           echo "::error::Changelog discipline check failed."
-          echo "::error::PR modifies public-surface files but does not update CHANGELOG.md or docs/upgrades/."
-          echo "::error::Either update one of those, or add 'no-changelog: <reason>' to the PR description."
+          echo "::error::PR modifies public-surface files but does not add a changelog fragment or update docs/upgrades/."
+          echo "::error::Add changes/unreleased/<issue>.<slug>.<type>.md, or add 'no-changelog: <reason>' to the PR description."
           echo "::error::See docs/specs/stability-charter.md §8.2."

@@ -33,7 +33,7 @@ The repository ruleset is authoritative. Its required checks are:
 
 | Check | What it does |
 |---|---|
-| `Changelog discipline check` | Requires an Unreleased changelog entry when production behavior changes |
+| `Changelog discipline check` | Requires a validated per-PR changelog fragment when production behavior changes |
 | `Public-surface-map parity check` | Guards exported framework surface metadata |
 | `Release pipeline fixtures` | Exercises publication-decision fixtures |
 | `composer-deps-audit (warn-only)` | Reports dependency ownership debt without blocking |

@@ -117,9 +117,35 @@ final class CiReleaseWorkflowParityTest extends TestCase
         $release = $this->read('.github/workflows/release-cut.yml');
 
         self::assertStringContainsString(
-            'git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json',
+            'git add -A -- CHANGELOG.md changes/unreleased changes/released VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json',
             $release,
         );
+    }
+
+    #[Test]
+    public function fragment_compilation_is_gated_and_one_byte_source_feeds_the_tag(): void
+    {
+        $release = $this->read('.github/workflows/release-cut.yml');
+
+        $validate = strpos($release, 'php bin/changelog-fragments validate');
+        $render = strpos($release, 'php bin/changelog-fragments render --output="$RUNNER_TEMP/release-notes.md"');
+        $compile = strpos($release, 'php bin/changelog-fragments release');
+        $commit = strpos($release, 'git commit -m "chore: release');
+        $gate = strpos($release, 'gh workflow run ci.yml');
+        $tag = strpos($release, 'git tag -a "$VERSION" -F "$RUNNER_TEMP/tag-message.md"');
+
+        foreach (compact('validate', 'render', 'compile', 'commit', 'gate', 'tag') as $name => $position) {
+            self::assertIsInt($position, "release-cut must retain the {$name} step.");
+        }
+        self::assertLessThan($render, $validate);
+        self::assertLessThan($compile, $render);
+        self::assertLessThan($commit, $compile);
+        self::assertLessThan($gate, $commit);
+        self::assertLessThan($tag, $gate);
+
+        self::assertStringContainsString('cat "$RUNNER_TEMP/release-notes.md"', $release);
+        self::assertStringNotContainsString('RELEASE_TAG_MSG_EOF', $release);
+        self::assertStringNotContainsString('steps.changelog.outputs.tag_msg', $release);
     }
 
     /**

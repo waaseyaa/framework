@@ -26,6 +26,11 @@ $nearMisses = array_values(array_filter(
     static fn(array $heading): bool => $heading['text'] !== '## [Unreleased]',
 ));
 
+$pendingBody = null;
+if (preg_match('/^## \[Unreleased\]\n(.*?)(?=^## \[)/ms', $contents, $pending) === 1) {
+    $pendingBody = trim($pending[1]);
+}
+
 if (count($canonical) !== 1) {
     fwrite(
         STDERR,
@@ -49,4 +54,17 @@ if ($nearMisses !== []) {
     exit(1);
 }
 
-fwrite(STDOUT, "changelog-shape: exactly one canonical Unreleased section found.\n");
+if ($pendingBody === null) {
+    fwrite(STDERR, "changelog-shape: canonical Unreleased heading must be followed by a released section.\n");
+    exit(1);
+}
+
+if ($pendingBody !== '') {
+    fwrite(
+        STDERR,
+        "changelog-shape: root [Unreleased] must stay empty; add a validated file under changes/unreleased/ instead.\n",
+    );
+    exit(1);
+}
+
+fwrite(STDOUT, "changelog-shape: exactly one canonical empty Unreleased section found.\n");

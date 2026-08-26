@@ -19,7 +19,21 @@ final class ChangelogShapeGuardTest extends TestCase
     }
 
     #[Test]
-    public function it_accepts_exactly_one_canonical_unreleased_section(): void
+    public function it_accepts_exactly_one_canonical_empty_unreleased_section(): void
+    {
+        $result = $this->runGuard(<<<'MARKDOWN'
+            # Changelog
+
+            ## [Unreleased]
+
+            ## [0.1.0-alpha.286] - 2026-08-04
+            MARKDOWN);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+    }
+
+    #[Test]
+    public function it_rejects_release_prose_in_the_shared_unreleased_section(): void
     {
         $result = $this->runGuard(<<<'MARKDOWN'
             # Changelog
@@ -28,12 +42,13 @@ final class ChangelogShapeGuardTest extends TestCase
 
             ### Fixed
 
-            - A release fix.
+            - A release fix that belongs in a fragment.
 
             ## [0.1.0-alpha.286] - 2026-08-04
             MARKDOWN);
 
-        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertSame(1, $result['exit_code']);
+        self::assertStringContainsString('must stay empty', $result['output']);
     }
 
     #[Test]
@@ -86,8 +101,13 @@ final class ChangelogShapeGuardTest extends TestCase
         $verify = $composer['scripts']['verify'] ?? [];
 
         self::assertContains('@check-changelog-shape', $verify);
+        self::assertContains('@check-changelog-fragments', $verify);
         self::assertStringContainsString(
             'php bin/check-changelog-shape',
+            (string) file_get_contents($this->repoRoot . '/.github/workflows/release-cut.yml'),
+        );
+        self::assertStringContainsString(
+            'php bin/changelog-fragments release',
             (string) file_get_contents($this->repoRoot . '/.github/workflows/release-cut.yml'),
         );
     }

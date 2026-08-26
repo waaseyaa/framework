@@ -54,7 +54,8 @@ maintainer.
   failing regression test, implement the smallest coherent change, then prove
   it green.
 - Keep one review candidate per work package. Add an appropriate
-  `CHANGELOG.md` entry under `[Unreleased]`.
+  `changes/unreleased/<issue>.<slice>.<type>.md` fragment for the governed
+  release compiler.
 - Review spec impact explicitly. Update enduring contracts when behavior or
   architecture changes; otherwise use the supported `spec-reviewed:` commit
   trailer with a concrete reason.
@@ -92,4 +93,3 @@ maintainer.
 - Root `.claude/rules/` contains Claude-specific supplemental mechanics.
 - `packages/foundation/.claude/rules/` is the canonical source distributed to
   consumer applications; `skeleton/.claude/rules/` must be an exact mirror.
-

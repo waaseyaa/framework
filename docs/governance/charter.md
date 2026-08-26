@@ -57,8 +57,8 @@ merge):
   - `docs/specs/<subsystem>.md` updated in the same PR when a subsystem's
     contract changes (the orchestration table in CLAUDE.md identifies
     which spec each file pattern maps to).
-  - CHANGELOG.md entry for any breaking change. New deprecations (post
-    beta entry) listed under a `### Deprecated` heading in the release.
+  - Changelog fragment for any breaking change. New deprecations (post
+    beta entry) use the `deprecated` type compiled into that release.
   - License headers and SPDX-License-Identifier preserved on every file
     (`GPL-2.0-or-later`).
 
@@ -127,7 +127,7 @@ after AI review, and a later milestone introduces a two-author rule for
 core packages.
 
 - Deployment constraints: The framework is delivered as Composer packages on Packagist. Releases
-are coordinated through `scripts/release.sh` (semver-tagged on the
+are coordinated through the governed `release-cut.yml` workflow (semver-tagged on the
 monorepo root) and `splitsh-lite` (per-package read-only mirror repos).
 Each package on Packagist is a split mirror; the monorepo root is the
 development source. New packages must be split-published and registered
@@ -155,7 +155,7 @@ Rails, it is substrate that anyone can build any distribution on. It owns
 the entity system, storage engine, field types, access primitives,
 ingestion envelope contract, JSON:API surface, AI primitives, SSR
 rendering, and the codified policy gates. Waaseyaa has its own
-versioning, release cadence (semver via `scripts/release.sh`), Packagist
+versioning, release cadence (semver via `release-cut.yml`), Packagist
 namespace (`waaseyaa/*`), and developer audience.
 
 **Anokii** (Anishinaabemowin verb stem "she/he works"; working name
@@ -260,8 +260,8 @@ merge):
   - `docs/specs/<subsystem>.md` updated in the same PR when a subsystem's
     contract changes (the orchestration table in CLAUDE.md identifies
     which spec each file pattern maps to).
-  - CHANGELOG.md entry for any breaking change. New deprecations (post
-    beta entry) listed under a `### Deprecated` heading in the release.
+  - Changelog fragment for any breaking change. New deprecations (post
+    beta entry) use the `deprecated` type compiled into that release.
   - License headers and SPDX-License-Identifier preserved on every file
     (`GPL-2.0-or-later`).
 
@@ -324,7 +324,7 @@ baseline (or beyond per-benchmark custom thresholds documented in
 `benchmark-regression`.
 
 - Deployment Constraints: The framework is delivered as Composer packages on Packagist. Releases
-are coordinated through `scripts/release.sh` (semver-tagged on the
+are coordinated through the governed `release-cut.yml` workflow (semver-tagged on the
 monorepo root) and `splitsh-lite` (per-package read-only mirror repos).
 Each package on Packagist is a split mirror; the monorepo root is the
 development source. New packages must be split-published and registered
@@ -358,7 +358,7 @@ defaults but takes no opinion on production deployment topology.
     provider mechanism. No global `$GLOBALS`, no service locators
     masquerading as DI containers.
   - No silent breaking changes to public PHP API. Breaking changes are
-    explicit, called out in CHANGELOG.md, and accompanied by an
+    explicit, called out in a release changelog fragment, and accompanied by an
     UPGRADING.md migration recipe.
   - No skipping of git hooks (--no-verify) or signing bypasses without
     explicit justification.
@@ -376,8 +376,8 @@ the public API surface follow formal deprecation:
   - Remain in place for at least two minor releases unless the symbol
     is security-critical, in which case removal cadence follows the
     security-advisory timeline.
-  - Are listed under a `### Deprecated` heading in `CHANGELOG.md` for
-    the release that introduces them.
+  - Use a `deprecated` changelog fragment compiled into `CHANGELOG.md` for the
+    release that introduces them.
 
 2. Keep documentation synchronized with workflow and behavior changes.
 
@@ -389,7 +389,7 @@ wrappers, `Legacy*` namespaces, parallel `v2` interfaces, and "for
 backward compatibility" comments are not acceptable substitutes for
 deletion. Architecture quality is preferred over API stability for the
 duration of alpha. Breaking changes are still announced explicitly per
-DIR-001 (CHANGELOG.md entry, UPGRADING.md migration recipe) —
+DIR-001 (changelog fragment, UPGRADING.md migration recipe) —
 communication discipline is preserved; compatibility debt is not.
 Severity is policy-binding regardless of the `severity: warn` field in
 `directives.yaml` (Spec Kitty 3.1.6 hardcodes severity for all

@@ -242,6 +242,14 @@
             "enforced_by": "architecture-test:ChangelogShapeGuardTest.php"
         },
         {
+            "id": "check-changelog-fragments",
+            "alias": "check-changelog-fragments",
+            "run": "php bin/changelog-fragments validate",
+            "repair": "fix fragment names/content per changes/README.md and rerun the validator",
+            "profile": "default",
+            "enforced_by": "architecture-test:ChangelogFragmentsTest.php"
+        },
+        {
             "id": "check-contract-suite-coverage",
             "alias": "check-contract-suite-coverage",
             "run": "bash bin/check-contract-suite-coverage",
@@ -296,7 +304,7 @@
             "id": "changelog-discipline",
             "run": "bash tools/check-changelog-discipline.sh --include-worktree {base}",
             "base": true,
-            "repair": "add a CHANGELOG.md entry under [Unreleased] (the PR-body 'no-changelog: <reason>' override is applied by CI only)",
+            "repair": "add a validated changes/unreleased fragment (the PR-body 'no-changelog: <reason>' override is applied by CI only)",
             "profile": "default",
             "enforced_by": "workflow:changelog-discipline.yml#check-changelog-discipline.sh"
         },

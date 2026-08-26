@@ -6,9 +6,9 @@ This directory contains per-release upgrade guides for Waaseyaa framework consum
 
 Files are named `waaseyaa-alpha-X-to-Y.md` where `X` is the previous alpha tag and
 `Y` is the new alpha tag (e.g. `waaseyaa-alpha-0.1.0-alpha.165-to-0.1.0-alpha.170.md`).
-During development the literal `X` and `Y` placeholders are used; the release-cut
-script (`scripts/release.sh`, invoked from `release-cut.yml`) substitutes the actual
-tag values at tag time.
+During development the literal `X` and `Y` placeholders are used; the governed
+`release-cut.yml` workflow substitutes the actual tag values at tag time. There
+is no local release script.
 
 ## What each guide covers
 

@@ -95,7 +95,8 @@ final class PreflightParityTest extends TestCase
             // style + static analysis (full profile allowed)
             'cs-check', 'phpstan', 'check-dead-code',
             // verify members enforced via Architecture suite
-            'check-governed-secret-access', 'check-changelog-shape', 'check-contract-suite-coverage',
+            'check-governed-secret-access', 'check-changelog-shape', 'check-changelog-fragments',
+            'check-contract-suite-coverage',
         ] as $id) {
             $this->assertArrayHasKey($id, $byId, sprintf('Manifest must include gate "%s".', $id));
         }

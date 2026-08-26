@@ -137,7 +137,11 @@ Policy rules:
 
 ## Cutting Releases
 
-The canonical release path is the `Cut Release` workflow (`.github/workflows/release-cut.yml`, `workflow_dispatch` trigger). It mirrors what `scripts/release.sh` did locally — validate semver, verify `[Unreleased]` has content, mutate CHANGELOG, commit, tag, push — but runs in CI with no interactive prompts and no operator-on-laptop dependency.
+The canonical and sole release path is the `Cut Release` workflow
+(`.github/workflows/release-cut.yml`, `workflow_dispatch` trigger). It validates
+SemVer and a non-empty fragment set, deterministically compiles the fragments,
+commits, gates, tags, and atomically pushes without an operator-laptop release
+script.
 
 ```sh
 gh workflow run release-cut.yml -f version=v0.1.0-alpha.172
@@ -151,13 +155,18 @@ The workflow:
 2. Guards `v1.0*` tags against missing `release-approvals/v1.0.approved` (same gate `split.yml` runs after the fact — fails earlier).
 3. **Gate 1: requires green CI on the release base.** `bin/wait-for-green-ci` polls the Actions API for a completed, successful `ci.yml` run at main HEAD. A red base fails the cut before anything is mutated.
 4. Verifies the tag does not already exist (locally or on origin).
-5. Runs `bin/check-changelog-shape`, which requires exactly one canonical
-   `## [Unreleased]` heading and rejects near-miss variants, then verifies that
-   canonical section has content. The same shape guard runs in
-   `composer verify`, so duplicate release-note authorities fail on ordinary
-   PR CI before the release workflow is dispatched.
-6. Mutates the changelog: renames `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, inserts fresh `[Unreleased]`; syncs internal `waaseyaa/*` constraints in split-package manifests and the create-project skeleton; updates the corresponding path-package `require` metadata embedded in the root `composer.lock`; stamps `VERSION`. The lock sync is local and deterministic: it does not resolve or update third-party packages.
-7. Stages every release mutation (`CHANGELOG.md`, `VERSION`, root lock, split-package manifests, and skeleton manifest), commits as `github-actions[bot]`, and pushes the release commit to a throwaway gate branch (`release-cut/<version>`) — **not** to main.
+5. Runs `bin/check-changelog-shape`, which requires one canonical, empty root
+   `## [Unreleased]`, then validates and renders at least one fragment with
+   `bin/changelog-fragments`. Both guards run in ordinary CI.
+6. Compiles the fragments into `[X.Y.Z] - YYYY-MM-DD`, archives the consumed
+   files under `changes/released/<version>/`, and leaves the pending directory
+   empty except for its sentinel. The exact rendered bytes feed the annotated
+   tag message. It also syncs internal constraints, root lock metadata, and
+   `VERSION`. Enumeration is bytewise and has no locale, timezone, checkout-path,
+   network, or filesystem-order input.
+7. Stages every release mutation (including fragment additions/deletions and
+   archive), commits as `github-actions[bot]`, and pushes the release commit to a
+   throwaway gate branch (`release-cut/<version>`) — **not** to main.
 8. **Gate 2: requires green CI on the exact commit being tagged.** Dispatches `ci.yml` on the gate branch (it has a `workflow_dispatch` trigger for this) and waits for a green conclusion at the release commit's SHA. The skeleton consumer job installs the just-advanced skeleton from that exact monorepo checkout and its split-package paths because the new version cannot exist on Packagist before the tag. The subsequent release-commit push to main uses the same source path so its CI cannot circularly block split publication; ordinary pull requests and non-release main pushes retain the published-release create-project check. Both paths execute post-create setup and `audit-site`.
 9. Only then creates the annotated tag and pushes main fast-forward + tag in one **atomic** push using `SPLIT_GITHUB_TOKEN`. The gate branch is deleted either way.
 
