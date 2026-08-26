@@ -16,53 +16,23 @@ final class WorkflowVisibility
         $this->snapshotReader = $snapshotReader ?? new WorkflowEntitySnapshotReader();
     }
 
-    /**
-     * @param array<string, mixed> $values
-     */
-    public function nodeState(array $values): string
+    /** Resolve a proposed state through the workflow declaration, never its id. */
+    public function isCandidateStatePublic(Workflow $workflow, string $stateId): bool
     {
-        $status = $values['status'] ?? 0;
-        if (is_string($status)) {
-            $normalized = strtolower(trim($status));
-            if (in_array($normalized, ['published', 'yes'], true)) {
-                $status = 1;
-            }
-        }
+        $state = $workflow->getState($stateId);
 
-        return EditorialWorkflowPreset::normalizeState(
-            workflowState: $values['workflow_state'] ?? null,
-            status: $status,
-        );
+        return $state !== null && $state->published;
     }
 
     /**
-     * @param array<string, mixed> $values
+     * Answer whether the entity's materialized serving projection is public.
+     *
+     * For a forward draft, `workflow_state` may describe the working-copy tip
+     * while `status` deliberately remains derived from the published pointer.
      */
-    public function isNodePublic(array $values): bool
-    {
-        return $this->nodeState($values) === EditorialWorkflowPreset::STATE_PUBLISHED;
-    }
-
-    public function isNodePublicForEntity(EntityInterface $entity): bool
+    public function isEntityServedPublicForEntity(EntityInterface $entity): bool
     {
         $snapshot = $this->snapshotReader->read($entity);
-
-        return $this->isNodePublic([
-            'workflow_state' => $snapshot->workflowState,
-            'status' => $snapshot->status,
-        ]);
-    }
-
-    public function isEntityPublicForEntity(EntityInterface $entity): bool
-    {
-        $snapshot = $this->snapshotReader->read($entity);
-
-        if ($entity->getEntityTypeId() === 'node') {
-            return $this->isNodePublic([
-                'workflow_state' => $snapshot->workflowState,
-                'status' => $snapshot->status,
-            ]);
-        }
 
         return $this->isStatusPublic($snapshot->status);
     }
@@ -70,12 +40,10 @@ final class WorkflowVisibility
     /**
      * @param array<string, mixed> $values
      */
-    public function isEntityPublic(string $entityType, array $values): bool
+    public function isEntityServedPublic(string $entityType, array $values): bool
     {
-        if ($entityType === 'node') {
-            return $this->isNodePublic($values);
-        }
-
+        // Entity type is retained because array visibility adapters carry it;
+        // serving publication itself is the shared materialized status field.
         if (!array_key_exists('status', $values)) {
             return false;
         }

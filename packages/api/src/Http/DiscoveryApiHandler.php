@@ -10,7 +10,6 @@ use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Foundation\Cache\DiscoveryCachePrimitives;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
@@ -219,7 +218,7 @@ final class DiscoveryApiHandler
     /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function isDiscoveryEntityPublic(EntityInterface $entity, ?AccountInterface $account = null): bool
     {
-        if (!new WorkflowVisibility()->isEntityPublic($entity->getEntityTypeId(), EntityValues::toCastAwareMap($entity))) {
+        if (!new WorkflowVisibility()->isEntityServedPublicForEntity($entity)) {
             return false;
         }
 

@@ -29,7 +29,7 @@ use Waaseyaa\Workflows\WorkflowVisibility;
  *   `workflow_state` says 'draft' even though the published pointer (and
  *   `status`) still serve it live; re-sourcing via `find()` returns the
  *   served (base-row) content, whose `workflow_state` and `status` agree,
- *   so {@see WorkflowVisibility::isNodePublicForEntity()} evaluates
+ *   so {@see WorkflowVisibility::isEntityServedPublicForEntity()} evaluates
  *   correctly WITHOUT the previously-sketched precedence flip (the spec's
  *   "Visibility (read side)" follow-up is retired by this fix — see
  *   {@see \Waaseyaa\Workflows\WorkflowVisibility}, whose own precedence and
@@ -158,7 +158,7 @@ final class EntityEmbeddingListener
             return true;
         }
 
-        return $this->workflowVisibility->isNodePublicForEntity($entity);
+        return $this->workflowVisibility->isEntityServedPublicForEntity($entity);
     }
 
     private function buildEmbeddingText(EntityInterface $entity): string

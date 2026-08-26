@@ -90,19 +90,16 @@ slice deletes them:
 - `DomainValidationListener` — never subscribed to any dispatcher; dead code kept alive in the
   dead-code gate only by its own unit test.
 
-**Live, unaffected by CW-v1 — with a known WP-2 read-side gap:** `WorkflowVisibility` /
-`WorkflowVisibilityFilter` / `EditorialVisibilityResolver` remain the read-side gates (fail-closed
-per R16 #1915). `WorkflowVisibility::nodeState()` trusts a raw `workflow_state` value over `status`
-whenever both are present — correct pre-WP-2 (tip and published-facing state were always the same
-row), but wrong for a forward draft: the tip's `workflow_state` (e.g. `draft`, mid-edit) now
-disagrees with the base row's `status`, which stays correctly pointer-derived. Concretely: editing
-published content into a forward draft makes `WorkflowVisibility` report the node as unpublished
-while the published pointer still serves it live — confirmed to affect
-`Waaseyaa\AI\Vector\EntityEmbeddingListener::onPostSave()`, which de-indexes still-live content on
-every forward-draft save. Deferred out of WP-2 (a correct fix flips a precedence a pinned unit test
-asserts and touches six consumer packages that each `new WorkflowVisibility()` inline) rather than
-rushed; tracked as a WP-2 follow-up. Full write-up: `docs/specs/content-workflow.md` "Visibility
-(read side)".
+**Live visibility contract:** `WorkflowVisibility` exposes two deliberately
+different questions. `isCandidateStatePublic()` resolves the selected
+`WorkflowState::$published` declaration (the state id has no authority), while
+`isEntityServedPublic()` / `isEntityServedPublicForEntity()` read the cast-aware
+materialized `status` projection owned by the published pointer. The latter is
+used by indexing, discovery, and relationship/SSR navigation, so a forward
+draft remains served while its published pointer remains live.
+`WorkflowVisibilityFilter` is the served-projection adapter for the legacy
+relationship visibility interfaces. Full write-up: `docs/specs/content-workflow.md`
+"Visibility (read side)".
 
 ## Install
 

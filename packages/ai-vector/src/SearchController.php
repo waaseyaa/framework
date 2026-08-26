@@ -354,6 +354,6 @@ final class SearchController
             return true;
         }
 
-        return $this->workflowVisibility->isNodePublicForEntity($entity);
+        return $this->workflowVisibility->isEntityServedPublicForEntity($entity);
     }
 }

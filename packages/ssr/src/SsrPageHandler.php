@@ -85,6 +85,7 @@ final class SsrPageHandler
         private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
         private readonly ?AccountPrincipalFactoryInterface $principalFactory = null,
         private readonly ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
+        private readonly ?EditorialVisibilityResolver $editorialVisibilityResolver = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->languageResolver = $languageResolver ?? new LanguageResolver(serviceResolver: $this->serviceResolver);
@@ -218,7 +219,7 @@ final class SsrPageHandler
 
             $authorizationAccount = $this->authorizationAccount($account);
             $previewRequested = $this->isPreviewRequested($httpRequest);
-            $visibilityResolver = new EditorialVisibilityResolver();
+            $visibilityResolver = $this->editorialVisibilityResolver ?? new EditorialVisibilityResolver();
             $visibility = $authorizationAccount !== null
                 ? $visibilityResolver->canRender($entity, $authorizationAccount, $previewRequested)
                 : \Waaseyaa\Access\AccessResult::forbidden('Immutable authorization principal unavailable.');

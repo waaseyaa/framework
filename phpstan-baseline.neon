@@ -1099,12 +1099,6 @@ parameters:
 			path: packages/workflows/src/EditorialVisibilityResolver.php
 
 		-
-			message: '#^Property Waaseyaa\\Workflows\\EditorialVisibilityResolver\:\:\$workflow is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: packages/workflows/src/EditorialVisibilityResolver.php
-
-		-
 			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
 			identifier: ternary.shortNotAllowed
 			count: 2

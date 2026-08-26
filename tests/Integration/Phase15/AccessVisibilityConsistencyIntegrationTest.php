@@ -14,15 +14,10 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Access\AccessPolicyInterface;
-use Waaseyaa\Access\AccessResult;
-use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -49,7 +44,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function reviewStateIsHiddenAcrossSearchAndRelationshipBrowseEvenWhenStatusIsTruthy(): void
+    public function forwardDraftRemainsVisibleThroughItsPublishedServingProjection(): void
     {
         $database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
@@ -110,8 +105,8 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         $nodeRepository->save($anchor, validate: false);
 
         $review = $nodeRepository->create([
-            'title' => 'Confidential Review Draft',
-            'body' => 'sensitive content',
+            'title' => 'Forward Draft',
+            'body' => 'published projection',
             'type' => 'teaching',
             'status' => 'published',
             'workflow_state' => 'review',
@@ -129,11 +124,6 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         ]);
         $relationshipRepository->save($relationship, validate: false);
 
-        $accessHandler = new EntityAccessHandler([
-            new AllowAllNodePolicy(),
-            new AllowAllRelationshipPolicy(),
-        ]);
-        $account = new PublicAuditAccount();
         $serializer = new ResourceSerializer($manager);
         $embeddingStorage = new SqliteEmbeddingStorage($database->getConnection()->getNativeConnection());
 
@@ -142,68 +132,16 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
             serializer: $serializer,
             embeddingStorage: $embeddingStorage,
             embeddingProvider: null,
-            accessHandler: $accessHandler,
-            account: $account,
         );
-        $searchPayload = $search->search('Confidential', 'node', 10)->toArray();
+        $searchPayload = $search->search('Forward', 'node', 10)->toArray();
         $this->assertSame('keyword', $searchPayload['meta']['mode']);
-        $this->assertCount(0, $searchPayload['data']);
+        $this->assertCount(1, $searchPayload['data']);
+        $this->assertSame('Forward Draft', $searchPayload['data'][0]['attributes']['title']);
 
         $traversal = new RelationshipTraversalService($manager, $database, new WorkflowVisibilityFilter());
         $browse = $traversal->browse('node', (string) $anchor->id(), ['status' => 'published']);
-        $this->assertSame([], $browse['outbound']);
+        $this->assertCount(1, $browse['outbound']);
+        $this->assertSame('Forward Draft', $browse['outbound'][0]['related_entity_label']);
         $this->assertSame([], $browse['inbound']);
-    }
-}
-
-final class PublicAuditAccount implements AccountInterface
-{
-    public function id(): int|string
-    {
-        return 0;
-    }
-    public function hasPermission(string $permission): bool
-    {
-        return false;
-    }
-    public function getRoles(): array
-    {
-        return ['anonymous'];
-    }
-    public function isAuthenticated(): bool
-    {
-        return false;
-    }
-}
-
-final class AllowAllNodePolicy implements AccessPolicyInterface
-{
-    public function appliesTo(string $entityTypeId): bool
-    {
-        return $entityTypeId === 'node';
-    }
-    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
-    {
-        return AccessResult::allowed('audit');
-    }
-    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
-    {
-        return AccessResult::allowed('audit');
-    }
-}
-
-final class AllowAllRelationshipPolicy implements AccessPolicyInterface
-{
-    public function appliesTo(string $entityTypeId): bool
-    {
-        return $entityTypeId === 'relationship';
-    }
-    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
-    {
-        return AccessResult::allowed('audit');
-    }
-    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
-    {
-        return AccessResult::allowed('audit');
     }
 }

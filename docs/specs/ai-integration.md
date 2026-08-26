@@ -37,7 +37,7 @@ do not. -->
 <!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): new "Optimistic Locking on the Stock Entity Tools" section — entity.update gains the optional top-level expected_revision_id argument (integer, minimum 1; an argument, never a writable value — values.revision_id stays key-guard-refused); stale expectation → structured two-block revision_conflict error (expected + current, machine-correctable: re-read/re-diff/retry); unsupported paths (storage LogicException matrix, non-concrete repository) → distinct revision_expectation_unsupported (do not retry); dry-run with an expectation reports the byte-identical conflict payload (shared builder); success payloads carry the post-save revision_id; entity.read/entity.list expose a top-level revision_id member on revisionable entities (omitted = no expectation formable); SC-002 approve-time staleness recipe pointer to the mission quickstart as the canonical consumer pattern. No-expectation calls byte-identical. -->
 <!-- Spec reviewed 2026-06-12 - mission live-entity-validation-key-protection-01KTWQT3 (#1646, alpha.204): new "Identity-Key Write Protection" section — the stock entity agent tools (entity.create / entity.update in packages/ai-tools) refuse identity-key writes whole-write via EntityKeyGuard, and surface save-time EntityValidationException as the structured validation_failed error. label/bundle never refused; revision_log stays writable via its dedicated argument; #1638 scoped writes noted as the separate broader mechanism. -->
 <!-- Spec reviewed 2026-04-09 ST-9 - embedding text extraction vs EntityEmbedder; MCP cast-aware payloads (#1181) -->
-<!-- Spec reviewed 2026-04-09 ST-10 - EntityEmbedder / EntityEmbeddingListener / SemanticIndexWarmer use EntityValues + WorkflowVisibility::isNodePublicForEntity (#1181) -->
+<!-- Spec reviewed 2026-04-09 ST-10 - EntityEmbedder / EntityEmbeddingListener / SemanticIndexWarmer use EntityValues + WorkflowVisibility. #2569 names this explicitly as served-projection visibility. -->
 
 Waaseyaa's AI layer (architecture layer 5) provides four packages that enable AI agents to introspect, mutate, and search CMS content. All four packages sit in the `packages/` directory and follow the standard `Waaseyaa\AI\*` namespace pattern.
 
@@ -651,9 +651,9 @@ public function removeEntity(string $entityTypeId, int|string $entityId): void;
 
 `embedEntity()` uses `buildEntityText()`: **`$entity->label() . ' ' . json_encode(EntityValues::toJsonReadyMap($entity), JSON_THROW_ON_ERROR)`** — cast-aware keys with JSON-safe scalars (backed enums → backing value, `DateTimeInterface` → ISO-8601 ATOM, nested arrays normalized). Same layering rule as JSON:API attributes (`ResourceSerializer` delegates recursive normalization to **`EntityValues::normalizeValueForJson()`**).
 
-**`EntityEmbeddingListener`:** node publish checks use **`WorkflowVisibility::isNodePublicForEntity()`**; embedding text uses **`EntityValues::toCastAwareMap()`** for `title` / `name` / `body` / `description`.
+**`EntityEmbeddingListener`:** node publish checks use **`WorkflowVisibility::isEntityServedPublicForEntity()`**; embedding text uses **`EntityValues::toCastAwareMap()`** for `title` / `name` / `body` / `description`.
 
-**`SemanticIndexWarmer`:** node gating uses **`isNodePublicForEntity()`** (not raw `toArray()`).
+**`SemanticIndexWarmer`:** node gating uses **`isEntityServedPublicForEntity()`** (not raw `toArray()`).
 
 ```mermaid
 flowchart LR
@@ -797,7 +797,7 @@ This gate is part of the v1.0 hardening verification substrate and is intended t
 
 ### Visibility Invariant
 
-AI search/indexing surfaces use `Waaseyaa\Workflows\WorkflowVisibility` as the canonical visibility primitive for node workflow-state gating (`published` public, non-published hidden), avoiding per-surface normalization drift.
+AI search/indexing surfaces use `Waaseyaa\Workflows\WorkflowVisibility` as the canonical served-visibility primitive. They follow the materialized published-pointer `status` projection, not a working-copy state id, avoiding de-indexing still-live content during a forward draft.
 
 ## Tool Safety
 
