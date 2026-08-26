@@ -536,7 +536,7 @@
         "check-s1-configuration-activation": "php bin/check-s1-configuration-activation",
         "test": [
             "Composer\\Config::disableProcessTimeout",
-            "php -d memory_limit=1G vendor/bin/phpunit --no-coverage"
+            "vendor/bin/phpunit --no-coverage"
         ],
         "test:random": [
             "Composer\\Config::disableProcessTimeout",
