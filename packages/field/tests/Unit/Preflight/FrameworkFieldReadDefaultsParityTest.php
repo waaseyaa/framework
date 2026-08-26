@@ -72,6 +72,35 @@ final class FrameworkFieldReadDefaultsParityTest extends TestCase
     }
 
     #[Test]
+    public function registered_pipeline_label_is_classified_without_a_consumer_artifact(): void
+    {
+        $layout = EntityReadRuntime::layoutFor(
+            FrameworkDefaultFixtureEntity::class,
+            ['id' => 'content', 'label' => 'Content Pipeline'],
+            'pipeline',
+            ['id' => 'id', 'label' => 'label'],
+            registeredEntityType: true,
+        );
+
+        $manager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: new FieldDefinitionRegistry());
+        $manager->registerEntityType(new EntityType(
+            id: 'pipeline',
+            label: 'Pipeline',
+            class: FrameworkDefaultFixtureEntity::class,
+            keys: ['id' => 'id', 'label' => 'label'],
+        ));
+        $result = (new FieldAccessPreflightScanner())->scan(
+            $manager,
+            new FieldAccessLiveInventory('candidate', 'schema', liveKeys: ['pipeline|*|label']),
+        );
+
+        self::assertSame(FieldReadLevel::Public, $layout->level('label'));
+        self::assertSame('public:framework_default', $result->data->fields['pipeline|*|label'] ?? null);
+        self::assertSame([], $result->data->unclassifiedEntries);
+        self::assertTrue($result->ready);
+    }
+
+    #[Test]
     public function universal_bundle_and_language_defaults_are_runtime_preflight_public(): void
     {
         $values = ['id' => 1, 'bundle' => 'article', 'langcode' => 'en', 'default_langcode' => 'en'];
