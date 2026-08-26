@@ -35,6 +35,16 @@ use Waaseyaa\User\RoleRepository;
 use Waaseyaa\User\User;
 
 #[CoversClass(AuthExtensionRegistry::class)]
+#[CoversClass(AuthExtensionContribution::class)]
+#[CoversClass(AuthLifecycleEvent::class)]
+#[CoversClass(AuthMailContext::class)]
+#[CoversClass(AuthRedirect::class)]
+#[CoversClass(AuthRedirectContext::class)]
+#[CoversClass(RegisteredUserReference::class)]
+#[CoversClass(RegistrationContext::class)]
+#[CoversClass(RegistrationDecision::class)]
+#[CoversClass(RegistrationProfileValidationException::class)]
+#[CoversClass(ValidatedRegistrationProfile::class)]
 final class AuthExtensionRegistryTest extends TestCase
 {
     #[Test]
