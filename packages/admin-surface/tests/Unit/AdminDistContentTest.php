@@ -138,6 +138,10 @@ final class AdminDistContentTest extends TestCase
         self::assertStringContainsString('form_other_details', $js);
     }
 
+    /**
+     * The Nuxt content build ID comes from --print-build-id. It intentionally
+     * does not use dist.signature, which also covers hermetic build procedures.
+     */
     #[Test]
     public function shipped_bundle_build_identity_is_internally_consistent(): void
     {
@@ -148,7 +152,7 @@ final class AdminDistContentTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
         $buildId = $latest['id'] ?? null;
-        self::assertSame('waaseyaa-' . substr($this->buildContentSignature(), 0, 32), $buildId);
+        self::assertSame('waaseyaa-' . substr($this->canonicalContentBuildSignature(), 0, 32), $buildId);
 
         $metaFiles = glob($this->distDir() . '/_nuxt/builds/meta/*.json') ?: [];
         self::assertCount(1, $metaFiles, 'Exactly one normalized Nuxt build-meta file must ship.');
@@ -159,7 +163,7 @@ final class AdminDistContentTest extends TestCase
         );
     }
 
-    private function buildContentSignature(): string
+    private function canonicalContentBuildSignature(): string
     {
         $root = dirname(__DIR__, 4);
         // No env argument was passed to proc_open, so env null is the closest
