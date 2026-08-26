@@ -27,12 +27,14 @@ use Waaseyaa\Field\FieldStorage;
 /**
  * CW-v1 option-1 forward-draft rebuild — storage mechanics (#1920 PR-1).
  *
- * Discipline is a workflow-layer decision (the forthcoming
- * `WorkflowStateGuard` / `WorkflowPointerMoveGuard`, wired in the next PR);
- * storage only supplies the mechanics and ships dormant here. These tests set
- * the transient entity flag ({@see \Waaseyaa\Entity\RevisionableEntityTrait::setDefaultRevisionDiscipline()})
+ * Discipline is a caller-layer decision (`WorkflowStateGuard` for
+ * workflow-bound types, `ContentPublisher` for the editorial mutation
+ * door). Storage only supplies the mechanics. These tests set the
+ * transient entity flag ({@see \Waaseyaa\Entity\RevisionableEntityTrait::setDefaultRevisionDiscipline()})
  * and the event flag ({@see BeforeRevisionPointerMoveEvent::applyDefaultRevisionSemantics()})
- * directly, standing in for the guard.
+ * directly, standing in for those callers, except
+ * {@see promote_published_revision_rewrites_the_base_row_without_a_workflows_subscriber()}
+ * which uses the production complete-promotion entry point.
  *
  * @see \Waaseyaa\EntityStorage\Tests\Unit\EntityRepositoryPublishedRevisionTest
  *      for the unflagged `setPublishedRevision()` pin that MUST stay green,
@@ -288,6 +290,30 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $repo->rollback('1', 1, $this->mutationToken($repo, '1'));
         $this->assertSame('v1', $repo->find('1')?->label(), 'rollback() still writes the base row when undisciplined');
         $this->assertSame(3, $this->rawBaseRow('1')['revision_id'] ?? null, 'rollback() created and pointed at a new revision');
+    }
+
+    #[Test]
+    public function promote_published_revision_rewrites_the_base_row_without_a_workflows_subscriber(): void
+    {
+        $repo = $this->buildRepo();
+
+        $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+        $entity = $repo->find('1');
+        $entity->set('title', 'v2');
+        $repo->save($entity);
+
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
+        $this->assertSame('v2', $repo->find('1')?->label(), 'pointer-only publish must leave the served row on the tip');
+        $this->assertSame('v1', $repo->loadPublishedRevision('1')?->label());
+
+        $repo->promotePublishedRevision('1', 1, $this->mutationToken($repo, '1'));
+        $this->assertSame('v1', $repo->find('1')?->label());
+        $this->assertSame('v1', $repo->loadPublishedRevision('1')?->label());
+        $row = $this->rawBaseRow('1');
+        $this->assertSame(1, $row['revision_id'] ?? null);
+        $this->assertSame(1, $row['published_revision_id'] ?? null);
     }
 
     // ------------------------------------------------------------------

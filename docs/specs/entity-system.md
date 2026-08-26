@@ -1,3 +1,4 @@
+<!-- Spec reviewed 2026-08-26 - #2562: EntityRepository::promotePublishedRevision() is the complete-promotion entry point used by ContentPublisher. It dispatches the same BeforeRevisionPointerMoveEvent as setPublishedRevision(), then applies default-revision semantics so the served base row is rewritten from the target revision. setPublishedRevision() remains pointer-only unless a subscriber sets the event flag. Storage still does not infer discipline from published_revision_id (Playbook H). -->
 <!-- Spec reviewed 2026-08-25 - #2131: `pipeline.label` is a Public framework-owned field-read default. The exact default roster remains in field-access.md; EntityReadRuntime and activation-preflight consumption of FrameworkFieldReadDefaults is unchanged. -->
 <!-- Spec reviewed 2026-08-24 - #1856: saveMany PRE/POST pairing is entity-object-correlated (WeakMap). The former pendingIsNew single-slot limitation is closed for EntityWriteAuditListener, EntityLifecycleAuditListener, and ThreadParticipantBootstrapSubscriber. Event order, transactions, and deleteMany PRE_DELETE buffering are unchanged. -->
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP asserts Framework SQL-backed entity tables only (S1-DB106). Custom EntityStorageInterface storageClass is not forced to own an SQL table. EntityStorageInterface and EntityQueryInterface are class-level @api. AttachmentSchema::apply() is the strict coordinated transition; local boot ensureTable() is best-effort. -->
@@ -834,7 +835,7 @@ updates and null for creates. Full cross-surface contract:
 `docs/specs/save-advisories.md`.
 
 **Pointer-move operations are a separate pre-write choke point (CW-v1 WP-2 task 2.4, #1920).**
-`rollback()`, `setCurrentRevision()`, `setPublishedRevision()`, and the `saveTranslationRevision()` /
+`rollback()`, `setCurrentRevision()`, `setPublishedRevision()`, `promotePublishedRevision()`, and the `saveTranslationRevision()` /
 `saveTranslationRevisions()` / `saveTranslation()` trio move the revision pointer (or, for
 `rollback()`, copy a revision forward) WITHOUT going through this `save()` pipeline at all — no
 `EntityEvents::PRE_SAVE`/`POST_SAVE`. Each dispatches `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent`
@@ -842,11 +843,14 @@ updates and null for creates. Full cross-surface contract:
 leaving storage untouched (including transactional rollback of any earlier write in the same
 transaction, for the multi-write translation paths). Full contract, payload shape, and the
 `Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard` consumer: `docs/specs/revision-system-unified.md`
-§4a.
+§4a. `promotePublishedRevision()` applies default-revision semantics after that dispatch so
+editorial publish can rewrite the served base row without a workflows subscriber (#2562).
+`setPublishedRevision()` stays the pointer-only operation unless a subscriber sets the event flag.
 
 For a workflow-bound `publish` move, the pointer guard may also supply a closed
 `0|1` materialized-status value derived from the target revision's declared
-workflow state. Under default-revision discipline, `setPublishedRevision()`
+workflow state. Under default-revision discipline, complete promotion
+(`setPublishedRevision()` with the event flag, or `promotePublishedRevision()`)
 applies that value to the base serving projection after canonicalizing the
 target revision, without changing the historical revision row. This prevents a
 legacy revision's stale stored status from being copied into the serving row;

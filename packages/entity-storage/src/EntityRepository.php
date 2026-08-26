@@ -1879,12 +1879,38 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         return $this->doSetPublishedRevision($entityId, $revisionId, $expected);
     }
 
+    /**
+     * Promote an existing revision into the served base row and the published
+     * pointer in one move (complete default-revision promotion).
+     *
+     * {@see setPublishedRevision()} without a workflows subscriber only
+     * retargets `published_revision_id`. Editorial publish after a
+     * revision-only draft needs the base row rewritten from that revision
+     * so anonymous `find()` / access-checked reads match
+     * {@see loadPublishedRevision()}.
+     *
+     * @api
+     */
+    public function promotePublishedRevision(
+        string $entityId,
+        int $revisionId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface {
+        return $this->doSetPublishedRevision(
+            $entityId,
+            $revisionId,
+            $expected,
+            completePromotion: true,
+        );
+    }
+
     private function doSetPublishedRevision(
         string $entityId,
         int $revisionId,
         ?EntityMutationToken $expected,
         ?UnitOfWork $unitOfWork = null,
         bool $claimMutation = true,
+        bool $completePromotion = false,
     ): EntityInterface {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
@@ -1934,6 +1960,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $this->claimMutationForId($entityId, $expected);
             }
             $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
+            if ($completePromotion) {
+                $beforeEvent->applyDefaultRevisionSemantics();
+            }
 
             // Read the prior pointer inside the transaction so the from→to
             // transition the event reports is the one this move performed.
@@ -1944,9 +1973,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
 
             if ($beforeEvent->defaultRevisionSemantics()) {
                 // Default-revision discipline (CW-v1 option-1, §2.2):
-                // promotion becomes a COMPLETE primitive — a subscriber
-                // (the workflows pointer-move guard, next PR) set the flag
-                // on the pre-event above. The base row is written from the
+                // promotion becomes a COMPLETE primitive — either
+                // {@see promotePublishedRevision()} applied the flag after
+                // the pre-event, or a subscriber (WorkflowPointerMoveGuard)
+                // set it on the event. The base row is written from the
                 // TARGET revision's values (content, workflow_state, and its
                 // own stored status — the whole snapshot, minus bookkeeping)
                 // so it can never diverge from the pointer it claims to
