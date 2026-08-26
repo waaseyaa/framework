@@ -64,18 +64,49 @@ test.describe('Broadcast monitor dashboard', () => {
   })
 
   test('channel filter chip triggers filtered events fetch', async ({ page }) => {
-    let lastEventsUrl = ''
-    await page.route('**/api/mercure/events**', (route) => {
-      lastEventsUrl = route.request().url()
-      return route.fulfill({ json: { data: { rows: [sampleEvents[0]] } } })
+    let markUnfilteredRequestSeen!: () => void
+    const unfilteredRequestSeen = new Promise<void>((resolve) => {
+      markUnfilteredRequestSeen = resolve
+    })
+    let releaseUnfilteredResponse!: () => void
+    const unfilteredResponseCanFinish = new Promise<void>((resolve) => {
+      releaseUnfilteredResponse = resolve
     })
 
-    await page.goto('/mercure/monitor')
-    // Click the "admin" channel chip
-    await page.getByTestId('mercure-channel-chip-admin').click()
+    await page.route('**/api/mercure/events**', async (route) => {
+      const requestUrl = new URL(route.request().url())
+      const channels = requestUrl.searchParams.getAll('channels')
+      if (channels.length === 1 && channels[0] === 'admin') {
+        await route.fulfill({ json: { data: { rows: [sampleEvents[0]] } } })
+        return
+      }
 
-    // The events endpoint should have been called with ?channels=admin
-    expect(lastEventsUrl).toContain('channels=admin')
+      markUnfilteredRequestSeen()
+      await unfilteredResponseCanFinish
+      await route.fulfill({ json: { data: { rows: sampleEvents } } })
+    })
+
+    try {
+      await page.goto('/mercure/monitor')
+      await unfilteredRequestSeen
+
+      const filteredRequest = page.waitForRequest((request) => {
+        const requestUrl = new URL(request.url())
+        const channels = requestUrl.searchParams.getAll('channels')
+        return requestUrl.pathname.endsWith('/api/mercure/events')
+          && channels.length === 1
+          && channels[0] === 'admin'
+      })
+
+      await page.getByTestId('mercure-channel-chip-admin').click()
+
+      const requestUrl = new URL((await filteredRequest).url())
+      expect(requestUrl.searchParams.getAll('channels')).toEqual(['admin'])
+    } finally {
+      // Complete the older request only after the filtered assertion. A late
+      // unfiltered response therefore cannot overwrite or satisfy its proof.
+      releaseUnfilteredResponse()
+    }
   })
 
   test('shows empty state for channels when API returns empty rows', async ({ page }) => {
