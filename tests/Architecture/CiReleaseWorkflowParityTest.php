@@ -374,6 +374,26 @@ final class CiReleaseWorkflowParityTest extends TestCase
     }
 
     #[Test]
+    public function ci_produces_one_verified_content_addressed_exact_head_source_artifact(): void
+    {
+        $ci = $this->read('.github/workflows/ci.yml');
+        $start = strpos($ci, '  immutable-source-artifact:');
+        $end = strpos($ci, '  support-contract:', $start === false ? 0 : $start);
+
+        self::assertIsInt($start);
+        self::assertIsInt($end);
+        $job = substr($ci, $start, $end - $start);
+
+        self::assertStringContainsString('ref: ${{ inputs.sha || github.sha }}', $job);
+        self::assertStringContainsString('persist-credentials: false', $job);
+        self::assertStringContainsString('bin/build-exact-source-artifact build/exact-source "$EXACT_SHA"', $job);
+        self::assertStringContainsString('bin/verify-exact-source-artifact build/exact-source "$EXACT_SHA"', $job);
+        self::assertStringContainsString('name: framework-source-${{ inputs.sha || github.sha }}', $job);
+        self::assertStringContainsString('if-no-files-found: error', $job);
+        self::assertStringContainsString('overwrite: false', $job);
+    }
+
+    #[Test]
     public function exact_release_gate_installs_the_advanced_skeleton_from_the_checked_out_source(): void
     {
         $ci = $this->read('.github/workflows/ci.yml');

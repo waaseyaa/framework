@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Build the deterministic source archive for the exact checked-out commit.
+set -euo pipefail
+
+output_dir="${1:-}"
+requested_sha="${2:-HEAD}"
+
+if [ -z "$output_dir" ]; then
+  echo "Usage: bin/build-exact-source-artifact <output-dir> [<exact-sha>]" >&2
+  exit 2
+fi
+
+fail() {
+  echo "source_artifact_failed: $1" >&2
+  exit 1
+}
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$repo_root"
+
+case "$requested_sha" in
+  HEAD) candidate_sha="$(bin/git rev-parse HEAD)" ;;
+  *[!0-9a-f]*|'') fail "expected SHA must be 40 lowercase hexadecimal characters" ;;
+  *)
+    [ "${#requested_sha}" -eq 40 ] || fail "expected SHA must be 40 lowercase hexadecimal characters"
+    candidate_sha="$(bin/git rev-parse "${requested_sha}^{commit}" 2>/dev/null)" \
+      || fail "expected commit does not exist: $requested_sha"
+    ;;
+esac
+
+head_sha="$(bin/git rev-parse HEAD)"
+[ "$candidate_sha" = "$head_sha" ] \
+  || fail "wrong checkout: expected $candidate_sha but HEAD is $head_sha"
+
+mkdir -p "$output_dir"
+archive_path="$output_dir/framework-source.tar"
+manifest_path="$output_dir/manifest.json"
+[ ! -e "$archive_path" ] || fail "refusing to overwrite existing archive: $archive_path"
+[ ! -e "$manifest_path" ] || fail "refusing to overwrite existing manifest: $manifest_path"
+
+temporary_archive="$(mktemp "$output_dir/.framework-source.tar.XXXXXX")"
+temporary_manifest="$(mktemp "$output_dir/.manifest.json.XXXXXX")"
+cleanup() {
+  rm -f "$temporary_archive" "$temporary_manifest"
+}
+trap cleanup EXIT
+
+bin/git archive \
+  --format=tar \
+  --prefix=framework/ \
+  --output="$temporary_archive" \
+  "$candidate_sha"
+
+archive_sha256="$(sha256sum "$temporary_archive" | cut -d ' ' -f 1)"
+archive_bytes="$(wc -c < "$temporary_archive" | tr -d '[:space:]')"
+tree_sha="$(bin/git rev-parse "${candidate_sha}^{tree}")"
+
+printf '{\n' > "$temporary_manifest"
+printf '  "schema_version": 1,\n' >> "$temporary_manifest"
+printf '  "kind": "framework-exact-source",\n' >> "$temporary_manifest"
+printf '  "source_sha": "%s",\n' "$candidate_sha" >> "$temporary_manifest"
+printf '  "source_tree": "%s",\n' "$tree_sha" >> "$temporary_manifest"
+printf '  "archive": "framework-source.tar",\n' >> "$temporary_manifest"
+printf '  "archive_sha256": "%s",\n' "$archive_sha256" >> "$temporary_manifest"
+printf '  "archive_bytes": %s\n' "$archive_bytes" >> "$temporary_manifest"
+printf '}\n' >> "$temporary_manifest"
+
+# Publish the pair only after both files are complete. Existing evidence is
+# never silently replaced: callers need a fresh directory for a fresh head.
+mv "$temporary_archive" "$archive_path"
+mv "$temporary_manifest" "$manifest_path"
+trap - EXIT
+
+printf 'exact source artifact built\n'
+printf 'source_sha=%s\n' "$candidate_sha"
+printf 'archive_sha256=%s\n' "$archive_sha256"
+printf 'archive_bytes=%s\n' "$archive_bytes"
+
