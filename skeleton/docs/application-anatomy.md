@@ -45,6 +45,7 @@ Preview the presentation files first, then publish them deliberately:
 ```bash
 ./vendor/bin/waaseyaa scaffold:auth --dry-run
 ./vendor/bin/waaseyaa scaffold:auth
+./vendor/bin/waaseyaa scaffold:auth --check
 ```
 
 The command copies login-page, form, brand-panel, composable, and CSS files to
@@ -52,6 +53,11 @@ The command copies login-page, form, brand-panel, composable, and CSS files to
 sessions, CSRF, reset tokens, 2FA, rate limiting, and the auth controllers remain
 Framework-owned. Do not use `--force` until local changes have been reviewed;
 the command does not provide an automatic merge of upstream and consumer edits.
+When the check reports upstream drift or a conflict, diff the named Framework
+source against the application copy, merge it manually, test the result, then
+run `./vendor/bin/waaseyaa scaffold:auth --accept-current`. That final command
+updates only the reviewed manifest baseline. Repositories that intentionally
+block CI on unresolved drift can run `scaffold:auth --check --strict`.
 
 ### Add a profile field
 
