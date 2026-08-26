@@ -149,6 +149,23 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_protected_inline_view_delivery_set(): void
+    {
+        // #2564's inline view spans two packages: foundation registers
+        // /media/{id}/view, media matches and handles the controller string.
+        // Splitting either alone leaves the route half-wired downstream.
+        [$exit, $stdout] = $this->runScript('foundation,media');
+
+        self::assertSame(0, $exit, $stdout);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/foundation', 'remote' => 'foundation'],
+                ['local' => 'packages/media', 'remote' => 'media'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function rejects_an_empty_selection(): void
     {
         [$exit, , $stderr] = $this->runScript(' , ');

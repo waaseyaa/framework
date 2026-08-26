@@ -20,6 +20,7 @@ $allowlist = [
     'migration' => ['local' => 'packages/migration', 'remote' => 'migration'],
     'workflows' => ['local' => 'packages/workflows', 'remote' => 'workflows'],
     'access' => ['local' => 'packages/access', 'remote' => 'access'],
+    'media' => ['local' => 'packages/media', 'remote' => 'media'],
     'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
     'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
     'routing' => ['local' => 'packages/routing', 'remote' => 'routing'],
