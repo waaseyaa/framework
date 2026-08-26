@@ -457,7 +457,7 @@ jobs:
           php -r '$p = json_decode(file_get_contents("build/ci/phpunit-shards.json"), true, 512, JSON_THROW_ON_ERROR); $id = (int) getenv("SHARD_ID"); foreach ($p["include"] as $s) { if ($s["id"] === $id) { file_put_contents("build/ci/test-paths", $s["paths"] . PHP_EOL); exit(0); } } fwrite(STDERR, "Shard id is absent from the exact plan." . PHP_EOL); exit(2);'
           mapfile -t test_paths < build/ci/test-paths
           test "${#test_paths[@]}" -gt 0
-          php -d memory_limit=1G vendor/bin/phpunit "${test_paths[@]}" \
+          vendor/bin/phpunit "${test_paths[@]}" \
             --coverage-clover build/logs/clover-${{ matrix.id }}.xml \
             --log-junit build/logs/junit-${{ matrix.id }}.xml
 

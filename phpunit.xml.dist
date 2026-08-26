@@ -13,6 +13,9 @@
          failOnPhpunitNotice="true"
          failOnRisky="true"
          failOnWarning="true">
+    <php>
+        <ini name="memory_limit" value="1G"/>
+    </php>
     <testsuites>
         <testsuite name="Unit">
             <directory>packages/*/tests/Unit</directory>

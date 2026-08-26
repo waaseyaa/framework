@@ -87,7 +87,7 @@ php bin/build-phpunit-shards --timings=tools/phpunit-timings.json --shards=4 --p
 cd packages/admin && npm ci && npm run build && npm test
 
 # Unsharded local coverage (PCOV or Xdebug is required for PHP)
-php -d memory_limit=1G vendor/bin/phpunit --coverage-clover build/logs/clover.xml
+vendor/bin/phpunit --coverage-clover build/logs/clover.xml
 cd packages/admin && npm run test:coverage
 
 # Bounded mutation pilot (PCOV or Xdebug is required)
@@ -101,6 +101,13 @@ cd packages/admin && npm run dev
 # Terminal 3: Run tests
 cd packages/admin && npx playwright test --grep @smoke
 ```
+
+PHPUnit's canonical `phpunit.xml.dist` sets a 1 GB ceiling for test discovery
+and execution, including direct focused runs and CI shards. This is a
+repository-owned test-tooling policy only; it does not change production web,
+queue, or CLI application memory limits. Subprocess launchers that construct a
+new PHP command must preserve the same ceiling with `PHP_BINARY -d
+memory_limit=1G` when they can bypass or replace the canonical configuration.
 
 ## Static Analysis Policy (PHPStan 2)
 
