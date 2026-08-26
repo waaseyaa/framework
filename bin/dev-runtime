@@ -7,7 +7,9 @@ use Waaseyaa\Tooling\DevRuntime;
 
 require_once dirname(__DIR__) . '/tools/lib/DevRuntime.php';
 
-$root = dirname(__DIR__);
+$authorityRoot = dirname(__DIR__);
+$repositoryRoot = $authorityRoot;
+$repositoryRootExplicit = false;
 $command = $argv[1] ?? '';
 $arguments = array_slice($argv, 2);
 $json = false;
@@ -32,12 +34,28 @@ foreach ($arguments as $index => $argument) {
         $evidencePath = substr($argument, strlen('--evidence='));
         continue;
     }
+    if (str_starts_with($argument, '--repository-root=')) {
+        $requestedRoot = substr($argument, strlen('--repository-root='));
+        if ($repositoryRootExplicit || !str_starts_with($requestedRoot, '/')) {
+            fwrite(STDERR, "dev-runtime: --repository-root must be supplied once as an absolute path\n");
+            exit(2);
+        }
+        $resolvedRoot = realpath($requestedRoot);
+        if ($resolvedRoot === false || !is_dir($resolvedRoot)
+            || (!is_dir($resolvedRoot . '/.git') && !is_file($resolvedRoot . '/.git'))) {
+            fwrite(STDERR, "dev-runtime: --repository-root must name an absolute Git checkout\n");
+            exit(2);
+        }
+        $repositoryRoot = $resolvedRoot;
+        $repositoryRootExplicit = true;
+        continue;
+    }
     fwrite(STDERR, "dev-runtime: unknown argument {$argument}\n");
     exit(2);
 }
 
 if (!in_array($command, ['bootstrap', 'doctor', 'exec'], true)) {
-    fwrite(STDERR, "Usage: bin/dev-runtime bootstrap|doctor|exec [--cache-root=PATH] [--json] [--evidence=PATH] [-- COMMAND...]\n");
+    fwrite(STDERR, "Usage: bin/dev-runtime bootstrap|doctor|exec [--cache-root=PATH] [--json] [--evidence=PATH] [--repository-root=PATH] [-- COMMAND...]\n");
     exit(2);
 }
 if ($command === 'exec' && $childCommand === []) {
@@ -254,7 +272,7 @@ function inheritedEnvironment(): array
 }
 
 try {
-    $manifest = DevRuntime::loadManifest($root . '/tools/dev-runtime-manifest.json', $root);
+    $manifest = DevRuntime::loadManifest($authorityRoot . '/tools/dev-runtime-manifest.json', $authorityRoot);
     $resolvedCacheRoot = resolveCacheRoot($cacheRoot);
     $cache = DevRuntime::cachePath($resolvedCacheRoot, $manifest['manifest_bytes'], $manifest['pin_bytes']);
     $cacheParent = dirname($cache);
@@ -275,7 +293,7 @@ try {
     $state = is_file($cache . '/runtime-state.json')
         ? json_decode((string) file_get_contents($cache . '/runtime-state.json'), true, flags: JSON_THROW_ON_ERROR)
         : [];
-    $commitResult = runProcess([$root . '/bin/git', 'rev-parse', 'HEAD'], $root);
+    $commitResult = runProcess([$authorityRoot . '/bin/git', '-C', $repositoryRoot, 'rev-parse', 'HEAD'], $repositoryRoot);
     $commit = $commitResult['exit'] === 0 ? trim($commitResult['stdout']) : null;
     $identity = DevRuntime::identity($system, is_array($state) ? $state : [], $manifest['manifest_sha256'], $commit, $command, $errors);
 
@@ -302,7 +320,7 @@ try {
     if ($command === 'exec') {
         $environment = DevRuntime::childEnvironment(inheritedEnvironment(), $cache . '/bin');
         $resolvedChildCommand = DevRuntime::resolveChildCommand($childCommand, $cache . '/bin');
-        $process = proc_open($resolvedChildCommand, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, $root, $environment);
+        $process = proc_open($resolvedChildCommand, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, $repositoryRoot, $environment);
         if (!is_resource($process)) {
             throw new RuntimeException('cannot execute managed child command');
         }
