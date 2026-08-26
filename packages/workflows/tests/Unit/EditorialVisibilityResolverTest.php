@@ -80,6 +80,30 @@ final class EditorialVisibilityResolverTest extends TestCase
         self::assertTrue($resolver->canRender($literalPublished, $account, true)->isForbidden());
     }
 
+    public function testRenderContextDistinguishesCandidateAndServedVisibility(): void
+    {
+        $workflow = new Workflow(['id' => 'custom', 'label' => 'Custom']);
+        $workflow->addState(new WorkflowState(id: 'draft', label: 'Draft', published: false));
+        $resolver = new EditorialVisibilityResolver($workflow);
+        $entity = new VisibilityTestNode([
+            'nid' => 1,
+            'type' => 'article',
+            'status' => 1,
+            'workflow_state' => 'draft',
+        ]);
+
+        self::assertSame([
+            'state' => 'draft',
+            'is_public' => true,
+            'preview_requested' => false,
+        ], $resolver->buildRenderContext($entity, false));
+        self::assertSame([
+            'state' => 'draft',
+            'is_public' => false,
+            'preview_requested' => true,
+        ], $resolver->buildRenderContext($entity, true));
+    }
+
     public function testDraftIsHiddenWithoutPreview(): void
     {
         $resolver = new EditorialVisibilityResolver();

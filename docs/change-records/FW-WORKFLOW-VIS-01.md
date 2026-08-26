@@ -45,8 +45,8 @@ whether an entity's published serving projection is currently public.
 
 ## Verification evidence
 
-- Focused visibility suites: 18 tests, 39 assertions.
-- Affected workflow/AI/API/relationship/SSR/ingestion suites: 550 tests,
-  1,386 assertions.
+- Focused visibility suites: 20 tests, 50 assertions.
+- Affected workflow/AI/API/relationship/SSR/ingestion suites: 552 tests,
+  1,397 assertions.
 - Full preflight, exact candidate SHA, packaged-form evidence, split suites,
   and hosted checks will be recorded on the pull request.
