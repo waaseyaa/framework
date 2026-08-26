@@ -73,6 +73,8 @@ client. -->
 
 <!-- Spec reviewed 2026-08-04 - #2186 self-contained admin: the navigation toggle ships its decorative SVG inline. The SPA has no runtime icon-provider module, dependency, or external icon origin in its committed distribution. -->
 
+<!-- Spec reviewed 2026-08-26 - #2571 makes SurfaceQueryPolicy authoritative for finite x-list filter options. Optioned filters accept only the declared scalar/null HTTP spellings and refuse compound, non-finite, empty-when-undeclared, and otherwise undeclared values through the unchanged generic 400 envelope; filters without options remain free-form. -->
+
 <!-- Spec reviewed 2026-08-04 - #2185/#2187 retire NorthCloud: the generic dashboard retains only its catalog-gated ingest_log counters; all NC Sync requests, state, routes, translations, markup, and shipped assets are removed. -->
 
 <!-- Spec reviewed 2026-08-16 - #2113 replaces the Admin-only internal-field list with boot-scoped InternalFieldVisibilityPolicy. Admin form schema/detail projection and generic JSON:API serialization/filter/sort now consume the same framework/application metadata (`entity.internal_fields_by_type` plus FieldDefinition.settings.internal); credential-name floors remain independent defense in depth. -->
@@ -962,7 +964,14 @@ policy and bundle filter remain unchanged.
 The declaring host passes the parsed `SurfaceQuery` and validated `ListMetadata`
 to `SurfaceQueryPolicy::validate()` before adding internal scope filters or
 delegating. Any undeclared filter field/operator or sort field/direction returns
-the same generic 400 response. Client visibility is never the enforcement layer.
+the same generic 400 response. A filter with no `options` member remains
+free-form; when `options` is present, including an empty list, the query value
+must match a declared option. HTTP values use the scalar spelling emitted by the
+client: strings unchanged, base-10 integers, finite JSON numbers, lowercase
+`true`/`false`, and literal `null`. Compound values and non-finite numbers have
+no valid option spelling and are refused. The generic response never reflects
+the rejected field or value. Search metadata and unrelated operators retain
+their existing behavior. Client visibility is never the enforcement layer.
 
 Declared control changes reset the page offset, issue one request, and synchronize
 the supported filter/sort/page query keys with the current URL. A monotonically
