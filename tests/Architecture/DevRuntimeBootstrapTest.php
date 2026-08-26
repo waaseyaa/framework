@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Architecture;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Waaseyaa\Tooling\DevRuntime;
 
-#[CoversClass(DevRuntime::class)]
+#[CoversNothing]
 final class DevRuntimeBootstrapTest extends TestCase
 {
     private string $root;
