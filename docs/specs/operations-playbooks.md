@@ -68,6 +68,46 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
 
 For full-stack local development, run `composer dev:php` in one terminal and `composer dev:admin` in another. Each process owns its own lifecycle; killing one does not orphan the other. CI and Docker compose files invoke the typed entries directly rather than the legacy shell pipeline.
 
+### First-party WSL development toolchain
+
+`FW-DEV-RUNTIME-01` adds one fail-closed front door for Framework, Sheg, and
+Anokii development on WSL2 Ubuntu 24.04 x86-64:
+
+```bash
+bin/dev-runtime bootstrap
+bin/dev-runtime doctor --json
+bin/dev-runtime exec -- composer test
+```
+
+The machine-readable authority is `tools/dev-runtime-manifest.json`. It pins
+the exact Node and Composer downloads by HTTPS URL and SHA-256 and references
+`tools/frankenphp-runtime-pin.json` rather than copying its release identity.
+The manifest bytes and referenced pin bytes jointly address a user cache under
+`$XDG_CACHE_HOME/waaseyaa/dev-runtime/` (or the ordinary user cache when XDG is
+unset). A changed pin therefore selects a new cache; it can never reuse bytes
+accepted under the earlier authority.
+
+`bootstrap` validates the system boundary first: WSL2, Ubuntu 24.04, x86-64,
+PHP 8.5, SQLite 3.40–3.x, required PHP extensions, `tar`, and `xz`. These remain
+system prerequisites. The command never invokes `sudo`, adds a package source,
+edits PHP configuration, or installs globally. Managed artifacts download into
+a same-filesystem staging directory, are checksum-verified before extraction or
+execution, and publish by atomic rename while a per-manifest advisory lock is
+held. A corrupt existing cache is preserved under a uniquely named quarantine
+path before rebuilding.
+
+`exec` verifies the installed artifact inventory, prepends only that cache's
+`bin` directory to the child environment, and launches the argument vector
+without a shell. The caller's environment and shell profile remain unchanged.
+`doctor --evidence=/absolute/path.json` emits the versioned identity shared with
+`bin/check-support-contract`: manifest digest, system axes, managed versions and
+artifact hashes, exact repository commit, mode, result, and bounded repair
+guidance. Ambient Node, Composer, or FrankenPHP may be wrong; managed child
+execution never selects them.
+
+This local profile does not widen S1 production support and does not replace
+the hosted Ubuntu support-contract or real FrankenPHP worker gates.
+
 **The admin SPA's realtime SSE and worker usage.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). The `BroadcastRouter` loop is **bounded** (see `docs/specs/broadcasting.md`): it returns on client disconnect or after a per-connection time budget (`DEFAULT_MAX_DURATION_SEC`, 30s), so a worker is never pinned indefinitely and the client's `EventSource` reconnects automatically. A short keepalive cadence (2s) makes disconnect detection prompt so the worker is released soon after a tab navigates away. Even so, each *concurrently open* admin tab uses one worker for the duration of its stream, so the server still needs **>1 worker**. PHP's built-in server is single-worker by default, so `bin/waaseyaa serve` defaults `PHP_CLI_SERVER_WORKERS=4`.
 
 ### Playbook: rebuilding the committed Admin SPA bundle

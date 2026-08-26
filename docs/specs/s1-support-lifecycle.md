@@ -95,6 +95,12 @@ explain it but may not widen it. `bin/check-support-contract` must fail when:
 CI validates repository parity. It does not query mutable upstream web pages and
 does not turn hosted-runner metadata into consumer certification.
 
+The WSL2 first-party development toolchain is separately governed by
+`FW-DEV-RUNTIME-01`, `tools/dev-runtime-manifest.json`, and `bin/dev-runtime`.
+It reuses the runtime identity boundary but is not an S1 production test point:
+a local bootstrap pass cannot satisfy or replace hosted Framework evidence or
+the pending consumer certification record.
+
 ## Change control
 
 Any boundary expansion or lifecycle change requires a stable, forge-neutral

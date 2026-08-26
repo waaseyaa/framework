@@ -90,6 +90,13 @@
         },
         {
             "path": "bin/check-s1-sqlite-contract",
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 9
+        },
+        {
+            "path": "bin/check-s1-sqlite-contract",
             "pattern": "sqlite_dsn_token",
             "class": "tooling-query",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
@@ -5689,6 +5696,13 @@
             "occurrence": 1
         },
         {
+            "path": "tests/Architecture/DevRuntimeBootstrapTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 1
+        },
+        {
             "path": "tests/CoreOnlyBoot/prepare-runtime-schema.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -6828,6 +6842,20 @@
             "class": "test",
             "match_sha256": "b69da86bc72fe6da8529766029a85cfa120fdcd17522d38ad1f665602cf97a94",
             "occurrence": 3
+        },
+        {
+            "path": "tools/lib/DevRuntime.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 1
+        },
+        {
+            "path": "tools/lib/DevRuntime.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "tooling-query",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
         }
     ]
 }

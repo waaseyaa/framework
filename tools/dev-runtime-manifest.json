@@ -1,0 +1,27 @@
+{
+    "schema_version": 1,
+    "profile": "wsl2-ubuntu-24.04-x86_64",
+    "tools": {
+        "node": {
+            "version": "v24.20.0",
+            "archive": "node-v24.20.0-linux-x64.tar.xz",
+            "root": "node-v24.20.0-linux-x64",
+            "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-x64.tar.xz",
+            "sha256": "2f2c0da162318f0de47665410c7c8c2ed3d36c8f3105de4bbc61176c70a7cbf2",
+            "installed": {
+                "node": "89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7",
+                "npm": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+                "npx": "237adf8f3747cad8b9b62fcfd0d9c8d509a64e550337707f55100afcb79e8900"
+            }
+        },
+        "composer": {
+            "version": "2.10.2",
+            "asset": "composer.phar",
+            "url": "https://getcomposer.org/download/2.10.2/composer.phar",
+            "sha256": "5ee7125f8a30a34d246cefdc0bc85b8a783b28f2aec968994118512350d28027"
+        },
+        "frankenphp": {
+            "pin": "tools/frankenphp-runtime-pin.json"
+        }
+    }
+}
