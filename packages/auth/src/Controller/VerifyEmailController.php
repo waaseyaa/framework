@@ -6,15 +6,21 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 
 final class VerifyEmailController
 {
+    private readonly AuthExtensionRegistry $extensions;
+
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuthTokenRepositoryInterface $tokenRepo,
-    ) {}
+        ?AuthExtensionRegistry $extensions = null,
+    ) {
+        $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -50,8 +56,13 @@ final class VerifyEmailController
         // 6. Consume token and revoke all email_verification tokens for user
         $this->tokenRepo->consumeToken($tokenData['id']);
         $this->tokenRepo->revokeTokensForUser($tokenData['user_id'], 'email_verification');
+        $userId = (string) $user->id();
+        $this->extensions->dispatch('email_verified', $userId);
 
         // 7. Return 200
-        return new JsonResponse(['ok' => true]);
+        return new JsonResponse([
+            'ok' => true,
+            'meta' => ['redirect' => $this->extensions->redirect('verification', $userId)->path],
+        ]);
     }
 }

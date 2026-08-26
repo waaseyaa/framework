@@ -6,6 +6,7 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -31,11 +32,16 @@ use Waaseyaa\User\User;
  */
 final class VerifyTwoFactorController
 {
+    private readonly AuthExtensionRegistry $extensions;
+
     public function __construct(
         private readonly TwoFactorService $twoFactor,
         private readonly RateLimiterInterface $rateLimiter,
         private readonly EntityTypeManagerInterface $entityTypeManager,
-    ) {}
+        ?AuthExtensionRegistry $extensions = null,
+    ) {
+        $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -97,11 +103,15 @@ final class VerifyTwoFactorController
             if (session_status() === \PHP_SESSION_ACTIVE) {
                 session_regenerate_id(true);
             }
+            $this->extensions->dispatch('login_succeeded', (string) $user->id(), ['two_factor' => true]);
         }
 
         return new JsonResponse([
             'jsonapi' => ['version' => '1.1'],
             'data' => ['type' => 'two-factor', 'attributes' => ['verified' => true]],
+            'meta' => $isPending
+                ? ['redirect' => $this->extensions->redirect('login', (string) $user->id())->path]
+                : [],
         ]);
     }
 

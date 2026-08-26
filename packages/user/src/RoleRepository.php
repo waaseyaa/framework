@@ -40,8 +40,8 @@ final class RoleRepository
      * Build a repository by collecting roles from every provider implementing
      * {@see ProvidesRolesInterface}.
      *
-     * Later providers win on duplicate ids; discovery is deterministic given a
-     * stable provider order.
+     * Duplicate ids fail closed. Authorization-bearing definitions must have
+     * one owner rather than depend on provider order.
      *
      * @param iterable<object> $providers Service-provider instances; only those
      *                                    implementing {@see ProvidesRolesInterface}
@@ -65,10 +65,16 @@ final class RoleRepository
     }
 
     /**
-     * Register a single role, replacing any existing role with the same id.
+     * Register a single role, refusing a duplicate id.
      */
     public function add(Role $role): void
     {
+        if (isset($this->roles[$role->id])) {
+            throw new \LogicException(sprintf(
+                'Role "%s" is registered more than once; retain exactly one provider.',
+                $role->id,
+            ));
+        }
         $this->roles[$role->id] = $role;
     }
 

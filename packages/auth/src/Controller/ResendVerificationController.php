@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Config\MailMissingPolicy;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -18,6 +19,7 @@ use Waaseyaa\User\AuthMailer;
 final class ResendVerificationController
 {
     private readonly LoggerInterface $logger;
+    private readonly AuthExtensionRegistry $extensions;
 
     public function __construct(
         private readonly AuthConfig $config,
@@ -26,8 +28,10 @@ final class ResendVerificationController
         private readonly AuthMailer $authMailer,
         private readonly RateLimiterInterface $rateLimiter,
         ?LoggerInterface $logger = null,
+        ?AuthExtensionRegistry $extensions = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
     }
 
     public function __invoke(Request $request): JsonResponse
@@ -69,7 +73,11 @@ final class ResendVerificationController
         if ($user !== null) {
             if ($this->authMailer->isConfigured()) {
                 // 6. Mail configured: send verification email
-                $this->authMailer->sendEmailVerification($user, $verifyToken);
+                $this->authMailer->sendEmailVerification(
+                    $user,
+                    $verifyToken,
+                    $this->extensions->mail('email_verification', (string) $userId),
+                );
             } elseif ($this->config->mailMissingPolicy === MailMissingPolicy::DevLog) {
                 // 7. DevLog policy: log URL
                 $this->logger->info('Email verification URL for user ' . $userId . ': /verify-email?token=' . $verifyToken);

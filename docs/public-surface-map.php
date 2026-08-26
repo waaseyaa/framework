@@ -13,6 +13,13 @@
 declare(strict_types=1);
 
 return [
+    // Layer 1: Auth — application policy around the sealed security core (#2437)
+    'Waaseyaa\Auth\Extension\AuthMailContentPolicyInterface' => 'public',
+    'Waaseyaa\Auth\Extension\AuthRedirectPolicyInterface' => 'public',
+    'Waaseyaa\Auth\Extension\InitialRolePolicyInterface' => 'public',
+    'Waaseyaa\Auth\Extension\ProvidesAuthExtensionsInterface' => 'public',
+    'Waaseyaa\Auth\Extension\RegistrationPolicyInterface' => 'public',
+    'Waaseyaa\Auth\Extension\RegistrationProfileHandlerInterface' => 'public',
     // Layer 0: Analytics — public (Umami backend-sender transport seam, analytics M1+M2)
     'Waaseyaa\Analytics\Transport' => 'public',
     // Layer 0: Foundation — public

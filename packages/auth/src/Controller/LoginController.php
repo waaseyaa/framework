@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -15,13 +16,18 @@ use Waaseyaa\User\User;
 
 final class LoginController
 {
+    private readonly AuthExtensionRegistry $extensions;
+
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly RateLimiterInterface $rateLimiter,
         private readonly TwoFactorService $twoFactor,
         private readonly UserIdentityLookupInterface $identityLookup,
         private readonly UserInternalFieldReaderInterface $internalFields,
-    ) {}
+        ?AuthExtensionRegistry $extensions = null,
+    ) {
+        $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -99,6 +105,7 @@ final class LoginController
         session_regenerate_id(true);
 
         $identity = $this->internalFields->sessionIdentity($user);
+        $this->extensions->dispatch('login_succeeded', (string) $user->id());
 
         return new JsonResponse([
             'jsonapi' => ['version' => '1.1'],
@@ -108,6 +115,7 @@ final class LoginController
                 'email' => $identity->mail,
                 'roles' => $identity->roles,
             ],
+            'meta' => ['redirect' => $this->extensions->redirect('login', (string) $user->id())->path],
         ]);
     }
 }

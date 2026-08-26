@@ -2701,3 +2701,10 @@ unknown-table rejection into implicit data deletion.
 <!-- Spec reviewed 2026-05-17 - dead-code Phase 3 Bucket 4: @api PHPDoc sweep on additional public-API classes. No behavioural change. -->
 
 <!-- Spec reviewed 2026-05-18 - WP07 (agent-executor mission) rebase + rewire: no behavioural change to this subsystem; touch refreshes drift-detector timestamp. -->
+# Provider capability projection
+
+`ProviderCapabilitySource` is the kernel-owned read-only projection used when a
+package must compose provider capabilities after every provider has registered.
+It exposes only `implementing(interface)` in compiled manifest order; it does
+not expose container mutation or a generic provider service locator. Auth
+consumer extension composition is its first security-sensitive user.
