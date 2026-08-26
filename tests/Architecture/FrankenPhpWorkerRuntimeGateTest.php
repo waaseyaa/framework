@@ -112,8 +112,9 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
     public function the_front_controller_keeps_classic_fallback_and_fresh_kernels(): void
     {
         $front = (string) file_get_contents($this->repoRoot . '/public/index.php');
-        self::assertStringContainsString('function_exists(\'frankenphp_handle_request\')', $front);
-        self::assertStringContainsString('if ($handled > 0)', $front);
+        self::assertStringContainsString("\$_SERVER['WAASEYAA_FRANKENPHP_WORKER'] ?? getenv('WAASEYAA_FRANKENPHP_WORKER')", $front);
+        self::assertStringContainsString("if (!function_exists('frankenphp_handle_request'))", $front);
+        self::assertStringNotContainsString("if (function_exists('frankenphp_handle_request'))", $front);
         self::assertStringContainsString('$handler();', $front);
         self::assertStringContainsString('new HttpKernel($projectRoot)', $front);
         self::assertStringContainsString('A fresh kernel is built per request', $front);
@@ -122,6 +123,10 @@ final class FrankenPhpWorkerRuntimeGateTest extends TestCase
         self::assertStringContainsString('Waaseyaa\\\\FrankenPhp\\\\WorkerAcceptance', $front);
         self::assertStringNotContainsString('tests/Acceptance', $front);
         self::assertStringNotContainsString('WAASEYAA_FRANKENPHP_ACCEPTANCE_PROBE', $front);
+
+        $harness = (string) file_get_contents($this->repoRoot . '/' . self::HARNESS);
+        self::assertStringContainsString('env WAASEYAA_FRANKENPHP_WORKER "1"', $harness);
+        self::assertStringContainsString('classic FrankenPHP returned an empty response body', $harness);
     }
 
     #[Test]

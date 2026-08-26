@@ -153,6 +153,13 @@ PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp run --config config/franken
 PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp php-server --root public
 ```
 
+The committed Caddy worker block sets `WAASEYAA_FRANKENPHP_WORKER=1` inside
+the worker process. The front controller enters its request loop only for that
+exact marker; it does not infer mode from `frankenphp_handle_request()` being
+defined, because classic FrankenPHP exposes the function and may return `false`
+instead of throwing when it is called outside worker mode. Classic mode always
+runs the synchronous handler and must return a non-empty response.
+
 Both **merge** the skeleton `config/frankenphp/php.ini` (SSE / error settings) on top of the runtime's own ini via `PHP_INI_SCAN_DIR`. Requirements and notes:
 
 - **`frankenphp` must be installed** (install: <https://frankenphp.dev>) and run directly — the framework does not install or wrap it. **Never add the FrankenPHP install directory to `PATH`**: the official Windows release is a full PHP SDK whose bundled `php.exe` (OpenSSL disabled) then shadows system PHP and breaks Composer's TLS. `composer dev` calls the binary by absolute path; for the native worker invocation, call `frankenphp` by absolute path too, or set `FRANKENPHP_BIN`.
