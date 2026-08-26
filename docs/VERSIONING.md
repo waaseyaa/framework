@@ -125,11 +125,15 @@ not adopt a moved tag (anti-tamper). Therefore:
   step falls back to exactly one `create-package` call to register the package;
   subsequent releases take the normal `update-package` path.
 
-  Requires repo secrets `PACKAGIST_USERNAME` + `PACKAGIST_TOKEN`. The
-  invariant is enforced in CI by `bin/check-release-publish-shape`.
+  Requires repo secrets `PACKAGIST_USERNAME` + `PACKAGIST_TOKEN` for the safe
+  `update-package` operation and `PACKAGIST_MAIN_TOKEN` for Packagist's unsafe
+  `create-package` operation. Creation uses Packagist's documented Bearer
+  authentication form. The invariant is enforced in CI by
+  `bin/check-release-publish-shape`.
 
 **Cutover order (one-time, when this lands):** (1) merge this change; (2) set the
-`PACKAGIST_USERNAME`/`PACKAGIST_TOKEN` secrets; (3) **then** delete the Packagist
+`PACKAGIST_USERNAME`/`PACKAGIST_TOKEN`/`PACKAGIST_MAIN_TOKEN` secrets; (3)
+**then** delete the Packagist
 auto-update webhook from the monorepo and every split repo. Do not delete the
 webhooks before the POST mechanism + secrets are live, or a release would not
 publish at all.
