@@ -19,6 +19,12 @@ use Waaseyaa\Media\Media;
 final class MediaDownloadRouter implements DomainRouterInterface
 {
     public const string CONTROLLER = 'media.download';
+    public const string VIEW_CONTROLLER = 'media.view';
+
+    /** @var list<string> */
+    private const array INLINE_VIEW_MIME_TYPES = [
+        'application/pdf',
+    ];
 
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -29,7 +35,7 @@ final class MediaDownloadRouter implements DomainRouterInterface
 
     public function supports(Request $request): bool
     {
-        return $request->attributes->get('_controller') === self::CONTROLLER;
+        return in_array($request->attributes->get('_controller'), [self::CONTROLLER, self::VIEW_CONTROLLER], true);
     }
 
     public function handle(Request $request): Response
@@ -79,9 +85,12 @@ final class MediaDownloadRouter implements DomainRouterInterface
         $sanitizedFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($filename));
         $safeFilename = $sanitizedFilename !== null && $sanitizedFilename !== '' ? $sanitizedFilename : 'download';
         $fileSize = filesize($path);
-        $isDocumentNavigation = strtolower((string) $request->headers->get('Sec-Fetch-Dest')) === 'document'
+        $isInlineView = $request->attributes->get('_controller') === self::VIEW_CONTROLLER
+            && in_array($contentType, self::INLINE_VIEW_MIME_TYPES, true);
+        $isDocumentNavigation = $request->attributes->get('_controller') === self::CONTROLLER
+            && strtolower((string) $request->headers->get('Sec-Fetch-Dest')) === 'document'
             && strtolower((string) $request->headers->get('Sec-Fetch-Mode')) === 'navigate';
-        $disposition = $isDocumentNavigation ? 'inline' : 'attachment';
+        $disposition = $isInlineView || $isDocumentNavigation ? 'inline' : 'attachment';
         $headers = [
             'Content-Type' => $contentType,
             // A real document navigation must remain a renderer response.

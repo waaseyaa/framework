@@ -1,3 +1,8 @@
+<!-- Spec reviewed 2026-08-25 - protected-inline-media-20260825 (#2564): the
+media entity-gated byte router also serves the explicit /media/{id}/view route.
+It reuses the existing authorized source and confined path; no MediaVersion/CAS,
+revision, translation, or storage-axis behavior changes. The live HTTP contract
+is in infrastructure.md and packages/media/README.md. -->
 <!-- Spec reviewed 2026-07-19 - Sheguiandah gap batch: media's entity-gated download now reads only Protected source_uri through a typed audited capability seam, and upload/download roots recognize canonical files_dir with legacy files_root precedence. These changes do not activate or alter the parked MediaVersion/CAS subsystem or either revision/translation axis described historically below; canonical read-boundary and configuration contracts live in entity-field-read-boundary.md and infrastructure.md. -->
 <!-- Spec reviewed 2026-05-20 - M-006 translation-hardening: added §11 translation access-gate convention -->
 <!-- Spec reviewed 2026-06-09 - alpha.201 doc-drift: this spec describes the RETIRED M-004 vid stack (never kernel-wired, removed alpha.196). Added a SUPERSEDED banner pointing to revision-system-unified.md (the live revision_id model). The vid/SaveContext::withTranslations content below is retained for historical/audit context only. -->

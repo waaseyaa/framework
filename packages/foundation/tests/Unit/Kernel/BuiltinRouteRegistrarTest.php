@@ -43,6 +43,10 @@ final class BuiltinRouteRegistrarTest extends TestCase
         $this->assertNotSame(false, $routes->get('api.media.upload')?->getOption('_csrf'));
         $this->assertNotNull($routes->get('media.download'));
         $this->assertTrue((bool) $routes->get('media.download')?->getOption('_public'));
+        $this->assertNotNull($routes->get('media.view'));
+        $this->assertSame('/media/{id}/view', $routes->get('media.view')?->getPath());
+        $this->assertSame(['GET'], $routes->get('media.view')?->getMethods());
+        $this->assertTrue((bool) $routes->get('media.view')?->getOption('_public'));
     }
 
     #[Test]

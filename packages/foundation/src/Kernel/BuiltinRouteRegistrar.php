@@ -99,6 +99,18 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // Explicit same-origin inline-view delivery. The transport stays open
+        // so the shared MediaDownloadRouter can apply the same entity-view
+        // authorization and indistinguishable 404 concealment as downloads.
+        $router->addRoute(
+            'media.view',
+            RouteBuilder::create('/media/{id}/view')
+                ->controller('media.view')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
         // Authorized download of a private attachment's bytes. Option-less by
         // design: the attachment package's AttachmentDownloadRouter (matched via
         // the 'attachment.download' controller string) is the enforcement point —

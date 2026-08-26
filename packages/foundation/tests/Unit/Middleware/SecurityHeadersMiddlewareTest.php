@@ -60,6 +60,24 @@ final class SecurityHeadersMiddlewareTest extends TestCase
     }
 
     #[Test]
+    public function protected_inline_media_preserves_host_csp_and_gets_same_origin_frame_policy(): void
+    {
+        $middleware = new SecurityHeadersMiddleware(csp: 'sandbox', hstsEnabled: false, frameOptions: 'SAMEORIGIN');
+        $request = Request::create('/media/10/view');
+        $request->attributes->set('_controller', 'media.view');
+        $handler = $this->passthroughHandler(new Response('%PDF-1.4', 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="minutes.pdf"',
+        ]));
+
+        $response = $middleware->process($request, $handler);
+
+        $this->assertSame('sandbox', $response->headers->get('Content-Security-Policy'));
+        $this->assertSame('SAMEORIGIN', $response->headers->get('X-Frame-Options'));
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+    }
+
+    #[Test]
     public function skips_hsts_when_disabled(): void
     {
         $middleware = new SecurityHeadersMiddleware(hstsEnabled: false);

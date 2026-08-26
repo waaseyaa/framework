@@ -8204,6 +8204,13 @@
             "occurrence": 3
         },
         {
+            "path": "tests/Integration/MediaFieldRead/AuthenticatedMediaFieldReadFreshInstallTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 4
+        },
+        {
             "path": "tests/Integration/Migration/CacheRuntimeSchemaAuthorityTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",

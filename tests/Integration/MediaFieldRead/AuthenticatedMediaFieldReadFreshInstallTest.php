@@ -112,6 +112,23 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
         self::assertStringContainsString('BAND-GOVERNANCE-DOCUMENT', $download['body']);
     }
 
+    #[Test]
+    public function authenticated_iframe_view_uses_the_real_kernel_route_and_conceals_denial(): void
+    {
+        $view = $this->request('/media/389/view');
+        $denied = $this->request('/media/389/view', uid: 43);
+        $missing = $this->request('/media/999/view');
+
+        self::assertSame(200, $view['status']);
+        self::assertSame('application/pdf', $view['headers']['content-type'][0] ?? null);
+        self::assertSame('inline; filename="governance.pdf"', $view['headers']['content-disposition'][0] ?? null);
+        self::assertSame('SAMEORIGIN', $view['headers']['x-frame-options'][0] ?? null);
+        self::assertSame('nosniff', $view['headers']['x-content-type-options'][0] ?? null);
+        self::assertStringContainsString('BAND-GOVERNANCE-DOCUMENT', $view['body']);
+
+        self::assertSame($this->concealmentFingerprint($missing), $this->concealmentFingerprint($denied));
+    }
+
     private function initializeDatabase(): void
     {
         $handler = new DbInitHandler($this->projectRoot);
@@ -154,6 +171,14 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
             'permissions' => ['administer content', 'access media'],
             'status' => true,
         ]), validate: false);
+        $users->save($users->create([
+            'uid' => 43,
+            'bundle' => 'user',
+            'name' => 'authenticated-viewer',
+            'roles' => ['authenticated'],
+            'permissions' => ['access media'],
+            'status' => true,
+        ]), validate: false);
         $types = $manager->getRepository('media_type');
         $types->save($types->create(['id' => 'members_document', 'label' => 'Members document']), validate: false);
         $media = $manager->getRepository('media');
@@ -174,15 +199,16 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
         }
     }
 
-    /** @return array{status:int,body:string} */
-    private function request(string $uri): array
+    /** @return array{status:int,headers:array<string,list<string|null>>,body:string} */
+    private function request(string $uri, int $uid = 42): array
     {
         $command = sprintf(
-            '%s %s %s %s 42 2>&1',
+            '%s %s %s %s %d 2>&1',
             escapeshellarg(PHP_BINARY),
             escapeshellarg(__DIR__ . '/Fixtures/authenticated_http_runner.php'),
             escapeshellarg($this->projectRoot),
             escapeshellarg($uri),
+            $uid,
         );
         $output = shell_exec($command);
         self::assertNotNull($output);
@@ -191,7 +217,18 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
         $body = base64_decode((string) ($payload['body_base64'] ?? ''), true);
         self::assertIsString($body);
 
-        return ['status' => (int) ($payload['status'] ?? 0), 'body' => $body];
+        $headers = is_array($payload['headers'] ?? null) ? $payload['headers'] : [];
+
+        return ['status' => (int) ($payload['status'] ?? 0), 'headers' => $headers, 'body' => $body];
+    }
+
+    /** @param array{status:int,headers:array<string,list<string|null>>,body:string} $response */
+    private function concealmentFingerprint(array $response): array
+    {
+        $headers = $response['headers'];
+        unset($headers['date'], $headers['x-debug-time'], $headers['x-debug-memory']);
+
+        return ['status' => $response['status'], 'headers' => $headers, 'body' => $response['body']];
     }
 
     private function config(): string
