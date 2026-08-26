@@ -33,6 +33,9 @@ final readonly class ContentTypeDescriptor
      * @param list<ContentValidatorInterface> $validators App editorial rules.
      * @param string $publishCapability Permission string required for every mutation
      *                            (e.g. 'publish rht articles').
+     * @param ?string $authorField Optional server-owned entity author field. It is
+     *                            populated from the authenticated actor on create
+     *                            and must not be client-writable.
      */
     public function __construct(
         public string $entityTypeId,
@@ -43,6 +46,7 @@ final readonly class ContentTypeDescriptor
         public ?ContentHtmlSanitizerInterface $htmlSanitizer,
         public array $validators,
         public string $publishCapability,
+        public ?string $authorField = null,
     ) {
         if ($this->entityTypeId === '' || $this->slugField === '' || $this->statusField === '' || $this->publishCapability === '') {
             throw new \InvalidArgumentException('Descriptor requires entityTypeId, slugField, statusField, and publishCapability.');
@@ -60,6 +64,23 @@ final readonly class ContentTypeDescriptor
                 'Status field "%s" must not be writable through payloads; only publish()/unpublish() move it.',
                 $this->statusField,
             ));
+        }
+        if ($this->authorField !== null) {
+            if (trim($this->authorField) === '') {
+                throw new \InvalidArgumentException('Author field must be a non-empty machine name when declared.');
+            }
+            if ($this->authorField === $this->statusField) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Author field "%s" must be distinct from the status field.',
+                    $this->authorField,
+                ));
+            }
+            if (isset($this->writableFields[$this->authorField])) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Author field "%s" is server-owned and must not be writable through payloads.',
+                    $this->authorField,
+                ));
+            }
         }
     }
 }

@@ -9,7 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\AccessPolicyInterface;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
@@ -31,6 +34,7 @@ use Waaseyaa\Publishing\ContentPublisher;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\ContentValidatorInterface;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
+use Waaseyaa\Publishing\Exception\ContentNotFoundException;
 use Waaseyaa\Publishing\Exception\ContentSaveAdvisoryException;
 use Waaseyaa\Publishing\Exception\ContentValidationException;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
@@ -140,6 +144,49 @@ final class ContentPublisherTest extends TestCase
         return $overrides + ['slug' => 'first-post', 'title' => 'First post', 'summary' => 'A summary.'];
     }
 
+    private function authoredDescriptor(): ContentTypeDescriptor
+    {
+        $descriptor = $this->descriptor();
+
+        return new ContentTypeDescriptor(
+            entityTypeId: $descriptor->entityTypeId,
+            bundle: $descriptor->bundle,
+            slugField: $descriptor->slugField,
+            statusField: $descriptor->statusField,
+            writableFields: $descriptor->writableFields,
+            htmlSanitizer: $descriptor->htmlSanitizer,
+            validators: $descriptor->validators,
+            publishCapability: $descriptor->publishCapability,
+            authorField: 'author_id',
+        );
+    }
+
+    private function ownerAccessHandler(): EntityAccessHandler
+    {
+        return new EntityAccessHandler([
+            new class implements AccessPolicyInterface {
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    $owner = $entity->get('author_id');
+
+                    return $owner !== null && (string) $owner === (string) $account->id()
+                        ? AccessResult::allowed('The principal owns this authored fixture.')
+                        : AccessResult::neutral('The principal does not own this authored fixture.');
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::allowed('The publishing capability is independently enforced.');
+                }
+
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return $entityTypeId === 'test_article';
+                }
+            },
+        ]);
+    }
+
     // --- authorization ---
 
     #[Test]
@@ -183,6 +230,165 @@ final class ContentPublisherTest extends TestCase
     }
 
     // --- drafts ---
+
+    #[Test]
+    public function authored_draft_persists_entity_and_revision_owner_and_remains_readable_only_by_its_creator(): void
+    {
+        $publisher = new ContentPublisher(
+            $this->authoredDescriptor(),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            $this->ownerAccessHandler(),
+        );
+        $draft = $publisher->createDraft($this->actor, $this->draftValues(), 'authored-draft');
+
+        $stored = $this->repo->find((string) $draft['id']);
+        self::assertNotNull($stored);
+        self::assertSame($this->actor->id(), $stored->get('author_id'));
+        self::assertSame($draft['id'], $publisher->get($this->actor, (string) $draft['id'])['id']);
+        self::assertCount(1, $publisher->list($this->actor));
+
+        $revisions = $publisher->revisions($this->actor, (string) $draft['id']);
+        self::assertCount(1, $revisions);
+        self::assertSame($this->actor->id(), $revisions[0]['author_uid']);
+
+        $links = new PreviewLinkService('authored-preview-secret', fn(): int => 1_000_000);
+        self::assertSame($draft['id'], $publisher->preview($this->actor, (string) $draft['id'], $links)['id']);
+        self::assertSame(
+            $draft['revision_id'],
+            $publisher->previewRevision(
+                $this->actor,
+                (string) $draft['id'],
+                $draft['revision_id'],
+                $links,
+            )['revision_id'],
+        );
+
+        $other = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+        $this->expectException(ContentNotFoundException::class);
+        $publisher->get($other, (string) $draft['id']);
+    }
+
+    #[Test]
+    public function authored_draft_refuses_an_opaque_actor_before_writing(): void
+    {
+        $publisher = new ContentPublisher(
+            $this->authoredDescriptor(),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            $this->ownerAccessHandler(),
+        );
+        $opaque = new PublisherAccount(uid: 'agent:opaque', permissions: [self::CAPABILITY]);
+
+        try {
+            $publisher->createDraft($opaque, $this->draftValues(), 'opaque-actor');
+            self::fail('An authored draft accepted an opaque actor identity.');
+        } catch (ContentAuthorizationException $exception) {
+            self::assertSame('UNAUTHORIZED', $exception->errorCode);
+            self::assertSame([], $this->repo->findBy([]));
+        }
+    }
+
+    #[Test]
+    public function authored_draft_refuses_an_anonymous_numeric_actor_before_writing(): void
+    {
+        $publisher = new ContentPublisher(
+            $this->authoredDescriptor(),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            $this->ownerAccessHandler(),
+        );
+        $anonymous = new PublisherAccount(
+            uid: 900001,
+            permissions: [self::CAPABILITY],
+            authenticated: false,
+        );
+
+        try {
+            $publisher->createDraft($anonymous, $this->draftValues(), 'anonymous-actor');
+            self::fail('An authored draft accepted an anonymous actor identity.');
+        } catch (ContentAuthorizationException $exception) {
+            self::assertSame('UNAUTHORIZED', $exception->errorCode);
+            self::assertSame([], $this->repo->findBy([]));
+        }
+    }
+
+    #[Test]
+    public function authored_draft_idempotency_is_scoped_to_the_server_owned_author(): void
+    {
+        $publisher = new ContentPublisher(
+            $this->authoredDescriptor(),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            $this->ownerAccessHandler(),
+        );
+        $publisher->createDraft($this->actor, $this->draftValues(), 'author-scoped-key');
+
+        $other = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+        $this->expectException(IdempotencyConflictException::class);
+        $publisher->createDraft($other, $this->draftValues(), 'author-scoped-key');
+    }
+
+    #[Test]
+    public function descriptor_keeps_the_author_field_server_owned(): void
+    {
+        $descriptor = $this->descriptor();
+
+        $this->expectException(\InvalidArgumentException::class);
+        new ContentTypeDescriptor(
+            entityTypeId: $descriptor->entityTypeId,
+            bundle: $descriptor->bundle,
+            slugField: $descriptor->slugField,
+            statusField: $descriptor->statusField,
+            writableFields: $descriptor->writableFields + ['author_id' => new FieldSpec(type: 'int')],
+            htmlSanitizer: $descriptor->htmlSanitizer,
+            validators: $descriptor->validators,
+            publishCapability: $descriptor->publishCapability,
+            authorField: 'author_id',
+        );
+    }
+
+    #[Test]
+    public function descriptor_rejects_an_empty_author_field(): void
+    {
+        $descriptor = $this->descriptor();
+
+        $this->expectException(\InvalidArgumentException::class);
+        new ContentTypeDescriptor(
+            entityTypeId: $descriptor->entityTypeId,
+            bundle: $descriptor->bundle,
+            slugField: $descriptor->slugField,
+            statusField: $descriptor->statusField,
+            writableFields: $descriptor->writableFields,
+            htmlSanitizer: $descriptor->htmlSanitizer,
+            validators: $descriptor->validators,
+            publishCapability: $descriptor->publishCapability,
+            authorField: ' ',
+        );
+    }
+
+    #[Test]
+    public function descriptor_keeps_the_author_field_distinct_from_status(): void
+    {
+        $descriptor = $this->descriptor();
+
+        $this->expectException(\InvalidArgumentException::class);
+        new ContentTypeDescriptor(
+            entityTypeId: $descriptor->entityTypeId,
+            bundle: $descriptor->bundle,
+            slugField: $descriptor->slugField,
+            statusField: $descriptor->statusField,
+            writableFields: $descriptor->writableFields,
+            htmlSanitizer: $descriptor->htmlSanitizer,
+            validators: $descriptor->validators,
+            publishCapability: $descriptor->publishCapability,
+            authorField: $descriptor->statusField,
+        );
+    }
 
     #[Test]
     public function draft_create_returns_structured_advisories_and_binds_them_into_idempotency(): void
