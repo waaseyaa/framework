@@ -26,6 +26,10 @@ listing blocks.
 included GitHub workflow merely calls it; another hosted or local runner can do
 the same without changing the application contract.
 
+Before customizing the application, read [Application anatomy and ownership](docs/application-anatomy.md).
+It maps common framework concepts to their supported application extension
+points and makes the security boundary explicit.
+
 ## Directory Structure
 
 ```
