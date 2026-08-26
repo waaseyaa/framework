@@ -71,6 +71,29 @@ return [
         'token_secret' => getenv('AUTH_TOKEN_SECRET') ?: '',
     ],
 
+    // Global HTTP request boundaries. Keep both enabled in normal operation;
+    // the flags are explicit emergency rollback controls.
+    'http_security' => [
+        'rate_limit' => [
+            'enabled' => true,
+            'max_attempts' => 60,
+            'window_seconds' => 60,
+        ],
+        'body_size_limit' => [
+            'enabled' => true,
+            'max_bytes' => 1024 * 1024,
+        ],
+    ],
+
+    // Deployment-sensitive response headers remain opt-in, but are configured
+    // on the kernel-owned middleware so the class is never registered twice.
+    'security_headers' => [
+        'csp' => null,
+        'hsts_enabled' => false,
+        'hsts_max_age' => 31_536_000,
+        'frame_options' => 'SAMEORIGIN',
+    ],
+
     // Upload validation (POST /api/media/upload). MIME types are sniffed
     // from file contents (ext-fileinfo) and validation fails closed — the
     // client-declared type is never trusted. 'image/svg+xml' (script-capable)

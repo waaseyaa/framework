@@ -1430,13 +1430,13 @@ interface RateLimiterInterface
 }
 ```
 
-Single method: `attempt(key, maxAttempts, windowSeconds)` returns a result array with `allowed` (bool), `remaining` (int), and `retryAfter` (?int seconds). Consumers use this interface when they need to enforce per-key rate limits — e.g. `RateLimitMiddleware` wraps HTTP endpoints, and auth controllers use it for login attempt throttling. Inject `RateLimiterInterface`; the default binding is `InMemoryRateLimiter`.
+Single method: `attempt(key, maxAttempts, windowSeconds)` returns a result array with `allowed` (bool), `remaining` (int), and `retryAfter` (?int seconds). Consumers use this interface when they need to enforce per-key rate limits — e.g. `RateLimitMiddleware` wraps HTTP endpoints, and auth controllers use it for login attempt throttling. Inject `RateLimiterInterface`; `HttpKernel` uses `DatabaseRateLimiter` with its canonical database so the default HTTP boundary is durable across requests and workers.
 
 ### InMemoryRateLimiter
 
 File: `packages/foundation/src/RateLimit/InMemoryRateLimiter.php`
 
-Sliding-window rate limiter stored in memory. Resets per-process. Used by `RateLimitMiddleware`.
+Fixed-window rate limiter stored in memory. Resets per-process. It is suitable for tests and deliberately process-local consumers, not the production HTTP default.
 
 ## Asset Management
 
@@ -1588,7 +1588,9 @@ observe the same object and active community.
 
 `HttpKernel` explicitly installs `CommunityMiddleware` in its supported
 built-in stack before access middleware; compiled `AsMiddleware` metadata does
-not instantiate runtime middleware (#2330 tracks that broader contract). The
+not instantiate runtime middleware. `HttpMiddlewareStackComposer` combines the
+explicit built-ins with provider instances, rejects duplicate concrete classes,
+and uses the attribute only for stable priority ordering. The
 middleware preserves explicit route and session precedence, then falls back to
 this authoritative active object for fixed-community routes. It
 writes the resolved value to the normalized `_community_id` request attribute

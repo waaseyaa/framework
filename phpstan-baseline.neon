@@ -721,12 +721,6 @@ parameters:
 			path: packages/foundation/src/Kernel/Bootstrap/KnowledgeExtensionBootstrapper.php
 
 		-
-			message: '#^Construct empty\(\) is not allowed\. Use more strict comparison\.$#'
-			identifier: empty.notAllowed
-			count: 1
-			path: packages/foundation/src/Kernel/HttpKernel.php
-
-		-
 			message: '#^Parameter \#1 \$array \(list\<Waaseyaa\\Foundation\\Log\\Processor\\ProcessorInterface\>\) of array_values is already a list, call has no effect\.$#'
 			identifier: arrayValues.list
 			count: 1

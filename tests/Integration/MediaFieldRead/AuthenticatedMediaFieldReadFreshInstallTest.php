@@ -226,7 +226,12 @@ final class AuthenticatedMediaFieldReadFreshInstallTest extends TestCase
     private function concealmentFingerprint(array $response): array
     {
         $headers = $response['headers'];
-        unset($headers['date'], $headers['x-debug-time'], $headers['x-debug-memory']);
+        unset(
+            $headers['date'],
+            $headers['x-debug-time'],
+            $headers['x-debug-memory'],
+            $headers['x-ratelimit-remaining'],
+        );
 
         return ['status' => $response['status'], 'headers' => $headers, 'body' => $response['body']];
     }
