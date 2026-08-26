@@ -50,6 +50,7 @@ use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(ContentPublisher::class)]
 #[CoversClass(ContentMutationSnapshotReader::class)]
+#[CoversClass(ContentTypeDescriptor::class)]
 final class ContentPublisherTest extends TestCase
 {
     private const string CAPABILITY = 'publish test articles';
@@ -289,6 +290,25 @@ final class ContentPublisherTest extends TestCase
             self::assertSame('UNAUTHORIZED', $exception->errorCode);
             self::assertSame([], $this->repo->findBy([]));
         }
+    }
+
+    #[Test]
+    public function authored_draft_normalizes_a_positive_numeric_string_actor_id(): void
+    {
+        $publisher = new ContentPublisher(
+            $this->authoredDescriptor(),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            $this->ownerAccessHandler(),
+        );
+        $actor = new PublisherAccount(uid: '900003', permissions: [self::CAPABILITY]);
+
+        $draft = $publisher->createDraft($actor, $this->draftValues(), 'numeric-string-actor');
+
+        $stored = $this->repo->find((string) $draft['id']);
+        self::assertNotNull($stored);
+        self::assertSame(900003, $stored->get('author_id'));
     }
 
     #[Test]
