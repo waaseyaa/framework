@@ -86,6 +86,9 @@ final class EditorProjectionLosslessFlowTest extends TestCase
         . '<img src=x onerror=alert(1)><a href="javascript:alert(2)">x</a>'
         . '<iframe src="https://evil.example/x"></iframe><p>END</p>';
 
+    /** A view-forbidden HTML value that must never reach any wire projection. */
+    private const HIDDEN_BODY = '<div data-hidden-marker="never-on-wire">Classified notes</div>';
+
     // --- The default projection is deliberately unchanged by #2552. ---
 
     /**
@@ -343,9 +346,10 @@ final class EditorProjectionLosslessFlowTest extends TestCase
     /**
      * The named, accepted exposure (#2552 security argument): the editing
      * projection serves stored bytes, unsafe markup included, to a caller
-     * that already holds `update` on that entity — i.e. the authority to
-     * write those same bytes. It is a new READ channel, not a new write
-     * power, and it is reachable only behind the gate the tests above pin.
+     * that holds both entity `update` and field `edit` for the outgoing HTML
+     * — i.e. the authority to write those same bytes. It is a new READ
+     * channel, not a new write power, and it is reachable only behind the
+     * gates the tests above pin.
      * Pinned deliberately so this stays a decision, not an accident.
      */
     #[Test]
@@ -361,6 +365,68 @@ final class EditorProjectionLosslessFlowTest extends TestCase
     // --- The projection is not a field-access bypass. ---
 
     #[Test]
+    public function a_viewable_but_noneditable_html_field_blocks_the_editing_projection(): void
+    {
+        [$controllers, , $id] = $this->seed(self::STORED_BODY);
+
+        self::assertSame(
+            self::PUBLIC_BODY,
+            $this->bodyOf($controllers['limited_editor']->show('article', $id)),
+            'Field edit denial must not change the ordinary rendered view projection.',
+        );
+
+        $doc = $controllers['limited_editor']->show('article', $id, [
+            'workingCopy' => '1',
+            'representation' => 'editing',
+        ]);
+
+        $this->assertEditingDeniedClosed($doc);
+
+        $patch = $controllers['limited_editor']->update('article', $id, [
+            'data' => ['type' => 'article', 'attributes' => ['body' => 'changed']],
+        ]);
+        self::assertSame(403, $patch->statusCode, 'GET(editing) must enforce the same body-edit boundary as PATCH.');
+    }
+
+    #[Test]
+    public function an_unrequested_noneditable_html_field_does_not_block_a_sparse_editing_projection(): void
+    {
+        [$controllers, , $id] = $this->seed(self::STORED_BODY);
+
+        $doc = $controllers['limited_editor']->show('article', $id, [
+            'workingCopy' => '1',
+            'representation' => 'editing',
+            'fields' => ['article' => 'title'],
+        ]);
+
+        self::assertSame([], $doc->errors);
+        \assert($doc->data instanceof JsonApiResource);
+        self::assertSame(['title' => 'Program contacts'], $doc->data->attributes);
+        self::assertSame(['representation' => 'editing'], $doc->meta);
+    }
+
+    #[Test]
+    public function a_non_html_edit_denial_does_not_block_the_lossless_html_projection(): void
+    {
+        [$controllers, , $id] = $this->seed(self::STORED_BODY);
+
+        $doc = $controllers['title_limited_editor']->show('article', $id, [
+            'workingCopy' => '1',
+            'representation' => 'editing',
+        ]);
+
+        self::assertSame([], $doc->errors);
+        self::assertSame(self::STORED_BODY, $this->bodyOf($doc));
+        \assert($doc->data instanceof JsonApiResource);
+        self::assertSame('Program contacts', $doc->data->attributes['title']);
+
+        $patch = $controllers['title_limited_editor']->update('article', $id, [
+            'data' => ['type' => 'article', 'attributes' => ['title' => 'changed']],
+        ]);
+        self::assertSame(403, $patch->statusCode, 'The control must genuinely lack field-edit access to title.');
+    }
+
+    #[Test]
     public function the_editing_representation_does_not_widen_field_access(): void
     {
         [$controllers, , $id] = $this->seed(self::STORED_BODY);
@@ -372,6 +438,16 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             'secret',
             $doc->data->attributes,
             'A field the field-access policy forbids must stay omitted in the editing projection too.',
+        );
+        self::assertArrayNotHasKey(
+            'hidden_body',
+            $doc->data->attributes,
+            'A view-forbidden HTML field is outside the effective outgoing projection and must stay omitted.',
+        );
+        self::assertStringNotContainsString(
+            'never-on-wire',
+            json_encode($doc->toArray(), JSON_THROW_ON_ERROR),
+            'Lossless serialization must not reintroduce a view-forbidden HTML value.',
         );
         self::assertArrayHasKey('body', $doc->data->attributes);
     }
@@ -407,10 +483,19 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             keys: TestEntity::definitionKeys(),
             // text_long is the HTML-bearing "richtext" type — the only type
             // RichTextSanitizer gates, and the one the defect targets.
-            _fieldDefinitions: ['body' => new FieldDefinition(name: 'body', type: 'text_long')],
+            _fieldDefinitions: [
+                'body' => new FieldDefinition(name: 'body', type: 'text_long'),
+                'hidden_body' => new FieldDefinition(name: 'hidden_body', type: 'text_long'),
+            ],
         ));
 
-        $entity = new TestEntity(['title' => 'Program contacts', 'type' => 'article', 'body' => $body, 'secret' => 'not for the wire']);
+        $entity = new TestEntity([
+            'title' => 'Program contacts',
+            'type' => 'article',
+            'body' => $body,
+            'hidden_body' => self::HIDDEN_BODY,
+            'secret' => 'not for the wire',
+        ]);
         $entity->enforceIsNew();
         $entityTypeManager->getRepository('article')->save($entity);
         $id = (string) $entity->id();
@@ -421,6 +506,8 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             'anonymous' => new AnonymousUser(),
             'viewer' => $this->account(21, []),
             'editor' => $this->account(22, ['edit article']),
+            'limited_editor' => $this->account(23, ['edit article']),
+            'title_limited_editor' => $this->account(24, ['edit article']),
         ] as $name => $account) {
             $controllers[$name] = new AccountScopedJsonApiController(
                 new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $account),
@@ -455,7 +542,7 @@ final class EditorProjectionLosslessFlowTest extends TestCase
 
     private function assertEditingDeniedClosed(\Waaseyaa\Api\JsonApiDocument $document): void
     {
-        self::assertSame(403, $document->statusCode, 'Editing projection must fail closed without update access.');
+        self::assertSame(403, $document->statusCode, 'Editing projection must fail closed without its required access.');
         self::assertNull($document->data, 'A denied editing request must carry no resource at all, sanitized or otherwise.');
         $wire = json_encode($document->toArray(), JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString(
@@ -464,6 +551,11 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             'A 403 must never leak stored HTML, including in error details.',
         );
         self::assertStringNotContainsString(self::STORED_BODY, $wire);
+        self::assertStringNotContainsString(
+            'body',
+            $wire,
+            'The denial must not identify which field caused the whole-request refusal.',
+        );
     }
 
     private function bodyOf(\Waaseyaa\Api\JsonApiDocument $document): string
@@ -477,8 +569,9 @@ final class EditorProjectionLosslessFlowTest extends TestCase
 
     /**
      * View is open (published-content shaped); `update` requires the
-     * `edit article` permission, which is what the editing projection rides.
-     * `secret` is field-view Forbidden for everyone, pinning that the
+     * `edit article` permission. The editing projection additionally requires
+     * field edit access for its outgoing HTML fields. `secret` and
+     * `hidden_body` are field-view Forbidden for everyone, pinning that the
      * lossless projection is not a field-access bypass.
      */
     private function articlePolicy(): AccessPolicyInterface&FieldAccessPolicyInterface
@@ -507,7 +600,17 @@ final class EditorProjectionLosslessFlowTest extends TestCase
 
             public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
             {
-                return $fieldName === 'secret' ? AccessResult::forbidden() : AccessResult::neutral();
+                if ($fieldName === 'body' && $operation === 'edit' && (string) $account->id() === '23') {
+                    return AccessResult::forbidden('This editor may update the entity but not its body.');
+                }
+
+                if ($fieldName === 'title' && $operation === 'edit' && (string) $account->id() === '24') {
+                    return AccessResult::forbidden('This editor may update the entity but not its title.');
+                }
+
+                return \in_array($fieldName, ['secret', 'hidden_body'], true)
+                    ? AccessResult::forbidden()
+                    : AccessResult::neutral();
             }
         };
     }

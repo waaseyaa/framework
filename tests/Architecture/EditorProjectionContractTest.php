@@ -36,8 +36,13 @@ final class EditorProjectionContractTest extends TestCase
 
         $controller = (string) file_get_contents($this->root() . '/packages/api/src/JsonApiController.php');
         self::assertSame(1, substr_count($controller, 'losslessHtml:'));
-        self::assertStringContainsString('losslessHtml: $editingRepresentation', $controller);
-        self::assertStringNotContainsString('losslessHtml: true', $controller);
+        self::assertStringContainsString('if ($this->losslessHtmlFieldEditDenied(', $controller);
+        self::assertStringContainsString('losslessHtml: true', $controller);
+        self::assertLessThan(
+            strpos($controller, 'losslessHtml: true'),
+            strpos($controller, 'if ($this->losslessHtmlFieldEditDenied('),
+            'The field-edit gate must execute before the only lossless serialization.',
+        );
         foreach (['index', 'store', 'update'] as $method) {
             self::assertDoesNotMatchRegularExpression(
                 '/function ' . $method . '\([^)]*\)[^{]*\{(?:(?!function ).)*losslessHtml\s*:/s',

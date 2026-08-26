@@ -12,6 +12,7 @@ use Waaseyaa\Api\Query\PaginationLinks;
 use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryParser;
+use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
 use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ConfigEntityInterface;
@@ -53,7 +54,8 @@ final class JsonApiController
     /**
      * The lossless editor projection (#2552): HTML-bearing attributes are the
      * stored value byte-for-byte. Opt-in only, and only alongside
-     * `?workingCopy=1` so it inherits that branch's entity-`update` gate.
+     * `?workingCopy=1` so it inherits that branch's entity-`update` gate. Each
+     * outgoing HTML attribute must also pass the field-`edit` gate PATCH uses.
      */
     private const REPRESENTATION_EDITING = 'editing';
 
@@ -450,6 +452,7 @@ final class JsonApiController
         // (mechanically safe on any entity type — undisciplined ones and
         // disciplined-but-undrafted ones both degrade to `find()`), so the
         // response equals the plain GET byte-for-byte (pinned by test).
+        $accessEntity = $entity;
         if ($this->workingCopyRequested($query)) {
             if ($this->accessHandler === null || $this->account === null
                 || !$this->accessHandler->check($entity, 'update', $this->account)->isAllowed()
@@ -465,24 +468,47 @@ final class JsonApiController
 
         $canMutate = $this->canMutate($entity);
         // $editingRepresentation is reachable ONLY through the working-copy
-        // branch above, which has already required entity `update` access
-        // (or returned 403) — see representationError()'s pairing rule. So a
-        // caller receiving stored bytes here provably holds the authority to
-        // overwrite those same bytes; the projection grants no new WRITE
-        // power, only a read of markup other authors stored that the
-        // sanitized projection strips.
+        // branch above, which has already required entity `update` access (or
+        // returned 403) — see representationError()'s pairing rule. The
+        // per-field edit gate below completes that authorization decision for
+        // every outgoing HTML attribute before any stored byte is serialized.
         $resource = $this->serializer->serialize(
             $entity,
             $this->accessHandler,
             $this->account,
             includeMutationToken: $canMutate,
-            losslessHtml: $editingRepresentation,
         );
 
         // Apply sparse fieldsets per JSON:API spec (attributes and relationships).
         if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
             $allowedFields = $parsedQuery->sparseFieldsets[$entityTypeId];
             $resource = SparseFieldsetApplicator::apply($resource, $allowedFields);
+        }
+
+        if ($editingRepresentation) {
+            // The rendered resource above is the canonical visibility
+            // projection: internal, unexposed and field-view-forbidden
+            // attributes are already absent, and the sparse fieldset has
+            // already narrowed it to what this request would receive. Before
+            // replacing that safe projection with stored HTML, require the
+            // same per-field edit authority PATCH requires. Entity update
+            // access alone does not prove authority to rewrite every field.
+            if ($this->losslessHtmlFieldEditDenied($accessEntity, $entity, $resource)) {
+                return $this->errorDocument(JsonApiError::forbidden(
+                    "Access denied for the editing representation of entity '{$id}'.",
+                ));
+            }
+
+            $resource = $this->serializer->serialize(
+                $entity,
+                $this->accessHandler,
+                $this->account,
+                includeMutationToken: $canMutate,
+                losslessHtml: true,
+            );
+            if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
+                $resource = SparseFieldsetApplicator::apply($resource, $parsedQuery->sparseFieldsets[$entityTypeId]);
+            }
         }
 
         return JsonApiDocument::fromResource(
@@ -566,6 +592,49 @@ final class JsonApiController
     private function editingRepresentationRequested(array $query): bool
     {
         return ($query['representation'] ?? null) === self::REPRESENTATION_EDITING;
+    }
+
+    /**
+     * Whether the requested editing projection contains an HTML field the
+     * caller may view but may not edit.
+     *
+     * The access decision intentionally uses the find()-loaded entity, exactly
+     * as update() does, while field definitions come from the working copy that
+     * will be served. The rendered resource supplies the effective outgoing
+     * field set after internal, field-view and sparse-fieldset projection.
+     */
+    private function losslessHtmlFieldEditDenied(
+        EntityInterface $accessEntity,
+        EntityInterface $servedEntity,
+        JsonApiResource $renderedResource,
+    ): bool {
+        if ($this->accessHandler === null || $this->account === null) {
+            return true;
+        }
+
+        $definitions = $this->entityTypeManager->resolveFieldDefinitions(
+            $servedEntity->getEntityTypeId(),
+            $servedEntity->bundle(),
+        );
+        foreach (array_keys($renderedResource->attributes) as $fieldName) {
+            $definition = $definitions[$fieldName] ?? null;
+            if ($definition === null
+                || !RichTextSanitizer::isHtmlFieldType($definition->getType())
+            ) {
+                continue;
+            }
+
+            if ($this->accessHandler->checkFieldAccess(
+                $accessEntity,
+                $fieldName,
+                'edit',
+                $this->account,
+            )->isForbidden()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

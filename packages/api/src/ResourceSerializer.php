@@ -35,7 +35,8 @@ use Waaseyaa\Field\FieldDefinitionInterface;
  * entity value is left byte-for-byte as authored (non-lossy at rest).
  * {@see serialize()}'s `$losslessHtml` flag opts a single serialization out
  * of that pass so an authorized editor can read the stored bytes back
- * (#2552); it defaults to off and is set by exactly one caller.
+ * (#2552); it defaults to off and is set by exactly one caller after both
+ * entity-update and effective outgoing HTML field-edit access are established.
  */
 final class ResourceSerializer
 {
@@ -76,9 +77,10 @@ final class ResourceSerializer
      * value byte-for-byte (#2552). It is off by default: every existing
      * callsite keeps the sanitized projection unchanged. The ONLY caller that
      * turns it on is {@see JsonApiController::show()}, behind an explicit
-     * `?representation=editing` opt-in that is itself gated on entity
-     * `update` access -- this class does no authorization of its own, so a
-     * caller passing true asserts it has already made that decision.
+     * `?representation=editing` opt-in that is gated on entity `update` access
+     * and field `edit` access for every outgoing HTML attribute -- this class
+     * does no authorization of its own, so a caller passing true asserts it
+     * has already made both decisions.
      *
      * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account
      */

@@ -91,8 +91,13 @@ anything back.
 The opt-in is gated, not merely declared:
 
 - `representation=editing` requires `?workingCopy=1`, and the working copy is
-  already gated on entity **update** access — an anonymous or read-only caller
-  receives 403, not a lossless body.
+  already gated on entity **update** access. Every HTML attribute that remains
+  after internal-field, field-view, and sparse-fieldset projection must also
+  pass the same field **edit** check PATCH uses. If any such field is forbidden,
+  the whole request receives a generic 403 and no resource body. A view-hidden
+  HTML field, a non-HTML read-only field, or an HTML field excluded by the
+  request's sparse fieldset does not block the projection because no raw bytes
+  for that field would be returned.
 - It is refused on collections (`index`), where no single entity's update access
   has been established.
 - An unsupported value is a 400 rather than a silent fallback.
@@ -115,8 +120,8 @@ decision, tracked in #2553.
 Where sanitization belongs, stated plainly: **at each output boundary, not at
 rest and not once centrally.** Storage keeps author bytes; every rendering
 surface sanitizes for its own audience; the editing representation is the one
-projection that deliberately does neither, and it is reachable only by a caller
-who may already rewrite the field.
+projection that deliberately does neither, and each raw HTML field is reachable
+only by a caller who may already rewrite that field.
 
 ## Writes (`store` / `update`)
 

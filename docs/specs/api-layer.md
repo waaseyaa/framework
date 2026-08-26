@@ -878,17 +878,24 @@ existence oracle:
 - `representation=editing` on `index()` → 400; a collection establishes no
   single entity's update access.
 
-Authorization is inherited rather than reinvented: the pairing rule means the
-`?workingCopy=1` gate in step 3 of the access pipeline above has already
-required entity **UPDATE** access, so an anonymous or view-only caller receives
-403 before any lossless byte is serialized.
+Authorization is layered on the existing read and write boundaries. The pairing
+rule means the `?workingCopy=1` gate in step 3 of the access pipeline above has
+already required entity **UPDATE** access. Before lossless serialization,
+`show()` takes the effective outgoing attributes from the rendered projection
+(after internal-field, field-view and sparse-fieldset filtering) and requires
+field **edit** access for each HTML-bearing attribute, evaluated on the same
+`find()`-loaded gate entity PATCH uses. Any denial fails the whole request with
+a generic 403 and no resource body. View-hidden HTML fields, non-HTML read-only
+fields, and HTML fields excluded by the sparse fieldset remain compatible
+because their stored HTML bytes are not part of the outgoing projection.
 
 `ResourceSerializer::serialize()` grew a `$losslessHtml` flag for this, default
-`false`, set by exactly one caller. Every other serialization path — `index()`,
+`false`, set by exactly one caller after those gates pass. Every other serialization path — `index()`,
 `store()`, `update()`, the translation controller, the markdown presenter, the
 admin surface host — keeps the sanitized projection unchanged. The serializer
 performs no authorization of its own: a caller passing `true` asserts it has
-already made that decision.
+already established both entity-update and effective outgoing HTML field-edit
+access.
 
 The shared sanitizer allowlist was deliberately not widened; see
 [jsonapi.md](jsonapi.md) for why a looser baseline would have exposed
