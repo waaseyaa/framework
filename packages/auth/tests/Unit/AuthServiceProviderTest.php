@@ -8,12 +8,16 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\AuthServiceProvider;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Tests\Support\AuthSchema;
 use Waaseyaa\Auth\Token\AuthTokenRepository;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 #[CoversClass(AuthServiceProvider::class)]
@@ -190,6 +194,20 @@ final class AuthServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function auth_extension_registry_binding_composes_kernel_provider_capabilities(): void
+    {
+        $source = new ProviderCapabilitySource(static fn(): array => []);
+        $events = new SymfonyEventDispatcherAdapter();
+        $provider = $this->providerWith(['environment' => 'testing'], capabilitySource: $source, events: $events);
+        $provider->register();
+
+        $registry = $provider->resolve(AuthExtensionRegistry::class);
+
+        self::assertInstanceOf(AuthExtensionRegistry::class, $registry);
+        self::assertSame([], $registry->owners());
+    }
+
+    #[Test]
     public function rekey_composition_refuses_a_missing_database_authority(): void
     {
         $provider = new AuthServiceProvider();
@@ -209,16 +227,22 @@ final class AuthServiceProviderTest extends TestCase
     /**
      * @param array<string, mixed> $config
      */
-    private function providerWith(array $config, ?ApplicationSecret $applicationSecret = null): AuthServiceProvider
-    {
+    private function providerWith(
+        array $config,
+        ?ApplicationSecret $applicationSecret = null,
+        ?ProviderCapabilitySource $capabilitySource = null,
+        ?EventDispatcherInterface $events = null,
+    ): AuthServiceProvider {
         $database = DBALDatabase::createSqlite();
         AuthSchema::install($database);
         $provider = new AuthServiceProvider();
         $provider->setKernelContext('', $config, []);
-        $provider->setKernelServices(new class ($database, $applicationSecret) implements KernelServicesInterface {
+        $provider->setKernelServices(new class ($database, $applicationSecret, $capabilitySource, $events) implements KernelServicesInterface {
             public function __construct(
                 private readonly DBALDatabase $database,
                 private readonly ?ApplicationSecret $applicationSecret,
+                private readonly ?ProviderCapabilitySource $capabilitySource,
+                private readonly ?EventDispatcherInterface $events,
             ) {}
 
             public function get(string $abstract): ?object
@@ -226,6 +250,8 @@ final class AuthServiceProviderTest extends TestCase
                 return match ($abstract) {
                     DatabaseInterface::class => $this->database,
                     ApplicationSecret::class => $this->applicationSecret,
+                    ProviderCapabilitySource::class => $this->capabilitySource,
+                    EventDispatcherInterface::class => $this->events,
                     default => null,
                 };
             }
