@@ -58,6 +58,20 @@ skip only the changed-line comparison.
 Local tests remain coverage-free by default. Developers opt into coverage only
 when investigating a gap, which keeps the normal feedback loop proportionate.
 
+Integration tests continue to use `#[CoversNothing]`: they prove composition
+and wire behavior without claiming class-level coverage. When a change adds a
+branch that is reached only through such an integration test, add or extend a
+Unit or Contract companion with `#[CoversClass]` (or `#[CoversMethod]`) and
+drive the branch through the real dispatcher, service, or other public
+boundary. Reflection and synthetic calls whose only purpose is touching a line
+are not acceptable coverage evidence.
+
+The default pre-push preflight runs `bin/check-covers-nothing-companions`. It
+names changed executable lines when changed `#[CoversNothing]` tests reference
+the affected class but no changed coverage-bearing companion does. This is an
+early diagnostic for the same metadata rule enforced later by the hosted
+80-percent changed-line Clover gate; it does not replace or weaken that gate.
+
 ## Admin SPA
 
 Vitest publishes V8/Istanbul text, JSON, JSON-summary, and LCOV reports. The
