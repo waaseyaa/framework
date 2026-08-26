@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Tests\Integration;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
@@ -50,10 +50,11 @@ use Waaseyaa\User\AnonymousUser;
  * `$ctx->query` to `show()` verbatim (`packages/foundation/src/Http/Router/JsonApiRouter.php:84`),
  * so a query array here is byte-equal to what an HTTP request produces.
  *
- * #[CoversNothing]: a cross-class boundary flow (controller, serializer,
- * sanitizer, access handler, SQL storage), not a single-unit test.
+ * Coverage is attributed to {@see JsonApiController}: these are controller
+ * boundary behaviours over real storage and authorization policy. Supporting
+ * serializer and sanitizer classes retain their own focused unit coverage.
  */
-#[CoversNothing]
+#[CoversClass(JsonApiController::class)]
 final class EditorProjectionLosslessFlowTest extends TestCase
 {
     /**
