@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Verify that an artifact is the deterministic git archive of an exact commit.
+set -euo pipefail
+
+artifact_dir="${1:-}"
+expected_sha="${2:-}"
+
+if [ -z "$artifact_dir" ] || [ -z "$expected_sha" ]; then
+  echo "Usage: bin/verify-exact-source-artifact <artifact-dir> <exact-sha>" >&2
+  exit 2
+fi
+
+fail() {
+  echo "source_artifact_refused: $1" >&2
+  exit 1
+}
+
+case "$expected_sha" in
+  *[!0-9a-f]*|'') fail "expected SHA must be 40 lowercase hexadecimal characters" ;;
+esac
+[ "${#expected_sha}" -eq 40 ] || fail "expected SHA must be 40 lowercase hexadecimal characters"
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$repo_root"
+
+resolved_sha="$(bin/git rev-parse "${expected_sha}^{commit}" 2>/dev/null)" \
+  || fail "expected commit does not exist: $expected_sha"
+[ "$resolved_sha" = "$expected_sha" ] || fail "expected SHA did not resolve exactly"
+
+archive_path="$artifact_dir/framework-source.tar"
+manifest_path="$artifact_dir/manifest.json"
+[ -f "$archive_path" ] || fail "archive missing: $archive_path"
+[ -f "$manifest_path" ] || fail "manifest missing: $manifest_path"
+
+mapfile -t manifest < <(php -r '
+try {
+    $data = json_decode(file_get_contents($argv[1]), true, 16, JSON_THROW_ON_ERROR);
+} catch (Throwable $error) {
+    fwrite(STDERR, "invalid manifest JSON: {$error->getMessage()}\n");
+    exit(1);
+}
+$required = ["schema_version", "kind", "source_sha", "source_tree", "archive", "archive_sha256", "archive_bytes"];
+if (!is_array($data) || array_keys($data) !== $required) {
+    fwrite(STDERR, "manifest fields or ordering do not match schema v1\n");
+    exit(1);
+}
+foreach ($required as $key) {
+    if (is_array($data[$key]) || is_object($data[$key]) || is_bool($data[$key]) || $data[$key] === null) {
+        fwrite(STDERR, "manifest field has invalid scalar type: {$key}\n");
+        exit(1);
+    }
+    echo $data[$key], "\n";
+}
+' "$manifest_path") || fail "manifest is invalid"
+
+[ "${#manifest[@]}" -eq 7 ] || fail "manifest is invalid"
+[ "${manifest[0]}" = "1" ] || fail "unsupported manifest schema"
+[ "${manifest[1]}" = "framework-exact-source" ] || fail "unexpected artifact kind"
+[ "${manifest[2]}" = "$expected_sha" ] || fail "wrong-head artifact: manifest names ${manifest[2]}"
+[ "${manifest[4]}" = "framework-source.tar" ] || fail "unexpected archive filename"
+[[ "${manifest[3]}" =~ ^[0-9a-f]{40}$ ]] || fail "invalid source tree identity"
+[[ "${manifest[5]}" =~ ^[0-9a-f]{64}$ ]] || fail "invalid archive digest"
+[[ "${manifest[6]}" =~ ^[1-9][0-9]*$ ]] || fail "invalid archive byte count"
+
+expected_tree="$(bin/git rev-parse "${expected_sha}^{tree}")"
+[ "${manifest[3]}" = "$expected_tree" ] || fail "source tree does not match expected commit"
+
+actual_bytes="$(wc -c < "$archive_path" | tr -d '[:space:]')"
+[ "${manifest[6]}" = "$actual_bytes" ] || fail "archive byte count mismatch"
+
+actual_sha256="$(sha256sum "$archive_path" | cut -d ' ' -f 1)"
+[ "${manifest[5]}" = "$actual_sha256" ] || fail "archive digest mismatch"
+
+# Reconstruct the canonical archive from Git and compare its digest. A caller
+# cannot bless arbitrary tar bytes merely by editing both the tar and manifest.
+canonical_archive="$(mktemp)"
+trap 'rm -f "$canonical_archive"' EXIT
+bin/git archive \
+  --format=tar \
+  --prefix=framework/ \
+  --output="$canonical_archive" \
+  "$expected_sha"
+canonical_sha256="$(sha256sum "$canonical_archive" | cut -d ' ' -f 1)"
+[ "$actual_sha256" = "$canonical_sha256" ] || fail "archive bytes do not reproduce the exact commit"
+
+printf 'exact source artifact verified\n'
+printf 'source_sha=%s\n' "$expected_sha"
+printf 'archive_sha256=%s\n' "$actual_sha256"
+
