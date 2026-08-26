@@ -55,10 +55,15 @@ Every external `uses:` step under `.github/workflows/` must select a full
 40-character commit SHA and carry a human-readable version comment. Local
 actions may use a repository-relative path.
 
-The release workflow assembles evidence only after split, monorepo-integrity,
-tag-parity, require-parity, and Packagist verification succeed. The GitHub
-Release job downloads the completed evidence artifact and attaches all three
-files. A missing evidence artifact or file fails closed before release
+The release workflow assembles evidence after split, monorepo-integrity,
+tag-parity, and require-parity succeed. Evidence assembly is independent of
+Packagist submission and verification so an API registration failure cannot
+discard the immutable split bookkeeping. Packagist verification still runs
+after a failed submission, and the GitHub Release job always starts so it can
+report an explicit prerequisite refusal instead of appearing as skipped. It
+downloads and attaches all three evidence files only after Packagist
+verification and evidence assembly both succeed. A failed prerequisite,
+missing evidence artifact, or missing file fails closed before release
 publication.
 
 The manual GitHub Release recovery workflow is subject to the same gate. An

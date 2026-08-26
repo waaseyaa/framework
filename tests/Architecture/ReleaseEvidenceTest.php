@@ -155,6 +155,34 @@ final class ReleaseEvidenceTest extends TestCase
         self::assertMatchesRegularExpression('/release-evidence-dry-run-.*?overwrite:\s*true/s', $ciWorkflow);
     }
 
+    #[Test]
+    public function new_packagist_packages_use_main_token_auth_without_skipping_release_bookkeeping(): void
+    {
+        $workflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/split.yml');
+
+        self::assertStringContainsString('PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}', $workflow);
+        self::assertStringContainsString('"https://packagist.org/api/create-package"', $workflow);
+        self::assertStringContainsString('-H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}"', $workflow);
+        self::assertStringNotContainsString('api/create-package?username=', $workflow);
+        self::assertMatchesRegularExpression(
+            '/verify-packagist:.*?if: \$\{\{ always\(\).*?needs\.publish-packagist\.result/s',
+            $workflow,
+        );
+        self::assertMatchesRegularExpression(
+            '/assemble-release-evidence:.*?needs:\s*\[split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity\]/s',
+            $workflow,
+        );
+        self::assertMatchesRegularExpression(
+            '/publish-github-release:.*?if: \$\{\{ always\(\) \}\}.*?Enforce release publication prerequisites/s',
+            $workflow,
+        );
+
+        $manualWorkflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/packagist-register.yml');
+        self::assertStringContainsString('PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}', $manualWorkflow);
+        self::assertStringContainsString('-H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}"', $manualWorkflow);
+        self::assertStringNotContainsString('api/create-package?username=', $manualWorkflow);
+    }
+
     private function writeCompleteSplitRecords(string $directory, string $sourceSha): void
     {
         foreach (glob($this->repoRoot . '/packages/*/composer.json') as $manifestPath) {

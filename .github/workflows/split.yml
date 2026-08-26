@@ -318,6 +318,7 @@ jobs:
   verify-packagist:
     name: Verify every package is installable
     needs: [publish-packagist]
+    if: ${{ always() && (needs.publish-packagist.result == 'success' || needs.publish-packagist.result == 'failure') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -389,7 +390,7 @@ jobs:
 
   assemble-release-evidence:
     name: Assemble deterministic release evidence
-    needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist]
+    needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -456,10 +457,29 @@ jobs:
   publish-github-release:
     name: Publish GitHub Release
     needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist, assemble-release-evidence]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Enforce release publication prerequisites
+        env:
+          MONOREPO_RESULT: ${{ needs.verify-monorepo-main-intact.result }}
+          TAG_PARITY_RESULT: ${{ needs.verify-tag-parity.result }}
+          REQUIRE_PARITY_RESULT: ${{ needs.verify-require-parity.result }}
+          PACKAGIST_RESULT: ${{ needs.verify-packagist.result }}
+          EVIDENCE_RESULT: ${{ needs.assemble-release-evidence.result }}
+        run: |
+          rc=0
+          for prerequisite in MONOREPO_RESULT TAG_PARITY_RESULT REQUIRE_PARITY_RESULT PACKAGIST_RESULT EVIDENCE_RESULT; do
+            result="${!prerequisite}"
+            if [ "${result}" != "success" ]; then
+              echo "::error::Release publication refused: ${prerequisite}=${result}."
+              rc=1
+            fi
+          done
+          exit "${rc}"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -489,7 +509,8 @@ jobs:
   # package is published once per release. A 404 from update-package means the
   # package was never registered (first release of a new split package) — in
   # that case we fall back to create-package once, which registers + crawls it.
-  # Requires repo secrets PACKAGIST_USERNAME + PACKAGIST_TOKEN.
+  # Requires PACKAGIST_USERNAME + PACKAGIST_TOKEN (safe or main) for updates,
+  # and PACKAGIST_MAIN_TOKEN for the unsafe create-package endpoint.
   publish-packagist:
     name: Publish to Packagist (one crawl per package)
     needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
@@ -512,6 +533,7 @@ jobs:
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
@@ -556,16 +578,21 @@ jobs:
             elif [ "${code}" = "404" ]; then
               # Package not yet registered on Packagist — first release of a new
               # split package (e.g. waaseyaa/publishing, alpha.277). Register it
-              # via create-package with the same username/apiToken query-param
-              # auth the update-package call above provably authenticates with
-              # (the Bearer-header form from the apidoc example was rejected 406
-              # "Missing or invalid username/apiToken" on the alpha.277 cut).
+              # via create-package. Packagist classifies this endpoint as unsafe:
+              # unlike update-package, it requires the account's main API token.
+              # Use the documented Bearer form and keep credentials out of URLs.
               # Payload is a plain-string repository URL per packagist.org/apidoc.
               # Idempotent by construction: once registered, the update-package
               # call above succeeds and this branch never runs.
               echo "::notice::${pkg}: not registered on Packagist yet — creating."
+              if [ -z "${PACKAGIST_MAIN_TOKEN}" ]; then
+                echo "::error::${pkg}: PACKAGIST_MAIN_TOKEN is required to register a new package."
+                rc=1
+                continue
+              fi
               ccode=$(curl -sS -o /tmp/create.json -w '%{http_code}' -X POST \
-                "https://packagist.org/api/create-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+                "https://packagist.org/api/create-package" \
+                -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}" \
                 -H 'Content-Type: application/json' \
                 -d "{\"repository\":\"${repo_url}\"}" || echo "000")
               if [ "${ccode}" = "200" ] || [ "${ccode}" = "202" ]; then

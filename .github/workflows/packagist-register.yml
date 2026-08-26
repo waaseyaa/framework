@@ -9,7 +9,7 @@ name: Packagist Register Package
 # rejected) the tag is already pushed and split, so re-running the whole tag
 # pipeline just to retry one HTTP call is disproportionate. Dispatch this with
 # the package name instead; it performs the same idempotent
-# update-package -> 404 -> create-package dance with the same secrets.
+# update-package -> 404 -> create-package dance with the safe/main tokens.
 #
 #   gh workflow run packagist-register.yml -f package=waaseyaa/publishing
 
@@ -32,6 +32,7 @@ jobs:
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_TOKEN }}
           PKG: ${{ inputs.package }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
@@ -57,8 +58,13 @@ jobs:
             exit 1
           fi
           echo "::notice::${PKG}: not registered yet — calling create-package."
+          if [ -z "${PACKAGIST_MAIN_TOKEN}" ]; then
+            echo "::error::PACKAGIST_MAIN_TOKEN is required to register a new package."
+            exit 1
+          fi
           ccode=$(curl -sS -o /tmp/create.json -w '%{http_code}' -X POST \
-            "https://packagist.org/api/create-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+            "https://packagist.org/api/create-package" \
+            -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_MAIN_TOKEN}" \
             -H 'Content-Type: application/json' \
             -d "{\"repository\":\"${repo_url}\"}" || echo "000")
           if [ "${ccode}" = "200" ] || [ "${ccode}" = "202" ]; then
