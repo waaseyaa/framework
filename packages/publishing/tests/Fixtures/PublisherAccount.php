@@ -11,11 +11,12 @@ final readonly class PublisherAccount implements AuthorizationPrincipalInterface
 {
     /** @param list<string> $permissions */
     public function __construct(
-        private int $uid = 900001,
+        private int|string $uid = 900001,
         private array $permissions = [],
+        private bool $authenticated = true,
     ) {}
 
-    public function id(): int
+    public function id(): int|string
     {
         return $this->uid;
     }
@@ -32,7 +33,7 @@ final readonly class PublisherAccount implements AuthorizationPrincipalInterface
 
     public function isAuthenticated(): bool
     {
-        return true;
+        return $this->authenticated;
     }
 
     public function claimsGeneration(): string

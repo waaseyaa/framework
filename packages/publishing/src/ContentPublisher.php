@@ -251,16 +251,23 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     ): array {
         $this->requireCapability($actor);
         $this->requireEntityCreateAccess($actor);
+        $authorId = $this->draftAuthorId($actor);
         $saveAdvisoryAcknowledgements = $this->normalizeSaveAdvisoryAcknowledgements($saveAdvisoryAcknowledgements);
         $request = $saveAdvisoryAcknowledgements === []
             ? $values
             : ['values' => $values, 'save_advisory_acknowledgements' => $saveAdvisoryAcknowledgements];
+        if ($authorId !== null) {
+            $request = ['server_author_id' => $authorId, 'request' => $request];
+        }
 
-        return $this->idempotency->execute($idempotencyKey, 'createDraft', $request, function () use ($actor, $values, $saveAdvisoryAcknowledgements): array {
+        return $this->idempotency->execute($idempotencyKey, 'createDraft', $request, function () use ($actor, $authorId, $values, $saveAdvisoryAcknowledgements): array {
             $clean = $this->validatePayload($values, existing: null);
             $this->assertSlugFree((string) $clean[$this->descriptor->slugField], excludeId: null);
 
             $entity = $this->repository->create($clean + $this->bundleCriteria());
+            if ($this->descriptor->authorField !== null) {
+                $entity = $entity->set($this->descriptor->authorField, $authorId);
+            }
             $entity = $entity->set($this->descriptor->statusField, 0);
             $this->stampLog($entity, 'Draft created via publishing surface.');
             $this->saveDraft($entity, $this->saveContext(
@@ -455,6 +462,29 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
                 $this->descriptor->publishCapability,
             ));
         }
+    }
+
+    private function draftAuthorId(AuthorizationPrincipalInterface $actor): ?int
+    {
+        if ($this->descriptor->authorField === null) {
+            return null;
+        }
+
+        $uid = $actor->id();
+        if (!$actor->isAuthenticated()) {
+            throw new ContentAuthorizationException('Authored content requires an authenticated actor identity.');
+        }
+        if (\is_int($uid) && $uid > 0) {
+            return $uid;
+        }
+        if (\is_string($uid)) {
+            $validated = filter_var($uid, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if (\is_int($validated)) {
+                return $validated;
+            }
+        }
+
+        throw new ContentAuthorizationException('Authored content requires a positive integer actor identity.');
     }
 
     private function idempotencyNamespace(): string

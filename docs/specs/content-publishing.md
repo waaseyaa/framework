@@ -40,6 +40,7 @@ final readonly class ContentTypeDescriptor {
     public ?string $bundle;              // e.g. 'article'
     public string $slugField;            // unique-per-bundle human key, e.g. 'slug'
     public string $statusField;          // publish flag, e.g. 'status'
+    public ?string $authorField;         // optional server-owned entity author field, e.g. 'uid'
     public array $writableFields;       // field => FieldSpec{type, required, html, maxLength, nullable, maxItems}
     public array $htmlFields;           // fields sanitized with the app's HtmlSanitizerConfig
     public HtmlSanitizerConfig $sanitizerConfig; // explicit editorial allowlist (Symfony)
@@ -47,6 +48,17 @@ final readonly class ContentTypeDescriptor {
     public string $publishCapability;    // permission string gating every mutation
 }
 ```
+
+`authorField` is application-declared server-owned identity, never a writable
+client field. When present, `createDraft()` requires an authenticated positive
+integer actor id and stamps it into the new entity before persistence.
+`SaveContext::withActorUid()` independently records the same identity as the
+revision author. This distinction is load-bearing: entity access policies
+decide “own unpublished content” from the entity author, while revision audit
+and history use revision authorship. The server-owned author also participates
+in the create idempotency fingerprint, preventing cross-principal replays. A
+descriptor without an author field keeps the existing unauthored-entity
+behaviour.
 
 `FieldSpec` supports `string`, `text`, `bool`, `int`, `date`, and `reference_list`. Dates are real `YYYY-MM-DD` calendar dates rather than arbitrary strings. Reference lists accept only positive integer or bounded non-empty string identifiers, reject duplicates, and may declare `maxItems`. Optional fields may explicitly opt into `nullable`; required-field validation still rejects null when creating or publishing a complete document. The generated MCP schema mirrors these constraints, including date format, null alternatives, unique items, and list bounds.
 
@@ -159,7 +171,7 @@ carve-out is pinned by
 `ContentPublisherReadAccessTest::slug_uniqueness_still_sees_entities_the_caller_may_not_view()`
 and must not be converted in a later sweep.
 
-All mutations require: (1) the descriptor's `publishCapability` on the acting principal (`AccountInterface::hasPermission`), (2) the entity-level gate (`EntityAccessHandler` create/update) — defense in depth, (3) a non-empty **idempotency key**, (4) validation + sanitization pass. Every mutation stamps `revision_log` and cuts a revision (repository semantics); actor comes from the ambient `AccountContextInterface` (already scoped by the MCP endpoint).
+All mutations require: (1) the descriptor's `publishCapability` on the acting principal (`AccountInterface::hasPermission`), (2) the entity-level gate (`EntityAccessHandler` create/update) — defense in depth, (3) a non-empty **idempotency key**, (4) validation + sanitization pass. Every mutation stamps `revision_log` and cuts a revision (repository semantics); the explicit immutable principal supplies the revision actor, and, when the descriptor declares one, the server-owned entity author.
 
 Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.
 
