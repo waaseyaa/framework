@@ -55,6 +55,18 @@
             "enforced_by": "workflow:ci.yml#run_gate check-phpunit-paths"
         },
         {
+            "id": "check-phpunit-skip-policy",
+            "alias": "check-phpunit-skip-policy",
+            "run": "php bin/check-phpunit-skip-policy",
+            "repair": "remove the skip from a required-hosted proof, narrow a broad catch, or add a reviewed tools/phpunit-skip-policy.json entry with an explicit predicate and rationale",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-phpunit-skip-policy",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "classify the exact semantic site in tools/phpunit-skip-policy.json; required-hosted files and broad catches cannot be allowlisted"
+            }
+        },
+        {
             "id": "check-package-layers-pl008-self-test",
             "alias": "check-package-layers-pl008-self-test",
             "run": "php bin/check-package-layers-pl008-self-test",

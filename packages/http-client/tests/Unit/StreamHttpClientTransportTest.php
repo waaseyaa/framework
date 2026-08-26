@@ -32,11 +32,7 @@ final class StreamHttpClientTransportTest extends TestCase
 
     private function startServer(): LocalHttpServer
     {
-        try {
-            $server = new LocalHttpServer();
-        } catch (\Throwable $e) {
-            self::markTestSkipped('Local HTTP server unavailable: ' . $e->getMessage());
-        }
+        $server = new LocalHttpServer();
         $this->servers[] = $server;
 
         return $server;

@@ -1,0 +1,315 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Govern every PHPUnit markTestSkipped() site.
+ *
+ * Identity is semantic: repository path, the first literal reason prefix, and
+ * the 1-based occurrence of that same reason in the file. Live line numbers are
+ * diagnostics only. Broad Throwable/programming-error catches are rejected
+ * independently of the allowlist.
+ */
+
+$options = getopt('', ['root:', 'policy:', 'inventory']);
+$root = isset($options['root']) ? (string) $options['root'] : dirname(__DIR__);
+$root = rtrim(str_replace('\\', '/', $root), '/');
+$policyPath = isset($options['policy'])
+    ? (string) $options['policy']
+    : $root.'/tools/phpunit-skip-policy.json';
+$inventoryOnly = array_key_exists('inventory', $options);
+
+if (!is_dir($root)) {
+    fwrite(STDERR, "phpunit-skip-policy: root is not a directory: $root\n");
+    exit(2);
+}
+
+/** @return list<string> */
+function skip_policy_php_files(string $root): array
+{
+    $files = [];
+    foreach (['packages', 'tests'] as $top) {
+        $directory = $root.'/'.$top;
+        if (!is_dir($directory)) {
+            continue;
+        }
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $path = str_replace('\\', '/', $file->getPathname());
+            if (str_contains($path, '/vendor/') || str_contains($path, '/node_modules/')) {
+                continue;
+            }
+            $files[] = $path;
+        }
+    }
+    sort($files, SORT_STRING);
+
+    return $files;
+}
+
+function skip_policy_literal(string $token): string
+{
+    $quote = $token[0] ?? '';
+    $inner = substr($token, 1, -1);
+    if ($quote === "'") {
+        return str_replace(["\\\\", "\\'"], ["\\", "'"], $inner);
+    }
+
+    return stripcslashes($inner);
+}
+
+/** @param array{0:int,1:string,2:int}|string $token */
+function skip_policy_text(array|string $token): string
+{
+    return is_array($token) ? $token[1] : $token;
+}
+
+/**
+ * @return list<array{path:string,line:int,reason:string,occurrence:int,broad_catches:list<string>,guarded:bool}>
+ */
+function skip_policy_scan(string $root): array
+{
+    $sites = [];
+    foreach (skip_policy_php_files($root) as $file) {
+        $source = (string) file_get_contents($file);
+        if (!str_contains($source, 'markTestSkipped')) {
+            continue;
+        }
+        $tokens = token_get_all($source);
+        $depth = 0;
+        /** @var array<int, list<string>> $activeCatches */
+        $activeCatches = [];
+        /** @var array<int, true> $activeIfGuards */
+        $activeIfGuards = [];
+        /** @var list<string>|null $pendingCatch */
+        $pendingCatch = null;
+        $pendingIfGuard = false;
+        $occurrences = [];
+        $count = count($tokens);
+
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
+            if (is_array($token) && $token[0] === T_CATCH) {
+                $types = [];
+                $parenDepth = 0;
+                for (++$i; $i < $count; ++$i) {
+                    $part = $tokens[$i];
+                    $text = skip_policy_text($part);
+                    if ($text === '(') {
+                        ++$parenDepth;
+                        continue;
+                    }
+                    if ($text === ')') {
+                        --$parenDepth;
+                        if ($parenDepth === 0) {
+                            break;
+                        }
+                        continue;
+                    }
+                    if ($parenDepth === 1 && is_array($part)
+                        && in_array($part[0], [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED], true)) {
+                        $types[] = ltrim($part[1], '\\');
+                    }
+                }
+                $pendingCatch = $types;
+                continue;
+            }
+            if (is_array($token) && $token[0] === T_IF) {
+                $pendingIfGuard = true;
+                continue;
+            }
+            if ($token === '{') {
+                ++$depth;
+                if ($pendingCatch !== null) {
+                    $activeCatches[$depth] = $pendingCatch;
+                    $pendingCatch = null;
+                }
+                if ($pendingIfGuard) {
+                    $activeIfGuards[$depth] = true;
+                    $pendingIfGuard = false;
+                }
+                continue;
+            }
+            if ($token === '}') {
+                unset($activeCatches[$depth]);
+                unset($activeIfGuards[$depth]);
+                --$depth;
+                continue;
+            }
+            if ($token === ';' && $pendingIfGuard) {
+                $pendingIfGuard = false;
+            }
+            if (!is_array($token) || $token[0] !== T_STRING || $token[1] !== 'markTestSkipped') {
+                continue;
+            }
+
+            $reason = null;
+            for ($j = $i + 1, $callDepth = 0; $j < $count; ++$j) {
+                $part = $tokens[$j];
+                $text = skip_policy_text($part);
+                if ($text === '(') {
+                    ++$callDepth;
+                    continue;
+                }
+                if ($text === ')') {
+                    --$callDepth;
+                    if ($callDepth === 0) {
+                        break;
+                    }
+                    continue;
+                }
+                if ($callDepth >= 1 && is_array($part) && $part[0] === T_CONSTANT_ENCAPSED_STRING) {
+                    $reason = skip_policy_literal($part[1]);
+                    break;
+                }
+            }
+            if ($reason === null || $reason === '') {
+                $reason = '<non-literal reason>';
+            }
+            $occurrences[$reason] = ($occurrences[$reason] ?? 0) + 1;
+            $caught = [];
+            foreach ($activeCatches as $types) {
+                foreach ($types as $type) {
+                    $short = str_contains($type, '\\') ? substr($type, (int) strrpos($type, '\\') + 1) : $type;
+                    if (in_array($short, ['Throwable', 'Exception', 'Error', 'TypeError'], true)) {
+                        $caught[] = $short;
+                    }
+                }
+            }
+            $sites[] = [
+                'path' => ltrim(substr(str_replace('\\', '/', $file), strlen($root)), '/'),
+                'line' => $token[2],
+                'reason' => $reason,
+                'occurrence' => $occurrences[$reason],
+                'broad_catches' => array_values(array_unique($caught)),
+                'guarded' => $activeIfGuards !== [] || $activeCatches !== [],
+            ];
+        }
+    }
+
+    return $sites;
+}
+
+/** @param array{path:string,reason:string,occurrence:int} $site */
+function skip_policy_key(array $site): string
+{
+    return $site['path']."\0".$site['reason']."\0".$site['occurrence'];
+}
+
+$sites = skip_policy_scan($root);
+if ($inventoryOnly) {
+    echo json_encode($sites, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
+    exit(0);
+}
+
+if (!is_file($policyPath)) {
+    fwrite(STDERR, "phpunit-skip-policy: policy file not found: $policyPath\n");
+    exit(2);
+}
+try {
+    $policy = json_decode((string) file_get_contents($policyPath), true, flags: JSON_THROW_ON_ERROR);
+} catch (JsonException $error) {
+    fwrite(STDERR, 'phpunit-skip-policy: invalid JSON: '.$error->getMessage()."\n");
+    exit(2);
+}
+if (!is_array($policy) || ($policy['schema_version'] ?? null) !== 1
+    || !is_array($policy['required_hosted'] ?? null) || !is_array($policy['allowed_sites'] ?? null)) {
+    fwrite(STDERR, "phpunit-skip-policy: policy must use schema_version 1 with required_hosted and allowed_sites arrays\n");
+    exit(2);
+}
+
+$errors = [];
+$required = [];
+foreach ($policy['required_hosted'] as $entry) {
+    if (!is_array($entry) || !is_string($entry['path'] ?? null) || trim((string) ($entry['rationale'] ?? '')) === '') {
+        $errors[] = 'INVALID_POLICY required_hosted entries need path and rationale';
+        continue;
+    }
+    if (isset($required[$entry['path']])) {
+        $errors[] = 'DUPLICATE_POLICY required_hosted '.$entry['path'];
+    }
+    $required[$entry['path']] = $entry;
+    if (!is_file($root.'/'.$entry['path'])) {
+        $errors[] = 'MISSING_REQUIRED_FILE '.$entry['path'];
+    }
+}
+
+$allowed = [];
+$classifications = [
+    'platform-capability',
+    'optional-package-form',
+    'declared-unavailability',
+    'sapi-capability',
+    'permission-semantics',
+    'lane-disposition',
+];
+foreach ($policy['allowed_sites'] as $entry) {
+    if (!is_array($entry)
+        || !is_string($entry['path'] ?? null)
+        || !is_string($entry['reason'] ?? null)
+        || !is_int($entry['occurrence'] ?? null)
+        || !in_array($entry['classification'] ?? null, $classifications, true)
+        || trim((string) ($entry['predicate'] ?? '')) === ''
+        || trim((string) ($entry['rationale'] ?? '')) === '') {
+        $errors[] = 'INVALID_POLICY allowed_sites entries need path, reason, positive occurrence, classification, predicate, and rationale';
+        continue;
+    }
+    if ($entry['occurrence'] < 1) {
+        $errors[] = 'INVALID_POLICY occurrence must be positive for '.$entry['path'];
+        continue;
+    }
+    $key = skip_policy_key($entry);
+    if (isset($allowed[$key])) {
+        $errors[] = 'DUPLICATE_POLICY '.$entry['path'].':'.$entry['reason'].'#'.$entry['occurrence'];
+    }
+    $allowed[$key] = $entry;
+}
+
+$seen = [];
+foreach ($sites as $site) {
+    $key = skip_policy_key($site);
+    $seen[$key] = true;
+    $location = $site['path'].':'.$site['line'];
+    if ($site['broad_catches'] !== []) {
+        $errors[] = 'BROAD_CATCH '.$location.' '.implode('|', $site['broad_catches'])
+            .' may not convert a programming failure to skip: '.$site['reason'];
+    }
+    if (!$site['guarded']) {
+        $errors[] = 'UNGUARDED_SKIP '.$location.' skips require an explicit capability predicate or narrow declared catch';
+    }
+    if (isset($required[$site['path']])) {
+        $errors[] = 'REQUIRED_HOSTED_SKIP '.$location.' '.$site['reason'];
+    }
+    if (!isset($allowed[$key])) {
+        $errors[] = 'UNCLASSIFIED '.$location.' '.$site['reason'].' occurrence='.$site['occurrence'];
+        continue;
+    }
+    $entry = $allowed[$key];
+    echo 'ALLOW '.$entry['classification'].' '.$location.' reason='.$site['reason']
+        .' predicate='.$entry['predicate']."\n";
+}
+foreach ($allowed as $key => $entry) {
+    if (!isset($seen[$key])) {
+        $errors[] = 'STALE_POLICY '.$entry['path'].' '.$entry['reason'].' occurrence='.$entry['occurrence'];
+    }
+}
+foreach ($required as $entry) {
+    echo 'REQUIRED '.$entry['path'].' rationale='.$entry['rationale']."\n";
+}
+
+if ($errors !== []) {
+    foreach ($errors as $error) {
+        fwrite(STDERR, $error."\n");
+    }
+    fwrite(STDERR, 'phpunit-skip-policy: FAILED required_hosted='.count($required)
+        .' allowed='.count($allowed).' discovered='.count($sites).' errors='.count($errors)."\n");
+    exit(1);
+}
+
+echo 'phpunit-skip-policy: OK required_hosted='.count($required)
+    .' allowed='.count($allowed).' discovered='.count($sites)."\n";

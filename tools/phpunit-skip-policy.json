@@ -1,0 +1,347 @@
+{
+    "schema_version": 1,
+    "required_hosted": [
+        {
+            "path": "packages/ai-agent/tests/Unit/Provider/AnthropicProviderTransportTest.php",
+            "rationale": "The #2156 timeout and stalled-stream regression proof requires loopback process support on ci-test-shards."
+        },
+        {
+            "path": "packages/ai-agent/tests/Unit/Provider/OpenAiCompatibleProviderTransportTest.php",
+            "rationale": "The #2445 connection and stalled-body regression proof requires loopback process support on ci-test-shards."
+        },
+        {
+            "path": "packages/http-client/tests/Unit/StreamHttpClientTransportTest.php",
+            "rationale": "Credential, redirect, timeout, and response-cap transport proofs require php -S and loopback support on ci-test-shards."
+        }
+    ],
+    "allowed_sites": [
+        {
+            "path": "packages/attachment/tests/Integration/SaveActiveConcurrencyTest.php",
+            "reason": "Requires pcntl extension and Linux-style fork. ",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "extension_loaded(pcntl)",
+            "rationale": "Real two-process attachment contention is optional on non-Linux package runners."
+        },
+        {
+            "path": "packages/attachment/tests/Integration/SetActiveConcurrencyTest.php",
+            "reason": "Requires pcntl extension and Linux-style fork. ",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "extension_loaded(pcntl)",
+            "rationale": "Real two-process active-selection contention is optional on non-Linux package runners."
+        },
+        {
+            "path": "packages/auth/tests/Unit/AuthManagerTest.php",
+            "reason": "Sessions are disabled in this SAPI.",
+            "occurrence": 1,
+            "classification": "sapi-capability",
+            "predicate": "session_status() !== PHP_SESSION_DISABLED",
+            "rationale": "Session mutation cannot be exercised by a SAPI that disables sessions."
+        },
+        {
+            "path": "packages/auth/tests/Unit/AuthManagerTest.php",
+            "reason": "Could not start a session in this environment.",
+            "occurrence": 1,
+            "classification": "sapi-capability",
+            "predicate": "session_start() succeeds",
+            "rationale": "The test requires an actual active PHP session and retains the explicit startup result."
+        },
+        {
+            "path": "packages/cli/tests/Integration/BinScriptTest.php",
+            "reason": "Symlink creation is not permitted in this environment.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The installed bin-script path proof requires a real package symlink."
+        },
+        {
+            "path": "packages/cli/tests/Unit/AdminBuild/AdminBuildArtifactScannerTest.php",
+            "reason": "Symlink support unavailable.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(symlink)",
+            "rationale": "The output-boundary test is meaningful only where symlinks exist."
+        },
+        {
+            "path": "packages/cli/tests/Unit/AdminBuild/AdminBuildArtifactScannerTest.php",
+            "reason": "Symlink creation unavailable.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The output-boundary fixture must create a real escaping symlink."
+        },
+        {
+            "path": "packages/cli/tests/Unit/AdminBuild/AdminBuildArtifactScannerTest.php",
+            "reason": "Symlink support unavailable.",
+            "occurrence": 2,
+            "classification": "platform-capability",
+            "predicate": "function_exists(symlink)",
+            "rationale": "The publishable-symlink test is meaningful only where symlinks exist."
+        },
+        {
+            "path": "packages/cli/tests/Unit/AdminBuild/AdminBuildArtifactScannerTest.php",
+            "reason": "Symlink creation unavailable.",
+            "occurrence": 2,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The publishable-symlink fixture must create a real link."
+        },
+        {
+            "path": "packages/cli/tests/Unit/AdminBuild/AdminBuildDependencyCacheTest.php",
+            "reason": "Symlink creation unavailable.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The cache-containment refusal requires a symlinked storage boundary."
+        },
+        {
+            "path": "packages/cli/tests/Unit/Command/IngestRunCommandTest.php",
+            "reason": "requires ext-intl for ICU transliteration",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "extension_loaded(intl)",
+            "rationale": "ICU transliteration is an optional extension-backed code path."
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "reason": "Permission enforcement is bypassed for root.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_geteuid() !== 0",
+            "rationale": "Root cannot reproduce the ordinary user's unwritable-parent refusal."
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaVirtualTableTest.php",
+            "reason": "SQLite build lacks FTS5 support.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "SQLite accepts CREATE VIRTUAL TABLE USING fts5",
+            "rationale": "FTS5 is a compile-time SQLite capability absent from some package runners."
+        },
+        {
+            "path": "packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php",
+            "reason": "pcntl_fork() is required for the real two-writer activation proof.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(pcntl_fork)",
+            "rationale": "The real two-writer proof cannot be represented in one process."
+        },
+        {
+            "path": "packages/entity/tests/Unit/Cast/ValueCasterTest.php",
+            "reason": "nesbot/carbon not installed",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "class_exists(Carbon\\CarbonImmutable)",
+            "rationale": "Carbon-domain casting is optional when the split package is tested without Carbon."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Asset/ViteAssetManagerTest.php",
+            "reason": "chmod 0000 does not block reads for root.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_geteuid() !== 0",
+            "rationale": "Root bypasses the unreadable-manifest condition under test."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "reason": "PHP sessions are disabled in this SAPI.",
+            "occurrence": 1,
+            "classification": "sapi-capability",
+            "predicate": "session_status() !== PHP_SESSION_DISABLED",
+            "rationale": "Session-unblocking behavior requires a SAPI with sessions enabled."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Ingestion/PayloadValidatorTest.php",
+            "reason": "Real defaults/ directory not found.",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "is_dir(monorepo defaults/)",
+            "rationale": "The first real-defaults assertion is absent in a split foundation checkout."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Ingestion/PayloadValidatorTest.php",
+            "reason": "Real defaults/ directory not found.",
+            "occurrence": 2,
+            "classification": "optional-package-form",
+            "predicate": "is_dir(monorepo defaults/)",
+            "rationale": "The second real-defaults assertion is absent in a split foundation checkout."
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Kernel/Bootstrap/DatabaseBootstrapperTest.php",
+            "reason": "tempnam() failed — cannot proceed",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "tempnam() returns a path",
+            "rationale": "The bootstrapper fixture requires a writable platform temp directory."
+        },
+        {
+            "path": "packages/i18n/tests/Unit/TranslatorTest.php",
+            "reason": "symlink() not supported in this environment.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The translation-containment test requires a real escaping symlink."
+        },
+        {
+            "path": "packages/listing/tests/Backend/SqlBlobTranslatableListingTest.php",
+            "reason": "SQLite JSON1 extension not available; sql-blob translatable field probe is unsupported.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "SQLite json_extract() succeeds",
+            "rationale": "JSON1 is a compile-time SQLite capability on older or minimal builds."
+        },
+        {
+            "path": "packages/mcp/tests/Integration/Http/McpWireConformanceTest.php",
+            "reason": "MCP conformance server unavailable: ",
+            "occurrence": 1,
+            "classification": "declared-unavailability",
+            "predicate": "McpConformanceServer::start() throws McpServerUnavailable",
+            "rationale": "The optional split-package wire proof exposes one narrow environment-only startup exception."
+        },
+        {
+            "path": "packages/media/tests/Integration/MediaDownloadRouterTest.php",
+            "reason": "Symlinks are unavailable on this host.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The media containment fixture requires a real symlink."
+        },
+        {
+            "path": "packages/migration/tests/Integration/MigrationLockIntegrationTest.php",
+            "reason": "pcntl_fork() not available; cannot exercise cross-process contention via fork.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(pcntl_fork)",
+            "rationale": "The fork contention proof is optional on non-POSIX split-package runners."
+        },
+        {
+            "path": "packages/migration/tests/Integration/MigrationLockIntegrationTest.php",
+            "reason": "proc_open() not available; cannot run isolated subprocess.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(proc_open)",
+            "rationale": "The release-after-exit proof requires a child process."
+        },
+        {
+            "path": "packages/migration/tests/Integration/MigrationLockIntegrationTest.php",
+            "reason": "proc_open() not available; cannot run isolated subprocess.",
+            "occurrence": 2,
+            "classification": "platform-capability",
+            "predicate": "function_exists(proc_open)",
+            "rationale": "The shutdown-function proof requires a child process."
+        },
+        {
+            "path": "packages/migration/tests/Integration/MigrationLockIntegrationTest.php",
+            "reason": "vendor/autoload.php not found at ",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "is_file(monorepo vendor/autoload.php)",
+            "rationale": "The generated child script is unavailable in a dependency-free split-package checkout."
+        },
+        {
+            "path": "packages/migration/tests/Unit/Runner/MigrationLockTest.php",
+            "reason": "proc_open() not available; cannot test cross-process contention.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(proc_open)",
+            "rationale": "The unit-level contention proof requires a child process."
+        },
+        {
+            "path": "packages/migration/tests/Unit/Runner/MigrationLockTest.php",
+            "reason": "vendor/autoload.php not found at ",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "is_file(monorepo vendor/autoload.php)",
+            "rationale": "The child fixture cannot boot without the monorepo autoloader."
+        },
+        {
+            "path": "packages/search/tests/Unit/Document/MarkdownDirectorySourceSymlinkTest.php",
+            "reason": "Platform cannot create symlinks; containment guard not exercisable here.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The out-of-root containment proof requires a real symlink."
+        },
+        {
+            "path": "packages/seo/tests/Unit/Discovery/DiscoverySurfaceGovernanceTest.php",
+            "reason": "Public surface map is only present in the monorepo tree.",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "is_file(monorepo docs/public-surface-map.php)",
+            "rationale": "The surface map is intentionally absent from the split SEO repository."
+        },
+        {
+            "path": "packages/seo/tests/Unit/Discovery/SitemapPathTest.php",
+            "reason": "Public surface map is only present in the monorepo tree.",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "is_file(monorepo docs/public-surface-map.php)",
+            "rationale": "The sitemap classification map is intentionally absent from the split SEO repository."
+        },
+        {
+            "path": "packages/ssr/tests/Unit/HomepageTemplateTest.php",
+            "reason": "SSR templates directory not found",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "is_dir(packages/ssr/templates)",
+            "rationale": "Template rendering is skipped only when a package-form checkout omits templates."
+        },
+        {
+            "path": "packages/ssr/tests/Unit/Layout/BaseLayoutTest.php",
+            "reason": "SSR templates directory not found",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "is_dir(packages/ssr/templates)",
+            "rationale": "Layout rendering is skipped only when a package-form checkout omits templates."
+        },
+        {
+            "path": "tests/Architecture/CloverCoverageMergerTest.php",
+            "reason": "Symlinks are unavailable.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "symlink() succeeds",
+            "rationale": "The unsafe-artifact refusal needs a real symlink."
+        },
+        {
+            "path": "tests/Architecture/MutationPilotTest.php",
+            "reason": "The no-coverage guard is exercised only in ordinary non-coverage lanes.",
+            "occurrence": 1,
+            "classification": "lane-disposition",
+            "predicate": "pcov and xdebug are both absent",
+            "rationale": "A coverage-enabled lane cannot exercise the deliberate no-driver refusal."
+        },
+        {
+            "path": "tests/Architecture/PackagedImportKeyHygieneTest.php",
+            "reason": "libsodium is required to mint a representative signing key.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(sodium_crypto_sign_keypair)",
+            "rationale": "Representative signing-key custody requires libsodium."
+        },
+        {
+            "path": "tests/Architecture/WorktreeCoordinatorTest.php",
+            "reason": "Permission refusal cannot be reproduced as root.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_geteuid() !== 0",
+            "rationale": "Root cannot reproduce the coordinator's ordinary-user removal refusal."
+        },
+        {
+            "path": "tests/Integration/Policy/CheckComposerPolicyTest.php",
+            "reason": "No vX.Y.Z git tag found in repo — CP-NEW cannot resolve an expected constraint. ",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "fixture repository has a semver tag",
+            "rationale": "The legacy no-VERSION fallback can only be asserted where fixture Git tags are available."
+        },
+        {
+            "path": "tests/Integration/ReleaseTooling/SyncInternalVersionsTest.php",
+            "reason": "No semver git tags found: ",
+            "occurrence": 1,
+            "classification": "optional-package-form",
+            "predicate": "fixture repository has a semver tag",
+            "rationale": "The legacy version-sync fallback requires an available semver tag."
+        }
+    ]
+}

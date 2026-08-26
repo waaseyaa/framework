@@ -38,7 +38,7 @@ Profiles:
   surface parity, changelog shape and fragment validation, ingestion defaults, secrets, governed secret access, dispatcher
   keys, getquery bindings, admin coercion patterns, admin dist freshness, admin dist acceptance
   manifest, field guards, access hardening, contract-suite coverage, openapi, phpstan/phpunit path checks, distribution
-  extensions, spec drift, changelog discipline, cs-check.
+  extensions, PHPUnit skip policy, spec drift, changelog discipline, cs-check.
 - **`--full`** — adds the phpstan-engine gates (`composer phpstan`, `bin/check-dead-code`). These
   are in CI's blocking set; they are separated locally only because the PHPStan worker layer is
   environment-sensitive (documented WSL crashes) and cache-cold runs are minutes long. `--full` is
@@ -145,6 +145,7 @@ Applies to all four S1 rosters: `s1-configuration-activation`, `s1-configuration
 | Surface | Path |
 |---|---|
 | Preflight command | `bin/check-pr-preflight` |
+| PHPUnit skip policy | `bin/check-phpunit-skip-policy`, `tools/phpunit-skip-policy.json`, `docs/specs/phpunit-skip-governance.md` |
 | Gate manifest | `tools/preflight-gates.json` |
 | Refresh command | `bin/refresh-governance-artifacts` |
 | Manifest/CI parity test | `tests/Architecture/PreflightParityTest.php` |

@@ -64,6 +64,12 @@ different purposes:
    FrankenPHP worker-runtime lane (`ci/frankenphp-worker`) are untouched by this
    spec and remain unconditional.
 
+Skip classification is separately governed by
+[`phpunit-skip-governance.md`](phpunit-skip-governance.md). Sharding never
+turns a required-hosted test into an optional one: the hosted fast gate blocks
+merge on the governed inventory, and a required transport proof contains no
+skip call site.
+
 ## 3. Rejected design: changed-package selection
 
 This section is not an apology; it is the record of a real investigation
