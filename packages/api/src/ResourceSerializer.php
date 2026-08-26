@@ -33,6 +33,10 @@ use Waaseyaa\Field\FieldDefinitionInterface;
  * the SSR Markdown presenter, all of which construct a ResourceSerializer.
  * The sanitizer is applied only here (never at write time), so the stored
  * entity value is left byte-for-byte as authored (non-lossy at rest).
+ * {@see serialize()}'s `$losslessHtml` flag opts a single serialization out
+ * of that pass so an authorized editor can read the stored bytes back
+ * (#2552); it defaults to off and is set by exactly one caller after both
+ * entity-update and effective outgoing HTML field-edit access are established.
  */
 final class ResourceSerializer
 {
@@ -68,6 +72,16 @@ final class ResourceSerializer
      * When an access handler and account are provided, fields that the account
      * cannot view are omitted from the attributes.
      *
+     * $losslessHtml opts THIS serialization out of the {@see RichTextSanitizer}
+     * pass for HTML field types, so an HTML-bearing attribute is the stored
+     * value byte-for-byte (#2552). It is off by default: every existing
+     * callsite keeps the sanitized projection unchanged. The ONLY caller that
+     * turns it on is {@see JsonApiController::show()}, behind an explicit
+     * `?representation=editing` opt-in that is gated on entity `update` access
+     * and field `edit` access for every outgoing HTML attribute -- this class
+     * does no authorization of its own, so a caller passing true asserts it
+     * has already made both decisions.
+     *
      * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account
      */
     public function serialize(
@@ -75,6 +89,7 @@ final class ResourceSerializer
         ?EntityAccessHandler $accessHandler = null,
         ?AccountInterface $account = null,
         bool $includeMutationToken = false,
+        bool $losslessHtml = false,
     ): JsonApiResource {
         if (($accessHandler === null) !== ($account === null)) {
             throw PartialAccessContextException::forSerializer(__METHOD__);
@@ -122,7 +137,7 @@ final class ResourceSerializer
 
         $attributes = $this->attributesFromEntity($entity, $keys, $fieldNames);
 
-        $attributes = $this->castAttributes($attributes, $fieldDefinitions);
+        $attributes = $this->castAttributes($attributes, $fieldDefinitions, $losslessHtml);
         $attributes = $this->normalizeAttributesForJson($attributes);
 
         // Build self link.
@@ -280,17 +295,21 @@ final class ResourceSerializer
      * only -- the entity's stored value (and $attributes as passed into this
      * method) is untouched; only the returned copy is sanitized.
      *
+     * $losslessHtml skips ONLY that branch (#2552): the HTML value passes
+     * through as stored, every other cast is unchanged. The caller owns the
+     * authorization decision; see {@see serialize()}.
+     *
      * @param array<string, mixed> $attributes
      * @param array<string, FieldDefinitionInterface> $fieldDefinitions
      * @return array<string, mixed>
      */
-    private function castAttributes(array $attributes, array $fieldDefinitions): array
+    private function castAttributes(array $attributes, array $fieldDefinitions, bool $losslessHtml = false): array
     {
         foreach ($attributes as $name => $value) {
             $type = isset($fieldDefinitions[$name]) ? $fieldDefinitions[$name]->getType() : null;
 
             if ($type !== null && RichTextSanitizer::isHtmlFieldType($type)) {
-                $attributes[$name] = $this->richTextSanitizer->sanitizeValue($value);
+                $attributes[$name] = $losslessHtml ? $value : $this->richTextSanitizer->sanitizeValue($value);
                 continue;
             }
 

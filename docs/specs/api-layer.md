@@ -862,6 +862,45 @@ differing-value refusal), `GenericAdminSurfaceHostWriteAllowlistTest` +
 
 `loadByIdOrUuid()` accepts `int|string`. If the entity type has a UUID key and the value matches UUID regex (`/^[0-9a-f]{8}-...-[0-9a-f]{12}$/i`), it queries by UUID with `accessCheck(false)`; otherwise it loads by primary key. Both branches perform identity resolution only and return the same underlying entity regardless of locator form. The caller then applies the operation-specific authorization gate: `show()` checks `view` and collapses denial to the canonical 404, `update()` checks `update`, and `destroy()` checks `delete`. A mutation target is never pre-filtered through the query layer's `view` decision.
 
+## Editing representation (#2552)
+
+`show()` accepts `?representation=editing`, which opts one serialization out of
+the `RichTextSanitizer` pass so HTML-bearing fields return the stored bytes
+byte-for-byte. Every `show()` response carries `meta.representation`
+(`rendered` or `editing`), so a read-modify-write client can tell which
+projection it holds before writing it back.
+
+Structural validation runs before the entity is loaded, so it is not an
+existence oracle:
+
+- an unsupported value → 400,
+- `representation=editing` without `?workingCopy=1` → 400 (the two are paired),
+- `representation=editing` on `index()` → 400; a collection establishes no
+  single entity's update access.
+
+Authorization is layered on the existing read and write boundaries. The pairing
+rule means the `?workingCopy=1` gate in step 3 of the access pipeline above has
+already required entity **UPDATE** access. Before lossless serialization,
+`show()` takes the effective outgoing attributes from the rendered projection
+(after internal-field, field-view and sparse-fieldset filtering) and requires
+field **edit** access for each HTML-bearing attribute, evaluated on the same
+`find()`-loaded gate entity PATCH uses. Any denial fails the whole request with
+a generic 403 and no resource body. View-hidden HTML fields, non-HTML read-only
+fields, and HTML fields excluded by the sparse fieldset remain compatible
+because their stored HTML bytes are not part of the outgoing projection.
+
+`ResourceSerializer::serialize()` grew a `$losslessHtml` flag for this, default
+`false`, set by exactly one caller after those gates pass. Every other serialization path — `index()`,
+`store()`, `update()`, the translation controller, the markdown presenter, the
+admin surface host — keeps the sanitized projection unchanged. The serializer
+performs no authorization of its own: a caller passing `true` asserts it has
+already established both entity-update and effective outgoing HTML field-edit
+access.
+
+The shared sanitizer allowlist was deliberately not widened; see
+[jsonapi.md](jsonapi.md) for why a looser baseline would have exposed
+protocol-relative off-site URLs on anonymous output.
+
 ## Resource Serialization
 
 ```php

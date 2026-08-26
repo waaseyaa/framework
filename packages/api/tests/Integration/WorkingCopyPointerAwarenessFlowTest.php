@@ -20,6 +20,7 @@ use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -29,6 +30,9 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Node\Node;
@@ -57,6 +61,26 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 #[CoversNothing]
 final class WorkingCopyPointerAwarenessFlowTest extends TestCase
 {
+    /**
+     * #2552: this flow only ever exercised `title` (a plain `string`), which
+     * is exactly why a destructive read-modify-write on an HTML body could
+     * ship past it. The seeded body carries the reported site component
+     * hooks so the byte-stability invariants below are asserted with a
+     * `text_long` field in play, not just a scalar one.
+     */
+    private const BODY_WITH_COMPONENT_HOOKS =
+        '<div class="sfn-program-contact">'
+        . '<span class="sfn-program-contact-label">Program contacts</span>'
+        . '</div><table data-sfn-grid="programs"><tr><td>Hours</td></tr></table>';
+
+    protected function tearDown(): void
+    {
+        // bootWiredProviders() installs a process-wide field registry so the
+        // `body` bundle field resolves; restore the ambient null so no other
+        // test inherits it.
+        ContentEntityBase::setFieldRegistry(null);
+    }
+
     #[Test]
     public function anonymous_get_stays_byte_stable_through_a_forward_draft_window_while_the_editor_sees_and_patches_the_tip(): void
     {
@@ -87,7 +111,14 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
         );
 
         // --- Publish a node. ---
-        $node = new Node(['title' => 'Original title', 'type' => 'article', 'slug' => 'original-title']);
+        $node = new Node([
+            'title' => 'Original title',
+            'type' => 'article',
+            'slug' => 'original-title',
+            // #2552: an HTML body rides along so every byte-stability
+            // assertion below covers a text_long field, not just `title`.
+            'body' => self::BODY_WITH_COMPONENT_HOOKS,
+        ]);
         $node->enforceIsNew();
         $nodeRepository->save($node);
         $entityId = (string) $node->id();
@@ -122,12 +153,32 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
         self::assertSame('Forward draft title', $workingCopyDoc->data->attributes['title']);
         self::assertSame('draft', $workingCopyDoc->data->attributes['workflow_state']);
 
+        // #2552: the default working-copy projection is still sanitized --
+        // classes included -- so it is NOT the representation an editor may
+        // write back. Only the opt-in editing projection is lossless.
+        $sanitizedBody = $workingCopyDoc->data->attributes['body'];
+        self::assertStringNotContainsString('class="sfn-program-contact"', $sanitizedBody);
+        self::assertNotSame(self::BODY_WITH_COMPONENT_HOOKS, $sanitizedBody);
+        self::assertSame(['representation' => 'rendered'], $workingCopyDoc->meta);
+
+        // The opt-in editor projection IS byte-lossless, and the PATCH below
+        // echoes it back the way a read-modify-write client does.
+        $editingDoc = $editorController->show('node', $entityId, ['workingCopy' => '1', 'representation' => 'editing']);
+        self::assertSame([], $editingDoc->errors);
+        \assert($editingDoc->data instanceof JsonApiResource);
+        self::assertSame(self::BODY_WITH_COMPONENT_HOOKS, $editingDoc->data->attributes['body']);
+        self::assertSame(['representation' => 'editing'], $editingDoc->meta);
+
         // --- PATCH as the editor lands on the draft TIP, not the published ---
         // row: loadRevision() of the tip proves the new content landed there,
         // and a raw SQL read of the published row proves it did NOT move.
         $beforePatchRow = $this->rawNodeRow($db, $entityId);
         $patchDoc = $editorController->update('node', $entityId, [
-            'data' => ['type' => 'node', 'attributes' => ['title' => 'Patched draft title']],
+            'data' => ['type' => 'node', 'attributes' => [
+                'title' => 'Patched draft title',
+                // Echo the editor projection's body back unchanged (#2552).
+                'body' => $editingDoc->data->attributes['body'],
+            ]],
         ]);
         self::assertSame(200, $patchDoc->statusCode, 'PATCH as the editor must succeed: ' . json_encode($patchDoc->toArray()));
 
@@ -138,6 +189,11 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
         $reloadedViaLoadRevision = $nodeRepository->loadRevision($entityId, $tipRevisionId);
         self::assertNotNull($reloadedViaLoadRevision);
         self::assertSame('Patched draft title', $reloadedViaLoadRevision->get('title'), 'loadRevision() of the tip must carry the PATCHed content.');
+        self::assertSame(
+            self::BODY_WITH_COMPONENT_HOOKS,
+            $reloadedViaLoadRevision->get('body'),
+            'Echoing the editor projection back on PATCH must leave the stored body byte-identical (#2552).',
+        );
 
         // Raw SQL read of the base row — not the repository's own
         // pointer-aware accessor — so this assertion cannot be satisfied by
@@ -403,7 +459,15 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
             );
         };
 
-        $entityTypeManager = new EntityTypeManager($dispatcher, null, $repositoryFactory);
+        // #2552: a real `text_long` bundle field on node.article, stored in the
+        // `_data` blob so no per-bundle subtable is needed. The registry has to
+        // be visible BOTH to the manager (resolveFieldDefinitions -> the
+        // serializer's cast/sanitize decision) and to ContentEntityBase's
+        // process-wide accessor (the field read layout); tearDown() restores it.
+        $fieldRegistry = new FieldDefinitionRegistry();
+        ContentEntityBase::setFieldRegistry($fieldRegistry);
+
+        $entityTypeManager = new EntityTypeManager($dispatcher, null, $repositoryFactory, $fieldRegistry);
 
         $accountContext = new RequestAccountContext();
 
@@ -450,6 +514,18 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
         }
 
         $entityTypeManager->getRepository('node_type')->save(new NodeType(['type' => 'article', 'name' => 'Article']));
+
+        $entityTypeManager->addBundleFields('node', 'article', [
+            'body' => new FieldDefinition(
+                name: 'body',
+                type: 'text_long',
+                targetEntityTypeId: 'node',
+                targetBundle: 'article',
+                label: 'Body',
+                stored: FieldStorage::Data,
+                read: \Waaseyaa\Entity\FieldReadLevel::Public,
+            ),
+        ]);
 
         /** @var TransitionService $transitionService */
         $transitionService = $workflowProvider->resolve(TransitionService::class);

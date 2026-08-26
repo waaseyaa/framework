@@ -34,6 +34,12 @@ final class AccountScopedJsonApiController
     }
 
     /** @param array<string, mixed> $query */
+    public function index(string $entityTypeId, array $query = []): JsonApiDocument
+    {
+        return $this->run(fn(): JsonApiDocument => $this->controller->index($entityTypeId, $query));
+    }
+
+    /** @param array<string, mixed> $query */
     public function show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument
     {
         return $this->run(fn(): JsonApiDocument => $this->controller->show($entityTypeId, $id, $query));
