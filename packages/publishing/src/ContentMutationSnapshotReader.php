@@ -6,6 +6,7 @@ namespace Waaseyaa\Publishing;
 
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\RevisionId;
 
 /**
  * Closed fixed-shape reader for the result of a capability-authorized content
@@ -59,9 +60,7 @@ final class ContentMutationSnapshotReader
             'id' => $entity->id(),
             'uuid' => $entity->uuid(),
             'status' => (bool) (int) ($values[$this->descriptor->statusField] ?? 0),
-            'revision_id' => $entity instanceof \Waaseyaa\Entity\RevisionableEntityInterface
-                ? (int) $entity->revisionId()
-                : null,
+            'revision_id' => RevisionId::of($entity),
         ];
         foreach ($this->descriptor->writableFields as $field => $spec) {
             $snapshot[$field] = $values[$field] ?? null;
@@ -83,15 +82,37 @@ final class ContentMutationSnapshotReader
         return $this->projection($entity)[$field] ?? null;
     }
 
+    /**
+     * Workflow state is not part of the closed publisher snapshot. Draft
+     * saves after a live published pointer still need the unguarded raw
+     * value so they can fork a same-state published working copy into
+     * `draft` without requiring a protected-field read grant.
+     */
+    public function workflowState(EntityInterface $entity): ?string
+    {
+        $value = $this->rawFields($entity, ['workflow_state'])['workflow_state'] ?? null;
+
+        return \is_string($value) && $value !== '' ? $value : null;
+    }
+
     /** @return array<string, mixed> */
     private function projection(EntityInterface $entity): array
     {
+        return $this->rawFields($entity, $this->fields);
+    }
+
+    /**
+     * @param list<string> $fields
+     * @return array<string, mixed>
+     */
+    private function rawFields(EntityInterface $entity, array $fields): array
+    {
         if ($entity instanceof EntityBase) {
-            return ($this->project)($entity, $this->fields);
+            return ($this->project)($entity, $fields);
         }
 
         $values = [];
-        foreach ($this->fields as $field) {
+        foreach ($fields as $field) {
             $values[$field] = $entity->get($field);
         }
 

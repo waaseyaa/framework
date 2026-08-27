@@ -1,3 +1,5 @@
+<!-- Spec reviewed 2026-08-26 - #2562: EntityRepository::promotePublishedRevision() is the complete-promotion entry point used by ContentPublisher. It dispatches the same BeforeRevisionPointerMoveEvent as setPublishedRevision(), then applies default-revision semantics so the served base row is rewritten from the target revision. setPublishedRevision() remains pointer-only unless a subscriber sets the event flag. Storage still does not infer discipline from published_revision_id (Playbook H). -->
+<!-- Spec reviewed 2026-08-26 - #2562 review: EntityRepository::clearPublishedRevision() drops the published pointer and unpublished the served row without a BeforeRevisionPointerMoveEvent. loadRevision() hydrates revision `_data` without the live subtable overlay when the revision is not the base pointer. shouldCreateRevision() duck-checks isNewRevision() so trait-only ContentEntityBase types honor setNewRevision(true). Waaseyaa\Entity\RevisionId is the shared revision-id extractor. -->
 <!-- Spec reviewed 2026-08-25 - #2131: `pipeline.label` is a Public framework-owned field-read default. The exact default roster remains in field-access.md; EntityReadRuntime and activation-preflight consumption of FrameworkFieldReadDefaults is unchanged. -->
 <!-- Spec reviewed 2026-08-24 - #1856: saveMany PRE/POST pairing is entity-object-correlated (WeakMap). The former pendingIsNew single-slot limitation is closed for EntityWriteAuditListener, EntityLifecycleAuditListener, and ThreadParticipantBootstrapSubscriber. Event order, transactions, and deleteMany PRE_DELETE buffering are unchanged. -->
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP asserts Framework SQL-backed entity tables only (S1-DB106). Custom EntityStorageInterface storageClass is not forced to own an SQL table. EntityStorageInterface and EntityQueryInterface are class-level @api. AttachmentSchema::apply() is the strict coordinated transition; local boot ensureTable() is best-effort. -->
@@ -834,7 +836,7 @@ updates and null for creates. Full cross-surface contract:
 `docs/specs/save-advisories.md`.
 
 **Pointer-move operations are a separate pre-write choke point (CW-v1 WP-2 task 2.4, #1920).**
-`rollback()`, `setCurrentRevision()`, `setPublishedRevision()`, and the `saveTranslationRevision()` /
+`rollback()`, `setCurrentRevision()`, `setPublishedRevision()`, `promotePublishedRevision()`, and the `saveTranslationRevision()` /
 `saveTranslationRevisions()` / `saveTranslation()` trio move the revision pointer (or, for
 `rollback()`, copy a revision forward) WITHOUT going through this `save()` pipeline at all — no
 `EntityEvents::PRE_SAVE`/`POST_SAVE`. Each dispatches `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent`
@@ -842,11 +844,24 @@ updates and null for creates. Full cross-surface contract:
 leaving storage untouched (including transactional rollback of any earlier write in the same
 transaction, for the multi-write translation paths). Full contract, payload shape, and the
 `Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard` consumer: `docs/specs/revision-system-unified.md`
-§4a.
+§4a. `promotePublishedRevision()` applies default-revision semantics after that dispatch so
+editorial publish can rewrite the served base row without a workflows subscriber (#2562).
+`setPublishedRevision()` stays the pointer-only operation unless a subscriber sets the event flag.
+`clearPublishedRevision()` is a served-row rewrite plus pointer drop, not a pointer-move event:
+it claims the aggregate mutation, sets served `status=0`, nulls `published_revision_id`, and
+dispatches `POST_SAVE` after commit. It does not copy a diverged working copy.
+
+`shouldCreateRevision()` honors `isNewRevision()` via a method-exists duck-check on
+**revisionable** types, not `instanceof RevisionableInterface`. Trait-only
+`ContentEntityBase` types (the consumer default) must be able to force a new
+revision when `revisionDefault` is false. The duck-check is not applied on
+non-revisionable types: config entities such as `NodeType` expose a same-named
+bundle knob that is not a per-save revision override.
 
 For a workflow-bound `publish` move, the pointer guard may also supply a closed
 `0|1` materialized-status value derived from the target revision's declared
-workflow state. Under default-revision discipline, `setPublishedRevision()`
+workflow state. Under default-revision discipline, complete promotion
+(`setPublishedRevision()` with the event flag, or `promotePublishedRevision()`)
 applies that value to the base serving projection after canonicalizing the
 target revision, without changing the historical revision row. This prevents a
 legacy revision's stale stored status from being copied into the serving row;
@@ -1055,7 +1070,7 @@ public function __construct(
 ```
 
 Higher-level layer that handles:
-- Entity hydration (`hydrate()` method with `_data` merge and constructor adaptation)
+- Entity hydration (`hydrate()` method with `_data` merge and constructor adaptation). `loadRevision()` skips the live bundle-subtable overlay when the requested revision is not the base `revision_id`, so a disciplined working copy keeps its revision `_data` snapshot.
 - Language fallback via `setFallbackChain(string[] $chain)` (default: `['en']`)
 - Event dispatch via `EntityEventFactoryInterface` (defaults to `DefaultEntityEventFactory`)
 - Pre-save validation via `EntityValidator` (injected by default by the kernel since alpha.204, `validate: true`) using `EntityTypeValidationConstraints::forEntityType()` (derived from field definitions, plus per-field declared constraints appended, plus manual `getConstraints()` per-field override)
@@ -1063,7 +1078,7 @@ Higher-level layer that handles:
 - Batch operations via `saveMany()`/`deleteMany()` with `UnitOfWork` transaction wrapping
 - Batch reads via `findMany(array $ids, ...)` delegating to `EntityStorageDriverInterface::readMultiple()`
 - Revision management via `loadRevision()` and `rollback()`
-- Automatic revision creation based on `EntityType::getRevisionDefault()` and per-entity `isNewRevision()` override (via `shouldCreateRevision()` internal method)
+- Automatic revision creation based on `EntityType::getRevisionDefault()` and per-entity `isNewRevision()` override (via `shouldCreateRevision()`; duck-checked so trait-only `ContentEntityBase` types honor `setNewRevision(true)`)
 
 ### UnitOfWork
 
