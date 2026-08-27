@@ -346,11 +346,16 @@ final class ContentPublisherTest extends TestCase
             $this->audit,
             $this->ownerAccessHandler(),
         );
-        $publisher->createDraft($this->actor, $this->draftValues(), 'author-scoped-key');
+        $mine = $publisher->createDraft($this->actor, $this->draftValues(), 'author-scoped-key');
 
+        // Since #2555 the replay record is partitioned by acting principal, so
+        // a second author under the same key executes its own mutation instead
+        // of conflicting with (or replaying) the first author's record.
         $other = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
-        $this->expectException(IdempotencyConflictException::class);
-        $publisher->createDraft($other, $this->draftValues(), 'author-scoped-key');
+        $theirs = $publisher->createDraft($other, $this->draftValues(['slug' => 'their-post']), 'author-scoped-key');
+
+        self::assertNotSame($mine['id'], $theirs['id']);
+        self::assertSame($mine, $publisher->createDraft($this->actor, $this->draftValues(), 'author-scoped-key'));
     }
 
     #[Test]
@@ -640,6 +645,131 @@ final class ContentPublisherTest extends TestCase
 
         $this->expectException(IdempotencyConflictException::class);
         $this->publisher->rollback($this->actor, (string) $draft['id'], $draft['revision_id'], 'rollback-key', 'Changed note');
+    }
+
+    // --- idempotency is partitioned by acting principal (#2555) ---
+
+    #[Test]
+    public function two_principals_sharing_a_key_and_payload_do_not_replay_each_others_response(): void
+    {
+        $first = $this->publisher->createDraft($this->actor, $this->draftValues(), 'shared-actor-key');
+
+        $other = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+        try {
+            $this->publisher->createDraft($other, $this->draftValues(), 'shared-actor-key');
+            self::fail('The second principal did not execute its own mutation.');
+        } catch (SlugConflictException $exception) {
+            // The slug clash proves the closure RAN for the second principal
+            // rather than replaying the first principal's stored response.
+            self::assertSame('SLUG_TAKEN', $exception->errorCode);
+        }
+
+        self::assertCount(1, $this->repo->findBy(['slug' => 'first-post']));
+        self::assertSame($first, $this->publisher->createDraft($this->actor, $this->draftValues(), 'shared-actor-key'));
+    }
+
+    #[Test]
+    public function each_principal_receives_its_own_response_under_a_shared_key(): void
+    {
+        $other = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+
+        $mine = $this->publisher->createDraft($this->actor, $this->draftValues(), 'shared-actor-key');
+        $theirs = $this->publisher->createDraft($other, $this->draftValues(['slug' => 'their-post']), 'shared-actor-key');
+
+        self::assertNotSame($mine['id'], $theirs['id']);
+        self::assertSame('first-post', $mine['slug']);
+        self::assertSame('their-post', $theirs['slug']);
+
+        // Each principal still replays its OWN record under that shared key.
+        self::assertSame($mine, $this->publisher->createDraft($this->actor, $this->draftValues(), 'shared-actor-key'));
+        self::assertSame($theirs, $this->publisher->createDraft($other, $this->draftValues(['slug' => 'their-post']), 'shared-actor-key'));
+    }
+
+    #[Test]
+    public function a_second_principal_reusing_a_publish_key_executes_rather_than_replaying(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'draft-key');
+        $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'publish-key', 'Go live');
+
+        $other = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+
+        // Identical key, identical payload, different principal: the mutation
+        // executes and fails loudly on the now-stale revision instead of
+        // silently handing back the first principal's response.
+        $this->expectException(RevisionConflictException::class);
+        $this->publisher->publish($other, (string) $draft['id'], $draft['revision_id'], 'publish-key', 'Go live');
+    }
+
+    #[Test]
+    public function a_second_principal_reusing_a_rollback_key_executes_rather_than_replaying(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(['title' => 'Original']), 'draft-key');
+        $this->publisher->updateDraft($this->actor, (string) $draft['id'], ['title' => 'Edited'], $draft['revision_id'], 'update-key');
+        $first = $this->publisher->rollback($this->actor, (string) $draft['id'], $draft['revision_id'], 'rollback-key', 'Restore original');
+
+        $other = new PublisherAccount(uid: 900002, permissions: [self::CAPABILITY]);
+        $second = $this->publisher->rollback($other, (string) $draft['id'], $draft['revision_id'], 'rollback-key', 'Restore original');
+
+        // A replay would have returned the first response verbatim; a real
+        // execution cuts a fourth revision and reports the new revision id.
+        self::assertNotSame($first['revision_id'], $second['revision_id']);
+        self::assertCount(4, $this->publisher->revisions($this->actor, (string) $draft['id']));
+    }
+
+    #[Test]
+    public function principal_partitioning_treats_an_integer_and_its_digit_string_as_one_principal(): void
+    {
+        $numeric = new PublisherAccount(uid: 900003, permissions: [self::CAPABILITY]);
+        $textual = new PublisherAccount(uid: '900003', permissions: [self::CAPABILITY]);
+
+        $first = $this->publisher->createDraft($numeric, $this->draftValues(), 'canonical-id-key');
+        $replay = $this->publisher->createDraft($textual, $this->draftValues(), 'canonical-id-key');
+
+        self::assertSame($first, $replay);
+        self::assertCount(1, $this->repo->findBy(['slug' => 'first-post']));
+    }
+
+    #[Test]
+    public function principal_partitioning_does_not_narrow_large_digit_string_ids(): void
+    {
+        $firstActor = new PublisherAccount(uid: '9223372036854775808', permissions: [self::CAPABILITY]);
+        $secondActor = new PublisherAccount(uid: '9223372036854775809', permissions: [self::CAPABILITY]);
+
+        $first = $this->publisher->createDraft($firstActor, $this->draftValues(), 'large-id-key');
+
+        try {
+            $this->publisher->createDraft($secondActor, $this->draftValues(), 'large-id-key');
+            self::fail('Distinct large digit-string principals shared one replay partition.');
+        } catch (SlugConflictException $exception) {
+            self::assertSame('SLUG_TAKEN', $exception->errorCode);
+        }
+
+        self::assertSame($first, $this->publisher->createDraft($firstActor, $this->draftValues(), 'large-id-key'));
+    }
+
+    #[Test]
+    public function principal_partitioning_distinguishes_null_and_literal_underscore_bundles(): void
+    {
+        $descriptor = $this->descriptor();
+        $bundledDescriptor = new ContentTypeDescriptor(
+            entityTypeId: $descriptor->entityTypeId,
+            bundle: '_',
+            slugField: $descriptor->slugField,
+            statusField: $descriptor->statusField,
+            writableFields: $descriptor->writableFields,
+            htmlSanitizer: $descriptor->htmlSanitizer,
+            validators: $descriptor->validators,
+            publishCapability: $descriptor->publishCapability,
+        );
+        $idempotency = new IdempotencyStore($this->db);
+        $bundleless = new ContentPublisher($descriptor, $this->repo, $idempotency, $this->audit);
+        $bundled = new ContentPublisher($bundledDescriptor, $this->repo, $idempotency, $this->audit);
+
+        $first = $bundleless->createDraft($this->actor, $this->draftValues(), 'bundle-encoding-key');
+        $second = $bundled->createDraft($this->actor, $this->draftValues(), 'bundle-encoding-key');
+
+        self::assertNotSame($first['id'], $second['id']);
+        self::assertCount(1, $this->repo->findBy(['type' => '_']));
     }
 
     // --- optimistic concurrency ---

@@ -1,5 +1,7 @@
 # Content Publishing v1 — agent-operable editorial CRUD over the entity substrate
 
+<!-- Spec reviewed 2026-08-26 - #2555: publishing idempotency is partitioned by acting principal. ContentPublisher binds the stable authorization principal id into the replay record's storage namespace alongside entity type and bundle, so two authorized publishers sharing a client key and payload execute independently and each receives its own response. Single-principal replay and payload-conflict behaviour are unchanged. See IdempotencyStore "Actor-scoped partitioning". -->
+
 <!-- Spec reviewed 2026-08-26 - #2562: after a live published pointer, `updateDraft()` is a revision-only working-copy save (default-revision discipline; expected-revision claim asserted against the working copy then cleared). Unbound `publish()` pins `published_revision_id` via `EntityRepository::promotePublishedRevision()`, which rewrites the served base row from the selected revision. A pointerless record keeps the existing tip-tracking draft-save behaviour. Storage still does not infer discipline from pointer presence (Playbook H). -->
 <!-- Spec reviewed 2026-08-26 - #2562 review: unbound `unpublish()` asserts the working-copy token, then `EntityRepository::clearPublishedRevision()` drops `published_revision_id` and sets served `status=0` without copying a diverged draft. Later unbound `publish()` restores the forked `workflow_state` and promotes the save-hydrated revision id. `loadPublishedRevision()` remains a pointer follow; unpublished records tip-track. -->
 
@@ -59,9 +61,11 @@ integer actor id and stamps it into the new entity before persistence.
 revision author. This distinction is load-bearing: entity access policies
 decide “own unpublished content” from the entity author, while revision audit
 and history use revision authorship. The server-owned author also participates
-in the create idempotency fingerprint, preventing cross-principal replays. A
-descriptor without an author field keeps the existing unauthored-entity
-behaviour.
+in the create idempotency fingerprint; since #2555 the replay record's storage
+namespace binds the acting principal directly, so that fingerprint component is
+defence in depth rather than the thing preventing cross-principal replays (see
+IdempotencyStore below). A descriptor without an author field keeps the existing
+unauthored-entity behaviour.
 
 `FieldSpec` supports `string`, `text`, `bool`, `int`, `date`, and `reference_list`. Dates are real `YYYY-MM-DD` calendar dates rather than arbitrary strings. Reference lists accept only positive integer or bounded non-empty string identifiers, reject duplicates, and may declare `maxItems`. Optional fields may explicitly opt into `nullable`; required-field validation still rejects null when creating or publishing a complete document. The generated MCP schema mirrors these constraints, including date format, null alternatives, unique items, and list bounds.
 
@@ -184,7 +188,7 @@ carve-out is pinned by
 `ContentPublisherReadAccessTest::slug_uniqueness_still_sees_entities_the_caller_may_not_view()`
 and must not be converted in a later sweep.
 
-All mutations require: (1) the descriptor's `publishCapability` on the acting principal (`AccountInterface::hasPermission`), (2) the entity-level gate (`EntityAccessHandler` create/update) — defense in depth, (3) a non-empty **idempotency key**, (4) validation + sanitization pass. Every mutation stamps `revision_log` and cuts a revision (repository semantics); the explicit immutable principal supplies the revision actor, and, when the descriptor declares one, the server-owned entity author.
+All mutations require: (1) the descriptor's `publishCapability` on the acting principal (`AccountInterface::hasPermission`), (2) the entity-level gate (`EntityAccessHandler` create/update) — defense in depth, (3) a non-empty **idempotency key**, whose replay record is partitioned by the acting principal (see IdempotencyStore below), (4) validation + sanitization pass. Every mutation stamps `revision_log` and cuts a revision (repository semantics); the explicit immutable principal supplies the revision actor, and, when the descriptor declares one, the server-owned entity author.
 
 Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.
 
@@ -203,7 +207,26 @@ Sanitization is **lossy-at-input by design** for this surface (unlike the read-b
 
 ### IdempotencyStore
 
-Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type and bundle before storage, so independent bundle-scoped surfaces cannot replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one surface, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; any later projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
+Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type, bundle, **and acting principal** before storage, so neither independent bundle-scoped surfaces nor independent publishers can replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one partition, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; any later projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
+
+#### Actor-scoped partitioning (framework #2555)
+
+The replay partition is `(entityTypeId, bundle, principal)` — **not** the client key alone.
+
+Idempotency keys are routinely derived deterministically from the payload (an agent that hashes its own request, a queue that keys on content identity), so two distinct authorized publishers submitting the same key with the same payload against the same bundle is plausible rather than theoretical. Before #2555 the second publisher received the first's stored response verbatim: their mutation never ran, their attempt produced no audit record, they had no signal that nothing had happened, and the first publisher's created entity id and revision id were disclosed to them. This was never anonymous-reachable — both callers pass the capability gate and the entity create/update gate first — but within that authorized population it is an integrity, attribution, and bounded-disclosure defect.
+
+**Chosen semantics: partition, not conflict.** A cross-principal collision could instead have raised `IDEMPOTENCY_CONFLICT`, which is louder. Partitioning is chosen because a conflict would let one principal's key choice refuse another principal's unrelated and entirely legitimate mutation — one publisher could deny another by claiming keys. Under partitioning the two mutations are simply independent: each executes, each is audited, each receives its own response.
+
+The identity bound is `AccountInterface::id()`, the only identity claim guaranteed stable across requests. `AuthorizationPrincipalInterface::claimsGeneration()` deliberately rotates, so keying on it would silently break a principal's own replays after an ordinary claims refresh. An integer uid and its digit-string form canonicalize to the same partition without narrowing digit strings through PHP's platform integer range, matching how the rest of this surface (`SaveContext::withActorUid()`, the audit record) treats ordinary integer ids while keeping distinct large external ids distinct; a non-numeric identifier is bound verbatim under a separate prefix. Namespace components are NUL-separated and a null bundle has a typed encoding distinct from a literal bundle value, so no entity type, bundle, or principal id can be re-partitioned by a colliding concatenation.
+
+Consequences a consumer should know:
+
+- **Within one principal, nothing changes.** Same key + same payload still replays the stored response without re-executing; same key + different payload still raises `IDEMPOTENCY_CONFLICT`. Both are pinned by test.
+- **Cross-principal replay is removed, deliberately.** Any consumer that relied on one principal's key shielding another's duplicate submission no longer gets that. Deduplication across principals was never a contract this surface offered; it was a collision.
+- **Existing stored records become unreachable** at upgrade, because the namespace they were written under no longer matches. No migration is required or supplied: the rows are TTL-swept within 48 hours, and the only observable effect in that window is that an in-flight retry re-executes instead of replaying — which is the ordinary at-least-once behaviour a caller retrying an unacknowledged mutation must already tolerate.
+- **The server-owned author component of the `createDraft` fingerprint is retained** as defence in depth, but the namespace is now what separates two authors under one client key.
+
+Pinned by `ContentPublisherTest::two_principals_sharing_a_key_and_payload_do_not_replay_each_others_response()`, `::each_principal_receives_its_own_response_under_a_shared_key()`, `::a_second_principal_reusing_a_publish_key_executes_rather_than_replaying()`, `::a_second_principal_reusing_a_rollback_key_executes_rather_than_replaying()`, and `::principal_partitioning_treats_an_integer_and_its_digit_string_as_one_principal()`, alongside the unchanged single-principal replay and conflict tests.
 
 ### PreviewLinkService
 

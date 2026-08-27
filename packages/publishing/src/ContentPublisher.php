@@ -252,6 +252,9 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             ? $values
             : ['values' => $values, 'save_advisory_acknowledgements' => $saveAdvisoryAcknowledgements];
         if ($authorId !== null) {
+            // Retained as defence in depth. Since #2555 the storage namespace
+            // itself binds the acting principal, so this fingerprint component
+            // is no longer what separates two authors under one client key.
             $request = ['server_author_id' => $authorId, 'request' => $request];
         }
 
@@ -274,7 +277,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace());
+        }, $this->idempotencyNamespace($actor));
     }
 
     /**
@@ -317,7 +320,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace());
+        }, $this->idempotencyNamespace($actor));
     }
 
     /**
@@ -392,7 +395,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             ]);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace());
+        }, $this->idempotencyNamespace($actor));
     }
 
     // ------------------------------------------------------------------
@@ -448,7 +451,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
             $this->auditRecord($kind, $actor, $saved);
 
             return $this->snapshot($saved);
-        }, $this->idempotencyNamespace());
+        }, $this->idempotencyNamespace($actor));
     }
 
     private function requireCapability(AuthorizationPrincipalInterface $actor): void
@@ -484,9 +487,69 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         throw new ContentAuthorizationException('Authored content requires a positive integer actor identity.');
     }
 
-    private function idempotencyNamespace(): string
+    /**
+     * Storage namespace for a replay record: the content surface AND the
+     * acting principal (#2555).
+     *
+     * The client key alone is not a safe partition. Idempotency keys are
+     * frequently derived deterministically from the payload, so two distinct
+     * authorized publishers can submit the same key with the same payload
+     * against the same bundle. Without the actor component the second caller
+     * replays the first's stored response: their mutation never runs, their
+     * attempt is never audited, and the first caller's created id and revision
+     * are disclosed to them.
+     *
+     * Binding the principal PARTITIONS rather than conflicts, so each principal
+     * keeps the full Stripe-shaped contract within its own partition — same key
+     * + same payload replays, same key + different payload raises
+     * IDEMPOTENCY_CONFLICT — and neither can observe the other's record at all.
+     * A conflict would have been the louder option, but it would let one
+     * principal's key choice refuse another's unrelated, legitimate mutation.
+     *
+     * The components are NUL-separated so no entity type, bundle, or principal
+     * id can be re-partitioned by a colliding concatenation; the store hashes
+     * the whole namespace with the client key into the fixed-length row key.
+     */
+    private function idempotencyNamespace(AuthorizationPrincipalInterface $actor): string
     {
-        return $this->descriptor->entityTypeId . ':' . ($this->descriptor->bundle ?? '_');
+        return implode("\0", [
+            'entity-type',
+            $this->descriptor->entityTypeId,
+            'bundle',
+            $this->descriptor->bundle === null ? 'n:' : 's:' . $this->descriptor->bundle,
+            'actor',
+            $this->principalPartition($actor),
+        ]);
+    }
+
+    /**
+     * Stable, unambiguous encoding of the acting principal's identity.
+     *
+     * `AccountInterface::id()` is the only identity claim guaranteed stable
+     * across requests — `claimsGeneration()` deliberately rotates, so keying on
+     * it would silently break a principal's own replays after a claims refresh.
+     *
+     * The framework treats an integer uid and its digit-string form as the same
+     * account everywhere else on this surface (see {@see saveContext()} and
+     * {@see auditRecord()}), so both canonicalize to one partition here; a
+     * non-numeric identifier is kept verbatim under a distinct prefix.
+     */
+    private function principalPartition(AuthorizationPrincipalInterface $actor): string
+    {
+        $id = $actor->id();
+        if (\is_int($id)) {
+            return 'i:' . $id;
+        }
+        if (ctype_digit($id)) {
+            // Normalize digit strings without narrowing through the platform
+            // integer range: distinct external ids above PHP_INT_MAX must not
+            // collapse into one replay partition.
+            $canonical = ltrim($id, '0');
+
+            return 'i:' . ($canonical === '' ? '0' : $canonical);
+        }
+
+        return 's:' . $id;
     }
 
     private function requireEntityCreateAccess(AuthorizationPrincipalInterface $actor): void
