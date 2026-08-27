@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\AuthServiceProvider;
+use Waaseyaa\Auth\Config\AuthConfig;
+use Waaseyaa\Auth\Config\MailMissingPolicy;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Tests\Support\AuthSchema;
 use Waaseyaa\Auth\Token\AuthTokenRepository;
@@ -24,6 +27,114 @@ use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 final class AuthServiceProviderTest extends TestCase
 {
     private const string EXPLICIT_SECRET = 'abcdefghijklmnopqrstuvwxyz012345';
+
+    private string|false $appEnvironment;
+
+    private bool $envHadAppEnvironment;
+
+    private mixed $envAppEnvironment;
+
+    protected function setUp(): void
+    {
+        $this->appEnvironment = getenv('APP_ENV');
+        $this->envHadAppEnvironment = array_key_exists('APP_ENV', $_ENV);
+        $this->envAppEnvironment = $_ENV['APP_ENV'] ?? null;
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->appEnvironment === false) {
+            putenv('APP_ENV');
+        } else {
+            putenv('APP_ENV=' . $this->appEnvironment);
+        }
+
+        if ($this->envHadAppEnvironment) {
+            $_ENV['APP_ENV'] = $this->envAppEnvironment;
+        } else {
+            unset($_ENV['APP_ENV']);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    #[Test]
+    #[DataProvider('canonicalEnvironmentCases')]
+    public function auth_configuration_uses_the_kernel_environment_contract(
+        array $config,
+        string|false $processEnvironment,
+        mixed $envSuperglobal,
+        MailMissingPolicy $expectedPolicy,
+    ): void {
+        if ($processEnvironment === false) {
+            putenv('APP_ENV');
+        } else {
+            putenv('APP_ENV=' . $processEnvironment);
+        }
+
+        if ($envSuperglobal === null) {
+            unset($_ENV['APP_ENV']);
+        } else {
+            $_ENV['APP_ENV'] = $envSuperglobal;
+        }
+
+        $provider = $this->providerWith($config);
+        $provider->register();
+
+        $authConfig = $provider->resolve(AuthConfig::class);
+        self::assertInstanceOf(AuthConfig::class, $authConfig);
+        self::assertSame($expectedPolicy, $authConfig->mailMissingPolicy);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string|false, mixed, MailMissingPolicy}>
+     */
+    public static function canonicalEnvironmentCases(): iterable
+    {
+        yield 'process injection is authoritative when $_ENV is absent' => [
+            [],
+            'local',
+            null,
+            MailMissingPolicy::DevLog,
+        ];
+        yield 'canonical config overrides a conflicting superglobal' => [
+            ['environment' => 'local'],
+            'production',
+            'production',
+            MailMissingPolicy::DevLog,
+        ];
+        yield 'legacy app_env cannot override the kernel environment' => [
+            ['app_env' => 'local'],
+            'production',
+            'local',
+            MailMissingPolicy::Fail,
+        ];
+        yield 'empty canonical config remains non-development' => [
+            ['environment' => ''],
+            'local',
+            'local',
+            MailMissingPolicy::Fail,
+        ];
+        yield 'whitespace canonical config remains non-development' => [
+            ['environment' => ' '],
+            'local',
+            'local',
+            MailMissingPolicy::Fail,
+        ];
+        yield 'zero canonical config remains non-development' => [
+            ['environment' => '0'],
+            'local',
+            'local',
+            MailMissingPolicy::Fail,
+        ];
+        yield 'missing environment defaults to production' => [
+            [],
+            false,
+            null,
+            MailMissingPolicy::Fail,
+        ];
+    }
 
     #[Test]
     public function missing_token_secret_fails_loudly_in_production(): void
