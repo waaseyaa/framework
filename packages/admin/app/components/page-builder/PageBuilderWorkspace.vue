@@ -47,6 +47,7 @@ const sectionLayoutChoice = ref('')
 const previewSize = ref<PreviewSize>('desktop')
 const editableConfig = ref<Record<string, unknown>>({})
 const announcement = ref('')
+const blockAddRefusal = ref('')
 const configDirty = ref(false)
 const historyOpen = ref(false)
 const advisoryBanner = ref<HTMLElement | null>(null)
@@ -55,7 +56,10 @@ let resolveConfirmation: ((confirmed: boolean) => void) | null = null
 let confirmationReturnFocus: HTMLElement | null = null
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(configDirty, dirty => emit('dirty', dirty), { flush: 'sync' })
+watch(configDirty, (dirty) => {
+  emit('dirty', dirty)
+  if (!dirty) blockAddRefusal.value = ''
+}, { flush: 'sync' })
 watch(failure, value => { if (value) emit('failure', value) })
 watch(advisoryReview, async (review) => {
   if (!review) return
@@ -113,6 +117,13 @@ const blocks = computed(() => {
 })
 const selectedEntry = computed(() => blocks.value.find(entry => entry.block.id === selectedBlockId.value) ?? null)
 const sections = computed(() => draft.value?.document.sections ?? [])
+const blockInsertionTarget = computed(() => {
+  const selected = selectedEntry.value
+  const section = selected?.section ?? sections.value[0]
+  if (!section) return null
+  const regionId = selected?.regionId ?? Object.keys(section.regions)[0]
+  return regionId ? { section, regionId } : null
+})
 const selectedSection = computed(() => sections.value.find(section => section.id === selectedSectionId.value) ?? null)
 const selectedSectionIndex = computed(() => sections.value.findIndex(section => section.id === selectedSectionId.value))
 const editingBlocked = computed(() => saving.value || conflict.value !== null || advisoryReview.value !== null)
@@ -360,12 +371,18 @@ async function restoreComparedRevision() {
 }
 
 async function addBlock(definition: PageBuilderBlockDefinition) {
-  if (configDirty.value && !await saveSelectedBlock(true)) return
+  blockAddRefusal.value = ''
+  if (configDirty.value && !await saveSelectedBlock(true)) {
+    blockAddRefusal.value = t('page_builder_block_not_added_save_failed')
+    return
+  }
   const selected = selectedEntry.value
-  const section = selected?.section ?? draft.value?.document.sections[0]
-  if (!section) return
-  const regionId = selected?.regionId ?? Object.keys(section.regions)[0]
-  if (!regionId) return
+  const target = blockInsertionTarget.value
+  if (!target) {
+    blockAddRefusal.value = t('page_builder_block_insertion_unavailable')
+    return
+  }
+  const { section, regionId } = target
   const blockId = secureId('blk')
   const config: Record<string, unknown> = {}
   const properties = definition.config_schema.properties
@@ -685,12 +702,28 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="page-builder__block-list">
+          <p
+            v-if="!blockInsertionTarget"
+            id="page-builder-block-insertion-unavailable"
+            class="page-builder__palette-help"
+          >
+            {{ t('page_builder_block_insertion_unavailable') }}
+          </p>
+          <p
+            v-if="blockAddRefusal"
+            class="page-builder__palette-refusal"
+            role="alert"
+            data-page-builder-block-add-refusal
+          >
+            {{ blockAddRefusal }}
+          </p>
           <button
             v-for="definition in availableBlocks"
             :key="`${definition.id}:${definition.version}`"
             type="button"
             class="page-builder__block-card"
-            :disabled="editingBlocked || draft.document.sections.length === 0"
+            :disabled="editingBlocked || !blockInsertionTarget"
+            :aria-describedby="!blockInsertionTarget ? 'page-builder-block-insertion-unavailable' : undefined"
             @click="addBlock(definition)"
           >
             <span class="page-builder__block-icon" aria-hidden="true">+</span>
@@ -990,9 +1023,13 @@ onBeforeUnmount(() => {
 .page-builder__panel-heading h2 { margin-top: 3px; font-size: 17px; }
 .page-builder__block-list { display: grid; gap: 8px; }
 .page-builder__block-card { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 58px; padding: 10px; border: 1px solid #dfe2dd; border-radius: 9px; background: #fff; color: inherit; text-align: left; cursor: pointer; }
-.page-builder__block-card:hover { border-color: #51927f; box-shadow: 0 4px 14px #243b3012; }
+.page-builder__block-card:hover:not(:disabled) { border-color: #51927f; box-shadow: 0 4px 14px #243b3012; }
+.page-builder__block-card:disabled { cursor: not-allowed; opacity: .62; }
 .page-builder__block-card span:last-child { display: grid; gap: 2px; }
 .page-builder__block-card small { color: #75807b; }
+.page-builder__palette-help, .page-builder__palette-refusal { margin: 0; padding: 9px 10px; border-radius: 7px; font-size: 13px; line-height: 1.4; }
+.page-builder__palette-help { background: #eef1ed; color: #59645f; }
+.page-builder__palette-refusal { background: #fff0ed; color: #8f251a; }
 .page-builder__block-icon { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border-radius: 7px; background: var(--color-primary-light, #e2f1eb); color: var(--color-primary, #12624d); font-size: 20px; }
 .page-builder__layout-heading { margin-top: 24px; }
 .page-builder__layout-list { display: grid; gap: 8px; }

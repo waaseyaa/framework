@@ -257,6 +257,8 @@
   "page_builder_restore_confirm": "Restaurer la révision {revision} comme nouveau brouillon? Le brouillon actuel et tout l’historique seront conservés.",
   "page_builder_revision_restored": "La révision {revision} a été restaurée comme nouveau brouillon.",
   "page_builder_block_added": "{block} a été ajouté dans une nouvelle révision.",
+  "page_builder_block_insertion_unavailable": "Ajoutez une section comportant une région avant d’ajouter des blocs.",
+  "page_builder_block_not_added_save_failed": "Le bloc n’a pas été ajouté, car vos modifications en attente n’ont pas pu être enregistrées. Votre sélection et vos modifications non enregistrées sont toujours présentes.",
   "page_builder_block_removed": "Le bloc a été supprimé dans une nouvelle révision.",
   "page_builder_section_added": "Une section a été ajoutée dans une nouvelle révision.",
   "page_builder_move_to_region": "Déplacer vers une autre région",

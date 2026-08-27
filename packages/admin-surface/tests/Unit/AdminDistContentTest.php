@@ -99,6 +99,11 @@ final class AdminDistContentTest extends TestCase
             $js,
             'The served admin bundle is missing the shared page-builder client identity.',
         );
+        self::assertStringContainsString(
+            'page_builder_block_not_added_save_failed',
+            $js,
+            'The served admin bundle is missing the explicit pre-request palette refusal.',
+        );
     }
 
     #[Test]

@@ -457,6 +457,8 @@
   "page_builder_restore_confirm": "Restore revision {revision} as a new draft? The current draft and full history will be preserved.",
   "page_builder_revision_restored": "Revision {revision} was restored as a new draft.",
   "page_builder_block_added": "{block} was added as a new revision.",
+  "page_builder_block_insertion_unavailable": "Add a section with a region before adding blocks.",
+  "page_builder_block_not_added_save_failed": "The block was not added because your pending block changes could not be saved. Your selection and unsaved changes are still here.",
   "page_builder_block_removed": "The block was removed in a new revision.",
   "page_builder_section_added": "A section was added as a new revision.",
   "page_builder_move_to_region": "Move to another region",
