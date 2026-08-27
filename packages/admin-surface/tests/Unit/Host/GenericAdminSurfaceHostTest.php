@@ -846,12 +846,13 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $entity->enforceIsNew(false);
         $entity->_hydrateMutationToken(EntityMutationToken::issue('admin-test', 'default', 'story', '1', 1));
 
-        // Non-numeric id => find() is skipped; resolution goes through the
-        // bounded uuid query + find() (C-22 WP3: loadByKey() has no repository
-        // equivalent).
+        // UUID-shaped id => find() is skipped; resolution goes through the
+        // bounded uuid query + find(). atLeastOnce, not once: handleDelete
+        // resolves the entity to authorize it, then delegates to
+        // JsonApiController::destroy(), which resolves the same id again.
         $query = $this->createMock(\Waaseyaa\Entity\Storage\EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
-        $query->expects(self::once())->method('condition')->with('uuid', $uuid)->willReturnSelf();
+        $query->expects(self::atLeastOnce())->method('condition')->with('uuid', $uuid)->willReturnSelf();
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn(['1']);
 
@@ -865,6 +866,14 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getRepository')->willReturn($repository);
+        // The uuid key must be DECLARED: resolution reads the entity type's
+        // `uuid` key rather than assuming a column called 'uuid'.
+        $etm->method('getDefinition')->willReturn(new EntityType(
+            id: 'story',
+            label: 'Story',
+            class: TestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+        ));
 
         $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));

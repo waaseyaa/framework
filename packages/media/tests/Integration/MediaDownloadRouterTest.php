@@ -20,6 +20,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
@@ -404,6 +405,15 @@ final class MediaDownloadRouterTest extends TestCase
         $manager->method('getRepository')->willReturnMap([
             ['media', new StorageBackedStubRepository($storage)],
         ]);
+        // Media is int-keyed on `mid` and declares `uuid`; resolution reads the
+        // declared keys, so the stub must carry them (mirrors Media's
+        // #[ContentEntityKeys]).
+        $manager->method('getDefinition')->willReturn(new EntityType(
+            id: 'media',
+            label: 'Media',
+            class: Media::class,
+            keys: ['id' => 'mid', 'uuid' => 'uuid', 'label' => 'name', 'bundle' => 'bundle'],
+        ));
 
         return new MediaDownloadRouter($manager, new EntityAccessHandler([$policy]), $this->filesRoot, $this->sourceReader);
     }

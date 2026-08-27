@@ -20,6 +20,7 @@ use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuardResult;
@@ -64,6 +65,8 @@ final class JsonApiController
 
     private readonly InternalFieldVisibilityPolicy $internalFieldVisibility;
 
+    private readonly EntityIdentifierResolver $identifierResolver;
+
     /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -74,6 +77,7 @@ final class JsonApiController
         ?InternalFieldVisibilityPolicy $internalFieldVisibility = null,
     ) {
         $this->internalFieldVisibility = $internalFieldVisibility ?? new InternalFieldVisibilityPolicy();
+        $this->identifierResolver = new EntityIdentifierResolver($entityTypeManager);
     }
 
     /**
@@ -1405,28 +1409,11 @@ final class JsonApiController
      */
     private function loadByIdOrUuid(string $entityTypeId, int|string $id): ?\Waaseyaa\Entity\EntityInterface
     {
-        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
-        $repository = $this->entityTypeManager->getRepository($entityTypeId);
-        $definition = $this->entityTypeManager->getDefinition($entityTypeId);
-        $keys = $definition->getKeys();
-
-        // If the entity type has a uuid key and the ID looks like a UUID, query by uuid.
-        // This is identity resolution only: query access is a VIEW filter, while
+        // Identity resolution only: query access is a VIEW filter, while
         // update/delete callers authorize the resolved entity for their own
         // operation. Numeric find() is likewise unfiltered. Every caller applies
         // its operation-specific access check after this method returns.
-        if (isset($keys['uuid']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id)) {
-            $query = $repository->getQuery()
-                ->accessCheck(false)
-                ->condition($keys['uuid'], (string) $id);
-            $ids = $query->execute();
-            if ($ids === []) {
-                return null;
-            }
-            return $repository->find((string) reset($ids));
-        }
-
-        return $repository->find((string) $id);
+        return $this->identifierResolver->resolve($entityTypeId, $id);
     }
 
     /**

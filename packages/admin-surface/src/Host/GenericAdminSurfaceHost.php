@@ -29,6 +29,7 @@ use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionRestoreChangedFields;
 use Waaseyaa\Foundation\SlugGenerator;
@@ -88,6 +89,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     /** @var list<string> */
     private readonly array $capabilityAllowlist;
 
+    private readonly EntityIdentifierResolver $identifierResolver;
+
     /**
      * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
      * @param array<string, bool> $features Installed capabilities exposed to the SPA session
@@ -116,6 +119,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         $this->clock = $clock ?? new UtcEntityClock();
         $this->internalFieldVisibility = $internalFieldVisibility ?? new InternalFieldVisibilityPolicy();
         $this->capabilityAllowlist = self::normalizeCapabilityAllowlist($capabilityAllowlist);
+        $this->identifierResolver = new EntityIdentifierResolver($entityTypeManager);
     }
 
     /**
@@ -1540,31 +1544,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     }
 
     /**
-     * Load an entity by numeric id, falling back to a UUID lookup for
-     * non-numeric ids (the admin SPA sends the JSON:API resource id, which is
-     * the UUID for int-keyed content entities). C-22 WP3: loadByKey() has no
-     * repository equivalent, so the UUID branch is a bounded query + find().
+     * Load an entity by its primary key, falling back to a UUID lookup for
+     * UUID-shaped ids (the admin SPA sends the JSON:API resource id, which is
+     * the UUID for int-keyed content entities).
+     *
+     * {@see EntityIdentifierResolver} is access-neutral: every caller above
+     * runs its own `view`/`update`/`delete` check on the result.
      */
     private function findByIdOrUuid(string $type, string $id): ?\Waaseyaa\Entity\EntityInterface
     {
-        $repository = $this->entityTypeManager->getRepository($type);
-
-        $definition = $this->entityTypeManager->getDefinition($type);
-        $isConfigEntity = is_a($definition->getClass(), ConfigEntityBase::class, true);
-        if (is_numeric($id) || $isConfigEntity) {
-            $entity = $repository->find($id);
-            if ($entity !== null || $isConfigEntity) {
-                return $entity;
-            }
-        }
-
-        $ids = $repository->getQuery()
-            ->accessCheck(false)
-            ->condition('uuid', $id)
-            ->range(0, 1)
-            ->execute();
-
-        return $ids === [] ? null : $repository->find((string) $ids[0]);
+        return $this->identifierResolver->resolve($type, $id);
     }
 
     private function jsonApi(): JsonApiController

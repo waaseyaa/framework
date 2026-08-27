@@ -10,6 +10,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
 use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
 use Waaseyaa\Media\Media;
@@ -26,12 +27,16 @@ final class MediaDownloadRouter implements DomainRouterInterface
         'application/pdf',
     ];
 
+    private readonly EntityIdentifierResolver $identifierResolver;
+
     public function __construct(
-        private readonly EntityTypeManagerInterface $entityTypeManager,
+        EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly string $filesRoot,
         private readonly MediaDownloadSourceReaderInterface $sourceReader,
-    ) {}
+    ) {
+        $this->identifierResolver = new EntityIdentifierResolver($entityTypeManager);
+    }
 
     public function supports(Request $request): bool
     {
@@ -121,32 +126,15 @@ final class MediaDownloadRouter implements DomainRouterInterface
         return new Response($bytes, 200, $headers);
     }
 
+    /**
+     * JSON:API and the admin SPA identify int-keyed content entities by UUID.
+     * {@see EntityIdentifierResolver} resolves that bounded identifier without
+     * query access shaping; the caller applies the complete entity-view policy
+     * before any protected source URI or bytes are read.
+     */
     private function findByIdOrUuid(string $id): ?Media
     {
-        if ($id === '') {
-            return null;
-        }
-
-        $repository = $this->entityTypeManager->getRepository('media');
-        $media = $repository->find($id);
-        if ($media instanceof Media || is_numeric($id)) {
-            return $media instanceof Media ? $media : null;
-        }
-
-        // JSON:API and the admin SPA identify int-keyed content entities by
-        // UUID. Resolve that bounded identifier without query access shaping,
-        // then apply the complete entity-view policy immediately above before
-        // any protected source URI or bytes are read.
-        $ids = $repository->getQuery()
-            ->accessCheck(false)
-            ->condition('uuid', $id)
-            ->range(0, 1)
-            ->execute();
-        if ($ids === []) {
-            return null;
-        }
-
-        $media = $repository->find((string) $ids[0]);
+        $media = $this->identifierResolver->resolve('media', $id);
 
         return $media instanceof Media ? $media : null;
     }
