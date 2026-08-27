@@ -124,13 +124,19 @@ final readonly class ContentToolSet
             return $schema + [
                 'properties' => [
                     'asset_id' => ['type' => 'string'],
+                    // The media row's identifier, so a caller can retrieve the
+                    // asset through the framework's authorized download route
+                    // (`/media/{id}/download`) rather than the ungated public
+                    // URL. Without it the row is servable but unreachable
+                    // (#2517).
+                    'media_id' => ['type' => 'string'],
                     'url' => ['type' => 'string'],
                     'mime' => ['type' => 'string'],
                     'width' => ['type' => 'integer'],
                     'height' => ['type' => 'integer'],
                     'size' => ['type' => 'integer'],
                 ],
-                'required' => ['asset_id', 'url', 'mime', 'width', 'height', 'size'],
+                'required' => ['asset_id', 'media_id', 'url', 'mime', 'width', 'height', 'size'],
             ];
         }
 

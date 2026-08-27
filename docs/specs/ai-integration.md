@@ -812,6 +812,8 @@ MCP tool execution has the following safety properties:
 
 7. **Declared-schema enforcement on the MCP transport (#2145):** a tool's `inputSchema` is a *contract*, not documentation. `Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator` validates arguments against it before `execute()` runs, so a handler never sees input violating the shape it advertised through `tools/list`. See below.
 
+8. **Asset reads are gated by the catalog row they wrote (#2517):** `AssetStoreInterface` takes the acting principal on both `upload()` and `get()`, and implementations MUST use it. `MediaAssetStore::get()` resolves the `media` row its `upload()` created and refuses unless the principal may `view` it; a retracted row, or bytes with no row, are indistinguishable from an asset that never existed. Accepting a principal and ignoring it — as `get()` previously did — is not conformant: it makes every call site read as though a decision were being made. The writer on this boundary can be a remote agent, not only a human operator placing deliberately public assets, which is why this is a gate rather than a convention. The stored `source_uri` is scheme-qualified (`public://…`) so the row is servable by the media package's authorized download route; see `docs/specs/content-publishing.md` for the tool-level contract and the retraction semantics.
+
 ## Declared input-schema validation (`ToolInputSchemaValidator`, #2145)
 
 `Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator` is a dependency-free

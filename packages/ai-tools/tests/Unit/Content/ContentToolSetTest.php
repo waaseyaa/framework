@@ -49,6 +49,7 @@ final class ContentToolSetTest extends TestCase
     private array $tools = [];
     private PublisherAccount $actor;
     private string $uploadsDir;
+    private string $filesRoot;
     private EntityRepository $mediaRepository;
     private DBALDatabase $database;
     private EventDispatcher $articleEvents;
@@ -118,10 +119,13 @@ final class ContentToolSetTest extends TestCase
             $db,
         );
         $this->mediaRepository = $mediaRepo;
-        $this->uploadsDir = sys_get_temp_dir() . '/waaseyaa_assets_' . uniqid();
+        $this->filesRoot = sys_get_temp_dir() . '/waaseyaa_files_' . uniqid();
+        $this->uploadsDir = $this->filesRoot . '/assets';
         $access = $this->createStub(EntityAccessHandler::class);
         $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
-        $assets = new MediaAssetStore($mediaRepo, $this->uploadsDir, '/media/uploads', $access, bundle: 'test_media');
+        // asset.get is gated on the catalog row's view access (#2517).
+        $access->method('check')->willReturn(AccessResult::allowed());
+        $assets = new MediaAssetStore($mediaRepo, $this->uploadsDir, '/media/uploads', $access, $this->filesRoot, bundle: 'test_media');
 
         $set = new ContentToolSet(
             $publisher,
@@ -167,7 +171,7 @@ final class ContentToolSetTest extends TestCase
         $access = $this->createStub(EntityAccessHandler::class);
         $access->method('checkCreateAccess')->willReturn(AccessResult::forbidden('denied'));
         $directory = $this->uploadsDir . '/denied';
-        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);
+        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access, $this->filesRoot);
         $before = $this->mediaRepository->count();
 
         $this->expectException(ContentAuthorizationException::class);
@@ -185,7 +189,7 @@ final class ContentToolSetTest extends TestCase
         $access = $this->createStub(EntityAccessHandler::class);
         $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
         $directory = $this->uploadsDir . '/attributed';
-        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);
+        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access, $this->filesRoot);
 
         try {
             $store->upload('pixel.png', base64_decode(self::PNG_BASE64, true), $this->actor);
