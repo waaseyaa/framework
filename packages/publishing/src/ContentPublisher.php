@@ -10,10 +10,11 @@ use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
-use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\Entity\RevisionId;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException;
@@ -100,10 +101,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
 
         $out = [];
         $workingCopy = $this->repository->loadWorkingCopy($id);
-        $currentRevisionId = $workingCopy instanceof RevisionableEntityInterface ? $workingCopy->revisionId() : null;
-        $currentRevisionId = is_int($currentRevisionId) || (is_string($currentRevisionId) && ctype_digit($currentRevisionId))
-            ? (int) $currentRevisionId
-            : null;
+        $currentRevisionId = $workingCopy !== null ? RevisionId::of($workingCopy) : null;
         foreach ($this->repository->listRevisions($id) as $revision) {
             if (!$this->allowsRevisionView($actor, $revision)) {
                 // Per-revision decision, applied BEFORE any historical field
@@ -111,7 +109,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
                 continue;
             }
             $meta = $revision instanceof RevisionableEntityInterface ? $revision->revisionMetadata() : null;
-            $revisionId = (int) ($revision instanceof RevisionableEntityInterface ? $revision->revisionId() : 0);
+            $revisionId = RevisionId::of($revision) ?? 0;
             $out[] = [
                 ...$this->snapshot($revision),
                 'revision_id' => $revisionId,
@@ -144,10 +142,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
 
         $meta = $revision instanceof RevisionableEntityInterface ? $revision->revisionMetadata() : null;
         $workingCopy = $this->repository->loadWorkingCopy($id);
-        $latestRevisionId = $workingCopy instanceof RevisionableEntityInterface ? $workingCopy->revisionId() : null;
-        $latestRevisionId = is_int($latestRevisionId) || (is_string($latestRevisionId) && ctype_digit($latestRevisionId))
-            ? (int) $latestRevisionId
-            : null;
+        $latestRevisionId = $workingCopy !== null ? RevisionId::of($workingCopy) : null;
 
         return [
             ...$this->snapshot($revision),
@@ -445,9 +440,11 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
 
             $entity = $entity->set($this->descriptor->statusField, $published ? 1 : 0);
             $this->stampLog($entity, $note !== '' ? $note : ucfirst($operation) . 'ed via publishing surface.');
-            $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
 
-            $saved = $this->reload($entity);
+            $saved = $published
+                ? $this->publishUnboundWorkingCopy($entity, $expectedRevisionId, $actor)
+                : $this->unpublishUnboundWorkingCopy($entity, $expectedRevisionId, $actor);
+
             $this->auditRecord($kind, $actor, $saved);
 
             return $this->snapshot($saved);
@@ -867,21 +864,157 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
 
     private function saveDraft(EntityInterface $entity, SaveContext $context): void
     {
+        $claimedExpected = $context->expectedRevisionId();
+        $served = $this->servedPublishedEntity($entity);
+
+        if ($served !== null) {
+            if ($claimedExpected !== null) {
+                $this->assertExpectedRevision($entity, $claimedExpected);
+                $context = $context->withExpectedRevisionId(null);
+            }
+            $this->armRevisionOnlyDraft($entity, $served);
+        }
+
         try {
             $this->repository->save($entity, true, $context);
         } catch (SaveAdvisoryAcknowledgementRequiredException $exception) {
             throw new ContentSaveAdvisoryException($exception);
+        } catch (EntityMutationConflictException) {
+            $id = $entity->id();
+            $working = ($id !== null && $id !== '')
+                ? $this->repository->loadWorkingCopy((string) $id)
+                : null;
+            throw new RevisionConflictException(
+                $entity->getEntityTypeId(),
+                (string) ($id ?? ''),
+                $claimedExpected ?? 0,
+                $working !== null ? RevisionId::of($working) : RevisionId::of($entity),
+            );
         }
+    }
+
+    /**
+     * Served published snapshot when a live pointer exists. Under publisher
+     * discipline the base row is that snapshot, so this is a pointer read
+     * plus {@see EntityRepository::find()} rather than a full published-
+     * revision hydrate.
+     */
+    private function servedPublishedEntity(EntityInterface $entity): ?EntityInterface
+    {
+        $id = $entity->id();
+        if ($id === null || $id === '') {
+            return null;
+        }
+        if ($this->repository->publishedRevisionId((string) $id) === null) {
+            return null;
+        }
+
+        return $this->repository->find((string) $id);
+    }
+
+    /**
+     * Unbound (no workflow transitioner) publish. A first publish writes the
+     * served row then pins the published pointer. A later publish promotes the
+     * working copy without an expected-revision claim against the served
+     * pointer — that claim is a base-row UPDATE and is meaningless once
+     * default-revision discipline has left the base row on the live revision.
+     */
+    private function publishUnboundWorkingCopy(
+        EntityInterface $entity,
+        int $expectedRevisionId,
+        AuthorizationPrincipalInterface $actor,
+    ): EntityInterface {
+        $id = (string) $entity->id();
+        $liveRevisionId = $this->repository->publishedRevisionId($id);
+        if ($liveRevisionId === null) {
+            $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
+
+            return $this->promoteWorkingCopy($entity);
+        }
+
+        $this->assertExpectedRevision($entity, $expectedRevisionId);
+        $served = $this->repository->find($id);
+        $servedState = $served !== null ? $this->snapshotReader->workflowState($served) : null;
+        $workingState = $this->snapshotReader->workflowState($entity);
+        if ($servedState !== null && $workingState === 'draft') {
+            $entity = $entity->set('workflow_state', $servedState);
+        }
+        $entity = $entity->set($this->descriptor->statusField, 1);
+        if (method_exists($entity, 'setDefaultRevisionDiscipline')) {
+            $entity->setDefaultRevisionDiscipline(true);
+        }
+        if (method_exists($entity, 'setNewRevision')) {
+            $entity->setNewRevision(true);
+        }
+        $this->repository->save($entity, true, $this->saveContext($actor));
+
+        return $this->promoteWorkingCopy($entity);
+    }
+
+    private function unpublishUnboundWorkingCopy(
+        EntityInterface $entity,
+        int $expectedRevisionId,
+        AuthorizationPrincipalInterface $actor,
+    ): EntityInterface {
+        $this->assertExpectedRevision($entity, $expectedRevisionId);
+        $id = (string) $entity->id();
+        $liveRevisionId = $this->repository->publishedRevisionId($id);
+        $workingRevisionId = RevisionId::of($entity);
+
+        if ($liveRevisionId === null) {
+            $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
+
+            return $this->reload($entity);
+        }
+
+        if ($workingRevisionId === $liveRevisionId) {
+            $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
+            $token = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+            $this->repository->clearPublishedRevision($id, $token);
+
+            return $this->reload($entity);
+        }
+
+        $token = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+        $this->repository->clearPublishedRevision($id, $token);
+
+        return $this->reload($entity);
+    }
+
+    private function armRevisionOnlyDraft(EntityInterface $entity, EntityInterface $published): void
+    {
+        if (method_exists($entity, 'setDefaultRevisionDiscipline')) {
+            $entity->setDefaultRevisionDiscipline(true);
+        }
+        if (method_exists($entity, 'setNewRevision')) {
+            $entity->setNewRevision(true);
+        }
+        $entity->set($this->descriptor->statusField, 0);
+        $currentState = $this->snapshotReader->workflowState($entity);
+        $servedState = $this->snapshotReader->workflowState($published);
+        if ($currentState !== null && $currentState === $servedState) {
+            // Shipped editorial initial state. A bound workflow with a
+            // different initial id fails closed at PRE_SAVE (illegal edge).
+            $entity->set('workflow_state', 'draft');
+        }
+    }
+
+    private function promoteWorkingCopy(EntityInterface $entity): EntityInterface
+    {
+        $revisionId = RevisionId::of($entity);
+        if ($revisionId === null || $revisionId <= 0) {
+            throw new \LogicException('Cannot pin a published pointer without a revision id.');
+        }
+
+        $token = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+        $this->repository->promotePublishedRevision((string) $entity->id(), $revisionId, $token);
+
+        return $this->reload($entity);
     }
 
     private function assertExpectedRevision(EntityInterface $entity, int $expectedRevisionId): void
     {
-        $current = match (true) {
-            $entity instanceof RevisionableInterface => $entity->getRevisionId(),
-            $entity instanceof RevisionableEntityInterface => $entity->revisionId(),
-            default => null,
-        };
-        $current = is_int($current) || (is_string($current) && ctype_digit($current)) ? (int) $current : null;
+        $current = RevisionId::of($entity);
         if ($current !== $expectedRevisionId) {
             throw new RevisionConflictException(
                 $entity->getEntityTypeId(),
@@ -948,7 +1081,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
                 entityTypeId: $this->descriptor->entityTypeId,
                 attributes: $extra + [
                     'slug' => (string) $this->snapshotReader->field($entity, $this->descriptor->slugField),
-                    'revision_id' => $entity instanceof RevisionableEntityInterface ? $entity->revisionId() : null,
+                    'revision_id' => RevisionId::of($entity),
                 ],
             ));
         } catch (\Throwable) {
