@@ -1011,12 +1011,7 @@ abstract class AbstractKernel
      */
     protected function isDebugMode(): bool
     {
-        $envValue = getenv('APP_DEBUG');
-        if (is_string($envValue) && $envValue !== '') {
-            return filter_var($envValue, FILTER_VALIDATE_BOOLEAN);
-        }
-
-        return filter_var($this->config['debug'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        return RuntimePolicy::resolve($this->config)->debug;
     }
 
     /**
@@ -1034,9 +1029,7 @@ abstract class AbstractKernel
      */
     protected function resolveEnvironment(): string
     {
-        $env = $this->config['environment'] ?? getenv('APP_ENV') ?: 'production';
-
-        return is_string($env) ? $env : 'production';
+        return RuntimePolicy::resolve($this->config)->environment;
     }
 
     public function getProjectRoot(): string

@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\AboutHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 
 #[CoversClass(AboutHandler::class)]
 final class AboutHandlerTest extends TestCase
@@ -83,6 +84,39 @@ final class AboutHandlerTest extends TestCase
         } finally {
             putenv('WAASEYAA_DB');
             rmdir($projectRoot);
+        }
+    }
+
+    #[Test]
+    public function environmentAndDebugReportTheResolvedKernelConfiguration(): void
+    {
+        putenv('APP_ENV=local');
+        putenv('APP_DEBUG=0');
+        $_ENV['APP_ENV'] = 'development';
+        $_ENV['APP_DEBUG'] = '0';
+
+        try {
+            $handler = new AboutHandler(
+                $this->authorityContext(),
+                runtimePolicy: new RuntimePolicy('staging', true),
+            );
+            $definition = new HandlerCommand(
+                name: 'about',
+                description: 'Display system information',
+                handler: \Closure::fromCallable([$handler, 'execute']),
+            );
+
+            $tester = CliTester::for($definition, $this->makeContainer());
+            $tester->execute([]);
+
+            self::assertSame(0, $tester->getExitCode());
+            self::assertStringContainsString('Environment        staging', $tester->getStdout());
+            self::assertStringContainsString('Debug Mode         ON', $tester->getStdout());
+            self::assertStringNotContainsString('Environment        development', $tester->getStdout());
+        } finally {
+            putenv('APP_ENV');
+            putenv('APP_DEBUG');
+            unset($_ENV['APP_ENV'], $_ENV['APP_DEBUG']);
         }
     }
 

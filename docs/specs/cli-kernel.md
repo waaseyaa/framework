@@ -1,5 +1,11 @@
 # CLI Console
 
+<!-- Spec reviewed 2026-08-27 - #2619: `about` receives the typed environment
+and debug policy resolved from the kernel bootstrap inputs. It no longer reads
+PHP environment superglobals independently, so operator output and boot policy
+cannot disagree. Command name, arguments, exit code, and custom info overrides
+are unchanged. -->
+
 <!-- Spec reviewed 2026-08-26 - #2439: scaffold:auth publishes presentation files only and records per-file Framework provenance plus separate upstream/consumer digests in the versioned scaffold manifest. --check is read-only and reports added, removed, changed-upstream, changed-consumer, and conflict states; --strict is an explicit blocking policy. --accept-current updates only reviewed manifest baselines and never application files. Missing/malformed manifests fail safely without repair. The skeleton site audit invokes the check as a non-blocking diagnostic. Canonical ownership contract: auth-consumer-extensions.md. -->
 <!-- Spec reviewed 2026-08-26 - #2570: WorkflowsServiceProvider registers workflows:audit-serving-projection as a normal fully booted operator command. It is report-only by default; mutation requires one entity id plus the exact current finding fingerprint, and delegates the write to the guarded repository pointer operation. It is never a pre-boot, migration, request, or automatic repair path. The output contains selectors/projection metadata but no entity content. Full recovery procedure: operations-playbooks.md "Workflow Serving-Projection Recovery". -->
 <!-- Spec reviewed 2026-08-26 - #2569: ValidationGateValidator now derives candidate publication from the supplied WorkflowState declaration rather than a literal state id. Command discovery, parsing, boot, I/O, and exit-code contracts are unchanged. -->
@@ -118,6 +124,10 @@ deletion.
 active generation, sync path, and selector provenance. They do not print secret
 values. An unavailable or divergent authority is a boot/composition failure,
 not a diagnostic warning.
+
+`about` also reports the environment and debug mode from the same typed
+bootstrap `RuntimePolicy` used by the kernel. It does not re-read `APP_ENV`,
+`APP_DEBUG`, or PHP environment superglobals after configuration assembly.
 
 ## Installation lifecycle
 

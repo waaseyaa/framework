@@ -1,5 +1,10 @@
 # Access Control
 
+<!-- Spec reviewed 2026-08-27 - #2619: AuthServiceProvider now consumes the
+shared Foundation RuntimePolicy resolver. AuthConfig and token-secret custody
+retain the #2617 precedence and failure semantics; this removes the private
+duplicate resolver without changing access decisions. -->
+
 <!-- Spec reviewed 2026-08-22 - #2500: AuthTokenSecret derives waaseyaa.auth.token-hmac.v1 from ApplicationSecret when auth.token_secret is omitted; valid explicit AUTH_TOKEN_SECRET remains an independent override; raw app_secret bytes are never the HMAC key; invalid explicit values fail in every environment. -->
 
 <!-- Spec reviewed 2026-08-20 - #2464: EntityAccessHandler composes view_revision

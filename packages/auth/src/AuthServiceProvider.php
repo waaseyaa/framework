@@ -12,6 +12,7 @@ use Waaseyaa\Auth\Rekey\AuthTokenHmacRekeyAdapter;
 use Waaseyaa\Auth\Security\AuthTokenSecret;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
@@ -154,14 +155,6 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
      */
     private function resolveRuntimeEnvironment(): string
     {
-        if (array_key_exists('environment', $this->config)) {
-            $configured = $this->config['environment'];
-
-            return is_string($configured) ? $configured : 'production';
-        }
-
-        $env = getenv('APP_ENV');
-
-        return is_string($env) && $env !== '' && $env !== '0' ? $env : 'production';
+        return RuntimePolicy::resolve($this->config)->environment;
     }
 }
