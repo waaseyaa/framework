@@ -9,9 +9,17 @@ const MAX_ITEMS = 64;
 $options = getopt('', [
     'task:', 'verdict:', 'evidence-dir:', 'output::', 'cwd::', 'worktree::',
     'pid::', 'evidence::', 'pin::', 'mutation::', 'blocker::', 'next::',
+    'verify:',
 ]);
 
 try {
+    if (array_key_exists('verify', $options)) {
+        if (count($options) !== 1) {
+            throw new InvalidArgumentException('--verify cannot be combined with checkpoint generation options');
+        }
+        exit(verifyCheckpoint(boundedString($options['verify'], 'verify', 4_096)));
+    }
+
     $task = boundedString($options['task'] ?? null, 'task', 160);
     $verdict = boundedString($options['verdict'] ?? null, 'verdict', 32);
     if (!in_array($verdict, ['complete', 'in-progress', 'blocked', 'failed'], true)) {
@@ -244,6 +252,166 @@ function processAlive(int $pid): bool
     }
     exec('tasklist /FI ' . escapeshellarg('PID eq ' . $pid) . ' /NH', $output, $exit);
     return $exit === 0 && preg_match('/\b' . $pid . '\b/', implode("\n", $output)) === 1;
+}
+
+function verifyCheckpoint(string $path): int
+{
+    $resolved = realpath($path);
+    if ($resolved === false || !is_file($resolved)) {
+        throw new InvalidArgumentException("checkpoint does not exist: {$path}");
+    }
+    try {
+        $checkpoint = json_decode((string) file_get_contents($resolved), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $exception) {
+        throw new InvalidArgumentException('invalid checkpoint JSON: ' . $exception->getMessage(), previous: $exception);
+    }
+    if (!is_array($checkpoint) || ($checkpoint['schema_version'] ?? null) !== 1) {
+        throw new InvalidArgumentException('checkpoint schema_version must be 1');
+    }
+    foreach (['repository', 'pins', 'worktrees', 'processes', 'mutations', 'evidence'] as $required) {
+        if (!array_key_exists($required, $checkpoint) || !is_array($checkpoint[$required])) {
+            throw new InvalidArgumentException("checkpoint field must be an array: {$required}");
+        }
+    }
+
+    $claims = [];
+    $repositoryPaths = [];
+    $cwd = $checkpoint['cwd'] ?? null;
+    if (!is_string($cwd) || $cwd === '') {
+        throw new InvalidArgumentException('checkpoint cwd must be a non-empty string');
+    }
+    $recordedRepository = $checkpoint['repository'];
+    if (!is_dir($cwd)) {
+        $claims[] = claim('repository', $cwd, 'gone');
+    } else {
+        $current = gitState($cwd);
+        $claims[] = claim(
+            'repository',
+            $cwd,
+            sameGitState($recordedRepository, $current) ? 'holds' : 'drifted',
+        );
+        if (is_string($current['repository_top_level'] ?? null)) {
+            $repositoryPaths[] = $current['repository_top_level'];
+        }
+    }
+
+    foreach (boundedCheckpointItems($checkpoint['worktrees'], 'worktrees') as $worktree) {
+        $worktreePath = $worktree['path'] ?? null;
+        if (!is_string($worktreePath) || $worktreePath === '') {
+            throw new InvalidArgumentException('checkpoint worktree path must be a non-empty string');
+        }
+        if (!is_dir($worktreePath)) {
+            $claims[] = claim('worktree', $worktreePath, 'gone');
+            continue;
+        }
+        $current = gitState($worktreePath);
+        $claims[] = claim('worktree', $worktreePath, sameGitState($worktree, $current) ? 'holds' : 'drifted');
+        if (is_string($current['repository_top_level'] ?? null)) {
+            $repositoryPaths[] = $current['repository_top_level'];
+        }
+    }
+    $repositoryPaths = array_values(array_unique($repositoryPaths));
+
+    foreach (boundedCheckpointItems($checkpoint['pins'], 'pins') as $pin) {
+        $name = $pin['name'] ?? null;
+        $sha = $pin['sha'] ?? null;
+        if (!is_string($name) || $name === '' || !is_string($sha) || preg_match('/^[0-9a-f]{40}$/', $sha) !== 1) {
+            throw new InvalidArgumentException('checkpoint pin must have a name and 40-character lowercase SHA');
+        }
+        $reachable = false;
+        foreach ($repositoryPaths as $repositoryPath) {
+            if (git($repositoryPath, ['cat-file', '-e', $sha . '^{commit}'], allowFailure: true) !== null) {
+                $reachable = true;
+                break;
+            }
+        }
+        $claims[] = claim('pin', $name, $reachable ? 'holds' : 'gone');
+    }
+
+    foreach (boundedCheckpointItems($checkpoint['processes'], 'processes') as $process) {
+        $label = $process['label'] ?? null;
+        $pid = $process['pid'] ?? null;
+        $recordedAlive = $process['alive'] ?? null;
+        if (!is_string($label) || $label === '' || !is_int($pid) || $pid < 1 || !is_bool($recordedAlive)) {
+            throw new InvalidArgumentException('checkpoint process is malformed');
+        }
+        $alive = processAlive($pid);
+        $status = $alive === $recordedAlive ? 'holds' : ($recordedAlive ? 'gone' : 'drifted');
+        $claims[] = claim('process', $label . ':' . $pid, $status);
+    }
+
+    foreach (boundedCheckpointItems($checkpoint['evidence'], 'evidence') as $evidence) {
+        $evidencePath = $evidence['path'] ?? null;
+        $sha = $evidence['sha256'] ?? null;
+        $bytes = $evidence['bytes'] ?? null;
+        if (!is_string($evidencePath) || $evidencePath === '' || !is_string($sha) || !is_int($bytes)) {
+            throw new InvalidArgumentException('checkpoint evidence is malformed');
+        }
+        $status = !is_file($evidencePath)
+            ? 'gone'
+            : ((hash_file('sha256', $evidencePath) === $sha && filesize($evidencePath) === $bytes) ? 'holds' : 'drifted');
+        $claims[] = claim('evidence', $evidencePath, $status);
+    }
+
+    foreach (boundedCheckpointItems($checkpoint['mutations'], 'mutations') as $mutation) {
+        $parts = [];
+        foreach (['system', 'action', 'target'] as $key) {
+            $part = $mutation[$key] ?? null;
+            if (!is_string($part) || $part === '') {
+                throw new InvalidArgumentException('checkpoint mutation is malformed');
+            }
+            $parts[] = $part;
+        }
+        $claims[] = claim('external-mutation', implode(':', $parts), 'unverifiable');
+    }
+
+    $failed = array_filter($claims, static fn(array $item): bool => in_array($item['status'], ['drifted', 'gone'], true));
+    $report = [
+        'schema' => 'waaseyaa.agent-checkpoint-verification.v1',
+        'generated_at' => gmdate('c'),
+        'checkpoint' => normalizePath($resolved),
+        'verdict' => $failed === [] ? 'holds' : 'drifted',
+        'claims' => $claims,
+    ];
+    $json = json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+    if (strlen($json) > MAX_CHECKPOINT_BYTES) {
+        throw new InvalidArgumentException('checkpoint verification exceeds the 16384-byte bounded-return contract');
+    }
+    fwrite(STDOUT, $json);
+    return $failed === [] ? 0 : 1;
+}
+
+/** @return list<array<string, mixed>> */
+function boundedCheckpointItems(array $items, string $name): array
+{
+    if (count($items) > MAX_ITEMS) {
+        throw new InvalidArgumentException("checkpoint {$name} exceeds " . MAX_ITEMS . ' items');
+    }
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            throw new InvalidArgumentException("checkpoint {$name} must contain objects");
+        }
+    }
+    return array_values($items);
+}
+
+/** @param array<string, mixed> $recorded
+ *  @param array<string, mixed> $current
+ */
+function sameGitState(array $recorded, array $current): bool
+{
+    foreach (['repository_top_level', 'branch', 'detached', 'head', 'porcelain', 'active_operation'] as $key) {
+        if (($recorded[$key] ?? null) !== ($current[$key] ?? null)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** @return array{kind:string,id:string,status:string} */
+function claim(string $kind, string $id, string $status): array
+{
+    return ['kind' => $kind, 'id' => normalizePath($id), 'status' => $status];
 }
 
 function pathWithin(string $path, string $parent): bool
