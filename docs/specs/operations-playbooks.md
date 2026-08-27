@@ -4,6 +4,7 @@
 <!-- Spec reviewed 2026-08-09 - #2316 Composer policy release determinism: CP-NEW reads the checked-out tracked VERSION as its constraint authority, falling back to the latest reachable release tag only for repositories without VERSION. Malformed tracked VERSION fails once rather than skipping or emitting per-manifest false violations. -->
 
 <!-- Spec reviewed 2026-08-09 - #2315 development-only selected package splits: an authorized manual workflow may update allowlisted split repository main branches from the exact current green framework main SHA with force-with-lease and provenance. It has no tag, version, release, or Packagist authority; docs/VERSIONING.md remains canonical. -->
+<!-- Spec reviewed 2026-08-27 - #2595 split-mirror contribution custody: tagged and selected-main split paths build a deterministic canonical issue and pull-request routing commit over the exact split SHA. Tagged splitting atomically pushes that commit to mirror main and the byte-exact split to the release tag; selected-main uses a force-with-lease. Reruns preserve the mirror-main SHA, and stale refs or tag conflicts fail closed. -->
 
 <!-- Spec reviewed 2026-08-04 - #2191: MCP operations now use the shipped tools/list method and protected admin read models; removed legacy aliases, read-cache metadata, and tools/introspect are documented as absent. -->
 
