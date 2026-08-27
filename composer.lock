@@ -4623,13 +4623,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "d5e8d93840b13ab92cea8747e0367e2a953d707c"
+                "reference": "d66999f804240425a86523e693a76891b1111f43"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
                 "php": ">=8.5",
                 "psr/container": "^2.0",
                 "psr/event-dispatcher": "^1.0",
+                "symfony/dotenv": "^8.0",
                 "symfony/event-dispatcher": "^7.0",
                 "symfony/http-foundation": "^7.0",
                 "symfony/polyfill-intl-normalizer": "^1.30",

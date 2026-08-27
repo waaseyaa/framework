@@ -2275,7 +2275,7 @@ Default logger is `LogManager(new Handler\ErrorLogHandler())`. After config load
 Boot sequence (idempotent — guarded by `$this->booted` flag, set only after all steps succeed):
 
 ```
-EnvLoader::load(.env)
+EnvLoader::load(.env) once per process through Symfony Dotenv
   → ConfigLoader::load(config/waaseyaa.php)
   → rebuild LogManager (fromConfig if logging.channels exists, else log_level fallback)
   → debug/environment safety guard
@@ -2333,7 +2333,7 @@ These variables and config keys are the primary **bootstrap surface** for operat
 | `WAASEYAA_DB` | Optional override for the SQLite database file path when `config['database']` is not set (see `DatabaseBootstrapper`). Relative values resolve against the kernel **project root**, never the process CWD (#1650 / FR-007). Pure resolution preserves POSIX, Windows drive-letter, UNC and `:memory:` spellings; production boot separately rejects UNC/device paths and production `:memory:` under the S1 topology. |
 | `WAASEYAA_CONFIG_SYNC_PATH` | Canonical optional selector for the local sync-artifact directory. Relative values resolve from the project root. All supplied selectors must normalize to one path. |
 | `WAASEYAA_CONFIG_DIR` | Transitional alias for `WAASEYAA_CONFIG_SYNC_PATH`. Equivalent use emits typed deprecation evidence; disagreement fails composition. |
-| `.env` (file) | Loaded first from `$projectRoot/.env` via `EnvLoader::load()` before `config/waaseyaa.php`. `EnvLoader` writes to `putenv()`, `$_ENV`, and `$_SERVER` without overwriting keys already present in any of those stores (see source listing under Kernel Bootstrap file index). |
+| `.env` (file) | Loaded from `$projectRoot/.env` via `EnvLoader::load()` before `config/waaseyaa.php`. The same boundary is called by HTTP before worker dispatch and by CLI boot paths, but each real base path is parsed only once per process. Symfony Dotenv owns the `.env.local` and environment-specific cascade, interpolation, multiline, comment, quote, and `export` grammar. Process-injected values win, and resolved values are consistent across `getenv()`, `$_ENV`, and `$_SERVER`. Malformed or unreadable files fail with a redacted message. |
 
 **Review note (assert / IO):** Layer 0 code may use `assert()` for internal invariants and file/stream helpers for logging, caches, or HTTP clients. Production should assume `zend.assertions` may be off; hot paths must not rely on assertions for security. When adding `file_put_contents`, `fopen`, `unserialize`, or `base64_decode` in Layer 0 packages, document the trust boundary (operator-only paths vs request-derived input) in package-level docblocks or this spec.
 
@@ -2451,7 +2451,7 @@ Kernel/
     AbstractKernel.php           -- boot orchestrator, delegates to Bootstrap/ classes
     HttpKernel.php               -- HTTP request handling, cache setup, CORS
     ConsoleKernel.php            -- CLI bootstrapping; delegates command graph assembly to `Waaseyaa\CLI\CliCommandRegistry`
-    EnvLoader.php                -- .env file parser; writes to putenv(), $_ENV, and $_SERVER (each destination guarded independently — preset keys in any destination are never overwritten)
+    EnvLoader.php                -- once-per-process Symfony Dotenv boundary; process values win and resolved keys are published consistently to putenv(), $_ENV, and $_SERVER
     ConfigLoader.php             -- config/waaseyaa.php loader
     EventListenerRegistrar.php   -- registers cache invalidation listeners
     BuiltinRouteRegistrar.php    -- registers shared foundation-owned HTTP routes (schema, discovery, entity-types, broadcast SSE, media upload/versions, semantic search, workflow/queue/scheduler/notification admin, Mercure monitor, OCAP audit log, MCP-admin REST `/api/mcp/{tools,server-config}`, OIDC client CRUD, classification retention policies, SSR catch-all)

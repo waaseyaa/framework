@@ -42,7 +42,8 @@ Dependencies flow downward only. `error-handler` and `debug` depend on Foundatio
 ### Implementation
 
 - Add `isDebugMode(): bool` to `AbstractKernel` alongside existing `isDevelopmentMode()`
-- `EnvLoader` picks up new vars with safe defaults
+- `EnvLoader` resolves the Symfony Dotenv cascade once per process, preserves
+  process-injected values, and defaults a missing `APP_ENV` to `production`
 - Update `config/waaseyaa.php` skeleton with `debug` and `log_level` keys
 - Update `.env.example` with new vars and documentation comments
 - Boot guard: `AbstractKernel::boot()` throws `\RuntimeException` if `APP_ENV=production` and `APP_DEBUG=true`
