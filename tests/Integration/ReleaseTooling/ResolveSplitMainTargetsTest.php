@@ -119,6 +119,24 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_bundle_unique_key_delivery_set(): void
+    {
+        [$exit, $stdout] = $this->runScript('api,entity-storage,entity,field,foundation,migration');
+
+        self::assertSame(0, $exit, $stdout);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/api', 'remote' => 'api'],
+                ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
+                ['local' => 'packages/entity', 'remote' => 'entity'],
+                ['local' => 'packages/field', 'remote' => 'field'],
+                ['local' => 'packages/foundation', 'remote' => 'foundation'],
+                ['local' => 'packages/migration', 'remote' => 'migration'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function resolves_the_shared_workflow_history_delivery_set(): void
     {
         [$exit, $stdout] = $this->runScript('api,audit,admin-surface');

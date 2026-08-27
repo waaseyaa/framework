@@ -23,6 +23,7 @@ $allowlist = [
     'media' => ['local' => 'packages/media', 'remote' => 'media'],
     'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
     'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
+    'field' => ['local' => 'packages/field', 'remote' => 'field'],
     'routing' => ['local' => 'packages/routing', 'remote' => 'routing'],
     'api' => ['local' => 'packages/api', 'remote' => 'api'],
     'audit' => ['local' => 'packages/audit', 'remote' => 'audit'],
