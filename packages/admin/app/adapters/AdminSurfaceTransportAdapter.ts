@@ -27,6 +27,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
    */
   private readonly inflightGets = new Map<string, Promise<EntityResource>>()
   private readonly mutationTokens = new Map<string, string>()
+  private readonly canonicalMutationTokenKeys = new Map<string, string>()
 
   constructor(
     /** Same normalization as the admin plugin (`normalizeAppBaseURL(app.baseURL)`). */
@@ -70,7 +71,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       this.surfaceUrl('admin_surface.get', { type, id }),
       { method: 'GET' },
     )
-      .then((entity) => this.normalizeEntity(entity, type))
+      .then((entity) => this.normalizeEntity(entity, type, [id]))
       .finally(() => this.inflightGets.delete(key))
 
     this.inflightGets.set(key, promise)
@@ -104,7 +105,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     attributes: Record<string, any>,
     saveAdvisoryAcknowledgements: string[] = [],
   ): Promise<EntityResource> {
-    const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+    const mutationToken = this.mutationTokens.get(this.mutationTokenKey(type, id))
     if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before saving it.')
     const entity = await this.request<SurfaceEntity>(
       this.surfaceUrl('admin_surface.action', { type, action: 'update' }),
@@ -121,11 +122,11 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
         }),
       },
     )
-    return this.normalizeEntity(entity, type)
+    return this.normalizeEntity(entity, type, [id])
   }
 
   async remove(type: string, id: string): Promise<void> {
-    const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+    const mutationToken = this.mutationTokens.get(this.mutationTokenKey(type, id))
     if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before deleting it.')
     await this.request(
       this.surfaceUrl('admin_surface.action', { type, action: 'delete' }),
@@ -169,7 +170,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     const body = { ...(payload ?? {}) }
     if (action === 'restore-revision') {
       const id = typeof body.id === 'string' ? body.id : ''
-      const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+      const mutationToken = this.mutationTokens.get(this.mutationTokenKey(type, id))
       if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before restoring a revision.')
       body.mutation_token = mutationToken
     }
@@ -183,7 +184,8 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     )
     const entity = result?.entity
     if (action === 'restore-revision' && typeof entity === 'object' && entity !== null) {
-      this.normalizeEntity(entity as SurfaceEntity, type)
+      const requestedId = typeof body.id === 'string' ? body.id : ''
+      this.normalizeEntity(entity as SurfaceEntity, type, requestedId === '' ? [] : [requestedId])
     }
     return result
   }
@@ -241,7 +243,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       this.forgetMutationToken(type, id)
       return
     }
-    this.mutationTokens.set(`${type}:${id}`, token)
+    this.mutationTokens.set(this.mutationTokenKey(type, id), token)
   }
 
   /**
@@ -249,16 +251,32 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
    * a reload rather than presenting something the server will reject.
    */
   forgetMutationToken(type: string, id: string): void {
-    this.mutationTokens.delete(`${type}:${id}`)
+    this.mutationTokens.delete(this.mutationTokenKey(type, id))
   }
 
-  private normalizeEntity(entity: SurfaceEntity, surfaceType: string = entity.type): EntityResource {
-    if (entity.mutation_token) this.mutationTokens.set(`${surfaceType}:${entity.id}`, entity.mutation_token)
+  private normalizeEntity(
+    entity: SurfaceEntity,
+    surfaceType: string = entity.type,
+    requestedAliases: readonly string[] = [],
+  ): EntityResource {
+    if (entity.mutation_token) {
+      const canonicalKey = `${surfaceType}:${entity.id}`
+      this.canonicalMutationTokenKeys.set(canonicalKey, canonicalKey)
+      for (const id of new Set(requestedAliases)) {
+        if (id !== '') this.canonicalMutationTokenKeys.set(`${surfaceType}:${id}`, canonicalKey)
+      }
+      this.mutationTokens.set(canonicalKey, entity.mutation_token)
+    }
     return {
       type: entity.type,
       id: entity.id,
       attributes: entity.attributes as Record<string, any>,
       ...(entity.capabilities ? { capabilities: entity.capabilities } : {}),
     }
+  }
+
+  private mutationTokenKey(type: string, id: string): string {
+    const requestedKey = `${type}:${id}`
+    return this.canonicalMutationTokenKeys.get(requestedKey) ?? requestedKey
   }
 }

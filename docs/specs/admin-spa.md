@@ -1,5 +1,14 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-27 - #2609: Admin Surface detail routes may resolve
+an accepted identifier (for example a numeric entity id) to a different
+canonical resource id (for example its UUID). AdminSurfaceTransportAdapter
+binds an observed mutation token to both the requested identifier and the
+canonical response id. Successful updates and revision restores refresh both
+bindings so a second mutation cannot reuse the predecessor. This is transport
+aliasing only: server-side authorization, token identity, and conflict checks
+remain authoritative and unchanged. -->
+
 <!-- Spec reviewed 2026-08-24 - #2537: Admin GenericAdminSurfaceHost keeps body
 `mutation_token` (`fromOpaqueString()`). It does not switch to If-Match.
 Page-builder continues to fence on revision/fingerprint, not EntityMutationToken.
