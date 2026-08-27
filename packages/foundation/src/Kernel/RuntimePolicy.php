@@ -11,6 +11,8 @@ namespace Waaseyaa\Foundation\Kernel;
  */
 final readonly class RuntimePolicy
 {
+    private const array DEVELOPMENT_ENVIRONMENTS = ['dev', 'development', 'local', 'testing'];
+
     public function __construct(
         public string $environment,
         public bool $debug,
@@ -38,5 +40,15 @@ final readonly class RuntimePolicy
             environment: $environment,
             debug: filter_var($debug, FILTER_VALIDATE_BOOLEAN),
         );
+    }
+
+    public function isDevelopment(): bool
+    {
+        return in_array(strtolower(trim($this->environment)), self::DEVELOPMENT_ENVIRONMENTS, true);
+    }
+
+    public function isProductionLike(): bool
+    {
+        return !$this->isDevelopment();
     }
 }

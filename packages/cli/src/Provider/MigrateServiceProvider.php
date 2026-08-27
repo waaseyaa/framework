@@ -19,6 +19,7 @@ use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
@@ -167,13 +168,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
 
     private function isProduction(): bool
     {
-        $appEnv = getenv('APP_ENV');
-        if (!is_string($appEnv) || $appEnv === '') {
-            $fromServer = $_SERVER['APP_ENV'] ?? null;
-            $appEnv = is_string($fromServer) && $fromServer !== '' ? $fromServer : 'production';
-        }
-
-        return $appEnv === 'production';
+        return RuntimePolicy::resolve($this->config)->isProductionLike();
     }
 
     public function consoleCommands(): iterable

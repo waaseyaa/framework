@@ -61,5 +61,29 @@ final class RuntimePolicyTest extends TestCase
 
         self::assertSame('production', $policy->environment);
         self::assertFalse($policy->debug);
+        self::assertFalse($policy->isDevelopment());
+        self::assertTrue($policy->isProductionLike());
+    }
+
+    #[Test]
+    public function environmentClassificationUsesAnExplicitNormalizedDevelopmentAllowlist(): void
+    {
+        foreach ([
+            ['local', true],
+            [' LOCAL ', true],
+            ['dev', true],
+            ['Development', true],
+            ['testing', true],
+            ['production', false],
+            ['staging', false],
+            ['unknown', false],
+            ['', false],
+            ['0', false],
+        ] as [$environment, $expectedDevelopment]) {
+            $policy = new RuntimePolicy($environment, false);
+
+            self::assertSame($expectedDevelopment, $policy->isDevelopment(), $environment);
+            self::assertSame(!$expectedDevelopment, $policy->isProductionLike(), $environment);
+        }
     }
 }
