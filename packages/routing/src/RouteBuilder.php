@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Routing;
 
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Foundation\Http\Refusal\RefusalEnvelope;
 
 /**
  * Fluent API for building Symfony Route objects with Waaseyaa conventions.
@@ -236,6 +237,43 @@ final class RouteBuilder
     public function jsonApi(): self
     {
         $this->options['_json_api'] = true;
+        return $this;
+    }
+
+    /**
+     * Declare the wire vocabulary this route's kernel-level refusals are
+     * rendered in.
+     *
+     * The kernel refuses some requests before the controller runs — an
+     * oversized body, a malformed JSON document — and those refusals defaulted
+     * to the framework's JSON:API error envelope. On an endpoint that
+     * advertises a different transport that envelope is a shape the client
+     * cannot interpret, and it shadows the endpoint's own refusal (#2594).
+     *
+     * The declaration is plain route-option data, so the endpoint's package
+     * keeps ownership of its error codes and Foundation never learns what
+     * transport it is serving:
+     *
+     * ```php
+     * RouteBuilder::create('/mcp')
+     *     ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [
+     *         RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+     *         RefusalEnvelope::REASON_PARSE_ERROR => -32700,
+     *     ])
+     * ```
+     *
+     * A reason left unmapped falls back to the JSON:API envelope; the kernel
+     * never invents an error code it was not given.
+     *
+     * @param string             $transport One of the `TRANSPORT_*` constants on
+     *                                      {@see RefusalEnvelope}.
+     * @param array<string, int> $codes     `REASON_* => transport error code`.
+     */
+    public function refusalTransport(string $transport, array $codes): self
+    {
+        $this->options[RefusalEnvelope::TRANSPORT_OPTION] = $transport;
+        $this->options[RefusalEnvelope::CODES_OPTION] = $codes;
+
         return $this;
     }
 
