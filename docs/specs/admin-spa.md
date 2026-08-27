@@ -1653,6 +1653,15 @@ shows every backend-registered layout as an explicit choice and creates the
 declared regions for that layout. Internal block and layout identifiers are not
 shown as ordinary editor labels; registered block labels and readable layout
 names keep application namespaces out of the Communications Officer workflow.
+The block palette is disabled with an operator-visible explanation while no
+section and region can be resolved. If insertion first needs to save a dirty
+selected block and that save is refused, insertion performs no second command,
+preserves the selected block and pending configuration, and presents a distinct
+assertive explanation that the requested block was not added. That explanation
+clears when the pending configuration later saves successfully. If the
+insertion target disappears while that prerequisite save is in flight, the
+structural explanation replaces the refusal instead of allowing a second
+silent abort.
 
 The same workspace is also exposed without the Admin SPA navigation shell at
 `/page-builder-embed/{surface}/{id}`. This route is authenticated by the same

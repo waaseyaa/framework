@@ -473,6 +473,88 @@ describe('PageBuilderWorkspace', () => {
     randomUUID.mockRestore()
   })
 
+  it('disables block insertion and explains when the document has no section', async () => {
+    draftRef.value = structuredClone(draft)
+    draftRef.value.document.sections = []
+    const wrapper = await mountWorkspace()
+
+    const paletteButton = wrapper.get('.page-builder__block-card')
+    expect(paletteButton.attributes('disabled')).toBeDefined()
+    expect(paletteButton.attributes('aria-describedby')).toBe('page-builder-block-insertion-unavailable')
+    expect(wrapper.get('#page-builder-block-insertion-unavailable').text()).toBe('page_builder_block_insertion_unavailable')
+
+    expect(applyMock).not.toHaveBeenCalled()
+  })
+
+  it('disables block insertion and explains when the fallback section has no region', async () => {
+    draftRef.value = structuredClone(draft)
+    draftRef.value.document.sections[0]!.regions = {}
+    const wrapper = await mountWorkspace()
+
+    const paletteButton = wrapper.get('.page-builder__block-card')
+    expect(paletteButton.attributes('disabled')).toBeDefined()
+    expect(paletteButton.attributes('aria-describedby')).toBe('page-builder-block-insertion-unavailable')
+    expect(wrapper.get('#page-builder-block-insertion-unavailable').text()).toBe('page_builder_block_insertion_unavailable')
+
+    expect(applyMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the selected dirty block and explicitly reports when its implicit save prevents insertion', async () => {
+    const wrapper = await mountWorkspace()
+    await wrapper.get('textarea').setValue('Pending edit that cannot be saved')
+    applyMock.mockReset().mockResolvedValue(false)
+
+    await wrapper.get('.page-builder__block-card').trigger('click')
+    await flushPromises()
+
+    expect(applyMock).toHaveBeenCalledOnce()
+    expect(applyMock).toHaveBeenCalledWith({
+      type: 'configure_block',
+      block_id: 'blk_intro',
+      config: { body: 'Pending edit that cannot be saved' },
+    })
+    expect(wrapper.get('[data-block-select="blk_intro"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('textarea').element.value).toBe('Pending edit that cannot be saved')
+    expect(wrapper.get('[data-page-builder-block-add-refusal]').text()).toBe('page_builder_block_not_added_save_failed')
+    expect(wrapper.emitted('dirty')?.at(-1)).toEqual([true])
+    expect(wrapper.emitted('saved')).toBeUndefined()
+  })
+
+  it('reports when the insertion target disappears while the implicit save is in flight', async () => {
+    const wrapper = await mountWorkspace()
+    await wrapper.get('textarea').setValue('Pending edit before a structural refresh')
+    applyMock.mockReset().mockImplementation(async () => {
+      const refreshed = structuredClone(draft)
+      refreshed.document.sections = []
+      draftRef.value = refreshed
+      return true
+    })
+
+    await wrapper.get('.page-builder__block-card').trigger('click')
+    await flushPromises()
+
+    expect(applyMock).toHaveBeenCalledOnce()
+    expect(applyMock.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ type: 'configure_block' }))
+    expect(wrapper.get('[data-page-builder-block-add-refusal]').text()).toBe('page_builder_block_insertion_unavailable')
+    expect(wrapper.find('.page-builder__block-card').attributes('disabled')).toBeDefined()
+  })
+
+  it('clears a prior insertion refusal after the pending block later saves successfully', async () => {
+    const wrapper = await mountWorkspace()
+    await wrapper.get('textarea').setValue('Pending edit')
+    applyMock.mockReset().mockResolvedValue(false)
+    await wrapper.get('.page-builder__block-card').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-page-builder-block-add-refusal]').exists()).toBe(true)
+
+    applyMock.mockResolvedValue(true)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-page-builder-block-add-refusal]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('page_builder_saved')
+  })
+
   it('offers only block and layout definitions allowed by the active template', async () => {
     const governedDefinitions = structuredClone(definitions)
     governedDefinitions.blocks.push({

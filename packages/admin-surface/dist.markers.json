@@ -68,6 +68,11 @@
             "value": "page-builder-embed"
         },
         {
+            "id": "page-builder-palette-refusal",
+            "scope": "bundle-js",
+            "value": "page_builder_block_not_added_save_failed"
+        },
+        {
             "id": "public-projection-refresh-signal",
             "scope": "bundle-js",
             "value": "publicChanged"
