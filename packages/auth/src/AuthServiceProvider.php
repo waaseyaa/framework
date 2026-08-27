@@ -39,7 +39,7 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         $this->singleton(RateLimiterInterface::class, fn() => $this->resolve(AtomicRateLimiterInterface::class));
 
         $authConfig = $this->config['auth'] ?? [];
-        $appEnv = $this->config['app_env'] ?? ($_ENV['APP_ENV'] ?? 'production');
+        $appEnv = $this->resolveRuntimeEnvironment();
 
         $this->singleton(Config\AuthConfig::class, fn() => Config\AuthConfig::fromArray($authConfig, $appEnv));
 
@@ -148,18 +148,20 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
     /**
      * Resolve the runtime environment the same way {@see \Waaseyaa\Foundation\Kernel\AbstractKernel}
      * does: the canonical source is the config `environment` key (what the kernel and the
-     * integration test harness set), with `app_env` / `APP_ENV` as fallbacks. Reading only
-     * `app_env` here would misclassify a `local` kernel as production and break boot.
+     * integration test harness set), with process `APP_ENV` and `production` as fallbacks.
+     * Auth policy and secret custody must never infer a second environment from a
+     * superglobal or legacy config alias.
      */
     private function resolveRuntimeEnvironment(): string
     {
-        $env = $this->config['environment'] ?? $this->config['app_env'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
+        if (array_key_exists('environment', $this->config)) {
+            $configured = $this->config['environment'];
+
+            return is_string($configured) ? $configured : 'production';
         }
 
-        $fromEnv = getenv('APP_ENV');
+        $env = getenv('APP_ENV');
 
-        return is_string($fromEnv) && $fromEnv !== '' ? $fromEnv : 'production';
+        return is_string($env) && $env !== '' && $env !== '0' ? $env : 'production';
     }
 }
