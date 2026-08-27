@@ -174,12 +174,15 @@ jobs:
           split_sha="$(splitsh-lite --prefix="${LOCAL_PREFIX}")"
           existing="$(git ls-remote "${remote_url}" refs/heads/main | awk '{print $1}')"
           git remote add split "${remote_url}"
+          mirror_main_sha="$(
+            bash bin/build-split-contribution-boundary "${split_sha}"
+          )"
           git push split \
             --force-with-lease="refs/heads/main:${existing}" \
-            "${split_sha}:refs/heads/main"
+            "${mirror_main_sha}:refs/heads/main"
           actual="$(git ls-remote "${remote_url}" refs/heads/main | awk '{print $1}')"
-          if [ "${actual}" != "${split_sha}" ]; then
-            echo "::error::Split verification failed for ${REMOTE_REPO}: expected ${split_sha}, got ${actual}."
+          if [ "${actual}" != "${mirror_main_sha}" ]; then
+            echo "::error::Split verification failed for ${REMOTE_REPO}: expected routed main ${mirror_main_sha}, got ${actual}."
             exit 1
           fi
           jq -n \
@@ -188,10 +191,11 @@ jobs:
             --arg package "${REMOTE_REPO}" \
             --arg prefix "${LOCAL_PREFIX}" \
             --arg split_sha "${split_sha}" \
+            --arg mirror_main_sha "${mirror_main_sha}" \
             --arg actor "${GITHUB_ACTOR}" \
             --arg reason "${REASON}" \
             --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            '{source_repository:$source_repository,source_sha:$source_sha,package:$package,prefix:$prefix,split_sha:$split_sha,ref:"refs/heads/main",actor:$actor,reason:$reason,run_url:$run_url,release:false}' \
+            '{source_repository:$source_repository,source_sha:$source_sha,package:$package,prefix:$prefix,split_sha:$split_sha,mirror_main_sha:$mirror_main_sha,ref:"refs/heads/main",actor:$actor,reason:$reason,run_url:$run_url,release:false}' \
             > "split-main-provenance-${REMOTE_REPO}.json"
           cat "split-main-provenance-${REMOTE_REPO}.json" >> "${GITHUB_STEP_SUMMARY}"
 
