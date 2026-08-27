@@ -179,6 +179,8 @@ final class DevRuntimeBootstrapTest extends TestCase
         self::assertStringContainsString('DevRuntime::captureSystem()', $contract);
         self::assertStringContainsString('DevRuntime::loadManifest(', $contract);
         self::assertStringContainsString('bootstrap|doctor|exec', $command);
+        self::assertStringContainsString("'-C', \$repositoryRoot, 'rev-parse', 'HEAD'", $command);
+        self::assertStringContainsString('$repositoryRoot, $environment', $command);
         self::assertStringNotContainsString('sudo ', $command);
         self::assertStringNotContainsString('get.frankenphp.dev', $command);
     }

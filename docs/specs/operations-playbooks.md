@@ -108,6 +108,23 @@ execution never selects them.
 This local profile does not widen S1 production support and does not replace
 the hosted Ubuntu support-contract or real FrankenPHP worker gates.
 
+First-party consumer repositories use the Framework-owned
+`bin/dev-runtime-consumer` launcher and `DevRuntimeConsumer` library under the
+local name `bin/dev-runtime`. Their `tools/dev-runtime-source.json` records one
+exact Framework commit and the SHA-256 of each canonical source file. The
+launcher verifies its own mirrored bytes, downloads and verifies the canonical
+source into a separate content-addressed user cache, and only then delegates.
+Consumers therefore invoke the same bootstrap and identity implementation
+without copying any managed-tool version, URL, or checksum. The delegated
+`--repository-root` binds the evidence commit and child working directory to
+the consumer checkout; it does not change the Framework source authority.
+
+Updating a consumer pin is a reviewed source-adoption operation: select an
+exact Framework commit containing `FW-DEV-RUNTIME-01`, recompute every listed
+source hash from that Git object, copy the two consumer files byte-for-byte,
+and run the consumer's clean-checkout contract test. Never point the source
+record at a branch or use a checksum from working-tree bytes.
+
 **The admin SPA's realtime SSE and worker usage.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). The `BroadcastRouter` loop is **bounded** (see `docs/specs/broadcasting.md`): it returns on client disconnect or after a per-connection time budget (`DEFAULT_MAX_DURATION_SEC`, 30s), so a worker is never pinned indefinitely and the client's `EventSource` reconnects automatically. A short keepalive cadence (2s) makes disconnect detection prompt so the worker is released soon after a tab navigates away. Even so, each *concurrently open* admin tab uses one worker for the duration of its stream, so the server still needs **>1 worker**. PHP's built-in server is single-worker by default, so `bin/waaseyaa serve` defaults `PHP_CLI_SERVER_WORKERS=4`.
 
 ### Playbook: rebuilding the committed Admin SPA bundle

@@ -35,6 +35,16 @@ candidate. PHPUnit memory and hosted FrankenPHP execution are already owned by
 6. Framework ships the manifest, bootstrap, doctor, wrapper, pure library, and
    architecture tests. Sheg and Anokii adoption remain separate review
    candidates.
+7. A clean consumer cannot install the root tooling through a split Composer
+   package. Consumers therefore carry only the Framework-owned consumer
+   launcher/library plus a source record that pins the canonical runtime files
+   at one exact Framework commit and SHA-256. They do not copy managed-tool
+   versions, URLs, or checksums.
+8. The consumer launcher verifies its own two mirrored files, materializes the
+   canonical Framework runtime source into a second content-addressed user
+   cache, and delegates only after every source byte matches. The canonical
+   command records and executes in the consumer checkout; the cached Framework
+   source remains the tooling authority.
 
 ## Sequence
 
@@ -47,9 +57,13 @@ candidate. PHPUnit memory and hosted FrankenPHP execution are already owned by
    manifest without downloading tools in ordinary CI.
 5. Verify focused tests, split suites, full preflight, and real clean-cache plus
    idempotent-bootstrap acceptance on WSL2.
+6. Add the exact-commit consumer source launcher, prove malformed records,
+   altered mirrors, corrupt cached source, and argument placement fail closed,
+   then adopt the byte-identical launcher in Sheg and Anokii.
 
 ## Boundaries
 
 No production runtime change, global installation, package repository change,
-synthetic-pack change, ruleset mutation, merge, release, split, deployment, or
-consumer edit is authorized by this candidate.
+synthetic-pack change, ruleset mutation, release, split, or deployment is
+authorized. Consumer edits are separate candidates under the same change
+record and may only adopt the source-pinned development entrypoint.
