@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Verify and safely materialize an exact-source artifact into a new directory.
+set -euo pipefail
+
+artifact_dir="${1:-}"
+expected_sha="${2:-}"
+destination="${3:-}"
+
+if [ -z "$artifact_dir" ] || [ -z "$expected_sha" ] || [ -z "$destination" ]; then
+  echo "Usage: bin/materialize-exact-source-artifact <artifact-dir> <exact-sha> <destination>" >&2
+  exit 2
+fi
+
+fail() {
+  echo "source_artifact_materialization_refused: $1" >&2
+  exit 1
+}
+
+[ ! -e "$destination" ] || fail "destination already exists: $destination"
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+"$repo_root/bin/verify-exact-source-artifact" "$artifact_dir" "$expected_sha"
+
+archive_path="$artifact_dir/framework-source.tar"
+if tar -tf "$archive_path" | awk '
+  $0 !~ /^framework\// { bad = 1 }
+  END { exit bad ? 0 : 1 }
+'; then
+  fail "archive contains a path outside framework/"
+fi
+
+destination_parent="$(dirname "$destination")"
+mkdir -p "$destination_parent"
+temporary_destination="$(mktemp -d "$destination_parent/.exact-source.XXXXXX")"
+cleanup() {
+  rm -rf -- "$temporary_destination"
+}
+trap cleanup EXIT
+
+tar -xf "$archive_path" -C "$temporary_destination"
+[ -d "$temporary_destination/framework" ] \
+  || fail "archive did not materialize exactly one framework root"
+[ "$(find "$temporary_destination" -mindepth 1 -maxdepth 1 -printf '%f\n')" = "framework" ] \
+  || fail "archive did not materialize exactly one framework root"
+
+mv "$temporary_destination" "$destination"
+trap - EXIT
+
+printf 'exact source artifact materialized\n'
+printf 'source_sha=%s\n' "$expected_sha"
+printf 'source_root=%s/framework\n' "$destination"

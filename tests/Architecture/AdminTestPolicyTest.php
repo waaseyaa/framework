@@ -29,7 +29,11 @@ final class AdminTestPolicyTest extends TestCase
                 continue;
             }
 
-            self::assertStringContainsString("node-version-file: '.nvmrc'", $workflow, basename($path));
+            self::assertMatchesRegularExpression(
+                "/node-version-file: '(?:[^']+\/)?\\.nvmrc'/",
+                $workflow,
+                basename($path),
+            );
             self::assertStringNotContainsString('node-version:', $workflow, basename($path));
         }
 
@@ -71,7 +75,7 @@ final class AdminTestPolicyTest extends TestCase
             self::assertStringContainsString($browserInstall, $workflow, $filename);
             self::assertStringContainsString('path: ~/.cache/ms-playwright', $workflow, $filename);
             self::assertMatchesRegularExpression(
-                '/name: Install Playwright browsers\R\s+timeout-minutes: 5\R\s+run: cd packages\/admin && npx playwright install/',
+                '/name: Install Playwright browsers\R\s+timeout-minutes: 5\R\s+run: cd (?:\S+\/)?packages\/admin && npx playwright install/',
                 $workflow,
                 $filename,
             );

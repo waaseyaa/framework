@@ -190,3 +190,5 @@ gate before publication.
 |---|---|---|
 | `release-cut.yml` | Create release | Governed changelog/version commit, exact-SHA CI gate, tag, and package fan-out |
 | `scripts/build-release-candidate.sh` | Verify candidate | Fail-closed local dependency and Admin build with bounded metadata; no deployment or publication effects |
+| `bin/promote-exact-source-artifact` | Import CI source | Resolve and verify one successful exact-head CI source artifact with provenance |
+| `bin/materialize-exact-source-artifact` | Consume CI source | Re-verify and safely extract the promoted source into a new destination |
