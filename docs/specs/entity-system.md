@@ -1020,6 +1020,15 @@ Multi-bundle entity types (declaring `bundleEntityType`) may register bundle-spe
 - One column per registered bundle field (type translated via `deriveColumnSpec()`).
 - Foreign key `entity_id → {base}.{idKey}` with `ON DELETE CASCADE`. FK enforcement requires `PRAGMA foreign_keys = ON` on SQLite and is default-on for MySQL/InnoDB and PostgreSQL. `HealthChecker::checkForeignKeysEnabled()` emits `FK_ENFORCEMENT_DISABLED` if the probe shows FKs off.
 
+Bundle-scoped storage unique keys are declared through
+`EntityTypeManager::addBundleUniqueKeys()`. Key fields declared as
+`FieldStorage::Data` are promoted to column storage in the registry;
+schema sync backfills from base `_data`, refuses existing duplicate non-null
+tuples before index creation, and runtime readiness verifies the columns and
+named unique index without mutation. The bundle gateway maps database conflicts to
+`BundleUniqueKeyConflictException`. Null-containing tuples do not participate;
+empty strings do.
+
 **Field registry partitioning.** `FieldDefinitionRegistry` (implements `FieldDefinitionRegistryInterface`, extracted for cross-package consumption under `packages/entity/src/Field/`) keeps core-field and per-bundle-field maps separate. `ContentEntityBase::getFieldDefinitions()` returns the union of core plus the active bundle; entities created with an unknown bundle see only core fields.
 
 **Incremental core fields (`mergeCoreFields`).** Packages register their baseline core set via `registerCoreFields()`. Host applications may then call `FieldDefinitionRegistryInterface::mergeCoreFields(string $entityTypeId, array $fields)` to append additional **core** fields (same value shapes as `registerCoreFields`: metadata arrays or `FieldDefinitionInterface` instances). Use this for product-only overlays (feature flags, optional references stored in `_data`, etc.) without subclassing or replacing the package `EntityType`. New names must not collide with existing core fields; the implementation rejects duplicates. After merge, storage partitioning, schema materialization, validation, and query field resolution all treat the added definitions like any other core field.

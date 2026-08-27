@@ -252,6 +252,8 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `RevisionPruningReport` | final class | Result of a pruning run: counts of deleted and retained revisions (M-001, WP08) |
 | `RevisionTableBuilder` | final class | Creates the `{entity_type}_revision` schema table (M-001, WP07) |
 | `Waaseyaa\EntityStorage\Exception\StorageMigrationException` | final class | Typed exception for storage-migration / two-axis schema failures during kernel boot, schema sync, or migration generator runs. Stable `errorCode` strings: `no_op_promotion`, `unsupported_two_axis_field` (M-004, WP04) |
+| `Waaseyaa\EntityStorage\Exception\BundleUniqueKeyConflictException` | final class | Stable repository conflict for a database-enforced bundle key (`BUNDLE_UNIQUE_KEY_CONFLICT`) (#2603) |
+| `Waaseyaa\EntityStorage\Exception\BundleUniqueKeyMigrationException` | final class | Stable schema-sync refusal when existing bundle rows duplicate a declared key (`bundle_unique_key_duplicates`) (#2603) |
 | `Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver` | final class | Driver-level two-axis save/load orchestration: composes `RevisionTableBuilder` + `TranslationSchemaHandler` and honours `SaveContext::withTranslations()` for atomic multi-language revision writes (M-004, WP03 + WP04) |
 | `Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler` | final class | Emits the `<entity>__translation__revision` table for two-axis entities; pairs with `RevisionTableBuilder::buildTwoAxis()` (M-004, WP02) |
 | `Waaseyaa\EntityStorage\Listing\TwoAxisFilterResolver` | final class | Resolves listing filters against two-axis storage: joins `<entity>__revision` to `<entity>__translation__revision` and applies langcode + revision-window selection (M-004, WP07) |

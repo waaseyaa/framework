@@ -196,6 +196,36 @@ final class ContentModelRegistrarTest extends TestCase
         self::assertTrue(true);
     }
 
+    #[Test]
+    public function it_registers_bundle_unique_keys_from_the_content_model_idempotently(): void
+    {
+        $kit = ContentModelTestKit::build();
+        $registrar = new ContentModelRegistrar($kit->typeManager, $kit->database);
+        $field = new FieldDefinition(
+            name: 'source_key',
+            type: 'string',
+            targetEntityTypeId: 'migration_test_page',
+            targetBundle: 'page',
+            stored: \Waaseyaa\Field\FieldStorage::Data,
+        );
+        $model = new ContentModel(types: [new ContentTypeModel(
+            entityTypeId: 'migration_test_page',
+            bundle: 'page',
+            label: 'Page',
+            fields: [$field],
+            uniqueKeys: [['name' => 'migration_page_source_key', 'fields' => ['source_key']]],
+        )]);
+
+        $registrar->register($model);
+        $registrar->register($model);
+
+        self::assertSame(
+            [['name' => 'migration_page_source_key', 'fields' => ['source_key']]],
+            $kit->fieldRegistry->bundleUniqueKeysFor('migration_test_page', 'page'),
+        );
+        self::assertTrue($kit->database->schema()->fieldExists('migration_test_page__page', 'source_key'));
+    }
+
     private function buildModel(): ContentModel
     {
         $field = new FieldDefinition(

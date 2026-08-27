@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Diagnostic;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
@@ -436,6 +438,34 @@ final class HealthChecker implements HealthCheckerInterface
                         'drift' => $drift,
                     ],
                 );
+            }
+
+            if ($this->fieldRegistry instanceof BundleStorageUniqueKeyRegistryInterface
+                && $this->database instanceof DBALDatabase) {
+                $indexes = $this->database->getConnection()->createSchemaManager()->listTableIndexes($subtableName);
+                foreach ($this->fieldRegistry->bundleUniqueKeysFor($entityId, $bundle) as $key) {
+                    $index = $indexes[strtolower($key['name'])] ?? $indexes[$key['name']] ?? null;
+                    if ($index !== null && $index->isUnique() && $index->getColumns() === $key['fields']) {
+                        continue;
+                    }
+                    $results[] = HealthCheckResult::fail(
+                        "Schema: {$subtableName} unique key {$key['name']}",
+                        DiagnosticCode::MISSING_BUNDLE_UNIQUE_KEY,
+                        sprintf(
+                            'Subtable "%s" is missing declared unique key "%s" on [%s], or the existing index has a different shape.',
+                            $subtableName,
+                            $key['name'],
+                            implode(', ', $key['fields']),
+                        ),
+                        context: [
+                            'table' => $subtableName,
+                            'bundle' => $bundle,
+                            'entity_type' => $entityId,
+                            'key' => $key['name'],
+                            'fields' => $key['fields'],
+                        ],
+                    );
+                }
             }
         }
 

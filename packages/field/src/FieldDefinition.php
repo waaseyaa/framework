@@ -188,6 +188,12 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, FieldR
         return $this->stored;
     }
 
+    /** Return a copy routed to the requested column/data storage shape. @api */
+    public function withStorage(FieldStorage $storage): self
+    {
+        return $this->with(['stored' => $storage]);
+    }
+
     public function getReadLevel(): ?FieldReadLevel
     {
         return $this->read;

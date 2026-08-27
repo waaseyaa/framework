@@ -25,6 +25,9 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldStorage;
 
 /**
  * Mission optimistic-locking-01KTXCHY WP02/T011 — the JSON:API conditional
@@ -498,6 +501,79 @@ final class JsonApiControllerConflictTest extends TestCase
         $reloaded = $this->repo->find('2');
         \assert($reloaded instanceof TestRevisionableEntity);
         $this->assertSame('other', $reloaded->label(), 'the refused update persisted nothing');
+    }
+
+    #[Test]
+    public function bundleUniqueKeyConflictReturnsStableCodeAndMetadata(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $dispatcher = new EventDispatcher();
+        $resolver = new SingleConnectionResolver($database);
+        $registry = new FieldDefinitionRegistry();
+        $manager = new EntityTypeManager(
+            $dispatcher,
+            null,
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $resolver, $registry): EntityRepository {
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+                    $definition,
+                    new SqlStorageDriver($resolver),
+                    $dispatcher,
+                    database: $database,
+                    fieldRegistry: $registry,
+                );
+            },
+            $registry,
+        );
+        $type = new EntityType(
+            id: 'media',
+            label: 'Media',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'mid', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label'],
+            bundleEntityType: 'media_type',
+        );
+        $manager->registerEntityType($type);
+        $registry->registerBundleFields('media', 'members_document', [
+            new FieldDefinition(
+                name: 'meeting_date',
+                type: 'datetime',
+                targetEntityTypeId: 'media',
+                targetBundle: 'members_document',
+                stored: FieldStorage::Data,
+            ),
+        ]);
+        $manager->addBundleUniqueKeys('media', 'members_document', [[
+            'name' => 'media_members_document_meeting_date',
+            'fields' => ['meeting_date'],
+        ]]);
+        (new SqlSchemaHandler($type, $database, fieldRegistry: $registry))->ensureTable();
+
+        $repository = $manager->getRepository('media');
+        $repository->save($repository->create([
+            'bundle' => 'members_document',
+            'label' => 'First',
+            'meeting_date' => '2026-08-27',
+        ]), validate: false);
+
+        $document = (new JsonApiController($manager, new ResourceSerializer($manager)))->store('media', [
+            'data' => [
+                'type' => 'media',
+                'attributes' => [
+                    'bundle' => 'members_document',
+                    'label' => 'Duplicate',
+                    'meeting_date' => '2026-08-27',
+                ],
+            ],
+        ]);
+        $error = $document->toArray()['errors'][0];
+
+        self::assertSame(409, $document->statusCode);
+        self::assertSame('BUNDLE_UNIQUE_KEY_CONFLICT', $error['code']);
+        self::assertSame([
+            'bundle' => 'members_document',
+            'key' => 'media_members_document_meeting_date',
+            'fields' => ['meeting_date'],
+            'values' => ['meeting_date' => '2026-08-27'],
+        ], $error['meta']);
     }
 
     // -----------------------------------------------------------------------

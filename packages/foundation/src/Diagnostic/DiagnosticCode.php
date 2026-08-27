@@ -26,6 +26,7 @@ enum DiagnosticCode: string
     case DATABASE_UNREACHABLE        = 'DATABASE_UNREACHABLE';
     case DATABASE_SCHEMA_DRIFT       = 'DATABASE_SCHEMA_DRIFT';
     case MISSING_BUNDLE_SUBTABLE     = 'MISSING_BUNDLE_SUBTABLE';
+    case MISSING_BUNDLE_UNIQUE_KEY   = 'MISSING_BUNDLE_UNIQUE_KEY';
     case ORPHAN_BUNDLE_SUBTABLE      = 'ORPHAN_BUNDLE_SUBTABLE';
     case FK_ENFORCEMENT_DISABLED     = 'FK_ENFORCEMENT_DISABLED';
     case CACHE_DIRECTORY_UNWRITABLE  = 'CACHE_DIRECTORY_UNWRITABLE';
@@ -64,6 +65,8 @@ enum DiagnosticCode: string
                 'One or more entity table columns do not match the expected schema definition.',
             self::MISSING_BUNDLE_SUBTABLE =>
                 'A bundle has registered fields but its per-bundle subtable does not exist in storage.',
+            self::MISSING_BUNDLE_UNIQUE_KEY =>
+                'A bundle subtable is missing a declared database unique key or carries the wrong index shape.',
             self::ORPHAN_BUNDLE_SUBTABLE =>
                 'A per-bundle subtable exists in storage but no registered bundle of that entity type carries fields for it.',
             self::FK_ENFORCEMENT_DISABLED =>
@@ -116,6 +119,8 @@ enum DiagnosticCode: string
                 'Delete the SQLite database and restart to recreate tables, or run `waaseyaa schema:check` for details.',
             self::MISSING_BUNDLE_SUBTABLE =>
                 'Re-run `waaseyaa install` (or the bundle-scoped migration) to materialize the subtable. Subtable name format: `{base_table}__{bundle}`.',
+            self::MISSING_BUNDLE_UNIQUE_KEY =>
+                'Run `waaseyaa schema:sync` after resolving any duplicate bundle-field values, then re-run `waaseyaa schema:check`.',
             self::ORPHAN_BUNDLE_SUBTABLE =>
                 'Review whether the bundle was removed intentionally. If so, author a cleanup migration to drop the orphan subtable; auto-drop is never performed.',
             self::FK_ENFORCEMENT_DISABLED =>
@@ -158,6 +163,7 @@ enum DiagnosticCode: string
             self::DATABASE_UNREACHABLE,
             self::DATABASE_SCHEMA_DRIFT,
             self::MISSING_BUNDLE_SUBTABLE,
+            self::MISSING_BUNDLE_UNIQUE_KEY,
             self::FK_ENFORCEMENT_DISABLED => 'error',
             self::CLEAN_URL_ROUTING_UNREACHABLE => 'error',
 

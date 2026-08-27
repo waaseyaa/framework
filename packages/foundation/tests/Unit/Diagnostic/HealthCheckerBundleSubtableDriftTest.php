@@ -14,6 +14,8 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\HealthChecker;
@@ -116,6 +118,29 @@ final class HealthCheckerBundleSubtableDriftTest extends TestCase
         self::assertNotNull($orphan, 'Expected orphan HealthCheckResult for group__legacy.');
         self::assertSame('warn', $orphan->status);
         self::assertSame(DiagnosticCode::ORPHAN_BUNDLE_SUBTABLE, $orphan->code);
+    }
+
+    #[Test]
+    public function missingDeclaredBundleUniqueKeyIsReportedAsError(): void
+    {
+        $type = $this->multiBundleType();
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerBundleFields('group', 'business', [
+            new FieldDefinition(name: 'email', type: 'string', targetEntityTypeId: 'group', targetBundle: 'business'),
+        ]);
+        $registry->registerBundleUniqueKeys('group', 'business', [[
+            'name' => 'group_business_email',
+            'fields' => ['email'],
+        ]]);
+        (new SqlSchemaHandler($type, $this->database, $registry))->ensureTable();
+        $this->database->getConnection()->executeStatement('DROP INDEX "group_business_email"');
+
+        $results = $this->checker($type, $registry)->checkSchemaDrift();
+
+        $missing = $this->findResult($results, 'Schema: group__business unique key group_business_email');
+        self::assertNotNull($missing);
+        self::assertSame('fail', $missing->status);
+        self::assertSame(DiagnosticCode::MISSING_BUNDLE_UNIQUE_KEY, $missing->code);
     }
 
     #[Test]
