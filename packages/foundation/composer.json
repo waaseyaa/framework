@@ -114,6 +114,7 @@
         "doctrine/dbal": "^4.0",
         "psr/container": "^2.0",
         "psr/event-dispatcher": "^1.0",
+        "symfony/dotenv": "^8.0",
         "symfony/event-dispatcher": "^7.0",
         "symfony/http-foundation": "^7.0",
         "symfony/polyfill-intl-normalizer": "^1.30",

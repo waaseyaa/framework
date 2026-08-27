@@ -1,9 +1,22 @@
 # ADR-005: CLI project-root resolution via `getcwd()`; populate `$_ENV`/`$_SERVER` in `EnvLoader`
 
-**Status:** Accepted
+**Status:** Superseded in part by #2615
 **Date:** 2026-04-16
 **Repos:** waaseyaa/framework
 **Sequences with:** ADR-004 (same release train)
+
+## 2026-08-27 addendum
+
+The no-dependency parser decision in sections 4 and 6.3 is superseded. The
+hand-written parser and Symfony Dotenv were subsequently shown to run in one
+HTTP boot and disagree on interpolation, multiline values, inline comments,
+and `export` prefixes. `EnvLoader` now delegates to Symfony Dotenv, preserves
+process-injected values, and loads each real base path once per process. HTTP
+front controllers call that same boundary before worker dispatch; CLI retains
+its kernel and command-specific calls, which become no-ops after the first
+successful load.
+
+The project-root decision and CLI invocation contract remain accepted.
 
 ## 1. Decision
 
