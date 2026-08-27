@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\Content\MediaAssetStore;
@@ -68,7 +69,7 @@ final class MediaAssetStoreTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTree($this->filesRoot);
+        new Filesystem()->remove($this->filesRoot);
     }
 
     #[Test]
@@ -243,20 +244,5 @@ final class MediaAssetStoreTest extends TestCase
         self::assertIsString($bytes);
 
         return $bytes;
-    }
-
-    private function removeTree(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-        foreach (scandir($directory) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $path = $directory . '/' . $entry;
-            is_dir($path) ? $this->removeTree($path) : @unlink($path);
-        }
-        @rmdir($directory);
     }
 }

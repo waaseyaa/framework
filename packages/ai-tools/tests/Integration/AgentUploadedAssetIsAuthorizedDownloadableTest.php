@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
@@ -109,7 +110,7 @@ final class AgentUploadedAssetIsAuthorizedDownloadableTest extends TestCase
     protected function tearDown(): void
     {
         EntityReadRuntime::installGuard(null);
-        $this->removeTree($this->filesRoot);
+        new Filesystem()->remove($this->filesRoot);
     }
 
     #[Test]
@@ -258,20 +259,5 @@ final class AgentUploadedAssetIsAuthorizedDownloadableTest extends TestCase
         self::assertIsString($bytes);
 
         return $bytes;
-    }
-
-    private function removeTree(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-        foreach (scandir($directory) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $path = $directory . '/' . $entry;
-            is_dir($path) ? $this->removeTree($path) : @unlink($path);
-        }
-        @rmdir($directory);
     }
 }
