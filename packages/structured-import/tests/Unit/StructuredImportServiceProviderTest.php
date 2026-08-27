@@ -10,8 +10,10 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\StructuredImport\Gfm\GfmTableImporter;
+use Waaseyaa\StructuredImport\Mapping\MappingDryRunPlanner;
 use Waaseyaa\StructuredImport\StructuredImportServiceProvider;
 use Waaseyaa\StructuredImport\StructuredImporterInterface;
+use Waaseyaa\StructuredImport\Xlsx\XlsxWorkbookInspector;
 
 #[CoversClass(StructuredImportServiceProvider::class)]
 final class StructuredImportServiceProviderTest extends TestCase
@@ -33,6 +35,14 @@ final class StructuredImportServiceProviderTest extends TestCase
         $importer = $provider->resolve(StructuredImporterInterface::class);
 
         self::assertInstanceOf(GfmTableImporter::class, $importer);
+        self::assertSame(
+            $provider->resolve(MappingDryRunPlanner::class),
+            $provider->resolve(MappingDryRunPlanner::class),
+        );
+        self::assertSame(
+            $provider->resolve(XlsxWorkbookInspector::class),
+            $provider->resolve(XlsxWorkbookInspector::class),
+        );
     }
 
     private function kernelServicesProviding(string $abstract, object $service): KernelServicesInterface

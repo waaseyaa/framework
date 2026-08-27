@@ -825,7 +825,11 @@ return [
     'Waaseyaa\Audit\Integrity\CheckpointSink' => 'public',
 
     // Layer 3: Services — public (single-entity-work-surface-01KQ7M1P)
+    'Waaseyaa\StructuredImport\Mapping\MappingConflictCode' => 'public',
+    'Waaseyaa\StructuredImport\Mapping\MappingDecision' => 'public',
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',
+    'Waaseyaa\StructuredImport\Xlsx\XlsxCellType' => 'public',
+    'Waaseyaa\StructuredImport\Xlsx\XlsxInspectionError' => 'public',
 
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
     'Waaseyaa\CLI\AdminBuild\AdminBuildPlatform' => 'internal',

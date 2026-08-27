@@ -9,6 +9,8 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\StructuredImport\Gfm\GfmTableImporter;
 use Waaseyaa\StructuredImport\Gfm\GfmTableParser;
 use Waaseyaa\StructuredImport\Gfm\PromptNormalizer;
+use Waaseyaa\StructuredImport\Mapping\MappingDryRunPlanner;
+use Waaseyaa\StructuredImport\Xlsx\XlsxWorkbookInspector;
 
 /**
  * Service provider for the StructuredImport package.
@@ -26,6 +28,8 @@ final class StructuredImportServiceProvider extends ServiceProvider
     {
         $this->singleton(GfmTableParser::class, fn(): GfmTableParser => new GfmTableParser());
         $this->singleton(PromptNormalizer::class, fn(): PromptNormalizer => new PromptNormalizer());
+        $this->singleton(MappingDryRunPlanner::class, fn(): MappingDryRunPlanner => new MappingDryRunPlanner());
+        $this->singleton(XlsxWorkbookInspector::class, fn(): XlsxWorkbookInspector => new XlsxWorkbookInspector());
 
         $this->bind(
             StructuredImporterInterface::class,

@@ -18,6 +18,12 @@
         }
     ],
     "require": {
+        "ext-dom": "*",
+        "ext-fileinfo": "*",
+        "ext-libxml": "*",
+        "ext-mbstring": "*",
+        "ext-xmlreader": "*",
+        "ext-zip": "*",
         "php": "^8.5",
         "waaseyaa/entity": "^0.1.0-alpha.298",
         "waaseyaa/field": "^0.1.0-alpha.298",

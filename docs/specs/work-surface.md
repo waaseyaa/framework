@@ -215,6 +215,11 @@ $result = $importer->import($payload, 'node', 'profile');
 
 **Performance budget (NFR-004)**: peak memory ≤ 2× payload size.
 
+The additive XLSX inspection, protected-selection, and deterministic dry-run
+mapping contracts are specified in `docs/specs/structured-import.md`. They do
+not change the GFM interface or result shape. The structured-import provider
+registers the inspector and planner as singleton application services.
+
 ---
 
 ## F6 — FormDescriptorBuilder
@@ -301,6 +306,7 @@ Chunked transfer without `Content-Length` falls through to step 2.
 - `docs/specs/api-layer.md` — F3 route catalog entry; status code matrix
 - `docs/specs/access-control.md` — parent-delegated policy pattern
 - `docs/specs/field-access.md` — field-level access semantics (open-by-default)
+- `docs/specs/structured-import.md` — XLSX trust boundary and dry-run mapping plans
 
 ---
 
