@@ -12,9 +12,11 @@ use Waaseyaa\Entity\EntityTypeForeignKeyDefinitionInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeStorageSchemaTransitionDefinitionInterface;
 use Waaseyaa\Entity\EntityTypeStorageUniqueKeyDefinitionInterface;
+use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Backend\SqlColumnSchemaBuilder;
+use Waaseyaa\EntityStorage\Exception\BundleUniqueKeyMigrationException;
 use Waaseyaa\EntityStorage\Schema\EntityStorageSchemaTransitionInterface;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
@@ -227,6 +229,7 @@ final class SqlSchemaHandler
             array_keys($this->buildBundleSubtableSpec($table, $bundleFields)['fields']),
             'waaseyaa schema:sync',
         );
+        $this->assertBundleUniqueKeysReady($bundle, $table);
     }
 
     /** Add declared restrictive relationships once both participating tables exist. */
@@ -401,21 +404,30 @@ final class SqlSchemaHandler
 
         $subtableName = $this->bundleSubtableName($bundle);
         $schema = $this->database->schema();
+        $this->assertBundleUniqueKeysMaterializable($bundle, $bundleFields);
 
         if (!$schema->tableExists($subtableName)) {
             $schema->createTable($subtableName, $this->buildBundleSubtableSpec($subtableName, $bundleFields));
             return;
         }
 
+        $uniqueFields = $this->bundleUniqueFieldNames($bundle);
+        $newlyPromoted = [];
         foreach ($bundleFields as $field) {
-            if ($field->getStored() === FieldStorage::Data) {
+            if ($field->getStored() === FieldStorage::Data && !isset($uniqueFields[$field->getName()])) {
                 continue;
             }
             $columnName = $field->getName();
             if (!$schema->fieldExists($subtableName, $columnName)) {
                 $schema->addField($subtableName, $columnName, $this->deriveColumnSpec($field));
+                $newlyPromoted[] = $columnName;
             }
         }
+
+        if ($newlyPromoted !== []) {
+            $this->backfillBundlePromotedFields($bundle, $subtableName, $newlyPromoted);
+        }
+        $this->ensureBundleUniqueKeys($bundle, $subtableName);
     }
 
     /**
@@ -1181,14 +1193,15 @@ final class SqlSchemaHandler
             unset($fields[$idKey]['length']);
         }
 
+        $uniqueFields = $this->bundleUniqueFieldNames($this->bundleFromSubtableName($subtableName));
         foreach ($bundleFields as $field) {
-            if ($field->getStored() === FieldStorage::Data) {
+            if ($field->getStored() === FieldStorage::Data && !isset($uniqueFields[$field->getName()])) {
                 continue;
             }
             $fields[$field->getName()] = $this->deriveColumnSpec($field);
         }
 
-        return [
+        $spec = [
             'fields' => $fields,
             'primary key' => [$idKey],
             'foreign keys' => [
@@ -1200,6 +1213,173 @@ final class SqlSchemaHandler
                 ],
             ],
         ];
+        $uniqueKeys = $this->bundleUniqueKeys($this->bundleFromSubtableName($subtableName));
+        if ($uniqueKeys !== []) {
+            $spec['unique keys'] = [];
+            foreach ($uniqueKeys as $key) {
+                $spec['unique keys'][$key['name']] = $key['fields'];
+            }
+        }
+
+        return $spec;
+    }
+
+    /** @return list<array{name: string, fields: non-empty-list<string>}> */
+    private function bundleUniqueKeys(string $bundle): array
+    {
+        if (!$this->fieldRegistry instanceof BundleStorageUniqueKeyRegistryInterface) {
+            return [];
+        }
+
+        return $this->fieldRegistry->bundleUniqueKeysFor($this->entityType->id(), $bundle);
+    }
+
+    /** @return array<string, true> */
+    private function bundleUniqueFieldNames(string $bundle): array
+    {
+        $fields = [];
+        foreach ($this->bundleUniqueKeys($bundle) as $key) {
+            foreach ($key['fields'] as $field) {
+                $fields[$field] = true;
+            }
+        }
+
+        return $fields;
+    }
+
+    private function bundleFromSubtableName(string $subtableName): string
+    {
+        return \substr($subtableName, \strlen($this->tableName) + 2);
+    }
+
+    /** @param list<string> $fieldNames */
+    private function backfillBundlePromotedFields(string $bundle, string $subtable, array $fieldNames): void
+    {
+        if (!$this->database->schema()->fieldExists($this->tableName, '_data')) {
+            return;
+        }
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+        $bundleKey = $keys['bundle'] ?? 'bundle';
+        foreach ($this->database->select($this->tableName)
+            ->fields($this->tableName, [$idKey, '_data'])
+            ->condition($bundleKey, $bundle)
+            ->execute() as $row) {
+            try {
+                $data = \json_decode((string) ($row['_data'] ?? ''), true, flags: JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                continue;
+            }
+            if (!\is_array($data)) {
+                continue;
+            }
+            $values = [];
+            foreach ($fieldNames as $fieldName) {
+                if (\array_key_exists($fieldName, $data)) {
+                    $values[$fieldName] = $data[$fieldName];
+                }
+            }
+            if ($values === []) {
+                continue;
+            }
+            $id = $row[$idKey];
+            $existing = \iterator_to_array($this->database->select($subtable)->fields($subtable, [$idKey])->condition($idKey, $id)->execute());
+            if ($existing === []) {
+                $this->database->insert($subtable)->fields([$idKey, ...\array_keys($values)])->values([$idKey => $id, ...$values])->execute();
+            } else {
+                $this->database->update($subtable)->fields($values)->condition($idKey, $id)->execute();
+            }
+        }
+    }
+
+    private function ensureBundleUniqueKeys(string $bundle, string $subtable): void
+    {
+        $database = $this->database;
+        $indexes = $database instanceof DBALDatabase
+            ? $database->getConnection()->createSchemaManager()->listTableIndexes($subtable)
+            : [];
+        foreach ($this->bundleUniqueKeys($bundle) as $key) {
+            $existing = $indexes[\strtolower($key['name'])] ?? $indexes[$key['name']] ?? null;
+            if ($existing !== null) {
+                if (!$existing->isUnique() || $existing->getColumns() !== $key['fields']) {
+                    throw new \RuntimeException(\sprintf(
+                        'Existing index "%s" on table "%s" does not match declared unique fields [%s].',
+                        $key['name'],
+                        $subtable,
+                        \implode(', ', $key['fields']),
+                    ));
+                }
+                continue;
+            }
+            $quotedFields = \array_map($this->database->quoteIdentifier(...), $key['fields']);
+            $nonNull = \implode(' AND ', \array_map(static fn(string $field): string => $field . ' IS NOT NULL', $quotedFields));
+            $duplicateProbe = \sprintf(
+                'SELECT %s, COUNT(*) AS duplicate_count FROM %s WHERE %s GROUP BY %s HAVING COUNT(*) > 1 LIMIT 1',
+                \implode(', ', $quotedFields),
+                $this->database->quoteIdentifier($subtable),
+                $nonNull,
+                \implode(', ', $quotedFields),
+            );
+            foreach ($this->database->query($duplicateProbe) as $_duplicate) {
+                throw new BundleUniqueKeyMigrationException($this->entityType->id(), $bundle, $key['name'], $key['fields']);
+            }
+            $this->database->query(\sprintf(
+                'CREATE UNIQUE INDEX %s ON %s (%s)',
+                $this->database->quoteIdentifier($key['name']),
+                $this->database->quoteIdentifier($subtable),
+                \implode(', ', $quotedFields),
+            ));
+        }
+    }
+
+    private function assertBundleUniqueKeysReady(string $bundle, string $subtable): void
+    {
+        $database = $this->database;
+        foreach ($this->bundleUniqueKeys($bundle) as $key) {
+            SchemaRequirement::assertAvailable($database, $subtable, $key['fields'], 'waaseyaa schema:sync');
+            if (!$database instanceof DBALDatabase) {
+                continue;
+            }
+            $indexes = $database->getConnection()->createSchemaManager()->listTableIndexes($subtable);
+            $existing = $indexes[\strtolower($key['name'])] ?? $indexes[$key['name']] ?? null;
+            if ($existing === null || !$existing->isUnique() || $existing->getColumns() !== $key['fields']) {
+                throw new \RuntimeException(\sprintf(
+                    '[S1-DB106] Required runtime schema is unavailable for table "%s"; missing or mismatched: unique key %s on [%s]. Apply migration "waaseyaa schema:sync" through the schema coordinator.',
+                    $subtable,
+                    $key['name'],
+                    \implode(', ', $key['fields']),
+                ));
+            }
+        }
+    }
+
+    /** @param array<string, FieldDefinitionInterface> $bundleFields */
+    private function assertBundleUniqueKeysMaterializable(string $bundle, array $bundleFields): void
+    {
+        foreach ($this->bundleUniqueKeys($bundle) as $key) {
+            foreach ($key['fields'] as $fieldName) {
+                $field = $bundleFields[$fieldName] ?? null;
+                if (!$field instanceof FieldDefinitionInterface) {
+                    throw new \LogicException(\sprintf(
+                        'Bundle unique key "%s" names unknown field "%s" on entity type "%s" bundle "%s".',
+                        $key['name'],
+                        $fieldName,
+                        $this->entityType->id(),
+                        $bundle,
+                    ));
+                }
+                $spec = $this->deriveColumnSpec($field);
+                if (($spec['type'] ?? null) === 'text' || ($field->getCardinality() !== 1)) {
+                    throw new \LogicException(\sprintf(
+                        'Bundle unique key "%s" cannot materialize field "%s" of type "%s" and cardinality %d as a portable B-tree column.',
+                        $key['name'],
+                        $fieldName,
+                        $field->getType(),
+                        $field->getCardinality(),
+                    ));
+                }
+            }
+        }
     }
 
     /**

@@ -647,15 +647,17 @@ declarations for bundle config entities that a completed import persisted.
   — the same "provider capability" pattern as `HasMigrationsInterface`
   (§9 step 2), not a bespoke discovery mechanism.
 - `ContentModel` is a source-agnostic list of `ContentTypeModel`s (destination
-  entity type + bundle + label + typed `FieldDefinitionInterface[]` +
-  informational shared-field/note lists).
+  entity type + bundle + label + typed `FieldDefinitionInterface[]` + optional
+  named bundle `uniqueKeys` + informational shared-field/note lists).
 - `ContentModelRegistrar::register(ContentModel $model)` does two things per
   content type: `ensureBundleConfigEntity()` (creates the bundle config
   entity — e.g. a `node_type` row — via reflection on the destination entity
   type's declared `bundleEntityType`, reached generically so the registrar
   carries no compile-time edge to any Layer-2 content package) and
   `declareFields()` (`EntityTypeManager::addBundleFields()`, which also
-  auto-materializes the per-bundle subtable with real typed columns). Both
+  auto-materializes the per-bundle subtable with real typed columns), and
+  idempotent registration of any bundle unique keys before coordinated schema
+  sync. All
   steps are idempotent — a repeated registration for an existing bundle/field
   is a silent no-op, not an error.
 - Every id in `ContentModel::$vocabularies` is treated as an explicit

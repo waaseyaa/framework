@@ -54,6 +54,7 @@ This was revisited (not re-decided) during the WP6 foundation layer-gate scope w
 | `DATABASE_UNREACHABLE` | error | SQLite file missing, corrupt, or inaccessible |
 | `DATABASE_SCHEMA_DRIFT` | error | Table columns don't match expected entity type definition |
 | `MISSING_BUNDLE_SUBTABLE` | error | Bundle has registered fields but `{base_table}__{bundle}` subtable does not exist |
+| `MISSING_BUNDLE_UNIQUE_KEY` | error | A declared bundle unique index is absent, non-unique, or targets the wrong ordered columns |
 | `ORPHAN_BUNDLE_SUBTABLE` | warning | `{base_table}__{bundle}` subtable exists but no registered bundle carries fields for it |
 | `FK_ENFORCEMENT_DISABLED` | error | SQLite `PRAGMA foreign_keys` is OFF — subtable CASCADE deletes will not propagate |
 | `CACHE_DIRECTORY_UNWRITABLE` | warning | `storage/framework/` exists but not writable |
@@ -100,7 +101,7 @@ Each `DiagnosticCode` case provides:
 
 Compares actual SQLite table schema against expected definition for each entity type.
 
-For multi-bundle entity types with registered bundle-scoped fields, drift detection additionally enumerates `{base_table}__{bundle}` subtables. See [`bundle-scoped-storage.md`](./bundle-scoped-storage.md#drift-diagnostic) for the per-subtable drift contract, missing-subtable and `ORPHAN_BUNDLE_SUBTABLE` codes.
+For multi-bundle entity types with registered bundle-scoped fields, drift detection additionally enumerates `{base_table}__{bundle}` subtables. See [`bundle-scoped-storage.md`](./bundle-scoped-storage.md#drift-diagnostic) for the per-subtable drift contract, missing-subtable, unique-key, and `ORPHAN_BUNDLE_SUBTABLE` codes.
 
 ### Algorithm
 
@@ -130,7 +131,8 @@ When `HealthChecker` is constructed with a `FieldDefinitionRegistryInterface`, m
 1. For each bundle returned by `bundleNamesFor($entityTypeId)` with non-empty `bundleFieldsFor()`, the expected subtable is `{base_table}__{bundle}`.
 2. If the subtable is missing, emit `MISSING_BUNDLE_SUBTABLE` under the name `Schema: {base_table}__{bundle}`. `context.table` carries the subtable name.
 3. If the subtable exists, compare its columns against the bundle's registered field names. Missing columns are reported as `DATABASE_SCHEMA_DRIFT` under the subtable name, again with `context.table` set.
-4. Orphan detection enumerates every table via `SchemaInterface::listTableNames()` (Doctrine's `AbstractSchemaManager::listTableNames()` under the hood — portable across SQLite, MySQL, PostgreSQL, and any other DBAL-supported driver) and filters in PHP for entries starting with `{base_table}__`. Any subtable not accounted for by a registered non-empty bundle is reported as `ORPHAN_BUNDLE_SUBTABLE` (warn, informational — auto-drop is never performed; author a cleanup migration). Issue #1301 (deferred mission #1257 WP09) replaced the SQLite-only `sqlite_master` LIKE query with this portable path.
+4. For each declared bundle storage unique key, inspect the named index. It must be unique and target the exact ordered field list; otherwise report `MISSING_BUNDLE_UNIQUE_KEY` with the entity type, bundle, table, key name, and expected fields in context. The diagnostic is read-only and never creates or repairs the index.
+5. Orphan detection enumerates every table via `SchemaInterface::listTableNames()` (Doctrine's `AbstractSchemaManager::listTableNames()` under the hood — portable across SQLite, MySQL, PostgreSQL, and any other DBAL-supported driver) and filters in PHP for entries starting with `{base_table}__`. Any subtable not accounted for by a registered non-empty bundle is reported as `ORPHAN_BUNDLE_SUBTABLE` (warn, informational — auto-drop is never performed; author a cleanup migration). Issue #1301 (deferred mission #1257 WP09) replaced the SQLite-only `sqlite_master` LIKE query with this portable path.
 
 Single-bundle entity types (no `bundleEntityType`) are unchanged — subtable enumeration is skipped entirely.
 

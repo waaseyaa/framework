@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Field;
 
 use Waaseyaa\Entity\EntityReadLayoutGeneration;
+use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Field\FieldReadLayoutGenerationSourceInterface;
 
@@ -16,7 +17,7 @@ use Waaseyaa\Entity\Field\FieldReadLayoutGenerationSourceInterface;
  * transition; they are normalized to FieldDefinition objects at registration.
  * @api
  */
-final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface, FieldReadLayoutGenerationSourceInterface
+final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface, BundleStorageUniqueKeyRegistryInterface, FieldReadLayoutGenerationSourceInterface
 {
     /** @var array<string, array<string, EntityReadLayoutGeneration>> */
     private array $fieldReadLayoutGenerations = [];
@@ -26,6 +27,9 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
 
     /** @var array<string, array<string, array<string, FieldDefinitionInterface>>> [entityTypeId][bundle][fieldName]. */
     private array $bundleFields = [];
+
+    /** @var array<string, array<string, list<array{name: string, fields: non-empty-list<string>}>>> */
+    private array $bundleUniqueKeys = [];
 
     public function registerCoreFields(string $entityTypeId, array $fields): void
     {
@@ -282,5 +286,96 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
         }
 
         return $bundles;
+    }
+
+    /** @param list<array<string, mixed>> $keys */
+    public function registerBundleUniqueKeys(string $entityTypeId, string $bundle, array $keys): void
+    {
+        $fields = $this->bundleFields[$entityTypeId][$bundle] ?? null;
+        if ($fields === null) {
+            throw new \InvalidArgumentException(\sprintf(
+                'Cannot register bundle unique keys for entity type "%s" bundle "%s" before its fields are registered.',
+                $entityTypeId,
+                $bundle,
+            ));
+        }
+
+        $existing = $this->bundleUniqueKeys[$entityTypeId][$bundle] ?? [];
+        $names = [];
+        foreach ($existing as $key) {
+            $names[$key['name']] = true;
+        }
+
+        foreach ($keys as $offset => $key) {
+            $name = $key['name'] ?? null;
+            $rawFields = $key['fields'] ?? null;
+            if (!\is_string($name) || $name === '' || !\is_array($rawFields) || $rawFields === []) {
+                throw new \InvalidArgumentException(\sprintf(
+                    'Bundle unique key at offset %d for entity type "%s" bundle "%s" requires a non-empty name and field list.',
+                    $offset,
+                    $entityTypeId,
+                    $bundle,
+                ));
+            }
+            $keyFields = [];
+            foreach ($rawFields as $fieldName) {
+                if (!\is_string($fieldName) || $fieldName === '') {
+                    throw new \InvalidArgumentException(\sprintf('Bundle unique key "%s" contains a non-string or empty field.', $name));
+                }
+                $keyFields[] = $fieldName;
+            }
+            if (\count(\array_unique($keyFields)) !== \count($keyFields)) {
+                throw new \InvalidArgumentException(\sprintf('Bundle unique key "%s" contains duplicate or empty fields.', $name));
+            }
+            if (isset($names[$name])) {
+                throw new \InvalidArgumentException(\sprintf(
+                    'Duplicate bundle unique key name "%s" for entity type "%s" bundle "%s".',
+                    $name,
+                    $entityTypeId,
+                    $bundle,
+                ));
+            }
+            if (\strlen($name) > 63) {
+                throw new \InvalidArgumentException(\sprintf(
+                    'Bundle unique key name "%s" exceeds the portable 63-byte identifier limit.',
+                    $name,
+                ));
+            }
+            foreach ($keyFields as $fieldName) {
+                if (!isset($fields[$fieldName])) {
+                    throw new \InvalidArgumentException(\sprintf(
+                        'Bundle unique key "%s" on entity type "%s" bundle "%s" names unknown field "%s".',
+                        $name,
+                        $entityTypeId,
+                        $bundle,
+                        $fieldName,
+                    ));
+                }
+                $field = $fields[$fieldName];
+                if ($field->getStored() === FieldStorage::Data) {
+                    if (!$field instanceof FieldDefinition) {
+                        throw new \InvalidArgumentException(\sprintf(
+                            'Bundle unique key "%s" cannot promote custom Data-backed field "%s"; use FieldDefinition or declare column storage.',
+                            $name,
+                            $fieldName,
+                        ));
+                    }
+                    $field = $field->withStorage(FieldStorage::Column);
+                    $fields[$fieldName] = $field;
+                    $this->bundleFields[$entityTypeId][$bundle][$fieldName] = $field;
+                }
+            }
+
+            /** @var non-empty-list<non-empty-string> $keyFields */
+            $existing[] = ['name' => $name, 'fields' => $keyFields];
+            $names[$name] = true;
+        }
+
+        $this->bundleUniqueKeys[$entityTypeId][$bundle] = $existing;
+    }
+
+    public function bundleUniqueKeysFor(string $entityTypeId, string $bundle): array
+    {
+        return $this->bundleUniqueKeys[$entityTypeId][$bundle] ?? [];
     }
 }

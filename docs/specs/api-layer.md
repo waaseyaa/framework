@@ -524,7 +524,7 @@ caller supplies tokens.
 6. Checks field edit access for each submitted attribute, against the gate entity `$entity` (see step 4's note).
 7. Applies updates via `$target->set($field, $value)` (requires `$target instanceof FieldableInterface`).
 8. Saves through `getRepository()->save($target)` in both cases (C-22 WP3 unified the two save paths onto the canonical repository) — **without** an expectation, the plain form; **with** an expectation, `getRepository()->save($target, context: SaveContext::default()->withExpectedRevisionId($n))` — and returns the resource serialized from `$target`. **A stated `expected_revision_id` against a DIVERGED working copy** (the tip has moved since the client's expectation was formed) hits the existing storage `\LogicException`/`RevisionConflictException` rejection matrix (`revision-system-unified.md` §3b) exactly as any other expectation mismatch does — no new machinery; the controller's `catch (\LogicException $e)` → 422 / `catch (RevisionConflictException $e)` → 409 mapping in `saveWithExpectation()` is unchanged.
-9. **Both save paths catch `Doctrine\DBAL\Exception\UniqueConstraintViolationException` → 409** (added 2026-07-02, audit-remediation WP2 review — previously only `store()` had this mapping and a PATCH tripping a uniqueness constraint, e.g. the attachment one-active-per-parent partial index under a race, surfaced a raw 500 with driver SQL). Same status/title shape as `store()`'s duplicate-ID 409, codeless (so `code: 'REVISION_CONFLICT'` stays the discriminator for the optimistic-locking 409), detail `"Updating entity of type '<type>' with ID '<id>' violated a uniqueness constraint."` — names the REAL entity id, not the request locator (locator honesty, contract §15). Pinned by `JsonApiControllerConflictTest::patchWithoutExpectationMapsUniqueConstraintViolationTo409` / `::patchWithExpectationMapsUniqueConstraintViolationTo409`.
+9. **Both save paths catch `Doctrine\DBAL\Exception\UniqueConstraintViolationException` → 409** (added 2026-07-02, audit-remediation WP2 review — previously only `store()` had this mapping and a PATCH tripping a uniqueness constraint, e.g. the attachment one-active-per-parent partial index under a race, surfaced a raw 500 with driver SQL). Same status/title shape as `store()`'s duplicate-ID 409, codeless (so `code: 'REVISION_CONFLICT'` stays the discriminator for the optimistic-locking 409), detail `"Updating entity of type '<type>' with ID '<id>' violated a uniqueness constraint."` — names the REAL entity id, not the request locator (locator honesty, contract §15). Pinned by `JsonApiControllerConflictTest::patchWithoutExpectationMapsUniqueConstraintViolationTo409` / `::patchWithExpectationMapsUniqueConstraintViolationTo409`. A repository `BundleUniqueKeyConflictException` is the more specific first catch: it returns 409 with code `BUNDLE_UNIQUE_KEY_CONFLICT` and bounded meta naming the bundle, declared key, fields, and submitted values. Create, plain update, and expected-revision update share this mapping; unrelated driver violations retain the codeless response.
 10. **Both save paths catch `EntityValidationException` → 422.** The plain and expectation-stated PATCH paths share the same validation-error factory, so invalid input is rejected without becoming an HTTP 500.
 
 **`destroy(string $entityTypeId, int|string $id): JsonApiDocument`**
@@ -626,11 +626,12 @@ whether the caller stated an expectation.
 `current_revision_id` is `null` when no readable head exists (the row vanished
 concurrently, or a pre-backfill row carries no revision pointer). Deterministic
 and assertable: the two revision ids plus static identity, no timestamps
-(NFR-003). **409 catalogue:** this controller now emits three 409 shapes — the
-pre-existing codeless `data.id`-vs-uuid mismatch, the codeless
+(NFR-003). **409 catalogue:** this controller emits four 409 shapes — the
+pre-existing codeless `data.id`-vs-uuid mismatch, the codeless generic
 uniqueness-constraint trip on create/update saves (2026-07-02, WP2 review —
-see `update()` step 7 above), and this one; `code: 'REVISION_CONFLICT'` is
-the machine-readable discriminator. **Locator honesty:** uuid-routed PATCHes
+see `update()` step 7 above), the specific bundle-key 409 with code
+`BUNDLE_UNIQUE_KEY_CONFLICT`, and this one; `code: 'REVISION_CONFLICT'` is the
+optimistic-lock discriminator. **Locator honesty:** uuid-routed PATCHes
 resolve to the real entity id before the save; the conflict payload names the
 real id, not the request locator.
 

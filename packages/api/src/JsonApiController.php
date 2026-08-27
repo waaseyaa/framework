@@ -25,6 +25,7 @@ use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuardResult;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\BundleUniqueKeyConflictException;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Exception\SaveAdvisoryAcknowledgementRequiredException;
 use Waaseyaa\EntityStorage\SaveContext;
@@ -861,6 +862,8 @@ final class JsonApiController
                     "Entity type '{$entityTypeId}' does not support save advisory acknowledgements.",
                 ));
             }
+        } catch (BundleUniqueKeyConflictException $e) {
+            return $this->errorDocument($this->bundleUniqueKeyConflictError($e));
         } catch (UniqueConstraintViolationException) {
             return $this->errorDocument(
                 new JsonApiError(
@@ -1106,6 +1109,8 @@ final class JsonApiController
                 }
             } catch (EntityMutationConflictException) {
                 return $this->mutationConflictDocument();
+            } catch (BundleUniqueKeyConflictException $e) {
+                return $this->errorDocument($this->bundleUniqueKeyConflictError($e));
             } catch (UniqueConstraintViolationException) {
                 // Mirrors create()'s 409 mapping (WP2 review): a PATCH that
                 // trips a uniqueness constraint (e.g. the attachment
@@ -1171,6 +1176,8 @@ final class JsonApiController
 
         try {
             $repository->save($entity, context: $context->withExpectedRevisionId($expectedRevisionId));
+        } catch (BundleUniqueKeyConflictException $e) {
+            return $this->errorDocument($this->bundleUniqueKeyConflictError($e));
         } catch (UniqueConstraintViolationException) {
             // Same 409 mapping as the no-expectation PATCH path and
             // create() (WP2 review): the expectation can pass and the base
@@ -1262,6 +1269,20 @@ final class JsonApiController
     {
         return JsonApiError::conflict(
             sprintf("Updating entity of type '%s' with ID '%s' violated a uniqueness constraint.", $entityTypeId, $entityId),
+        );
+    }
+
+    private function bundleUniqueKeyConflictError(BundleUniqueKeyConflictException $exception): JsonApiError
+    {
+        return JsonApiError::conflict(
+            $exception->getMessage(),
+            code: $exception->errorCode,
+            meta: [
+                'bundle' => $exception->bundle,
+                'key' => $exception->keyName,
+                'fields' => $exception->fields,
+                'values' => $exception->values,
+            ],
         );
     }
 

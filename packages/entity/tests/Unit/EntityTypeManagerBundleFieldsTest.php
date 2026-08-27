@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Tests\Fixtures\AttributeFirstEntities\GroupBundleFixture;
 use Waaseyaa\Field\FieldDefinitionInterface;
@@ -126,6 +127,70 @@ final class EntityTypeManagerBundleFieldsTest extends TestCase
 
         // Guard must fire before delegating to the registry.
         self::assertSame([], $registry->bundleCalls);
+    }
+
+    #[Test]
+    public function addBundleUniqueKeysDelegatesToCapableRegistry(): void
+    {
+        $registry = new SpyRegistry();
+        $manager = new EntityTypeManager($this->dispatcher, null, null, $registry);
+        $manager->registerEntityType(new EntityType(
+            id: 'group',
+            label: 'Group',
+            class: TestEntity::class,
+            bundleEntityType: 'group_type',
+        ));
+        $keys = [['name' => 'group_business_email', 'fields' => ['email']]];
+
+        $manager->addBundleUniqueKeys('group', 'business', $keys);
+
+        self::assertSame([['group', 'business', $keys]], $registry->uniqueKeyCalls);
+    }
+
+    #[Test]
+    public function addBundleUniqueKeysRequiresRegistryCapability(): void
+    {
+        $registry = $this->createStub(FieldDefinitionRegistryInterface::class);
+        $manager = new EntityTypeManager($this->dispatcher, null, null, $registry);
+        $manager->registerEntityType(new EntityType(
+            id: 'group',
+            label: 'Group',
+            class: TestEntity::class,
+            bundleEntityType: 'group_type',
+        ));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('lacks the bundle-key capability');
+        $manager->addBundleUniqueKeys('group', 'business', []);
+    }
+
+    #[Test]
+    public function addBundleUniqueKeysRejectsSingleBundleTypeAndReservedSeparator(): void
+    {
+        $registry = new SpyRegistry();
+        $manager = new EntityTypeManager($this->dispatcher, null, null, $registry);
+        $manager->registerEntityType(new EntityType(
+            id: 'user',
+            label: 'User',
+            class: TestEntity::class,
+        ));
+
+        try {
+            $manager->addBundleUniqueKeys('user', 'account', []);
+            self::fail('Expected single-bundle refusal.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertStringContainsString('does not declare bundleEntityType', $exception->getMessage());
+        }
+
+        $manager->registerEntityType(new EntityType(
+            id: 'group',
+            label: 'Group',
+            class: TestEntity::class,
+            bundleEntityType: 'group_type',
+        ));
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('reserved separator "__"');
+        $manager->addBundleUniqueKeys('group', 'business__nested', []);
     }
 
     #[Test]
@@ -308,13 +373,16 @@ final class EntityTypeManagerBundleFieldsTest extends TestCase
 /**
  * In-memory spy registry used only by this test.
  */
-final class SpyRegistry implements FieldDefinitionRegistryInterface
+final class SpyRegistry implements FieldDefinitionRegistryInterface, BundleStorageUniqueKeyRegistryInterface
 {
     /** @var list<array{0: string, 1: array<string, mixed>}> */
     public array $coreCalls = [];
 
     /** @var list<array{0: string, 1: string, 2: array<string|int, object>}> */
     public array $bundleCalls = [];
+
+    /** @var list<array{0: string, 1: string, 2: list<array{name: string, fields: non-empty-list<string>}>>}> */
+    public array $uniqueKeyCalls = [];
 
     public function registerCoreFields(string $entityTypeId, array $fields): void
     {
@@ -379,6 +447,22 @@ final class SpyRegistry implements FieldDefinitionRegistryInterface
             }
         }
         return \array_keys($bundles);
+    }
+
+    public function registerBundleUniqueKeys(string $entityTypeId, string $bundle, array $keys): void
+    {
+        $this->uniqueKeyCalls[] = [$entityTypeId, $bundle, $keys];
+    }
+
+    public function bundleUniqueKeysFor(string $entityTypeId, string $bundle): array
+    {
+        foreach ($this->uniqueKeyCalls as [$id, $registeredBundle, $keys]) {
+            if ($id === $entityTypeId && $registeredBundle === $bundle) {
+                return $keys;
+            }
+        }
+
+        return [];
     }
 }
 

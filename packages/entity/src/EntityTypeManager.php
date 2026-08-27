@@ -7,6 +7,7 @@ namespace Waaseyaa\Entity;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Entity\Community\HasCommunityInterface;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
+use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -276,6 +277,40 @@ class EntityTypeManager implements EntityTypeManagerInterface
         // still absent (e.g. a bare bootstrap). With a materializer present the
         // probe finds the freshly-created subtable and stays silent.
         $this->maybeEmitMissingSubtableNotice($entityTypeId, $bundle);
+    }
+
+    /**
+     * Register named storage unique keys for one already-declared bundle.
+     * Registration is metadata-only; coordinated schema sync owns DDL.
+     *
+     * @param list<array{name: string, fields: non-empty-list<string>}> $keys
+     * @api
+     */
+    public function addBundleUniqueKeys(string $entityTypeId, string $bundle, array $keys): void
+    {
+        $type = $this->getDefinition($entityTypeId);
+        if ($type->getBundleEntityType() === null) {
+            throw new \InvalidArgumentException(\sprintf(
+                'Entity type "%s" does not declare bundleEntityType; cannot register bundle-scoped unique keys.',
+                $entityTypeId,
+            ));
+        }
+        if (str_contains($bundle, '__')) {
+            throw new \InvalidArgumentException(\sprintf(
+                'Bundle identifier "%s" for entity type "%s" contains the reserved separator "__".',
+                $bundle,
+                $entityTypeId,
+            ));
+        }
+        if (!$this->fieldRegistry instanceof BundleStorageUniqueKeyRegistryInterface) {
+            throw new \RuntimeException(\sprintf(
+                'Cannot register bundle unique keys for entity type "%s" bundle "%s": the field registry lacks the bundle-key capability.',
+                $entityTypeId,
+                $bundle,
+            ));
+        }
+
+        $this->fieldRegistry->registerBundleUniqueKeys($entityTypeId, $bundle, $keys);
     }
 
     /**

@@ -270,6 +270,7 @@ return [
     'Waaseyaa\Entity\Repository\EntityRepositoryInterface' => 'public',
     'Waaseyaa\Entity\Event\EntityEventFactoryInterface' => 'public',
     'Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface' => 'public',
+    'Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface' => 'internal',
     'Waaseyaa\Entity\Storage\EntityStorageInterface' => 'public',
     'Waaseyaa\Entity\Storage\RevisionableStorageInterface' => 'public',
     'Waaseyaa\Entity\Storage\EntityQueryInterface' => 'public',
@@ -373,6 +374,8 @@ return [
     // M-004 (entity-storage-translatable-revisions) — two-axis storage stable surface.
     // Charter §5.3 amendment; spec docs/specs/entity-storage-two-axis.md.
     'Waaseyaa\EntityStorage\Exception\StorageMigrationException' => 'public',
+    'Waaseyaa\EntityStorage\Exception\BundleUniqueKeyConflictException' => 'public',
+    'Waaseyaa\EntityStorage\Exception\BundleUniqueKeyMigrationException' => 'public',
     'Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver' => 'public',
     'Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler' => 'public',
     'Waaseyaa\EntityStorage\Listing\TwoAxisFilterResolver' => 'public',

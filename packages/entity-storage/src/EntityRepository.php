@@ -1302,6 +1302,14 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 if ($gateway !== null) {
                     [$baseValues, $bundleValues, $bundleName] = $gateway->partition($entity, $values);
                     if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
+                        if ($gateway->hasDeclaredUniqueKeys($bundleName)) {
+                            throw new \RuntimeException(\sprintf(
+                                '[S1-DB106] Bundle "%s" on entity type "%s" declares a storage unique key but subtable "%s" is unavailable. Run `waaseyaa schema:sync`; the save was refused.',
+                                $bundleName,
+                                $entityTypeId,
+                                $gateway->subtableName($bundleName),
+                            ));
+                        }
                         $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
                         $baseValues = $values;
                         $bundleValues = [];
@@ -2067,6 +2075,14 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                     $targetEntity = $this->instantiateEntity($this->entityType->getClass(), $targetRow);
                     [$outgoingRow, $bundleValues, $bundleName] = $gateway->partition($targetEntity, $targetRow);
                     if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
+                        if ($gateway->hasDeclaredUniqueKeys($bundleName)) {
+                            throw new \RuntimeException(\sprintf(
+                                '[S1-DB106] Bundle "%s" on entity type "%s" declares a storage unique key but subtable "%s" is unavailable. Run `waaseyaa schema:sync`; publication was refused.',
+                                $bundleName,
+                                $this->entityType->id(),
+                                $gateway->subtableName($bundleName),
+                            ));
+                        }
                         $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
                         $outgoingRow = $targetRow;
                         $bundleValues = [];

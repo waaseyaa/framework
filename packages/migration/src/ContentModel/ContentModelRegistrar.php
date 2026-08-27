@@ -7,6 +7,7 @@ namespace Waaseyaa\Migration\ContentModel;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -129,11 +130,13 @@ final readonly class ContentModelRegistrar
             );
             $this->ensureBundleConfigEntity($type);
             $this->declareFields($type);
+            $this->declareUniqueKeys($type);
         }
 
         foreach ($model->types as $type) {
             $this->ensureBundleConfigEntity($type);
             $this->declareFields($type);
+            $this->declareUniqueKeys($type);
         }
 
         $entityTypeIds = ['taxonomy_term'];
@@ -191,6 +194,7 @@ final readonly class ContentModelRegistrar
             }
 
             $this->declareFields($type);
+            $this->declareUniqueKeys($type);
         }
     }
 
@@ -375,6 +379,52 @@ final readonly class ContentModelRegistrar
                 $type->bundle,
                 $type->entityTypeId,
             ));
+        }
+    }
+
+    private function declareUniqueKeys(ContentTypeModel $type): void
+    {
+        if ($type->uniqueKeys === []) {
+            return;
+        }
+        $registry = $this->entityTypeManager->getFieldRegistry();
+        if (!$registry instanceof BundleStorageUniqueKeyRegistryInterface) {
+            throw new ContentModelRegistrationException(\sprintf(
+                '[content-model] field registry cannot register bundle unique keys for content type "%s" on %s.',
+                $type->bundle,
+                $type->entityTypeId,
+            ));
+        }
+
+        $existing = [];
+        foreach ($registry->bundleUniqueKeysFor($type->entityTypeId, $type->bundle) as $key) {
+            $existing[$key['name']] = $key['fields'];
+        }
+        $missing = [];
+        foreach ($type->uniqueKeys as $key) {
+            if (isset($existing[$key['name']])) {
+                if ($existing[$key['name']] !== $key['fields']) {
+                    throw new ContentModelRegistrationException(\sprintf(
+                        '[content-model] bundle unique key "%s" for content type "%s" is already registered with different fields.',
+                        $key['name'],
+                        $type->bundle,
+                    ));
+                }
+                continue;
+            }
+            $missing[] = $key;
+        }
+        if ($missing !== []) {
+            try {
+                $this->entityTypeManager->addBundleUniqueKeys($type->entityTypeId, $type->bundle, $missing);
+            } catch (\Throwable $e) {
+                throw new ContentModelRegistrationException(\sprintf(
+                    '[content-model] failed to register bundle unique keys for content type "%s" on %s: %s',
+                    $type->bundle,
+                    $type->entityTypeId,
+                    $e->getMessage(),
+                ), previous: $e);
+            }
         }
     }
 }

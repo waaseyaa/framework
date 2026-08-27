@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Bundle;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\EntityStorage\Exception\BundleUniqueKeyConflictException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -120,8 +123,12 @@ final class BundleSubtableGateway
         $base = [];
         $bundle = [];
         foreach ($values as $key => $value) {
-            if (isset($bundleDefs[$key]) && $bundleDefs[$key]->getStored() !== FieldStorage::Data) {
-                $bundle[$key] = $value;
+            if (isset($bundleDefs[$key])) {
+                if ($bundleDefs[$key]->getStored() !== FieldStorage::Data) {
+                    $bundle[$key] = $value;
+                } else {
+                    $base[$key] = $value;
+                }
                 continue;
             }
             if (isset($otherBundleFields[$key])) {
@@ -150,6 +157,12 @@ final class BundleSubtableGateway
             ??= $this->database->schema()->tableExists($this->subtableName($bundle));
     }
 
+    public function hasDeclaredUniqueKeys(string $bundle): bool
+    {
+        return $this->fieldRegistry instanceof BundleStorageUniqueKeyRegistryInterface
+            && $this->fieldRegistry->bundleUniqueKeysFor($this->entityType->id(), $bundle) !== [];
+    }
+
     /**
      * UPSERT the subtable row for an entity. Portable across SQLite/MySQL/
      * PostgreSQL: probe then UPDATE or INSERT.
@@ -159,6 +172,11 @@ final class BundleSubtableGateway
     public function upsert(string $bundle, int|string $id, array $bundleValues): void
     {
         $subtable = $this->subtableName($bundle);
+
+        $existingConflict = $this->resolveUniqueKeyConflict($bundle, $id, $bundleValues);
+        if ($existingConflict !== null) {
+            throw $existingConflict;
+        }
 
         $existing = $this->database->select($subtable)
             ->fields($subtable, [$this->idKey])
@@ -171,23 +189,36 @@ final class BundleSubtableGateway
             break;
         }
 
-        if ($exists) {
-            if ($bundleValues === []) {
+        try {
+            if ($exists) {
+                if ($bundleValues === []) {
+                    return;
+                }
+                $this->database->update($subtable)
+                    ->fields($bundleValues)
+                    ->condition($this->idKey, $id)
+                    ->execute();
                 return;
             }
-            $this->database->update($subtable)
-                ->fields($bundleValues)
-                ->condition($this->idKey, $id)
-                ->execute();
-            return;
-        }
 
-        $insertRow = $bundleValues;
-        $insertRow[$this->idKey] = $id;
-        $this->database->insert($subtable)
-            ->fields(\array_keys($insertRow))
-            ->values($insertRow)
-            ->execute();
+            $insertRow = $bundleValues;
+            $insertRow[$this->idKey] = $id;
+            $this->database->insert($subtable)
+                ->fields(\array_keys($insertRow))
+                ->values($insertRow)
+                ->execute();
+        } catch (UniqueConstraintViolationException $exception) {
+            // The preflight above gives deterministic messages for existing
+            // rows. The unique index remains the race-closing authority; if a
+            // competing write wins after preflight, map the declared candidate
+            // directly without issuing a query in a transaction that PostgreSQL
+            // has already marked failed.
+            $conflict = $this->candidateUniqueKeyConflict($bundle, $bundleValues, $exception);
+            if ($conflict !== null) {
+                throw $conflict;
+            }
+            throw $exception;
+        }
     }
 
     /**
@@ -290,5 +321,70 @@ final class BundleSubtableGateway
             $this->entityType->id(),
             $bundle,
         ));
+    }
+
+    private function resolveUniqueKeyConflict(
+        string $bundle,
+        int|string $id,
+        array $bundleValues,
+    ): ?BundleUniqueKeyConflictException {
+        if (!$this->fieldRegistry instanceof BundleStorageUniqueKeyRegistryInterface) {
+            return null;
+        }
+        $subtable = $this->subtableName($bundle);
+        foreach ($this->fieldRegistry->bundleUniqueKeysFor($this->entityType->id(), $bundle) as $key) {
+            $values = [];
+            $query = $this->database->select($subtable)->fields($subtable, [$this->idKey]);
+            foreach ($key['fields'] as $field) {
+                if (!\array_key_exists($field, $bundleValues) || $bundleValues[$field] === null) {
+                    continue 2;
+                }
+                $values[$field] = $bundleValues[$field];
+                $query = $query->condition($field, $bundleValues[$field]);
+            }
+            foreach ($query->execute() as $row) {
+                if ((string) ($row[$this->idKey] ?? '') !== (string) $id) {
+                    return new BundleUniqueKeyConflictException(
+                        $this->entityType->id(),
+                        $bundle,
+                        $key['name'],
+                        $key['fields'],
+                        $values,
+                    );
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function candidateUniqueKeyConflict(
+        string $bundle,
+        array $bundleValues,
+        UniqueConstraintViolationException $previous,
+    ): ?BundleUniqueKeyConflictException {
+        if (!$this->fieldRegistry instanceof BundleStorageUniqueKeyRegistryInterface) {
+            return null;
+        }
+        foreach ($this->fieldRegistry->bundleUniqueKeysFor($this->entityType->id(), $bundle) as $key) {
+            $values = [];
+            foreach ($key['fields'] as $field) {
+                if (!\array_key_exists($field, $bundleValues) || $bundleValues[$field] === null) {
+                    continue 2;
+                }
+                $values[$field] = $bundleValues[$field];
+            }
+
+            return new BundleUniqueKeyConflictException(
+                $this->entityType->id(),
+                $bundle,
+                $key['name'],
+                $key['fields'],
+                $values,
+                $previous,
+            );
+        }
+
+        return null;
     }
 }

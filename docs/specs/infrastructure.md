@@ -1812,6 +1812,7 @@ String-backed enum of operator-facing error codes:
 | `DATABASE_UNREACHABLE` | Database file missing or corrupt |
 | `DATABASE_SCHEMA_DRIFT` | Entity table columns don't match expected schema (base or bundle subtable) |
 | `MISSING_BUNDLE_SUBTABLE` | A bundle with registered fields has no `{base}__{bundle}` subtable |
+| `MISSING_BUNDLE_UNIQUE_KEY` | A bundle subtable is missing a declared unique index, or the named index is non-unique / targets different columns |
 | `ORPHAN_BUNDLE_SUBTABLE` | A `{base}__{bundle}` subtable exists with no registered bundle fields |
 | `FK_ENFORCEMENT_DISABLED` | Foreign-key enforcement off at the connection level (e.g. SQLite without `PRAGMA foreign_keys = ON`) |
 | `STORAGE_DIRECTORY_MISSING` | `storage/framework/` does not exist |
@@ -1820,7 +1821,7 @@ String-backed enum of operator-facing error codes:
 | `INGESTION_RECENT_FAILURES` | High ingestion failure rate |
 | `COLUMN_DATA_STORAGE_DRIFT` | A field registered with `FieldStorage::Data` still has a backing column on the base table or a bundle subtable (new writes go to `_data`; the column holds stale values) |
 
-Each code has a `defaultMessage()` method for human-readable descriptions. Severity: `MISSING_BUNDLE_SUBTABLE` and `FK_ENFORCEMENT_DISABLED` are errors; `ORPHAN_BUNDLE_SUBTABLE` and `COLUMN_DATA_STORAGE_DRIFT` are warnings (the base row is still reachable, the lingering surface is merely stale).
+Each code has a `defaultMessage()` method for human-readable descriptions. Severity: `MISSING_BUNDLE_SUBTABLE`, `MISSING_BUNDLE_UNIQUE_KEY`, and `FK_ENFORCEMENT_DISABLED` are errors; `ORPHAN_BUNDLE_SUBTABLE` and `COLUMN_DATA_STORAGE_DRIFT` are warnings (the base row is still reachable, the lingering surface is merely stale).
 
 ### DiagnosticEmitter
 
@@ -1874,6 +1875,7 @@ Three check groups: boot (entity type registry), runtime (database connectivity,
 For any entity type whose `EntityType::getBundleEntityType()` is non-null, `checkSchemaDrift()` does not stop at the base table. It enumerates the registered bundles via `$this->fieldRegistry->bundleNamesFor($entityTypeId)`, and for each bundle:
 
 - If the bundle has registered fields (`bundleFieldsFor()` is non-empty) but the `{base}__{bundle}` subtable is absent, emits `MISSING_BUNDLE_SUBTABLE` (fail).
+- If the registry declares bundle storage unique keys, each named index must be unique and target the exact ordered field list; absence or shape drift emits `MISSING_BUNDLE_UNIQUE_KEY` (fail).
 - If a `{base}__{bundle}` subtable exists but no fields are registered for that bundle, emits `ORPHAN_BUNDLE_SUBTABLE` (warn). Orphan detection scans `sqlite_master LIKE '{base_table}__%'` (ESCAPE-aware) and compares against the registry.
 - If the subtable exists but its columns do not match the registered field shape, the existing `DATABASE_SCHEMA_DRIFT` code is emitted with the subtable name in the message so the operator can distinguish base-table drift from bundle-table drift.
 

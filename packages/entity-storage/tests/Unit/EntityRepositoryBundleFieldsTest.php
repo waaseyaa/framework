@@ -12,6 +12,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -32,6 +33,7 @@ use Waaseyaa\Foundation\Log\LoggerTrait;
  * round trip documented in docs/specs/bundle-scoped-storage.md.
  */
 #[CoversClass(EntityRepository::class)]
+#[CoversClass(BundleSubtableGateway::class)]
 final class EntityRepositoryBundleFieldsTest extends TestCase
 {
     private DBALDatabase $database;

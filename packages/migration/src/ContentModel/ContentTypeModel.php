@@ -35,6 +35,8 @@ final readonly class ContentTypeModel
      * @param list<string> $sharedFields Names of already-declared base fields this
      *   type reuses (informational, for the model description).
      * @param list<string> $notes Normalization notes for this type.
+     * @param list<array{name: string, fields: non-empty-list<string>}> $uniqueKeys
+     *   Named storage-level unique keys scoped to this content type's bundle.
      */
     public function __construct(
         public string $entityTypeId,
@@ -44,5 +46,6 @@ final readonly class ContentTypeModel
         public array $fields = [],
         public array $sharedFields = [],
         public array $notes = [],
+        public array $uniqueKeys = [],
     ) {}
 }

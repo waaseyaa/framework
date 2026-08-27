@@ -39,6 +39,12 @@ Each **subtable** owns:
 - The entity's id key as its own primary key (1:1 correspondence with the base row).
 - All fields declared with `targetBundle: '{bundle}'` matching the subtable's bundle.
 
+A Data-backed bundle field named by a declared bundle unique key is promoted to
+column storage in the process-local field registry. Schema sync backfills its
+old base `_data` values into the typed subtable column; all subsequent query and
+write routing uses that one canonical column, preserving the no-dual-source
+invariant.
+
 Two invariants are enforced:
 
 1. A core field name and a bundle field name must not collide on the same entity type (see [`bundle-scoped-fields.md`](./bundle-scoped-fields.md#collision-rules)).
@@ -77,6 +83,37 @@ A bundle with zero registered fields has no subtable. This is both the install-t
 **Bundle-enumeration source.** `registeredBundlesFor()` resolves the bundle list in two ways. When `SqlSchemaHandler` is constructed with an explicit `bundleEnumerator` closure, that closure is authoritative — it is the escape hatch for callers that need to enumerate bundles beyond the registry (e.g. a declared-but-empty bundle from the bundle-entity-type config that still wants a subtable pre-created, or a pre-flight schema rebuild driven by config rather than registry). When no enumerator is passed, the handler falls back to `FieldDefinitionRegistry::bundleNamesFor($type->id())`. This is the same source `SqlEntityStorage` uses for save-time partitioning, so schema materialization and write-path routing agree on which bundles are "known". The kernel path — `AbstractKernel::bootEntityTypeManager()` — constructs handlers without an enumerator and relies on the registry fallback. Callers passing an explicit enumerator (currently only test fixtures enumerating intentionally-scoped bundle sets) keep their override behavior unchanged.
 
 Per-bundle subtable creation is the first consumer of foreign-key DDL in the framework and the driver of an additive extension to the schema spec: `SchemaInterface::createTable()` now honors a `foreign keys` entry in the spec array, forwarded by `DBALSchema` to DBAL's `Table::addForeignKeyConstraint()`. The interface itself is unchanged — the extension is purely in the accepted spec shape.
+
+### Bundle-scoped unique keys (#2603)
+
+`BundleStorageUniqueKeyRegistryInterface` records named key definitions by
+`(entityTypeId, bundle)`. Every named field must already be registered on that
+same bundle. `ContentTypeModel::$uniqueKeys` is the application/import model
+declaration surface and `ContentModelRegistrar` replays it idempotently.
+
+Schema sync promotes Data-backed key fields into the bundle subtable, backfills
+them from base `_data`, scans for pre-existing duplicate fully-non-null tuples,
+and only then adds the database unique key. Existing duplicates throw
+`BundleUniqueKeyMigrationException` with stable error code
+`bundle_unique_key_duplicates`; an opaque driver index error is not the
+operator contract. Runtime `assertRuntimeSchema()` verifies both promoted
+columns and named indexes without DDL and refuses missing state with S1-DB106.
+
+The storage gateway preflights an existing conflict for a precise response and
+relies on the unique index to close the concurrent-write race. A collision is
+mapped to `BundleUniqueKeyConflictException` (`BUNDLE_UNIQUE_KEY_CONFLICT`),
+including bundle, key, fields, and submitted values; unrelated database unique
+violations remain untouched. A tuple participates only when every component is
+non-null. Null-containing tuples may repeat; empty strings are ordinary values
+and conflict. These semantics are portable across SQLite, MySQL, and
+PostgreSQL.
+
+A bundle declaring a key fails closed when its subtable is unavailable; the
+ordinary missing-subtable `_data` fallback remains only for bundles without a
+storage uniqueness invariant. Under default-revision discipline the key applies
+to served/base state: draft-only saves do not touch the subtable and may
+temporarily share a value, while publication performs the indexed upsert and
+refuses a collision atomically.
 
 ## Lifecycle
 
