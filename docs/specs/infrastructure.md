@@ -1,4 +1,10 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-27 - Framework #2619: `RuntimePolicy` is the shared
+typed resolver for kernel, auth, and operator-diagnostic environment/debug
+policy. `waaseyaa about` receives that resolved bootstrap policy from its
+provider instead of independently reading PHP superglobals, so its output
+cannot disagree with the booted kernel. This remains bootstrap configuration,
+not governed/syncable config. -->
 <!-- Spec reviewed 2026-08-25 - protected-inline-media-20260825 (#2564):
 BuiltinRouteRegistrar adds GET /media/{id}/view with the same allowAll transport
 posture and MediaDownloadRouter entity-view enforcement as /download. The view
@@ -2312,6 +2318,14 @@ Early boot initializes the entity lifecycle manager (for disabling entity types 
 #### Environment and debug introspection
 
 Three protected methods provide environment awareness to all kernel subclasses:
+
+`RuntimePolicy::resolve()` is the typed bootstrap boundary shared by the kernel
+and consumers that must display or apply the same policy. It is constructed
+from the already assembled bootstrap configuration plus the documented process
+fallbacks; it is not read from `EnvironmentConfigFactory` and must never be
+persisted into governed/syncable configuration. Operator diagnostics such as
+`waaseyaa about` receive the resolved value and do not re-read environment
+superglobals.
 
 | Method | Resolution | Returns |
 |--------|-----------|---------|
