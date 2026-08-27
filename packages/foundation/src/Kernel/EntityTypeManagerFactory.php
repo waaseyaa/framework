@@ -84,6 +84,14 @@ final class EntityTypeManagerFactory
             // for entity types that explicitly declare a storageClass.
             null,
             function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope): EntityRepositoryInterface {
+                if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
+                    throw new \RuntimeException(\sprintf(
+                        'Entity type "%s" declares custom storage "%s"; getRepository() only supports Framework SQL storage. Use getStorage() for the declared backend.',
+                        $definition->id(),
+                        $definition->getStorageClass(),
+                    ));
+                }
+
                 $schemaHandler = $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger);
                 $schemaHandler->assertRuntimeSchema();
 
