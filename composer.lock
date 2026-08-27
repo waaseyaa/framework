@@ -6251,9 +6251,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/structured-import",
-                "reference": "1800c3e8a185d5b3876e69ad4b4a2aa5f5236952"
+                "reference": "d90bcf615ce0f72a852784b1eb59e62f7ba0ea3a"
             },
             "require": {
+                "ext-dom": "*",
+                "ext-fileinfo": "*",
+                "ext-libxml": "*",
+                "ext-mbstring": "*",
+                "ext-xmlreader": "*",
+                "ext-zip": "*",
                 "php": "^8.5",
                 "waaseyaa/entity": "^0.1.0-alpha.298",
                 "waaseyaa/field": "^0.1.0-alpha.298",
