@@ -99,6 +99,16 @@ adapter already uses for authorization and not-found outcomes. See
 therefore share the same publication authority; neither client receives a
 direct repository save path.
 
+`PublishingLayoutDraftGateway` and `PublishingPageBuilderRevisionGateway` each
+accept an optional page-builder `InitialLayoutDocumentProviderInterface`
+(#2556). A migrated entity has no stored layout document and the draft
+snapshot cannot legally hold that state; a composed provider supplies the
+application's initial document for exactly the absent case (`NULL` or an
+empty/whitespace-only stored string) as a read projection — no write occurs,
+an empty provider return is refused, a corrupt non-string stored value is
+still refused, and composition without a provider preserves the historical
+refusal byte-for-byte. See `docs/specs/page-builder.md` §7.1.
+
 Editor preview uses the additive exact-revision grant. Its HMAC input is
 domain-separated from legacy working-copy grants and binds entity type, entity
 identity, positive revision identity, and expiry. Under application-master

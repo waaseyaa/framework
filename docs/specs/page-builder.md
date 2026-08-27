@@ -238,6 +238,19 @@ universal mutation-token contract. A future opaque aggregate token may replace
 the current revision identifier behind the same gateway without giving either
 editor client a private persistence path.
 
+An entity migrated from another CMS has no stored layout document, and the
+draft snapshot value object cannot legally represent that state, so no
+decorator over the gateway can supply one. The publishing adapters therefore
+accept an optional `InitialLayoutDocumentProviderInterface` (#2556): when the
+stored document is absent — `NULL` or an empty/whitespace-only string, never
+another corrupt type — a composed provider supplies the application-chosen
+canonical document as a read projection. Nothing is written until an editor
+saves, the framework hardcodes no document, an empty provider return is
+refused rather than laundered into an illegal snapshot, and a gateway composed
+without a provider keeps the historical refusal. The same seam serves the
+history gateway, so revisions cut before an entity was ever authored in the
+page builder open in history and restore without a parallel fork.
+
 ### 7.1.1 Save advisories on a layout edit
 
 A layout edit is an ordinary entity save, so it reaches the repository save

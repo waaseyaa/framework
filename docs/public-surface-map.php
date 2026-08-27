@@ -651,6 +651,12 @@ return [
     'Waaseyaa\PageBuilder\Draft\LayoutSaveAdvisoryAcknowledgementDispatcher' => 'public',
     'Waaseyaa\PageBuilder\Draft\Exception\LayoutSaveAdvisoryException' => 'public',
     'Waaseyaa\PageBuilder\Draft\Exception\UnsupportedLayoutSaveAdvisoryAcknowledgementException' => 'public',
+    // Initial-layout-document seam (#2556): applications implement this to give
+    // migrated entities — which have no stored page-builder document, a state
+    // LayoutDraftSnapshot cannot legally hold — an application-chosen initial
+    // document. It is a constructor parameter of both @api publishing gateways,
+    // so consumers implement it directly.
+    'Waaseyaa\PageBuilder\Draft\InitialLayoutDocumentProviderInterface' => 'public',
     // Revision history/preview seams stay internal: no @api entry point takes
     // them as a parameter, and no consumer implements them under support.
     'Waaseyaa\Publishing\ContentRevisionHistoryInterface' => 'internal',

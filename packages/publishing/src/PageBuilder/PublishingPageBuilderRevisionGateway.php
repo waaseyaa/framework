@@ -8,6 +8,7 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\PageBuilder\Draft\Exception\PageBuilderDraftNotFoundException;
 use Waaseyaa\PageBuilder\Draft\Exception\StaleEntityRevisionException;
+use Waaseyaa\PageBuilder\Draft\InitialLayoutDocumentProviderInterface;
 use Waaseyaa\PageBuilder\Draft\LayoutDraftSnapshot;
 use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface;
 use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionSnapshot;
@@ -16,12 +17,24 @@ use Waaseyaa\Publishing\ContentRevisionHistoryInterface;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\Exception\ContentNotFoundException;
 
-/** @api */
+/**
+ * Publishing-backed page-builder history gateway.
+ *
+ * Revisions cut before a migrated entity was ever authored in the page
+ * builder carry no stored layout document. Composing an
+ * {@see InitialLayoutDocumentProviderInterface} projects the application's
+ * initial document for exactly those revisions, so history over migrated
+ * content works with the same seam the draft gateway uses. Without a provider
+ * the historical refusal is unchanged.
+ *
+ * @api
+ */
 final readonly class PublishingPageBuilderRevisionGateway implements PageBuilderRevisionGatewayInterface
 {
     public function __construct(
         private ContentRevisionHistoryInterface $publisher,
         private string $layoutField,
+        private ?InitialLayoutDocumentProviderInterface $initialLayoutDocuments = null,
     ) {
         if (1 !== preg_match('/^[a-z][a-z0-9_]*$/D', $layoutField)) {
             throw new \InvalidArgumentException("Invalid layout field: {$layoutField}");
@@ -77,7 +90,7 @@ final readonly class PublishingPageBuilderRevisionGateway implements PageBuilder
         }
 
         $revisionId = $value['revision_id'] ?? null;
-        $layout = $value[$this->layoutField] ?? null;
+        $layout = $this->layoutDocument($entityId, $value[$this->layoutField] ?? null);
         if (!is_int($revisionId) || !is_string($layout)) {
             throw new \UnexpectedValueException('Restored publishing snapshot is missing the revision or governed layout.');
         }
@@ -89,7 +102,7 @@ final readonly class PublishingPageBuilderRevisionGateway implements PageBuilder
     private function revisionSnapshot(string $entityId, array $value): PageBuilderRevisionSnapshot
     {
         $revisionId = $value['revision_id'] ?? null;
-        $layout = $value[$this->layoutField] ?? null;
+        $layout = $this->layoutDocument($entityId, $value[$this->layoutField] ?? null);
         if (!is_int($revisionId) || !is_string($layout)) {
             throw new \UnexpectedValueException('Publishing revision is missing its revision or governed layout.');
         }
@@ -108,5 +121,20 @@ final readonly class PublishingPageBuilderRevisionGateway implements PageBuilder
             (bool) ($value['is_current'] ?? false),
             (bool) ($value['is_latest'] ?? false),
         );
+    }
+
+    /** Absent means never authored: NULL or an empty/whitespace-only string, never another corrupt type. */
+    private function layoutDocument(string $entityId, mixed $stored): mixed
+    {
+        if (null === $this->initialLayoutDocuments || (null !== $stored && (!is_string($stored) || '' !== trim($stored)))) {
+            return $stored;
+        }
+
+        $document = $this->initialLayoutDocuments->initialEncodedLayout($entityId);
+        if ('' === trim($document)) {
+            throw new \UnexpectedValueException('The initial layout document provider returned an empty document.');
+        }
+
+        return $document;
     }
 }
