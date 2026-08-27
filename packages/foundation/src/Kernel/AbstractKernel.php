@@ -1020,7 +1020,7 @@ abstract class AbstractKernel
      */
     protected function isDevelopmentMode(): bool
     {
-        return in_array(strtolower($this->resolveEnvironment()), ['dev', 'development', 'local', 'testing'], true);
+        return RuntimePolicy::resolve($this->config)->isDevelopment();
     }
 
     /**

@@ -1,5 +1,9 @@
 # CLI Console
 
+<!-- Spec reviewed 2026-08-27 - Framework #2621: migration dry-run and verify
+diagnostic redaction consumes the shared RuntimePolicy production-like
+classification instead of independently reading APP_ENV. -->
+
 <!-- Spec reviewed 2026-08-27 - #2619: `about` receives the typed environment
 and debug policy resolved from the kernel bootstrap inputs. It no longer reads
 PHP environment superglobals independently, so operator output and boot policy
@@ -81,6 +85,13 @@ in the explicit local/development/testing allowlist; production, staging, and
 unknown environment names fail closed before filesystem, lock, migration, or
 connection work. Relative paths resolve against the injected project root, not
 the caller's current working directory.
+
+`migrate --dry-run` and `migrate --verify` also receive their diagnostic
+redaction posture from the shared bootstrap `RuntimePolicy`. Only `local`,
+`dev`, `development`, and `testing`, after trim and case normalization, retain
+absolute paths for development diagnostics. Production, staging, unknown,
+missing, empty, and malformed environment values redact paths. Provider wiring
+must not re-read `APP_ENV` or PHP environment superglobals.
 
 ## Configuration authority commands and diagnostics
 

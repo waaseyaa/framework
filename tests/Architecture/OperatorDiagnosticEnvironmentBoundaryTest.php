@@ -19,4 +19,15 @@ final class OperatorDiagnosticEnvironmentBoundaryTest extends TestCase
         self::assertStringNotContainsString('$_ENV[', $source);
         self::assertStringNotContainsString('$_SERVER[', $source);
     }
+
+    #[Test]
+    public function migrateProviderDoesNotBypassResolvedKernelConfiguration(): void
+    {
+        $source = file_get_contents(dirname(__DIR__, 2) . '/packages/cli/src/Provider/MigrateServiceProvider.php');
+
+        self::assertIsString($source);
+        self::assertStringNotContainsString("getenv('APP_ENV')", $source);
+        self::assertStringNotContainsString("\$_ENV['APP_ENV']", $source);
+        self::assertStringNotContainsString("\$_SERVER['APP_ENV']", $source);
+    }
 }
