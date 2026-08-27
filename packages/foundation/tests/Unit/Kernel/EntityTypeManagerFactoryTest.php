@@ -251,6 +251,28 @@ final class EntityTypeManagerFactoryTest extends TestCase
     }
 
     #[Test]
+    public function repository_resolution_refuses_valid_custom_storage_before_sql_schema_inspection(): void
+    {
+        $manager = $this->manager();
+        $manager->registerEntityType(new EntityType(
+            id: 'custom_remote',
+            label: 'Custom remote',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+            storageClass: CustomRemoteEntityStorage::class,
+        ));
+
+        try {
+            $manager->getRepository('custom_remote');
+            self::fail('Custom-storage entity types must not resolve a Framework SQL repository.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('custom_remote', $exception->getMessage());
+            self::assertStringContainsString('getStorage()', $exception->getMessage());
+            self::assertStringNotContainsString('S1-DB106', $exception->getMessage());
+        }
+    }
+
+    #[Test]
     public function assert_registered_runtime_schemas_rejects_invalid_storage_class(): void
     {
         $manager = $this->manager();
