@@ -594,6 +594,58 @@ interface EntityRepositoryInterface
 - **The delete path is deliberately NOT aligned** — `doDelete()` still buffers `PRE_DELETE` under `deleteMany()`, so batch deletes bypass pre-delete guards (e.g. `RelationshipDeleteGuardListener`, documented as single-delete-only in #1852). Aligning it is a flagged follow-up (see the `dispatchEvent()` docblock in `EntityRepository`); it changes #1852's documented behavior and needs its own blast-radius pass.
 - **PRE/POST listener pairing must be entity-correlated** — `saveMany()` still dispatches `pre1, pre2, …, post1, post2, …`. Listeners that capture `isNew()` (or any other per-entity PRE state) in PRE and read it in POST must key that state on the entity object (`WeakMap` / `SplObjectStorage`), consume the matching entry on POST, and must not keep a listener-wide boolean slot. A single-slot `pendingIsNew` attributes every buffered POST from the last PRE in a mixed create/update batch (#1856). Framework listeners that pair PRE→POST on `isNew()` (`EntityWriteAuditListener`, `EntityLifecycleAuditListener`, `ThreadParticipantBootstrapSubscriber`) use object-keyed maps. Single saves remain PRE-then-POST and are unaffected. `deleteMany()` PRE_DELETE buffering is a separate follow-up (#1852).
 
+### EntityIdentifierResolver
+
+File: `packages/entity/src/Repository/EntityIdentifierResolver.php` (#2557)
+
+The one place that turns an identifier which may be a primary key **or** a UUID
+into an entity. Surfaces that publish UUID as the resource id — JSON:API, the
+admin SPA, GraphQL, SSR canonical paths, media downloads — all receive both
+shapes on the same route parameter, and each had reimplemented this privately.
+
+```php
+final class EntityIdentifierResolver
+{
+    public function __construct(private readonly EntityTypeManagerInterface $entityTypeManager) {}
+
+    public function resolve(string $entityTypeId, int|string $identifier): ?EntityInterface;
+}
+```
+
+Resolution rule: the identifier is a UUID only when the entity type **declares**
+a `uuid` key (`EntityTypeInterface::getKeys()['uuid']`, not a column literally
+named `uuid`) **and** the value is RFC 4122 textual-shaped. The two branches are
+exclusive — a UUID-shaped value is never retried as a primary key, because the
+two columns never share a value space. Everything else goes to
+`EntityRepositoryInterface::find()`. An empty identifier resolves to null
+without touching storage; an unregistered `$entityTypeId` propagates the entity
+type manager's own failure.
+
+**Access posture: resolution is access-neutral, and it does NOT authorize.**
+The UUID branch runs `accessCheck(false)` and never binds an acting account —
+symmetrically with `find()`, which does not access-check either. **Every caller
+MUST run its own operation-specific check (typically
+`EntityAccessHandler::check($entity, $operation, $account)`) on the result
+before exposing or acting on the entity.**
+
+The posture is deliberate, and it is the substance of #2557 rather than a
+convenience. Authorization depends on the caller's operation and actor, which
+the resolver cannot know:
+
+- A `view` filter is the wrong check for a caller about to `update` or `delete`,
+  and applying it turns "you may not view this" into a misleading "not found"
+  for an editor legitimately entitled to edit.
+- Access-checking one branch and not the other makes authorization depend on the
+  **shape of the identifier in the URL**. GraphQL's copy did exactly that — the
+  UUID lookup bound the account, the numeric branch never checked — so the same
+  account updating the same entity succeeded via `/{id}` and got "Entity not
+  found" via `/{uuid}`. Pinned by
+  `tests/Integration/GraphQL/GraphQlUuidIdentityResolutionTest`.
+
+Contract-pinned by `packages/entity/tests/Unit/Repository/EntityIdentifierResolverTest`,
+whose `the_uuid_lookup_is_access_neutral` case asserts both that
+`accessCheck(false)` is applied and that `setAccount()` is never called.
+
 ### EntityConstants
 
 File: `packages/entity/src/EntityConstants.php`

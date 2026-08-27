@@ -23,6 +23,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Foundation\Http\BindingAwareHttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\ContentNegotiation\MediaTypeAcceptNegotiator;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
@@ -60,6 +61,7 @@ final class SsrPageHandler
     private readonly LoggerInterface $logger;
     private readonly LanguageResolver $languageResolver;
     private readonly AppControllerMethodInvoker $appControllerMethodInvoker;
+    private readonly EntityIdentifierResolver $identifierResolver;
 
     /**
      * @param list<AppControllerArgumentResolver> $appControllerArgumentResolvers
@@ -90,6 +92,7 @@ final class SsrPageHandler
         $this->logger = $logger ?? new NullLogger();
         $this->languageResolver = $languageResolver ?? new LanguageResolver(serviceResolver: $this->serviceResolver);
         $this->appControllerMethodInvoker = $appControllerMethodInvoker ?? new AppControllerMethodInvoker(logger: $this->logger);
+        $this->identifierResolver = new EntityIdentifierResolver($entityTypeManager);
     }
 
     /**
@@ -1057,37 +1060,19 @@ final class SsrPageHandler
      * The canonical public path stays numeric `/{type}/{id}`, but a valid entity
      * must never 404 purely on identifier shape: `GET /story/{uuid}` previously
      * fed the UUID to `load()`, which queries the numeric `id` column only, so it
-     * never matched. We resolve the uuid to the numeric id via a query first;
-     * `load()` itself stays numeric-keyed (the column is never dual-keyed).
+     * never matched. {@see EntityIdentifierResolver} resolves the uuid to the
+     * numeric id first; `load()` itself stays numeric-keyed (the column is never
+     * dual-keyed).
      *
-     * `accessCheck(false)` — identity resolution only. Authorization stays with
-     * the SSR visibility gates in the caller (`EditorialVisibilityResolver` +
-     * {@see shouldDenyEntityRender()}), exactly as on the numeric path
-     * (`load()` does not access-check either), so the uuid and numeric paths are
-     * symmetric and the uuid path cannot leak a draft.
+     * That resolver is access-neutral by contract — identity resolution only.
+     * Authorization stays with the SSR visibility gates in the caller
+     * (`EditorialVisibilityResolver` + {@see shouldDenyEntityRender()}), exactly
+     * as on the numeric path (`load()` does not access-check either), so the
+     * uuid and numeric paths are symmetric and the uuid path cannot leak a draft.
      */
     private function loadByIdOrUuid(string $entityTypeId, int|string $id): ?EntityInterface
     {
-        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
-        $repository = $this->entityTypeManager->getRepository($entityTypeId);
-        $keys = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys();
-
-        if (
-            isset($keys['uuid'])
-            && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id) === 1
-        ) {
-            $ids = $repository->getQuery()
-                ->accessCheck(false)
-                ->condition($keys['uuid'], (string) $id)
-                ->execute();
-            if ($ids === []) {
-                return null;
-            }
-
-            return $repository->find((string) reset($ids));
-        }
-
-        return $repository->find((string) $id);
+        return $this->identifierResolver->resolve($entityTypeId, $id);
     }
 
     /**

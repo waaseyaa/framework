@@ -17,6 +17,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Entity\Repository\EntityIdentifierResolver;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -45,6 +46,8 @@ final class EntityResolver
 
     private readonly LoggerInterface $logger;
 
+    private readonly EntityIdentifierResolver $identifierResolver;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly GraphQlAccessGuard $guard,
@@ -52,6 +55,7 @@ final class EntityResolver
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->identifierResolver = new EntityIdentifierResolver($entityTypeManager);
     }
 
     /**
@@ -420,32 +424,23 @@ final class EntityResolver
         $entity->_hydrateMutationToken($expected);
     }
 
+    /**
+     * Resolve an id or UUID to an entity, WITHOUT authorizing it (#2557).
+     *
+     * Every caller below runs its own operation-specific guard on the result:
+     * {@see resolveSingle()} `canView`, {@see resolveUpdate()}
+     * `assertUpdateAccess`, {@see resolveDelete()} `assertDeleteAccess`.
+     *
+     * This used to bind $this->account to the UUID lookup, which filters on
+     * `view`, while the numeric branch never access-checked at all. That made
+     * authorization depend on the identifier shape: an account entitled to
+     * update an entity it may not view succeeded by id and got "not found" by
+     * uuid. Access-neutral resolution collapses the two paths onto the same
+     * guard.
+     */
     private function loadEntity(string $entityTypeId, int|string $id): ?EntityInterface
     {
-        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
-        $repository = $this->entityTypeManager->getRepository($entityTypeId);
-        $definition = $this->entityTypeManager->getDefinition($entityTypeId);
-        $keys = $definition->getKeys();
-
-        // UUID detection — same pattern as JsonApiController::loadByIdOrUuid
-        if (is_string($id) && isset($keys['uuid'])
-            && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)
-        ) {
-            $uuidQuery = $repository->getQuery()->condition($keys['uuid'], $id);
-            if ($this->account !== null) {
-                $uuidQuery = $uuidQuery->setAccount($this->account);
-            } else {
-                // system context: resolver invoked without an account in scope
-                $uuidQuery = $uuidQuery->accessCheck(false);
-            }
-            $ids = $uuidQuery->execute();
-            if ($ids === []) {
-                return null;
-            }
-            return $repository->find((string) reset($ids));
-        }
-
-        return $repository->find((string) $id);
+        return $this->identifierResolver->resolve($entityTypeId, $id);
     }
 
     /**
