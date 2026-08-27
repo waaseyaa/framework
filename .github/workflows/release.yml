@@ -1,8 +1,8 @@
 name: Release Readiness
 
 # This workflow verifies an exact Framework candidate. It deliberately has no
-# GitHub Environment, deployment permission, artifact-promotion transport,
-# rollback, or publication authority. Application deployment belongs to
+# GitHub Environment, deployment permission, rollback, or publication
+# authority. Its source promotion transports evidence only. Deployment belongs to
 # consumer/infra repositories; Framework publication remains owned by
 # release-cut.yml.
 on:
@@ -19,6 +19,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   validate-readiness-request:
@@ -65,10 +66,35 @@ jobs:
           fi
           echo "candidate_sha=$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
 
+  promote-ci-source-artifact:
+    name: Promote exact-head CI source artifact
+    runs-on: ubuntu-24.04
+    needs: [validate-readiness-request]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Promote successful CI artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
+        run: bin/promote-exact-source-artifact "$CANDIDATE_SHA" build/promoted-source release-readiness
+
+      - name: Upload run-scoped promoted source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-readiness-source-${{ needs.validate-readiness-request.outputs.candidate_sha }}
+          path: build/promoted-source/
+          if-no-files-found: error
+          retention-days: 7
+
   build-release-candidate:
     name: Build exact release candidate
     runs-on: ubuntu-24.04
-    needs: [validate-readiness-request]
+    needs: [validate-readiness-request, promote-ci-source-artifact]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,6 +102,17 @@ jobs:
           # The validated output, not the raw input: validate-readiness-request
           # is the job that proves this SHA exists and is an accepted candidate.
           ref: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
+
+      - name: Download promoted exact source
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-readiness-source-${{ needs.validate-readiness-request.outputs.candidate_sha }}
+          path: build/promoted-source
+
+      - name: Verify and materialize promoted source
+        env:
+          CANDIDATE_SHA: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
+        run: bin/materialize-exact-source-artifact build/promoted-source "$CANDIDATE_SHA" build/candidate-source
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -87,34 +124,46 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: 'build/candidate-source/framework/.nvmrc'
           cache: 'npm'
-          cache-dependency-path: packages/admin/package-lock.json
+          cache-dependency-path: build/candidate-source/framework/packages/admin/package-lock.json
 
       - name: Build candidate without deployment side effects
         env:
           RELEASE_ACTOR: ${{ github.actor }}
           RELEASE_RUN_ID: ${{ github.run_id }}
-        run: bash scripts/build-release-candidate.sh
+          EXACT_SOURCE_SHA: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
+        run: bash build/candidate-source/framework/scripts/build-release-candidate.sh
 
       - name: Upload candidate evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-candidate-evidence
-          path: build/release/
+          path: build/candidate-source/framework/build/release/
           retention-days: 90
 
   playwright-full-sweep:
     name: Full Playwright release-readiness sweep
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    needs: [validate-readiness-request, build-release-candidate]
+    needs: [validate-readiness-request, promote-ci-source-artifact, build-release-candidate]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The validated output, not the raw input: validate-readiness-request
           # is the job that proves this SHA exists and is an accepted candidate.
           ref: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
+
+      - name: Download promoted exact source
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-readiness-source-${{ needs.validate-readiness-request.outputs.candidate_sha }}
+          path: build/promoted-source
+
+      - name: Verify and materialize promoted source
+        env:
+          CANDIDATE_SHA: ${{ needs.validate-readiness-request.outputs.candidate_sha }}
+        run: bin/materialize-exact-source-artifact build/promoted-source "$CANDIDATE_SHA" build/candidate-source
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -124,32 +173,32 @@ jobs:
           coverage: none
 
       - name: Install PHP dependencies
-        uses: ./.github/actions/composer-install-retry
-        with:
-          args: '--no-interaction --prefer-dist --no-progress'
+        working-directory: build/candidate-source/framework
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: 'build/candidate-source/framework/.nvmrc'
           cache: 'npm'
-          cache-dependency-path: packages/admin/package-lock.json
+          cache-dependency-path: build/candidate-source/framework/packages/admin/package-lock.json
 
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/admin/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/candidate-source/framework/packages/admin/package-lock.json') }}
 
       - name: Install Node dependencies
         timeout-minutes: 5
-        run: cd packages/admin && npm ci --no-audit --no-fund
+        run: cd build/candidate-source/framework/packages/admin && npm ci --no-audit --no-fund
 
       - name: Install Playwright browsers
         timeout-minutes: 5
-        run: cd packages/admin && npx playwright install chromium
+        run: cd build/candidate-source/framework/packages/admin && npx playwright install chromium
 
       - name: Start PHP backend
+        working-directory: build/candidate-source/framework
         run: |
           php -S 127.0.0.1:8080 -t public/ > /tmp/php-server.log 2>&1 &
           for i in $(seq 1 30); do
@@ -158,11 +207,11 @@ jobs:
           done
 
       - name: Run full Playwright suite
-        run: cd packages/admin && npx playwright test --project=chromium
+        run: cd build/candidate-source/framework/packages/admin && npx playwright test --project=chromium
 
       - name: Summarize Playwright retries
         if: always()
-        run: cd packages/admin && npm run test:e2e:summary
+        run: cd build/candidate-source/framework/packages/admin && npm run test:e2e:summary
 
       - name: Upload Playwright evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -170,8 +219,8 @@ jobs:
         with:
           name: release-readiness-playwright
           path: |
-            packages/admin/test-results/
-            packages/admin/playwright-report/
+            build/candidate-source/framework/packages/admin/test-results/
+            build/candidate-source/framework/packages/admin/playwright-report/
           retention-days: 90
 
       - name: Upload server logs on failure
