@@ -78,6 +78,11 @@ registerEndpoint('/admin/_surface/user_edit_patch/action/schema', {
   handler: () => ({ ok: true, data: userSchema }),
 })
 
+registerEndpoint('/admin/_surface/user_edit_conflict/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: userSchema }),
+})
+
 const schemaWithDefaults = {
   ...userSchema,
   'x-entity-type': 'node_defaults',
@@ -787,6 +792,30 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.emitted('saved')?.[0]).toEqual([updated])
+  })
+
+  it('emits a conflict lifecycle failure when a stale update is refused with 412', async () => {
+    registerEndpoint('/admin/_surface/user_edit_conflict/3', () => ({
+      ok: true,
+      data: { type: 'user', id: '3', attributes: { name: 'bob' }, mutation_token: 'emt1.user' },
+    }))
+    registerEndpoint('/admin/_surface/user_edit_conflict/action/update', {
+      method: 'POST',
+      handler: () => {
+        throw createError({ statusCode: 412, statusMessage: 'Precondition Failed' })
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'user_edit_conflict', entityId: '3' },
+    })
+    await flushPromises()
+    await wrapper.get('input[type="text"]').setValue('bob-stale')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.emitted('failure')?.[0]?.[0]).toMatchObject({ kind: 'conflict', status: 412 })
   })
 
   it('locks the machine name field deterministically in edit mode', async () => {
