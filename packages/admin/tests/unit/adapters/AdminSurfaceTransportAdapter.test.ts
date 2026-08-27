@@ -144,9 +144,64 @@ describe('AdminSurfaceTransportAdapter', () => {
     )
   })
 
-  it('deletes with the successor a workflow transition handed over, not the stale read token', async () => {
+  it('keeps mutation authority when a route identifier resolves to another canonical resource id', async () => {
+    const canonicalId = '97289eb5-6bf9-4b80-bf0d-c699f6ec1da5'
     const responses = [
-      { type: 'node', id: '7', attributes: { title: 'Observed' }, mutation_token: 'emt1.before-transition' },
+      { type: 'node', id: canonicalId, attributes: { title: 'Observed' }, mutation_token: 'emt1.observed' },
+      { type: 'node', id: canonicalId, attributes: { title: 'Updated' }, mutation_token: 'emt1.successor' },
+      { type: 'node', id: canonicalId, attributes: { title: 'Updated again' }, mutation_token: 'emt1.second-successor' },
+      undefined,
+    ]
+    const fetchFn = vi.fn().mockImplementation(async () => {
+      const data = responses.shift()
+      return {
+        ok: true,
+        status: data === undefined ? 204 : 200,
+        json: async () => ({ ok: true, data }),
+      }
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.get('node', '4')
+    await adapter.update('node', '4', { title: 'Updated' })
+    await adapter.update('node', canonicalId, { title: 'Updated again' })
+    await adapter.remove('node', '4')
+
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      2,
+      '/admin/_surface/node/action/update',
+      expect.objectContaining({
+        body: JSON.stringify({
+          id: '4',
+          attributes: { title: 'Updated' },
+          mutation_token: 'emt1.observed',
+        }),
+      }),
+    )
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      3,
+      '/admin/_surface/node/action/update',
+      expect.objectContaining({
+        body: JSON.stringify({
+          id: canonicalId,
+          attributes: { title: 'Updated again' },
+          mutation_token: 'emt1.successor',
+        }),
+      }),
+    )
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      4,
+      '/admin/_surface/node/action/delete',
+      expect.objectContaining({
+        body: JSON.stringify({ id: '4', mutation_token: 'emt1.second-successor' }),
+      }),
+    )
+  })
+
+  it('deletes with the successor a workflow transition handed over, not the stale read token', async () => {
+    const canonicalId = '97289eb5-6bf9-4b80-bf0d-c699f6ec1da5'
+    const responses = [
+      { type: 'node', id: canonicalId, attributes: { title: 'Observed' }, mutation_token: 'emt1.before-transition' },
       undefined,
     ]
     const fetchFn = vi.fn().mockImplementation(async () => {
@@ -157,7 +212,7 @@ describe('AdminSurfaceTransportAdapter', () => {
 
     await adapter.get('node', '7')
     // A transition committed on the canonical /api route returned this successor.
-    adapter.adoptMutationToken('node', '7', 'emt1.after-transition')
+    adapter.adoptMutationToken('node', canonicalId, 'emt1.after-transition')
     await adapter.remove('node', '7')
 
     expect(fetchFn).toHaveBeenNthCalledWith(
@@ -170,15 +225,16 @@ describe('AdminSurfaceTransportAdapter', () => {
   })
 
   it('refuses the next write locally after the cached validator is forgotten', async () => {
+    const canonicalId = '97289eb5-6bf9-4b80-bf0d-c699f6ec1da5'
     const fetchFn = vi.fn().mockImplementation(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ ok: true, data: { type: 'node', id: '7', attributes: {}, mutation_token: 'emt1.observed' } }),
+      json: async () => ({ ok: true, data: { type: 'node', id: canonicalId, attributes: {}, mutation_token: 'emt1.observed' } }),
     }))
     const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
 
     await adapter.get('node', '7')
-    adapter.forgetMutationToken('node', '7')
+    adapter.forgetMutationToken('node', canonicalId)
 
     await expect(adapter.remove('node', '7')).rejects.toMatchObject({ status: 428 })
     // The read only; no unfenced delete was ever sent.
@@ -265,13 +321,14 @@ describe('AdminSurfaceTransportAdapter', () => {
   })
 
   it('keeps the restore mutation token private and refreshes it from the successor', async () => {
+    const canonicalId = '97289eb5-6bf9-4b80-bf0d-c699f6ec1da5'
     const responses = [
-      { type: 'node', id: '7', attributes: { title: 'Current' }, mutation_token: 'emt1.observed' },
+      { type: 'node', id: canonicalId, attributes: { title: 'Current' }, mutation_token: 'emt1.observed' },
       {
-        entityType: 'node', entityId: '7', sourceRevisionId: 1, resultingRevisionId: 4,
-        entity: { type: 'node', id: '7', attributes: { title: 'Restored' }, mutation_token: 'emt1.successor' },
+        entityType: 'node', entityId: canonicalId, sourceRevisionId: 1, resultingRevisionId: 4,
+        entity: { type: 'node', id: canonicalId, attributes: { title: 'Restored' }, mutation_token: 'emt1.successor' },
       },
-      { type: 'node', id: '7', attributes: { title: 'Edited' }, mutation_token: 'emt1.after-edit' },
+      { type: 'node', id: canonicalId, attributes: { title: 'Edited' }, mutation_token: 'emt1.after-edit' },
     ]
     const fetchFn = vi.fn().mockImplementation(async () => ({
       ok: true,
