@@ -893,7 +893,10 @@ Registered under `auth` key in `config/waaseyaa.php`:
 ],
 ```
 
-`mail_missing_policy` auto-resolves: `dev-log` when `APP_ENV` is `local`/`development`; `fail` in production. Explicit values `'dev-log'`, `'fail'`, and `'silent'` override the auto behavior.
+`mail_missing_policy` auto-resolves through the canonical `RuntimePolicy`
+classifier: `dev-log` for normalized `local`, `dev`, `development`, and
+`testing`; `fail` for production-like, missing, malformed, and unknown names.
+Explicit values `'dev-log'`, `'fail'`, and `'silent'` override the auto behavior.
 
 ## File Reference
 

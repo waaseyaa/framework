@@ -35,7 +35,7 @@ Profiles:
 
 - **default (`bin/check-pr-preflight`)** — every fast repo-state gate: composer policy, portable
   paths, package layers, symfony imports, the four S1 roster/contract gates, support contract,
-  surface parity, changelog shape and fragment validation, ingestion defaults, secrets, governed secret access, dispatcher
+  surface parity, changelog shape and fragment validation, ingestion defaults, secrets, governed secret access, runtime-policy custody, dispatcher
   keys, getquery bindings, admin coercion patterns, admin dist freshness, admin dist acceptance
   manifest, field guards, access hardening, contract-suite coverage, openapi, phpstan/phpunit path checks, distribution
   extensions, PHPUnit skip policy, spec drift, changelog discipline, cs-check.
@@ -66,7 +66,7 @@ For every governed recorded artifact, one command knows how to repair it:
   what changed before committing.
 - **Judgment artifacts** (entries need human-authored rationale): getquery-bindings baseline
   (entries require `# reason` comments), dead-code baseline (policy: shrink-only), public surface
-  map, symfony-import allowlist, access-hardening and governed-secret-access baselines,
+  map, symfony-import allowlist, access-hardening, governed-secret-access and runtime-policy-custody baselines,
   php-coverage baseline. Refresh does **not** rewrite these; it detects staleness and prints the
   exact regeneration or hand-edit instruction for each.
 
@@ -147,6 +147,7 @@ Applies to all four S1 rosters: `s1-configuration-activation`, `s1-configuration
 | Preflight command | `bin/check-pr-preflight` |
 | PHPUnit skip policy | `bin/check-phpunit-skip-policy`, `tools/phpunit-skip-policy.json`, `docs/specs/phpunit-skip-governance.md` |
 | Gate manifest | `tools/preflight-gates.json` |
+| Runtime-policy custody | `bin/check-runtime-policy-custody`, `tools/runtime-policy-custody-baseline.php` |
 | Refresh command | `bin/refresh-governance-artifacts` |
 | Manifest/CI parity test | `tests/Architecture/PreflightParityTest.php` |
 | S1 verifiers (schema v2) | `bin/check-s1-{configuration-activation,configuration-authority,schema-authority,sqlite-contract}` |

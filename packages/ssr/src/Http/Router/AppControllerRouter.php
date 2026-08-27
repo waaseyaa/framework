@@ -30,6 +30,7 @@ final class AppControllerRouter implements DomainRouterInterface
     public function __construct(
         private readonly SsrPageHandler $ssrPageHandler,
         private readonly ?ErrorPageRendererInterface $errorPageRenderer = null,
+        private readonly bool $debug = false,
     ) {}
 
     public function supports(Request $request): bool
@@ -113,18 +114,11 @@ final class AppControllerRouter implements DomainRouterInterface
 
     private function safeExceptionDetail(\Throwable $e): string
     {
-        if ($this->isAppDebug()) {
+        if ($this->debug) {
             return $e->getMessage();
         }
 
         return 'A server error occurred.';
-    }
-
-    private function isAppDebug(): bool
-    {
-        $v = getenv('APP_DEBUG');
-
-        return $v !== false && $v !== '' && filter_var($v, FILTER_VALIDATE_BOOLEAN);
     }
 
     private function appControllerErrorResponse(

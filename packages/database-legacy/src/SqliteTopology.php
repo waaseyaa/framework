@@ -46,7 +46,7 @@ final class SqliteTopology
     {
         self::assertSupportedPath($path);
 
-        if ($path === ':memory:' && !in_array(strtolower($environment), self::MEMORY_ENVIRONMENTS, true)) {
+        if ($path === ':memory:' && !in_array(strtolower(trim($environment)), self::MEMORY_ENVIRONMENTS, true)) {
             throw new \RuntimeException(sprintf(
                 '%s: The S1 non-development profile requires file-backed SQLite; :memory: is allowed only for local, dev, development, and testing.',
                 self::PRODUCTION_MEMORY,
@@ -57,9 +57,12 @@ final class SqliteTopology
     /** @param array<string, mixed> $config */
     public static function resolveEnvironment(array $config): string
     {
-        $configured = $config['environment'] ?? null;
-        if (is_string($configured) && $configured !== '') {
-            return $configured;
+        if (array_key_exists('environment', $config)) {
+            $configured = $config['environment'];
+
+            return is_string($configured) && trim($configured) !== ''
+                ? $configured
+                : 'production';
         }
 
         $environment = getenv('APP_ENV');

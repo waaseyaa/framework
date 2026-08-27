@@ -86,4 +86,44 @@ final class RuntimePolicyTest extends TestCase
             self::assertSame(!$expectedDevelopment, $policy->isProductionLike(), $environment);
         }
     }
+
+    #[Test]
+    public function canonicalClassifierIsAvailableToFoundationDependentPolicies(): void
+    {
+        foreach ([
+            ['local', true],
+            [' LOCAL ', true],
+            ['dev', true],
+            ['Development', true],
+            ['testing', true],
+            ['production', false],
+            ['staging', false],
+            ['unknown', false],
+            ['', false],
+        ] as [$environment, $expectedDevelopment]) {
+            self::assertSame(
+                $expectedDevelopment,
+                RuntimePolicy::isDevelopmentEnvironment($environment),
+                $environment,
+            );
+        }
+    }
+
+    #[Test]
+    public function explicitClassifierNeverInheritsTheProcessEnvironment(): void
+    {
+        $previous = getenv('APP_ENV');
+        putenv('APP_ENV=local');
+
+        try {
+            self::assertFalse(RuntimePolicy::isExplicitDevelopment([]));
+            self::assertFalse(RuntimePolicy::isExplicitDevelopment(['environment' => null]));
+            self::assertFalse(RuntimePolicy::isExplicitDevelopment(['environment' => '']));
+            self::assertTrue(RuntimePolicy::isExplicitDevelopment(['environment' => ' Testing ']));
+        } finally {
+            $previous === false
+                ? putenv('APP_ENV')
+                : putenv('APP_ENV=' . $previous);
+        }
+    }
 }

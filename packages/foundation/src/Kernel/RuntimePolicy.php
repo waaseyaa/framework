@@ -44,11 +44,33 @@ final readonly class RuntimePolicy
 
     public function isDevelopment(): bool
     {
-        return in_array(strtolower(trim($this->environment)), self::DEVELOPMENT_ENVIRONMENTS, true);
+        return self::isDevelopmentEnvironment($this->environment);
     }
 
     public function isProductionLike(): bool
     {
         return !$this->isDevelopment();
+    }
+
+    /** Canonical normalized classifier for Foundation-dependent package policy. */
+    public static function isDevelopmentEnvironment(string $environment): bool
+    {
+        return in_array(strtolower(trim($environment)), self::DEVELOPMENT_ENVIRONMENTS, true);
+    }
+
+    /**
+     * Classify only an explicitly configured environment.
+     *
+     * Security-sensitive provider fallbacks use this form when a missing
+     * configured profile must remain production-like rather than inheriting a
+     * mutable process environment.
+     *
+     * @param array<string, mixed> $config
+     */
+    public static function isExplicitDevelopment(array $config): bool
+    {
+        $environment = $config['environment'] ?? null;
+
+        return is_string($environment) && self::isDevelopmentEnvironment($environment);
     }
 }

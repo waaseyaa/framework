@@ -4,6 +4,11 @@ evaluated before entity lookup. Other F3 errors keep the historical shape. -->
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP must not CREATE or heal attachment schema; coordinated schema:sync applies AttachmentSchema::apply() strictly. Custom EntityStorageInterface storageClass is not forced to own an SQL table. -->
 # Work Surface
 
+<!-- Spec reviewed 2026-08-27 - #2624: attachment schema convenience is
+development-only under the canonical RuntimePolicy classifier. Invalid explicit
+environment configuration is production-like and cannot fall through to a
+process APP_ENV value to materialize schema. -->
+
 ## Overview
 
 The **Single-Entity Work Surface** is a set of six framework primitives that downstream applications use to build per-entity editing workspaces. Each primitive is independent and composable; they do not require each other at runtime.
