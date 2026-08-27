@@ -1,5 +1,11 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-27 - #2611: embed lifecycle failure classification
+maps both an application conflict (409) and an entity mutation precondition
+failure (412) to the bounded conflict presentation. The classification carries
+only kind and status; server-side refusal and explicit operator recovery remain
+authoritative. -->
+
 <!-- Spec reviewed 2026-08-27 - #2609: Admin Surface detail routes may resolve
 an accepted identifier (for example a numeric entity id) to a different
 canonical resource id (for example its UUID). AdminSurfaceTransportAdapter

@@ -167,6 +167,7 @@ describe('embed lifecycle protocol', () => {
     [401, 'session-expired'],
     [403, 'permission-denied'],
     [409, 'conflict'],
+    [412, 'conflict'],
     [422, 'validation'],
     [428, 'server'],
     [503, 'server'],

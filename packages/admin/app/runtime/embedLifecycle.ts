@@ -69,7 +69,7 @@ export function classifyEmbedFailure(value: unknown): EmbedFailure {
   const status = statusFrom(value)
   if (status === 401) return { kind: 'session-expired', status }
   if (status === 403) return { kind: 'permission-denied', status }
-  if (status === 409) return { kind: 'conflict', status }
+  if (status === 409 || status === 412) return { kind: 'conflict', status }
   if (status === 422) return { kind: 'validation', status }
   if (status !== undefined) return { kind: 'server', status }
   if (isNetworkFailure(value)) return { kind: 'network' }
