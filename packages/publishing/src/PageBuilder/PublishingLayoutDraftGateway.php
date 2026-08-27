@@ -11,6 +11,7 @@ use Waaseyaa\PageBuilder\Draft\Exception\LayoutSaveAdvisoryException;
 use Waaseyaa\PageBuilder\Draft\Exception\PageBuilderDraftNotFoundException;
 use Waaseyaa\PageBuilder\Draft\Exception\StaleEntityRevisionException;
 use Waaseyaa\PageBuilder\Draft\Exception\UnsupportedLayoutSaveAdvisoryAcknowledgementException;
+use Waaseyaa\PageBuilder\Draft\InitialLayoutDocumentProviderInterface;
 use Waaseyaa\PageBuilder\Draft\LayoutDraftSnapshot;
 use Waaseyaa\PageBuilder\Surface\Exception\PageBuilderAccessDeniedException;
 use Waaseyaa\Publishing\ContentDraftMutationInterface;
@@ -32,6 +33,12 @@ use Waaseyaa\Publishing\SaveAdvisoryAcknowledgementDispatcher;
  * package, the same translation this gateway already performs for authorization
  * and not-found outcomes.
  *
+ * An entity migrated from another CMS has no stored layout document, a state
+ * {@see LayoutDraftSnapshot} cannot legally hold. Composing an
+ * {@see InitialLayoutDocumentProviderInterface} lets the application supply
+ * the document for that case as a read projection — nothing is written until
+ * an editor saves. Without a provider the historical refusal is unchanged.
+ *
  * @api
  */
 final readonly class PublishingLayoutDraftGateway implements AdvisoryAwareLayoutDraftGatewayInterface
@@ -39,6 +46,7 @@ final readonly class PublishingLayoutDraftGateway implements AdvisoryAwareLayout
     public function __construct(
         private ContentDraftMutationInterface $publisher,
         private string $layoutField,
+        private ?InitialLayoutDocumentProviderInterface $initialLayoutDocuments = null,
     ) {
         if (1 !== preg_match('/^[a-z][a-z0-9_]*$/D', $layoutField)) {
             throw new \InvalidArgumentException("Invalid layout field: {$layoutField}");
@@ -97,10 +105,28 @@ final readonly class PublishingLayoutDraftGateway implements AdvisoryAwareLayout
         $id = $value['id'] ?? null;
         $revisionId = $value['revision_id'] ?? null;
         $encodedLayout = $value[$this->layoutField] ?? null;
+        if ((is_string($id) || is_int($id)) && null !== $this->initialLayoutDocuments && self::isAbsentDocument($encodedLayout)) {
+            $encodedLayout = self::requireDocument($this->initialLayoutDocuments->initialEncodedLayout((string) $id));
+        }
         if ((!is_string($id) && !is_int($id)) || !is_int($revisionId) || !is_string($encodedLayout)) {
             throw new \UnexpectedValueException('Publishing snapshot is missing the governed layout identity, revision, or value.');
         }
 
         return new LayoutDraftSnapshot((string) $id, $revisionId, $encodedLayout);
+    }
+
+    /** Absent means never authored: NULL or an empty/whitespace-only string, never another corrupt type. */
+    private static function isAbsentDocument(mixed $stored): bool
+    {
+        return null === $stored || (is_string($stored) && '' === trim($stored));
+    }
+
+    private static function requireDocument(string $document): string
+    {
+        if ('' === trim($document)) {
+            throw new \UnexpectedValueException('The initial layout document provider returned an empty document.');
+        }
+
+        return $document;
     }
 }
