@@ -24,6 +24,7 @@ use Waaseyaa\Entity\FieldValueCanonicalizer;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\Entity\RevisionId;
 use Waaseyaa\Entity\RevisionMetadata;
 use Waaseyaa\Entity\RevisionRestoreChangedFields;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
@@ -1252,8 +1253,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                         $entity->set($revisionKey, $revisionId);
                     }
                 }
-            } elseif (!$createRevision && !$isNew && $this->revisionDriver !== null && $entity instanceof RevisionableInterface) {
-                $currentRevisionId = $entity->getRevisionId();
+            } elseif (
+                !$createRevision
+                && !$isNew
+                && $this->revisionDriver !== null
+                && $this->entityType->isRevisionable()
+            ) {
+                $currentRevisionId = RevisionId::of($entity);
                 if ($currentRevisionId !== null) {
                     $this->updateRevisionRow($id, $currentRevisionId, $values);
                 }
@@ -1264,26 +1270,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                     // or a sanctioned in-place edit of the published
                     // revision). An in-place edit of a diverged (non-
                     // published) tip stays revision-only. Compare as ints;
-                    // no base write when the pointer is unset/null.
+                    // no base write when the pointer is unset/null. FAIL
+                    // CLOSED when the revision id is unresolvable: under
+                    // discipline the base row serves the published revision,
+                    // and a revision-side no-op is strictly safer than
+                    // leaking draft values into the served row.
                     $writeBase = $originalPublishedRevisionId !== null
                         && $currentRevisionId !== null
                         && $originalPublishedRevisionId === $currentRevisionId;
                 }
-            } elseif ($disciplined && !$createRevision) {
-                // Disciplined in-place save the legacy-interface branch above
-                // did not take (a trait-only RevisionableEntityInterface class
-                // — such entities get no in-place revision update today,
-                // pre-existing). Same published-pointer rule, resolved via the
-                // trait's own revisionId(); FAIL CLOSED when unresolvable:
-                // under discipline the base row serves the published revision,
-                // and a revision-side no-op is strictly safer than leaking
-                // draft values into the served row.
-                $traitRevisionId = ($entity instanceof RevisionableEntityInterface && \is_int($entity->revisionId()))
-                    ? $entity->revisionId()
-                    : null;
-                $writeBase = $originalPublishedRevisionId !== null
-                    && $traitRevisionId !== null
-                    && $originalPublishedRevisionId === $traitRevisionId;
             }
 
             // Bundle-aware write: pull this content type's column-stored bundle
@@ -1527,7 +1522,11 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $row['is_default_revision'] = ($revisionId === $currentRevId);
         $row['is_latest_revision'] = ($revisionId === $latestRevId);
 
-        $entity = $this->hydrate($row);
+        // Overlay entity-keyed subtable columns only when this revision is
+        // the served base pointer. A disciplined draft save snapshots the
+        // working copy in the revision `_data` blob and skips the subtable
+        // upsert; merging live columns here would clobber that snapshot.
+        $entity = $this->hydrate($row, overlayBundleSubtable: $revisionId === $currentRevId);
 
         // Propagate the new-contract revision state onto the entity so
         // RevisionableEntityInterface::revisionId() / isCurrentRevision() are
@@ -1847,6 +1846,22 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      */
     public function loadPublishedRevision(string $entityId): ?EntityInterface
     {
+        $publishedRevisionId = $this->publishedRevisionId($entityId);
+        if ($publishedRevisionId === null) {
+            return null;
+        }
+
+        return $this->loadRevision($entityId, $publishedRevisionId);
+    }
+
+    /**
+     * The live published pointer, or null when the record is unpublished
+     * or has never been published. Does not hydrate a revision.
+     *
+     * @api
+     */
+    public function publishedRevisionId(string $entityId): ?int
+    {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1861,7 +1876,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             return null;
         }
 
-        return $this->loadRevision($entityId, (int) $publishedRevisionId);
+        return (int) $publishedRevisionId;
     }
 
     /**
@@ -1902,6 +1917,59 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             $expected,
             completePromotion: true,
         );
+    }
+
+    /**
+     * Drop the published pointer and materialize unpublished status on the
+     * served base row without copying a diverged working copy and without
+     * cutting a new revision (that would steal the tip from a forward draft).
+     *
+     * This is not a {@see BeforeRevisionPointerMoveEvent} operation: unbound
+     * unpublish must not run the publish-path workflow pointer guard.
+     *
+     * @api
+     */
+    public function clearPublishedRevision(
+        string $entityId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+        $this->revisionDriver->assertEntityMutationAllowed($entityId);
+
+        $transaction = $this->database?->transaction();
+        try {
+            $this->claimMutationForId($entityId, $expected);
+            $entity = $this->find($entityId);
+            if ($entity === null) {
+                throw new \InvalidArgumentException("Entity {$entityId} does not exist.");
+            }
+            $entity = $entity->set('status', 0);
+            $values = $this->canonicalizeBooleanFieldValues(
+                $this->extractPersistenceValues($entity),
+                $entity,
+            );
+            $values['published_revision_id'] = null;
+            $values['status'] = 0;
+            $this->writeDriverRow($this->entityType->id(), $entityId, $values);
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
+
+        $reloaded = $this->find($entityId);
+        if ($reloaded === null) {
+            throw new \LogicException("Failed to reload entity {$entityId} after clearing the published pointer.");
+        }
+
+        $this->dispatchEvent(
+            $this->eventFactory->create($reloaded),
+            EntityEvents::POST_SAVE->value,
+        );
+
+        return $reloaded;
     }
 
     private function doSetPublishedRevision(
@@ -2872,7 +2940,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     private function shouldCreateRevision(EntityInterface $entity, bool $isNew): bool
     {
         if (!$this->entityType->isRevisionable()) {
-            // Invariant #9: type gating.
+            // Invariant #9: type gating. Only the revision contract's
+            // isNewRevision() counts here — ConfigEntityBase subclasses such
+            // as NodeType expose a same-named bundle knob that must not trip
+            // this throw on a non-revisionable config save.
             if ($entity instanceof RevisionableInterface && $entity->isNewRevision() === true) {
                 throw new \LogicException(
                     'Cannot create revision for non-revisionable entity type ' . $this->entityType->id(),
@@ -2886,8 +2957,11 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             return true;
         }
 
-        // Caller override takes precedence.
-        if ($entity instanceof RevisionableInterface) {
+        // Caller override takes precedence. ContentEntityBase carries
+        // isNewRevision() via RevisionableEntityTrait without declaring
+        // RevisionableInterface — an instanceof gate made setNewRevision(true)
+        // a silent no-op on revisionDefault: false types.
+        if (\method_exists($entity, 'isNewRevision')) {
             $override = $entity->isNewRevision();
             if ($override !== null) {
                 return $override;
@@ -2964,8 +3038,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * Hydrate a raw row into an entity object.
      *
      * @param array<string, mixed> $row
+     * @param bool $overlayBundleSubtable When false, keep the revision
+     *   `_data` snapshot and skip the live entity-keyed subtable overlay.
      */
-    private function hydrate(array $row): EntityInterface
+    private function hydrate(array $row, bool $overlayBundleSubtable = true): EntityInterface
     {
         $class = $this->entityType->getClass();
         $keys = $this->entityType->getKeys();
@@ -2990,7 +3066,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         // Bundle-aware read: merge the per-bundle subtable columns (e.g. page's
         // body/blocks) back onto the row so the loaded entity carries its full
         // content-type field set.
-        $gateway = $this->bundleGateway();
+        $gateway = $overlayBundleSubtable ? $this->bundleGateway() : null;
         if ($gateway !== null) {
             $bundleKey = $keys['bundle'] ?? null;
             $bundle = $bundleKey !== null ? ($row[$bundleKey] ?? null) : null;

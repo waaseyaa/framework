@@ -42,6 +42,9 @@ final class TestArticleEntity extends ContentEntityBase
     #[Field(type: 'integer', required: false, read: FieldReadLevel::Public)]
     public ?int $author_id = null;
 
+    #[Field(required: false, read: FieldReadLevel::Public)]
+    public ?string $workflow_state = null;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = 'test_article',

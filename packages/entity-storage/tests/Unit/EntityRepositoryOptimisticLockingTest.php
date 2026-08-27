@@ -489,6 +489,46 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
     }
 
     #[Test]
+    public function plainContentEntityBaseSetNewRevisionTrueCreatesARevisionWhenTypeDefaultIsFalse(): void
+    {
+        $type = new EntityType(
+            id: 'test_plain_revisionable',
+            label: 'Plain Revisionable',
+            class: PlainContentRevisionableEntity::class,
+            keys: self::KEYS,
+            revisionable: true,
+            revisionDefault: false,
+        );
+        $handler = new SqlSchemaHandler($type, $this->db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+        $resolver = new SingleConnectionResolver($this->db);
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+            $type,
+            new SqlStorageDriver($resolver),
+            $this->spyDispatcher(),
+            new RevisionableStorageDriver($resolver, $type),
+            $this->db,
+        );
+
+        $entity = new PlainContentRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+
+        $loaded = $repo->find('1');
+        \assert($loaded instanceof PlainContentRevisionableEntity);
+        $loaded->set('title', 'v2');
+        $loaded->setNewRevision(true);
+        $repo->save($loaded);
+
+        $reloaded = $repo->find('1');
+        self::assertSame('v2', $reloaded?->label());
+        self::assertSame(2, $reloaded?->getRevisionId());
+        self::assertNotNull($repo->loadRevision('1', 1));
+        self::assertSame('v1', $repo->loadRevision('1', 1)?->label());
+    }
+
+    #[Test]
     public function plainContentEntityBaseSubclassSavesWithCorrectExpectation(): void
     {
         $repo = $this->plainContentRepo();

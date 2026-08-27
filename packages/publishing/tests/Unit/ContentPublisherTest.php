@@ -946,8 +946,134 @@ final class ContentPublisherTest extends TestCase
 
         self::assertFalse($unpublished['status']);
         self::assertNotNull($this->repo->find((string) $draft['id']));
+        self::assertNull($this->repo->loadPublishedRevision((string) $draft['id']));
+        self::assertCount(0, $this->publisher->list($this->actor, publishedOnly: true));
         self::assertGreaterThanOrEqual(3, \count($this->publisher->revisions($this->actor, (string) $draft['id'])));
         self::assertContains('content.unpublished', $this->audit->kinds());
+    }
+
+    #[Test]
+    public function unpublish_after_forward_draft_accepts_working_copy_token_and_does_not_leak_draft(): void
+    {
+        $draft = $this->publisher->createDraft(
+            $this->actor,
+            $this->draftValues(['title' => 'Third title']),
+            'k1',
+        );
+        $published = $this->publisher->publish(
+            $this->actor,
+            (string) $draft['id'],
+            $draft['revision_id'],
+            'k2',
+        );
+        $id = (string) $published['id'];
+        $updated = $this->publisher->updateDraft(
+            $this->actor,
+            $id,
+            ['title' => 'UNPUBLISHED DRAFT EDIT'],
+            $published['revision_id'],
+            'k3',
+        );
+
+        $unpublished = $this->publisher->unpublish(
+            $this->actor,
+            $id,
+            $updated['revision_id'],
+            'k4',
+            'Take down',
+        );
+
+        self::assertFalse($unpublished['status']);
+        self::assertSame('Third title', $this->repo->find($id)?->get('title'));
+        self::assertSame('UNPUBLISHED DRAFT EDIT', $this->repo->loadWorkingCopy($id)?->get('title'));
+        self::assertNull($this->repo->loadPublishedRevision($id));
+        self::assertCount(0, $this->publisher->list($this->actor, publishedOnly: true));
+        $baseRow = $this->db->getConnection()->fetchAssociative(
+            'SELECT revision_id, published_revision_id FROM test_article WHERE id = ?',
+            [$id],
+        );
+        self::assertIsArray($baseRow);
+        self::assertSame($published['revision_id'], (int) $baseRow['revision_id']);
+        self::assertTrue(
+            $baseRow['published_revision_id'] === null || (int) $baseRow['published_revision_id'] === 0,
+        );
+    }
+
+    #[Test]
+    public function unpublished_records_tip_track_on_later_draft_saves(): void
+    {
+        $draft = $this->publisher->createDraft(
+            $this->actor,
+            $this->draftValues(['title' => 'Live title']),
+            'k1',
+        );
+        $published = $this->publisher->publish(
+            $this->actor,
+            (string) $draft['id'],
+            $draft['revision_id'],
+            'k2',
+        );
+        $unpublished = $this->publisher->unpublish(
+            $this->actor,
+            (string) $published['id'],
+            $published['revision_id'],
+            'k3',
+        );
+        $this->publisher->updateDraft(
+            $this->actor,
+            (string) $unpublished['id'],
+            ['title' => 'Post unpublish edit'],
+            $unpublished['revision_id'],
+            'k4',
+        );
+
+        $id = (string) $published['id'];
+        self::assertNull($this->repo->loadPublishedRevision($id));
+        self::assertSame('Post unpublish edit', $this->repo->find($id)?->get('title'));
+        self::assertSame('Post unpublish edit', $this->repo->loadWorkingCopy($id)?->get('title'));
+    }
+
+    #[Test]
+    public function republish_restores_the_served_workflow_state(): void
+    {
+        $draft = $this->publisher->createDraft(
+            $this->actor,
+            $this->draftValues(['title' => 'Third title']),
+            'k1',
+        );
+        $entity = $this->repo->find((string) $draft['id']);
+        self::assertNotNull($entity);
+        $entity->set('workflow_state', 'published');
+        $this->repo->save($entity);
+        $working = $this->repo->loadWorkingCopy((string) $draft['id']);
+        self::assertNotNull($working);
+        $published = $this->publisher->publish(
+            $this->actor,
+            (string) $draft['id'],
+            (int) $working->get('revision_id'),
+            'k2',
+        );
+        $id = (string) $published['id'];
+        $updated = $this->publisher->updateDraft(
+            $this->actor,
+            $id,
+            ['title' => 'UNPUBLISHED DRAFT EDIT'],
+            $published['revision_id'],
+            'k3',
+        );
+        self::assertSame('draft', $this->repo->loadWorkingCopy($id)?->get('workflow_state'));
+        self::assertSame('published', $this->repo->find($id)?->get('workflow_state'));
+
+        $this->publisher->publish(
+            $this->actor,
+            $id,
+            $updated['revision_id'],
+            'k4',
+        );
+
+        self::assertSame('published', $this->repo->find($id)?->get('workflow_state'));
+        self::assertSame('published', $this->repo->loadPublishedRevision($id)?->get('workflow_state'));
+        self::assertSame('UNPUBLISHED DRAFT EDIT', $this->repo->find($id)?->get('title'));
     }
 
     #[Test]

@@ -1,6 +1,7 @@
 # Revision system (unified, with an optional translation axis)
 
 <!-- Spec reviewed 2026-08-26 - #2562: ContentPublisher is a second production arming site for default-revision discipline (draft saves after a live published pointer). `EntityRepository::promotePublishedRevision()` applies complete-promotion semantics without a workflows subscriber so unbound publish can rewrite the served base row. Storage still does not infer discipline from pointer presence (Playbook H). -->
+<!-- Spec reviewed 2026-08-26 - #2562 review: `clearPublishedRevision()` drops the published pointer and materializes unpublished status on the served base row without copying a diverged working copy. `loadRevision()` skips the live bundle-subtable overlay when the requested revision is not the base `revision_id`. `shouldCreateRevision()` honors `isNewRevision()` on trait-only ContentEntityBase types. -->
 
 <!-- Spec reviewed 2026-08-09 - issue #2322: saveTranslation delegates peer-row persistence to the optional tenant-aware LangcodePeerStorageDriverV2Interface. The peer owner is derived from the visible canonical base row, foreign and empty-owner peer mutations refuse before events or writes, and historical empty-owner peers require the explicit repair command. -->
 <!-- Spec reviewed 2026-08-09 - issue #2320: community-scoped revision visibility is anchored to the indexed base row. Default and translation revision reads fail as missing across communities; mutation entry points refuse before events and writes. Existing unscoped behavior and revision-table schemas remain unchanged. -->
@@ -595,6 +596,27 @@ revisionable (or non-revisionable, or driver-less) entity without first
 knowing whether it is bound to a workflow. Every in-repo implementor of
 `EntityRepositoryInterface` (including test doubles) gained this method in
 the same change so the interface addition does not break any consumer.
+
+`loadRevision()` hydrates the revision row's `_data` snapshot. Entity-keyed
+bundle-subtable columns overlay that snapshot **only** when the requested
+revision is the base row's `revision_id`. A disciplined draft save skips the
+subtable upsert, so overlaying live columns onto `loadWorkingCopy()` /
+`loadRevision($id, $tip)` would replace unpublished field values with the
+served published body.
+
+### 7g. Clearing the published pointer (`clearPublishedRevision()`)
+
+`EntityRepository::clearPublishedRevision($id, $token)` (concrete repository,
+not the interface — same export shape as `promotePublishedRevision()`):
+claims the aggregate mutation, rewrites the served base row with `status=0`
+and `published_revision_id` NULL, and leaves `revision_id` on the previously
+served snapshot. It does not copy a diverged working copy and does not cut a
+new revision (that would steal the tip from a forward draft). It is **not** a
+`BeforeRevisionPointerMoveEvent` operation; unbound unpublish must not run
+the publish-path workflow pointer guard. After commit it dispatches
+`POST_SAVE` so search/cache listeners observe the unpublished projection.
+`loadPublishedRevision()` is a pure pointer follow: after this call it
+returns null, and later undisciplined drafts tip-track again.
 
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 forward-draft rebuild, #1920 PR-1: added §7 "Default-revision discipline (CW-v1 option-1)" — the entity + event transient discipline flags, revision-only saves in doSave(), setPublishedRevision() as a complete promotion primitive, rollback() gone revision-only under discipline, the latest-revision immortality extension to pruning/deletion, and loadWorkingCopy(). All dormant in PR-1 (storage mechanics only; the workflows engine wires the flags in the next PR). Undisciplined behavior is byte-identical to before this section, including for pointered-but-unbound (Playbook-H-shaped) entities. -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 forward-draft rebuild, #1920 PR-2: §7's flags are no longer dormant — WorkflowStateGuard/WorkflowPointerMoveGuard wire them live (removed "forthcoming" wording); cross-referenced docs/specs/content-workflow.md's new "Default-revision discipline (CW-v1 option-1, #1920 PR-2 — as-built)" section for the workflows-layer half (guard wiring, same-state republish, working-copy basis, revert denial, read-side re-sourcing). No storage-mechanics change in this file was needed for PR-2 — the primitives PR-1 shipped were already complete. -->

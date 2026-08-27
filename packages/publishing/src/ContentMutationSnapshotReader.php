@@ -6,6 +6,7 @@ namespace Waaseyaa\Publishing;
 
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\RevisionId;
 
 /**
  * Closed fixed-shape reader for the result of a capability-authorized content
@@ -59,9 +60,7 @@ final class ContentMutationSnapshotReader
             'id' => $entity->id(),
             'uuid' => $entity->uuid(),
             'status' => (bool) (int) ($values[$this->descriptor->statusField] ?? 0),
-            'revision_id' => $entity instanceof \Waaseyaa\Entity\RevisionableEntityInterface
-                ? (int) $entity->revisionId()
-                : null,
+            'revision_id' => RevisionId::of($entity),
         ];
         foreach ($this->descriptor->writableFields as $field => $spec) {
             $snapshot[$field] = $values[$field] ?? null;
