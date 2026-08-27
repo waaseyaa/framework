@@ -35,6 +35,8 @@ final class AuthConfigTest extends TestCase
         $config = AuthConfig::fromArray([], 'local');
 
         self::assertSame(MailMissingPolicy::DevLog, $config->mailMissingPolicy);
+        self::assertSame(MailMissingPolicy::DevLog, AuthConfig::fromArray([], 'testing')->mailMissingPolicy);
+        self::assertSame(MailMissingPolicy::DevLog, AuthConfig::fromArray([], ' Development ')->mailMissingPolicy);
     }
 
     #[Test]

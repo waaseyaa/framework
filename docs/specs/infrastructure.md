@@ -1,4 +1,10 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-27 - Framework #2624: RuntimePolicy publishes the
+single normalized development-environment classifier for Foundation-dependent
+packages and the resolved debug decision is injected into post-bootstrap
+consumers. Explicit malformed environment config is production-like rather
+than falling through to process state. SqliteTopology retains the documented
+low-layer exception, with parity tests and a baseline-backed custody gate. -->
 <!-- Spec reviewed 2026-08-27 - Framework #2621: `RuntimePolicy` is the shared
 typed resolver for kernel, auth, operator diagnostics, and production-like
 migration output redaction. `waaseyaa about` and migration provider wiring
@@ -2333,12 +2339,31 @@ superglobals.
 | `isDevelopmentMode(): bool` | Calls `resolveEnvironment()`, checks if value is `dev`, `development`, `local`, or `testing` (case-insensitive) | `true` in dev environments |
 | `isDebugMode(): bool` | `APP_DEBUG` env var → config `'debug'` key → `false` | `true` when debug is enabled |
 
-`RuntimePolicy::isDevelopment()` trims and case-normalizes the resolved name,
+`RuntimePolicy::isDevelopmentEnvironment()` trims and case-normalizes a name,
 then permits only `dev`, `development`, `local`, and `testing`.
+`RuntimePolicy::isDevelopment()` delegates to that public package-policy seam.
+`RuntimePolicy::isExplicitDevelopment()` applies the same classifier only to
+an explicitly configured string; security-sensitive provider fallbacks use it
+when a missing profile must remain production-like instead of inheriting
+process `APP_ENV`.
 `isProductionLike()` is its fail-closed inverse: staging, unknown, missing,
-empty, and malformed values receive production safety controls. Migration
-dry-run and verification output use this classification, so provider wiring
-cannot independently re-read `APP_ENV` and disable absolute-path redaction.
+empty, and malformed values receive production safety controls. When the
+assembled config explicitly contains `environment` with a non-string or blank
+value, that invalid authoritative input resolves to `production`; it does not
+fall through to a development-like process value. Migration output, package
+development conveniences, application-secret fallback, Auth mail fallback,
+configuration authority, AI-agent null-storage fallback, Debug, and SSR
+error-detail policy consume this boundary rather than maintaining local
+allowlists or re-reading process state.
+
+`SqliteTopology` is the sole reviewed classification exception: the database
+package is below Foundation and cannot import `RuntimePolicy` without a package
+cycle. An Architecture test compares its allowlist to RuntimePolicy's exact
+private canonical list, while package tests pin normalization and invalid
+explicit-config fail-closed behavior. The baseline-backed
+`bin/check-runtime-policy-custody` gate scans package, root-application, and
+skeleton source roots and rejects new production `APP_DEBUG` policy reads and
+new development allowlists outside these two authorities.
 
 **Boot guard:** Immediately after loading configuration, `boot()` checks `isDebugMode() && !isDevelopmentMode()`. If debug is enabled outside a development environment, it throws `RuntimeException` with the message `APP_DEBUG must not be enabled in production (APP_ENV=...)`. This prevents accidentally deploying with debug mode active.
 
@@ -2348,7 +2373,7 @@ These variables and config keys are the primary **bootstrap surface** for operat
 
 | Name | Role |
 |------|------|
-| `APP_ENV` | Canonical environment name; falls back to config `environment`, then `'production'`. Drives `isDevelopmentMode()` and the production SQLite existence guard. |
+| `APP_ENV` | Process fallback for the canonical environment name when config omits `environment`; explicit invalid config is production-like and never falls through. Drives `isDevelopmentMode()` and the production SQLite existence guard. |
 | `APP_DEBUG` | Boolean debug flag; falls back to config `debug`. **Must not be true** when the resolved environment is non-development (see boot guard above). |
 | `WAASEYAA_APP_SECRET` | Sole application master secret. Outside `local`/`dev`/`development`/`testing`, it must be `base64:` plus canonical RFC 4648 encoding of exactly 32 bytes and is resolved before database boot. Development kernels synthesize a per-kernel ephemeral value when absent. `ApplicationSecret` derives raw 32-byte HKDF-SHA-256 keys with public salt `waaseyaa.app-secret.hkdf.v1` and distinct versioned purpose labels, including `waaseyaa.auth.token-hmac.v1` for reset/verify/invite tokens when no valid explicit `AUTH_TOKEN_SECRET` is set; master and derived bytes are never configuration values, logs, exceptions, or serialized payloads. |
 | `WAASEYAA_DB` | Optional override for the SQLite database file path when `config['database']` is not set (see `DatabaseBootstrapper`). Relative values resolve against the kernel **project root**, never the process CWD (#1650 / FR-007). Pure resolution preserves POSIX, Windows drive-letter, UNC and `:memory:` spellings; production boot separately rejects UNC/device paths and production `:memory:` under the S1 topology. |

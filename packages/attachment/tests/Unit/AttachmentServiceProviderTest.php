@@ -132,6 +132,30 @@ final class AttachmentServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function invalidExplicitEnvironmentFailsClosedDespiteLocalProcessFallback(): void
+    {
+        $originalEnvironment = getenv('APP_ENV');
+        putenv('APP_ENV=local');
+
+        try {
+            $database = DBALDatabase::createSqlite();
+            $provider = new AttachmentServiceProvider();
+            $provider->setKernelContext('/tmp', ['environment' => null], []);
+            $provider->setKernelServices($this->kernelServices([
+                DatabaseInterface::class => $database,
+            ]));
+            $provider->register();
+            $provider->boot();
+
+            $this->assertFalse($database->schema()->tableExists('attachment'));
+        } finally {
+            $originalEnvironment === false
+                ? putenv('APP_ENV')
+                : putenv('APP_ENV=' . $originalEnvironment);
+        }
+    }
+
+    #[Test]
     public function bootWithoutDatabaseIsANoOp(): void
     {
         $dispatcher = new SymfonyEventDispatcherAdapter();

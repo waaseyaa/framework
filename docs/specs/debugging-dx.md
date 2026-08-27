@@ -1,5 +1,11 @@
 # Debugging & Developer Experience
 
+<!-- Spec reviewed 2026-08-27 - #2624: RuntimePolicy is the sole boot-time
+authority for APP_ENV and APP_DEBUG interpretation. DebugServiceProvider uses
+that resolved policy; runtime consumers receive the boolean decision and do not
+reread process environment. Invalid explicit environment configuration fails
+closed as production-like. -->
+
 <!-- Spec reviewed 2026-05-10 - WP05 php-8.5 upgrade: @PHP8x5Migration cs-fixer pass — DebugToolbarMiddleware, ErrorPreviewController, DevExceptionRenderer, ExceptionRenderer touched by new_expression_parentheses rule only; no semantic change to debugging contracts. -->
 <!-- Spec reviewed 2026-05-01 - README skeletons added under packages/error-handler/ and packages/debug/ (purpose, layer, key classes only); ExceptionRenderer / SolutionProviderRegistry / DebugToolbarMiddleware contracts unchanged from prior review (mission #824 WP09 surface F, closes #849) -->
 <!-- Spec reviewed 2026-04-08 — waaseyaa/error-handler + waaseyaa/debug packages; logging daily/fingers_crossed handlers; drift mappings -->

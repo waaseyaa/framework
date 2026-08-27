@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth\Config;
 
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
+
 /**
  * @api
  */
@@ -18,8 +20,6 @@ final readonly class AuthConfig
     ];
 
     private const array VALID_REGISTRATION_MODES = ['admin', 'open', 'invite'];
-
-    private const array DEV_ENVIRONMENTS = ['local', 'development', 'dev'];
 
     public function __construct(
         public readonly string $registration,
@@ -67,7 +67,7 @@ final readonly class AuthConfig
             return MailMissingPolicy::from($configured);
         }
 
-        if (in_array($appEnv, self::DEV_ENVIRONMENTS, true)) {
+        if (RuntimePolicy::isDevelopmentEnvironment($appEnv)) {
             return MailMissingPolicy::DevLog;
         }
 

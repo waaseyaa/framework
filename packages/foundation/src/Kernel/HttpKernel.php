@@ -865,8 +865,10 @@ final class HttpKernel extends AbstractKernel
         try {
             $showDetail = $this->isDebugMode();
         } catch (\Throwable) {
-            $appDebugEnv = getenv('APP_DEBUG');
-            $showDetail = filter_var($appDebugEnv === false ? '' : $appDebugEnv, FILTER_VALIDATE_BOOLEAN);
+            // A failure while resolving the canonical policy must not create a
+            // second, process-global disclosure path. Keep the fail-closed
+            // default; catastrophic pre-kernel failures are handled by the
+            // front-controller boundary.
         }
 
         $detail = $showDetail

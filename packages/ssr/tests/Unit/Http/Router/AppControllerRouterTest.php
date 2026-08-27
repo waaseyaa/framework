@@ -9,17 +9,20 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\SSR\Http\Router\AppControllerRouter;
 use Waaseyaa\SSR\SsrPageHandler;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+use Waaseyaa\User\AnonymousUser;
 
 #[CoversClass(AppControllerRouter::class)]
 final class AppControllerRouterTest extends TestCase
 {
-    private function createRouter(): AppControllerRouter
+    private function createRouter(bool $debug = false): AppControllerRouter
     {
         $etm = new EntityTypeManager(new EventDispatcher());
         $db = DBALDatabase::createSqlite();
@@ -33,13 +36,19 @@ final class AppControllerRouterTest extends TestCase
             config: [],
         );
 
-        return new AppControllerRouter($handler);
+        return new AppControllerRouter($handler, debug: $debug);
     }
 
     private function requestWithController(string $controller): Request
     {
         $request = Request::create('/some/path');
         $request->attributes->set('_controller', $controller);
+        $account = new AnonymousUser();
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_authorization_principal', $account);
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_broadcast_storage', new BroadcastStorage($database));
 
         return $request;
     }
@@ -142,5 +151,18 @@ final class AppControllerRouterTest extends TestCase
         self::assertFalse(
             $this->createRouter()->supports($this->requestWithController('::handle')),
         );
+    }
+
+    #[Test]
+    public function resolvedDebugDecisionControlsBindingErrorDisclosure(): void
+    {
+        $request = $this->requestWithController('MissingController::handle');
+
+        $redacted = $this->createRouter(debug: false)->handle($request);
+        self::assertStringContainsString('A server error occurred.', (string) $redacted->getContent());
+        self::assertStringNotContainsString('Request is missing _route_object', (string) $redacted->getContent());
+
+        $detailed = $this->createRouter(debug: true)->handle($request);
+        self::assertStringContainsString('Request is missing _route_object', (string) $detailed->getContent());
     }
 }
