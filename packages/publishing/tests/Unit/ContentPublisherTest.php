@@ -729,6 +729,49 @@ final class ContentPublisherTest extends TestCase
         self::assertCount(1, $this->repo->findBy(['slug' => 'first-post']));
     }
 
+    #[Test]
+    public function principal_partitioning_does_not_narrow_large_digit_string_ids(): void
+    {
+        $firstActor = new PublisherAccount(uid: '9223372036854775808', permissions: [self::CAPABILITY]);
+        $secondActor = new PublisherAccount(uid: '9223372036854775809', permissions: [self::CAPABILITY]);
+
+        $first = $this->publisher->createDraft($firstActor, $this->draftValues(), 'large-id-key');
+
+        try {
+            $this->publisher->createDraft($secondActor, $this->draftValues(), 'large-id-key');
+            self::fail('Distinct large digit-string principals shared one replay partition.');
+        } catch (SlugConflictException $exception) {
+            self::assertSame('SLUG_TAKEN', $exception->errorCode);
+        }
+
+        self::assertSame($first, $this->publisher->createDraft($firstActor, $this->draftValues(), 'large-id-key'));
+    }
+
+    #[Test]
+    public function principal_partitioning_distinguishes_null_and_literal_underscore_bundles(): void
+    {
+        $descriptor = $this->descriptor();
+        $bundledDescriptor = new ContentTypeDescriptor(
+            entityTypeId: $descriptor->entityTypeId,
+            bundle: '_',
+            slugField: $descriptor->slugField,
+            statusField: $descriptor->statusField,
+            writableFields: $descriptor->writableFields,
+            htmlSanitizer: $descriptor->htmlSanitizer,
+            validators: $descriptor->validators,
+            publishCapability: $descriptor->publishCapability,
+        );
+        $idempotency = new IdempotencyStore($this->db);
+        $bundleless = new ContentPublisher($descriptor, $this->repo, $idempotency, $this->audit);
+        $bundled = new ContentPublisher($bundledDescriptor, $this->repo, $idempotency, $this->audit);
+
+        $first = $bundleless->createDraft($this->actor, $this->draftValues(), 'bundle-encoding-key');
+        $second = $bundled->createDraft($this->actor, $this->draftValues(), 'bundle-encoding-key');
+
+        self::assertNotSame($first['id'], $second['id']);
+        self::assertCount(1, $this->repo->findBy(['type' => '_']));
+    }
+
     // --- optimistic concurrency ---
 
     #[Test]

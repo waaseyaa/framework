@@ -512,9 +512,14 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
      */
     private function idempotencyNamespace(AuthorizationPrincipalInterface $actor): string
     {
-        return $this->descriptor->entityTypeId
-            . ':' . ($this->descriptor->bundle ?? '_')
-            . "\0actor\0" . $this->principalPartition($actor);
+        return implode("\0", [
+            'entity-type',
+            $this->descriptor->entityTypeId,
+            'bundle',
+            $this->descriptor->bundle === null ? 'n:' : 's:' . $this->descriptor->bundle,
+            'actor',
+            $this->principalPartition($actor),
+        ]);
     }
 
     /**
@@ -532,10 +537,19 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
     private function principalPartition(AuthorizationPrincipalInterface $actor): string
     {
         $id = $actor->id();
+        if (\is_int($id)) {
+            return 'i:' . $id;
+        }
+        if (ctype_digit($id)) {
+            // Normalize digit strings without narrowing through the platform
+            // integer range: distinct external ids above PHP_INT_MAX must not
+            // collapse into one replay partition.
+            $canonical = ltrim($id, '0');
 
-        return \is_int($id) || ctype_digit($id)
-            ? 'i:' . (int) $id
-            : 's:' . $id;
+            return 'i:' . ($canonical === '' ? '0' : $canonical);
+        }
+
+        return 's:' . $id;
     }
 
     private function requireEntityCreateAccess(AuthorizationPrincipalInterface $actor): void
