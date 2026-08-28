@@ -1,5 +1,26 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-27 - #2561 error-code allocation: eight codes the
+advertised MCP 2026-07-28 revision forbids are renumbered. `-32020..-32099` is
+reserved for the MCP specification (only -32020/-32021/-32022 are defined) and
+`-32002`/`-32042` are retired; transport, rate-limit and infrastructure
+refusals therefore move to a `-31xxx` band outside the JSON-RPC reserved range,
+each keeping the last two digits of the code it replaced. `-32002` had carried
+TWO meanings from one server - resource-not-found on resources/read and an
+infrastructure outage on tools/call - so a client mapping it to
+resource-not-found rendered an audit outage as a missing resource; audit-trail
+(-31001) and approval-store (-31002) outages are now distinct, and
+resources/read answers the specification-named -32602 in EVERY era, superseding
+the 2026-08-05 note's "legacy -32002 bytes remain unchanged". New
+`Waaseyaa\Mcp\McpErrorCode` is the single allocation point and states the
+policy; `McpErrorCodeAllocationTest` tokenizes packages/mcp/src so a new
+literal in a forbidden band fails in CI. `-32001`/`-32003`/`-32004` stay: the
+legacy sub-range is SHOULD NOT, and those three are wire contracts clients
+implement - recorded with rationale in `McpErrorCode::LEGACY_IN_USE`, and a NEW
+legacy allocation still fails. Wire change for clients branching on the numeric
+code; statuses, messages and data members are unchanged. Migration table in
+docs/upgrade-notes/mcp-error-code-allocation.md. -->
+
 <!-- Spec reviewed 2026-08-25 - #2520 FieldReadDenied mapping: `entity.read`
 and `entity.search` omit a WP4 `FieldReadDenied` / `MissingFieldReadContext`
 on a view-authorized entity, matching
@@ -146,7 +167,7 @@ padding, percent encoding, dot segments, repeated slashes, controls, query,
 fragment, backslash, invalid UTF-8, and paths over 1,024 bytes. An indexed URL
 is a candidate only; the canonical access-checked projection must byte-match
 the requested public path. Malformed URIs return `-32602`; denied and missing
-well-formed reads return the same `-32002` body. Successful reads contain one
+well-formed reads return the same `-32602` body (#2561 retired `-32002`). Successful reads contain one
 bounded UTF-8 `text/plain` entry and no document id, protected field, draft,
 absolute path, or raw-index metadata. CMS-authored text remains untrusted input.
 
@@ -481,7 +502,7 @@ returns `forbidden`, unchanged.
 | Caller state | Outcome |
 |---|---|
 | Unauthenticated (write tier), schema-invalid payload | HTTP 401, `-32001` — **never** a validation envelope (no oracle for whether the payload would have been valid) |
-| Authenticated, over rate budget, schema-invalid payload | HTTP 429, `-32029` |
+| Authenticated, over rate budget, schema-invalid payload | HTTP 429, `-31029` |
 | Authenticated, within budget, schema-invalid payload | HTTP 200, `isError: true`, `VALIDATION_FAILED` |
 | Authenticated, schema-valid, lacking the capability | HTTP 200, `isError: true`, per-tool `forbidden` (unchanged) |
 | Public `/mcp`, destructive tool | `-32602` "Unknown tool" — structurally absent, never reached (C-001 intact) |
@@ -673,11 +694,11 @@ A request now emits one record per meaningful **stage** (`Waaseyaa\Foundation\Au
 
 The authenticated write tier uses a **fail-closed reserve/finalize ledger** (`Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface`, implemented by `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger` over the append-only `strict_audit_ledger` table). It is modelled directly on `StrictPrivilegedReadLedgerInterface`, which established this pattern for privileged reads.
 
-**Guaranteed:** *no write tool is invoked without a durable record of the attempt.* `reserve()` commits before `execute()`; if it cannot, the tool is never called and the caller receives JSON-RPC `-32002` whose `error.data.correlation_id` carries the request's correlation id — the join between the caller's refusal and the operator's `mcp.audit_reservation_failed` critical log line. No exception detail leaves (F6).
+**Guaranteed:** *no write tool is invoked without a durable record of the attempt.* `reserve()` commits before `execute()`; if it cannot, the tool is never called and the caller receives JSON-RPC `-31001` whose `error.data.correlation_id` carries the request's correlation id — the join between the caller's refusal and the operator's `mcp.audit_reservation_failed` critical log line. No exception detail leaves (F6).
 
 **Where fail-closed starts and stops — the exact refusal semantics when the ledger itself fails:**
 
-- **Pre-execution reservation (`reserve()`), write tier:** fail-closed. A `StrictAuditLedgerException` refuses the call unexecuted (`-32002` + `audit_unavailable_refused` projection). A ledger that breaks its exception contract and throws anything else propagates out of the endpoint — still fail-closed (the tool is never invoked; no mutation without evidence), just without the polished `-32002` envelope.
+- **Pre-execution reservation (`reserve()`), write tier:** fail-closed. A `StrictAuditLedgerException` refuses the call unexecuted (`-31001` + `audit_unavailable_refused` projection). A ledger that breaks its exception contract and throws anything else propagates out of the endpoint — still fail-closed (the tool is never invoked; no mutation without evidence), just without the polished `-31001` envelope.
 - **Terminal refusal records (auth rejections, 429s, method/params/tool/schema refusals):** durable only when the ledger accepts the write. If recording fails — for *any* throwable, contract-conforming or not — the already-safe refusal response is **still returned** and the gap is logged at `critical` (`mcp.audit_terminal_record_failed`). Refusals perform no side effect, so the fail-closed rule ("no mutation without durable evidence") is not weakened; failing an already-safe refusal on ledger availability would convert an audit outage into a wider denial of service.
 - **Post-execution `finalize()`:** never alters the response for any throwable — the side effect has already happened, so the dangling reservation is logged at `critical` (`mcp.audit_finalize_failed`) and the caller gets the real result (see crash-window semantics below).
 
@@ -775,9 +796,9 @@ The existing fail-closed strict reserve happens first, with reservation metadata
 
 Failure semantics, each pinned by test:
 
-- **Reserve fails** → the established `-32002` refusal; consume was never called, so the approval stays spendable by a later retry.
+- **Reserve fails** → the established `-31001` refusal; consume was never called, so the approval stays spendable by a later retry.
 - **Consume returns false** (race lost / state changed since the gate's read) → the reservation is finalized `approval_refused` (a pair, never a dangling reservation, never a second single-record terminal), exactly one terminal projection fires, the caller gets the same `-32004` body, and the tool never runs.
-- **Any `Throwable` from a store call** — before reserve (open/find) or during consume — fails closed: safe log metadata only (`mcp.approval_store_unavailable` / `mcp.approval_consume_failed`: exception class, correlation id, tool — never message or trace), a sanitized `-32002` (`Request refused: the approval store is unavailable.`) with the correlation id, and one honest `audit_unavailable_refused` record — a single terminal before reserve, a reservation finalization after it. No double terminals; the tool never runs; a consume-time failure leaves the approval unconsumed. The interface promises typed `ApprovalStoreException`s, but a nonconforming third-party adapter throwing anything else gets the same fail-closed treatment (pinned by test); each try wraps exactly one store call, so a tuple-construction failure is never misreported as a store outage. The stored-vs-computed `requestKey` match uses `hash_equals()` — the caller controls the computed key via arguments, so an early-exit comparison would be a timing side channel on approval identity.
+- **Any `Throwable` from a store call** — before reserve (open/find) or during consume — fails closed: safe log metadata only (`mcp.approval_store_unavailable` / `mcp.approval_consume_failed`: exception class, correlation id, tool — never message or trace), a sanitized `-31002` (`Request refused: the approval store is unavailable.`) with the correlation id, and one honest `audit_unavailable_refused` record — a single terminal before reserve, a reservation finalization after it. No double terminals; the tool never runs; a consume-time failure leaves the approval unconsumed. The interface promises typed `ApprovalStoreException`s, but a nonconforming third-party adapter throwing anything else gets the same fail-closed treatment (pinned by test); each try wraps exactly one store call, so a tuple-construction failure is never misreported as a store outage. The stored-vs-computed `requestKey` match uses `hash_equals()` — the caller controls the computed key via arguments, so an early-exit comparison would be a timing side channel on approval identity.
 
 Non-destructive tools, and destructive tools on an ungated endpoint, keep their exact pre-gate behaviour.
 
@@ -859,15 +880,56 @@ The 12 first-party tools (`search_entities`/`search_teachings`/`ai_discover`, `g
 
 ### Error Codes
 
+`Waaseyaa\Mcp\McpErrorCode` is the single allocation point, and states the
+policy MCP 2026-07-28 binds this server to (#2561): `-32020..-32099` is
+reserved for the MCP specification and an implementation MUST NOT emit an
+undefined code from it; `-32002` and `-32042` are retired and MUST NOT be
+emitted at all; new codes for purposes the specification does not define SHOULD
+sit outside `-32768..-32000`.
+
+**JSON-RPC standard and MCP-defined** — used with their specified meanings:
+
 | Code | Meaning |
 |------|---------|
 | `-32700` | Parse error (invalid JSON) |
 | `-32600` | Invalid request (missing `method` field) |
 | `-32601` | Method not found |
-| `-32602` | Invalid params (malformed modern metadata or tool-call envelope) |
-| `-32001` | Unauthorized (auth failure) |
-| `-32020` | Modern HTTP header/body mismatch |
-| `-32022` | Unsupported protocol version |
+| `-32602` | Invalid params (malformed modern metadata or tool-call envelope), and `resources/read` not-found in every era |
+| `-32020` | Modern HTTP header/body mismatch (MCP-defined) |
+| `-32022` | Unsupported protocol version (MCP-defined) |
+
+**This server's own**, outside the JSON-RPC reserved range. Each keeps the last
+two digits of the code it replaced, so an old log line is still findable:
+
+| Code | Constant | Meaning | Was |
+|------|----------|---------|-----|
+| `-31040` | `FORBIDDEN_ORIGIN` | Origin neither same-origin nor configured | `-32040` |
+| `-31041` | `UNACCEPTABLE_ACCEPT` | `Accept` lacks a required media type | `-32041` |
+| `-31042` | `UNSUPPORTED_CONTENT_TYPE` | `Content-Type` is not `application/json` | `-32042` |
+| `-31043` | `REQUEST_TOO_LARGE` | Body over the transport size cap | `-32043` |
+| `-31029` | `RATE_LIMIT_EXCEEDED` | Request budget exhausted (`data.retry_after_seconds`) | `-32029` |
+| `-31030` | `RATE_LIMITER_UNAVAILABLE` | No durable limiter decision; fails closed | `-32030` |
+| `-31001` | `AUDIT_TRAIL_UNAVAILABLE` | Audit reservation not durable; refused pre-execution | `-32002` |
+| `-31002` | `APPROVAL_STORE_UNAVAILABLE` | Approval store unreachable; refused | `-32002` |
+
+The last two were one code. `-32002` meant resource-not-found on
+`resources/read` **and** an infrastructure outage on `tools/call`, separable
+only by reading the message, so a client that mapped it to resource-not-found
+rendered an audit outage as a missing resource and retried a different URI
+instead of backing off. They are now three distinct codes.
+
+**Legacy sub-range, retained.** `-32001` Unauthorized, `-32003` Approval
+required and `-32004` Approval refused sit in `-32000..-32019`, where the
+specification says SHOULD NOT rather than MUST NOT. All three are wire
+contracts clients already implement — `-32003`/`-32004` are the two halves of
+the write-tier approval handshake — so renumbering them is a separate decision,
+not a rider on the conformance fix. They are recorded with rationale in
+`McpErrorCode::LEGACY_IN_USE`; a *new* legacy allocation still fails.
+
+Enforcement: `packages/mcp/tests/Architecture/McpErrorCodeAllocationTest.php`
+tokenizes `packages/mcp/src` and fails on any integer literal in a forbidden
+band, so allocation drift is caught in CI rather than on a consumer's wire.
+Migration table: `docs/upgrade-notes/mcp-error-code-allocation.md`.
 
 ### Transport
 

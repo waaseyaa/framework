@@ -21,6 +21,7 @@ use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
+use Waaseyaa\Mcp\McpErrorCode;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
 use Waaseyaa\Mcp\McpEndpoint;
@@ -218,7 +219,7 @@ final class McpEndpointDispatchEventTest extends TestCase
 
         self::assertSame(503, $response->statusCode);
         $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
-        self::assertSame(-32030, $decoded['error']['code']);
+        self::assertSame(McpErrorCode::RATE_LIMITER_UNAVAILABLE, $decoded['error']['code']);
         self::assertCount(1, $spy->dispatched, 'The request was refused before acceptance.');
         [$event] = $spy->dispatched[0];
         self::assertInstanceOf(McpDispatchEvent::class, $event);
@@ -446,7 +447,7 @@ final class McpEndpointDispatchEventTest extends TestCase
     }
 
     /**
-     * #2177 acceptance blocker: the `-32002` audit-unavailable refusal must
+     * #2177 acceptance blocker: the audit-unavailable refusal must
      * hand the caller a correlation id (operator support has nothing to search
      * for otherwise) and must itself be a terminal projection — the one path
      * that cannot write a durable record still gets the best-effort one.
@@ -494,7 +495,7 @@ final class McpEndpointDispatchEventTest extends TestCase
         );
 
         $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
-        self::assertSame(-32002, $decoded['error']['code']);
+        self::assertSame(McpErrorCode::AUDIT_TRAIL_UNAVAILABLE, $decoded['error']['code']);
         self::assertMatchesRegularExpression(
             '/^[0-9a-f]{16}$/',
             (string) ($decoded['error']['data']['correlation_id'] ?? ''),

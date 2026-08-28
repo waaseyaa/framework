@@ -154,8 +154,8 @@ return [
 The flag grants `resource.content.read` to the fallback anonymous principal and
 structurally enables the three resource methods. Missing providers fail closed;
 malformed URIs are `-32602`, while denied and nonexistent well-formed resources
-share one sanitized response (`-32602` on modern MCP, the preserved `-32002` on
-legacy MCP). Modern resource reads require the specification's exact
+share one sanitized response (`-32602` in every protocol era — MCP 2026-07-28
+names it as the replacement for the retired `-32002`, see #2561). Modern resource reads require the specification's exact
 `Mcp-Name` mirror of `params.uri`; provider parsing occurs only after capability
 authorization. Complete modern list/read results are principal-private and
 immediately stale (`cacheScope: private`, `ttlMs: 0`, plus HTTP `no-store`).
@@ -426,8 +426,8 @@ reserve(intent)  →  [tool executes]  →  finalize(real outcome)
 
 **Guaranteed: no write tool is invoked without a durable record of the
 attempt.** If the reservation cannot be persisted the tool is never called and
-the caller gets JSON-RPC `-32002` (`Request refused: the audit trail is
-unavailable.`) with no exception detail.
+the caller gets JSON-RPC `-31001` / `McpErrorCode::AUDIT_TRAIL_UNAVAILABLE`
+(`Request refused: the audit trail is unavailable.`) with no exception detail.
 
 **Not guaranteed: atomicity between the mutation and the outcome record.** The
 tool owns its own transaction and commits internally, so the two are separate
@@ -484,8 +484,10 @@ request rather than fanning out.
 Order of operations is fixed: **reserve → consume → execute → finalize**. A
 reservation failure leaves the approval unconsumed; a lost consume race
 finalizes the reservation as `approval_refused` and the tool never runs; an
-approval-store failure at any point fails closed (`-32002`, correlation id
-only, safe log metadata). `tools/list` marks gated tools with
+approval-store failure at any point fails closed (`-31002` /
+`McpErrorCode::APPROVAL_STORE_UNAVAILABLE`, correlation id only, safe log
+metadata — a distinct code from the audit-trail outage above, which shared
+`-32002` with it before #2561). `tools/list` marks gated tools with
 `_meta["ai.waaseyaa.mcp/approval"] = "required"`.
 
 Wiring: `AuditServiceProvider` binds `OperationApprovalStoreInterface` (lazily
