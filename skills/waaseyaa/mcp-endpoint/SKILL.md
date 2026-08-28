@@ -109,24 +109,48 @@ POST /mcp
 
 ### JSON-RPC Error Codes
 
+`Waaseyaa\Mcp\McpErrorCode` is the single allocation point and states the
+policy (#2561). The revision this server advertises reserves `-32020..-32099`
+for the MCP specification itself, so refusals this specification does not define
+live in a `-31xxx` band outside the JSON-RPC reserved range — do not add a new
+literal in a reserved band, the Architecture suite fails on it.
+
 | Code | Meaning |
 |------|---------|
 | `-32700` | Parse error (invalid JSON) |
-| `-32600` | Invalid request (missing `method` field) |
+| `-32600` | Invalid request (missing `method` field, unparseable `Content-Length`) |
 | `-32601` | Method not found |
-| `-32602` | Invalid params (missing tool name, unknown tool) |
+| `-32602` | Invalid params (missing tool name, unknown tool, unknown resource URI) |
 | `-32001` | Unauthorized (auth failure) |
+| `-31040` | Forbidden origin |
+| `-31041` | `Accept` lacks a required media type |
+| `-31042` | `Content-Type` is not `application/json` |
+| `-31043` | Request body exceeds the transport maximum |
+| `-31029` | Rate limit exceeded (`data.retry_after_seconds`) |
+| `-31030` | Rate limiter unavailable (fails closed) |
+| `-31001` | Audit trail unavailable |
+| `-31002` | Approval store unavailable |
+
+See `docs/upgrade-notes/mcp-error-code-allocation.md` for the migration from
+the retired `-32002`/`-3204x` codes.
 
 ### Routes
 
-`McpRouteProvider` registers two routes:
+`McpRouteProvider` registers up to four routes, wired by
+`McpServiceProvider::routes()`:
 
-| Route | Path | Methods | Auth |
-|-------|------|---------|------|
-| `mcp.endpoint` | `/mcp` | POST, GET | Required (bearer token) |
-| `mcp.server_card` | `/.well-known/mcp.json` | GET | Public |
+| Route | Path | Methods | Registered when | Auth |
+|-------|------|---------|-----------------|------|
+| `mcp.endpoint` | `/mcp` | POST, GET | `mcp.public.enabled` | Anonymous read-only tier |
+| `mcp.server_card` | `/.well-known/mcp.json` | GET | `mcp.public.enabled` | Public |
+| `mcp.endpoint.write` | `/mcp/write` | POST, GET | Always | Fail-closed: 401 without a `WriteTierAuthInterface` |
+| `mcp.oauth_protected_resource` | Configured metadata path | GET | OAuth resource metadata configured | Public |
 
-**Note:** Routes are defined in `McpRouteProvider` but not yet wired into `public/index.php`. This is a known gap.
+The public tier is removed outright when `mcp.public.enabled` is false, so the
+surface answers 404 rather than confirming an MCP server behind a half-disabled
+endpoint. Both endpoint routes are `csrfExempt()` and declare a JSON-RPC
+refusal transport, so a kernel-level refusal (oversize body, malformed JSON)
+reaches the client as JSON-RPC rather than JSON:API (#2594).
 
 ### Package Dependencies
 
