@@ -154,12 +154,22 @@ does not authorize production promotion.
 - requires the authoritative CI workflow to be green for that exact SHA;
 - refuses to overlap a queued or running tagged split/fan-out;
 - pushes only the selected package's `refs/heads/main`, guarded by `--force-with-lease`;
-- verifies the remote result and uploads monorepo-SHA to split-SHA provenance;
+- verifies the remote result, overlays the canonical contribution-routing files,
+  and uploads monorepo-SHA, split-SHA, and final mirror-main provenance;
 - never creates or moves tags, mutates `VERSION`/changelog content, calls Packagist, or publishes a GitHub Release.
 
-Re-running the same source SHA is idempotent. A lease failure means another
+The overlay commit is deterministic: its parent, tree, message, bot identity,
+and dates all derive from the exact split commit and tracked templates. Re-running
+the same source SHA therefore preserves the same mirror-main SHA. A lease failure means another
 split or release changed the remote and must be investigated; do not bypass it.
 Tagged `split.yml` remains the sole release and package-publication authority.
+Both split paths add the same one-commit community-health overlay to each
+generated `main` branch. The overlay disables blank issues, redirects issue
+authors to the Framework monorepo, and warns pull-request authors that mirror
+changes are overwritten. Release tags remain on the byte-exact subtree split
+commit and never include this operational overlay. Tagged splitting pushes the
+raw tag and routed `main` atomically, so a tag conflict or transport failure
+cannot strip the contribution boundary from the mirror.
 
 ---
 

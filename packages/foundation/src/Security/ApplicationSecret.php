@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Security;
 
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
+
 /**
  * Kernel-scoped custody for the application master secret and HKDF derivation.
  *
@@ -48,7 +50,7 @@ final class ApplicationSecret
         string $environment,
     ): self {
         if ($encodedSecret === null || $encodedSecret === '') {
-            if (self::isDevelopmentEnvironment($environment)) {
+            if (RuntimePolicy::isDevelopmentEnvironment($environment)) {
                 return new self(random_bytes(32));
             }
 
@@ -96,11 +98,6 @@ final class ApplicationSecret
     }
 
     private function __clone() {}
-
-    private static function isDevelopmentEnvironment(string $environment): bool
-    {
-        return in_array(strtolower($environment), ['local', 'dev', 'development', 'testing'], true);
-    }
 
     private static function configurationException(): \RuntimeException
     {

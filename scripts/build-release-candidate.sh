@@ -6,9 +6,20 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$repo_root"
 
-candidate_sha="$(bin/git rev-parse HEAD)"
+if [ -n "${EXACT_SOURCE_SHA:-}" ]; then
+  case "$EXACT_SOURCE_SHA" in
+    *[!0-9a-f]*|'') printf 'ERROR: EXACT_SOURCE_SHA must be 40 lowercase hexadecimal characters.\n' >&2; exit 1 ;;
+  esac
+  if [ "${#EXACT_SOURCE_SHA}" -ne 40 ]; then
+    printf 'ERROR: EXACT_SOURCE_SHA must be 40 lowercase hexadecimal characters.\n' >&2
+    exit 1
+  fi
+  candidate_sha="$EXACT_SOURCE_SHA"
+else
+  candidate_sha="$(bin/git rev-parse HEAD)"
+fi
 timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-tag="$(bin/git describe --tags --exact-match 2>/dev/null || printf 'untagged')"
+tag="$(bin/git describe --tags --exact-match "$candidate_sha" 2>/dev/null || printf 'untagged')"
 required_node_major="$(tr -d '[:space:]v' < .nvmrc)"
 node_version="$(node --version)"
 node_major="${node_version#v}"

@@ -99,6 +99,54 @@ final class ExactSourceArtifactTest extends TestCase
         self::assertStringContainsString('archive bytes do not reproduce the exact commit', $result['output']);
     }
 
+    #[Test]
+    public function it_materializes_only_a_verified_artifact_into_a_new_destination(): void
+    {
+        [$root, $sha] = $this->fixtureRepository();
+        self::assertSame(0, $this->build($root, $sha, 'artifact')['exit_code']);
+
+        $result = $this->runCommand([
+            $root . '/bin/materialize-exact-source-artifact',
+            'artifact',
+            $sha,
+            'materialized',
+        ], $root);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertSame("exact bytes\n", file_get_contents($root . '/materialized/framework/tracked.txt'));
+        self::assertStringContainsString('exact source artifact materialized', $result['output']);
+    }
+
+    #[Test]
+    public function materialization_refuses_an_existing_destination_and_tampered_bytes(): void
+    {
+        [$root, $sha] = $this->fixtureRepository();
+        self::assertSame(0, $this->build($root, $sha, 'artifact')['exit_code']);
+
+        mkdir($root . '/occupied');
+        file_put_contents($root . '/occupied/keep.txt', 'keep');
+        $occupied = $this->runCommand([
+            $root . '/bin/materialize-exact-source-artifact',
+            'artifact',
+            $sha,
+            'occupied',
+        ], $root);
+        self::assertSame(1, $occupied['exit_code']);
+        self::assertStringContainsString('destination already exists', $occupied['output']);
+        self::assertSame('keep', file_get_contents($root . '/occupied/keep.txt'));
+
+        file_put_contents($root . '/artifact/framework-source.tar', 'tamper', FILE_APPEND);
+        $tampered = $this->runCommand([
+            $root . '/bin/materialize-exact-source-artifact',
+            'artifact',
+            $sha,
+            'tampered',
+        ], $root);
+        self::assertSame(1, $tampered['exit_code']);
+        self::assertStringContainsString('archive byte count mismatch', $tampered['output']);
+        self::assertDirectoryDoesNotExist($root . '/tampered');
+    }
+
     /** @return array{string, string} */
     private function fixtureRepository(): array
     {
@@ -108,9 +156,11 @@ final class ExactSourceArtifactTest extends TestCase
         mkdir($root . '/bin', 0o777, true);
         copy($this->repoRoot . '/bin/build-exact-source-artifact', $root . '/bin/build-exact-source-artifact');
         copy($this->repoRoot . '/bin/verify-exact-source-artifact', $root . '/bin/verify-exact-source-artifact');
+        copy($this->repoRoot . '/bin/materialize-exact-source-artifact', $root . '/bin/materialize-exact-source-artifact');
         file_put_contents($root . '/bin/git', "#!/usr/bin/env bash\nexec git \"\$@\"\n");
         chmod($root . '/bin/build-exact-source-artifact', 0o755);
         chmod($root . '/bin/verify-exact-source-artifact', 0o755);
+        chmod($root . '/bin/materialize-exact-source-artifact', 0o755);
         chmod($root . '/bin/git', 0o755);
 
         $this->runCommand(['git', 'init', '--quiet'], $root);

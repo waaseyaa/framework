@@ -281,7 +281,7 @@ try {
     s1ConfigRequireContains($root, 'packages/cli/src/Handler/HealthReportHandler.php', 'Config Sync Path');
     s1ConfigRequireContains($root, 'packages/ai-agent/src/Mcp/McpServiceProvider.php', 'NullConfigStorage is permitted only in explicit local/test profiles');
     s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'ConfigSchemaValidator::class');
-    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'BOOTSTRAP_ONLY_ENVIRONMENTS');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'RuntimePolicy::isExplicitDevelopment($this->config)');
     s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'requireActiveGenerationId()');
     s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'dispatch(new ConfigurationSelectorDeprecationEvent');
     s1ConfigRequireContains($root, 'packages/config/src/Event/ConfigurationSelectorDeprecationEvent.php', "NAME = 'configuration.selector.deprecated'");

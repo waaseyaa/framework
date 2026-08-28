@@ -34,8 +34,12 @@ final class SplitMainWorkflowShapeTest extends TestCase
     public function workflow_updates_only_main_with_a_lease_and_records_provenance(): void
     {
         self::assertStringContainsString('--force-with-lease=', $this->workflow);
-        self::assertStringContainsString('${split_sha}:refs/heads/main', $this->workflow);
+        self::assertStringContainsString('${mirror_main_sha}:refs/heads/main', $this->workflow);
+        self::assertStringNotContainsString('${split_sha}:refs/heads/main', $this->workflow);
+        self::assertStringContainsString('if [ "${actual}" != "${mirror_main_sha}" ]', $this->workflow);
         self::assertStringContainsString('split-main-provenance-', $this->workflow);
+        self::assertStringContainsString('--arg split_sha "${split_sha}"', $this->workflow);
+        self::assertStringContainsString('--arg mirror_main_sha "${mirror_main_sha}"', $this->workflow);
         self::assertStringContainsString('release:false', $this->workflow);
     }
 

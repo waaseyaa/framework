@@ -353,7 +353,10 @@ final class CiReleaseWorkflowParityTest extends TestCase
         // validation job is load-bearing rather than decorative.
         self::assertStringContainsString('ref: ${{ needs.validate-readiness-request.outputs.candidate_sha }}', $workflow);
         self::assertStringNotContainsString('ref: ${{ inputs.sha }}', $workflow);
-        self::assertStringContainsString('bash scripts/build-release-candidate.sh', $workflow);
+        self::assertStringContainsString(
+            'bash build/candidate-source/framework/scripts/build-release-candidate.sh',
+            $workflow,
+        );
         self::assertStringContainsString('permissions:', $workflow);
         self::assertStringContainsString('contents: read', $workflow);
         self::assertStringNotContainsString('environment:', $workflow);
@@ -368,6 +371,7 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertStringContainsString('--no-dev', $candidateScript);
         self::assertStringContainsString('required_node_major=', $candidateScript);
         self::assertStringContainsString('deployment_performed', $candidateScript);
+        self::assertStringContainsString('EXACT_SOURCE_SHA', $candidateScript);
         self::assertStringContainsString('npm run build', $candidateScript);
         self::assertStringNotContainsString('|| true', $candidateScript);
         self::assertStringNotContainsString('|| echo', $candidateScript);
@@ -391,6 +395,21 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertStringContainsString('name: framework-source-${{ inputs.sha || github.sha }}', $job);
         self::assertStringContainsString('if-no-files-found: error', $job);
         self::assertStringContainsString('overwrite: false', $job);
+    }
+
+    #[Test]
+    public function release_readiness_promotes_and_executes_the_green_ci_source_artifact(): void
+    {
+        $workflow = $this->read('.github/workflows/release.yml');
+
+        self::assertStringContainsString('actions: read', $workflow);
+        self::assertStringContainsString('promote-ci-source-artifact:', $workflow);
+        self::assertStringContainsString('bin/promote-exact-source-artifact "$CANDIDATE_SHA" build/promoted-source release-readiness', $workflow);
+        self::assertStringContainsString('name: release-readiness-source-${{ needs.validate-readiness-request.outputs.candidate_sha }}', $workflow);
+        self::assertSame(2, substr_count($workflow, 'bin/materialize-exact-source-artifact'));
+        self::assertStringContainsString('working-directory: build/candidate-source/framework', $workflow);
+        self::assertStringContainsString('bash build/candidate-source/framework/scripts/build-release-candidate.sh', $workflow);
+        self::assertStringContainsString('cd build/candidate-source/framework/packages/admin', $workflow);
     }
 
     #[Test]

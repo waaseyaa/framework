@@ -253,6 +253,31 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function missingProfileCannotInheritProcessDevelopmentForCapabilityPublication(): void
+    {
+        $previous = getenv('APP_ENV');
+        putenv('APP_ENV=local');
+
+        try {
+            $provider = new ConfigurationAuthorityServiceProvider();
+            $provider->setKernelContext($this->root, [], []);
+            $provider->setKernelServices(new TestKernelServices([
+                DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
+            ]));
+            $provider->register();
+
+            iterator_to_array($provider->capabilityDeclarations());
+            self::fail('A missing explicit profile must require an active generation.');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('Active configuration generation is unavailable', $e->getMessage());
+        } finally {
+            $previous === false
+                ? putenv('APP_ENV')
+                : putenv('APP_ENV=' . $previous);
+        }
+    }
+
+    #[Test]
     public function explicitTestingProfileMayPublishBeforePersistentActivation(): void
     {
         $provider = new ConfigurationAuthorityServiceProvider();

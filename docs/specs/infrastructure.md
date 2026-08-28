@@ -1,4 +1,16 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-27 - Framework #2624: RuntimePolicy publishes the
+single normalized development-environment classifier for Foundation-dependent
+packages and the resolved debug decision is injected into post-bootstrap
+consumers. Explicit malformed environment config is production-like rather
+than falling through to process state. SqliteTopology retains the documented
+low-layer exception, with parity tests and a baseline-backed custody gate. -->
+<!-- Spec reviewed 2026-08-27 - Framework #2621: `RuntimePolicy` is the shared
+typed resolver for kernel, auth, operator diagnostics, and production-like
+migration output redaction. `waaseyaa about` and migration provider wiring
+receive that resolved bootstrap policy instead of independently reading PHP
+superglobals. This remains bootstrap configuration, not governed/syncable
+config. -->
 <!-- Spec reviewed 2026-08-25 - protected-inline-media-20260825 (#2564):
 BuiltinRouteRegistrar adds GET /media/{id}/view with the same allowAll transport
 posture and MediaDownloadRouter entity-view enforcement as /download. The view
@@ -2275,7 +2287,7 @@ Default logger is `LogManager(new Handler\ErrorLogHandler())`. After config load
 Boot sequence (idempotent — guarded by `$this->booted` flag, set only after all steps succeed):
 
 ```
-EnvLoader::load(.env)
+EnvLoader::load(.env) once per process through Symfony Dotenv
   → ConfigLoader::load(config/waaseyaa.php)
   → rebuild LogManager (fromConfig if logging.channels exists, else log_level fallback)
   → debug/environment safety guard
@@ -2313,11 +2325,45 @@ Early boot initializes the entity lifecycle manager (for disabling entity types 
 
 Three protected methods provide environment awareness to all kernel subclasses:
 
+`RuntimePolicy::resolve()` is the typed bootstrap boundary shared by the kernel
+and consumers that must display or apply the same policy. It is constructed
+from the already assembled bootstrap configuration plus the documented process
+fallbacks; it is not read from `EnvironmentConfigFactory` and must never be
+persisted into governed/syncable configuration. Operator diagnostics such as
+`waaseyaa about` receive the resolved value and do not re-read environment
+superglobals.
+
 | Method | Resolution | Returns |
 |--------|-----------|---------|
 | `resolveEnvironment(): string` | Config `'environment'` key → `APP_ENV` env var → `'production'` | Canonical environment name (e.g., `'production'`, `'local'`, `'development'`) |
 | `isDevelopmentMode(): bool` | Calls `resolveEnvironment()`, checks if value is `dev`, `development`, `local`, or `testing` (case-insensitive) | `true` in dev environments |
 | `isDebugMode(): bool` | `APP_DEBUG` env var → config `'debug'` key → `false` | `true` when debug is enabled |
+
+`RuntimePolicy::isDevelopmentEnvironment()` trims and case-normalizes a name,
+then permits only `dev`, `development`, `local`, and `testing`.
+`RuntimePolicy::isDevelopment()` delegates to that public package-policy seam.
+`RuntimePolicy::isExplicitDevelopment()` applies the same classifier only to
+an explicitly configured string; security-sensitive provider fallbacks use it
+when a missing profile must remain production-like instead of inheriting
+process `APP_ENV`.
+`isProductionLike()` is its fail-closed inverse: staging, unknown, missing,
+empty, and malformed values receive production safety controls. When the
+assembled config explicitly contains `environment` with a non-string or blank
+value, that invalid authoritative input resolves to `production`; it does not
+fall through to a development-like process value. Migration output, package
+development conveniences, application-secret fallback, Auth mail fallback,
+configuration authority, AI-agent null-storage fallback, Debug, and SSR
+error-detail policy consume this boundary rather than maintaining local
+allowlists or re-reading process state.
+
+`SqliteTopology` is the sole reviewed classification exception: the database
+package is below Foundation and cannot import `RuntimePolicy` without a package
+cycle. An Architecture test compares its allowlist to RuntimePolicy's exact
+private canonical list, while package tests pin normalization and invalid
+explicit-config fail-closed behavior. The baseline-backed
+`bin/check-runtime-policy-custody` gate scans package, root-application, and
+skeleton source roots and rejects new production `APP_DEBUG` policy reads and
+new development allowlists outside these two authorities.
 
 **Boot guard:** Immediately after loading configuration, `boot()` checks `isDebugMode() && !isDevelopmentMode()`. If debug is enabled outside a development environment, it throws `RuntimeException` with the message `APP_DEBUG must not be enabled in production (APP_ENV=...)`. This prevents accidentally deploying with debug mode active.
 
@@ -2327,13 +2373,13 @@ These variables and config keys are the primary **bootstrap surface** for operat
 
 | Name | Role |
 |------|------|
-| `APP_ENV` | Canonical environment name; falls back to config `environment`, then `'production'`. Drives `isDevelopmentMode()` and the production SQLite existence guard. |
+| `APP_ENV` | Process fallback for the canonical environment name when config omits `environment`; explicit invalid config is production-like and never falls through. Drives `isDevelopmentMode()` and the production SQLite existence guard. |
 | `APP_DEBUG` | Boolean debug flag; falls back to config `debug`. **Must not be true** when the resolved environment is non-development (see boot guard above). |
 | `WAASEYAA_APP_SECRET` | Sole application master secret. Outside `local`/`dev`/`development`/`testing`, it must be `base64:` plus canonical RFC 4648 encoding of exactly 32 bytes and is resolved before database boot. Development kernels synthesize a per-kernel ephemeral value when absent. `ApplicationSecret` derives raw 32-byte HKDF-SHA-256 keys with public salt `waaseyaa.app-secret.hkdf.v1` and distinct versioned purpose labels, including `waaseyaa.auth.token-hmac.v1` for reset/verify/invite tokens when no valid explicit `AUTH_TOKEN_SECRET` is set; master and derived bytes are never configuration values, logs, exceptions, or serialized payloads. |
 | `WAASEYAA_DB` | Optional override for the SQLite database file path when `config['database']` is not set (see `DatabaseBootstrapper`). Relative values resolve against the kernel **project root**, never the process CWD (#1650 / FR-007). Pure resolution preserves POSIX, Windows drive-letter, UNC and `:memory:` spellings; production boot separately rejects UNC/device paths and production `:memory:` under the S1 topology. |
 | `WAASEYAA_CONFIG_SYNC_PATH` | Canonical optional selector for the local sync-artifact directory. Relative values resolve from the project root. All supplied selectors must normalize to one path. |
 | `WAASEYAA_CONFIG_DIR` | Transitional alias for `WAASEYAA_CONFIG_SYNC_PATH`. Equivalent use emits typed deprecation evidence; disagreement fails composition. |
-| `.env` (file) | Loaded first from `$projectRoot/.env` via `EnvLoader::load()` before `config/waaseyaa.php`. `EnvLoader` writes to `putenv()`, `$_ENV`, and `$_SERVER` without overwriting keys already present in any of those stores (see source listing under Kernel Bootstrap file index). |
+| `.env` (file) | Loaded from `$projectRoot/.env` via `EnvLoader::load()` before `config/waaseyaa.php`. The same boundary is called by HTTP before worker dispatch and by CLI boot paths, but each real base path is parsed only once per process. Symfony Dotenv owns the `.env.local` and environment-specific cascade, interpolation, multiline, comment, quote, and `export` grammar. Process-injected values win, and resolved values are consistent across `getenv()`, `$_ENV`, and `$_SERVER`. Malformed or unreadable files fail with a redacted message. |
 
 **Review note (assert / IO):** Layer 0 code may use `assert()` for internal invariants and file/stream helpers for logging, caches, or HTTP clients. Production should assume `zend.assertions` may be off; hot paths must not rely on assertions for security. When adding `file_put_contents`, `fopen`, `unserialize`, or `base64_decode` in Layer 0 packages, document the trust boundary (operator-only paths vs request-derived input) in package-level docblocks or this spec.
 
@@ -2451,7 +2497,7 @@ Kernel/
     AbstractKernel.php           -- boot orchestrator, delegates to Bootstrap/ classes
     HttpKernel.php               -- HTTP request handling, cache setup, CORS
     ConsoleKernel.php            -- CLI bootstrapping; delegates command graph assembly to `Waaseyaa\CLI\CliCommandRegistry`
-    EnvLoader.php                -- .env file parser; writes to putenv(), $_ENV, and $_SERVER (each destination guarded independently — preset keys in any destination are never overwritten)
+    EnvLoader.php                -- once-per-process Symfony Dotenv boundary; process values win and resolved keys are published consistently to putenv(), $_ENV, and $_SERVER
     ConfigLoader.php             -- config/waaseyaa.php loader
     EventListenerRegistrar.php   -- registers cache invalidation listeners
     BuiltinRouteRegistrar.php    -- registers shared foundation-owned HTTP routes (schema, discovery, entity-types, broadcast SSE, media upload/versions, semantic search, workflow/queue/scheduler/notification admin, Mercure monitor, OCAP audit log, MCP-admin REST `/api/mcp/{tools,server-config}`, OIDC client CRUD, classification retention policies, SSR catch-all)

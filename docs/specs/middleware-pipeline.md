@@ -194,14 +194,12 @@ running it twice.
 Like the field-read principal middleware, it rebinds its request community
 around deferred streamed-response callbacks before restoring worker state.
 
-`public/index.php` is a thin entry point that boots the kernel and sends the returned response. Under FrankenPHP worker mode, `auto_prepend_file` runs once per process; the repo copy therefore invokes `Waaseyaa\FrankenPhp\WorkerAcceptance` at the start of each `$handler` invocation when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` and SAPI is `frankenphp`, so the worker-runtime acceptance lane can emit per-request identity headers. The front controller does not `require` `tests/`. The seam does not accept an environment-supplied filesystem path or a request header, and a missing class or missing extras file is a no-op rather than a 500. Production leaves that env unset and the branch does not run. Skeleton / `make:public` stub / golden stay unchanged. Production apps typically load `.env` **before** constructing `HttpKernel` via Symfony `Dotenv::loadEnv($projectRoot . '/.env', 'APP_ENV', 'production')` when the file exists — the third argument defaults missing `APP_ENV` to **`production`**, not Symfony's implicit **`dev`**. The monorepo entry wraps malformed `.env` in try/catch; skeleton / `make:public` stub match Minoo's optional-load + outer `Throwable` catch returning JSON:API 500. The file also contains a `cli-server` guard (see [cli-server static file guard](#cli-server-static-file-guard)) so static assets are served directly by the built-in server without passing through `HttpKernel`:
+`public/index.php` is a thin entry point that loads bootstrap environment values, boots the kernel, and sends the returned response. Under FrankenPHP worker mode, `auto_prepend_file` runs once per process; the repo copy therefore invokes `Waaseyaa\FrankenPhp\WorkerAcceptance` at the start of each `$handler` invocation when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` and SAPI is `frankenphp`, so the worker-runtime acceptance lane can emit per-request identity headers. The front controller does not `require` `tests/`. The seam does not accept an environment-supplied filesystem path or a request header, and a missing class or missing extras file is a no-op rather than a 500. Production leaves that env unset and the branch does not run. Every governed front-controller copy calls `EnvLoader::load($projectRoot . '/.env')` before reading worker or debug values. That canonical boundary uses Symfony Dotenv with a production default, preserves process-injected values, redacts parse failures, and parses each real base path once per process. Kernel and command-specific calls share the same idempotent boundary, so a retained worker never reparses or mutates the process environment per request. The file also contains a `cli-server` guard (see [cli-server static file guard](#cli-server-static-file-guard)) so static assets are served directly by the built-in server without passing through `HttpKernel`:
 
 ```php
 $projectRoot = dirname(__DIR__);
 require $projectRoot . '/vendor/autoload.php';
-if (is_file($projectRoot . '/.env')) {
-    (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($projectRoot . '/.env', 'APP_ENV', 'production');
-}
+EnvLoader::load($projectRoot . '/.env');
 $kernel = new HttpKernel($projectRoot);
 $response = $kernel->handle();
 $response->send();
@@ -481,7 +479,7 @@ Three invariants hold, and are pinned by tests:
 
 | File | Role |
 |------|------|
-| `public/index.php` | Thin entry point: optional pre-kernel `Dotenv::loadEnv(..., 'APP_ENV', 'production')`, boots `HttpKernel`, sends returned `Response`. `cli-server` guard uses `$_SERVER['REQUEST_URI'] ?? '/'` when resolving paths. |
+| `public/index.php` | Thin entry point: calls the canonical once-per-process `EnvLoader` before runtime dispatch, boots `HttpKernel`, and sends the returned `Response`. `cli-server` guard uses `$_SERVER['REQUEST_URI'] ?? '/'` when resolving paths. |
 | `HttpKernel::serveHttpRequest()` | Wires CORS, route matching, `HttpPipeline`, dispatch |
 
 #### cli-server static file guard
