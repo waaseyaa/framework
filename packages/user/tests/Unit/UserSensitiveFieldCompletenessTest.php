@@ -25,7 +25,7 @@ use Waaseyaa\User\UserAccessPolicy;
  * This test derives the sensitive fields from `User`'s own declared surface by
  * name pattern (not a hand-copied list), so it FAILS LOUDLY the moment a new
  * credential-shaped field (`*secret*`, `*token*`, `*_hash`, `two_factor_*`,
- * `pass`, `*recovery*`, `*private_key*`, `*api_key*`) is added to `User` without
+ * `pass`, `*_pass`, `*recovery*`, `*private_key*`, `*api_key*`) is added to `User` without
  * a corresponding forbid rule in `UserAccessPolicy`. The patterns are deliberately
  * conservative — they match the credential class only, NOT ambiguous fields like
  * `status`/`roles`/`permissions` (which are legitimately view-open and handled by
@@ -45,7 +45,7 @@ final class UserSensitiveFieldCompletenessTest extends TestCase
      * Field names that are NEVER legitimately viewable by a non-admin — the
      * credential class. Conservative on purpose (avoids `status`/`roles`/etc.).
      */
-    private const string SENSITIVE_PATTERN = '/(secret|passwd|password|^pass$|token|_hash$|hash$|two_factor|recovery|private_key|api_key|credential)/i';
+    private const string SENSITIVE_PATTERN = '/(secret|passwd|password|^pass$|_pass$|token|_hash$|hash$|two_factor|recovery|private_key|api_key|credential)/i';
 
     #[Test]
     public function everySensitiveUserFieldIsForbiddenToANonAdmin(): void
@@ -60,6 +60,7 @@ final class UserSensitiveFieldCompletenessTest extends TestCase
         // test can't silently pass by matching nothing.
         self::assertContains('two_factor_secret', $sensitive, 'derivation must include the declared credential fields');
         self::assertContains('pass', $sensitive, 'derivation must include the password credential key');
+        self::assertContains('legacy_pass', $sensitive, 'derivation must include the imported-credential key');
 
         foreach ($sensitive as $field) {
             self::assertTrue(

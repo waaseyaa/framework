@@ -289,6 +289,8 @@ final class UserAccessPolicyTest extends TestCase
         return [
             ['pass', 'edit'],
             ['pass', 'view'],
+            ['legacy_pass', 'edit'],
+            ['legacy_pass', 'view'],
             ['two_factor_secret', 'edit'],
             ['two_factor_secret', 'view'],
             ['two_factor_recovery_codes_hash', 'edit'],

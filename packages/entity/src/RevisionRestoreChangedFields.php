@@ -32,7 +32,7 @@ final class RevisionRestoreChangedFields
      *
      * @var list<string>
      */
-    public const array CREDENTIAL_KEYS = ['pass', 'password', 'password_hash'];
+    public const array CREDENTIAL_KEYS = ['pass', 'legacy_pass', 'password', 'password_hash'];
 
     /**
      * Values rollback/setCurrentRevision preserve from the live base row.

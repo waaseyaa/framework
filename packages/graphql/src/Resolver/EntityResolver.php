@@ -42,7 +42,7 @@ final class EntityResolver
      * {@see \Waaseyaa\Api\ResourceSerializer::ALWAYS_INTERNAL_FIELDS} so the
      * GraphQL surface floors on the same credential keys as REST.
      */
-    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'legacy_pass', 'password', 'password_hash'];
 
     private readonly LoggerInterface $logger;
 

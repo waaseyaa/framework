@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
+use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -25,6 +26,7 @@ final class LoginController
         private readonly UserIdentityLookupInterface $identityLookup,
         private readonly UserInternalFieldReaderInterface $internalFields,
         ?AuthExtensionRegistry $extensions = null,
+        private readonly ?LegacyPasswordUpgrade $passwords = null,
     ) {
         $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
     }
@@ -65,7 +67,20 @@ final class LoginController
         $user = $candidate instanceof User ? $candidate : null;
         $credentials = $user === null ? null : $this->internalFields->credentials($user);
 
-        if ($user === null || $credentials === null || !$credentials->active || $credentials->passwordHash === '' || !password_verify($password, $credentials->passwordHash)) {
+        // #2544: one verification decision, shared with AuthManager. It also
+        // performs the one-time upgrade of a migrated credential, which is why
+        // it runs BEFORE the rate-limit clear and the session work below — a
+        // failed verification must reach the identical 401 it always did,
+        // whatever the stored credential's format was.
+        $verified = $user !== null
+            && $credentials !== null
+            && ($this->passwords !== null
+                ? $this->passwords->verify($user, $password, $credentials)
+                : $credentials->active
+                    && $credentials->passwordHash !== ''
+                    && password_verify($password, $credentials->passwordHash));
+
+        if (!$verified) {
             $this->rateLimiter->hit($rateLimitKey, 60);
             return new JsonResponse([
                 'jsonapi' => ['version' => '1.1'],

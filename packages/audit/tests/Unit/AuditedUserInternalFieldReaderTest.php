@@ -23,7 +23,7 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
     {
         $registry = new InMemoryCapabilityRegistry();
         foreach ([
-            ['user.credentials', CapabilityReason::CredentialVerification, ['status', 'pass']],
+            ['user.credentials', CapabilityReason::CredentialVerification, ['status', 'pass', 'legacy_pass']],
             ['user.two-factor', CapabilityReason::CredentialVerification, ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step']],
             ['user.mail-delivery', CapabilityReason::MailDelivery, ['name', 'mail']],
             ['user.verification', CapabilityReason::CredentialVerification, ['mail', 'email_verified']],
@@ -77,7 +77,9 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
         self::assertSame(['editor'], $reader->sessionIdentity($user)->roles);
         self::assertSame(['editor'], $reader->maintenanceAuthorization($user)->roles);
         self::assertSame([
-            ['status', 'pass'],
+            // #2544: `legacy_pass` is read under the SAME credential-verification
+            // reason as `pass` — it is a password equivalent until upgraded away.
+            ['status', 'pass', 'legacy_pass'],
             ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'],
             ['name', 'mail'],
             ['mail', 'email_verified'],
