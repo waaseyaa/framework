@@ -40,6 +40,7 @@
         "request-contract",
         "result-contract",
         "schema-authority",
+        "runtime-state-ownership",
         "testing-or-static-epoch",
         "token-contract"
     ],
@@ -742,6 +743,97 @@
             "pattern": "active_token",
             "class": "mutation-orchestrator",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "002766e4bd6752f774d5207008e2f8c3e727c21b8e9478be593b2a2ecf9b7e4a",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "0700efe9028b3540e780ebd862e0230daf7510a7bcf20e590c05bac2b3648f10",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "5882c08a2d8ec329c23141d2fbe244bdceb253d06fa6dc0b00c46ba52cfd377c",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "5882c08a2d8ec329c23141d2fbe244bdceb253d06fa6dc0b00c46ba52cfd377c",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "5e500a76c7a9b87949451aff9d33d61a29ffadc13539a863499325b5b79351f1",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "5e500a76c7a9b87949451aff9d33d61a29ffadc13539a863499325b5b79351f1",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php",
+            "pattern": "activation_table",
+            "class": "runtime-state-ownership",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
             "occurrence": 2
         },
         {

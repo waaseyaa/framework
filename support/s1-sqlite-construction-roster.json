@@ -6102,6 +6102,62 @@
             "occurrence": 1
         },
         {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "618f21ee07e809a24aedfbe8a777fdefc368cf99fd3e36f5ac2e1c8c8557e2c7",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "29d1a44b961f6542f5883b6cb074cb28436db848260ecf2fb4e7ec7b97ecf1c3",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "29d1a44b961f6542f5883b6cb074cb28436db848260ecf2fb4e7ec7b97ecf1c3",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "29d1a44b961f6542f5883b6cb074cb28436db848260ecf2fb4e7ec7b97ecf1c3",
+            "occurrence": 3
+        },
+        {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Integration/Migration/MigrationInstalledArtifactPreparationTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 3
+        },
+        {
             "path": "tests/Integration/Migration/MigrationRoundTripTest.php",
             "pattern": "doctrine_factory",
             "class": "test",
