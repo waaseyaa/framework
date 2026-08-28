@@ -111,11 +111,69 @@ never sees them, and any author could plant a tracking pixel that fires for
 every anonymous reader. The remedy is a gated projection for one authorized
 caller, not a looser baseline for everyone.
 
-**Known limitation.** The `PATCH` response echoes the *rendered* projection, so
-a client that keeps the mutation response as its next edit state is still lossy
-on the following save. The GET → PATCH round trip this issue reported is fixed;
-making mutation echoes lossless for authorized writers is a separate contract
-decision, tracked in #2553.
+### Mutation echoes (#2553)
+
+`representation` applies to `POST` and `PATCH` too, selecting the projection of
+the **response echo** only. It never influences what is written.
+
+Keeping the mutation response as the next edit state is the normal SPA pattern,
+so a lossless read alone is not enough: a sanitized echo makes the *following*
+save destructive even when the first round trip was safe.
+
+```
+GET ?representation=editing   -> stored bytes            (sha A)
+PATCH ?representation=editing -> stored bytes unchanged  (sha A)
+      response body            -> stored bytes           (sha A)   <- #2553
+next PATCH echoing that body  -> stored bytes            (sha A)
+```
+
+Three rules, and one difference from the read side:
+
+- **A mutation is its own authorization anchor**, so `editing` does *not*
+  additionally require `?workingCopy=1` on a write. That pairing exists only to
+  bind the read to an entity-`update` gate; a successful `PATCH`/`POST` has
+  already passed one, and `workingCopy` has no read-side meaning on a write.
+- **An unrecognized value is a 400 before anything is written**, never a
+  fallback and never a write followed by a complaint.
+- **Every mutation response states `meta.representation`**, exactly as every
+  single-entity read does, so a client keeping the body as its edit state can
+  tell which projection it holds without inferring it from the request it
+  thinks it made.
+
+**A denied field downgrades the echo; it does not fail the write.** The
+per-field `edit` gate still applies, but by the time the echo is built the
+mutation has committed — failing the response would tell a client its
+successful write failed. The response is served as `rendered` and says so, which
+is what makes the downgrade detectable rather than silent.
+
+**Why not always echo losslessly.** A caller that may `PATCH` already holds the
+access the editing read is gated on, so an unconditional lossless echo would
+disclose nothing new — but disclosure is not the only property at stake. The
+sanitized projection is also what protects a client that renders the echo
+directly, and every existing `PATCH` consumer was written against it. Making the
+lossless echo unconditional would hand raw author HTML to consumers that never
+asked for it. Opt-in keeps existing wire behaviour intact and puts the choice
+with the client that knows what it does with the bytes.
+
+**`FieldAutoSaveController` resolves the same way** (`PUT
+{api}/{type}/{id}/field/{key}?representation=editing`), for a stronger reason:
+that surface has already required field-`edit` access on the one field it
+serves and has just written the caller's own bytes to it, so the lossless echo
+returns exactly what the caller supplied. It does not mirror the structural 400
+— refusing a completed single-field write over a query-string typo would be
+worse than ignoring the typo — so an unrecognized value there is simply not the
+opt-in, and `meta.representation` still states what was served.
+
+**The admin SPA does not opt in yet, and must re-read before editing.**
+`SchemaForm.vue` does `formData.value = { ...entityResult.value.attributes }`
+and PATCHes it back, and nothing in `packages/admin/app` requests
+`representation=editing`. Adopting it there is not a one-line change: the SPA
+would also have to adopt `?workingCopy=1` on its GET, which changes *which
+revision the admin edits* (the working copy rather than the published pointer)
+— a CW-v1 product decision, not a rider on this contract. Until it is taken, the
+admin surface round-trips through the sanitized projection, which is why the
+lossless projection remains opt-in rather than a behaviour every client
+inherits.
 
 Where sanitization belongs, stated plainly: **at each output boundary, not at
 rest and not once centrally.** Storage keeps author bytes; every rendering

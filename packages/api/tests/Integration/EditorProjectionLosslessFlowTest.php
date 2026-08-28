@@ -184,13 +184,21 @@ final class EditorProjectionLosslessFlowTest extends TestCase
             $this->rawStoredBody($db, $id),
             'A GET(editing) -> PATCH round trip with an unrelated change must not alter the stored body by one byte (#2552).',
         );
-        // #2553 is a separate contract: the mutation echo stays rendered.
+        // #2553 shipped the mutation half of the contract, but as an OPT-IN:
+        // this PATCH did not ask for `representation=editing`, so its echo is
+        // still the sanitized projection — and now says so. (#2552 fenced this
+        // out with `assertSame([], $patchDoc->meta)`; that fence is exactly
+        // what #2553 was chartered to lift.)
         self::assertSame(
             self::PUBLIC_BODY,
             $patchDoc->data->attributes['body'],
-            'PATCH must not absorb #2553: the mutation response stays the sanitized projection.',
+            'A PATCH that did not opt in must still receive the sanitized projection.',
         );
-        self::assertSame([], $patchDoc->meta, 'PATCH must not grow a representation meta key in this PR.');
+        self::assertSame(
+            ['representation' => 'rendered'],
+            $patchDoc->meta,
+            'Every mutation response states the projection it carries (#2553).',
+        );
     }
 
     /**
@@ -259,6 +267,154 @@ final class EditorProjectionLosslessFlowTest extends TestCase
         $doc = $unwired->show('article', $id, ['workingCopy' => '1', 'representation' => 'editing']);
 
         $this->assertEditingDeniedClosed($doc);
+    }
+
+    /**
+     * #2553, the whole point: keeping the mutation response as the next edit
+     * state is the normal SPA pattern, so a lossless first round trip is not
+     * enough. This drives GET → PATCH → PATCH, where the SECOND patch echoes
+     * the FIRST patch's own response body, and asserts stored bytes after both
+     * writes by reading the `_data` blob with raw SQL.
+     */
+    #[Test]
+    public function a_patch_that_echoes_the_previous_mutation_response_preserves_stored_bytes(): void
+    {
+        [$controllers, $db, $id] = $this->seed(self::STORED_BODY);
+        $editing = ['workingCopy' => '1', 'representation' => 'editing'];
+
+        $read = $controllers['editor']->show('article', $id, $editing);
+        self::assertSame(self::STORED_BODY, $this->bodyOf($read));
+
+        // First save: echo the lossless READ back, changing an unrelated field.
+        $first = $controllers['editor']->update('article', $id, $this->patchEchoing($read, 'One'), $editing);
+        self::assertSame([], $first->errors, 'The first save must succeed.');
+        self::assertSame(self::STORED_BODY, $this->rawStoredBody($db, $id), '#2552: the first write is already safe.');
+        self::assertSame('editing', $first->meta['representation'] ?? null);
+        self::assertSame(self::STORED_BODY, $this->bodyOf($first), 'The echo must be the stored bytes.');
+
+        // Second save: echo the FIRST SAVE'S OWN RESPONSE. This is the write
+        // that was destructive before #2553.
+        $second = $controllers['editor']->update('article', $id, $this->patchEchoing($first, 'Two'), $editing);
+        self::assertSame([], $second->errors, 'The second save must succeed.');
+        self::assertSame(
+            self::STORED_BODY,
+            $this->rawStoredBody($db, $id),
+            'A client that treats the mutation response as its next edit state must not lose stored markup.',
+        );
+        self::assertSame('editing', $second->meta['representation'] ?? null);
+    }
+
+    /**
+     * The opt-in boundary, stated as an executable fact rather than prose: a
+     * PATCH that does NOT ask for the editing projection still receives the
+     * sanitized echo, and says which projection it carries. Existing consumers
+     * are unchanged.
+     */
+    #[Test]
+    public function a_patch_without_the_editing_representation_still_echoes_the_sanitized_projection(): void
+    {
+        [$controllers, $db, $id] = $this->seed(self::STORED_BODY);
+
+        $patched = $controllers['editor']->update('article', $id, [
+            'data' => ['type' => 'article', 'attributes' => ['title' => 'Untouched body']],
+        ]);
+
+        self::assertSame([], $patched->errors);
+        self::assertSame(self::PUBLIC_BODY, $this->bodyOf($patched), 'The default echo stays sanitized.');
+        self::assertSame('rendered', $patched->meta['representation'] ?? null);
+        self::assertSame(
+            self::STORED_BODY,
+            $this->rawStoredBody($db, $id),
+            'Not writing `body` must not rewrite it either.',
+        );
+    }
+
+    /**
+     * A mutation is its own authorization anchor — the caller demonstrably
+     * holds entity `update` — so unlike the read it does not additionally
+     * require `?workingCopy=1`.
+     */
+    #[Test]
+    public function a_mutation_does_not_require_working_copy_to_ask_for_the_editing_projection(): void
+    {
+        [$controllers, , $id] = $this->seed(self::STORED_BODY);
+
+        $patched = $controllers['editor']->update(
+            'article',
+            $id,
+            ['data' => ['type' => 'article', 'attributes' => ['title' => 'Anchored by the write']]],
+            ['representation' => 'editing'],
+        );
+
+        self::assertSame([], $patched->errors);
+        self::assertSame(self::STORED_BODY, $this->bodyOf($patched));
+        self::assertSame('editing', $patched->meta['representation'] ?? null);
+    }
+
+    #[Test]
+    public function an_unknown_representation_on_a_mutation_is_a_loud_400_before_any_write(): void
+    {
+        [$controllers, $db, $id] = $this->seed(self::STORED_BODY);
+
+        $doc = $controllers['editor']->update(
+            'article',
+            $id,
+            ['data' => ['type' => 'article', 'attributes' => ['title' => 'Never written']]],
+            ['representation' => 'raw'],
+        );
+
+        self::assertSame(400, $doc->statusCode);
+        self::assertNull($doc->data);
+        self::assertSame(self::STORED_BODY, $this->rawStoredBody($db, $id));
+        self::assertSame(
+            'Program contacts',
+            $controllers['editor']->show('article', $id)->data?->attributes['title'] ?? null,
+            'A rejected representation must not have written anything.',
+        );
+    }
+
+    /**
+     * A caller who may update the entity but may not EDIT an HTML field must
+     * not receive that field's stored bytes. The write still succeeds — a
+     * presentation preference must never fail a completed mutation — and the
+     * response states the projection it actually carries, so the downgrade is
+     * detectable rather than silent.
+     */
+    #[Test]
+    public function a_field_edit_denied_writer_gets_the_sanitized_echo_and_is_told_so(): void
+    {
+        [$controllers, $db, $id] = $this->seed(self::STORED_BODY);
+
+        $patched = $controllers['limited_editor']->update(
+            'article',
+            $id,
+            ['data' => ['type' => 'article', 'attributes' => ['title' => 'Title only']]],
+            ['representation' => 'editing'],
+        );
+
+        self::assertSame([], $patched->errors, 'The write itself must still succeed.');
+        self::assertSame('rendered', $patched->meta['representation'] ?? null);
+        self::assertSame(self::PUBLIC_BODY, $this->bodyOf($patched));
+        self::assertSame(self::STORED_BODY, $this->rawStoredBody($db, $id));
+    }
+
+    /**
+     * Build a PATCH document that echoes `$document`'s own attributes back,
+     * exactly as an SPA that keeps the last response as its edit state does.
+     *
+     * @return array<string, mixed>
+     */
+    private function patchEchoing(\Waaseyaa\Api\JsonApiDocument $document, string $title): array
+    {
+        $resource = $document->data;
+        self::assertInstanceOf(JsonApiResource::class, $resource);
+
+        return [
+            'data' => [
+                'type' => 'article',
+                'attributes' => ['body' => $resource->attributes['body'], 'title' => $title],
+            ],
+        ];
     }
 
     #[Test]
