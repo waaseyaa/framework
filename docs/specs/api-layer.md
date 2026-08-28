@@ -938,8 +938,11 @@ NOT mirror the structural 400 — refusing a completed write over a query-string
 typo would be worse than ignoring the typo — so an unrecognized value there is
 simply not the opt-in.
 
-The admin SPA does not opt in; see [jsonapi.md](jsonapi.md) for why adopting it
-there is a CW-v1 decision rather than a rider.
+The admin SPA does not opt in. It never reaches this JSON:API query: it loads
+and saves through `GenericAdminSurfaceHost`, which already serves the working
+copy to update-capable accounts and still serializes the sanitized projection.
+"Re-read" cannot restore stored markup. Lossless GET plus echo on that host is
+a follow-up, not a CW-v1 pointer change; see [jsonapi.md](jsonapi.md).
 
 The shared sanitizer allowlist was deliberately not widened; see
 [jsonapi.md](jsonapi.md) for why a looser baseline would have exposed

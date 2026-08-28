@@ -164,16 +164,23 @@ returns exactly what the caller supplied. It does not mirror the structural 400
 worse than ignoring the typo — so an unrecognized value there is simply not the
 opt-in, and `meta.representation` still states what was served.
 
-**The admin SPA does not opt in yet, and must re-read before editing.**
-`SchemaForm.vue` does `formData.value = { ...entityResult.value.attributes }`
-and PATCHes it back, and nothing in `packages/admin/app` requests
-`representation=editing`. Adopting it there is not a one-line change: the SPA
-would also have to adopt `?workingCopy=1` on its GET, which changes *which
-revision the admin edits* (the working copy rather than the published pointer)
-— a CW-v1 product decision, not a rider on this contract. Until it is taken, the
-admin surface round-trips through the sanitized projection, which is why the
-lossless projection remains opt-in rather than a behaviour every client
-inherits.
+**The admin SPA does not opt in, and re-read is not a remedy.**
+`SchemaForm.vue` never hits JSON:API HTTP. It loads and saves through
+`AdminSurfaceTransportAdapter` → `GenericAdminSurfaceHost`. That host already
+serves the working copy to anyone who may `update` — there is no
+`?workingCopy=1` for the SPA to adopt; that decision is already taken on this
+host. Host GET still serializes without `losslessHtml`, and `handleUpdate` /
+`handleCreate` call `JsonApiController::update()` / `store()` with the default
+query, so this contract's echo opt-in never runs for the SPA. Form state is the
+sanitized projection; the first save of a writable HTML field still strips
+stored markup. Another host GET is still sanitized, so "re-read before editing"
+cannot restore stored bytes.
+
+Lossless GET plus mutation echo on `GenericAdminSurfaceHost` is a follow-up on
+that host, not a CW-v1 pointer change and not a rider on this JSON:API
+contract. Until that follow-up, the admin surface round-trips through the
+sanitized projection, which is why the lossless projection remains opt-in
+rather than a behaviour every client inherits.
 
 Where sanitization belongs, stated plainly: **at each output boundary, not at
 rest and not once centrally.** Storage keeps author bytes; every rendering
