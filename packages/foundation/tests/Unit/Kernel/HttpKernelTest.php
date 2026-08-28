@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\CacheBackendInterface;
@@ -27,6 +28,7 @@ use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
+use Waaseyaa\Foundation\Http\Refusal\RefusalEnvelope;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Middleware\BodySizeLimitMiddleware;
 use Waaseyaa\Foundation\Middleware\RateLimitMiddleware;
@@ -495,6 +497,120 @@ final class HttpKernelTest extends TestCase
         self::assertLessThan(
             array_search(FieldReadContextMiddleware::class, $classes, true),
             array_search(CommunityMiddleware::class, $classes, true),
+        );
+    }
+
+    /**
+     * #2594, end to end: a route that declares a JSON-RPC refusal transport
+     * must have that declaration reach the middleware pipeline, so the
+     * body-size guard's 413 stops shadowing the endpoint's own refusal.
+     */
+    #[Test]
+    public function a_route_declared_refusal_transport_reaches_the_middleware_pipeline(): void
+    {
+        $provider = new class extends ServiceProvider {
+            public function register(): void {}
+
+            public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
+            {
+                $router->addRoute('test.jsonrpc', RouteBuilder::create('/rpc')
+                    ->controller(static fn(): array => [])
+                    ->methods('POST')
+                    ->allowAll()
+                    ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [
+                        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+                    ])
+                    ->build());
+            }
+        };
+
+        $kernel = new HttpKernel($this->projectRoot);
+        new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager')->setValue(
+            $kernel,
+            new EntityTypeManager(new EventDispatcher()),
+        );
+        new \ReflectionProperty(AbstractKernel::class, 'providers')->setValue($kernel, [$provider]);
+
+        $request = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/rpc', 'POST');
+        self::assertInstanceOf(Request::class, $request);
+        $request->headers->set('Content-Length', '4096');
+
+        $response = new BodySizeLimitMiddleware(maxBytes: 1024)->process(
+            $request,
+            new class implements \Waaseyaa\Foundation\Middleware\HttpHandlerInterface {
+                public function handle(Request $request): Response
+                {
+                    return new Response('never reached');
+                }
+            },
+        );
+
+        self::assertSame(413, $response->getStatusCode());
+        self::assertSame(
+            [
+                'jsonrpc' => '2.0',
+                'error' => [
+                    'code' => -32043,
+                    'message' => 'Request body exceeds maximum size',
+                    'data' => ['max_request_bytes' => 1024],
+                ],
+                'id' => null,
+            ],
+            json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * #2594: the kernel pre-parses `application/json` bodies before the
+     * controller runs, so a JSON-RPC endpoint's own `-32700` refusal is
+     * unreachable. The pre-parse must therefore refuse in the vocabulary the
+     * matched route declares.
+     */
+    #[Test]
+    public function malformed_json_is_refused_in_the_transport_the_matched_route_declares(): void
+    {
+        $request = Request::create('/mcp', 'POST', [], [], [], [], '{"jsonrpc":');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->attributes->set(
+            RefusalEnvelope::REQUEST_ATTRIBUTE,
+            RefusalEnvelope::fromRouteOptions([
+                RefusalEnvelope::TRANSPORT_OPTION => RefusalEnvelope::TRANSPORT_JSON_RPC,
+                RefusalEnvelope::CODES_OPTION => [RefusalEnvelope::REASON_PARSE_ERROR => -32700],
+            ]),
+        );
+
+        $response = new \ReflectionMethod(HttpKernel::class, 'parseJsonBody')
+            ->invoke(new HttpKernel('/tmp/test-project'), $request);
+
+        self::assertInstanceOf(Response::class, $response);
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame(
+            ['jsonrpc' => '2.0', 'error' => ['code' => -32700, 'message' => 'Parse error'], 'id' => null],
+            json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[Test]
+    public function malformed_json_on_an_undeclared_route_keeps_the_json_api_envelope(): void
+    {
+        $request = Request::create('/api/nodes', 'POST', [], [], [], [], '{"data":');
+        $request->headers->set('Content-Type', 'application/vnd.api+json');
+
+        $response = new \ReflectionMethod(HttpKernel::class, 'parseJsonBody')
+            ->invoke(new HttpKernel('/tmp/test-project'), $request);
+
+        self::assertInstanceOf(Response::class, $response);
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame(
+            [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [[
+                    'status' => '400',
+                    'title' => 'Bad Request',
+                    'detail' => 'Invalid JSON in request body.',
+                ]],
+            ],
+            json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR),
         );
     }
 

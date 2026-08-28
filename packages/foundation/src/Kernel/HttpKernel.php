@@ -31,6 +31,8 @@ use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\Inertia\InertiaFullPageRendererInterface;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 use Waaseyaa\Foundation\Http\LanguagePathStripperInterface;
+use Waaseyaa\Foundation\Http\Refusal\HttpRefusal;
+use Waaseyaa\Foundation\Http\Refusal\RefusalEnvelope;
 use Waaseyaa\Foundation\Http\RequestContext as ListingRequestContext;
 use Waaseyaa\Foundation\Http\Router as HttpRouter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
@@ -571,6 +573,14 @@ final class HttpKernel extends AbstractKernel
         }
         if ($matchedRoute !== null) {
             $httpRequest->attributes->set('_route_object', $matchedRoute);
+            // Resolve the route's refusal vocabulary once, here, so every
+            // kernel-level refusal downstream — middleware and the kernel's own
+            // JSON pre-parse alike — speaks the transport the matched endpoint
+            // advertises rather than shadowing it with JSON:API (#2594).
+            $httpRequest->attributes->set(
+                RefusalEnvelope::REQUEST_ATTRIBUTE,
+                RefusalEnvelope::fromRouteOptions($matchedRoute->getOptions()),
+            );
         }
         $httpRequest->attributes->set(Redirector::REQUEST_ATTRIBUTE, new Redirector($router));
 
@@ -852,10 +862,17 @@ final class HttpKernel extends AbstractKernel
 
             return is_array($decoded) ? $decoded : null;
         } catch (\JsonException) {
-            return $this->jsonApiResponse(400, [
-                'jsonapi' => ['version' => '1.1'],
-                'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']],
-            ]);
+            // Same seam as the body-size guard: the kernel pre-parses the body
+            // ahead of the controller, so a JSON-RPC endpoint's own parse-error
+            // refusal is unreachable unless this one speaks its vocabulary
+            // (#2594).
+            return RefusalEnvelope::forRequest($request)->refuse(new HttpRefusal(
+                status: 400,
+                reason: RefusalEnvelope::REASON_PARSE_ERROR,
+                title: 'Bad Request',
+                detail: 'Invalid JSON in request body.',
+                transportMessage: 'Parse error',
+            ));
         }
     }
 
