@@ -1,6 +1,6 @@
 # API Layer
 
-<!-- Spec reviewed 2026-08-27 - #2544: `ALWAYS_INTERNAL_FIELDS` gains `legacy_pass` in `ResourceSerializer` and `JsonApiController`, so the imported-credential field is stripped from every response and rejected as a filter/sort field exactly like `pass`. No contract shape change. -->
+<!-- Spec reviewed 2026-08-27 - #2544: `ALWAYS_INTERNAL_FIELDS` gains `legacy_pass` in `ResourceSerializer` and `JsonApiController`, so the imported-credential field is stripped from every response and rejected as a filter/sort field exactly like `pass`. `AuthOidcRouteServiceProvider` passes `LegacyPasswordUpgrade` into the production `LoginController` for `POST /api/auth/login`. No contract shape change. -->
 
 <!-- Spec reviewed 2026-08-24 - #2537: If-Match JSON:API mutation surfaces share
 `Waaseyaa\Api\Http\EntityMutationPrecondition`, which wraps
@@ -326,7 +326,7 @@ Both controller deps are nullable (`?ToolRegistryReadModelInterface = null`, `?S
 | `src/RouteFingerprint.php` | `Waaseyaa\Routing` | Stable hash of path, methods, parameters, bindings, defaults for app-controller descriptor cache invalidation |
 | `src/RouteMatch.php` | `Waaseyaa\Routing` | Value object for matched route (name, route, parameters) |
 | `src/AccessChecker.php` (in `waaseyaa/access`, not routing) | `Waaseyaa\Access` | Route-level access checking via route options. Owned by the access package; routing depends on access (mission #824 WP05 surface A). |
-| `src/AuthOidcRouteServiceProvider.php` | `Waaseyaa\Routing` | Registers `/api/auth/*`, `/api/user/me`, and OIDC discovery/authorize/token routes; depends on `waaseyaa/auth` and `waaseyaa/oidc` for controllers only. `api.user.me` is registered with `->priority(10)` (#1532) so it beats `JsonApiRouteProvider`'s `/api/user/{id}` catch-all — without the bump, `me` was treated as a literal entity id and returned 404. |
+| `src/AuthOidcRouteServiceProvider.php` | `Waaseyaa\Routing` | Registers `/api/auth/*`, `/api/user/me`, and OIDC discovery/authorize/token routes; depends on `waaseyaa/auth` and `waaseyaa/oidc` for controllers only. `api.auth.login` receives `LegacyPasswordUpgrade` so opted-in `$P$`/`$H$` members authenticate on the HTTP path (#2544). `api.user.me` is registered with `->priority(10)` (#1532) so it beats `JsonApiRouteProvider`'s `/api/user/{id}` catch-all — without the bump, `me` was treated as a literal entity id and returned 404. |
 
 ### Route precedence and the SSR `render.page` fallback (#1632)
 

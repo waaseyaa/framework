@@ -24,7 +24,8 @@ use Waaseyaa\Entity\EntityInterface;
  * - Field edit: privilege-bearing fields (roles, permissions, status, email_verified)
  *   require 'administer users' even on one's own account; credential / 2FA material
  *   is never reachable through the generic field surface. This closes the JSON:API
- *   mass-assignment escalation where a non-admin self-PATCHes `roles: ['administrator']`.
+ *   mass-assignment escalation where a non-admin self-PATCHes `roles: ['administrator']`
+ *   — and the same surface must not accept `legacy_pass`, a password equivalent.
  */
 #[PolicyAttribute(entityType: 'user')]
 final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
@@ -46,7 +47,7 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
      *
      * @var list<string>
      */
-    private const array CREDENTIAL_FIELDS = ['pass', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'];
+    private const array CREDENTIAL_FIELDS = ['pass', 'legacy_pass', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'];
 
     public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
     {

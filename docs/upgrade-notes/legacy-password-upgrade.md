@@ -71,9 +71,11 @@ account back onto the weaker credential.
 
 `legacy_pass` is `FieldReadLevel::Internal`, is on every read surface's
 always-internal list alongside `pass`, and is readable only through the audited
-`user.credentials` capability. It never appears in entity or API serialization,
-GraphQL, SSR, the admin surface, agent tools, revision restore, logs, or audit
-payloads.
+`user.credentials` capability. It is also Forbidden on the generic field
+surface (`UserAccessPolicy::CREDENTIAL_FIELDS`), so a JSON:API PATCH or agent
+field write cannot plant or replace it. It never appears in entity or API
+serialization, GraphQL, SSR, the admin surface, agent tools, revision restore,
+logs, or audit payloads.
 
 ## What happens at login
 
