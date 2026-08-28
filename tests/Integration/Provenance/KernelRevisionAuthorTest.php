@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
@@ -22,6 +23,7 @@ use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Tests\Support\StatementCountingDatabase;
 
 /**
  * Mission revision-audit-provenance-01KTWY5V WP02 (T010, SC-001 + NFR-001) —
@@ -46,17 +48,40 @@ final class KernelRevisionAuthorTest extends TestCase
     private const string ENTITY_TYPE_ID = 'prov_author_subject';
 
     /**
-     * NFR-001 target: median revisionable save with an account in context
-     * ≤ 1.05x the median save without one. Actor resolution is one in-memory
-     * holder read + an id() call — expected to disappear into noise; the
-     * retry-once guard absorbs whole-run CI jitter (pattern from
-     * ValidationOverheadTest). If this flakes on shared CI runners, loosen
-     * the bound with a comment linking NFR-001 — do not delete the test.
+     * NFR-001, re-expressed as work rather than latency (#2542).
+     *
+     * The requirement is "attribution must not add work per save". That was
+     * originally asserted as a 1.05x median wall-clock ratio, which measured
+     * the runner as much as the code: it flaked at 1.0546x on an otherwise
+     * green tree during unrelated work, red-lighting a PR that had never
+     * touched this surface. A 5% margin is below the noise floor of a shared CI
+     * runner, so the assertion could not distinguish the regression it guards
+     * from the machine it ran on.
+     *
+     * What attribution actually does is read one in-memory holder and call
+     * `id()`. So the invariant is exact and contention-insensitive: an
+     * attributed save issues the SAME database statements as an unattributed
+     * one, and consults the account a bounded constant number of times. The
+     * regression this guards — resolving the actor by loading a user entity,
+     * or re-reading the context per field — moves both numbers immediately and
+     * on any machine.
+     *
+     * Deliberately NOT a looser wall-clock bound: a bound wide enough to
+     * survive runner contention is wide enough to admit a per-save query, which
+     * is the regression itself.
      */
-    private const float MAX_MEDIAN_RATIO = 1.05;
+    private const int SAVES_PER_MODE = 40;
 
-    private const int SAVES_PER_MODE = 200;
-    private const int WARMUP_SAVES = 20;
+    private const int WARMUP_SAVES = 4;
+
+    /**
+     * Account reads permitted per attributed save.
+     *
+     * One `id()` for the revision author is the shipped cost. The ceiling
+     * leaves room for a second read without failing while still refusing
+     * anything that scales with the entity (a per-field or per-column read).
+     */
+    private const int MAX_ACCOUNT_READS_PER_SAVE = 2;
 
     protected function tearDown(): void
     {
@@ -111,89 +136,84 @@ final class KernelRevisionAuthorTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // NFR-001 — perf smoke: attribution adds ≤5% median save overhead
+    // NFR-001 — attribution adds no per-save database work (#2542)
     // ------------------------------------------------------------------
 
     #[Test]
-    public function median_attributed_save_stays_within_the_overhead_envelope(): void
+    public function an_attributed_save_issues_the_same_database_statements_as_an_unattributed_one(): void
     {
-        $ratio = $this->measureMedianRatio();
+        $storage = DBALDatabase::createSqlite();
+        $counter = new StatementCountingDatabase($storage);
+        $kernel = $this->bootKernel($counter);
+        $repository = $this->registerSubjectType($kernel, schemaDatabase: $storage);
+        $account = new ProvenanceCountingAccount(7);
 
-        if ($ratio > self::MAX_MEDIAN_RATIO) {
-            // Retry-once jitter guard: fresh kernel, fresh DB, fresh run.
-            $ratio = $this->measureMedianRatio();
-        }
-
-        self::assertLessThanOrEqual(
-            self::MAX_MEDIAN_RATIO,
-            $ratio,
-            sprintf(
-                'NFR-001: median save with an account in context took %.3fx the median without (bound %.2fx).',
-                $ratio,
-                self::MAX_MEDIAN_RATIO,
-            ),
-        );
-    }
-
-    private function measureMedianRatio(): float
-    {
-        $kernel = $this->bootKernel();
-        $repository = $this->registerSubjectType($kernel);
-        $account = new ProvenanceStubAccount(7);
-
-        // Warm both paths (schema creation, SQLite page cache).
+        // Warm both paths first: schema creation and the SQLite page cache are
+        // setup work, and counting them would drown the signal.
         for ($i = 0; $i < self::WARMUP_SAVES; $i++) {
             $kernel->accountContext()->set(($i % 2) === 0 ? $account : null);
             $repository->save(new ProvenanceAuthorSubject(['title' => 'warmup ' . $i]));
         }
 
         $kernel->accountContext()->set($account);
-        $withAccount = $this->timeSaves($repository);
+        $account->resetReads();
+        $counter->reset();
+        for ($i = 0; $i < self::SAVES_PER_MODE; $i++) {
+            $repository->save(new ProvenanceAuthorSubject(['title' => 'attributed ' . $i]));
+        }
+        $attributed = $counter->counts();
+        $accountReads = $account->reads();
 
         $kernel->accountContext()->set(null);
-        $withoutAccount = $this->timeSaves($repository);
-
-        return self::median($withAccount) / self::median($withoutAccount);
-    }
-
-    /**
-     * @return list<float> Per-save durations in nanoseconds.
-     */
-    private function timeSaves(EntityRepositoryInterface $repository): array
-    {
-        $durations = [];
+        $counter->reset();
         for ($i = 0; $i < self::SAVES_PER_MODE; $i++) {
-            $entity = new ProvenanceAuthorSubject(['title' => 'timed ' . $i]);
-            $start = hrtime(true);
-            $repository->save($entity);
-            $durations[] = (float) (hrtime(true) - $start);
+            $repository->save(new ProvenanceAuthorSubject(['title' => 'unattributed ' . $i]));
         }
+        $unattributed = $counter->counts();
 
-        return $durations;
+        self::assertSame(
+            $unattributed,
+            $attributed,
+            sprintf(
+                'NFR-001: attribution changed the per-save statement mix over %d saves. '
+                . "With an account: %s. Without: %s.\n"
+                . 'Actor resolution is an in-memory holder read; anything that reaches storage '
+                . 'per save is the regression this guards.',
+                self::SAVES_PER_MODE,
+                json_encode($attributed, JSON_THROW_ON_ERROR),
+                json_encode($unattributed, JSON_THROW_ON_ERROR),
+            ),
+        );
+        self::assertGreaterThan(0, array_sum($unattributed), 'The measurement must have observed real saves.');
+
+        self::assertLessThanOrEqual(
+            self::SAVES_PER_MODE * self::MAX_ACCOUNT_READS_PER_SAVE,
+            $accountReads,
+            sprintf(
+                'NFR-001: %d account reads across %d attributed saves exceeds %d per save. '
+                . 'Actor resolution must not scale with the entity.',
+                $accountReads,
+                self::SAVES_PER_MODE,
+                self::MAX_ACCOUNT_READS_PER_SAVE,
+            ),
+        );
+        self::assertGreaterThanOrEqual(
+            self::SAVES_PER_MODE,
+            $accountReads,
+            'The account must actually be consulted — otherwise an equal statement count '
+            . 'would only prove attribution is switched off, which SC-001 above forbids.',
+        );
     }
 
     /**
-     * @param list<float> $values
+     * @param ?DatabaseInterface $database Installed in place of the bootstrapper's
+     *        own connection, so a decorator can observe what the kernel-built
+     *        repository asks of storage (#2542).
      */
-    private static function median(array $values): float
+    private function bootKernel(?DatabaseInterface $database = null): object
     {
-        sort($values);
-        $count = \count($values);
-        $middle = intdiv($count, 2);
-
-        return ($count % 2 === 1)
-            ? $values[$middle]
-            : ($values[$middle - 1] + $values[$middle]) / 2.0;
-    }
-
-    // ------------------------------------------------------------------
-    // Helpers (bootstrap mirrors KernelValidationWiringTest)
-    // ------------------------------------------------------------------
-
-    private function bootKernel(): object
-    {
-        $kernel = new class (sys_get_temp_dir(), new NullLogger()) extends AbstractKernel {
-            public function __construct(string $projectRoot, LoggerInterface $logger)
+        $kernel = new class (sys_get_temp_dir(), new NullLogger(), $database) extends AbstractKernel {
+            public function __construct(string $projectRoot, LoggerInterface $logger, private readonly ?DatabaseInterface $suppliedDatabase = null)
             {
                 parent::__construct($projectRoot, $logger);
                 // DatabaseBootstrapper reads `config.database` as a path string.
@@ -205,7 +225,13 @@ final class KernelRevisionAuthorTest extends TestCase
 
             public function publicBoot(): void
             {
-                $this->bootDatabase();
+                if ($this->suppliedDatabase !== null) {
+                    // Must be in place BEFORE bootEntityTypeManager(), which
+                    // captures the database by value into its repository factory.
+                    $this->database = $this->suppliedDatabase;
+                } else {
+                    $this->bootDatabase();
+                }
                 $this->bootEntityTypeManager();
             }
 
@@ -214,9 +240,8 @@ final class KernelRevisionAuthorTest extends TestCase
                 return $this->entityTypeManager;
             }
 
-            public function publicDatabase(): DBALDatabase
+            public function publicDatabase(): DatabaseInterface
             {
-                \assert($this->database instanceof DBALDatabase);
                 return $this->database;
             }
         };
@@ -230,7 +255,7 @@ final class KernelRevisionAuthorTest extends TestCase
      * Register the revisionable subject type and resolve its repository
      * through the PRODUCTION factory closure — the seam under test.
      */
-    private function registerSubjectType(object $kernel): EntityRepositoryInterface
+    private function registerSubjectType(object $kernel, ?DatabaseInterface $schemaDatabase = null): EntityRepositoryInterface
     {
         $type = new EntityType(
             id: self::ENTITY_TYPE_ID,
@@ -241,8 +266,12 @@ final class KernelRevisionAuthorTest extends TestCase
             revisionDefault: true,
         );
         $kernel->publicEntityTypeManager()->registerEntityType($type, registrant: self::class);
+        // Schema mutation goes through the concrete DBAL-backed coordinator
+        // ([S1-DB107]), so a decorated database is handed the undecorated one
+        // for setup. That also keeps setup statements out of the #2542 count,
+        // which is measuring saves, not table creation.
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
-            $kernel->publicDatabase(),
+            $schemaDatabase ?? $kernel->publicDatabase(),
             $kernel->publicEntityTypeManager(),
             [$type],
         );
@@ -258,6 +287,52 @@ final class ProvenanceStubAccount implements AccountInterface
 
     public function id(): int|string
     {
+        return $this->uid;
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        return false;
+    }
+
+    public function getRoles(): array
+    {
+        return [];
+    }
+
+    public function isAuthenticated(): bool
+    {
+        return $this->uid > 0;
+    }
+}
+
+/**
+ * A stub account that records how often it is read (#2542).
+ *
+ * Actor resolution is meant to be one `id()` call per save. Counting it turns
+ * "attribution is cheap" into an exact assertion instead of a latency
+ * measurement a loaded runner can invalidate.
+ */
+final class ProvenanceCountingAccount implements AccountInterface
+{
+    private int $reads = 0;
+
+    public function __construct(private readonly int $uid) {}
+
+    public function reads(): int
+    {
+        return $this->reads;
+    }
+
+    public function resetReads(): void
+    {
+        $this->reads = 0;
+    }
+
+    public function id(): int|string
+    {
+        $this->reads++;
+
         return $this->uid;
     }
 
