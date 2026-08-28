@@ -25,16 +25,18 @@ use Waaseyaa\Database\UpdateInterface;
  * Counting here rather than at the driver also means the count is a property of
  * the code under test rather than of the SQL dialect underneath it.
  *
- * `schema()` and `quoteIdentifier()` are deliberately NOT counted: neither
- * issues a statement, and `schema()` in particular is consulted during setup in
- * a way that would swamp the signal.
+ * `quoteIdentifier()` is deliberately NOT counted: it does not issue a
+ * statement. `schema()` IS counted: save-time `tableExists` / `fieldExists`
+ * go through it and reach SQLite via Doctrine. Setup DDL must stay on the
+ * undecorated handle (S1-DB107) so table creation does not swamp the signal —
+ * that is a callsite choice, not a reason to leave schema probes invisible.
  *
  * @api
  */
 final class StatementCountingDatabase implements DatabaseInterface
 {
     /** @var array<string, int> */
-    private array $counts = ['select' => 0, 'insert' => 0, 'update' => 0, 'delete' => 0, 'transaction' => 0, 'query' => 0];
+    private array $counts = ['select' => 0, 'insert' => 0, 'update' => 0, 'delete' => 0, 'transaction' => 0, 'query' => 0, 'schema' => 0];
 
     public function __construct(private readonly DatabaseInterface $inner) {}
 
@@ -99,6 +101,8 @@ final class StatementCountingDatabase implements DatabaseInterface
 
     public function schema(): SchemaInterface
     {
+        $this->counts['schema']++;
+
         return $this->inner->schema();
     }
 

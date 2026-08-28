@@ -61,10 +61,9 @@ final class KernelRevisionAuthorTest extends TestCase
      * What attribution actually does is read one in-memory holder and call
      * `id()`. So the invariant is exact and contention-insensitive: an
      * attributed save issues the SAME database statements as an unattributed
-     * one, and consults the account a bounded constant number of times. The
-     * regression this guards — resolving the actor by loading a user entity,
-     * or re-reading the context per field — moves both numbers immediately and
-     * on any machine.
+     * one, and consults the account exactly once. The regression this guards —
+     * resolving the actor by loading a user entity, or re-reading the
+     * context per field — moves both numbers immediately and on any machine.
      *
      * Deliberately NOT a looser wall-clock bound: a bound wide enough to
      * survive runner contention is wide enough to admit a per-save query, which
@@ -77,11 +76,12 @@ final class KernelRevisionAuthorTest extends TestCase
     /**
      * Account reads permitted per attributed save.
      *
-     * One `id()` for the revision author is the shipped cost. The ceiling
-     * leaves room for a second read without failing while still refusing
-     * anything that scales with the entity (a per-field or per-column read).
+     * One `id()` for the revision author is the shipped cost
+     * (`EntityRepository::resolveActor()`). The ceiling is that same 1: a
+     * second read is exactly double resolution, or per-field `id()` on this
+     * one-field fixture, and must fail.
      */
-    private const int MAX_ACCOUNT_READS_PER_SAVE = 2;
+    private const int MAX_ACCOUNT_READS_PER_SAVE = 1;
 
     protected function tearDown(): void
     {
