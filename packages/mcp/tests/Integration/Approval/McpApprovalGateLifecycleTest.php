@@ -39,6 +39,7 @@ use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
 use Waaseyaa\Mcp\McpEndpoint;
+use Waaseyaa\Mcp\McpErrorCode;
 
 /**
  * #2177 F1 slice B, end to end through the real JSON-RPC boundary against a
@@ -671,7 +672,7 @@ final class McpApprovalGateLifecycleTest extends TestCase
         $body = $this->decode($response);
 
         self::assertSame(0, self::$mutations, 'The tool MUST NOT run when approval state cannot be read.');
-        self::assertSame(-32002, $body['error']['code']);
+        self::assertSame(McpErrorCode::APPROVAL_STORE_UNAVAILABLE, $body['error']['code']);
         self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $body['error']['data']['correlation_id']);
 
         // Sanitized: no driver detail, no exception class, no table name.
@@ -699,7 +700,10 @@ final class McpApprovalGateLifecycleTest extends TestCase
         ));
 
         self::assertSame(0, self::$mutations);
-        self::assertSame(-32002, $body['error']['code']);
+        // The injected failure is the AUDIT ledger, not the approval store.
+        // While both refusals shared -32002 the distinction was unobservable
+        // from the wire; the two codes now say which subsystem failed (#2561).
+        self::assertSame(McpErrorCode::AUDIT_TRAIL_UNAVAILABLE, $body['error']['code']);
         self::assertSame(
             ApprovalStatus::Approved,
             $this->store->find($requestId)?->status,
@@ -755,7 +759,7 @@ final class McpApprovalGateLifecycleTest extends TestCase
         $body = $this->decode($response);
 
         self::assertSame(0, self::$mutations);
-        self::assertSame(-32002, $body['error']['code']);
+        self::assertSame(McpErrorCode::APPROVAL_STORE_UNAVAILABLE, $body['error']['code']);
         self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $body['error']['data']['correlation_id']);
         self::assertStringNotContainsString('Exception', (string) $response->getContent());
 
@@ -775,7 +779,7 @@ final class McpApprovalGateLifecycleTest extends TestCase
     /**
      * The interface promises typed {@see ApprovalStoreException}s, but a
      * third-party adapter that breaks that contract and throws anything else
-     * must STILL fail closed: no execution, the sanitized -32002 body, and
+     * must STILL fail closed: no execution, the sanitized refusal body, and
      * exactly one honest terminal record — never an uncaught crash.
      */
     #[Test]
@@ -787,7 +791,7 @@ final class McpApprovalGateLifecycleTest extends TestCase
         $body = $this->decode($response);
 
         self::assertSame(0, self::$mutations, 'The tool MUST NOT run when the store misbehaves.');
-        self::assertSame(-32002, $body['error']['code']);
+        self::assertSame(McpErrorCode::APPROVAL_STORE_UNAVAILABLE, $body['error']['code']);
         self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $body['error']['data']['correlation_id']);
 
         // Sanitized: the exception's message, class, and trace never leave.
@@ -823,7 +827,7 @@ final class McpApprovalGateLifecycleTest extends TestCase
         ));
 
         self::assertSame(0, self::$mutations);
-        self::assertSame(-32002, $body['error']['code']);
+        self::assertSame(McpErrorCode::APPROVAL_STORE_UNAVAILABLE, $body['error']['code']);
 
         $rows = $this->ledger();
         self::assertCount(1, $rows);
@@ -855,7 +859,7 @@ final class McpApprovalGateLifecycleTest extends TestCase
         $body = $this->decode($response);
 
         self::assertSame(0, self::$mutations);
-        self::assertSame(-32002, $body['error']['code']);
+        self::assertSame(McpErrorCode::APPROVAL_STORE_UNAVAILABLE, $body['error']['code']);
 
         $raw = (string) $response->getContent();
         self::assertStringNotContainsString('SQLSTATE', $raw);

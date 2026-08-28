@@ -257,7 +257,7 @@ final class RouteBuilder
      * ```php
      * RouteBuilder::create('/mcp')
      *     ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [
-     *         RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+     *         RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => McpErrorCode::REQUEST_TOO_LARGE,
      *         RefusalEnvelope::REASON_PARSE_ERROR => -32700,
      *     ])
      * ```

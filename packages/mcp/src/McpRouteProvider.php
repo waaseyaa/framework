@@ -28,15 +28,17 @@ final readonly class McpRouteProvider
      * The JSON-RPC error codes the kernel must use when it refuses a request to
      * an MCP endpoint before {@see StreamableHttpTransportGuard} can run.
      *
-     * `-32043` is this transport's oversize-body refusal, matching the guard's
-     * own; `-32700` is JSON-RPC 2.0's parse error. Both were previously
-     * unreachable because the kernel answered first in JSON:API (#2594), which
-     * is not a shape a JSON-RPC client can interpret.
+     * {@see McpErrorCode::REQUEST_TOO_LARGE} is this transport's oversize-body
+     * refusal, matching the guard's own; `-32700` is JSON-RPC 2.0's parse
+     * error. Both were previously unreachable because the kernel answered first
+     * in JSON:API (#2594), which is not a shape a JSON-RPC client can interpret.
+     * The oversize code is the allocation point, not a leftover `-32043`: that
+     * literal is reserved under the protocol this server advertises (#2561).
      *
      * @var array<string, int>
      */
     private const array REFUSAL_CODES = [
-        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => McpErrorCode::REQUEST_TOO_LARGE,
         RefusalEnvelope::REASON_PARSE_ERROR => -32700,
     ];
 

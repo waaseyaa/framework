@@ -63,6 +63,12 @@ is not used. Canonical envelope contract: docs/specs/api-layer.md. -->
      and the now-deleted `WorkflowGuardsApiRouter` from the dispatch-contract example list. No other
      infrastructure contract surface affected. -->
 
+<!-- Spec reviewed 2026-08-27 - #2553: `JsonApiRouter::handle()` now threads `$ctx->query` into
+     the WRITE path too (`store()` and `update()`), not only `index()`/`show()`. It carries the
+     `?representation=` toggle, which selects the projection of the mutation RESPONSE ECHO and
+     never what is written; without it a client keeping the mutation response as its next edit
+     state was safe on the first round trip and destructive on the second. Full contract in
+     docs/specs/api-layer.md "Mutation echoes (#2553)". -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-3 (#1920): `JsonApiRouter::handle()` now
      threads the request's query string into single-resource `show()` calls (previously only
      `index()` received it) — needed for the new `?workingCopy=1` toggle, full contract in

@@ -82,8 +82,11 @@ final class JsonApiRouter implements DomainRouterInterface
             // fixes a pre-existing gap where sparse fieldsets (`fields[type]`)
             // silently never reached a single-resource GET over HTTP.
             $ctx->method === 'GET' && $id !== null => $jsonApiController->show($entityTypeId, $id, $ctx->query),
-            $ctx->method === 'POST' => $jsonApiController->store($entityTypeId, $ctx->parsedBody ?? []),
-            $ctx->method === 'PATCH' && $id !== null => $jsonApiController->update($entityTypeId, $id, $ctx->parsedBody ?? [], $expectation),
+            // #2553: $ctx->query reaches the WRITE path too, for the
+            // `?representation=` toggle. It selects the projection of the
+            // response echo only; it never influences what is written.
+            $ctx->method === 'POST' => $jsonApiController->store($entityTypeId, $ctx->parsedBody ?? [], $ctx->query),
+            $ctx->method === 'PATCH' && $id !== null => $jsonApiController->update($entityTypeId, $id, $ctx->parsedBody ?? [], $expectation, $ctx->query),
             $ctx->method === 'DELETE' && $id !== null => $jsonApiController->destroy($entityTypeId, $id, $expectation),
             default => JsonApiDocument::fromErrors(
                 [new JsonApiError('400', 'Bad Request', 'Unhandled method/resource combination.')],

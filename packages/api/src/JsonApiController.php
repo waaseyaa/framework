@@ -549,9 +549,17 @@ final class JsonApiController
      *      a client that believes it holds stored bytes and holds stripped
      *      ones is precisely the destructive round trip #2552 reports.
      *
+     * Rule 2 is waived on a MUTATION (#2553). `workingCopy` exists only as the
+     * authorization anchor, and a successful `PATCH`/`POST` is a stronger one:
+     * the caller has already passed the entity `update`/`create` gate to get
+     * there. Requiring the pairing on a write would be ceremony with nothing
+     * behind it, and `workingCopy` has no read-side meaning on a write anyway.
+     *
      * @param array<string, mixed> $query
+     * @param bool $writeAnchored The caller's own write is the authorization
+     *        anchor, so `?workingCopy=1` is not additionally required.
      */
-    private function representationError(array $query, bool $allowEditing): ?JsonApiDocument
+    private function representationError(array $query, bool $allowEditing, bool $writeAnchored = false): ?JsonApiDocument
     {
         $value = $query['representation'] ?? null;
         if ($value === null) {
@@ -578,7 +586,7 @@ final class JsonApiController
             ));
         }
 
-        if (!$this->workingCopyRequested($query)) {
+        if (!$writeAnchored && !$this->workingCopyRequested($query)) {
             return $this->errorDocument(JsonApiError::badRequest(
                 "The '" . self::REPRESENTATION_EDITING . "' representation requires ?workingCopy=1.",
             ));
@@ -672,13 +680,23 @@ final class JsonApiController
      *
      * @param string               $entityTypeId The entity type.
      * @param array<string, mixed> $data         The full JSON:API request body (expects 'data.type' and optionally 'data.attributes').
+     * @param array<string, mixed> $query        Query parameters. Supports #2553's `representation`,
+     *                                            which selects the projection of the RESPONSE ECHO
+     *                                            only — never what is written.
      */
-    public function store(string $entityTypeId, array $data): JsonApiDocument
+    public function store(string $entityTypeId, array $data, array $query = []): JsonApiDocument
     {
         $exposureError = $this->entityTypeExposureError($entityTypeId);
         if ($exposureError !== null) {
             return $exposureError;
         }
+
+        // #2553: validate the echo projection before anything is written.
+        $representationError = $this->representationError($query, allowEditing: true, writeAnchored: true);
+        if ($representationError !== null) {
+            return $representationError;
+        }
+        $editingRepresentation = $this->editingRepresentationRequested($query);
 
         // Validate request data structure.
         if (!isset($data['data']) || !isset($data['data']['type'])) {
@@ -882,17 +900,12 @@ final class JsonApiController
             return $this->errorDocument($this->workflowTransitionDeniedError($e));
         }
 
-        $resource = $this->serializer->serialize(
-            $entity,
-            $this->accessHandler,
-            $this->account,
-            includeMutationToken: true,
-        );
+        [$resource, $servedRepresentation] = $this->mutationEcho($entity, $editingRepresentation);
 
         return new JsonApiDocument(
             data: $resource,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
-            meta: ['created' => true],
+            meta: ['created' => true, 'representation' => $servedRepresentation],
             statusCode: 201,
         );
     }
@@ -903,17 +916,32 @@ final class JsonApiController
      * @param string               $entityTypeId The entity type.
      * @param int|string           $id           The entity ID.
      * @param array<string, mixed> $data         The full JSON:API request body (expects 'data.type' and optionally 'data.attributes').
+     * @param array<string, mixed> $query        Query parameters. Supports #2553's `representation`,
+     *                                            which selects the projection of the RESPONSE ECHO
+     *                                            only — never what is written.
      */
     public function update(
         string $entityTypeId,
         int|string $id,
         array $data,
         ?EntityMutationToken $expectedMutation = null,
+        array $query = [],
     ): JsonApiDocument {
         $exposureError = $this->entityTypeExposureError($entityTypeId);
         if ($exposureError !== null) {
             return $exposureError;
         }
+
+        // #2553: validate the requested echo projection BEFORE anything is
+        // loaded or written. An unrecognized value must never write and then
+        // report a 400, and — as on the read side — must never fall back to
+        // the sanitized projection, because a client that believes it holds
+        // stored bytes and holds stripped ones is the destructive round trip.
+        $representationError = $this->representationError($query, allowEditing: true, writeAnchored: true);
+        if ($representationError !== null) {
+            return $representationError;
+        }
+        $editingRepresentation = $this->editingRepresentationRequested($query);
 
         $entity = $this->loadByIdOrUuid($entityTypeId, $id);
 
@@ -1130,18 +1158,62 @@ final class JsonApiController
             }
         }
 
+        [$resource, $servedRepresentation] = $this->mutationEcho($target, $editingRepresentation);
+
+        return JsonApiDocument::fromResource(
+            $resource,
+            links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
+            // Stated on EVERY mutation response, exactly as show() states it on
+            // every read: a client keeping this body as its next edit state can
+            // tell which projection it is holding without inferring it from the
+            // request it thinks it made (#2553).
+            meta: ['representation' => $servedRepresentation],
+            headers: $this->mutationHeaders($target),
+        );
+    }
+
+    /**
+     * Serialize a completed mutation's echo, honouring the requested
+     * projection, and report which projection was actually served (#2553).
+     *
+     * Keeping the mutation response as the next edit state is the normal SPA
+     * pattern, so an echo that has been through the sanitizer makes the
+     * FOLLOWING save destructive even when the first round trip was safe. The
+     * `editing` projection therefore applies to writes too — opt-in, so no
+     * existing consumer's wire shape changes.
+     *
+     * A downgrade rather than a refusal is deliberate. The per-field `edit`
+     * gate can deny an HTML field the caller may view but may not rewrite, and
+     * by the time the echo is built the write has already committed: failing
+     * the response would tell a client its successful mutation failed. The
+     * downgrade is not silent either — the returned representation is stated in
+     * `meta`, which is precisely what lets a client detect it.
+     *
+     * @return array{JsonApiResource, string}
+     */
+    private function mutationEcho(EntityInterface $entity, bool $editingRequested): array
+    {
         $resource = $this->serializer->serialize(
-            $target,
+            $entity,
             $this->accessHandler,
             $this->account,
             includeMutationToken: true,
         );
 
-        return JsonApiDocument::fromResource(
-            $resource,
-            links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
-            headers: $this->mutationHeaders($target),
-        );
+        if (!$editingRequested || $this->losslessHtmlFieldEditDenied($entity, $entity, $resource)) {
+            return [$resource, self::REPRESENTATION_RENDERED];
+        }
+
+        return [
+            $this->serializer->serialize(
+                $entity,
+                $this->accessHandler,
+                $this->account,
+                includeMutationToken: true,
+                losslessHtml: true,
+            ),
+            self::REPRESENTATION_EDITING,
+        ];
     }
 
     /**

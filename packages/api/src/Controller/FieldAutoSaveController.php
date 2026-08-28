@@ -192,8 +192,19 @@ final class FieldAutoSaveController
         // ResourceSerializer and the GraphQL plain-field resolver) that a
         // stored <script>/event-handler payload would otherwise reach
         // unsanitized. $allFields[$key] is guaranteed set (checked in step 5).
+        //
+        // #2553: that sanitized echo makes the NEXT auto-save destructive for a
+        // client that keeps the response as its editor state, exactly as it did
+        // on JSON:API's PATCH. The same opt-in resolves it here, and the
+        // authorization argument is even simpler: step 5 already required
+        // field-`edit` access on THIS field, and step 9 just wrote the caller's
+        // own bytes to it, so the lossless echo returns what this caller
+        // supplied. As on JSON:API, the served projection is stated in `meta`
+        // so a client can tell which one it is holding.
         $fieldType = $allFields[$key]->getType();
-        $responseValue = RichTextSanitizer::isHtmlFieldType($fieldType)
+        $editingRepresentation = $this->editingRepresentationRequested($request);
+        $isHtmlField = RichTextSanitizer::isHtmlFieldType($fieldType);
+        $responseValue = $isHtmlField && !$editingRepresentation
             ? $this->richTextSanitizer->sanitizeValue($target->get($key))
             : $target->get($key);
 
@@ -202,9 +213,26 @@ final class FieldAutoSaveController
                 'id' => (string) $target->id(),
                 'type' => $entityType,
                 'attributes' => [$key => $responseValue],
-                'meta' => ['mutation_token' => $target->mutationToken()?->toOpaqueString()],
+                'meta' => [
+                    'mutation_token' => $target->mutationToken()?->toOpaqueString(),
+                    'representation' => $editingRepresentation ? 'editing' : 'rendered',
+                ],
             ],
         ], headers: ['ETag' => $target->mutationToken()?->toStrongEtag() ?? '']);
+    }
+
+    /**
+     * Whether the caller opted into the lossless editor echo (#2553).
+     *
+     * Unlike JSON:API's controller this surface does not need a structural
+     * 400 for an unknown value: it serves exactly one field, the caller just
+     * wrote it under the field-`edit` gate, and an unrecognized value is
+     * simply not the opt-in. Mirroring the JSON:API 400 here would mean
+     * refusing a successful write over a query typo.
+     */
+    private function editingRepresentationRequested(Request $request): bool
+    {
+        return $request->query->get('representation') === 'editing';
     }
 
     private function isJsonContentType(Request $request): bool
