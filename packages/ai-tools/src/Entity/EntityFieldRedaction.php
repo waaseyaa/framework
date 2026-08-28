@@ -32,7 +32,7 @@ final class EntityFieldRedaction
      *
      * @var list<string>
      */
-    public const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+    public const array ALWAYS_INTERNAL_FIELDS = ['pass', 'legacy_pass', 'password', 'password_hash'];
 
     private function __construct() {}
 

@@ -20,6 +20,10 @@ return [
     'Waaseyaa\Auth\Extension\ProvidesAuthExtensionsInterface' => 'public',
     'Waaseyaa\Auth\Extension\RegistrationPolicyInterface' => 'public',
     'Waaseyaa\Auth\Extension\RegistrationProfileHandlerInterface' => 'public',
+    // #2544: the extension point a deployment implements to accept one more
+    // imported credential format. Public by intent — a migration from a system
+    // the framework has never heard of is exactly the case it exists for.
+    'Waaseyaa\Auth\Password\LegacyPasswordVerifierInterface' => 'public',
     // Layer 0: Analytics — public (Umami backend-sender transport seam, analytics M1+M2)
     'Waaseyaa\Analytics\Transport' => 'public',
     // Layer 0: Foundation — public

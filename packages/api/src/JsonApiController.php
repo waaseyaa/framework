@@ -45,7 +45,7 @@ final class JsonApiController
      *
      * @var list<string>
      */
-    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'legacy_pass', 'password', 'password_hash'];
 
     /**
      * The sanitized projection every consumer has always received, and the

@@ -1,5 +1,8 @@
 # OCAP Audit Log Substrate
 
+<!-- Spec reviewed 2026-08-27 - #2544: the `user.credentials` capability issuer now grants `['status', 'pass', 'legacy_pass']`. `legacy_pass` is read under the SAME CredentialVerification reason as `pass` because it is a password equivalent until the first successful login upgrades it away - it must not be reachable through any weaker reason. No new issuer, reason, or actor semantics. -->
+
+
 <!-- Spec reviewed 2026-08-24 - #1856: EntityLifecycleAuditListener keys PRE_SAVE isNew() on the entity object (WeakMap) and consumes that entry at the start of POST_SAVE, including when the writer throws. Mixed saveMany create/update batches keep per-entity is_new provenance. Event order, transactions, and deleteMany PRE_DELETE buffering are unchanged; canonical pairing contract lives in docs/specs/entity-system.md. -->
 <!-- Spec reviewed 2026-08-20 - #2464: successful copy-forward rollback audit
 attributes now retain source_revision_id separately from from_revision_id and

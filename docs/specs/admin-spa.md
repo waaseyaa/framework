@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-27 - #2544: `GenericAdminSurfaceHost::ALWAYS_INTERNAL_FIELDS` gains `legacy_pass`, so the imported-credential field is rejected as an admin-surface filter/sort field exactly like `pass` - the same one-bit oracle R13 WP1 closed. -->
+
 <!-- Spec reviewed 2026-08-27 - #2611: embed lifecycle failure classification
 maps both an application conflict (409) and an entity mutation precondition
 failure (412) to the bounded conflict presentation. The classification carries

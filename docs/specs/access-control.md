@@ -1,5 +1,8 @@
 # Access Control
 
+<!-- Spec reviewed 2026-08-27 - #2544 legacy password upgrade: `User::$legacy_pass` is a NEW credential field carrying `pass`'s exact classification - FieldReadLevel::Internal, on every always-internal list, readable only through the audited `user.credentials` capability. It holds a credential imported from another system pending one-time upgrade. Keeping it separate from `pass` is what makes "a current hash is never downgraded" structural: `pass` only ever holds a current Waaseyaa hash, only `legacy_pass` reaches a legacy verifier, and an account with a current hash never consults its legacy value. `UserCredentialSnapshot` gains `legacyPasswordHash`. Contract: docs/upgrade-notes/legacy-password-upgrade.md. -->
+
+
 <!-- Spec reviewed 2026-08-27 - #2619: AuthServiceProvider now consumes the
 shared Foundation RuntimePolicy resolver. AuthConfig and token-secret custody
 retain the #2617 precedence and failure semantics; this removes the private

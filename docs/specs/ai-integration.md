@@ -1,5 +1,7 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-27 - #2544: `EntityFieldRedaction::ALWAYS_INTERNAL_FIELDS` gains `legacy_pass`, so an imported credential pending upgrade is redacted from agent-tool output exactly like `pass`. -->
+
 <!-- Spec reviewed 2026-08-27 - #2624: McpServiceProvider's development-only
 NullConfigStorage fallback is classified by the boot-scoped RuntimePolicy.
 Invalid explicit environment configuration is production-like and cannot fall

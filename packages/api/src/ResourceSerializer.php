@@ -45,7 +45,7 @@ final class ResourceSerializer
      * declares them as `#[Field(... internal: true)]`. Defense in depth for
      * entities that store credential material in raw `_data` keys.
      */
-    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'legacy_pass', 'password', 'password_hash'];
 
     private readonly RichTextSanitizer $richTextSanitizer;
 

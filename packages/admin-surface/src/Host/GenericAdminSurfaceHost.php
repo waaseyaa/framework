@@ -57,7 +57,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
      *
      * @var list<string>
      */
-    private const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+    private const array ALWAYS_INTERNAL_FIELDS = ['pass', 'legacy_pass', 'password', 'password_hash'];
 
     /** Config rows with an explicitly reviewed generic edit/delete lifecycle. */
     private const array MUTABLE_CONFIG_ROW_TYPES = ['taxonomy_vocabulary'];

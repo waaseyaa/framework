@@ -1,4 +1,6 @@
 # App controller invocation (SSR `Class::method`)
+
+<!-- Spec reviewed 2026-08-27 - #2544: `EntityRenderer::ALWAYS_INTERNAL_FIELDS` gains `legacy_pass`, so an imported credential pending upgrade never reaches an SSR-rendered page - same treatment as `pass`. -->
 <!-- Spec reviewed 2026-08-27 - #2624: AppControllerRouter receives the
 boot-resolved RuntimePolicy debug decision from SsrServiceProvider. Exception
 mapping never rereads APP_DEBUG, so post-bootstrap process mutation cannot
