@@ -45,16 +45,24 @@ final class AccountScopedJsonApiController
         return $this->run(fn(): JsonApiDocument => $this->controller->show($entityTypeId, $id, $query));
     }
 
-    /** @param array<string, mixed> $document */
-    public function store(string $entityTypeId, array $document): JsonApiDocument
+    /**
+     * @param array<string, mixed> $document
+     * @param array<string, mixed> $query
+     */
+    public function store(string $entityTypeId, array $document, array $query = []): JsonApiDocument
     {
-        return $this->run(fn(): JsonApiDocument => $this->controller->store($entityTypeId, $document));
+        return $this->run(fn(): JsonApiDocument => $this->controller->store($entityTypeId, $document, $query));
     }
 
-    /** @param array<string, mixed> $document */
-    public function update(string $entityTypeId, int|string $id, array $document): JsonApiDocument
+    /**
+     * @param array<string, mixed> $document
+     * @param array<string, mixed> $query
+     */
+    public function update(string $entityTypeId, int|string $id, array $document, array $query = []): JsonApiDocument
     {
-        return $this->run(fn(): JsonApiDocument => $this->controller->update($entityTypeId, $id, $document));
+        return $this->run(
+            fn(): JsonApiDocument => $this->controller->update($entityTypeId, $id, $document, query: $query),
+        );
     }
 
     private function run(callable $callback): JsonApiDocument
