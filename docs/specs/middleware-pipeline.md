@@ -389,7 +389,8 @@ body-size guard's 413, and the JSON pre-parse's 400 on a malformed body
 (`HttpKernel::parseJsonBody()`). Both answered in the framework's JSON:API error
 document. On an endpoint that advertises a different transport that document is
 a shape the client cannot interpret, and it *shadows* the endpoint's own
-refusal — the MCP endpoint's `-32043` and `-32700` answers were unreachable
+refusal — the MCP endpoint's oversize-body JSON-RPC refusal
+(`McpErrorCode::REQUEST_TOO_LARGE`) and `-32700` answers were unreachable
 because the kernel had already replied (#2594).
 
 A route therefore declares the vocabulary its kernel-level refusals are
@@ -398,7 +399,7 @@ rendered in, as plain route-option data:
 ```php
 RouteBuilder::create('/mcp')
     ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [
-        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => McpErrorCode::REQUEST_TOO_LARGE,
         RefusalEnvelope::REASON_PARSE_ERROR       => -32700,
     ])
 ```

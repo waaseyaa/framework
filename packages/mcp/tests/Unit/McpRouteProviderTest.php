@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Http\Refusal\HttpRefusal;
 use Waaseyaa\Foundation\Http\Refusal\RefusalEnvelope;
 use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadataConfig;
+use Waaseyaa\Mcp\McpErrorCode;
 use Waaseyaa\Mcp\McpRouteProvider;
 use Waaseyaa\Mcp\StreamableHttpRequestSnapshot;
 use Waaseyaa\Mcp\StreamableHttpTransportGuard;
@@ -139,7 +140,7 @@ final class McpRouteProviderTest extends TestCase
             );
             self::assertSame(
                 [
-                    RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+                    RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => McpErrorCode::REQUEST_TOO_LARGE,
                     RefusalEnvelope::REASON_PARSE_ERROR => -32700,
                 ],
                 $route->getOption(RefusalEnvelope::CODES_OPTION),

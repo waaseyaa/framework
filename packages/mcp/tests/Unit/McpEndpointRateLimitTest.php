@@ -11,13 +11,14 @@ use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
+use Waaseyaa\Mcp\McpErrorCode;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpResponse;
 
 /**
  * Per-principal MCP rate limiting (#2136 WP3): keyed by tier + principal id,
- * JSON-RPC -32029 + HTTP 429 when exceeded, and a sanitized fail-closed 503
+ * a JSON-RPC rate-limit error + HTTP 429 when exceeded, and a sanitized fail-closed 503
  * when the limiter substrate cannot make a durable decision.
  */
 #[CoversClass(McpEndpoint::class)]
@@ -138,7 +139,7 @@ final class McpEndpointRateLimitTest extends TestCase
         $limited = $this->ping($endpoint, 7);
         self::assertSame(429, $limited->statusCode);
         $body = json_decode($limited->body, true);
-        self::assertSame(-32029, $body['error']['code']);
+        self::assertSame(McpErrorCode::RATE_LIMIT_EXCEEDED, $body['error']['code']);
         self::assertSame(60, $body['error']['data']['retry_after_seconds']);
     }
 

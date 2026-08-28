@@ -16,8 +16,8 @@ use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
  * transport's vocabulary, or the refusal is a shape its client cannot
  * interpret. Before this seam existed, `BodySizeLimitMiddleware`'s 413 and the
  * kernel's malformed-JSON 400 both answered ahead of the MCP endpoint's own
- * transport guard, so the endpoint's `-32043` and `-32700` JSON-RPC refusals
- * were unreachable (#2594).
+ * transport guard, so the endpoint's oversize-body and parse-error JSON-RPC
+ * refusals were unreachable (#2594).
  *
  * The route declares the vocabulary as plain, cacheable route options — a
  * transport name plus a `reason => error code` map — so no upward import is
