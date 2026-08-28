@@ -22,6 +22,10 @@ final class UserFieldReadClassificationTest extends TestCase
             'name' => FieldReadLevel::Protected,
             'mail' => FieldReadLevel::Internal,
             'pass' => FieldReadLevel::Internal,
+            // #2544: a credential imported from another system, pending one-time
+            // upgrade. It is a password equivalent while it exists, so it
+            // carries `pass`'s classification exactly.
+            'legacy_pass' => FieldReadLevel::Internal,
             'roles' => FieldReadLevel::Internal,
             'permissions' => FieldReadLevel::Internal,
             'email_verified' => FieldReadLevel::Internal,

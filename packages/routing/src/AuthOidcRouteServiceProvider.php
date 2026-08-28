@@ -19,6 +19,7 @@ use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\SetupTwoFactorController;
 use Waaseyaa\Auth\Controller\VerifyEmailController;
 use Waaseyaa\Auth\Controller\VerifyTwoFactorController;
+use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Auth\TwoFactorService;
@@ -56,6 +57,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $twoFactor = $this->resolve(TwoFactorService::class);
         $identityLookup = $this->resolve(UserIdentityLookupInterface::class);
         $internalFields = $this->resolve(UserInternalFieldReaderInterface::class);
+        $passwords = $this->resolve(LegacyPasswordUpgrade::class);
         $etm = $entityTypeManager;
 
         $router->addRoute(
@@ -139,6 +141,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     twoFactor: $twoFactor,
                     identityLookup: $identityLookup,
                     internalFields: $internalFields,
+                    passwords: $passwords,
                 ))
                 ->allowAll()
                 ->methods('POST')

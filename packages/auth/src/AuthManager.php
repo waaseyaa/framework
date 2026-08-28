@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth;
 
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\User\User;
 
 /**
@@ -12,14 +13,26 @@ use Waaseyaa\User\User;
  */
 final class AuthManager
 {
-    public function __construct(private readonly UserInternalFieldReaderInterface $internalFields) {}
+    public function __construct(
+        private readonly UserInternalFieldReaderInterface $internalFields,
+        private readonly ?LegacyPasswordUpgrade $passwords = null,
+    ) {}
 
     /**
      * Validate user credentials.
+     *
+     * Delegates to {@see LegacyPasswordUpgrade} when one is wired, so this path
+     * and the HTTP login controller make the identical decision — including the
+     * one-time upgrade of a migrated credential (#2544). Without one, behaviour
+     * is exactly the historical native-only check.
      */
     public function authenticate(User $user, string $password): bool
     {
         $credentials = $this->internalFields->credentials($user);
+        if ($this->passwords !== null) {
+            return $this->passwords->verify($user, $password, $credentials);
+        }
+
         if (!$credentials->active) {
             return false;
         }

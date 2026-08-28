@@ -29,8 +29,21 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
 {
     public function register(): void
     {
+        // #2544: legacy password verification is OPT-IN. With no
+        // `auth.legacy_passwords.formats` configured the chain is empty and
+        // accepts nothing, so a deployment that migrated nothing keeps exactly
+        // its historical authentication surface.
+        $this->singleton(Password\LegacyPasswordVerifierChain::class, fn() => $this->legacyVerifierChain());
+
+        $this->singleton(Password\LegacyPasswordUpgrade::class, fn() => new Password\LegacyPasswordUpgrade(
+            $this->resolve(\Waaseyaa\Entity\EntityTypeManagerInterface::class),
+            $this->resolve(Password\LegacyPasswordVerifierChain::class),
+            $this->resolveOptional(\Waaseyaa\Foundation\Log\LoggerInterface::class),
+        ));
+
         $this->singleton(AuthManager::class, fn() => new AuthManager(
             $this->resolve(UserInternalFieldReaderInterface::class),
+            $this->resolve(Password\LegacyPasswordUpgrade::class),
         ));
 
         $this->singleton(AtomicRateLimiterInterface::class, function () {
@@ -95,6 +108,35 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
     public function middleware(EntityTypeManager $entityTypeManager): array
     {
         return [];
+    }
+
+    /**
+     * Build the legacy-verifier chain a deployment opted into.
+     *
+     * `auth.legacy_passwords.formats` is a list of format names, not classes: a
+     * consumer declares which foreign credential formats its migration brought
+     * in, and the framework decides how to verify them. An unknown name is
+     * refused loudly at boot rather than silently dropped, because a typo that
+     * degrades to "verifies nothing" locks out every migrated member with no
+     * signal at all.
+     */
+    private function legacyVerifierChain(): Password\LegacyPasswordVerifierChain
+    {
+        $legacy = ($this->config['auth'] ?? [])['legacy_passwords'] ?? [];
+        $formats = is_array($legacy) && is_array($legacy['formats'] ?? null) ? $legacy['formats'] : [];
+
+        $verifiers = [];
+        foreach ($formats as $format) {
+            $verifiers[] = match ($format) {
+                'phpass' => new Password\PhpassPasswordVerifier(),
+                default => throw new \InvalidArgumentException(sprintf(
+                    'Unknown auth.legacy_passwords.formats entry %s. Supported: phpass.',
+                    is_string($format) ? '"' . $format . '"' : get_debug_type($format),
+                )),
+            };
+        }
+
+        return new Password\LegacyPasswordVerifierChain(...$verifiers);
     }
 
     /**
