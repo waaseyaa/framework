@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Provenance;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DatabaseInterface;
@@ -16,8 +16,12 @@ use Waaseyaa\Tests\Support\StatementCountingDatabase;
  * through Doctrine and must not be invisible to the NFR. Setup DDL stays on
  * the undecorated handle (S1-DB107); counting `schema()` construction here
  * does not put table creation on the decorator.
+ *
+ * #[CoversNothing]: the decorator lives under tests/Support, outside the
+ * coverage source include (phpunit.xml.dist: packages src). CoversClass on it
+ * is a PHPUnit warning, and failOnWarning turns that into a red shard.
  */
-#[CoversClass(StatementCountingDatabase::class)]
+#[CoversNothing]
 final class StatementCountingDatabaseTest extends TestCase
 {
     #[Test]
