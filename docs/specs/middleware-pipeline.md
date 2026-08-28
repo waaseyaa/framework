@@ -425,7 +425,12 @@ Three invariants hold, and are pinned by tests:
    and the HTTP status are untouched. A route declares an error *code*, never a
    status, so no route declaration can soften a 413 into a 200. No route is
    ever exempted from `BodySizeLimitMiddleware` — exempting `/mcp*` would have
-   fixed the shape by removing the boundary, which is not a fix.
+   fixed the shape by removing the boundary, which is not a fix. The
+   `Content-Length` fast path only treats a digit-only header (`/^\d+$/D`, the
+   same rule as `StreamableHttpTransportGuard`) as a declared length; a garbage
+   header such as `2000000abc` is not rewritten as oversize, so the actual-read
+   backstop still enforces the cap against the body and a JSON-RPC route can
+   still emit the transport's `-32600` Invalid Content-Length.
 2. **The kernel never invents an error code.** A reason left unmapped, an
    unknown transport, or ill-typed options all degrade to the JSON:API envelope.
 3. **The reported cap is the kernel's own.** `error.data.max_request_bytes`

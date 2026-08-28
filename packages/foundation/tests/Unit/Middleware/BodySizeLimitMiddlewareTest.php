@@ -185,6 +185,43 @@ final class BodySizeLimitMiddlewareTest extends TestCase
         );
     }
 
+    /**
+     * PHP `(int) '2000000abc'` is 2000000. If the fast path treats that as a
+     * declared length, a JSON-RPC route answers `-32043` (oversize) for a
+     * garbage Content-Length the transport guard would have refused as
+     * `-32600` Invalid Content-Length. The fast path must require a digit-only
+     * header; otherwise the actual-read backstop decides, and a small body
+     * reaches the handler.
+     */
+    #[Test]
+    public function a_non_digit_content_length_does_not_impersonate_an_oversize_refusal(): void
+    {
+        $middleware = new BodySizeLimitMiddleware(maxBytes: 1024);
+        $request = Request::create('/mcp', 'POST', [], [], [], [], '{"jsonrpc":"2.0"}');
+        $request->headers->set('Content-Length', '2000000abc');
+        $this->declareJsonRpcTransport($request);
+
+        $response = $middleware->process($request, $this->passthroughHandler(new Response('ok')));
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('ok', $response->getContent());
+    }
+
+    #[Test]
+    public function a_non_digit_content_length_still_trips_the_actual_read_backstop(): void
+    {
+        $middleware = new BodySizeLimitMiddleware(maxBytes: 10);
+        $request = Request::create('/mcp', 'POST', [], [], [], [], str_repeat('x', 20));
+        $request->headers->set('Content-Length', '2000000abc');
+        $this->declareJsonRpcTransport($request);
+
+        $response = $middleware->process($request, $this->passthroughHandler(new Response('ok')));
+
+        $this->assertSame(413, $response->getStatusCode());
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame(-32043, $body['error']['code']);
+    }
+
     #[Test]
     public function a_route_that_declares_no_transport_keeps_the_json_api_envelope(): void
     {

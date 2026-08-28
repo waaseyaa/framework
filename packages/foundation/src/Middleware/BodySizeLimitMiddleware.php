@@ -22,7 +22,14 @@ final class BodySizeLimitMiddleware implements HttpMiddlewareInterface
         $contentLength = $request->headers->get('Content-Length');
 
         // Fast-path: reject before reading the body when the declared length already exceeds the cap.
-        if ($contentLength !== null && (int) $contentLength > $this->maxBytes) {
+        // Only a digit-only header is a declared length — PHP's `(int)` cast would otherwise
+        // treat `2000000abc` as 2000000 and impersonate an oversize refusal on a JSON-RPC
+        // route whose transport guard would have answered `-32600` Invalid Content-Length.
+        if (
+            $contentLength !== null
+            && preg_match('/^\d+$/D', $contentLength) === 1
+            && (int) $contentLength > $this->maxBytes
+        ) {
             return $this->payloadTooLargeResponse($request);
         }
 

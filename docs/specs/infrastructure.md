@@ -2467,7 +2467,7 @@ Middleware/
     HttpHandlerInterface.php     -- handle(Request): Response
     HttpPipeline.php             -- onion-pattern HTTP middleware stack
     DebugHeaderMiddleware.php    -- X-Debug-Time/Memory/Request-Id headers (APP_DEBUG only)
-    BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413) in the route's refusal envelope
+    BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413) in the route's refusal envelope; Content-Length fast path requires a digit-only header
     JobMiddlewareInterface.php   -- process(Job, JobHandlerInterface): void
     JobHandlerInterface.php      -- handle(Job): void
     JobPipeline.php              -- onion-pattern job middleware stack
