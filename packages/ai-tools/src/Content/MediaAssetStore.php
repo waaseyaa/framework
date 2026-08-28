@@ -191,10 +191,12 @@ final readonly class MediaAssetStore implements AssetStoreInterface
             }
 
             // Fail closed on the catalog row, not on the bytes: an asset whose
-            // row was retracted — or bytes that never had one — is not
-            // readable, and the actor must be allowed to view the row.
-            $media = $this->catalogRow($assetId, $mime);
-            if ($media === null || !$this->accessHandler->check($media, 'view', $actor)->isAllowed()) {
+            // rows were all retracted — or bytes that never had one — is not
+            // readable. Content-addressed re-uploads share a source_uri, so
+            // the first matching row may be unpublished while a later one is
+            // still viewable (#2517).
+            $media = $this->viewableCatalogRow($assetId, $mime, $actor);
+            if ($media === null) {
                 return null;
             }
 
@@ -215,19 +217,33 @@ final readonly class MediaAssetStore implements AssetStoreInterface
     }
 
     /**
-     * The `media` row cataloguing this asset, or null when none exists.
+     * The first `media` row cataloguing this asset that `$actor` may view.
      *
      * Rows written before #2517 carry the scheme-less `source_uri` this store
      * used to record. They are matched too, so an existing catalogue keeps
      * reading — under the access check, which they never had — even though the
      * authorized download route still cannot serve them until re-uploaded.
+     *
+     * Re-uploading the same bytes writes another row with the same URI (the
+     * file is content-addressed). Returning the first match without a view
+     * check would hide a later published row behind an unpublished duplicate.
      */
-    private function catalogRow(string $sha, string $mime): ?EntityInterface
-    {
+    private function viewableCatalogRow(
+        string $sha,
+        string $mime,
+        AuthorizationPrincipalInterface $actor,
+    ): ?EntityInterface {
+        $seen = [];
         foreach ([$this->sourceUri($sha, $mime), $this->publicUrl($sha, $mime)] as $uri) {
-            $rows = $this->mediaRepository->findBy(['source_uri' => $uri], limit: 1);
-            if ($rows !== []) {
-                return $rows[0];
+            foreach ($this->mediaRepository->findBy(['source_uri' => $uri]) as $row) {
+                $id = (string) $row->id();
+                if (isset($seen[$id])) {
+                    continue;
+                }
+                $seen[$id] = true;
+                if ($this->accessHandler->check($row, 'view', $actor)->isAllowed()) {
+                    return $row;
+                }
             }
         }
 

@@ -297,6 +297,9 @@ asset's reachability, on both surfaces:
   are keyed by. `url` remains the public URL and is unchanged.
 - **`asset.get` is gated on that row's `view` access**, using the principal it
   has always accepted. Bytes on disk with no catalog row are not an asset.
+  Re-uploading the same bytes writes another catalog row (the file is
+  content-addressed); `asset.get` returns the first matching row the principal
+  may `view`, so an unpublished duplicate does not hide a later published one.
 
 **Retraction.** The row is the authority, so unpublishing or deleting it
 withdraws the asset from `asset.get` and from the authorized download route

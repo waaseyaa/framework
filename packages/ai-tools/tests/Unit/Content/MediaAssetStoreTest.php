@@ -124,6 +124,37 @@ final class MediaAssetStoreTest extends TestCase
     }
 
     /**
+     * The store deduplicates bytes and still writes a new catalog row. Taking
+     * only the first matching row would hide a later viewable row when an
+     * earlier duplicate is unpublished.
+     */
+    #[Test]
+    public function get_returns_a_later_viewable_row_when_an_earlier_duplicate_is_denied(): void
+    {
+        $store = $this->store($this->allowingHandler());
+        $first = $store->upload('pixel.png', $this->pngBytes(), $this->actor);
+        $second = $store->upload('pixel.png', $this->pngBytes(), $this->actor);
+        self::assertSame($first['asset_id'], $second['asset_id']);
+        self::assertNotSame($first['media_id'], $second['media_id']);
+
+        $deniedId = $first['media_id'];
+        $handler = $this->createStub(EntityAccessHandler::class);
+        $handler->method('checkCreateAccess')->willReturn(AccessResult::allowed());
+        $handler->method('check')->willReturnCallback(
+            static function (object $entity) use ($deniedId): AccessResult {
+                return (string) $entity->id() === $deniedId
+                    ? AccessResult::forbidden('unpublished')
+                    : AccessResult::allowed();
+            },
+        );
+
+        $asset = $this->store($handler)->get($first['asset_id'], $this->actor);
+
+        self::assertNotNull($asset);
+        self::assertSame($second['media_id'], $asset['media_id']);
+    }
+
+    /**
      * Retraction: the catalog row is the authority. Deleting it withdraws the
      * asset even though the content-addressed bytes remain on disk.
      */
