@@ -891,12 +891,58 @@ fields, and HTML fields excluded by the sparse fieldset remain compatible
 because their stored HTML bytes are not part of the outgoing projection.
 
 `ResourceSerializer::serialize()` grew a `$losslessHtml` flag for this, default
-`false`, set by exactly one caller after those gates pass. Every other serialization path — `index()`,
-`store()`, `update()`, the translation controller, the markdown presenter, the
-admin surface host — keeps the sanitized projection unchanged. The serializer
-performs no authorization of its own: a caller passing `true` asserts it has
-already established both entity-update and effective outgoing HTML field-edit
-access.
+`false`, set only after those gates pass. Every other serialization path —
+`index()`, the translation controller, the markdown presenter, the admin surface
+host — keeps the sanitized projection unchanged. The serializer performs no
+authorization of its own: a caller passing `true` asserts it has already
+established both entity-update and effective outgoing HTML field-edit access.
+
+## Mutation echoes (#2553)
+
+`store()` and `update()` accept `$query` and honour the same
+`?representation=` toggle, selecting the projection of the RESPONSE ECHO only —
+never what is written. `JsonApiRouter::handle()` threads `$ctx->query` into both
+(it already did for `show()`).
+
+Without this, a client that keeps the mutation response as its next edit state —
+the normal SPA pattern — was safe on its first round trip and destructive on the
+second, because the echo had been through the sanitizer.
+
+Three differences from the read side, each deliberate:
+
+1. **No `?workingCopy=1` pairing.** That pairing exists solely as the
+   authorization anchor for a read; a successful `PATCH`/`POST` has already
+   passed the entity `update`/`create` gate, so `representationError()` takes a
+   `$writeAnchored` flag that waives it. Requiring it on a write would be
+   ceremony with nothing behind it, and `workingCopy` has no read-side meaning
+   there anyway.
+2. **Structural validation runs before anything is written**, so an
+   unrecognized value is a 400 and not a write followed by a complaint.
+3. **A field-`edit` denial downgrades the echo instead of failing.**
+   `mutationEcho()` runs the same `losslessHtmlFieldEditDenied()` check the read
+   uses, but by the time the echo is built the write has committed — a 403 would
+   tell a client its successful mutation failed. It serves `rendered` and states
+   that in `meta.representation`, which every mutation response now carries
+   (as every single-entity read already did), so the downgrade is detectable.
+
+The projection stays opt-in rather than unconditional. A caller that may `PATCH`
+holds the access the editing read is gated on, so an unconditional lossless echo
+would disclose nothing new — but the sanitized projection is also what protects
+a consumer that renders the echo directly, and every existing `PATCH` consumer
+was written against it.
+
+`FieldAutoSaveController` honours the same flag on its single-field echo, where
+the argument is stronger still: it has already required field-`edit` access on
+that one field and just wrote the caller's own bytes to it. It deliberately does
+NOT mirror the structural 400 — refusing a completed write over a query-string
+typo would be worse than ignoring the typo — so an unrecognized value there is
+simply not the opt-in.
+
+The admin SPA does not opt in. It never reaches this JSON:API query: it loads
+and saves through `GenericAdminSurfaceHost`, which already serves the working
+copy to update-capable accounts and still serializes the sanitized projection.
+"Re-read" cannot restore stored markup. Lossless GET plus echo on that host is
+a follow-up, not a CW-v1 pointer change; see [jsonapi.md](jsonapi.md).
 
 The shared sanitizer allowlist was deliberately not widened; see
 [jsonapi.md](jsonapi.md) for why a looser baseline would have exposed

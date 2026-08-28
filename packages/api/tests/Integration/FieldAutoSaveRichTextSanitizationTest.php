@@ -141,10 +141,64 @@ final class FieldAutoSaveRichTextSanitizationTest extends TestCase
         $this->assertStringNotContainsString('alert(1)', $served);
     }
 
-    private function makePutRequest(string $entityId, string $key, string $value): Request
+    /**
+     * #2553: the sanitized echo makes the NEXT auto-save destructive for a
+     * client that keeps the response as its editor state, so this surface
+     * carries the same opt-in JSON:API's PATCH does. The caller has already
+     * passed the field-`edit` gate and just wrote these exact bytes, so the
+     * lossless echo returns nothing it did not itself supply.
+     */
+    #[Test]
+    public function the_editing_representation_echoes_the_stored_bytes_and_says_so(): void
     {
+        $entity = $this->createSavedEntity(['title' => 'Original', 'type' => 'article']);
+        $entityId = (string) $entity->id();
+        $stored = '<div class="sfn-callout" data-sfn="1"><p>hi</p></div>';
+
+        $controller = new FieldAutoSaveController($this->entityTypeManager, $this->allowAllHandler, $this->fieldRegistry);
+        $response = $controller->update(
+            $this->makePutRequest($entityId, 'body', $stored, ['representation' => 'editing']),
+            'article',
+            $entityId,
+            'body',
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame($stored, $body['data']['attributes']['body']);
+        $this->assertSame('editing', $body['data']['meta']['representation']);
+        $this->assertSame($stored, $this->storage->load($entity->id())->get('body'));
+    }
+
+    #[Test]
+    public function the_default_echo_stays_sanitized_and_says_so(): void
+    {
+        $entity = $this->createSavedEntity(['title' => 'Original', 'type' => 'article']);
+        $entityId = (string) $entity->id();
+
+        $controller = new FieldAutoSaveController($this->entityTypeManager, $this->allowAllHandler, $this->fieldRegistry);
+        $response = $controller->update(
+            $this->makePutRequest($entityId, 'body', '<div class="sfn-callout"><p>hi</p></div>'),
+            'article',
+            $entityId,
+            'body',
+        );
+
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('<div><p>hi</p></div>', $body['data']['attributes']['body']);
+        $this->assertSame('rendered', $body['data']['meta']['representation']);
+    }
+
+    /** @param array<string, string> $query */
+    private function makePutRequest(string $entityId, string $key, string $value, array $query = []): Request
+    {
+        // The query string goes in the URI, not the $parameters argument:
+        // Request::create() routes $parameters to the REQUEST bag for a PUT,
+        // so a query param passed there would never reach ->query.
+        $uri = "/api/article/{$entityId}/field/{$key}"
+            . ($query === [] ? '' : '?' . http_build_query($query));
         $request = Request::create(
-            "/api/article/{$entityId}/field/{$key}",
+            $uri,
             'PUT',
             [],
             [],
