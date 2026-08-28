@@ -74,7 +74,8 @@ final readonly class McpEndpoint
      *        atomic rate limiting (#2136 WP3, #2177 F7). Enabled when a limiter
      *        is supplied and `$rateLimitMaxRequests > 0`. Keys are
      *        `mcp:<tier>:<principal id>`; exceeding the budget yields JSON-RPC
-     *        error -32029 with `retry_after_seconds` (HTTP 429). The limiter is
+     *        error {@see McpErrorCode::RATE_LIMIT_EXCEEDED} with `retry_after_seconds`
+     *        (HTTP 429). The limiter is
      *        consulted only AFTER successful authentication (anonymous 401s never
      *        consume budget). A limiter that cannot make a durable decision
      *        fails closed with a sanitized 503; requests are never admitted on
@@ -337,7 +338,7 @@ final readonly class McpEndpoint
                     body: \json_encode([
                         'jsonrpc' => '2.0',
                         'error' => [
-                            'code' => -32030,
+                            'code' => McpErrorCode::RATE_LIMITER_UNAVAILABLE,
                             'message' => 'Rate limiter unavailable',
                             'data' => ['correlation_id' => $correlationId],
                         ],
@@ -365,7 +366,7 @@ final readonly class McpEndpoint
                     body: \json_encode([
                         'jsonrpc' => '2.0',
                         'error' => [
-                            'code' => -32029,
+                            'code' => McpErrorCode::RATE_LIMIT_EXCEEDED,
                             'message' => 'Rate limit exceeded',
                             'data' => [
                                 'retry_after_seconds' => $this->rateLimitWindowSeconds,
@@ -555,7 +556,6 @@ final readonly class McpEndpoint
                             $tokenScopes,
                             $correlationId,
                             $actorUid,
-                            -32602,
                         )
                         : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid, 404),
                     default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid, 404),
@@ -591,7 +591,6 @@ final readonly class McpEndpoint
                         $tokenScopes,
                         $correlationId,
                         $actorUid,
-                        -32002,
                     )
                     : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
                 default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
@@ -1024,6 +1023,17 @@ final readonly class McpEndpoint
         return $this->jsonRpcResult($id, ['resourceTemplates' => $templates]);
     }
 
+    /**
+     * The not-found code for `resources/read`, in every protocol era.
+     *
+     * The modern path already used `-32602`; the legacy path used `-32002`,
+     * which MCP 2026-07-28 retires and names `-32602` as the replacement for.
+     * Both now answer with `-32602`, which is a JSON-RPC standard code a client
+     * of any era understands — and it removes the second meaning `-32002` was
+     * carrying elsewhere on this server (#2561).
+     */
+    private const int RESOURCE_NOT_FOUND = -32602;
+
     /** @param array<mixed> $params @param ?list<string> $tokenScopes */
     private function executeResourceRead(
         mixed $id,
@@ -1032,7 +1042,6 @@ final readonly class McpEndpoint
         ?array $tokenScopes,
         string $correlationId,
         ?int $actorUid,
-        int $unavailableCode,
     ): McpResponse {
         $method = 'resources/read';
         if (!$this->validReadParams($params)) {
@@ -1063,7 +1072,7 @@ final readonly class McpEndpoint
                 ['reason' => 'resource_unavailable'],
             );
 
-            return $this->jsonRpcError($unavailableCode, 'Resource not found', $id);
+            return $this->jsonRpcError(self::RESOURCE_NOT_FOUND, 'Resource not found', $id);
         }
 
         try {
@@ -1079,7 +1088,7 @@ final readonly class McpEndpoint
                     ['reason' => 'resource_unavailable'],
                 );
 
-                return $this->jsonRpcError($unavailableCode, 'Resource not found', $id);
+                return $this->jsonRpcError(self::RESOURCE_NOT_FOUND, 'Resource not found', $id);
             }
 
             // Provider-authored metadata is serialized inside the same guarded
@@ -1391,7 +1400,7 @@ final readonly class McpEndpoint
                 // correlation id to hand to an operator — it joins this refusal
                 // to the critical log line above. No exception detail leaves (F6).
                 return $this->jsonRpcError(
-                    -32002,
+                    McpErrorCode::AUDIT_TRAIL_UNAVAILABLE,
                     'Request refused: the audit trail is unavailable.',
                     $id,
                     ['correlation_id' => $correlationId],
@@ -1568,7 +1577,7 @@ final readonly class McpEndpoint
         );
 
         return $this->jsonRpcError(
-            -32002,
+            McpErrorCode::APPROVAL_STORE_UNAVAILABLE,
             'Request refused: the approval store is unavailable.',
             $id,
             ['correlation_id' => $correlationId],
@@ -1631,7 +1640,7 @@ final readonly class McpEndpoint
             );
 
             return $this->jsonRpcError(
-                -32002,
+                McpErrorCode::APPROVAL_STORE_UNAVAILABLE,
                 'Request refused: the approval store is unavailable.',
                 $id,
                 ['correlation_id' => $correlationId],

@@ -28,6 +28,7 @@ use Waaseyaa\Foundation\Audit\StrictAuditReservation;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\McpEndpoint;
+use Waaseyaa\Mcp\McpErrorCode;
 
 /**
  * The F4 durability guarantee, end to end through the real JSON-RPC boundary
@@ -236,7 +237,7 @@ final class McpDurableWriteAuditTest extends TestCase
         );
 
         $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(-32002, $body['error']['code']);
+        self::assertSame(McpErrorCode::AUDIT_TRAIL_UNAVAILABLE, $body['error']['code']);
         self::assertStringContainsString('audit trail is unavailable', $body['error']['message']);
     }
 
@@ -253,7 +254,7 @@ final class McpDurableWriteAuditTest extends TestCase
         $response = $this->callTool($this->endpoint(new DatabaseStrictAuditLedger($tableless)));
 
         $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(-32002, $body['error']['code']);
+        self::assertSame(McpErrorCode::AUDIT_TRAIL_UNAVAILABLE, $body['error']['code']);
         self::assertMatchesRegularExpression(
             '/^[0-9a-f]{16}$/',
             (string) ($body['error']['data']['correlation_id'] ?? ''),

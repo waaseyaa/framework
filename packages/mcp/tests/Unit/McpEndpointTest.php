@@ -1069,7 +1069,7 @@ final class McpEndpointTest extends TestCase
         $missing = $this->rpcResponse($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L21pc3Npbmc']);
 
         self::assertSame($denied->body, $missing->body);
-        self::assertSame(-32002, json_decode($denied->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        self::assertSame(-32602, json_decode($denied->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
         self::assertStringNotContainsString('L2Fib3V0', $denied->body);
     }
 
@@ -1112,7 +1112,7 @@ final class McpEndpointTest extends TestCase
         self::assertSame([], $this->rpc($endpoint, 'resources/list')['result']['resources']);
         self::assertSame([], $this->rpc($endpoint, 'resources/templates/list')['result']['resourceTemplates']);
         self::assertSame(
-            -32002,
+            -32602,
             $this->rpc($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L2Fib3V0'])['error']['code'],
         );
     }

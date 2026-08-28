@@ -49,8 +49,9 @@ final class BodySizeLimitMiddleware implements HttpMiddlewareInterface
      * document stays the default and remains right for the framework's own
      * endpoints. It is the wrong document for an endpoint that advertises a
      * different transport: this middleware runs ahead of every controller, so
-     * before the seam existed its 413 shadowed the MCP endpoint's own `-32043`
-     * and handed a JSON-RPC client a shape it could not interpret (#2594).
+     * before the seam existed its 413 shadowed the MCP endpoint's own
+     * oversize-body JSON-RPC refusal and handed a JSON-RPC client a shape it
+     * could not interpret (#2594).
      */
     private function payloadTooLargeResponse(Request $request): Response
     {
