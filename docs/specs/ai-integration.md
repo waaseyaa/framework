@@ -1,5 +1,12 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-27 - #2624: McpServiceProvider's development-only
+NullConfigStorage fallback is classified by the boot-scoped RuntimePolicy.
+Invalid explicit environment configuration is production-like and cannot fall
+through to APP_ENV or enable the fallback. A missing profile is also
+production-like: only RuntimePolicy::isExplicitDevelopment() can enable this
+fallback. -->
+
 <!-- Spec reviewed 2026-08-25 - #2520: `entity.read` / `entity.search` map
 WP4 `FieldReadDenied` to per-field omission at the tool boundary (JSON:API
 parity), not `INTERNAL_ERROR` and not a distinguishable field-forbidden

@@ -53,3 +53,30 @@ The manifest schema is `tools/agent-checkpoint.schema.json`. Inputs and arrays
 are bounded and the serialized manifest may not exceed 16,384 bytes. Move any
 larger material into a classified evidence file; the checkpoint stores its
 path and hash rather than embedding it.
+
+## Verify a checkpoint
+
+Before resuming interrupted work, verify the recorded local claims:
+
+```bash
+bin/agent-checkpoint --verify=build/evidence/environment-audit/checkpoint.json
+```
+
+Verification is read-only. It emits bounded JSON describing each claim as
+`holds`, `drifted`, `gone`, or `unverifiable` and does not replay commands,
+restore files, or perform external mutations. Repository and worktree claims
+compare the recorded HEAD, branch state, porcelain counts, and active Git
+operation with current state. Evidence claims compare the recorded byte count
+and SHA-256 digest. Pin claims require the commit to exist in at least one
+recorded repository or worktree that is still available.
+
+Process claims compare current PID liveness with the recorded state. PID reuse
+is an operating-system limitation, so a live PID claim proves only that the PID
+is live, not that it still belongs to the same command. External mutations are
+reported as `unverifiable`; inspect the named external system before deciding
+whether a follow-up write is safe.
+
+Exit status `0` means every verifiable claim holds. Status `1` means at least
+one claim drifted or is gone. Status `2` means the checkpoint could not be
+parsed or did not satisfy the input contract. A status of `0` does not turn an
+`unverifiable` external mutation into evidence that it is safe to repeat.

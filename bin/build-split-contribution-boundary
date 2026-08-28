@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Build a deterministic commit that overlays contribution-routing metadata on
+# an exact subtree split. The caller owns the ref update so release splitting
+# can atomically push the raw split to its tag and this commit to main.
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+TEMPLATE_ROOT="${SPLIT_CONTRIBUTION_TEMPLATE_ROOT:-${ROOT_DIR}/resources/split-mirror}"
+EXPECTED_SPLIT_SHA="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+
+if [[ ! "${EXPECTED_SPLIT_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "FAIL: expected split SHA must be a full 40-character commit id" >&2
+  exit 2
+fi
+if ! git cat-file -e "${EXPECTED_SPLIT_SHA}^{commit}" 2>/dev/null; then
+  echo "FAIL: expected split commit is unavailable: ${EXPECTED_SPLIT_SHA}" >&2
+  exit 2
+fi
+
+declare -a paths=(
+  '.github/ISSUE_TEMPLATE/config.yml'
+  '.github/PULL_REQUEST_TEMPLATE.md'
+)
+for path in "${paths[@]}"; do
+  if [[ ! -f "${TEMPLATE_ROOT}/${path}" ]]; then
+    echo "FAIL: contribution-boundary template not found: ${TEMPLATE_ROOT}/${path}" >&2
+    exit 1
+  fi
+done
+
+temporary_root="$(mktemp -d)"
+trap 'rm -rf "${temporary_root}"' EXIT
+export GIT_INDEX_FILE="${temporary_root}/index"
+
+git read-tree "${EXPECTED_SPLIT_SHA}^{tree}"
+for path in "${paths[@]}"; do
+  blob_sha="$(git hash-object -w "${TEMPLATE_ROOT}/${path}")"
+  git update-index --add --cacheinfo "100644,${blob_sha},${path}"
+done
+tree_sha="$(git write-tree)"
+split_date="$(git show -s --format=%cI "${EXPECTED_SPLIT_SHA}")"
+if [[ -z "${split_date}" ]]; then
+  echo "FAIL: split commit has no stable committer date" >&2
+  exit 1
+fi
+
+export GIT_AUTHOR_NAME='github-actions[bot]'
+export GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com'
+export GIT_AUTHOR_DATE="${split_date}"
+export GIT_COMMITTER_NAME="${GIT_AUTHOR_NAME}"
+export GIT_COMMITTER_EMAIL="${GIT_AUTHOR_EMAIL}"
+export GIT_COMMITTER_DATE="${split_date}"
+
+commit_sha="$(
+  printf '%s\n' 'chore: route split-mirror contributions upstream' |
+    git commit-tree "${tree_sha}" -p "${EXPECTED_SPLIT_SHA}"
+)"
+if [[ "$(git rev-parse "${commit_sha}^")" != "${EXPECTED_SPLIT_SHA}" ]]; then
+  echo "FAIL: contribution-boundary commit has the wrong parent" >&2
+  exit 1
+fi
+
+printf '%s\n' "${commit_sha}"

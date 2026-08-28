@@ -4,77 +4,82 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
+use Symfony\Component\Dotenv\Dotenv;
+use Symfony\Component\Dotenv\Exception\ExceptionInterface;
+
 /**
- * Loads a .env file into the process environment.
+ * Loads a Symfony dotenv cascade into the process environment once.
  *
  * Resolution rules:
- * - Missing file is silently ignored — no error.
- * - Lines starting with # and blank lines are skipped.
- * - Only lines containing = are parsed.
- * - Values wrapped in matching " or ' quotes have the quotes stripped.
- * - Values are written to putenv(), $_ENV, and $_SERVER.
- * - Each destination is guarded independently: already-set keys are never
- *   overwritten (PHP-FPM pool vars, test harness pre-sets, and partial
- *   pre-population from a prior call all win against the .env file).
+ * - A missing base file is silently ignored.
+ * - Symfony Dotenv owns parsing, interpolation, comments, exports, and the
+ *   `.env.local` / environment-specific cascade.
+ * - Values are written consistently to putenv(), $_ENV, and $_SERVER.
+ * - Externally injected values win against files.
+ * - Each real base path is parsed at most once per process, keeping retained
+ *   FrankenPHP workers free of per-request process-global mutation.
  */
 final class EnvLoader
 {
+    /** @var array<string, true> */
+    private static array $loadedPaths = [];
+
     public static function load(string $path): void
     {
-        if (!is_file($path)) {
+        $resolved = realpath($path);
+        if ($resolved === false || !is_file($resolved) || isset(self::$loadedPaths[$resolved])) {
             return;
         }
 
-        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        if ($lines === false) {
-            return;
+        $processEnvironment = getenv();
+        $envBefore = $_ENV;
+        $serverBefore = $_SERVER;
+
+        // Symfony treats $_ENV as the existing-value authority. Mirror the
+        // process environment first so values injected before PHP startup or by
+        // a launcher through putenv() retain the historical "process wins"
+        // precedence and resolve interpolation consistently in every store.
+        foreach ($processEnvironment as $name => $value) {
+            if (str_starts_with($name, 'HTTP_')) {
+                continue;
+            }
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
         }
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-
-            if ($line === '' || str_starts_with($line, '#')) {
-                continue;
-            }
-
-            if (!str_contains($line, '=')) {
-                continue;
-            }
-
-            [$key, $value] = explode('=', $line, 2);
-            $key   = trim($key);
-            $value = trim($value);
-
-            if ($key === '') {
-                continue;
-            }
-
-            $value = self::stripQuotes($value);
-
-            // Never overwrite an already-set value in any destination.
-            if (getenv($key) === false) {
-                putenv("{$key}={$value}");
-            }
-            if (!array_key_exists($key, $_ENV)) {
-                $_ENV[$key] = $value;
-            }
-            if (!array_key_exists($key, $_SERVER)) {
-                $_SERVER[$key] = $value;
-            }
+        try {
+            new Dotenv()
+                ->usePutenv()
+                ->loadEnv($resolved, 'APP_ENV', 'production');
+        } catch (ExceptionInterface) {
+            self::restoreEnvironment($processEnvironment, $envBefore, $serverBefore);
+            throw new \RuntimeException('Application environment file is malformed or unreadable.');
         }
+
+        self::$loadedPaths[$resolved] = true;
     }
 
-    private static function stripQuotes(string $value): string
-    {
-        if (strlen($value) >= 2) {
-            $first = $value[0];
-            $last  = $value[strlen($value) - 1];
-
-            if (($first === '"' && $last === '"') || ($first === "'" && $last === "'")) {
-                return substr($value, 1, -1);
-            }
+    /**
+     * @param array<string, string> $processEnvironment
+     * @param array<string, mixed> $env
+     * @param array<string, mixed> $server
+     */
+    private static function restoreEnvironment(
+        #[\SensitiveParameter]
+        array $processEnvironment,
+        #[\SensitiveParameter]
+        array $env,
+        #[\SensitiveParameter]
+        array $server,
+    ): void {
+        $current = getenv();
+        foreach (array_diff_key($current, $processEnvironment) as $name => $_) {
+            putenv($name);
         }
-
-        return $value;
+        foreach ($processEnvironment as $name => $value) {
+            putenv("{$name}={$value}");
+        }
+        $_ENV = $env;
+        $_SERVER = $server;
     }
 }

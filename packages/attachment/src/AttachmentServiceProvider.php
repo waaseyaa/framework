@@ -18,6 +18,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -171,11 +172,6 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
     /** Production and staging HTTP must not CREATE or ALTER entity tables. */
     private function allowsConvenientSchemaMaterialization(): bool
     {
-        $configured = $this->config['environment'] ?? getenv('APP_ENV');
-        $environment = is_string($configured) && $configured !== ''
-            ? strtolower($configured)
-            : 'production';
-
-        return in_array($environment, ['dev', 'development', 'local', 'testing'], true);
+        return RuntimePolicy::resolve($this->config)->isDevelopment();
     }
 }

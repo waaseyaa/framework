@@ -5,6 +5,13 @@
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP asserts Framework SQL-backed entity tables only (S1-DB106). Custom EntityStorageInterface storageClass is not forced to own an SQL table. EntityStorageInterface and EntityQueryInterface are class-level @api. AttachmentSchema::apply() is the strict coordinated transition; local boot ensureTable() is best-effort. -->
 # Entity System
 
+<!-- Spec reviewed 2026-08-27 - #2624: configuration-authority composition
+uses the canonical RuntimePolicy development classifier for active-generation
+and mutation-storage decisions. Invalid explicit environment configuration is
+production-like and cannot grant mutable bootstrap behavior. The authority
+requires RuntimePolicy::isExplicitDevelopment(), so a missing configured
+profile cannot inherit mutable bootstrap behavior from process APP_ENV. -->
+
 <!-- Spec reviewed 2026-08-20 - #2467 save-advisory exception hierarchy: AbortOperationException remains final. SaveAdvisoryAcknowledgementRequiredException is a sibling RuntimeException, not a subclass, so existing abort catches keep prior semantics while BeforeSaveEvent throws still perform no write. -->
 
 <!-- Spec reviewed 2026-08-20 - #2464: RevisionRestoreChangedFields is the

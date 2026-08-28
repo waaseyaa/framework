@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 
 /**
  * Locks the runtime-awareness contract of the front controller (public/index.php).
@@ -82,6 +83,66 @@ final class FrontControllerRuntimeDispatchTest extends TestCase
                 '$handler();',
                 $source,
                 "{$relative} must retain the single-request fallback path.",
+            );
+        }
+    }
+
+    #[Test]
+    public function everyFrontController_uses_the_canonical_environment_loader_before_dispatch(): void
+    {
+        foreach (self::allFrontControllers() as $relative) {
+            $source = self::read($relative);
+            $load = strpos($source, "EnvLoader::load(\$projectRoot . '/.env');");
+            $handler = strpos($source, '$handler =');
+
+            self::assertIsInt($load, "{$relative} must use the canonical environment loader.");
+            self::assertIsInt($handler, "{$relative} must retain its request handler.");
+            self::assertLessThan($handler, $load, "{$relative} must load bootstrap values before dispatch.");
+            self::assertStringNotContainsString('new \\Symfony\\Component\\Dotenv\\Dotenv', $source);
+        }
+
+        $foundation = json_decode(
+            self::read('packages/foundation/composer.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        self::assertSame('^8.0', $foundation['require']['symfony/dotenv'] ?? null);
+    }
+
+    #[Test]
+    public function the_canonical_loader_is_the_only_production_dotenv_parser(): void
+    {
+        $process = new Process([
+            'git',
+            'grep',
+            '-F',
+            '-l',
+            'Symfony\\Component\\Dotenv\\Dotenv',
+            '--',
+            'public',
+            'skeleton',
+            'packages',
+        ], self::root());
+        self::assertSame(0, $process->run(), $process->getErrorOutput());
+        $matches = preg_split('/\R/', trim($process->getOutput()));
+        self::assertIsArray($matches);
+        $productionMatches = array_values(array_filter(
+            $matches,
+            static fn(string $path): bool => !str_contains($path, '/tests/'),
+        ));
+
+        self::assertSame(['packages/foundation/src/Kernel/EnvLoader.php'], $productionMatches);
+
+        foreach ([
+            'packages/foundation/src/Kernel/AbstractKernel.php',
+            'packages/foundation/src/Kernel/ConsoleKernel.php',
+            'packages/cli/src/Handler/DbInitHandler.php',
+            'packages/cli/src/Provider/MigrateServiceProvider.php',
+        ] as $relative) {
+            self::assertStringContainsString(
+                'EnvLoader::load(',
+                self::read($relative),
+                "{$relative} must use the canonical loader for its CLI boot path.",
             );
         }
     }

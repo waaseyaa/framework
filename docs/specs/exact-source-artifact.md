@@ -23,8 +23,20 @@ a missing file, malformed manifest, wrong commit or tree, byte-count mismatch,
 digest mismatch, or archive bytes that do not reproduce `git archive` for the
 expected commit.
 
-This slice establishes the reusable producer and verifier. Release Readiness
-does not consume the artifact yet, and no deployment or publication path may
-claim immutable promotion until that cross-workflow handoff is implemented and
-tested separately.
+`bin/promote-exact-source-artifact <exact-sha> <output-dir> <target>` imports
+the artifact only from a completed, successful `ci.yml` run whose head is the
+exact requested SHA. It requires exactly one unexpired artifact with the
+canonical name, verifies its bytes, and adds a handoff manifest binding the
+producer run and artifact identities, portable source identity, and promotion
+target.
 
+`bin/materialize-exact-source-artifact <artifact-dir> <exact-sha>
+<destination>` verifies before extracting, refuses an existing destination,
+and materializes exactly one `framework/` root. Release Readiness independently
+materializes the run-scoped promoted artifact for candidate build and browser
+acceptance. Candidate commands execute from those extracted bytes; the checkout
+exists only to host pinned actions, verification code, and the expected Git
+objects.
+
+Promotion remains evidence transport. It grants no deployment, tagging,
+publication, split, or release authority.

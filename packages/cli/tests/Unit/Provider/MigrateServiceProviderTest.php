@@ -145,4 +145,31 @@ final class MigrateServiceProviderTest extends TestCase
         $this->expectExceptionMessage('S1-DB002');
         $provider->resolve(MigrateStatusHandler::class);
     }
+
+    #[Test]
+    public function migrationDiagnosticsUseConfiguredProductionPolicyInsteadOfProcessEnvironment(): void
+    {
+        $databasePath = tempnam(sys_get_temp_dir(), 'waaseyaa_migrate_policy_');
+        self::assertIsString($databasePath);
+        putenv('APP_ENV=local');
+        $_SERVER['APP_ENV'] = 'local';
+
+        try {
+            $provider = new MigrateServiceProvider();
+            $provider->setKernelContext((string) getcwd(), [
+                'environment' => 'production',
+                'database' => $databasePath,
+            ], []);
+            $provider->register();
+
+            $handler = $provider->resolve(MigrateHandler::class);
+            $isProduction = new \ReflectionProperty($handler, 'isProduction');
+
+            self::assertTrue($isProduction->getValue($handler));
+        } finally {
+            putenv('APP_ENV');
+            unset($_SERVER['APP_ENV']);
+            @unlink($databasePath);
+        }
+    }
 }

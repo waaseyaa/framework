@@ -19,6 +19,7 @@ use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Http\LanguagePathStripperInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
@@ -250,6 +251,7 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             new AppControllerRouter(
                 $this->ssrPageHandler,
                 $this->resolve(ErrorPageRendererInterface::class),
+                debug: RuntimePolicy::resolve($httpKernel->getConfig())->debug,
             ),
         ];
     }

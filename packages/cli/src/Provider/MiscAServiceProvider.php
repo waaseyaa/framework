@@ -15,6 +15,7 @@ use Waaseyaa\CLI\Handler\AdminDevHandler;
 use Waaseyaa\CLI\Handler\DebugContextHandler;
 use Waaseyaa\CLI\Handler\EventListHandler;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
@@ -45,6 +46,7 @@ final class MiscAServiceProvider extends ServiceProvider implements ProvidesCons
             return new AboutHandler(
                 configurationAuthority: $context,
                 projectRoot: $this->projectRoot,
+                runtimePolicy: RuntimePolicy::resolve($this->config),
             );
         });
         $this->singleton(EventListHandler::class, function (): EventListHandler {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Debug;
 
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
@@ -45,11 +46,6 @@ final class DebugServiceProvider extends ServiceProvider implements HasMiddlewar
 
     private function isDebugEnabled(): bool
     {
-        $env = getenv('APP_DEBUG');
-        if (is_string($env) && $env !== '') {
-            return filter_var($env, FILTER_VALIDATE_BOOLEAN);
-        }
-
-        return filter_var($this->config['debug'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        return RuntimePolicy::resolve($this->config)->debug;
     }
 }

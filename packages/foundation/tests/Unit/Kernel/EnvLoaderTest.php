@@ -14,14 +14,35 @@ final class EnvLoaderTest extends TestCase
 {
     private string $tempDir;
 
+    /** @var array<string, string> */
+    private array $processEnvironment;
+
+    /** @var array<string, mixed> */
+    private array $env;
+
+    /** @var array<string, mixed> */
+    private array $server;
+
     protected function setUp(): void
     {
+        $this->processEnvironment = getenv();
+        $this->env = $_ENV;
+        $this->server = $_SERVER;
         $this->tempDir = sys_get_temp_dir() . '/waaseyaa_env_test_' . uniqid();
         mkdir($this->tempDir, 0755, true);
     }
 
     protected function tearDown(): void
     {
+        foreach (array_diff_key(getenv(), $this->processEnvironment) as $name => $_) {
+            putenv($name);
+        }
+        foreach ($this->processEnvironment as $name => $value) {
+            putenv("{$name}={$value}");
+        }
+        $_ENV = $this->env;
+        $_SERVER = $this->server;
+
         foreach (glob($this->tempDir . '/{,.}*', GLOB_BRACE) ?: [] as $file) {
             if (is_file($file)) {
                 unlink($file);
@@ -90,17 +111,21 @@ final class EnvLoaderTest extends TestCase
     }
 
     #[Test]
-    public function skips_lines_without_equals_sign(): void
+    public function malformed_lines_fail_closed(): void
     {
         $path = $this->tempDir . '/.env';
-        file_put_contents($path, "INVALID_LINE_NO_EQUALS\nWAASEYAA_TEST_VALID=ok");
+        file_put_contents($path, "WAASEYAA_TEST_PARTIAL=must-not-survive\nINVALID_LINE_NO_EQUALS");
 
-        EnvLoader::load($path);
-
-        $this->assertFalse(getenv('INVALID_LINE_NO_EQUALS'));
-        $this->assertSame('ok', getenv('WAASEYAA_TEST_VALID'));
-
-        putenv('WAASEYAA_TEST_VALID');
+        try {
+            EnvLoader::load($path);
+            self::fail('Malformed environment input must fail closed.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Application environment file is malformed or unreadable.', $exception->getMessage());
+            self::assertStringNotContainsString('INVALID_LINE_NO_EQUALS', $exception->getMessage());
+        }
+        self::assertFalse(getenv('WAASEYAA_TEST_PARTIAL'));
+        self::assertArrayNotHasKey('WAASEYAA_TEST_PARTIAL', $_ENV);
+        self::assertArrayNotHasKey('WAASEYAA_TEST_PARTIAL', $_SERVER);
     }
 
     #[Test]
@@ -130,16 +155,18 @@ final class EnvLoaderTest extends TestCase
     }
 
     #[Test]
-    public function does_not_strip_mismatched_quotes(): void
+    public function mismatched_quotes_fail_closed(): void
     {
         $path = $this->tempDir . '/.env';
         file_put_contents($path, "WAASEYAA_TEST_MISMATCH=\"mismatched'");
 
-        EnvLoader::load($path);
-
-        $this->assertSame("\"mismatched'", getenv('WAASEYAA_TEST_MISMATCH'));
-
-        putenv('WAASEYAA_TEST_MISMATCH');
+        try {
+            EnvLoader::load($path);
+            self::fail('Malformed environment input must fail closed.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Application environment file is malformed or unreadable.', $exception->getMessage());
+            self::assertStringNotContainsString('mismatched', $exception->getMessage());
+        }
     }
 
     #[Test]
@@ -153,8 +180,11 @@ final class EnvLoaderTest extends TestCase
         EnvLoader::load($path);
 
         $this->assertSame('original', getenv('WAASEYAA_TEST_EXISTING'));
+        $this->assertSame('original', $_ENV['WAASEYAA_TEST_EXISTING'] ?? null);
+        $this->assertSame('original', $_SERVER['WAASEYAA_TEST_EXISTING'] ?? null);
 
         putenv('WAASEYAA_TEST_EXISTING');
+        unset($_ENV['WAASEYAA_TEST_EXISTING'], $_SERVER['WAASEYAA_TEST_EXISTING']);
     }
 
     #[Test]
@@ -249,5 +279,91 @@ final class EnvLoaderTest extends TestCase
 
         putenv('WAASEYAA_TEST_PRESET_SERVER');
         unset($_ENV['WAASEYAA_TEST_PRESET_SERVER'], $_SERVER['WAASEYAA_TEST_PRESET_SERVER']);
+    }
+
+    #[Test]
+    public function symfony_grammar_resolves_identically_in_every_environment_store(): void
+    {
+        $path = $this->tempDir . '/.env';
+        file_put_contents($path, <<<'DOTENV'
+            WAASEYAA_TEST_BASE=abc
+            export WAASEYAA_TEST_INTERPOLATED=${WAASEYAA_TEST_BASE}-def
+            WAASEYAA_TEST_COMMENT=bar # trailing comment
+            WAASEYAA_TEST_MULTILINE="line one
+            line two"
+            DOTENV);
+
+        EnvLoader::load($path);
+
+        foreach ([
+            'WAASEYAA_TEST_INTERPOLATED' => 'abc-def',
+            'WAASEYAA_TEST_COMMENT' => 'bar',
+            'WAASEYAA_TEST_MULTILINE' => "line one\nline two",
+        ] as $key => $expected) {
+            self::assertSame($expected, getenv($key));
+            self::assertSame($expected, $_ENV[$key] ?? null);
+            self::assertSame($expected, $_SERVER[$key] ?? null);
+        }
+
+        foreach (['WAASEYAA_TEST_BASE', 'WAASEYAA_TEST_INTERPOLATED', 'WAASEYAA_TEST_COMMENT', 'WAASEYAA_TEST_MULTILINE'] as $key) {
+            putenv($key);
+            unset($_ENV[$key], $_SERVER[$key]);
+        }
+    }
+
+    #[Test]
+    public function process_values_win_and_drive_file_interpolation(): void
+    {
+        putenv('WAASEYAA_TEST_EXTERNAL_BASE=outside');
+        $path = $this->tempDir . '/.env';
+        file_put_contents($path, <<<'DOTENV'
+            WAASEYAA_TEST_EXTERNAL_BASE=inside
+            WAASEYAA_TEST_EXTERNAL_DERIVED=${WAASEYAA_TEST_EXTERNAL_BASE}-value
+            DOTENV);
+
+        EnvLoader::load($path);
+
+        foreach (['WAASEYAA_TEST_EXTERNAL_BASE' => 'outside', 'WAASEYAA_TEST_EXTERNAL_DERIVED' => 'outside-value'] as $key => $expected) {
+            self::assertSame($expected, getenv($key));
+            self::assertSame($expected, $_ENV[$key] ?? null);
+            self::assertSame($expected, $_SERVER[$key] ?? null);
+        }
+    }
+
+    #[Test]
+    public function symfony_environment_cascade_uses_production_safe_environment_resolution(): void
+    {
+        putenv('APP_ENV');
+        unset($_ENV['APP_ENV'], $_SERVER['APP_ENV']);
+        $path = $this->tempDir . '/.env';
+        file_put_contents($path, "APP_ENV=staging\nWAASEYAA_TEST_CASCADE=base");
+        file_put_contents($path . '.local', 'WAASEYAA_TEST_CASCADE=local');
+        file_put_contents($path . '.staging', 'WAASEYAA_TEST_CASCADE=staging');
+        file_put_contents($path . '.staging.local', 'WAASEYAA_TEST_CASCADE=staging-local');
+
+        EnvLoader::load($path);
+
+        self::assertSame('staging', getenv('APP_ENV'));
+        self::assertSame('staging-local', getenv('WAASEYAA_TEST_CASCADE'));
+        self::assertSame('staging-local', $_ENV['WAASEYAA_TEST_CASCADE'] ?? null);
+        self::assertSame('staging-local', $_SERVER['WAASEYAA_TEST_CASCADE'] ?? null);
+    }
+
+    #[Test]
+    public function an_existing_file_is_parsed_only_once_per_process(): void
+    {
+        $path = $this->tempDir . '/.env';
+        file_put_contents($path, 'WAASEYAA_TEST_ONCE=first');
+        EnvLoader::load($path);
+
+        putenv('WAASEYAA_TEST_ONCE');
+        unset($_ENV['WAASEYAA_TEST_ONCE'], $_SERVER['WAASEYAA_TEST_ONCE']);
+        file_put_contents($path, 'WAASEYAA_TEST_ONCE=second');
+
+        EnvLoader::load($path);
+
+        self::assertFalse(getenv('WAASEYAA_TEST_ONCE'));
+        self::assertArrayNotHasKey('WAASEYAA_TEST_ONCE', $_ENV);
+        self::assertArrayNotHasKey('WAASEYAA_TEST_ONCE', $_SERVER);
     }
 }
