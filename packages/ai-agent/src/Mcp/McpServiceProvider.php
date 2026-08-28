@@ -8,6 +8,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\StorageInterface as ConfigStorageInterface;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
@@ -143,8 +144,7 @@ final class McpServiceProvider extends ServiceProvider implements RequiresCapabi
             return $manager->getActiveStorage();
         }
 
-        $environment = strtolower((string) ($this->config['environment'] ?? ''));
-        if (in_array($environment, ['local', 'dev', 'development', 'testing'], true)) {
+        if (RuntimePolicy::isExplicitDevelopment($this->config)) {
             return new NullConfigStorage();
         }
 

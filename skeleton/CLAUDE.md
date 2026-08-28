@@ -146,5 +146,8 @@ When modifying a subsystem, update its spec in the same PR.
 
 ## Gotchas
 
-- **Never use `$_ENV`** — Waaseyaa's `EnvLoader` only populates `putenv()`/`getenv()`. Use `getenv()` or the `env()` helper.
+- **Read resolved bootstrap configuration after boot** — `EnvLoader` publishes
+  canonical values consistently to `getenv()`, `$_ENV`, and `$_SERVER`, but
+  runtime services should consume kernel configuration or typed boundaries
+  instead of re-reading the process environment.
 - **SQLite write access** — Both the `.sqlite` file AND its parent directory need write permissions for WAL/journal files.

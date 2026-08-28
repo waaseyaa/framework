@@ -195,7 +195,9 @@ jobs:
           REMOTE_URL="https://x-access-token:${SPLIT_GH_TOKEN}@github.com/${REPO_OWNER}/${REMOTE_REPO}.git"
           SHA=$(splitsh-lite --prefix="${LOCAL_PREFIX}")
           git remote add split "${REMOTE_URL}" 2>/dev/null || true
-          git push split "${SHA}:refs/heads/main" --force
+          mirror_main_sha="$(
+            bash bin/build-split-contribution-boundary "${SHA}"
+          )"
           # Forward-only: push the release tag NON-FORCE. Packagist treats tag
           # versions as immutable; force-moving a tag would diverge git from
           # Packagist (the old dist stays published). If the split repo already
@@ -203,13 +205,24 @@ jobs:
           # loudly (RETAG_BLOCKED). Re-pushing the SAME sha is an idempotent
           # no-op (safe on re-runs). Recover a bad release by cutting
           # alpha.N+1, never by re-tagging. See docs/VERSIONING.md §8.
-          if ! git push split "${SHA}:refs/tags/${TAG_NAME}"; then
+          # Push the deterministic routing overlay to main and the byte-exact
+          # split to its tag atomically. A tag conflict or transport failure
+          # leaves the prior routed main untouched.
+          if ! git push --atomic split \
+            "+${mirror_main_sha}:refs/heads/main" \
+            "${SHA}:refs/tags/${TAG_NAME}"; then
             existing="$(git ls-remote --tags split "refs/tags/${TAG_NAME}" | awk '{print $1}')"
             if [ -n "${existing}" ] && [ "${existing}" != "${SHA}" ]; then
               echo "::error::RETAG_BLOCKED: ${REMOTE_REPO} already has tag ${TAG_NAME} at ${existing}; refusing to move it to ${SHA}. Releases are forward-only — cut alpha.N+1 instead of re-tagging."
             else
               echo "::error::Tag push of ${TAG_NAME} to ${REMOTE_REPO} failed."
             fi
+            exit 1
+          fi
+          actual_main="$(git ls-remote split refs/heads/main | awk '{print $1}')"
+          actual_tag="$(git ls-remote split "refs/tags/${TAG_NAME}" | awk '{print $1}')"
+          if [ "${actual_main}" != "${mirror_main_sha}" ] || [ "${actual_tag}" != "${SHA}" ]; then
+            echo "::error::Atomic split verification failed for ${REMOTE_REPO}: main=${actual_main}, tag=${actual_tag}."
             exit 1
           fi
           mkdir -p release-split-provenance
@@ -220,9 +233,10 @@ jobs:
             --arg prefix "${LOCAL_PREFIX}" \
             --arg split_repository "${REPO_OWNER}/${REMOTE_REPO}" \
             --arg split_sha "${SHA}" \
+            --arg mirror_main_sha "${mirror_main_sha}" \
             --arg tag "${TAG_NAME}" \
             --arg run_id "${GITHUB_RUN_ID}" \
-            '{source_repository: $source_repository, source_sha: $source_sha, package: $package, prefix: $prefix, split_repository: $split_repository, split_sha: $split_sha, tag: $tag, run_id: $run_id}' \
+            '{source_repository: $source_repository, source_sha: $source_sha, package: $package, prefix:$prefix, split_repository:$split_repository, split_sha:$split_sha, mirror_main_sha:$mirror_main_sha, tag:$tag, run_id:$run_id}' \
             > "release-split-provenance/${REMOTE_REPO}.json"
 
       - name: Retain exact split provenance

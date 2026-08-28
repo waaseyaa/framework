@@ -18,6 +18,7 @@ declare(strict_types=1);
 // Requires symfony/dotenv in composer.json (the waaseyaa skeleton includes it).
 
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Foundation\Kernel\EnvLoader;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 
 if (PHP_SAPI === 'cli-server') {
@@ -31,10 +32,7 @@ $projectRoot = dirname(__DIR__);
 
 require $projectRoot . '/vendor/autoload.php';
 
-if (is_file($projectRoot . '/.env')) {
-    // Default a missing APP_ENV to production (not Symfony's implicit "dev").
-    (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($projectRoot . '/.env', 'APP_ENV', 'production');
-}
+EnvLoader::load($projectRoot . '/.env');
 
 // A fresh kernel is built per request so no container/entity state bleeds across
 // requests handled by the same long-lived FrankenPHP worker.

@@ -1,0 +1,197 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$repositoryRoot = dirname(__DIR__);
+$scanRoot = $repositoryRoot;
+for ($i = 1; $i < $argc; ++$i) {
+    if ($argv[$i] === '--root' && isset($argv[$i + 1])) {
+        $scanRoot = rtrim($argv[++$i], '/');
+        continue;
+    }
+    fwrite(STDERR, "Usage: bin/check-runtime-policy-custody [--root <path>]\n");
+    exit(2);
+}
+
+/** @var array<string, string> $baseline */
+$baseline = require $repositoryRoot . '/tools/runtime-policy-custody-baseline.php';
+$developmentAliases = ['dev', 'development', 'local', 'testing'];
+$observed = [];
+$violations = [];
+$sourceRoots = [];
+$packagesRoot = $scanRoot . '/packages';
+if (is_dir($packagesRoot)) {
+    $packages = new DirectoryIterator($packagesRoot);
+    foreach ($packages as $package) {
+        if (!$package->isDir() || $package->isDot()) {
+            continue;
+        }
+        $sourceRoot = $package->getPathname() . '/src';
+        if (!is_dir($sourceRoot)) {
+            continue;
+        }
+        $sourceRoots[] = $sourceRoot;
+    }
+}
+foreach ([$scanRoot . '/src', $scanRoot . '/skeleton/src'] as $sourceRoot) {
+    if (is_dir($sourceRoot)) {
+        $sourceRoots[] = $sourceRoot;
+    }
+}
+
+foreach ($sourceRoots as $sourceRoot) {
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($sourceRoot, FilesystemIterator::SKIP_DOTS),
+    );
+    foreach ($files as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getExtension() !== 'php') {
+            continue;
+        }
+        $absolutePath = $file->getPathname();
+        $relativePath = str_replace('\\', '/', substr($absolutePath, strlen($scanRoot) + 1));
+        $contents = file_get_contents($absolutePath);
+        if (!is_string($contents)) {
+            $violations[] = sprintf('RPC003 %s:0 unreadable source', $relativePath);
+            continue;
+        }
+
+        if (hasDirectAppDebugRead($contents)) {
+            recordRuntimePolicyDetector(
+                $relativePath,
+                'app-debug-source',
+                'RPC001',
+                $baseline,
+                $observed,
+                $violations,
+            );
+        }
+
+        if (hasDevelopmentClassifier($contents, $developmentAliases)) {
+            recordRuntimePolicyDetector(
+                $relativePath,
+                'development-classifier',
+                'RPC002',
+                $baseline,
+                $observed,
+                $violations,
+            );
+        }
+    }
+}
+
+if ($scanRoot === $repositoryRoot) {
+    foreach ($baseline as $key => $rationale) {
+        if (!isset($observed[$key])) {
+            $violations[] = sprintf('RPC003 %s stale runtime-policy baseline', $key);
+        }
+        if (trim($rationale) === '') {
+            $violations[] = sprintf('RPC003 %s missing baseline rationale', $key);
+        }
+    }
+}
+
+if ($violations !== []) {
+    sort($violations, SORT_STRING);
+    fwrite(STDERR, implode("\n", $violations) . "\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "OK - runtime environment and debug policy use reviewed canonical custody.\n");
+exit(0);
+
+function hasDirectAppDebugRead(string $contents): bool
+{
+    $tokens = token_get_all($contents);
+    $count = count($tokens);
+    for ($i = 0; $i < $count; ++$i) {
+        $token = $tokens[$i];
+        if (is_array($token) && $token[0] === T_STRING && strtolower($token[1]) === 'getenv') {
+            $argument = nextMeaningfulToken($tokens, $i + 1, '(');
+            if (is_array($argument)
+                && $argument[0] === T_CONSTANT_ENCAPSED_STRING
+                && trim($argument[1], "'\"") === 'APP_DEBUG') {
+                return true;
+            }
+        }
+        if (is_array($token)
+            && $token[0] === T_VARIABLE
+            && in_array($token[1], ['$_ENV', '$_SERVER'], true)) {
+            $offset = nextMeaningfulToken($tokens, $i + 1, '[');
+            if (is_array($offset)
+                && $offset[0] === T_CONSTANT_ENCAPSED_STRING
+                && trim($offset[1], "'\"") === 'APP_DEBUG') {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/** @param array<int, array{int, string, int}|string> $tokens */
+function nextMeaningfulToken(array $tokens, int $offset, string $punctuation): array|string|null
+{
+    $count = count($tokens);
+    while ($offset < $count) {
+        $token = $tokens[$offset++];
+        if (is_array($token) && $token[0] === T_WHITESPACE) {
+            continue;
+        }
+        if ($token === $punctuation) {
+            $punctuation = '';
+            continue;
+        }
+        if ($punctuation !== '') {
+            return null;
+        }
+
+        return $token;
+    }
+
+    return null;
+}
+
+/** @param list<string> $aliases */
+function hasDevelopmentClassifier(string $contents, array $aliases): bool
+{
+    $found = [];
+    foreach (token_get_all($contents) as $token) {
+        if (!is_array($token) || $token[0] !== T_CONSTANT_ENCAPSED_STRING) {
+            continue;
+        }
+        $literal = trim($token[1], "'\"");
+        if (in_array(strtolower($literal), $aliases, true)) {
+            $found[strtolower($literal)] = true;
+        }
+    }
+
+    if (count($found) >= 2) {
+        return true;
+    }
+
+    return preg_match(
+        '/in_array\s*\([^;]{0,500}\[(?=[^\]]*[\'\"](?:dev|development|local|testing)[\'\"])[^\]]*\]/is',
+        $contents,
+    ) === 1;
+}
+
+/**
+ * @param array<string, string> $baseline
+ * @param array<string, true> $observed
+ * @param list<string> $violations
+ */
+function recordRuntimePolicyDetector(
+    string $relativePath,
+    string $detector,
+    string $code,
+    array $baseline,
+    array &$observed,
+    array &$violations,
+): void {
+    $key = $relativePath . ':' . $detector;
+    $observed[$key] = true;
+    if (!isset($baseline[$key])) {
+        $violations[] = sprintf('%s %s unreviewed %s', $code, $relativePath, $detector);
+    }
+}

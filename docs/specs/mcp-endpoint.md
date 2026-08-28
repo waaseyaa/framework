@@ -218,6 +218,23 @@ The internal dispatch method processes requests in this order:
 0. **Guard Streamable HTTP in `serve()`** -- before dispatch, validate Origin,
    method, request size, and media types. A transport
    refusal never reaches authentication, rate limiting, JSON parsing, or tools.
+
+   The kernel can refuse ahead of this guard, and used to do so in the wrong
+   vocabulary: `BodySizeLimitMiddleware`'s 413 and `HttpKernel::parseJsonBody()`'s
+   400 both answered in JSON:API, making the guard's own `-32043` and the
+   endpoint's `-32700` unreachable (#2594). Both MCP routes therefore declare
+   their kernel-refusal codes through `RouteBuilder::refusalTransport()`
+   (`McpRouteProvider::REFUSAL_CODES`), so a kernel-level refusal on `/mcp` or
+   `/mcp/write` arrives as a JSON-RPC error object with the same code, message,
+   and `id: null` the guard would have produced. See
+   `docs/specs/middleware-pipeline.md` "Route-declared refusal envelopes".
+   Note that the effective size cap on these routes is the *lower* of
+   `http_security.body_size_limit.max_bytes` (1 MiB default) and
+   `StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES` (10 MiB), and the
+   kernel's refusal reports its own cap in `error.data.max_request_bytes`.
+   The kernel fast path also requires a digit-only `Content-Length`
+   (`/^\d+$/D`); a garbage header is not rewritten as `-32043`, so the
+   guard can still answer `-32600` Invalid Content-Length.
 1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
 2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` -- including when a routed handler throws -- because the MCP account deliberately differs from any session account. No-op when no context was injected.
 3. **Parse one JSON-RPC message** -- decodes the body with `json_decode()`. On `JsonException`, returns HTTP 400 parse error (`-32700`). Batch arrays, a non-`2.0` envelope, an invalid request id, or a malformed request return HTTP 400 (`-32600`). Valid client response messages are accepted with HTTP 202 and no body.

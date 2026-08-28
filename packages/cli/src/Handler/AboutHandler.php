@@ -8,6 +8,7 @@ use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\ConfigLoader;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 
 /** CLI command handler resolved through the provider command registry. @api */
 final class AboutHandler
@@ -19,11 +20,15 @@ final class AboutHandler
      *        `bin/waaseyaa` validates the CWD is the project root before
      *        dispatching, so the fallback matches the kernel's own root in
      *        CLI context.
+     * @param RuntimePolicy|null $runtimePolicy The policy already resolved from
+     *        the kernel bootstrap inputs. Operator diagnostics must report this
+     *        rather than independently re-reading process state.
      */
     public function __construct(
         private readonly ConfigurationAuthorityContext $configurationAuthority,
         private readonly array $info = [],
         private readonly ?string $projectRoot = null,
+        private readonly ?RuntimePolicy $runtimePolicy = null,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -50,8 +55,8 @@ final class AboutHandler
         return [
             'Waaseyaa Version' => '0.1.0',
             'PHP Version' => PHP_VERSION,
-            'Environment' => $_ENV['APP_ENV'] ?? 'production',
-            'Debug Mode' => ($_ENV['APP_DEBUG'] ?? '0') === '1' ? 'ON' : 'OFF',
+            'Environment' => ($this->runtimePolicy ?? new RuntimePolicy('production', false))->environment,
+            'Debug Mode' => ($this->runtimePolicy ?? new RuntimePolicy('production', false))->debug ? 'ON' : 'OFF',
             'Database' => $this->resolvedDatabasePath(),
             'Config Authority' => $this->configurationAuthority->authorityId,
             'Config Generation' => $this->configurationAuthority->activeGenerationId ?? 'unavailable',

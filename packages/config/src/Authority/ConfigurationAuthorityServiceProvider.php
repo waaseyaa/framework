@@ -32,6 +32,7 @@ use Waaseyaa\Config\Sync\SignedEnvelopeConfigImportPreflight;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretReference;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
@@ -43,8 +44,6 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 /** Sole production composition root for configuration.authority.v1. @api */
 class ConfigurationAuthorityServiceProvider extends ServiceProvider implements FinalizesProviderBootInterface, ProvidesCapabilitiesInterface
 {
-    private const array BOOTSTRAP_ONLY_ENVIRONMENTS = ['local', 'dev', 'development', 'testing'];
-
     private const array BOOTSTRAP_ENVIRONMENT_KEYS = [
         'WAASEYAA_CONFIG_SYNC_PATH',
         'WAASEYAA_CONFIG_DIR',
@@ -211,8 +210,7 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
     {
         $context = $this->resolve(ConfigurationAuthorityContext::class);
         assert($context instanceof ConfigurationAuthorityContext);
-        $environment = strtolower(trim((string) ($this->config['environment'] ?? 'production')));
-        if (!in_array($environment, self::BOOTSTRAP_ONLY_ENVIRONMENTS, true)) {
+        if (!RuntimePolicy::isExplicitDevelopment($this->config)) {
             $context->requireActiveGenerationId();
         }
 
@@ -377,8 +375,7 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
         ConfigurationAuthorityContext $context,
     ): \Waaseyaa\Config\StorageInterface {
         $storage = $bridge->activeStorage();
-        $environment = strtolower(trim((string) ($this->config['environment'] ?? 'production')));
-        if (in_array($environment, self::BOOTSTRAP_ONLY_ENVIRONMENTS, true)) {
+        if (RuntimePolicy::isExplicitDevelopment($this->config)) {
             return $storage;
         }
         $context->requireActiveGenerationId();

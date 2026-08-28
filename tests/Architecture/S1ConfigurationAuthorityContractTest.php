@@ -83,6 +83,11 @@ final class S1ConfigurationAuthorityContractTest extends TestCase
 
         self::assertStringContainsString("return \$classes[\$path] ?? 'unclassified';", $checker);
         self::assertStringNotContainsString("str_starts_with(\$path, 'packages/", $checker);
+        self::assertStringContainsString(
+            'RuntimePolicy::isExplicitDevelopment($this->config)',
+            $checker,
+        );
+        self::assertStringNotContainsString('BOOTSTRAP_ONLY_ENVIRONMENTS', $checker);
     }
 
     #[Test]

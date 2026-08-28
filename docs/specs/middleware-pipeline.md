@@ -194,14 +194,12 @@ running it twice.
 Like the field-read principal middleware, it rebinds its request community
 around deferred streamed-response callbacks before restoring worker state.
 
-`public/index.php` is a thin entry point that boots the kernel and sends the returned response. Under FrankenPHP worker mode, `auto_prepend_file` runs once per process; the repo copy therefore invokes `Waaseyaa\FrankenPhp\WorkerAcceptance` at the start of each `$handler` invocation when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` and SAPI is `frankenphp`, so the worker-runtime acceptance lane can emit per-request identity headers. The front controller does not `require` `tests/`. The seam does not accept an environment-supplied filesystem path or a request header, and a missing class or missing extras file is a no-op rather than a 500. Production leaves that env unset and the branch does not run. Skeleton / `make:public` stub / golden stay unchanged. Production apps typically load `.env` **before** constructing `HttpKernel` via Symfony `Dotenv::loadEnv($projectRoot . '/.env', 'APP_ENV', 'production')` when the file exists — the third argument defaults missing `APP_ENV` to **`production`**, not Symfony's implicit **`dev`**. The monorepo entry wraps malformed `.env` in try/catch; skeleton / `make:public` stub match Minoo's optional-load + outer `Throwable` catch returning JSON:API 500. The file also contains a `cli-server` guard (see [cli-server static file guard](#cli-server-static-file-guard)) so static assets are served directly by the built-in server without passing through `HttpKernel`:
+`public/index.php` is a thin entry point that loads bootstrap environment values, boots the kernel, and sends the returned response. Under FrankenPHP worker mode, `auto_prepend_file` runs once per process; the repo copy therefore invokes `Waaseyaa\FrankenPhp\WorkerAcceptance` at the start of each `$handler` invocation when `WAASEYAA_FRANKENPHP_ACCEPTANCE` is exactly `worker-lane-v1` and SAPI is `frankenphp`, so the worker-runtime acceptance lane can emit per-request identity headers. The front controller does not `require` `tests/`. The seam does not accept an environment-supplied filesystem path or a request header, and a missing class or missing extras file is a no-op rather than a 500. Production leaves that env unset and the branch does not run. Every governed front-controller copy calls `EnvLoader::load($projectRoot . '/.env')` before reading worker or debug values. That canonical boundary uses Symfony Dotenv with a production default, preserves process-injected values, redacts parse failures, and parses each real base path once per process. Kernel and command-specific calls share the same idempotent boundary, so a retained worker never reparses or mutates the process environment per request. The file also contains a `cli-server` guard (see [cli-server static file guard](#cli-server-static-file-guard)) so static assets are served directly by the built-in server without passing through `HttpKernel`:
 
 ```php
 $projectRoot = dirname(__DIR__);
 require $projectRoot . '/vendor/autoload.php';
-if (is_file($projectRoot . '/.env')) {
-    (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($projectRoot . '/.env', 'APP_ENV', 'production');
-}
+EnvLoader::load($projectRoot . '/.env');
 $kernel = new HttpKernel($projectRoot);
 $response = $kernel->handle();
 $response->send();
@@ -364,7 +362,7 @@ All HTTP middleware implement `HttpMiddlewareInterface`. `#[AsMiddleware(pipelin
 | 110 | `ResponseCacheControlMiddleware` | user | Outermost response cache reconciliation for session-bound and cookie-bearing responses. |
 | 100 | `SecurityHeadersMiddleware` | foundation | Runtime-safe defaults (`X-Frame-Options: SAMEORIGIN` + `nosniff`) around the final response; CSP and HSTS remain opt-in through `security_headers` configuration on this one kernel-owned instance. Constructor: `(?string $csp, bool $hstsEnabled, int $hstsMaxAge, string $frameOptions)`. Standalone construction retains the historical CSP/HSTS-on defaults. |
 | 80 | `RateLimitMiddleware` | foundation | IP-based 60 requests / 60 seconds by default, backed by the kernel's durable shared database. |
-| 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over 1 MiB by default with 413. |
+| 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over 1 MiB by default with 413, rendered in the matched route's declared refusal envelope (see "Route-declared refusal envelopes"). |
 | 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityRepositoryInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
 | 30 | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
 | 20 | `CommunityMiddleware` | foundation | Resolves and bounds the request community before principal construction. |
@@ -383,6 +381,59 @@ Both active security controls have an emergency configuration rollback under
 `http_security`: set `rate_limit.enabled` or `body_size_limit.enabled` to
 `false`. Positive integer overrides are `rate_limit.max_attempts` (60),
 `rate_limit.window_seconds` (60), and `body_size_limit.max_bytes` (1048576).
+
+## Route-declared refusal envelopes
+
+The kernel refuses some requests before the matched controller ever runs: the
+body-size guard's 413, and the JSON pre-parse's 400 on a malformed body
+(`HttpKernel::parseJsonBody()`). Both answered in the framework's JSON:API error
+document. On an endpoint that advertises a different transport that document is
+a shape the client cannot interpret, and it *shadows* the endpoint's own
+refusal — the MCP endpoint's `-32043` and `-32700` answers were unreachable
+because the kernel had already replied (#2594).
+
+A route therefore declares the vocabulary its kernel-level refusals are
+rendered in, as plain route-option data:
+
+```php
+RouteBuilder::create('/mcp')
+    ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [
+        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+        RefusalEnvelope::REASON_PARSE_ERROR       => -32700,
+    ])
+```
+
+| Element | Location |
+|---|---|
+| `RefusalEnvelope` (renderer + option/reason constants) | `packages/foundation/src/Http/Refusal/RefusalEnvelope.php` |
+| `HttpRefusal` (one refusal, in both vocabularies) | `packages/foundation/src/Http/Refusal/HttpRefusal.php` |
+| `RouteBuilder::refusalTransport()` (declaration surface) | `packages/routing/src/RouteBuilder.php` |
+| Resolution point (`_refusal_envelope` request attribute) | `HttpKernel::matchRoute()` |
+
+Because the declaration is data, Foundation never learns which transport it is
+serving and the endpoint's package keeps ownership of its error codes — no
+upward import, and the seam is inert on a `core`-only install. `matchRoute()`
+resolves the options once and puts the resulting `RefusalEnvelope` on the
+request as `RefusalEnvelope::REQUEST_ATTRIBUTE`; every refusal site reads it
+through `RefusalEnvelope::forRequest()`.
+
+Three invariants hold, and are pinned by tests:
+
+1. **The seam negotiates the envelope only.** The cap, the decision to refuse,
+   and the HTTP status are untouched. A route declares an error *code*, never a
+   status, so no route declaration can soften a 413 into a 200. No route is
+   ever exempted from `BodySizeLimitMiddleware` — exempting `/mcp*` would have
+   fixed the shape by removing the boundary, which is not a fix. The
+   `Content-Length` fast path only treats a digit-only header (`/^\d+$/D`, the
+   same rule as `StreamableHttpTransportGuard`) as a declared length; a garbage
+   header such as `2000000abc` is not rewritten as oversize, so the actual-read
+   backstop still enforces the cap against the body and a JSON-RPC route can
+   still emit the transport's `-32600` Invalid Content-Length.
+2. **The kernel never invents an error code.** A reason left unmapped, an
+   unknown transport, or ill-typed options all degrade to the JSON:API envelope.
+3. **The reported cap is the kernel's own.** `error.data.max_request_bytes`
+   carries `body_size_limit.max_bytes`, not the endpoint's advertised maximum,
+   because that is the limit the request actually hit.
 
 ## File Reference
 
@@ -428,7 +479,7 @@ Both active security controls have an emergency configuration rollback under
 
 | File | Role |
 |------|------|
-| `public/index.php` | Thin entry point: optional pre-kernel `Dotenv::loadEnv(..., 'APP_ENV', 'production')`, boots `HttpKernel`, sends returned `Response`. `cli-server` guard uses `$_SERVER['REQUEST_URI'] ?? '/'` when resolving paths. |
+| `public/index.php` | Thin entry point: calls the canonical once-per-process `EnvLoader` before runtime dispatch, boots `HttpKernel`, and sends the returned `Response`. `cli-server` guard uses `$_SERVER['REQUEST_URI'] ?? '/'` when resolving paths. |
 | `HttpKernel::serveHttpRequest()` | Wires CORS, route matching, `HttpPipeline`, dispatch |
 
 #### cli-server static file guard

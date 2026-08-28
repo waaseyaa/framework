@@ -703,12 +703,6 @@ parameters:
 			path: packages/foundation/src/Kernel/AbstractKernel.php
 
 		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 1
-			path: packages/foundation/src/Kernel/AbstractKernel.php
-
-		-
 			message: '#^Dead catch \- RuntimeException is never thrown in the try block\.$#'
 			identifier: catch.neverThrown
 			count: 1

@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Promote the immutable source artifact from an exact-head successful CI run.
+set -euo pipefail
+
+expected_sha="${1:-}"
+output_dir="${2:-}"
+promotion_target="${3:-}"
+
+if [ -z "$expected_sha" ] || [ -z "$output_dir" ] || [ -z "$promotion_target" ]; then
+  echo "Usage: bin/promote-exact-source-artifact <exact-sha> <output-dir> <promotion-target>" >&2
+  exit 2
+fi
+
+fail() {
+  echo "source_artifact_promotion_refused: $1" >&2
+  exit 1
+}
+
+case "$expected_sha" in
+  *[!0-9a-f]*|'') fail "expected SHA must be 40 lowercase hexadecimal characters" ;;
+esac
+[ "${#expected_sha}" -eq 40 ] || fail "expected SHA must be 40 lowercase hexadecimal characters"
+[ ! -e "$output_dir" ] || fail "output directory already exists: $output_dir"
+[[ "$promotion_target" =~ ^[a-z0-9][a-z0-9._-]*$ ]] \
+  || fail "promotion target must be a lowercase stable identifier"
+
+repository="${GITHUB_REPOSITORY:-}"
+[ -n "$repository" ] || fail "GITHUB_REPOSITORY is required"
+
+run_output="$(gh api \
+  "repos/$repository/actions/workflows/ci.yml/runs?head_sha=$expected_sha&status=success&per_page=1" \
+  --jq '.workflow_runs[] | [.id, .head_sha, .status, .conclusion, .html_url] | @tsv')" \
+  || fail "could not query ci.yml runs"
+if [ -n "$run_output" ]; then
+  mapfile -t runs <<< "$run_output"
+else
+  runs=()
+fi
+[ "${#runs[@]}" -eq 1 ] || fail "no completed successful ci.yml run for exact SHA $expected_sha"
+
+IFS=$'\t' read -r run_id run_sha run_status run_conclusion run_url <<< "${runs[0]}"
+[ "$run_sha" = "$expected_sha" ] || fail "run does not bind the requested SHA"
+[ "$run_status" = "completed" ] && [ "$run_conclusion" = "success" ] \
+  || fail "no completed successful ci.yml run for exact SHA $expected_sha"
+[[ "$run_id" =~ ^[1-9][0-9]*$ ]] || fail "producing run id is invalid"
+
+artifact_name="framework-source-$expected_sha"
+artifact_output="$(gh api \
+  "repos/$repository/actions/runs/$run_id/artifacts?per_page=100" \
+  --jq ".artifacts[] | select(.name == \"$artifact_name\") | [.id, .name, .expired] | @tsv")" \
+  || fail "could not query producing run artifacts"
+if [ -n "$artifact_output" ]; then
+  mapfile -t artifacts <<< "$artifact_output"
+else
+  artifacts=()
+fi
+[ "${#artifacts[@]}" -eq 1 ] \
+  || fail "expected exactly one source artifact named $artifact_name"
+
+IFS=$'\t' read -r artifact_id returned_name artifact_expired <<< "${artifacts[0]}"
+[ "$returned_name" = "$artifact_name" ] \
+  || fail "source artifact name does not bind the requested SHA"
+[ "$artifact_expired" = "false" ] || fail "source artifact is expired"
+[[ "$artifact_id" =~ ^[1-9][0-9]*$ ]] || fail "source artifact id is invalid"
+
+mkdir -p "$(dirname "$output_dir")"
+temporary_dir="$(mktemp -d "$(dirname "$output_dir")/.source-promotion.XXXXXX")"
+cleanup() {
+  rm -rf -- "$temporary_dir"
+}
+trap cleanup EXIT
+
+gh run download "$run_id" --name "$artifact_name" --dir "$temporary_dir" \
+  || fail "could not download source artifact"
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+"$repo_root/bin/verify-exact-source-artifact" "$temporary_dir" "$expected_sha"
+
+manifest_path="$temporary_dir/manifest.json"
+handoff_path="$temporary_dir/handoff.json"
+PRODUCER_RUN_ID="$run_id" \
+PRODUCER_RUN_URL="$run_url" \
+SOURCE_ARTIFACT_ID="$artifact_id" \
+SOURCE_ARTIFACT_NAME="$artifact_name" \
+PROMOTION_TARGET="$promotion_target" \
+php -r '
+$source = json_decode(file_get_contents($argv[1]), true, 16, JSON_THROW_ON_ERROR);
+$handoff = [
+    "schema_version" => 1,
+    "kind" => "framework-exact-source-promotion",
+    "source_sha" => $source["source_sha"],
+    "source_tree" => $source["source_tree"],
+    "archive_sha256" => $source["archive_sha256"],
+    "archive_bytes" => $source["archive_bytes"],
+    "producer_workflow" => "ci.yml",
+    "producer_run_id" => (int) getenv("PRODUCER_RUN_ID"),
+    "producer_run_url" => getenv("PRODUCER_RUN_URL"),
+    "source_artifact_id" => (int) getenv("SOURCE_ARTIFACT_ID"),
+    "source_artifact_name" => getenv("SOURCE_ARTIFACT_NAME"),
+    "promotion_target" => getenv("PROMOTION_TARGET"),
+];
+file_put_contents($argv[2], json_encode($handoff, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$manifest_path" "$handoff_path"
+
+mv "$temporary_dir" "$output_dir"
+trap - EXIT
+
+printf 'exact source artifact promoted\n'
+printf 'source_sha=%s\n' "$expected_sha"
+printf 'producer_run_id=%s\n' "$run_id"
+printf 'source_artifact_id=%s\n' "$artifact_id"

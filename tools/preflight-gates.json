@@ -246,6 +246,18 @@
             }
         },
         {
+            "id": "check-runtime-policy-custody",
+            "alias": "check-runtime-policy-custody",
+            "run": "php bin/check-runtime-policy-custody",
+            "repair": "route debug/environment classification through RuntimePolicy or add a reviewed low-layer baseline entry with rationale",
+            "profile": "default",
+            "enforced_by": "architecture-test:RuntimePolicyCustodyContractTest.php",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "route the policy through RuntimePolicy; baseline only an unavoidable lower-layer authority with explicit package-cycle rationale"
+            }
+        },
+        {
             "id": "check-covers-nothing-companions",
             "run": "php bin/check-covers-nothing-companions --base={base}",
             "base": true,
