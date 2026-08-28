@@ -278,7 +278,44 @@ Every successful mutation records via `AuditWriterInterface` (best-effort): kind
 - Input schemas: JSON Schema draft 2020-12, `additionalProperties: false`, derived from the descriptor's writable fields; mutations require `idempotency_key`; update/publish/unpublish require `expected_revision_id`.
 - Errors: structured `{code, message, errors?: [{field, message}], meta?: object}` in the MCP `isError` envelope — `VALIDATION_FAILED` (field-specific), `REVISION_CONFLICT` (with expected/current), `IDEMPOTENCY_CONFLICT`, `SLUG_TAKEN` (field-level on the slug field), `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` (candidate-bound advisory metadata), `NOT_FOUND`, `UNAUTHORIZED`.
 - No tool input is ever a filesystem path, SQL, Twig, or executable content; asset bytes are base64 with size caps; responses never include credentials or personal data.
-- `asset.upload {filename, content_base64, alt?}`: media create access for the configured bundle is required before any bytes are written. Accepted bytes go through the media `UploadHandler` contract — fail-closed `finfo` MIME sniffing (client MIME ignored), file-signature/extension agreement, size cap, randomized safe filename — then a `media` entity is created with the authenticated actor recorded in its save context (repository save, revisioned, audited). Returns `{asset_id, url, mime, width, height, size}`. `asset.get` returns the same by id. Approved types: png/jpeg/webp (descriptor-configurable subset of the media allowlist).
+- `asset.upload {filename, content_base64, alt?}`: media create access for the configured bundle is required before any bytes are written. Accepted bytes go through the media `UploadHandler` contract — fail-closed `finfo` MIME sniffing (client MIME ignored), file-signature/extension agreement, size cap, randomized safe filename — then a `media` entity is created with the authenticated actor recorded in its save context (repository save, revisioned, audited). Returns `{asset_id, media_id, url, mime, width, height, size}`. `asset.get` returns the same by id. Approved types: png/jpeg/webp (descriptor-configurable subset of the media allowlist).
+
+### The asset catalog row is the authority (#2517)
+
+The `media` row `asset.upload` writes is not bookkeeping — it governs the
+asset's reachability, on both surfaces:
+
+- **`source_uri` is scheme-qualified** (`public://<path under the media files root>`),
+  which is the only shape `MediaDownloadRouter::resolvePublicPath()` resolves. A
+  scheme-less value made the framework write rows its own authorized download
+  route could not serve, so a consumer needing gated retrieval had no supported
+  path and was pushed toward serving the bytes directly. `MediaAssetStore` takes
+  the media files root (config `files_root`, default `<project>/storage/files` —
+  the same directory `MediaServiceProvider` hands the router) and refuses at
+  construction if its uploads directory is not inside it, `..` included.
+- **`media_id`** is the identifier `/media/{id}/download` and `/media/{id}/view`
+  are keyed by. `url` remains the public URL and is unchanged.
+- **`asset.get` is gated on that row's `view` access**, using the principal it
+  has always accepted. Bytes on disk with no catalog row are not an asset.
+  Re-uploading the same bytes writes another catalog row (the file is
+  content-addressed); `asset.get` returns the first matching row the principal
+  may `view`, so an unpublished duplicate does not hide a later published one.
+
+**Retraction.** The row is the authority, so unpublishing or deleting it
+withdraws the asset from `asset.get` and from the authorized download route
+immediately. The bytes stay on disk: they are content-addressed, may be shared
+by other rows, and `AssetStoreInterface` exposes no retraction primitive with
+which to express byte deletion — that remains the open interface question the
+issue records, not a prerequisite for the gate.
+
+Rows written before this change carry the old scheme-less `source_uri`. They are
+still matched on read — under the access check they never had — but the
+authorized route cannot serve them until the asset is re-uploaded.
+
+Pinned end to end by
+`packages/ai-tools/tests/Integration/AgentUploadedAssetIsAuthorizedDownloadableTest.php`,
+which composes the real store and the real `MediaDownloadRouter` over the real
+`MediaAccessPolicy`: neither half is wrong alone, only the pair.
 
 ## MCP rate limiting (`packages/mcp`)
 
