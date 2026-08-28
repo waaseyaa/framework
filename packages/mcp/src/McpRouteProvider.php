@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp;
 
+use Waaseyaa\Foundation\Http\Refusal\RefusalEnvelope;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
@@ -24,6 +25,22 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 final readonly class McpRouteProvider
 {
     /**
+     * The JSON-RPC error codes the kernel must use when it refuses a request to
+     * an MCP endpoint before {@see StreamableHttpTransportGuard} can run.
+     *
+     * `-32043` is this transport's oversize-body refusal, matching the guard's
+     * own; `-32700` is JSON-RPC 2.0's parse error. Both were previously
+     * unreachable because the kernel answered first in JSON:API (#2594), which
+     * is not a shape a JSON-RPC client can interpret.
+     *
+     * @var array<string, int>
+     */
+    private const array REFUSAL_CODES = [
+        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+        RefusalEnvelope::REASON_PARSE_ERROR => -32700,
+    ];
+
+    /**
      * @param bool $publicEndpointEnabled Whether to register the anonymous
      *        read-only tier and its discovery card. Defaults to true so direct
      *        construction keeps the historical surface.
@@ -43,6 +60,7 @@ final readonly class McpRouteProvider
                     ->methods('POST', 'GET')
                     ->allowAll()
                     ->csrfExempt()
+                    ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, self::REFUSAL_CODES)
                     ->build(),
             );
 
@@ -72,6 +90,7 @@ final readonly class McpRouteProvider
                 ->methods('POST', 'GET')
                 ->allowAll()
                 ->csrfExempt()
+                ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, self::REFUSAL_CODES)
                 ->build(),
         );
 

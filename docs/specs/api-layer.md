@@ -1485,6 +1485,7 @@ $route = RouteBuilder::create('/node/{node}')
 | `allowAll()` | `_public = true` | Public route, no auth required |
 | `csrfExempt()` | `_csrf = false` | Skip CSRF validation — route has its own auth model (MCP bearer, API keys) |
 | `requireCsrf()` | `_csrf = true` | Force CSRF validation on state-changing methods even for the JSON content types that are exempt by default (cookie-authenticated JSON endpoints, e.g. MCP write-tier approvals). See `docs/specs/security-defaults.md` "CSRF token cookie" |
+| `refusalTransport(string $transport, array<string, int> $codes)` | `_refusal_transport`, `_refusal_codes` | Declare the wire vocabulary this route's **kernel-level** refusals (oversized body, malformed JSON) are rendered in, plus the `reason => error code` map. Without it those refusals answer in JSON:API, which shadows a JSON-RPC endpoint's own refusal (#2594). See `docs/specs/middleware-pipeline.md` "Route-declared refusal envelopes" |
 | `requirement(string $key, string $regex)` | (route requirements) | Regex requirement for parameter |
 | `default(string $key, mixed $value)` | (route defaults) | Default parameter value |
 | `build()` | -- | Returns configured Symfony Route |

@@ -2513,7 +2513,7 @@ Middleware/
     HttpHandlerInterface.php     -- handle(Request): Response
     HttpPipeline.php             -- onion-pattern HTTP middleware stack
     DebugHeaderMiddleware.php    -- X-Debug-Time/Memory/Request-Id headers (APP_DEBUG only)
-    BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413)
+    BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413) in the route's refusal envelope; Content-Length fast path requires a digit-only header
     JobMiddlewareInterface.php   -- process(Job, JobHandlerInterface): void
     JobHandlerInterface.php      -- handle(Job): void
     JobPipeline.php              -- onion-pattern job middleware stack
@@ -2574,6 +2574,9 @@ Http/
     ControllerDispatcher.php     -- routes controller names to domain routers; Inertia responses use Inertia::getRenderer()
     JsonApiResponseTrait.php     -- shared JSON:API response builder
     CorsHandler.php              -- CORS preflight and header resolution
+    Refusal/
+        RefusalEnvelope.php          -- renders kernel refusals in the matched route's declared transport
+        HttpRefusal.php              -- one refusal, carried in both JSON:API and transport-neutral form
     Router/
         DomainRouterInterface.php        -- supports(Request)/handle(Request) contract
         WaaseyaaContext.php              -- typed request context value object

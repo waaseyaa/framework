@@ -362,7 +362,7 @@ All HTTP middleware implement `HttpMiddlewareInterface`. `#[AsMiddleware(pipelin
 | 110 | `ResponseCacheControlMiddleware` | user | Outermost response cache reconciliation for session-bound and cookie-bearing responses. |
 | 100 | `SecurityHeadersMiddleware` | foundation | Runtime-safe defaults (`X-Frame-Options: SAMEORIGIN` + `nosniff`) around the final response; CSP and HSTS remain opt-in through `security_headers` configuration on this one kernel-owned instance. Constructor: `(?string $csp, bool $hstsEnabled, int $hstsMaxAge, string $frameOptions)`. Standalone construction retains the historical CSP/HSTS-on defaults. |
 | 80 | `RateLimitMiddleware` | foundation | IP-based 60 requests / 60 seconds by default, backed by the kernel's durable shared database. |
-| 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over 1 MiB by default with 413. |
+| 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over 1 MiB by default with 413, rendered in the matched route's declared refusal envelope (see "Route-declared refusal envelopes"). |
 | 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityRepositoryInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
 | 30 | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
 | 20 | `CommunityMiddleware` | foundation | Resolves and bounds the request community before principal construction. |
@@ -381,6 +381,59 @@ Both active security controls have an emergency configuration rollback under
 `http_security`: set `rate_limit.enabled` or `body_size_limit.enabled` to
 `false`. Positive integer overrides are `rate_limit.max_attempts` (60),
 `rate_limit.window_seconds` (60), and `body_size_limit.max_bytes` (1048576).
+
+## Route-declared refusal envelopes
+
+The kernel refuses some requests before the matched controller ever runs: the
+body-size guard's 413, and the JSON pre-parse's 400 on a malformed body
+(`HttpKernel::parseJsonBody()`). Both answered in the framework's JSON:API error
+document. On an endpoint that advertises a different transport that document is
+a shape the client cannot interpret, and it *shadows* the endpoint's own
+refusal — the MCP endpoint's `-32043` and `-32700` answers were unreachable
+because the kernel had already replied (#2594).
+
+A route therefore declares the vocabulary its kernel-level refusals are
+rendered in, as plain route-option data:
+
+```php
+RouteBuilder::create('/mcp')
+    ->refusalTransport(RefusalEnvelope::TRANSPORT_JSON_RPC, [
+        RefusalEnvelope::REASON_PAYLOAD_TOO_LARGE => -32043,
+        RefusalEnvelope::REASON_PARSE_ERROR       => -32700,
+    ])
+```
+
+| Element | Location |
+|---|---|
+| `RefusalEnvelope` (renderer + option/reason constants) | `packages/foundation/src/Http/Refusal/RefusalEnvelope.php` |
+| `HttpRefusal` (one refusal, in both vocabularies) | `packages/foundation/src/Http/Refusal/HttpRefusal.php` |
+| `RouteBuilder::refusalTransport()` (declaration surface) | `packages/routing/src/RouteBuilder.php` |
+| Resolution point (`_refusal_envelope` request attribute) | `HttpKernel::matchRoute()` |
+
+Because the declaration is data, Foundation never learns which transport it is
+serving and the endpoint's package keeps ownership of its error codes — no
+upward import, and the seam is inert on a `core`-only install. `matchRoute()`
+resolves the options once and puts the resulting `RefusalEnvelope` on the
+request as `RefusalEnvelope::REQUEST_ATTRIBUTE`; every refusal site reads it
+through `RefusalEnvelope::forRequest()`.
+
+Three invariants hold, and are pinned by tests:
+
+1. **The seam negotiates the envelope only.** The cap, the decision to refuse,
+   and the HTTP status are untouched. A route declares an error *code*, never a
+   status, so no route declaration can soften a 413 into a 200. No route is
+   ever exempted from `BodySizeLimitMiddleware` — exempting `/mcp*` would have
+   fixed the shape by removing the boundary, which is not a fix. The
+   `Content-Length` fast path only treats a digit-only header (`/^\d+$/D`, the
+   same rule as `StreamableHttpTransportGuard`) as a declared length; a garbage
+   header such as `2000000abc` is not rewritten as oversize, so the actual-read
+   backstop still enforces the cap against the body and a JSON-RPC route can
+   still emit the transport's `-32600` Invalid Content-Length.
+2. **The kernel never invents an error code.** A reason left unmapped, an
+   unknown transport, or ill-typed options all degrade to the JSON:API envelope.
+3. **The reported cap is the kernel's own.** `error.data.max_request_bytes`
+   carries `body_size_limit.max_bytes`, not the endpoint's advertised maximum,
+   because that is the limit the request actually hit.
 
 ## File Reference
 
