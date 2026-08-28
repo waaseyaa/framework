@@ -37,12 +37,12 @@ final readonly class StreamableHttpTransportGuard
     {
         $origin = $request->origin;
         if ($origin !== null && !$this->originAllowed($origin, $request)) {
-            return self::error(403, -32040, 'Forbidden origin');
+            return self::error(403, McpErrorCode::FORBIDDEN_ORIGIN, 'Forbidden origin');
         }
 
         if ($request->method === 'GET') {
             if (!self::accepts($request, 'text/event-stream')) {
-                return self::error(406, -32041, 'GET requires Accept: text/event-stream');
+                return self::error(406, McpErrorCode::UNACCEPTABLE_ACCEPT, 'GET requires Accept: text/event-stream');
             }
 
             return new McpResponse('', 405, 'application/json', ['Allow' => 'POST']);
@@ -59,20 +59,20 @@ final readonly class StreamableHttpTransportGuard
         if (($declaredLength !== null && (int) $declaredLength > $this->maxRequestBytes)
             || \strlen($request->body) > $this->maxRequestBytes
         ) {
-            return self::error(413, -32043, 'Request body exceeds maximum size', [
+            return self::error(413, McpErrorCode::REQUEST_TOO_LARGE, 'Request body exceeds maximum size', [
                 'max_request_bytes' => $this->maxRequestBytes,
             ]);
         }
 
         $contentType = \strtolower(\trim(\explode(';', (string) $request->contentType, 2)[0]));
         if ($contentType !== 'application/json') {
-            return self::error(415, -32042, 'Content-Type must be application/json');
+            return self::error(415, McpErrorCode::UNSUPPORTED_CONTENT_TYPE, 'Content-Type must be application/json');
         }
 
         if (!self::accepts($request, 'application/json') || !self::accepts($request, 'text/event-stream')) {
             return self::error(
                 406,
-                -32041,
+                McpErrorCode::UNACCEPTABLE_ACCEPT,
                 'Accept must list application/json and text/event-stream',
             );
         }

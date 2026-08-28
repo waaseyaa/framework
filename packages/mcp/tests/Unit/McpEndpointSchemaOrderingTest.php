@@ -16,6 +16,7 @@ use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
+use Waaseyaa\Mcp\McpErrorCode;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpResponse;
@@ -192,7 +193,7 @@ final class McpEndpointSchemaOrderingTest extends TestCase
         $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
 
         self::assertSame(429, $response->statusCode);
-        self::assertSame(-32029, $decoded['error']['code']);
+        self::assertSame(McpErrorCode::RATE_LIMIT_EXCEEDED, $decoded['error']['code']);
         self::assertSame([], $this->handlerSink->getArrayCopy());
     }
 
