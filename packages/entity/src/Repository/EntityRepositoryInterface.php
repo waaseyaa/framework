@@ -32,13 +32,18 @@ interface EntityRepositoryInterface
     /**
      * Find an entity by ID.
      *
-     * @param string $id The entity ID.
+     * Identity is accepted in the domain the framework's own producers emit --
+     * {@see \Waaseyaa\Entity\EntityInterface::id()} and
+     * {@see \Waaseyaa\Entity\Storage\EntityQueryInterface::execute()} -- and is
+     * reduced to its string addressing form at the repository boundary (#2674).
+     *
+     * @param int|string $id The entity ID.
      * @param string|null $langcode Optional language code to load a specific translation.
      * @param bool $fallback Whether to apply language fallback chain.
      * @return EntityInterface|null The entity, or null if not found.
      */
     #[\NoDiscard('lookup result must be checked for null')]
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface;
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface;
 
     /**
      * Find many entities by ID in one driver round-trip (when not using language fallback).
@@ -106,9 +111,9 @@ interface EntityRepositoryInterface
     /**
      * Check if an entity with the given ID exists.
      *
-     * @param string $id The entity ID.
+     * @param int|string $id The entity ID.
      */
-    public function exists(string $id): bool;
+    public function exists(int|string $id): bool;
 
     /**
      * Count entities matching optional criteria.
@@ -120,12 +125,12 @@ interface EntityRepositoryInterface
     /**
      * Load a specific revision of an entity.
      *
-     * @param string $entityId The entity ID.
+     * @param int|string $entityId The entity ID.
      * @param int $revisionId The revision ID.
      * @return EntityInterface|null The entity hydrated from the revision, or null.
      */
     #[\NoDiscard('lookup result must be checked for null')]
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface;
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface;
 
     /**
      * Rollback an entity to a previous revision (copy-forward).
@@ -133,14 +138,14 @@ interface EntityRepositoryInterface
      * Creates a new revision with the target revision's field values
      * and auto-annotates the revision log.
      *
-     * @param string $entityId The entity ID.
+     * @param int|string $entityId The entity ID.
      * @param int $targetRevisionId The revision to copy values from.
      * @return EntityInterface The entity hydrated from the new revision.
      * @throws \InvalidArgumentException If the target revision does not exist.
      */
     #[\NoDiscard('lookup result must be checked for null')]
     public function rollback(
-        string $entityId,
+        int|string $entityId,
         int $targetRevisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface;
@@ -151,23 +156,23 @@ interface EntityRepositoryInterface
      * Each entity is hydrated with revision metadata (revision id, created,
      * log, and the is_default_revision / is_latest_revision flags).
      *
-     * @param string $entityId The entity ID.
+     * @param int|string $entityId The entity ID.
      * @return list<EntityInterface> Revisions ordered newest-first (empty if none).
      */
-    public function listRevisions(string $entityId): array;
+    public function listRevisions(int|string $entityId): array;
 
     /**
      * Make an existing revision the current/default revision in place, without
      * creating a new revision (unlike rollback, which records a fresh revision).
      *
-     * @param string $entityId The entity ID.
+     * @param int|string $entityId The entity ID.
      * @param int $revisionId The existing revision to make current.
      * @return EntityInterface The entity hydrated from the now-current revision.
      * @throws \InvalidArgumentException If the revision does not exist.
      */
     #[\NoDiscard('lookup result must be checked for null')]
     public function setCurrentRevision(
-        string $entityId,
+        int|string $entityId,
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface;
@@ -181,11 +186,11 @@ interface EntityRepositoryInterface
      * null when the entity has no published revision (the pointer is NULL) or
      * when the entity does not exist.
      *
-     * @param string $entityId The entity ID.
+     * @param int|string $entityId The entity ID.
      * @return EntityInterface|null The entity hydrated from the published revision, or null.
      */
     #[\NoDiscard('lookup result must be checked for null')]
-    public function loadPublishedRevision(string $entityId): ?EntityInterface;
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface;
 
     /**
      * Promote an existing revision to be the PUBLISHED revision.
@@ -195,14 +200,14 @@ interface EntityRepositoryInterface
      * differ. Publishing an older revision is how rollback of the live view
      * works. This is the deliberate "go live" step, distinct from saving a draft.
      *
-     * @param string $entityId The entity ID.
+     * @param int|string $entityId The entity ID.
      * @param int $revisionId The existing revision to publish.
      * @return EntityInterface The entity hydrated from the now-published revision.
      * @throws \InvalidArgumentException If the revision does not exist.
      */
     #[\NoDiscard('lookup result must be checked for null')]
     public function setPublishedRevision(
-        string $entityId,
+        int|string $entityId,
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface;
@@ -227,12 +232,12 @@ interface EntityRepositoryInterface
      * yet routes through it) — see `docs/specs/revision-system-unified.md`
      * "Default-revision discipline (CW-v1 option-1)".
      *
-     * @param string $id The entity ID.
+     * @param int|string $id The entity ID.
      * @return EntityInterface|null The working copy, or null if the entity does not exist.
      * @api
      */
     #[\NoDiscard('lookup result must be checked for null')]
-    public function loadWorkingCopy(string $id): ?EntityInterface;
+    public function loadWorkingCopy(int|string $id): ?EntityInterface;
 
     /**
      * Save multiple entities in a single transaction.
@@ -302,7 +307,7 @@ interface EntityRepositoryInterface
      * @param array<string, mixed> $values This language's field values.
      */
     public function saveTranslation(
-        string $entityId,
+        int|string $entityId,
         string $langcode,
         array $values,
         ?string $log = null,
@@ -313,12 +318,12 @@ interface EntityRepositoryInterface
      * Load the current value of one language from its peer (id, langcode) base
      * row, or null when that language has no row yet.
      */
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface;
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface;
 
     /**
      * One language's revisions, newest first.
      *
      * @return list<EntityInterface>
      */
-    public function listTranslationRevisions(string $entityId, string $langcode): array;
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array;
 }

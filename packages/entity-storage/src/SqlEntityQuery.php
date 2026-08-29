@@ -796,7 +796,7 @@ final class SqlEntityQuery implements EntityQueryInterface
                 throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
             }
             $id = $row[$this->idKey];
-            if (is_string($id) && preg_match('/^(0|[1-9][0-9]*)$/D', $id) === 1) {
+            if (is_string($id) && (string) (int) $id === $id) {
                 $id = (int) $id;
             }
 
@@ -1410,8 +1410,10 @@ final class SqlEntityQuery implements EntityQueryInterface
         foreach ($result as $row) {
             $row = (array) $row;
             $id = $row[$this->idKey];
-            // Preserve integer IDs as integers.
-            if (is_numeric($id) && (int) $id == $id) {
+            // Report an integer ID as an integer only when the cast round-trips
+            // exactly, so a string-keyed machine name such as '007' is returned
+            // verbatim and still addresses its own row via find() (#2674).
+            if (is_string($id) && (string) (int) $id === $id) {
                 $id = (int) $id;
             }
             $ids[] = $id;

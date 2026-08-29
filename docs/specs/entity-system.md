@@ -576,20 +576,31 @@ Higher-level API with language fallback:
 ```php
 interface EntityRepositoryInterface
 {
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface;
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface;
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array;
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array;
     public function getQuery(): EntityQueryInterface;   // C-22: same access-checked surface as EntityStorageInterface::getQuery()
     public function save(EntityInterface $entity, bool $validate = true): int;
     public function delete(EntityInterface $entity): void;
-    public function exists(string $id): bool;
+    public function exists(int|string $id): bool;
     public function count(array $criteria = []): int;
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface;
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface;
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface;
+    public function rollback(int|string $entityId, int $targetRevisionId): EntityInterface;
     public function saveMany(array $entities, bool $validate = true): array;   // int[] (SAVED_NEW/SAVED_UPDATED)
     public function deleteMany(array $entities): int;
 }
 ```
+
+Entity identity is accepted as `int|string` — the domain produced by
+`EntityInterface::id()` and `EntityQueryInterface::execute()` — and reduced once,
+at the repository boundary, to the driver SPI's `string` addressing domain.
+Nothing is re-interpreted numerically on the way in, so `'007'` addresses row
+`'007'`. On the way out a stored value is reported as an int only when the cast
+round-trips exactly (`(string) (int) $v === $v`); a bare `is_numeric()` test
+previously coerced `'007'` to `7` and `'1e3'` to `1000`, which addressed no row
+and left those entities unloadable (#2674). This matches the `int|string` the
+parent `EntityStorageInterface` and `RevisionableStorageInterface` have always
+declared — before #2674 this interface contradicted them, and the note above.
 
 `save()` accepts `bool $validate = true`. When true and an `EntityValidator` is configured, validates against the merged map from `EntityTypeValidationConstraints::forEntityType()` (field definitions + `getConstraints()`, see “Field definitions → constraints” below) before persisting. Throws `EntityValidationException` on failure. **Since alpha.204 (#1643) a validator is configured by default**: the kernel wires one shared `EntityValidator::createDefault()` into every repository it builds, so validation runs framework-wide unless opted out (boot-time `WAASEYAA_ENTITY_VALIDATION=0|false|off`, or per-call `validate: false`).
 

@@ -320,12 +320,12 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         return $this->inner->create($values);
     }
 
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?\Waaseyaa\Entity\EntityInterface
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?\Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->find($id, $langcode, $fallback);
     }
 
-    public function loadWorkingCopy(string $id): ?\Waaseyaa\Entity\EntityInterface
+    public function loadWorkingCopy(int|string $id): ?\Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->loadWorkingCopy($id);
     }
@@ -350,7 +350,7 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         $this->inner->delete($entity);
     }
 
-    public function exists(string $id): bool
+    public function exists(int|string $id): bool
     {
         return $this->inner->exists($id);
     }
@@ -360,32 +360,32 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         return $this->inner->count($criteria);
     }
 
-    public function loadRevision(string $entityId, int $revisionId): ?\Waaseyaa\Entity\EntityInterface
+    public function loadRevision(int|string $entityId, int $revisionId): ?\Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->loadRevision($entityId, $revisionId);
     }
 
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->rollback($entityId, $targetRevisionId);
     }
 
-    public function listRevisions(string $entityId): array
+    public function listRevisions(int|string $entityId): array
     {
         return $this->inner->listRevisions($entityId);
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->setCurrentRevision($entityId, $revisionId);
     }
 
-    public function loadPublishedRevision(string $entityId): ?\Waaseyaa\Entity\EntityInterface
+    public function loadPublishedRevision(int|string $entityId): ?\Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->loadPublishedRevision($entityId);
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): \Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->setPublishedRevision($entityId, $revisionId);
     }
@@ -405,17 +405,17 @@ final class CountingInMemoryRepository implements EntityRepositoryInterface
         return $this->inner->findTranslations($entity);
     }
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         return $this->inner->saveTranslation($entityId, $langcode, $values, $log);
     }
 
-    public function loadTranslation(string $entityId, string $langcode): ?\Waaseyaa\Entity\EntityInterface
+    public function loadTranslation(int|string $entityId, string $langcode): ?\Waaseyaa\Entity\EntityInterface
     {
         return $this->inner->loadTranslation($entityId, $langcode);
     }
 
-    public function listTranslationRevisions(string $entityId, string $langcode): array
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array
     {
         return $this->inner->listTranslationRevisions($entityId, $langcode);
     }

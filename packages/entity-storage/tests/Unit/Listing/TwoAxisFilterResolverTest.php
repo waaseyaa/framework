@@ -110,14 +110,14 @@ final class TwoAxisFilterResolverTest extends TestCase
                 throw new \LogicException('create() not implemented in this test double');
             }
 
-            public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+            public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
             {
                 $this->findCalls[] = [$id, $langcode];
 
                 return $this->map[$id][$langcode ?? '__default__'] ?? null;
             }
 
-            public function loadWorkingCopy(string $id): ?EntityInterface
+            public function loadWorkingCopy(int|string $id): ?EntityInterface
             {
                 return $this->find($id);
             }
@@ -144,7 +144,7 @@ final class TwoAxisFilterResolverTest extends TestCase
 
             public function delete(EntityInterface $entity): void {}
 
-            public function exists(string $id): bool
+            public function exists(int|string $id): bool
             {
                 return false;
             }
@@ -154,32 +154,32 @@ final class TwoAxisFilterResolverTest extends TestCase
                 return 0;
             }
 
-            public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+            public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
             {
                 return null;
             }
 
-            public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \LogicException('not used');
             }
 
-            public function listRevisions(string $entityId): array
+            public function listRevisions(int|string $entityId): array
             {
                 return [];
             }
 
-            public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \LogicException('not used');
             }
 
-            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            public function loadPublishedRevision(int|string $entityId): ?EntityInterface
             {
                 return null;
             }
 
-            public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \LogicException('not used');
             }
@@ -199,17 +199,17 @@ final class TwoAxisFilterResolverTest extends TestCase
                 return [];
             }
 
-            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
+            public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
             {
                 throw new \LogicException('not used');
             }
 
-            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
             {
                 throw new \LogicException('not used');
             }
 
-            public function listTranslationRevisions(string $entityId, string $langcode): array
+            public function listTranslationRevisions(int|string $entityId, string $langcode): array
             {
                 throw new \LogicException('not used');
             }

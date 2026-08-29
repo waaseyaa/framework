@@ -796,27 +796,27 @@ final class WorkflowLookupRepository implements EntityRepositoryInterface
     public function __construct(private readonly ?Workflow $workflow) {}
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workflow; }
-    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workflow; }
+    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
     public function save(EntityInterface $entity, bool $validate = true): int { throw new \LogicException('not needed'); }
     public function delete(EntityInterface $entity): void {}
-    public function exists(string $id): bool { return $this->workflow !== null; }
+    public function exists(int|string $id): bool { return $this->workflow !== null; }
     public function count(array $criteria = []): int { return 0; }
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(int|string $entityId): array { return []; }
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface { return null; }
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
-    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array { return []; }
 }
 
 final class SpyDispatcher implements EventDispatcherInterface
@@ -876,8 +876,8 @@ class RevisionAwareSpyRepository implements EntityRepositoryInterface
     }
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
-    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
+    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
@@ -892,15 +892,15 @@ class RevisionAwareSpyRepository implements EntityRepositoryInterface
     }
 
     public function delete(EntityInterface $entity): void {}
-    public function exists(string $id): bool { return true; }
+    public function exists(int|string $id): bool { return true; }
     public function count(array $criteria = []): int { return 0; }
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function loadPublishedRevision(string $entityId): ?EntityInterface { return $this->publishedRevision; }
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(int|string $entityId): array { return []; }
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface { return $this->publishedRevision; }
 
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->publishedCalls[] = [$entityId, $revisionId];
 
@@ -925,9 +925,9 @@ class RevisionAwareSpyRepository implements EntityRepositoryInterface
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
-    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array { return []; }
 }
 
 final class AggregateMutationSpyRepository extends RevisionAwareSpyRepository implements AggregateMutationRepositoryInterface
@@ -967,8 +967,8 @@ final class NoRevisionIdSpyRepository implements EntityRepositoryInterface
     public array $publishedCalls = [];
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
-    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
+    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
@@ -980,15 +980,15 @@ final class NoRevisionIdSpyRepository implements EntityRepositoryInterface
     }
 
     public function delete(EntityInterface $entity): void {}
-    public function exists(string $id): bool { return true; }
+    public function exists(int|string $id): bool { return true; }
     public function count(array $criteria = []): int { return 0; }
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(int|string $entityId): array { return []; }
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface { return null; }
 
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->publishedCalls[] = [$entityId, $revisionId];
 
@@ -998,9 +998,9 @@ final class NoRevisionIdSpyRepository implements EntityRepositoryInterface
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
-    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array { return []; }
 }
 
 final class SpyWorkflowLogger implements \Waaseyaa\Foundation\Log\LoggerInterface
@@ -1037,8 +1037,8 @@ final class SpyEntityRepository implements EntityRepositoryInterface
     public function __construct(private array &$saveCalls) {}
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
-    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
+    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
@@ -1052,20 +1052,20 @@ final class SpyEntityRepository implements EntityRepositoryInterface
     }
 
     public function delete(EntityInterface $entity): void {}
-    public function exists(string $id): bool { return true; }
+    public function exists(int|string $id): bool { return true; }
     public function count(array $criteria = []): int { return 0; }
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(int|string $entityId): array { return []; }
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface { return null; }
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
-    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array { return []; }
 }
 
 /**
@@ -1084,8 +1084,8 @@ final class WorkingCopyAwareSpyRepository implements EntityRepositoryInterface
     public function __construct(private readonly ?EntityInterface $workingCopy) {}
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workingCopy; }
-    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->workingCopy; }
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workingCopy; }
+    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->workingCopy; }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
@@ -1100,15 +1100,15 @@ final class WorkingCopyAwareSpyRepository implements EntityRepositoryInterface
     }
 
     public function delete(EntityInterface $entity): void {}
-    public function exists(string $id): bool { return true; }
+    public function exists(int|string $id): bool { return true; }
     public function count(array $criteria = []): int { return 0; }
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(int|string $entityId): array { return []; }
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface { return null; }
 
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         return $this->workingCopy ?? new class implements EntityInterface {
             public function id(): int|string|null { return null; }
@@ -1127,7 +1127,7 @@ final class WorkingCopyAwareSpyRepository implements EntityRepositoryInterface
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
-    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array { return []; }
 }
