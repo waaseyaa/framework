@@ -70,4 +70,64 @@ final class OAuthProtectedResourceMetadataTest extends TestCase
             ['content.read', 'content.read'],
         );
     }
+
+    /**
+     * Each rejected URI component must be rejected ON ITS OWN.
+     *
+     * The construction guard was one multi-argument `isset()`, which is a
+     * conjunction: it fired only when userinfo AND password AND query AND
+     * fragment were all present, so every single-component case below was
+     * accepted. That matters beyond tidiness — `metadataUri()` rebuilds the
+     * authority from scheme/host/port and the path, dropping any query or
+     * userinfo, so an accepted `https://cms.example/mcp/write?tenant=a` would
+     * advertise a discovery URI that is not the resource, while `resource` —
+     * the audience handed to `OAuthAccessTokenValidatorInterface::validate()`
+     * — kept the query. The two identifiers a client reconciles would disagree.
+     *
+     * Each case carries exactly one offending component, so a conjunction
+     * cannot pass them.
+     */
+    #[Test]
+    public function each_forbidden_uri_component_is_refused_on_its_own(): void
+    {
+        foreach ([
+            'query only' => 'https://cms.example/mcp/write?tenant=a',
+            'fragment only' => 'https://cms.example/mcp/write#frag',
+            'userinfo only' => 'https://operator@cms.example/mcp/write',
+        ] as $label => $uri) {
+            try {
+                new OAuthProtectedResourceMetadataConfig($uri, ['https://identity.example']);
+                self::fail("Expected {$label} ({$uri}) to be refused.");
+            } catch (\InvalidArgumentException $e) {
+                self::assertStringContainsString('without credentials, query, or fragment', $e->getMessage());
+            }
+        }
+    }
+
+    /** The same guard runs over authorization_servers and resource_documentation. */
+    #[Test]
+    public function forbidden_components_are_refused_on_every_guarded_field(): void
+    {
+        try {
+            new OAuthProtectedResourceMetadataConfig(
+                'https://cms.example/mcp/write',
+                ['https://identity.example?tenant=a'],
+            );
+            self::fail('Expected a query in authorization_servers to be refused.');
+        } catch (\InvalidArgumentException $e) {
+            self::assertStringContainsString('authorization_servers', $e->getMessage());
+        }
+
+        try {
+            new OAuthProtectedResourceMetadataConfig(
+                'https://cms.example/mcp/write',
+                ['https://identity.example'],
+                [],
+                'https://cms.example/docs#mcp',
+            );
+            self::fail('Expected a fragment in resource_documentation to be refused.');
+        } catch (\InvalidArgumentException $e) {
+            self::assertStringContainsString('resource_documentation', $e->getMessage());
+        }
+    }
 }
