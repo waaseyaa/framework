@@ -189,4 +189,37 @@ final class SkeletonLayoutTest extends TestCase
         self::assertStringContainsString('vendor/bin/waaseyaa', $contents);
         self::assertStringNotContainsString('[[ -f bin/waaseyaa ]]', $contents);
     }
+
+    /**
+     * Guard: the skeleton README documents one fresh-project lifecycle, in
+     * order, and it is the lifecycle the reference-consumer gate proves
+     * (#2644). A README that presents a competing sequence — or that names a
+     * materialization command other than `install:init` — sends a new project
+     * to a state that verifies successfully while having no active
+     * configuration generation.
+     */
+    #[Test]
+    public function skeletonDocumentsTheCanonicalFreshProjectLifecycleInOrder(): void
+    {
+        $repoRoot = dirname(__DIR__, 4);
+        $readme = (string) file_get_contents($repoRoot . '/skeleton/README.md');
+
+        $previous = -1;
+        foreach (['create-project', 'site:init', 'install:init', 'composer site-verify', 'composer run dev'] as $phase) {
+            $offset = strpos($readme, $phase);
+            self::assertIsInt($offset, sprintf('Skeleton README must document the %s phase.', $phase));
+            self::assertGreaterThan(
+                $previous,
+                $offset,
+                sprintf('Skeleton README documents %s out of lifecycle order.', $phase),
+            );
+            $previous = $offset;
+        }
+
+        self::assertStringNotContainsString(
+            'waaseyaa db:init',
+            $readme,
+            'db:init is a database-administration command, not part of the documented lifecycle.',
+        );
+    }
 }

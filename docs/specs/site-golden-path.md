@@ -85,6 +85,33 @@ never silently rewrites it.
 
 ## Initialization
 
+### Canonical fresh-project lifecycle
+
+A fresh project reaches a valid, verifiable state through exactly five ordered
+phases, and consumer-facing documentation names no other sequence (#2644):
+
+1. **create** — `composer create-project waaseyaa/waaseyaa`;
+2. **site contract** — `waaseyaa site:init`, which produces `.waaseyaa/site.yaml`,
+   the governed artifact set, and the generated verification command;
+3. **install** — `waaseyaa install:init`, which applies the reviewed migration
+   catalog, synchronizes entity storage schema, and activates the configuration
+   generation;
+4. **verify** — `composer site-verify`; and
+5. **serve**.
+
+`install:init` is the single materialization step. It subsumes `migrate` and
+`schema:sync`, and it is the only one of the three that also activates the
+configuration generation, so a site materialized by `db:init` plus `migrate`
+passes verification while being an invalid installation. It is idempotent, so it
+is re-run after any later `site:init`. `db:init` is a database-administration
+command and is not part of this lifecycle.
+
+`site:init` precedes `install:init` because recipe-declared entity types must
+exist before schema synchronization runs. Because the phases are ordered,
+verification before phase 2 is a definite state rather than an error: the
+verification entry reports that the project is not initialized and names
+`site:init`, and it does so without booting the kernel.
+
 `waaseyaa site:init` is both interactive and automation-safe. Interactive mode
 asks product questions in plain language. Non-interactive mode accepts a
 complete answer document and refuses omitted required decisions.

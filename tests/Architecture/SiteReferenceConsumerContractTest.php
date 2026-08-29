@@ -113,6 +113,18 @@ final class SiteReferenceConsumerContractTest extends TestCase
         self::assertStringContainsString('site:doctor --strict', $gate);
         self::assertStringContainsString('bin/maintenance/site-verify', $gate);
 
+        // #2644: the canonical fresh-project lifecycle is site:init then
+        // install:init. install:init is the only materialization command that
+        // also activates the configuration generation, so a gate that proved
+        // db:init plus migrate would be proving an invalid installation.
+        self::assertStringContainsString('install:init', $gate);
+        self::assertStringNotContainsString('waaseyaa db:init', $gate);
+        self::assertLessThan(
+            (int) strpos($gate, 'install:init'),
+            (int) strpos($gate, 'site:init'),
+            'The reference gate must run site:init before install:init.',
+        );
+
         $site = new SiteManifestParser()->parse($manifest, 'tests/ReferenceConsumer/site.answers.yaml');
         self::assertSame(['announcement', 'event', 'job', 'page', 'update'], array_keys($site->contentTypes));
         self::assertSame(['governed_authoring', 'published_content', 'subscription'], array_keys($site->capabilities));

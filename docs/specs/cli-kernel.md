@@ -198,6 +198,16 @@ through ordinary runtime boot. A fresh site runs `install:init` first; `install`
 could not previously succeed on a new site at all, because it writes
 configuration and no generation existed to write into.
 
+Within the canonical fresh-project lifecycle (#2644), `site:init` runs before
+`install:init`, so the entity types a recipe declares reach `install:init`'s
+schema synchronization in the same pass. Because `install:init` is idempotent,
+it is also the correct command to re-run after any later `site:init` that
+changes the declared content model. `install:init` — not `db:init`, and not
+`migrate` plus `schema:sync` — is the materialization step a consumer-facing
+document names, because it is the only one of the three that also activates the
+configuration generation. A site materialized without it passes site
+verification while being an invalid installation.
+
 ## Site initialization
 
 `SiteServiceProvider` registers `site:init [--answers=PATH] [--project-root=PATH]
