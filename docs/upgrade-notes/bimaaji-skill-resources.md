@@ -137,6 +137,19 @@ removed, and the directory goes only if it is then empty.
 Because the manifest is new, the first run after upgrading has nothing to prune.
 Pruning starts working from the second run onward.
 
+## Symlinked targets are now refused
+
+`bimaaji:install` will not read, write, delete or rewrite a path that is a
+symbolic link, and will not act on one that resolves outside the project root.
+If you had symlinked a generated file — `.cursorrules` pointing at a shared
+copy, say — the command now reports it and exits non-zero instead of following
+the link. Replace the link with a regular file to have the installer manage it,
+or point `bimaaji.skills_directory` at your shared source instead. A symlinked
+*directory* that resolves inside the project is still fine; only the final path
+component is refused.
+
+The same boundary now covers `.waaseyaa/bimaaji-install.json`, and a manifest
+that cannot be written is a non-zero exit rather than a warning.
 ## What did not change
 
 - The skill documents themselves moved byte-for-byte; no guidance was rewritten.

@@ -383,6 +383,24 @@ final class BimaajiInstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function failingToPersistTheOwnershipManifestIsANonZeroExit(): void
+    {
+        // The manifest is the provenance boundary that makes later pruning
+        // safe. Generating files whose ownership was never recorded must not
+        // report success. Uses a plain file where the directory belongs, so
+        // this proof needs no symlink and runs on every platform.
+        file_put_contents($this->tempDir . '/.waaseyaa', "not a directory\n");
+
+        $tester = $this->tester();
+        $tester->execute(['--client=cursor', '--force']);
+
+        self::assertSame(1, $tester->getExitCode(), $tester->getOutput());
+        self::assertFileExists($this->tempDir . '/.cursorrules', 'The install itself still ran.');
+        self::assertStringContainsString('ownership manifest', $tester->getOutput());
+        self::assertStringContainsString('will not be able to prune', $tester->getOutput());
+    }
+
+    #[Test]
     public function aCorruptSkillDocumentProducesTheActionableDiagnostic(): void
     {
         $this->writeSkill('alpha', "---\nname: Broken\ndescription: never closed\n\nbody");

@@ -151,8 +151,8 @@ final class BimaajiInstallCommand
             }
         }
 
-        if ($manifestChanged) {
-            $this->writeManifest($io, $projectRoot, $manifest);
+        if ($manifestChanged && !$this->writeManifest($io, $projectRoot, $manifest)) {
+            $exitCode = 1;
         }
 
         return $exitCode;
@@ -244,7 +244,7 @@ final class BimaajiInstallCommand
         $declaredPaths = array_map(static fn(TargetFile $file): string => $file->path, $targets);
 
         foreach ($targets as $file) {
-            $resolved = $this->resolveAndAssertInSandbox($io, $file, $projectRoot);
+            $resolved = $this->resolvePathInSandbox($io, $file->path, $projectRoot);
             if ($resolved === null) {
                 $skipped++;
                 $errors++;
@@ -386,11 +386,7 @@ final class BimaajiInstallCommand
         ksort($obsolete);
 
         foreach ($obsolete as $obsoletePath => $recordedSha1) {
-            $resolved = $this->resolveAndAssertInSandbox(
-                $io,
-                new TargetFile(path: $obsoletePath, content: '', sourceSkill: null),
-                $projectRoot,
-            );
+            $resolved = $this->resolvePathInSandbox($io, $obsoletePath, $projectRoot);
             if ($resolved === null) {
                 // Sandbox rejection already reported; never act on it.
                 $released++;
@@ -474,62 +470,139 @@ final class BimaajiInstallCommand
         return ['pruned' => $pruned, 'retired' => $retired, 'released' => $released];
     }
 
+    /**
+     * Persist the ownership manifest.
+     *
+     * Goes through {@see resolvePathInSandbox()} like every other write: a
+     * symlinked or junctioned `.waaseyaa` would otherwise redirect this one
+     * write outside the project root, which the per-target containment
+     * checks never saw because this path never went through them.
+     *
+     * Returns false when the manifest could not be persisted. That is not a
+     * cosmetic failure: the manifest is the provenance boundary that makes
+     * later pruning safe, so generating files whose ownership was never
+     * recorded must not report success.
+     */
     private function writeManifest(
         \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
         string $projectRoot,
         InstalledManifest $manifest,
-    ): void {
-        $target = $projectRoot . DIRECTORY_SEPARATOR . InstalledManifest::RELATIVE_PATH;
+    ): bool {
+        $target = $this->resolvePathInSandbox($io, InstalledManifest::RELATIVE_PATH, $projectRoot);
+        if ($target === null) {
+            $io->error(sprintf(
+                'bimaaji:install: refusing to write the ownership manifest %s. Without it a later run cannot '
+                . 'prove which files it generated, so it will not prune them.',
+                InstalledManifest::RELATIVE_PATH,
+            ));
+
+            return false;
+        }
+
         $json = $manifest->toJson();
 
         $existing = is_file($target) ? @file_get_contents($target) : false;
         if ($existing !== false && $existing === $json) {
-            return;
+            return true;
         }
 
         if (!$this->writeFile($target, $json, $io)) {
-            // Not fatal for the install itself, but the next run cannot
-            // prune what this one wrote — say so rather than failing quietly.
             $io->error(sprintf(
                 'bimaaji:install: the generated files were written but the ownership manifest %s could not be '
                 . 'updated. A later run will not be able to prune them.',
                 InstalledManifest::RELATIVE_PATH,
             ));
+
+            return false;
         }
+
+        return true;
     }
 
-    private function resolveAndAssertInSandbox(\Waaseyaa\CLI\Command\SymfonyCommandIO $io, TargetFile $file, string $projectRoot): ?string
+    /**
+     * The single containment boundary for every path this command touches —
+     * reads, writes, deletes and neutralisations alike.
+     *
+     * Three independent guards, each closing a different escape:
+     *
+     * 1. **Textual.** Absolute paths and `..` traversals are rejected before
+     *    any filesystem call.
+     * 2. **Ancestor.** The nearest *existing* ancestor directory must
+     *    `realpath()` inside the project root. This catches a project
+     *    subdirectory replaced by a symlink or a Windows junction — including
+     *    a redirected `.waaseyaa`, which is why the manifest write goes
+     *    through here too. Only the nearest existing ancestor is resolved, so
+     *    healthy ancestors above the project root (`/`, `/home`) do not
+     *    trigger a rejection.
+     * 3. **Target.** The target path itself must not be a link, and if it
+     *    already exists it must `realpath()` inside the project root. Guard 2
+     *    says nothing about the final path component, so without this a
+     *    target-file symlink redirected reads, writes *and* pruning to an
+     *    arbitrary location — a data-loss path, because the pruner unlinks
+     *    and rewrites.
+     *
+     * Target links are **rejected outright rather than resolved-and-allowed**.
+     * The installer never creates a link, so one at a target path is never
+     * something it produced; following it would also open a time-of-check /
+     * time-of-use window, since the link can be re-pointed between the
+     * `realpath()` and the write. `is_link()` does not report a Windows
+     * directory junction, so the resolved-target check backstops it there.
+     */
+    private function resolvePathInSandbox(\Waaseyaa\CLI\Command\SymfonyCommandIO $io, string $relativePath, string $projectRoot): ?string
     {
-        if ($file->path === '' || $this->isAbsolutePath($file->path) || str_contains($file->path, '..')) {
+        if ($relativePath === '' || $this->isAbsolutePath($relativePath) || str_contains($relativePath, '..')) {
             $io->error(sprintf(
                 'bimaaji:install: rejected suspicious target path %s (absolute or contains ..).',
-                $file->path,
+                $relativePath,
             ));
             return null;
         }
 
-        $intended = $projectRoot . DIRECTORY_SEPARATOR . $file->path;
+        $intended = $projectRoot . DIRECTORY_SEPARATOR . $relativePath;
 
-        // The textual guard above already blocks `..` and absolute paths, so the
-        // would-be target is textually inside $projectRoot. Only do a realpath
-        // check on the *nearest existing ancestor* — that catches symlink-based
-        // escapes (e.g. someone replaced a project subdirectory with a symlink
-        // pointing outside the root) without rejecting on healthy ancestors
-        // that legitimately sit above the project root (`/`, `/home`, etc.).
         $existingAncestor = $this->findNearestExistingAncestor(dirname($intended));
-        if ($existingAncestor !== null) {
-            $resolved = realpath($existingAncestor);
-            if ($resolved === false || !str_starts_with($resolved . DIRECTORY_SEPARATOR, $projectRoot . DIRECTORY_SEPARATOR)) {
-                $io->error(sprintf(
-                    'bimaaji:install: rejected target outside project root: %s resolves outside project root (project root: %s).',
-                    $file->path,
-                    $projectRoot,
-                ));
-                return null;
-            }
+        if ($existingAncestor !== null && !$this->resolvesInside($existingAncestor, $projectRoot)) {
+            $io->error(sprintf(
+                'bimaaji:install: rejected target outside project root: %s resolves outside project root (project root: %s).',
+                $relativePath,
+                $projectRoot,
+            ));
+            return null;
+        }
+
+        // Checked before file_exists(), which is false for a dangling link.
+        if (is_link($intended)) {
+            $io->error(sprintf(
+                'bimaaji:install: refusing to act on %s because it is a symbolic link. bimaaji:install never '
+                . 'creates links, so this is not a file it generated, and following it could read, overwrite or '
+                . 'delete something outside the project. Replace the link with a regular file to manage it here.',
+                $relativePath,
+            ));
+            return null;
+        }
+
+        if (file_exists($intended) && !$this->resolvesInside($intended, $projectRoot)) {
+            $io->error(sprintf(
+                'bimaaji:install: rejected target outside project root: %s resolves outside project root (project root: %s).',
+                $relativePath,
+                $projectRoot,
+            ));
+            return null;
         }
 
         return $intended;
+    }
+
+    /**
+     * True when an existing path resolves to somewhere at or under the
+     * project root, following symlinks and Windows reparse points.
+     */
+    private function resolvesInside(string $path, string $projectRoot): bool
+    {
+        $resolved = realpath($path);
+
+        return $resolved !== false
+            && str_starts_with($resolved . DIRECTORY_SEPARATOR, $projectRoot . DIRECTORY_SEPARATOR);
     }
 
     private function isAbsolutePath(string $path): bool

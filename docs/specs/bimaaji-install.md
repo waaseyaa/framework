@@ -5,7 +5,7 @@
 > `php artisan boost:install`; framework-native.
 
 **Mission:** `bimaaji-install-command-01KS5W0S`
-**Status:** Shipped (M5 WP01–WP05, 2026-05-23). Source of truth relocated and installation made marker-bounded by #2656 (2026-08-29). All sections below reflect the live `bimaaji:install` surface.
+**Status:** Shipped (M5 WP01–WP05, 2026-05-23). Source of truth relocated, installation made marker-bounded and ownership-tracked, and the containment boundary closed over target links and the manifest write, by #2656 (2026-08-29). All sections below reflect the live `bimaaji:install` surface.
 
 ## Overview
 
@@ -81,6 +81,46 @@ Every generated file frames its payload between
 Idempotency composes with this: the sha1 compare runs against the
 spliced payload, so an unchanged managed region still reports
 `unchanged` rather than rewriting the file.
+
+## Containment (NFR-002)
+
+Every path the command touches goes through one boundary,
+`resolvePathInSandbox()` — the write loop, the pruner, and the ownership
+manifest. Three independent guards, each closing a different escape:
+
+| Guard | Rejects |
+|---|---|
+| Textual | An absolute path, or one containing `..`, before any filesystem call. |
+| Ancestor | A path whose nearest **existing ancestor directory** does not `realpath()` inside the project root — a project subdirectory replaced by a symlink or a Windows junction. Only the nearest existing ancestor is resolved, so healthy ancestors above the project root (`/`, `/home`) never trigger a rejection. |
+| Target | A target path that **is a link**, or that already exists and does not `realpath()` inside the project root. |
+
+The target guard exists because the ancestor guard says nothing about the
+final path component. Without it, a symlink *at a target path* redirected
+reads and writes to an arbitrary location — and, once the pruner landed,
+its neutralisation rewrite as well.
+
+**Target links are rejected outright rather than resolved-and-allowed.**
+The installer never creates a link, so one at a target path is never a file
+it generated; and following a link that happens to resolve inside the
+project would open a time-of-check / time-of-use window, because the link
+can be re-pointed between the `realpath()` and the write. Rejecting fails
+closed and needs no such reasoning. A symlinked *directory* that resolves
+inside the project is still fine — only the final component is refused.
+
+`is_link()` does not report a Windows directory junction, which is why the
+target guard also resolves the target itself rather than relying on
+`is_link()` alone.
+
+The manifest write is not an exception to any of this. It goes through the
+same boundary, and when it cannot be persisted the command exits non-zero:
+the manifest is the provenance boundary that makes later pruning safe, so
+generating files whose ownership was never recorded must not report success.
+
+Regression coverage plants a **sentinel** outside the project root and
+asserts its bytes are unchanged after the run
+(`InstallCommandSandboxContainmentTest`). Asserting only that a rejection
+was printed would pass a command that printed the rejection and clobbered
+the file anyway.
 
 ## Ownership and pruning retired targets
 
@@ -307,10 +347,9 @@ The five-step extension guide:
 
 The command never:
 
-- Writes outside the consumer project root. The textual guard rejects
-  absolute paths and `..` traversals before any write happens; the
-  nearest-existing-ancestor realpath check catches symlink-based
-  escapes that get past the textual guard. (NFR-002.)
+- Touches anything outside the consumer project root — reads, writes,
+  deletes and neutralisations alike. See
+  [Containment](#containment-nfr-002).
 - Modifies any byte a consumer wrote. Inside a managed region the command
   owns the content and says so in the generated prelude; outside it, and
   in a file carrying no markers, nothing changes without `--force` or an
@@ -344,6 +383,7 @@ WP05 close-out PR, and `#2656` (packaged skill resources). Full M5
 verification artifact:
 `kitty-specs/bimaaji-install-command-01KS5W0S/verification.md`.
 
+<!-- Spec reviewed 2026-08-29 — #2656 containment review: two sandbox escapes in the manifest and pruning work. writeManifest() built .waaseyaa/bimaaji-install.json and wrote it directly, bypassing the containment boundary, so a symlinked or junctioned .waaseyaa redirected it outside the project root; and the boundary resolved only the nearest existing ANCESTOR, never the target path itself, so a target-file symlink redirected reads, writes and the pruner's neutralisation rewrite. Added the Containment section: one boundary for every path, three guards, target links rejected outright rather than resolved-and-allowed. A failed manifest write is now a non-zero exit. -->
 <!-- Spec reviewed 2026-08-29 — #2656 follow-up review: ClaudeClientTransformer emitted a flat .claude/skills/waaseyaa-<id>.md, which Claude Code does not discover — corrected to the documented .claude/skills/<skill-name>/SKILL.md directory layout, and CodexClientTransformer corrected from the non-existent .codex/AGENTS.md to the repository-root AGENTS.md. Added Convention drift (all seven transformers re-verified; cursor/windsurf/junie recorded as vendor-legacy follow-up) and Ownership and pruning retired targets (InstalledManifest at .waaseyaa/bimaaji-install.json; recorded, never inferred; delete / neutralise / release). -->
 <!-- Spec reviewed 2026-08-29 — #2656: skills relocated from the monorepo root into packages/bimaaji/resources/skills, default resolution anchored on the installed package via PackagedSkillResources, install made marker-bounded via ManagedRegion, missing/corrupt diagnostics split via SkillResourceException/SkillResourceFailure. Added Skill source resolution, Failure diagnostics, and Marker-bounded installation sections; corrected the WP01 audit claim (now gated by PackagedSkillResourcesTest). -->
 <!-- Spec reviewed 2026-05-23 — bimaaji-install-command-01KS5W0S (WP05 close-out): filled in Supported clients table, Flag semantics, Interactive UX, Trust contract details; added Implementation Status section. WP01 scaffold sections superseded by shipped reality. -->
