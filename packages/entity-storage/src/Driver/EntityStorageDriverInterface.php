@@ -43,16 +43,25 @@ interface EntityStorageDriverInterface
      * drivers, the auto-increment primary key via lastInsertId). When $id is a
      * non-empty string, the driver returns that same id.
      *
-     * The persisted row MUST also carry that effective id under the entity
-     * type's id key, including an id the driver assigned itself, so that every
-     * row later returned by {@see read()}, {@see readMultiple()} and
-     * {@see findBy()} carries it. EntityRepository hydrates entity identity
-     * from row values alone and never re-injects the id it addressed the row
-     * by, so a row that omits the key hydrates an entity whose id() is null --
-     * which isNew() reports as new, and whose next save inserts a duplicate
-     * (#2646). A backend that stores rows in an array keyed by id must stamp
-     * the id into the row itself; the id key name is entity-type metadata this
-     * SPI does not pass, so such a driver must be configured with it.
+     * The persisted row MUST carry an id under the entity type's id key, so
+     * that every row later returned by {@see read()}, {@see readMultiple()}
+     * and {@see findBy()} carries it. EntityRepository hydrates entity
+     * identity from row values alone and never re-injects the id it addressed
+     * the row by, so a row that omits the key hydrates an entity whose id() is
+     * null -- which isNew() reports as new, and whose next save inserts a
+     * duplicate (#2646). A driver that assigns the id itself MUST write it
+     * into the row; where the caller supplies $id, the driver fills the key
+     * only when the value bag omits it. A backend that stores rows in an array
+     * keyed by id must stamp the id into the row itself; the id key name is
+     * entity-type metadata this SPI does not pass, so such a driver must be
+     * configured with it.
+     *
+     * $id alone is authoritative for ADDRESSING the row. A value bag whose id
+     * contradicts $id is a caller error that no first-party driver currently
+     * reconciles: {@see \Waaseyaa\EntityStorage\Driver\SqlStorageDriver}
+     * drops a divergent id on UPDATE (row identity is immutable through the
+     * driver) but writes it verbatim on INSERT, and the in-memory driver
+     * preserves it. Callers must not rely on the driver reconciling the two.
      *
      * @param string $entityType The entity type machine name.
      * @param string $id The entity ID, or empty string for an auto-assigned id.

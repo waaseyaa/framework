@@ -1182,9 +1182,15 @@ public function findBy(string $entityType, array $criteria = [], ?array $orderBy
 
 **Row-identity invariant.** `write()` returns the *effective* id of the persisted
 row — the caller-supplied `$id`, or the one the backend assigned when `$id` was
-the empty string. The persisted row MUST also carry that effective id under the
-entity type's id key, so every row later returned by `read()`, `readMultiple()`
-and `findBy()` carries it. `EntityRepository::hydrate()` reads entity identity
+the empty string. The persisted row MUST carry an id under the entity type's id
+key, so every row later returned by `read()`, `readMultiple()` and `findBy()`
+carries it. A driver that assigns the id itself must write it into the row;
+where the caller supplies `$id`, the driver fills the key only when the value
+bag omits it. `$id` alone is authoritative for *addressing* the row — a value
+bag whose id contradicts `$id` is a caller error that no first-party driver
+currently reconciles (`SqlStorageDriver` drops a divergent id on UPDATE but
+writes it verbatim on INSERT; the in-memory driver preserves it), so callers
+must not rely on the driver reconciling the two. `EntityRepository::hydrate()` reads entity identity
 from row values alone and never re-injects the id it addressed the row by, so a
 row that omits the key hydrates an entity whose `id()` is `null`; `isNew()` then
 reports true and the next save inserts a duplicate instead of updating (#2646).
