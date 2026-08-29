@@ -16,8 +16,11 @@ use Waaseyaa\EntityStorage\Tenancy\TenancyViolationException;
  */
 final class InMemoryStorageDriver implements EntityStorageDriverInterface
 {
+    private const DEFAULT_ID_KEY = 'id';
+
     public function __construct(
         private readonly ?CommunityScope $communityScope = null,
+        private readonly ?string $idKey = null,
     ) {}
 
     /**
@@ -40,6 +43,46 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
      * @var array<string, int>
      */
     private array $autoIncrement = [];
+
+    /**
+     * Per-entity-type primary key column, declared by the composing factory.
+     *
+     * @var array<string, string>
+     */
+    private array $idKeys = [];
+
+    /**
+     * Declare the column an entity type stores its primary key under.
+     *
+     * A driver is handed only an entity-type id per call, so unlike
+     * {@see SqlStorageDriver} it cannot know whether the key is `id`, `nid` or
+     * `uid`. Composition roots that hold the entity type declare it here; the
+     * constructor default covers hand-built fixtures.
+     */
+    public function declareIdKey(string $entityType, string $idKey): void
+    {
+        if ($idKey !== '') {
+            $this->idKeys[$entityType] = $idKey;
+        }
+    }
+
+    private function idKeyFor(string $entityType): string
+    {
+        return $this->idKeys[$entityType] ?? $this->idKey ?? self::DEFAULT_ID_KEY;
+    }
+
+    /**
+     * Whether the id key for this entity type was told to us rather than guessed.
+     *
+     * An undeclared driver falls back to `id`, which is right for the great
+     * majority of entity types but wrong for a `nid`- or `uid`-keyed one. The
+     * distinction matters only where a guess could damage a row that was
+     * already correct -- see {@see write()}.
+     */
+    private function idKeyIsKnown(string $entityType): bool
+    {
+        return isset($this->idKeys[$entityType]) || $this->idKey !== null;
+    }
 
     public function read(string $entityType, string $id, ?string $langcode = null): ?array
     {
@@ -99,9 +142,36 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
             $values['community_id'] = $active;
         }
 
+        $idKey = $this->idKeyFor($entityType);
+
         if ($id === '') {
             $this->autoIncrement[$entityType] = ($this->autoIncrement[$entityType] ?? 0) + 1;
-            $id = (string) $this->autoIncrement[$entityType];
+            $assignedId = $this->autoIncrement[$entityType];
+            $id = (string) $assignedId;
+
+            // Parity with SqlStorageDriver: the effective id is a property of
+            // the PERSISTED ROW, not only of the return value. Its INSERT lets
+            // the database populate a real id column, which every `table.*`
+            // SELECT returns. EntityRepository::hydrate() reads the entity id
+            // solely from $row[<id key>], so a row that omits it hydrates an
+            // entity whose id() is null; isNew() then reports true and the next
+            // save INSERTs a duplicate instead of updating (#2646). Store an
+            // int: that is what a SQLite serial column returns and what
+            // hydrate() normalises numeric ids to.
+            $values[$idKey] = $assignedId;
+        } elseif ($this->idKeyIsKnown($entityType) && !isset($values[$idKey])) {
+            // Row identity is the store key; keep the stored row self-describing
+            // for explicit-id writes whose value bag omits (or nulls) the key.
+            //
+            // Only when the key was DECLARED, never when it was guessed. An
+            // explicit-id write already round-tripped correctly before #2646,
+            // so guessing `id` here could only damage it: for a `nid`-keyed
+            // type the row would gain a stray undeclared `id` column, and an
+            // undeclared column is Internal at read level -- making toArray()
+            // throw InternalFieldArrayExportDenied on an entity that loaded
+            // fine. The auto-id branch above has no such risk: without the
+            // stamp that row has no identity at all, which is the defect.
+            $values[$idKey] = $id;
         }
 
         $this->store[$entityType][$id] = $values;
