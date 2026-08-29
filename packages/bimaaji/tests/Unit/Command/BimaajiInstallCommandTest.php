@@ -25,8 +25,9 @@ use Waaseyaa\CLI\Testing\CliTester;
  *
  * The end-to-end behaviour also has integration coverage under
  * `tests/Integration/PhaseN/BimaajiInstall/` and a packaged-consumer proof
- * at `tests/PackagedForm/check-bimaaji-skill-resources`; those are
- * `#[CoversNothing]`, so this class is what binds the command's own lines.
+ * at `tests/PackagedForm/check-bimaaji-skill-resources`. Neither records
+ * line coverage, so this class is what binds the command's own lines for
+ * the changed-line coverage gate.
  */
 #[CoversClass(BimaajiInstallCommand::class)]
 final class BimaajiInstallCommandTest extends TestCase
