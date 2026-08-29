@@ -27,33 +27,21 @@ final class FrameworkRuntimeTableCatalogueCompletenessTest extends TestCase
      * migration-created table — new serving runtime state must be classified
      * in the framework catalogue, otherwise SqliteArtifactPreparer fails
      * closed on a legitimate serving database during artifact installation.
+     *
+     * #2547 removed the other 22 entries by classifying them. These three are
+     * held back deliberately rather than by neglect: all are installed by
+     * Framework migrations for Framework-shipped entity types, but their rows
+     * are ambiguous between content (authored in the build) and runtime state
+     * (`MediaVersionRepository` writes `media_version` on the serving host).
+     * The catalogue silently overrides an application declaration rather than
+     * conflicting with it, so guessing wrong would not fail loudly — it would
+     * quietly discard one side's rows. See
+     * MigrationInstalledArtifactPreparationTest::CONSUMER_DECLARED_TABLES.
      */
     private const array PRE_CATALOGUE_ADJUDICATION_TABLES = [
-        'cache_items',
         'classification_label_definition',
         'media_version',
-        'publishing_idempotency',
         'retention_policy',
-        'state',
-        'waaseyaa_config_activation',
-        'waaseyaa_config_activation_counter',
-        'waaseyaa_config_activation_manifest',
-        'waaseyaa_config_activation_v2',
-        'waaseyaa_config_candidate',
-        'waaseyaa_config_candidate_sweep_fence',
-        'waaseyaa_config_entry',
-        'waaseyaa_config_entry_contract',
-        'waaseyaa_config_entry_v2',
-        'waaseyaa_config_generation',
-        'waaseyaa_config_generation_v2',
-        'waaseyaa_config_manifest_replay',
-        'waaseyaa_entity_mutation_authority',
-        'waaseyaa_scheduler_effect_fences',
-        'waaseyaa_scheduler_fence_sequence',
-        'waaseyaa_scheduler_leases',
-        'waaseyaa_scheduler_occurrence_outbox',
-        'waaseyaa_scheduler_occurrences',
-        'waaseyaa_schema_authority',
     ];
 
     #[Test]
