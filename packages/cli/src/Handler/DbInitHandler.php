@@ -12,9 +12,11 @@ use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
+use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
 
 /**
  * Sanctioned first-deploy database initializer.
@@ -100,9 +102,15 @@ final class DbInitHandler
             )->load();
             $loader = new MigrationLoader($this->projectRoot, $manifest);
             $migrations = $loader->loadAll();
+            $v2Migrations = $loader->loadAllV2();
 
-            $migrator = new Migrator($connection, $repository);
-            $result = $migrator->run($migrations);
+            $compiler = SqliteCompiler::forVersion((string) $connection->fetchOne('SELECT sqlite_version()'));
+            $migrator = new Migrator(
+                $connection,
+                $repository,
+                new V2PlanExecutor($connection, $compiler),
+            );
+            $result = $migrator->run($migrations, $v2Migrations);
 
             if ($result->count === 0) {
                 $io->writeln('No pending migrations.');

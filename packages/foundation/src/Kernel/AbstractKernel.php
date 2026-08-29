@@ -51,9 +51,11 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyComposition;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
@@ -435,7 +437,12 @@ abstract class AbstractKernel
         $this->migrationRepository = new MigrationRepository($connection);
 
         $this->migrationLoader = new MigrationLoader($this->projectRoot, $this->manifest);
-        $this->migrator = new Migrator($connection, $this->migrationRepository);
+        $compiler = SqliteCompiler::forVersion((string) $connection->fetchOne('SELECT sqlite_version()'));
+        $this->migrator = new Migrator(
+            $connection,
+            $this->migrationRepository,
+            new V2PlanExecutor($connection, $compiler),
+        );
     }
 
     protected function discoverAndRegisterProviders(): void

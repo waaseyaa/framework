@@ -16,6 +16,7 @@ use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Foundation\Migration\MigrationRepository;
 
 #[CoversClass(DbInitHandler::class)]
 final class DbInitHandlerTest extends TestCase
@@ -83,6 +84,40 @@ final class DbInitHandlerTest extends TestCase
         $this->assertSame(0, $tester->getExitCode());
         $this->assertStringContainsString('Database already present', $tester->getStdout());
         $this->assertStringContainsString('No pending migrations', $tester->getStdout());
+    }
+
+    #[Test]
+    public function applies_root_application_v2_migrations(): void
+    {
+        mkdir($this->projectRoot.'/vendor/composer', 0o755, true);
+        file_put_contents($this->projectRoot.'/vendor/composer/installed.json', '{"packages":[]}');
+        file_put_contents(
+            $this->projectRoot.'/composer.json',
+            json_encode([
+                'name' => 'acme/application',
+                'extra' => ['waaseyaa' => [
+                    'migrations' => ['Waaseyaa\\CLI\\Tests\\Fixtures'],
+                ]],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $dbPath = $this->projectRoot.'/storage/waaseyaa.sqlite';
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
+        (new MigrationRepository($connection))->createTable();
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+        $connection->close();
+
+        $tester = $this->createTester();
+        $tester->executeMap(['--no-sync-schema' => true]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $readConnection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
+        $columns = array_column(
+            $readConnection->executeQuery('PRAGMA table_info(widgets)')->fetchAllAssociative(),
+            'name',
+        );
+        self::assertContains('profile', $columns);
+        $readConnection->close();
     }
 
     // ----- P0-3 (wayfinding-stress-remediation-01KVGK4Q): a fresh db:init must

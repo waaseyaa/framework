@@ -20,6 +20,7 @@ use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
 use Waaseyaa\Foundation\Kernel\RuntimePolicy;
+use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
@@ -115,7 +116,11 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
         $this->singleton(MigrateStatusHandler::class, function (): MigrateStatusHandler {
             [$migrator, , $loader] = $this->migrationRuntime();
 
-            return new MigrateStatusHandler($migrator, static fn(): array => $loader->loadAll());
+            return new MigrateStatusHandler(
+                $migrator,
+                static fn(): array => $loader->loadAll(),
+                static fn(): array => $loader->loadAllV2(),
+            );
         });
     }
 
@@ -149,7 +154,11 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
         )->load();
         $loader = new MigrationLoader($projectRoot, $manifest);
 
-        $migrator = new Migrator($connection, $repository);
+        $migrator = new Migrator(
+            $connection,
+            $repository,
+            new V2PlanExecutor($connection, $this->sqliteCompiler($connection)),
+        );
 
         return $this->runtime = [$migrator, $repository, $loader, $connection, $dbPath];
     }

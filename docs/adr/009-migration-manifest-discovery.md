@@ -69,6 +69,20 @@ v2 namespace discovery uses `Composer\Autoload\ClassLoader::getRegisteredLoaders
 - Within a path entry: `*.php` files load in lex order (existing pre-WP11 behaviour).
 - Within an FQCN entry: classmap iteration order is implementation-defined; v2 plans should not depend on it. Use explicit `dependencies()` in `MigrationInterfaceV2` for ordering.
 
+### Root-package identity and paths
+
+The Composer root package is a first-class migration producer even though it is
+absent from `vendor/composer/installed.json`. The compiler reads its
+`extra.waaseyaa.migrations` declaration separately and keys it by the root
+Composer `name`; a declaration without that identity fails closed. Relative
+path entries for that package resolve against the project root.
+
+For backward compatibility, an application with no declaration may still place
+legacy migration files in `<projectRoot>/migrations`, loaded under the
+historical `app` package key. If a root manifest path already resolves to that
+directory, the fallback does not run, so the same migration cannot be loaded
+twice under different ledger identities.
+
 ### Coexistence with the string form
 
 The string form is supported indefinitely (Q9). Internally `MigrationLoader::normalizeEntries()` converts the string to a single-element list so both shapes traverse the same code path. Mixing forms within one package is technically possible but not recommended — pick one shape per package for clarity.

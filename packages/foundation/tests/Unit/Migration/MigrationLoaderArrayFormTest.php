@@ -118,6 +118,30 @@ final class MigrationLoaderArrayFormTest extends TestCase
     }
 
     #[Test]
+    public function declared_root_path_resolves_from_project_and_suppresses_legacy_fallback(): void
+    {
+        file_put_contents(
+            $this->basePath.'/composer.json',
+            json_encode(['name' => 'acme/application'], JSON_THROW_ON_ERROR),
+        );
+        $this->writeLegacyMigration($this->basePath.'/migrations/01_init.php');
+
+        $loader = new MigrationLoader(
+            $this->basePath,
+            new PackageManifest(
+                providers: [],
+                migrations: ['acme/application' => 'migrations'],
+            ),
+        );
+
+        $loaded = $loader->loadAll();
+
+        self::assertSame(['acme/application'], array_keys($loaded));
+        self::assertArrayHasKey('acme/application:01_init', $loaded['acme/application']);
+        self::assertArrayNotHasKey('app', $loaded);
+    }
+
+    #[Test]
     public function fqcnEntryWithNoMatchingClassesLogsWarning(): void
     {
         $logger = self::collectingLogger();

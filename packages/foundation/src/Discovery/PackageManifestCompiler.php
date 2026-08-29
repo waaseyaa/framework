@@ -133,10 +133,10 @@ final class PackageManifestCompiler
 
         $this->warnIfLegacyComposerCommandsOrRoutes($packages);
 
-        // Read root composer.json for app-level providers.
+        // Read root composer.json for app-level providers and migrations.
         // Composer's installed.json excludes the root package, so app providers
-        // declared in the project's extra.waaseyaa.providers must be read separately.
-        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, onlyAppendMissingFromRoot: false);
+        // and migrations declared in extra.waaseyaa must be read separately.
+        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, $migrations, onlyAppendMissingFromRoot: false);
 
 
         // Detect provider capability: ProvidesConsoleCommandsInterface
@@ -751,10 +751,8 @@ final class PackageManifestCompiler
         return $contents === false ? '' : $contents;
     }
 
-    /**
-     * @return array<string, mixed>|null Root extra.waaseyaa or null if unreadable / absent
-     */
-    private function readRootWaaseyaaExtra(): ?array
+    /** @return array<string, mixed>|null */
+    private function readRootComposer(): ?array
     {
         $rootComposerPath = $this->basePath . '/composer.json';
         if (!is_file($rootComposerPath)) {
@@ -763,14 +761,24 @@ final class PackageManifestCompiler
 
         try {
             $rootComposer = json_decode(file_get_contents($rootComposerPath), true, 512, JSON_THROW_ON_ERROR);
-            $rootExtra = $rootComposer['extra']['waaseyaa'] ?? null;
 
-            return is_array($rootExtra) ? $rootExtra : null;
+            return is_array($rootComposer) ? $rootComposer : null;
         } catch (\Throwable $e) {
             $this->logger->warning(sprintf('Failed to read root composer.json: %s', $e->getMessage()));
 
             return null;
         }
+    }
+
+    /**
+     * @return array<string, mixed>|null Root extra.waaseyaa or null if unreadable / absent
+     */
+    private function readRootWaaseyaaExtra(): ?array
+    {
+        $rootComposer = $this->readRootComposer();
+        $rootExtra = $rootComposer['extra']['waaseyaa'] ?? null;
+
+        return is_array($rootExtra) ? $rootExtra : null;
     }
 
     /**
@@ -809,14 +817,16 @@ final class PackageManifestCompiler
     }
 
     /**
-     * Merge root extra.waaseyaa providers and permissions into the given lists.
+     * Merge root extra.waaseyaa providers, permissions, and migrations.
      *
      * @param list<string> $providers
      * @param array<string, array{title: string, description?: string}> $permissions
+     * @param array<string, string|list<string>> $migrations
      */
     private function mergeRootWaaseyaaIntoLists(
         array &$providers,
         array &$permissions,
+        array &$migrations,
         bool $onlyAppendMissingFromRoot,
     ): void {
         $rootExtra = $this->readRootWaaseyaaExtra();
@@ -842,17 +852,36 @@ final class PackageManifestCompiler
                 }
             }
         }
+
+        if (array_key_exists('migrations', $rootExtra)) {
+            $rootComposer = $this->readRootComposer();
+            $rootPackageName = $rootComposer['name'] ?? null;
+            if (!is_string($rootPackageName) || trim($rootPackageName) === '') {
+                throw new InvalidMigrationEntryException(
+                    '(root application)',
+                    'the root Composer package must declare a non-empty string `name` before it can own migrations',
+                );
+            }
+
+            if (!$onlyAppendMissingFromRoot || !array_key_exists($rootPackageName, $migrations)) {
+                $migrations[$rootPackageName] = self::validateMigrationsEntry(
+                    $rootPackageName,
+                    $rootExtra['migrations'],
+                );
+            }
+        }
     }
 
     private function mergeRootWaaseyaaIntoManifest(PackageManifest $manifest): PackageManifest
     {
         $providers = $manifest->providers;
         $permissions = $manifest->permissions;
-        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, onlyAppendMissingFromRoot: true);
+        $migrations = $manifest->migrations;
+        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, $migrations, onlyAppendMissingFromRoot: true);
 
         return new PackageManifest(
             providers: $providers,
-            migrations: $manifest->migrations,
+            migrations: $migrations,
             fieldTypes: $manifest->fieldTypes,
             formatters: $manifest->formatters,
             middleware: $manifest->middleware,

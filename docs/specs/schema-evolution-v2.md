@@ -222,6 +222,19 @@ Ordered **array** of entries (namespace and/or path strings):
 - **String** value remains valid indefinitely until deprecation is announced; **array** form is additive.
 - `PackageManifest` typing must represent `string|list<string>` without losing order (PHP `array` list preservation).
 
+### 8.4 Root applications
+
+The Composer root package participates in the same manifest contract as an
+installed package. Its `name` is the migration package identity; declaring
+`extra.waaseyaa.migrations` without a non-empty root package name is invalid and
+fails closed. Relative path entries resolve from the project root. The legacy
+automatic `<projectRoot>/migrations` scan remains available only when that same
+directory was not already declared, preventing one source migration from
+acquiring both the root package identity and the historical `app` identity.
+
+Every stock migration lifecycle surface consumes the resulting legacy and V2
+catalogues: dry-run, apply, status, verify, `db:init`, and `install:init`.
+
 ---
 
 ## 9. Coexistence with the current migration engine

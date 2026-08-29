@@ -63,6 +63,7 @@ final class MigrationLoader
     public function loadAll(): array
     {
         $migrations = [];
+        $declaredDirectories = [];
 
         foreach ($this->manifest->migrations as $package => $entry) {
             $packageMigrations = [];
@@ -71,6 +72,7 @@ final class MigrationLoader
                     continue; // v2 entries are handled by loadAllV2()
                 }
                 $resolved = $this->resolvePackageMigrationDirectory($package, $item);
+                $declaredDirectories[] = self::canonicalPath($resolved);
                 $packageMigrations += $this->loadFromDirectory($resolved, $package);
             }
             if ($packageMigrations !== []) {
@@ -79,9 +81,11 @@ final class MigrationLoader
         }
 
         $appDir = $this->basePath . '/migrations';
-        $appMigrations = $this->loadFromDirectory($appDir, 'app');
-        if ($appMigrations !== []) {
-            $migrations['app'] = $appMigrations;
+        if (!in_array(self::canonicalPath($appDir), $declaredDirectories, true)) {
+            $appMigrations = $this->loadFromDirectory($appDir, 'app');
+            if ($appMigrations !== []) {
+                $migrations['app'] = $appMigrations;
+            }
         }
 
         return $migrations;
@@ -218,6 +222,9 @@ final class MigrationLoader
         if (self::isAbsolutePath($path)) {
             return $path;
         }
+        if ($packageName === $this->rootPackageName()) {
+            return rtrim($this->basePath, '/\\') . '/' . ltrim($path, '/\\');
+        }
         if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled($packageName)) {
             $install = InstalledVersions::getInstallPath($packageName);
             if (is_string($install) && $install !== '') {
@@ -229,6 +236,32 @@ final class MigrationLoader
         }
 
         return rtrim($this->basePath, '/\\') . '/vendor/' . $packageName . '/' . ltrim($path, '/\\');
+    }
+
+    private function rootPackageName(): ?string
+    {
+        $composerPath = $this->basePath . '/composer.json';
+        if (!is_file($composerPath)) {
+            return null;
+        }
+
+        try {
+            $composer = json_decode(file_get_contents($composerPath), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return null;
+        }
+        $name = is_array($composer) ? ($composer['name'] ?? null) : null;
+
+        return is_string($name) && trim($name) !== '' ? $name : null;
+    }
+
+    private static function canonicalPath(string $path): string
+    {
+        $canonical = realpath($path);
+        $normalized = str_replace('\\', '/', $canonical !== false ? $canonical : $path);
+        $normalized = rtrim($normalized, '/');
+
+        return DIRECTORY_SEPARATOR === '\\' ? strtolower($normalized) : $normalized;
     }
 
     private static function isAbsolutePath(string $path): bool
