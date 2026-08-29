@@ -95,7 +95,16 @@ final readonly class OAuthProtectedResourceMetadataConfig
         $parts = \parse_url($uri);
         if (!\is_array($parts)
             || !isset($parts['scheme'], $parts['host'])
-            || isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])
+            // Each component is rejected on its own. A single multi-argument
+            // isset() is a conjunction — it fires only when ALL FOUR are
+            // present — so a resource carrying just a query or just userinfo
+            // passed, and metadataUri() rebuilds the authority without it, so
+            // the advertised discovery URI and the audience handed to
+            // OAuthAccessTokenValidatorInterface::validate() would disagree.
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment'])
             || !\in_array(\strtolower($parts['scheme']), ['http', 'https'], true)
         ) {
             throw new \InvalidArgumentException($field . ' must be an absolute HTTP(S) URI without credentials, query, or fragment.');

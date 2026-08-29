@@ -325,11 +325,16 @@ tier as an OAuth protected resource:
 return [
     'mcp' => [
         'write_tier' => [
+            // The write tier admits ONLY capabilities on this allowlist.
+            // It is NOT derived from scopes_supported, and its default is
+            // ['present guided content'] — leave it out and a token bearing
+            // the scopes below intersects to nothing.
+            'capabilities' => ['tool.entity.read', 'tool.content.search'],
             'oauth_resource' => [
                 'enabled' => true,
                 'resource' => 'https://cms.example/mcp/write',
                 'authorization_servers' => ['https://identity.example'],
-                'scopes_supported' => ['content.read', 'content.write'],
+                'scopes_supported' => ['tool.entity.read', 'tool.content.search'],
                 'resource_documentation' => 'https://cms.example/docs/mcp',
             ],
         ],
@@ -341,6 +346,36 @@ The framework then serves RFC 9728 metadata at the path-specific well-known
 URI and includes that absolute URI plus scope guidance on every 401 challenge.
 Plain HTTP is accepted only for loopback development; malformed, duplicate, or
 insecure metadata fails application boot.
+
+**`scopes_supported` entries are capability ids, not invented scope names**, and
+three separate lists must name the same ids before a single tool is reachable:
+
+| List | Owner | Default |
+|---|---|---|
+| `mcp.write_tier.capabilities` | this config | `['present guided content']` |
+| `scopes_supported` | this config (advertised in RFC 9728 metadata) | none |
+| the scopes actually granted on the token | your authorization server | none |
+
+A tool is reachable only when its capability is on **all three**. The tier
+admits the intersection, so any mismatch produces a caller who authenticates
+successfully and then sees an **empty `tools/list`** — a failure with no error
+to read. The most common form is setting `scopes_supported` and forgetting
+`capabilities`, which leaves the default `present guided content` intersecting
+to nothing.
+
+Two further constraints:
+
+- **A capability id containing a space is not a valid OAuth scope token** and is
+  rejected at boot, so the shipped default `present guided content` cannot be
+  advertised as a scope at all. #1640 tracks that reconciliation.
+- **`tool.entity.*` mutations stay blocked** regardless of scope unless
+  `mcp.write_tier.allow_generic_entity_mutations` is `true`. Naming
+  `tool.entity.update` in `capabilities` does not by itself make it callable;
+  the framework-supported remote editing path is an app-registered
+  `ContentToolSet`.
+
+Enumerate real ids from the `#[AsAgentTool]` declarations the deployment
+installs.
 
 Bind `WriteTierAuthInterface` to `OAuthMcpAuth`, constructed with the same
 `OAuthProtectedResourceMetadataConfig` and an application implementation of
