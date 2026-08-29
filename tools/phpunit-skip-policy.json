@@ -320,6 +320,14 @@
             "rationale": "Representative signing-key custody requires libsodium."
         },
         {
+            "path": "tests/Architecture/SkeletonDockerSecretExclusionTest.php",
+            "reason": "Requires a reachable Docker daemon; `docker info` did not answer. ",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "bin/check-skeleton-docker-secret-exclusion --allow-missing-docker exits 3, which it returns only when `docker --version` or `docker info` does not answer",
+            "rationale": "The #2647 sentinel-secret proof builds and saves a real image, so it needs a Docker daemon that package runners and non-Linux hosts do not provide. The proof is not optional on the supported hosted lane: ci/skeleton-create-project runs the gate with no --allow-missing-docker, so a missing daemon fails there instead of skipping, and SkeletonDockerSecretExclusionTest's other two tests assert that wiring without skipping."
+        },
+        {
             "path": "tests/Architecture/WorktreeCoordinatorTest.php",
             "reason": "Permission refusal cannot be reproduced as root.",
             "occurrence": 1,

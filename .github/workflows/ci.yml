@@ -947,6 +947,16 @@ jobs:
       - name: Minimal and full installs expose only installed optional domains
         run: tools/optional-domain-install-shapes.sh
 
+      # #2647. The runner has a Docker daemon, so this is the lane where the
+      # sentinel-secret proof actually executes: it builds a real image from a
+      # real create-project context and asserts no generated .env secret reached
+      # the build-context inventory, the image filesystem, or any saved layer.
+      # No --allow-missing-docker here — on this lane a missing daemon must fail
+      # rather than degrade to a pass. The gate is deliberately dependency-free,
+      # so it runs without this job installing the repo's own vendor/ tree.
+      - name: Generated .env secrets stay out of the skeleton Docker image
+        run: php bin/check-skeleton-docker-secret-exclusion
+
   # #2644: the fresh-project lifecycle is proven on a native Windows development
   # host, not only on Linux. Windows is already a declared development host —
   # bin/check-portable-paths gates tracked paths for "the repository's supported
