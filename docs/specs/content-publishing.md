@@ -270,15 +270,23 @@ Every successful mutation records via `AuditWriterInterface` (best-effort): kind
 
 ## Content tool set (Layer 5, `packages/ai-tools/src/Content/`)
 
-`ContentToolSet::register(ToolRegistryInterface, ContentTypeDescriptor, prefix, MediaAssetPolicy)` hand-registers (hand-registered tools win over discovery) the tool set under app-chosen stable names — for rhtcircle:
+`ContentToolSet::register(ToolRegistryInterface $registry, string $prefix)`
+hand-registers (hand-registered tools win over discovery) the tool set under
+app-chosen stable names. The descriptor and the asset store are **constructor**
+arguments, not `register()` arguments —
+`new ContentToolSet(ContentPublisher, ContentTypeDescriptor, PreviewLinkService,
+Closure $previewUrl, ?AssetStoreInterface $assets = null, string $assetPrefix = 'asset')`.
+The `asset.*` tools are registered only when an `AssetStoreInterface` is
+supplied; the framework binds no default, so a deployment that wants agent
+uploads opts in by constructing one. For rhtcircle:
 
 `article.list`, `article.get`, `article.createDraft`, `article.updateDraft`, `article.preview`, `article.publish`, `article.unpublish`, `article.revisions`, `article.rollback`, `asset.upload`, `asset.get`.
 
 - Every tool: `#`capability = descriptor's `publishCapability`; mutation tools `destructive: true` → structurally absent from the public `/mcp` registry; reachable only through `/mcp/write` when the capability is on the write-tier allowlist.
-- Input schemas: JSON Schema draft 2020-12, `additionalProperties: false`, derived from the descriptor's writable fields; mutations require `idempotency_key`; update/publish/unpublish require `expected_revision_id`.
-- Errors: structured `{code, message, errors?: [{field, message}], meta?: object}` in the MCP `isError` envelope — `VALIDATION_FAILED` (field-specific), `REVISION_CONFLICT` (with expected/current), `IDEMPOTENCY_CONFLICT`, `SLUG_TAKEN` (field-level on the slug field), `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` (candidate-bound advisory metadata), `NOT_FOUND`, `UNAUTHORIZED`.
+- Input schemas: JSON Schema draft 2020-12, `additionalProperties: false`, derived from the descriptor's writable fields; content mutations require `idempotency_key` and update/publish/unpublish require `expected_revision_id` — but `asset.upload`, though `destructive: true`, requires **neither**; its schema is exactly `{filename, content_base64}`. Sending `idempotency_key` to it is rejected by `additionalProperties: false`, the same trap as the `alt` field. Retried uploads therefore accrete one `media` row per attempt over identical bytes (#1639).
+- Errors: structured `{code, message, errors?: [{field, message}], meta?: object}` in the MCP `isError` envelope — `VALIDATION_FAILED` (field-specific), `REVISION_CONFLICT` (with expected/current), `IDEMPOTENCY_CONFLICT`, `SLUG_TAKEN` (field-level on the slug field), `SAVE_ADVISORY_ACKNOWLEDGEMENT_REQUIRED` (candidate-bound advisory metadata), `NOT_FOUND`, `UNAUTHORIZED`, and `ASSET_REJECTED` (the `asset.upload` refusal: empty upload, oversize, undecodable base64, unsniffable or non-approved type, undecodable image).
 - No tool input is ever a filesystem path, SQL, Twig, or executable content; asset bytes are base64 with size caps; responses never include credentials or personal data.
-- `asset.upload {filename, content_base64, alt?}`: media create access for the configured bundle is required before any bytes are written. Accepted bytes go through the media `UploadHandler` contract — fail-closed `finfo` MIME sniffing (client MIME ignored), file-signature/extension agreement, size cap, randomized safe filename — then a `media` entity is created with the authenticated actor recorded in its save context (repository save, revisioned, audited). Returns `{asset_id, media_id, url, mime, width, height, size}`. `asset.get` returns the same by id. Approved types: png/jpeg/webp (descriptor-configurable subset of the media allowlist).
+- `asset.upload {filename, content_base64}`: media create access for the configured bundle is required before any bytes are written. Accepted bytes go through the media `UploadHandler` contract — fail-closed `finfo` MIME sniffing (client MIME ignored, and an unsniffable file is rejected), an approved-type allowlist, and a size cap. The client filename is never consulted — there is deliberately **no** filename/sniff agreement check — and never reaches the filesystem: bytes are stored under their own `sha256` content hash plus the **sniffed** type's extension, so PNG bytes named `photo.jpg` are accepted and land as `<sha256>.png`, and identical bytes deduplicate. A `media` entity is then created through the repository, so lifecycle events and auditing apply. Core `media` is **not** revisionable, so the save context alone cannot preserve authorship — the actor is recorded durably on the row's `uid` owner field whenever its id is numeric. Returns `{asset_id, media_id, url, mime, width, height, size}`. `asset.get {asset_id}` returns the same payload, gated on the catalog row's `view` access. Approved types are `image/png`, `image/jpeg` and `image/webp`, fixed by `MediaAssetStore::APPROVED_TYPES` — not descriptor-configurable. The size cap is the store's `$maxSizeBytes` constructor argument (default 5 MiB), and rows are written under its `$bundle` argument (default `image`).
 
 ### The asset catalog row is the authority (#2517)
 
