@@ -87,6 +87,28 @@ unknown environment names fail closed before filesystem, lock, migration, or
 connection work. Relative paths resolve against the injected project root, not
 the caller's current working directory.
 
+`db:init` classifies a pre-existing database file four ways before it writes
+(#2644):
+
+| State | Disposition |
+|---|---|
+| absent | create and migrate |
+| present, has `waaseyaa_migrations` | migrate |
+| present, holds no tables at all | adopt as a bootstrap artifact and migrate |
+| present, holds any other table | refuse; the operator moves it aside |
+
+The empty case exists because the framework creates that file itself. Any kernel
+boot reaches `bootDatabase()` before the restricted-discovery guards, and
+`DBALDatabase::createSqlite()` opens eagerly, so a zero-table file plus its
+`-wal`/`-shm` sidecars is the normal residue of having run any command. Refusing
+it told an operator to move aside a file they never made, with no recovery short
+of manual filesystem surgery. It is safe to adopt precisely because it is empty;
+a file with any table in it still belongs to someone else, and a connection that
+cannot be inspected is treated as occupied so refusal stays the fail-safe answer.
+
+`db:init` is a database-administration command. It is not part of the canonical
+fresh-project lifecycle, which materializes schema through `install:init`.
+
 `migrate --dry-run` and `migrate --verify` also receive their diagnostic
 redaction posture from the shared bootstrap `RuntimePolicy`. Only `local`,
 `dev`, `development`, and `testing`, after trim and case normalization, retain

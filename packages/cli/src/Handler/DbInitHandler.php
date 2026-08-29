@@ -73,9 +73,20 @@ final class DbInitHandler
             $connection = $database->getConnection();
 
             if (!$fresh && !$this->looksWaaseyaaInitialized($connection)) {
-                $io->error(sprintf('Database at %s exists but does not look Waaseyaa-initialized (no waaseyaa_migrations table).', $dbPath));
-                $io->error('Refusing to touch it. Move the file aside (e.g. mv waaseyaa.sqlite waaseyaa.sqlite.bak) and re-run db:init.');
-                return 1;
+                if (!$this->hasNoUserTables($connection)) {
+                    $io->error(sprintf('Database at %s exists but does not look Waaseyaa-initialized (no waaseyaa_migrations table) and already holds tables.', $dbPath));
+                    $io->error('Refusing to touch it. Move the file aside (e.g. mv waaseyaa.sqlite waaseyaa.sqlite.bak) and re-run db:init.');
+                    return 1;
+                }
+
+                // #2644: a table-less SQLite file is the framework's own
+                // artifact, not a foreign database. Any kernel boot creates one
+                // — DBALDatabase::createSqlite() opens eagerly and
+                // AbstractKernel::boot() calls bootDatabase() before every
+                // restricted-discovery guard — so an operator who ran any
+                // command before db:init was told to move aside a file they
+                // never made. There is nothing in it to lose.
+                $io->writeln(sprintf('Adopting the empty bootstrap database at %s left by an earlier boot.', $dbPath));
             }
 
             $repository = new MigrationRepository($connection);
@@ -313,6 +324,25 @@ final class DbInitHandler
     {
         try {
             return $connection->createSchemaManager()->tablesExist(['waaseyaa_migrations']);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * A valid SQLite database that holds no tables at all.
+     *
+     * This is what an ordinary kernel boot leaves behind before anything has
+     * been migrated, and it is indistinguishable from a database this command
+     * would have created itself. Adopting it is safe precisely because it is
+     * empty; a file with any table in it is somebody else's and is still
+     * refused. A connection that cannot be inspected is treated as occupied so
+     * the refusal stays the fail-safe answer.
+     */
+    private function hasNoUserTables(\Doctrine\DBAL\Connection $connection): bool
+    {
+        try {
+            return $connection->createSchemaManager()->listTableNames() === [];
         } catch (\Throwable) {
             return false;
         }

@@ -133,6 +133,31 @@ final class DbInitHandlerTest extends TestCase
         $this->assertStringContainsString('Move the file aside', $tester->getStderr());
     }
 
+    /**
+     * #2644: the file an earlier kernel boot leaves behind is a valid SQLite
+     * database with zero tables. It used to be refused as a foreign database,
+     * so an operator who ran any command before `db:init` was told to move
+     * aside a file the framework itself had created — with no supported
+     * recovery that was not manual filesystem surgery.
+     */
+    #[Test]
+    public function emptyBootstrapDatabaseFromAnEarlierBootIsAdopted(): void
+    {
+        $dbPath = $this->projectRoot . '/storage/waaseyaa.sqlite';
+        // Created exactly the way a kernel boot creates it: opened, no DDL.
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
+        $connection->executeQuery('SELECT 1');
+        $connection->close();
+        self::assertFileExists($dbPath);
+
+        $tester = $this->createTester();
+        $tester->executeMap(['--no-sync-schema' => true]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        self::assertStringContainsString('Adopting the empty bootstrap database', $tester->getStdout());
+        self::assertStringNotContainsString('Move the file aside', $tester->getStderr());
+    }
+
     #[Test]
     public function dryRunOnFreshVolumeReportsWithoutCreating(): void
     {

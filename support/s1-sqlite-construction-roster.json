@@ -1489,6 +1489,13 @@
             "occurrence": 2
         },
         {
+            "path": "packages/cli/src/Handler/DbInitHandler.php",
+            "pattern": "dbal_factory",
+            "class": "serving-entrypoint",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 3
+        },
+        {
             "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
             "pattern": "dbal_factory",
             "class": "serving-entrypoint",
@@ -1665,6 +1672,13 @@
         },
         {
             "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "618f21ee07e809a24aedfbe8a777fdefc368cf99fd3e36f5ac2e1c8c8557e2c7",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
@@ -1690,6 +1704,13 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "occurrence": 4
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 5
         },
         {
             "path": "packages/cli/tests/Unit/Handler/FieldAccessPreflightHandlerTest.php",

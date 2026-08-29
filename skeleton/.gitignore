@@ -3,5 +3,7 @@
 /files/*
 !/files/.gitkeep
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 .env
 composer.local.json
