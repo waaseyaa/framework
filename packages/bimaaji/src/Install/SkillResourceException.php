@@ -43,7 +43,7 @@ final class SkillResourceException extends \RuntimeException
     {
         return new self(
             sprintf(
-                'bimaaji: the Agent Skill resource directory %s does not exist. %s',
+                'the Agent Skill resource directory %s does not exist. %s',
                 $directory,
                 self::remedy($configured),
             ),
@@ -56,7 +56,7 @@ final class SkillResourceException extends \RuntimeException
     {
         return new self(
             sprintf(
-                'bimaaji: the Agent Skill resource directory %s exists but could not be read (check filesystem permissions). %s',
+                'the Agent Skill resource directory %s exists but could not be read (check filesystem permissions). %s',
                 $directory,
                 self::remedy($configured),
             ),
@@ -69,7 +69,7 @@ final class SkillResourceException extends \RuntimeException
     {
         return new self(
             sprintf(
-                'bimaaji: the Agent Skill resource directory %s contains no <skill-id>/SKILL.md documents. %s',
+                'the Agent Skill resource directory %s contains no <skill-id>/SKILL.md documents. %s',
                 $directory,
                 self::remedy($configured),
             ),
@@ -82,7 +82,7 @@ final class SkillResourceException extends \RuntimeException
     {
         return new self(
             sprintf(
-                'bimaaji: the Agent Skill document %s is corrupt (%s). Restore or repair that single file; '
+                'the Agent Skill document %s is corrupt (%s). Restore or repair that single file; '
                 . 'reinstalling waaseyaa/bimaaji replaces the shipped copy. All other skills in %s were readable.',
                 $file,
                 $reason,

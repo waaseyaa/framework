@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\RouteCollection;
 use Waaseyaa\Bimaaji\BimaajiServiceProvider;
+use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraph;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
 use Waaseyaa\Bimaaji\Introspection\Admin\AdminIntrospectionProvider;
@@ -16,6 +17,8 @@ use Waaseyaa\Bimaaji\Introspection\Entity\EntityIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\JsonApi\JsonApiIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\PublicSurface\PublicSurfaceProvider;
 use Waaseyaa\Bimaaji\Introspection\Routing\RoutingIntrospectionProvider;
+use Waaseyaa\Bimaaji\Install\PackagedSkillResources;
+use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Introspection\Sovereignty\SovereigntyIntrospectionProvider;
 use Waaseyaa\Bimaaji\Spec\SpecIndexProvider;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -323,6 +326,59 @@ final class BimaajiServiceProviderTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('EntityTypeManager');
         $provider->resolve(ApplicationGraphGenerator::class);
+    }
+
+    #[Test]
+    public function skill_resolution_defaults_to_the_installed_package_resources(): void
+    {
+        // #2656: the default must not be derived from the project root. A
+        // consumer's project root has no skills/ directory, which is why the
+        // old `<projectRoot>/skills/waaseyaa` fallback made bimaaji:install
+        // fail everywhere except this monorepo.
+        $provider = new BimaajiServiceProvider();
+        $provider->setKernelContext(sys_get_temp_dir() . '/waaseyaa-consumer-project', [], []);
+        $provider->register();
+
+        $parser = $provider->resolve(SkillSetParser::class);
+
+        self::assertInstanceOf(SkillSetParser::class, $parser);
+        self::assertSame(PackagedSkillResources::directory(), $parser->directory());
+    }
+
+    #[Test]
+    public function skill_resolution_prefers_an_explicit_configured_directory(): void
+    {
+        $provider = new BimaajiServiceProvider();
+        $provider->setKernelContext('/tmp', ['bimaaji' => ['skills_directory' => '/opt/app-skills']], []);
+        $provider->register();
+
+        $parser = $provider->resolve(SkillSetParser::class);
+
+        self::assertInstanceOf(SkillSetParser::class, $parser);
+        self::assertSame('/opt/app-skills', $parser->directory());
+    }
+
+    #[Test]
+    public function an_empty_configured_skills_directory_falls_back_to_the_package(): void
+    {
+        $provider = new BimaajiServiceProvider();
+        $provider->setKernelContext('/tmp', ['bimaaji' => ['skills_directory' => '']], []);
+        $provider->register();
+
+        $parser = $provider->resolve(SkillSetParser::class);
+
+        self::assertInstanceOf(SkillSetParser::class, $parser);
+        self::assertSame(PackagedSkillResources::directory(), $parser->directory());
+    }
+
+    #[Test]
+    public function the_install_command_binds_with_the_seven_default_transformers(): void
+    {
+        $provider = new BimaajiServiceProvider();
+        $provider->setKernelContext('/tmp', [], []);
+        $provider->register();
+
+        self::assertInstanceOf(BimaajiInstallCommand::class, $provider->resolve(BimaajiInstallCommand::class));
     }
 
     private function makeProvider(): BimaajiServiceProvider
