@@ -1088,7 +1088,39 @@ jobs:
           }
           finally {
             Pop-Location
-            Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+          }
+
+          # Handed to the junction-containment step below, which needs a
+          # consumer that has completed install:init and which owns the
+          # cleanup this block used to do.
+          "BIMAAJI_WINDOWS_CONSUMER=$work" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # #2656. resolvePathInSandbox() resolves paths with realpath() rather
+      # than trusting is_link(), precisely because is_link() does not report a
+      # Windows directory junction. Every other containment proof in that
+      # change is a POSIX symlink on Ubuntu, and this lane runs no PHPUnit, so
+      # the Windows behaviour the guard depends on was asserted and never
+      # executed. This step executes it against the real bimaaji:install entry
+      # point.
+      #
+      # It is PowerShell and PHP and makes no serving claim, so it sits inside
+      # this lane's stated contract rather than widening it. Junctions rather
+      # than symbolic links: a Windows symlink normally needs
+      # SeCreateSymbolicLinkPrivilege or Developer Mode, a junction does not,
+      # and a junction is the exact reparse-point shape the guard must catch.
+      # The script carries its own positive controls, so a junction that
+      # silently failed to redirect fails the gate instead of passing it.
+      - name: bimaaji:install containment holds across a Windows junction
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pwsh -File bin/check-bimaaji-junction-containment.ps1 -ConsumerRoot $env:BIMAAJI_WINDOWS_CONSUMER
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Clean up the Windows consumer
+        if: always()
+        run: |
+          if ($env:BIMAAJI_WINDOWS_CONSUMER) {
+            Remove-Item -Recurse -Force $env:BIMAAJI_WINDOWS_CONSUMER -ErrorAction SilentlyContinue
           }
 
   packaged-form:
