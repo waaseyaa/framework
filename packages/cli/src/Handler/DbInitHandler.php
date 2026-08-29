@@ -73,19 +73,21 @@ final class DbInitHandler
             $connection = $database->getConnection();
 
             if (!$fresh && !$this->looksWaaseyaaInitialized($connection)) {
-                if (!$this->hasNoUserTables($connection)) {
-                    $io->error(sprintf('Database at %s exists but does not look Waaseyaa-initialized (no waaseyaa_migrations table) and already holds tables.', $dbPath));
+                if (!$this->isEmptyBootstrapArtifact($connection)) {
+                    $io->error(sprintf('Database at %s exists but does not look Waaseyaa-initialized (no waaseyaa_migrations table) and is not empty.', $dbPath));
                     $io->error('Refusing to touch it. Move the file aside (e.g. mv waaseyaa.sqlite waaseyaa.sqlite.bak) and re-run db:init.');
                     return 1;
                 }
 
-                // #2644: a table-less SQLite file is the framework's own
+                // #2644: a completely empty SQLite file is the framework's own
                 // artifact, not a foreign database. Any kernel boot creates one
                 // — DBALDatabase::createSqlite() opens eagerly and
                 // AbstractKernel::boot() calls bootDatabase() before every
                 // restricted-discovery guard — so an operator who ran any
                 // command before db:init was told to move aside a file they
-                // never made. There is nothing in it to lose.
+                // never made. Adoption is safe only because there is provably
+                // nothing in it to lose, which is why the predicate inspects
+                // every sqlite_schema object rather than tables alone.
                 $io->writeln(sprintf('Adopting the empty bootstrap database at %s left by an earlier boot.', $dbPath));
             }
 
@@ -330,19 +332,48 @@ final class DbInitHandler
     }
 
     /**
-     * A valid SQLite database that holds no tables at all.
+     * Whether this file is byte-for-byte what the framework's own boot leaves
+     * behind: a valid SQLite database with nothing in it and nothing stamped
+     * on it.
      *
-     * This is what an ordinary kernel boot leaves behind before anything has
-     * been migrated, and it is indistinguishable from a database this command
-     * would have created itself. Adopting it is safe precisely because it is
-     * empty; a file with any table in it is somebody else's and is still
-     * refused. A connection that cannot be inspected is treated as occupied so
-     * the refusal stays the fail-safe answer.
+     * Adoption is safe only because there is provably nothing to lose, so the
+     * test is deliberately stricter than "has no tables". It asks
+     * `sqlite_schema` directly rather than going through
+     * `listTableNames()`, which reports only tables: a database whose sole
+     * object is a view has an empty table list, and adopting one would mean
+     * writing the migration catalog into somebody else's database — the exact
+     * outcome the refusal exists to prevent. Views, indexes, and triggers all
+     * count as occupancy.
+     *
+     * `application_id` and `user_version` are checked for the same reason. Both
+     * are zero in a database SQLite has just created; a non-zero value is a
+     * deliberate stamp by whoever owns the file, and an empty schema does not
+     * make that file ours.
+     *
+     * Any failure to inspect is treated as occupied, so refusal remains the
+     * fail-safe answer.
      */
-    private function hasNoUserTables(\Doctrine\DBAL\Connection $connection): bool
+    private function isEmptyBootstrapArtifact(\Doctrine\DBAL\Connection $connection): bool
     {
         try {
-            return $connection->createSchemaManager()->listTableNames() === [];
+            $objects = $connection->fetchOne(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite\\_%' ESCAPE '\\'",
+            );
+            if (!is_int($objects) && !is_numeric($objects)) {
+                return false;
+            }
+            if ((int) $objects !== 0) {
+                return false;
+            }
+
+            foreach (['application_id', 'user_version'] as $pragma) {
+                $value = $connection->fetchOne(sprintf('PRAGMA %s', $pragma));
+                if ((!is_int($value) && !is_numeric($value)) || (int) $value !== 0) {
+                    return false;
+                }
+            }
+
+            return true;
         } catch (\Throwable) {
             return false;
         }

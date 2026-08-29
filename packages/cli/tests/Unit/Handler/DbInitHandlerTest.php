@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Exception\IOException;
@@ -156,6 +157,44 @@ final class DbInitHandlerTest extends TestCase
         self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
         self::assertStringContainsString('Adopting the empty bootstrap database', $tester->getStdout());
         self::assertStringNotContainsString('Move the file aside', $tester->getStderr());
+    }
+
+    /**
+     * Adoption is safe only because an empty bootstrap file provably holds
+     * nothing. `listTableNames()` reports tables alone, so a database whose
+     * only object is a view has an empty table list — adopting one would write
+     * the migration catalog into somebody else's database, which is precisely
+     * what the refusal exists to prevent.
+     *
+     * @param non-empty-string $occupy DDL or pragma that makes the file foreign
+     */
+    #[Test]
+    #[DataProvider('foreignEmptyTableDatabaseProvider')]
+    public function aForeignDatabaseWithNoTablesIsStillRefused(string $occupy): void
+    {
+        $dbPath = $this->projectRoot . '/storage/waaseyaa.sqlite';
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
+        $connection->executeStatement($occupy);
+        // The precondition that makes this a regression test: the old
+        // table-only predicate saw nothing here and adopted the file.
+        self::assertSame([], $connection->createSchemaManager()->listTableNames());
+        $connection->close();
+
+        $tester = $this->createTester();
+        $tester->executeMap(['--no-sync-schema' => true]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('does not look Waaseyaa-initialized', $tester->getStderr());
+        self::assertStringContainsString('Move the file aside', $tester->getStderr());
+        self::assertStringNotContainsString('Adopting the empty bootstrap database', $tester->getStdout());
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function foreignEmptyTableDatabaseProvider(): iterable
+    {
+        yield 'view only' => ['CREATE VIEW sentinel AS SELECT 1'];
+        yield 'stamped application_id' => ['PRAGMA application_id = 252006'];
+        yield 'stamped user_version' => ['PRAGMA user_version = 7'];
     }
 
     #[Test]

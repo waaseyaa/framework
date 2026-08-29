@@ -240,14 +240,27 @@ verification while being an invalid installation.
 ## Site initialization
 
 `SiteServiceProvider` registers `site:init [--answers=PATH] [--project-root=PATH]
-[--dry-run] [--yes]`. It follows ordinary full console boot and composes the
-Layer-0 site-contract package. Interactive mode asks product questions in
-plain language. Non-interactive mode requires a complete answer document and
-explicit `--yes`; `--dry-run` performs no writes. Publication is serialized by
-the project initialization lock and delegates collision refusal, durable
-journaling, rollback, crash recovery, generated ownership, and explicit
-generator-version migration to `SiteInitializationService`. Forge, release,
-and deployment behavior are outside this command.
+[--dry-run] [--yes]`. It runs on the boot-free command seam, alongside
+`site:doctor` and `db:init`, and composes the Layer-0 site-contract package.
+`SiteInitHandler` takes only a project root and
+`SiteArtifactRendererFactory::create()` composes its recipes with `new`, so no
+container is required; routing it through restricted boot would open the
+database, and the site-contract phase runs before the framework has one (#2644).
+Interactive mode asks product questions in plain language. Non-interactive mode
+requires a complete answer document and explicit `--yes`; `--dry-run` performs
+no writes. Publication is serialized by the project initialization lock and
+delegates collision refusal, durable journaling, rollback, crash recovery, and
+generated ownership to `SiteInitializationService`.
+
+Regeneration across a renderer change is carried by the manifest rebind, not by
+a migration engine: there is none, and `generator_version` is read from the
+project's own manifest, so the framework cannot raise it. Rebinding
+`framework.observed_lock_sha256` to the reviewed dependency lock changes the
+manifest digest, which is the signal that distinguishes an upgrade from a
+substitution. See [site-golden-path.md](site-golden-path.md) "Initialization" for
+the full disposition of a changed artifact set versus changed managed bytes.
+
+Forge, release, and deployment behavior are outside this command.
 
 ## Input And Output
 
