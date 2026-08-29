@@ -160,7 +160,18 @@ final class SiteArtifactRenderer
                     $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
                     self::assertSame('bin/maintenance/site-verify', $manifest->verificationCommand);
                     self::assertFileExists($root . '/' . $manifest->verificationCommand);
-                    self::assertTrue(is_executable($root . '/' . $manifest->verificationCommand));
+                    // The property that matters is that the command is runnable
+                    // PHP, which holds on every host. The execute bit is the
+                    // POSIX expression of it: the file has no extension, and
+                    // Windows resolves executability through PATHEXT, so
+                    // is_executable() is false there for a perfectly good file.
+                    self::assertStringStartsWith(
+                        '#!/usr/bin/env php',
+                        (string) file_get_contents($root . '/' . $manifest->verificationCommand),
+                    );
+                    if (DIRECTORY_SEPARATOR === '/') {
+                        self::assertTrue(is_executable($root . '/' . $manifest->verificationCommand));
+                    }
                 }
             }
             PHP;

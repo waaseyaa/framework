@@ -153,10 +153,28 @@ starting new work. A cleanup failure after the durable commit cannot
 reinterpret the new generation as failed or roll it back.
 
 Generator evolution is explicit. Existing files are validated against the
-digests recorded by the generator that created them; a changed artifact set or
-managed byte sequence requires a declared generator-version migration. The
-current renderer is never used to pretend that historical output was produced
-by a newer version.
+digests recorded by the generator that created them, and the current renderer is
+never used to pretend that historical output was produced by a newer version.
+The two kinds of change are not equally recoverable, and the difference is
+load-bearing (#2644):
+
+- **A changed artifact set** — one generated file added or removed — is compared
+  unconditionally, outside the manifest-digest guard, and refuses regeneration
+  on every already-initialized project with no override and no migration path.
+  Treat the set as frozen; a new committed file belongs in the skeleton, not in
+  the generated set.
+- **Changed managed bytes** of an existing artifact refuse only while the
+  manifest digest is unchanged, because that is the case regeneration cannot
+  distinguish from a substitution. Rebinding
+  `framework.observed_lock_sha256` to the reviewed dependency lock changes the
+  manifest digest, which is exactly the signal that the change is an upgrade,
+  and regeneration then proceeds. That rebind is the sanctioned path, and the
+  refusal message names it.
+
+There is no generator-version migration engine. `generator_version` is read from
+the project's own manifest and the framework has no way to raise it, so the
+version-mismatch branch cannot fire on a framework upgrade; the manifest rebind
+is what carries a project across a renderer change.
 
 ## Recipe contract
 

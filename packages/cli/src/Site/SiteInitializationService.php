@@ -149,7 +149,21 @@ final class SiteInitializationService
                         continue;
                     }
                     if (!hash_equals($priorRows[$path]['managed_sha256'], $artifact->managedDigest())) {
-                        throw new SiteInitializationCollisionException('Generated artifact bytes changed without a generator-version migration: ' . $path);
+                        // #2644: this fires when the framework's renderer has
+                        // changed but the manifest still binds the previous
+                        // dependency lock — the manifest digest is unchanged, so
+                        // regeneration cannot tell an upgrade from a
+                        // substitution. Naming only a migration that does not
+                        // exist as a command left the operator with no move.
+                        // Rebinding the lock is the sanctioned one: it changes
+                        // the manifest digest, which is precisely the signal
+                        // that this is a reviewed upgrade.
+                        throw new SiteInitializationCollisionException(sprintf(
+                            'Generated artifact bytes changed without a generator-version migration: %s. '
+                            . 'If this followed a framework upgrade, rebind framework.observed_lock_sha256 in '
+                            . '.waaseyaa/site.yaml to the sha256 of the current composer.lock and re-run site:init.',
+                            $path,
+                        ));
                     }
                 }
             }
