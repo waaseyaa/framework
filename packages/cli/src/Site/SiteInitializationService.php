@@ -20,13 +20,19 @@ final class SiteInitializationService
 
     private readonly string $projectRoot;
 
-    public function __construct(string $projectRoot, private readonly ?\Closure $faultInjector = null)
-    {
+    private readonly SiteHostPlatform $platform;
+
+    public function __construct(
+        string $projectRoot,
+        private readonly ?\Closure $faultInjector = null,
+        ?SiteHostPlatform $platform = null,
+    ) {
         $root = realpath($projectRoot);
         if ($root === false || !is_dir($root) || is_link($projectRoot)) {
             throw new \InvalidArgumentException('The site project root must be an existing, non-symlink directory.');
         }
         $this->projectRoot = rtrim($root, DIRECTORY_SEPARATOR);
+        $this->platform = $platform ?? SiteHostPlatform::host();
     }
 
     /** @param null|\Closure(list<string>): bool $authorize */
@@ -182,7 +188,7 @@ final class SiteInitializationService
                         throw new SiteInitializationCollisionException("Generated artifact has a damaged extension region: {$path}", previous: $exception);
                     }
                 }
-                if (hash_equals(hash('sha256', $existing), hash('sha256', $artifact->content)) && (fileperms($absolute) & 0o777) === $artifact->mode) {
+                if (hash_equals(hash('sha256', $existing), hash('sha256', $artifact->content)) && $this->modeMatches($absolute, $artifact->mode)) {
                     continue;
                 }
             }
@@ -221,7 +227,9 @@ final class SiteInitializationService
             $backupMode = null;
             if ($existed) {
                 $backupFile = $backup . '/' . sprintf('%04d.backup', $index);
-                $backupMode = fileperms($target) & 0o777;
+                // A host without permission bits has no observed mode to preserve, so the
+                // journal records the declared one and rollback stays reproducible.
+                $backupMode = $this->platform->enforcesPermissionBits() ? fileperms($target) & 0o777 : $artifact->mode;
                 $this->copyDurably($target, $backupFile, $backupMode);
                 $this->injectFault('after-backup', $index, $path);
             }
@@ -259,7 +267,7 @@ final class SiteInitializationService
                 if (!rename($this->absolute($item['stage']), $target)) {
                     throw new \RuntimeException("Unable to atomically install {$item['path']}.");
                 }
-                if (!chmod($target, $item['mode'])) {
+                if ($this->platform->enforcesPermissionBits() && !chmod($target, $item['mode'])) {
                     throw new \RuntimeException("Unable to set mode on {$item['path']}.");
                 }
                 $this->syncFile($target);
@@ -336,7 +344,7 @@ final class SiteInitializationService
                 $this->assertRegularOwnedFile($target, $item['path']);
                 $currentDigest = $this->digestFile($target);
                 if (hash_equals($item['backup_sha256'], $currentDigest)) {
-                    if ((fileperms($target) & 0o777) !== $item['backup_mode'] && !chmod($target, $item['backup_mode'])) {
+                    if (!$this->modeMatches($target, $item['backup_mode']) && !chmod($target, $item['backup_mode'])) {
                         throw new \RuntimeException("Cannot restore the mode of {$item['path']}.");
                     }
                     $this->syncFile($target);
@@ -467,7 +475,7 @@ final class SiteInitializationService
             if ($written !== strlen($content) || !fflush($handle)) {
                 throw new \RuntimeException("Unable to durably write {$path}.");
             }
-            if (!chmod($path, $mode)) {
+            if ($this->platform->enforcesPermissionBits() && !chmod($path, $mode)) {
                 throw new \RuntimeException("Unable to set mode on {$path}.");
             }
             if (!fsync($handle)) {
@@ -500,6 +508,9 @@ final class SiteInitializationService
 
     private function syncFile(string $path): void
     {
+        if (!$this->platform->synchronizesDirectories()) {
+            return;
+        }
         $handle = fopen($path, 'rb');
         if ($handle === false || !fsync($handle)) {
             if (is_resource($handle)) {
@@ -512,6 +523,9 @@ final class SiteInitializationService
 
     private function syncDirectory(string $directory): void
     {
+        if (!$this->platform->synchronizesDirectories()) {
+            return;
+        }
         $handle = fopen($directory, 'rb');
         if ($handle === false || !fsync($handle)) {
             if (is_resource($handle)) {
@@ -576,15 +590,38 @@ final class SiteInitializationService
     private function assertRegularOwnedFile(string $path, string $relative): void
     {
         $stat = lstat($path);
-        if ($stat === false || !is_file($path) || is_link($path) || $stat['nlink'] !== 1) {
+        // The hard-link count is a POSIX guarantee; on Windows it is not a
+        // portable signal, so enforcing it there would refuse ordinary files.
+        // The symlink and regular-file clauses stay unconditional (#2644).
+        $aliased = $this->platform->enforcesHardLinkCounts() && ($stat === false || $stat['nlink'] !== 1);
+        if ($stat === false || !is_file($path) || is_link($path) || $aliased) {
             throw new SiteInitializationCollisionException("Generated target is not a private regular file: {$relative}");
         }
+    }
+
+    /**
+     * Whether an existing artifact already carries its declared mode.
+     *
+     * On a host without POSIX permission bits there is nothing to compare, so
+     * the mode half of the unchanged-artifact test is vacuously satisfied.
+     * Comparing anyway meant no artifact ever matched and `site:init` rewrote
+     * the entire generated set on every run (#2644).
+     */
+    private function modeMatches(string $absolute, int $mode): bool
+    {
+        if (!$this->platform->enforcesPermissionBits()) {
+            return true;
+        }
+
+        return (fileperms($absolute) & 0o777) === $mode;
     }
 
     private function assertPathWithinRoot(string $path): void
     {
         $resolved = realpath($path);
-        if ($resolved === false || !str_starts_with($resolved . '/', $this->projectRoot . '/')) {
+        // #2644: realpath() returns backslash-separated paths on Windows, so a
+        // separator-naive prefix test rejected every legitimate target there.
+        if ($resolved === false || !SitePathContainment::contains($this->projectRoot, $resolved)) {
             throw new SiteInitializationCollisionException('Generated target escaped the project root.');
         }
     }

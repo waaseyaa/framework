@@ -839,6 +839,8 @@ return [
     'Waaseyaa\CLI\AdminBuild\AdminBuildPlatform' => 'internal',
     'Waaseyaa\CLI\AdminBuild\AdminBuildProcessResult' => 'internal',
     'Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunnerInterface' => 'internal',
+    'Waaseyaa\CLI\Site\SiteHostPlatform' => 'internal',
+    'Waaseyaa\CLI\Site\SitePathContainment' => 'internal',
 
     // Layer 6: Interfaces — internal
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',

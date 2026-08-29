@@ -13,6 +13,7 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteInitializationResult;
+use Waaseyaa\CLI\Site\SiteHostPlatform;
 use Waaseyaa\SiteContract\Generation\GeneratedSite;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
@@ -45,6 +46,39 @@ final class SiteInitializationServiceTest extends TestCase
         self::assertSame(array_values(array_filter(array_keys($site->artifacts), static fn(string $path): bool => $path !== '.waaseyaa/.gitignore')), $first->changedPaths);
         self::assertSame([], $second->changedPaths);
         self::assertSame($before, $this->snapshot($root));
+    }
+
+    /**
+     * #2644: `site:init` could not complete on native Windows. `syncDirectory()`
+     * opened the parent directory as a stream to fsync it — POSIX-only — and
+     * the very first governed write, `.waaseyaa/.gitignore`, reached it, so
+     * initialization aborted with "Unable to sync directory" before publishing
+     * anything. That message is exactly what the issue reported.
+     *
+     * The host is injected so the Windows branch is exercised on a Linux
+     * runner; an untestable `DIRECTORY_SEPARATOR` branch would be a claim, not
+     * a proof. The assertion is that the Windows host produces the *same*
+     * artifacts, byte for byte, as the POSIX host — and is idempotent, which
+     * the unguarded `fileperms()` comparison also broke.
+     */
+    #[Test]
+    public function itPublishesAnIdenticalArtifactSetOnAHostThatCannotSyncDirectories(): void
+    {
+        $posixRoot = $this->root();
+        $windowsRoot = $this->root();
+        $site = $this->site();
+
+        $posix = new SiteInitializationService($posixRoot, null, SiteHostPlatform::Posix)->initialize($site);
+
+        $service = new SiteInitializationService($windowsRoot, null, SiteHostPlatform::Windows);
+        $windows = $service->initialize($site);
+        $afterFirst = $this->snapshot($windowsRoot);
+        $repeat = $service->initialize($site);
+
+        self::assertSame($posix->changedPaths, $windows->changedPaths);
+        self::assertSame($this->snapshot($posixRoot), $this->snapshot($windowsRoot));
+        self::assertSame([], $repeat->changedPaths, 'Regeneration must be idempotent without POSIX permission bits.');
+        self::assertSame($afterFirst, $this->snapshot($windowsRoot));
     }
 
     #[Test]

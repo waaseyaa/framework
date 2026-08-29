@@ -127,6 +127,24 @@ Initialization is transactional:
    transaction journal, installing `.waaseyaa/generated.json` last and marking
    the journal committed only after every target is durable.
 
+Host portability is explicit rather than assumed (#2644). `SiteHostPlatform` is
+injected into the initializer and declares three capabilities the transaction
+depends on, each of which the framework previously took for granted:
+
+| Capability | POSIX | Windows | Consequence when absent |
+|---|---|---|---|
+| synchronize a directory handle | yes | no | the durability guarantee narrows to process death, not host death |
+| enforce permission bits | yes | no | modes are declared, never compared |
+| hard-link counts | yes | no | the aliasing clause of the private-file check is not enforced; the symlink and regular-file clauses still are |
+
+On a host without directory synchronization the journal, the lock, and the
+write-then-rename ordering are unchanged, so the transaction remains atomic and
+recoverable across process death; only host-crash durability is POSIX-only. The
+capability is injected rather than read inline from `DIRECTORY_SEPARATOR` so the
+non-POSIX branch is exercised by the ordinary test suite on a Linux runner — an
+untestable platform branch would be a claim rather than a proof — and the tests
+assert that both hosts publish a byte-identical artifact set.
+
 Existing unrecognized files are never overwritten. Re-running the same inputs
 is byte-identical. An ordinary publication failure rolls back every governed
 target before returning. If the process or host stops mid-publication, the
