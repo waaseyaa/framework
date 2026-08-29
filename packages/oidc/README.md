@@ -64,8 +64,8 @@ OIDC client.
 | Revocation `POST /oidc/revoke` | Implemented | `Revoke\RevocationController` (RFC 7009). Unknown, missing and foreign tokens all return `200` so the endpoint is not an enumeration oracle. Revoking an access token cascades to its refresh token; the reverse does not cascade (RFC 7009 §2.1). |
 | Consent `GET`/`POST /oidc/consent` | Implemented | `Consent\ConsentScreenController` and `Consent\ConsentRepository`. The route is not CSRF-exempt and the controller additionally verifies `_csrf_token`. Approval records a row in `oidc_user_consent` and issues the code; denial redirects with `error=access_denied`. The screen is inline HTML, not a Twig template (the class docblock still says Twig and is stale). |
 | Client registry | Implemented | `oidc_client` entity, `ClientRegistry\OidcClientLookup`, `ClientRegistry\OidcClientSeeder` for the `oidc.clients` config block, `OidcClientAccessPolicy`. Admin JSON:API CRUD at `/api/oidc-clients` (`Waaseyaa\Api\Controller\OidcClientController`); Admin SPA screens under `packages/admin/app/pages/oidc/clients/`. This is **not** RFC 7591 dynamic registration. |
-| Signing-key lifecycle | Implemented | `Key\SigningKeyRepository`, `Key\RealKeyMaterialProvider`, `Key\SigningKeyLifecyclePolicy`, `Key\SigningKeyEmergencyRevocationService`. Stage, propagate, activate, clean up and emergency-revoke are separate audited transitions with their own CLI commands. `Keys\PemFileKeyLoader` remains available for explicitly configured PEM files. |
-| Encrypted key and token custody | Implemented | Sodium secretbox envelopes under a strict `secretbox.hkdf-v1:` prefix, derived from `WAASEYAA_APP_SECRET` through versioned HKDF-SHA-256 purposes. Opaque access and refresh tokens use separate encryption keys and separate HMAC-SHA-256 lookup keys. `ext-sodium` is a hard requirement. |
+| Signing-key lifecycle | Implemented | `Key\SigningKeyRepository`, `Key\RealKeyMaterialProvider`, `Key\SigningKeyLifecyclePolicy`, `Key\SigningKeyEmergencyRevocationService`. Stage, propagate, activate, clean up and emergency-revoke are separate audited transitions with their own CLI commands. Issuer signing binds `KeyMaterialProviderInterface` to `Key\RealKeyMaterialProvider` over that repository unconditionally; no configuration redirects issuer signing to files. `Keys\PemFileKeyLoader` is bound separately as `OidcKeyLoaderInterface` (shaped by `oidc.signing_keys` or `OIDC_SIGNING_KEY_DIR`) and is reachable by explicit callers through `Token\InMemoryKeyMaterialProvider`, but nothing in the issuer signing path resolves it. |
+| Encrypted key and token custody | Implemented, two envelope formats | Current runtime writes application-master envelopes; `secretbox.hkdf-v1:` is the legacy format. See [Security: secrets at rest](#security-secrets-at-rest). Opaque access and refresh tokens carry separate encryption keys and separate HMAC-SHA-256 lookup keys under either format. `ext-sodium` is a hard requirement. |
 | Migrations | Implemented | Eight migrations under `packages/oidc/migrations/`, listed below. |
 | RP-initiated logout / `end_session` | **Absent** | No controller, no route, no `end_session` string anywhere in `packages/oidc/src` or `packages/routing/src`, and no `end_session_endpoint` in the discovery document. Explicitly deferred by the completion spec. |
 | Token introspection (RFC 7662) | Absent | Declared out of scope by the completion spec; relying parties validate ID tokens against JWKS. |
@@ -136,27 +136,69 @@ Registered by `Waaseyaa\CLI\Provider\OidcServiceProvider`:
 
 ## Security: secrets at rest
 
-OIDC secret persistence is rooted in `WAASEYAA_APP_SECRET` through distinct,
-versioned HKDF-SHA-256 purposes:
+Encrypted OIDC material (signing private keys, opaque access tokens, opaque
+refresh tokens) is persisted through `Security\SecretBoxEnvelope`. There are two
+envelope formats, and which one a given process **writes** depends on the
+custody `OidcServiceProvider::runtimeCustody()` selects. Public-key material
+remains directly readable in both.
 
-- RSA private keys use sodium secretbox with a fresh nonce and a strict
-  `secretbox.hkdf-v1:` envelope. Public-key material remains directly readable.
-- Opaque access and refresh tokens use separate secretbox encryption keys and
-  separate HMAC-SHA-256 lookup keys. Exact lookup uses the keyed lookup column;
-  the bearer value is returned only after its encrypted envelope authenticates.
-- Issuer signing uses the encrypted database repository unless file keys are
-  explicitly configured. Database key configuration or decryption errors are
-  propagated and do not select another provider.
-- Application-master rekeying is covered by dedicated adapters for signing keys
-  and for both token tables (`Rekey\OidcSigningKeyRekeyAdapter`,
-  `Rekey\OidcAccessTokenRekeyAdapter`, `Rekey\OidcRefreshTokenRekeyAdapter`).
+### Current: application-master custody
 
-Existing installations run `bin/waaseyaa oidc:migrate-secrets --confirm` in
-maintenance mode after taking a trusted backup. The command converts signing
-keys, access tokens, and refresh tokens in one transaction. Runtime readers
-accept only authenticated envelopes; there is no ongoing plaintext read mode.
-See [`docs/upgrade-notes/oidc-secrets-at-rest.md`](../../docs/upgrade-notes/oidc-secrets-at-rest.md)
-for the bounded procedure.
+When an `ApplicationMasterKeyring` is bound, `runtimeCustody()` selects it and
+derives no application-secret key. `SecretBoxEnvelope::seal()` then writes a
+JSON `Foundation\Security\ApplicationMasterEnvelope`
+(`waaseyaa.application-master.envelope.v1`) sealed with XChaCha20-Poly1305 IETF
+AEAD. Each envelope records its master version, purpose, record identity and
+schema version, and those fields are authenticated as associated data. Opening
+re-checks purpose, record identity and schema version exactly before returning
+plaintext. This is the format a current runtime writes; it carries **no**
+`secretbox.hkdf-v1:` prefix.
+
+Master-version rotation is covered by dedicated rekey adapters for signing keys
+and both token tables (`Rekey\OidcSigningKeyRekeyAdapter`,
+`Rekey\OidcAccessTokenRekeyAdapter`, `Rekey\OidcRefreshTokenRekeyAdapter`),
+which implement snapshot, batched transition, verification and rollback against
+the application-master rekey coordinator.
+
+### Legacy: `secretbox.hkdf-v1:` envelopes
+
+When no keyring is bound, custody falls back to a 32-byte key derived from the
+`ApplicationSecret` (rooted in `WAASEYAA_APP_SECRET`) through a distinct,
+versioned HKDF-SHA-256 purpose per record class. `seal()` then writes
+`secretbox.hkdf-v1:` followed by base64url of a fresh nonce and an
+`XSalsa20-Poly1305` secretbox ciphertext. This is the format the package wrote
+before application-master custody existed.
+
+### Compatibility and reading
+
+`open()` dispatches on the `secretbox.hkdf-v1:` prefix: prefixed values take the
+legacy path, everything else is decoded as an application-master envelope. A
+process therefore needs the legacy key to read legacy rows.
+
+Setting `oidc.accept_legacy_application_secret_material` to `true` keeps that
+derived legacy key alongside the keyring, so a keyring-backed process can still
+open pre-existing `secretbox.hkdf-v1:` rows. It does not change the write
+format: a keyring-backed process still seals new material as an
+application-master envelope. Without that flag, a bound keyring means legacy
+envelopes cannot be opened. The flag is a migration affordance, not a steady
+state: it re-introduces the `WAASEYAA_APP_SECRET` dependency the keyring
+removes.
+
+Under either format, opaque access and refresh tokens use separate encryption
+keys and separate HMAC-SHA-256 lookup keys. Exact lookup uses the keyed lookup
+column; the bearer value is returned only after its encrypted envelope
+authenticates. Runtime readers accept only authenticated envelopes; there is no
+ongoing plaintext read mode.
+
+### Migrating plaintext rows
+
+`bin/waaseyaa oidc:migrate-secrets --confirm` converts unencrypted signing keys,
+access tokens and refresh tokens in one transaction; run it in maintenance mode
+after taking a trusted backup.
+[`docs/upgrade-notes/oidc-secrets-at-rest.md`](../../docs/upgrade-notes/oidc-secrets-at-rest.md)
+records that procedure. Note that the upgrade note is written against the
+`WAASEYAA_APP_SECRET` legacy model and does not yet describe application-master
+custody.
 
 ## Deferred and out of scope
 
@@ -221,13 +263,17 @@ that paragraph is the historical starting point, not a description of current
 
 ## Stack
 
-- [`lcobucci/jwt`](https://github.com/lcobucci/jwt) — ID token assembly
-  (`Token\IdTokenMinter`).
-- [`league/oauth2-server`](https://oauth2.thephpleague.com/) — still declared in
-  `packages/oidc/composer.json` from ADR-006, but no `League\OAuth2\*` type is
-  imported anywhere in `packages/oidc/src`; the grant, token and userinfo paths
-  are first-party.
-- `ext-sodium` — required for secretbox custody.
+- [`lcobucci/jwt`](https://github.com/lcobucci/jwt) — still declared in
+  `packages/oidc/composer.json` from ADR-006, but no `Lcobucci\*` type is
+  imported anywhere in `packages/oidc/src`. `Token\IdTokenMinter` assembles the
+  ID token itself: it base64url-encodes a JSON header and claim set, signs the
+  joined input through the active `SigningKeySignerInterface`, and verifies with
+  `openssl_verify()` against the published key set.
+- [`league/oauth2-server`](https://oauth2.thephpleague.com/) — likewise declared
+  from ADR-006, but no `League\OAuth2\*` type is imported anywhere in
+  `packages/oidc/src`; the grant, token and userinfo paths are first-party.
+- `ext-sodium` — required for both custody formats (XChaCha20-Poly1305 IETF for
+  application-master envelopes, secretbox for legacy ones).
 
 ## License
 
