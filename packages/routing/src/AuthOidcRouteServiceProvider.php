@@ -60,6 +60,8 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $internalFields = $this->resolve(UserInternalFieldReaderInterface::class);
         $passwords = $this->resolve(LegacyPasswordUpgrade::class);
         $extensions = $this->resolve(AuthExtensionRegistry::class);
+        $logger = $this->resolveOptional(LoggerInterface::class);
+        assert($logger === null || $logger instanceof LoggerInterface);
         $etm = $entityTypeManager;
 
         $router->addRoute(
@@ -73,6 +75,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     rateLimiter: $rateLimiter,
                     identityLookup: $identityLookup,
                     internalFields: $internalFields,
+                    logger: $logger,
                     extensions: $extensions,
                 ))
                 ->allowAll()
@@ -87,10 +90,11 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     config: $authConfig,
                     entityTypeManager: $etm,
                     tokenRepo: $tokenRepo,
-                    extensions: $extensions,
                     authMailer: $authMailer,
                     rateLimiter: $rateLimiter,
                     identityLookup: $identityLookup,
+                    logger: $logger,
+                    extensions: $extensions,
                 ))
                 ->allowAll()
                 ->methods('POST')
@@ -131,6 +135,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     tokenRepo: $tokenRepo,
                     authMailer: $authMailer,
                     rateLimiter: $rateLimiter,
+                    logger: $logger,
                     extensions: $extensions,
                 ))
                 ->requireAuthentication()

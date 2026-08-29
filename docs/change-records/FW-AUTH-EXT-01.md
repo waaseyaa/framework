@@ -45,5 +45,7 @@ profile, role, mail, and redirect policies and suppresses lifecycle events.
 
 Acceptance is a route-registration regression that proves one exact registry
 instance reaches register, forgot-password, verify-email, resend-verification,
-login, logout, and two-factor verification controllers. No controller,
-extension-slot, token, credential, or session contract changes.
+login, logout, and two-factor verification controllers. The runtime logger must
+also reach the three controllers that emit development verification or recovery
+URLs; their `NullLogger` fallback is not a production route composition.
+No controller, extension-slot, token, credential, or session contract changes.
