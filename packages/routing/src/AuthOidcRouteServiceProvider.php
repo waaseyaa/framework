@@ -19,6 +19,7 @@ use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\SetupTwoFactorController;
 use Waaseyaa\Auth\Controller\VerifyEmailController;
 use Waaseyaa\Auth\Controller\VerifyTwoFactorController;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
@@ -58,6 +59,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $identityLookup = $this->resolve(UserIdentityLookupInterface::class);
         $internalFields = $this->resolve(UserInternalFieldReaderInterface::class);
         $passwords = $this->resolve(LegacyPasswordUpgrade::class);
+        $extensions = $this->resolve(AuthExtensionRegistry::class);
         $etm = $entityTypeManager;
 
         $router->addRoute(
@@ -71,6 +73,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     rateLimiter: $rateLimiter,
                     identityLookup: $identityLookup,
                     internalFields: $internalFields,
+                    extensions: $extensions,
                 ))
                 ->allowAll()
                 ->methods('POST')
@@ -84,6 +87,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     config: $authConfig,
                     entityTypeManager: $etm,
                     tokenRepo: $tokenRepo,
+                    extensions: $extensions,
                     authMailer: $authMailer,
                     rateLimiter: $rateLimiter,
                     identityLookup: $identityLookup,
@@ -111,6 +115,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                 ->controller(new VerifyEmailController(
                     entityTypeManager: $etm,
                     tokenRepo: $tokenRepo,
+                    extensions: $extensions,
                 ))
                 ->allowAll()
                 ->methods('POST')
@@ -126,6 +131,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     tokenRepo: $tokenRepo,
                     authMailer: $authMailer,
                     rateLimiter: $rateLimiter,
+                    extensions: $extensions,
                 ))
                 ->requireAuthentication()
                 ->methods('POST')
@@ -141,6 +147,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     twoFactor: $twoFactor,
                     identityLookup: $identityLookup,
                     internalFields: $internalFields,
+                    extensions: $extensions,
                     passwords: $passwords,
                 ))
                 ->allowAll()
@@ -151,7 +158,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $router->addRoute(
             'api.auth.logout',
             RouteBuilder::create('/api/auth/logout')
-                ->controller(new LogoutController())
+                ->controller(new LogoutController($extensions))
                 ->allowAll()
                 ->methods('POST')
                 ->build(),
@@ -190,7 +197,12 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $router->addRoute(
             'api.auth.2fa.verify',
             RouteBuilder::create('/api/auth/2fa/verify')
-                ->controller(new VerifyTwoFactorController($twoFactor, $rateLimiter, $etm))
+                ->controller(new VerifyTwoFactorController(
+                    twoFactor: $twoFactor,
+                    rateLimiter: $rateLimiter,
+                    entityTypeManager: $etm,
+                    extensions: $extensions,
+                ))
                 ->allowAll()
                 ->methods('POST')
                 ->build(),

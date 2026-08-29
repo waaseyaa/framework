@@ -1,5 +1,13 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-29 - #2694: AuthOidcRouteServiceProvider resolves
+the application-composed AuthExtensionRegistry once and injects it into every
+auth route controller that consumes the registry. Production HTTP auth flows
+therefore apply consumer registration/profile/role/mail/redirect policies and
+dispatch lifecycle events; controller-local defaults remain an isolated-use
+fallback only. No route, request, response, credential, token, or session shape
+changes. -->
+
 <!-- Spec reviewed 2026-08-27 - #2544: `ALWAYS_INTERNAL_FIELDS` gains `legacy_pass` in `ResourceSerializer` and `JsonApiController`, so the imported-credential field is stripped from every response and rejected as a filter/sort field exactly like `pass`. `AuthOidcRouteServiceProvider` passes `LegacyPasswordUpgrade` into the production `LoginController` for `POST /api/auth/login`. No contract shape change. -->
 
 <!-- Spec reviewed 2026-08-24 - #2537: If-Match JSON:API mutation surfaces share
