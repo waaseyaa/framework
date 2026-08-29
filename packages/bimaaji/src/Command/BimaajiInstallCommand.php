@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Bimaaji\Command;
 
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
+use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
+use Waaseyaa\Bimaaji\Install\SkillResourceException;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Install\TargetFile;
 
@@ -19,10 +21,12 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  * `bin/waaseyaa bimaaji:install` — install Waaseyaa framework guidelines + skills
  * into a consuming project for one or more agent clients.
  *
- * Surfaces the framework's `skills/waaseyaa/*` skill set through per-client
+ * Surfaces the canonical Agent Skill set shipped inside `waaseyaa/bimaaji`
+ * (`resources/skills/<id>/SKILL.md`) through per-client
  * {@see ClientTransformerInterface} implementations (Claude Code, Cursor,
  * Codex, Copilot, Gemini, Windsurf, Junie) and writes the resulting target
- * files to the project root.
+ * files to the project root. Nothing is read from the consuming project;
+ * the source is the installed package (#2656).
  *
  * Flags:
  *
@@ -37,9 +41,18 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  *   `--dry-run`.
  *
  * Idempotency (FR-009): identical existing content is recognised by sha1
- * compare and counted as `unchanged` in the per-client summary. Sandbox
- * discipline (NFR-002): every target path must resolve under the project
- * root before any write happens.
+ * compare and counted as `unchanged` in the per-client summary.
+ *
+ * Marker-bounded (#2656): every generated file frames its payload in the
+ * {@see ManagedRegion} markers. When an existing target already carries a
+ * marker pair, only the text between the markers is replaced and every
+ * byte outside them is preserved, so a re-run refreshes the framework's
+ * guidance without touching a consumer's own notes. A file with no
+ * markers is treated as wholly hand-authored and still requires `--force`
+ * or an interactive confirmation before it is replaced.
+ *
+ * Sandbox discipline (NFR-002): every target path must resolve under the
+ * project root before any write happens.
  *
  * @api
  */
@@ -79,9 +92,12 @@ final class BimaajiInstallCommand
         $dryRun = (bool) $io->option('dry-run');
         $force = (bool) $io->option('force');
 
-        $skills = $this->skillSetParser->parse();
-        if ($skills === []) {
-            $io->error('bimaaji:install: no skills discovered. The skill source directory is empty or missing — run from a project with `skills/waaseyaa/<id>/SKILL.md` files or configure `bimaaji.skills_directory`.');
+        try {
+            $skills = $this->skillSetParser->parse();
+        } catch (SkillResourceException $exception) {
+            // The diagnostic already names the resolved absolute directory
+            // and the remedy for this failure class (missing vs corrupt).
+            $io->error('bimaaji:install: ' . $exception->getMessage());
             return 1;
         }
 
@@ -198,27 +214,50 @@ final class BimaajiInstallCommand
             }
 
             $existing = is_file($resolved) ? @file_get_contents($resolved) : false;
-            if ($existing !== false && sha1($existing) === sha1($file->content)) {
+
+            // Marker-bounded refresh: when the existing file already carries
+            // a managed region, the payload we write is that file with only
+            // its region replaced. Everything outside the markers is carried
+            // through byte-for-byte, so the sha1 idempotency compare and the
+            // overwrite prompt below both operate on the real write set.
+            $payload = $file->content;
+            $spliced = false;
+            if ($existing !== false) {
+                $merged = ManagedRegion::splice($existing, $file->content);
+                if ($merged !== null) {
+                    $payload = $merged;
+                    $spliced = true;
+                }
+            }
+
+            if ($existing !== false && sha1($existing) === sha1($payload)) {
                 $unchanged++;
                 continue;
             }
 
             if ($dryRun) {
                 $io->writeln(sprintf(
-                    '[DRY-RUN] would write %s (%d bytes from skill=%s)',
+                    '[DRY-RUN] would %s %s (%d bytes from skill=%s)',
+                    $spliced ? 'refresh the managed region of' : 'write',
                     $file->path,
-                    strlen($file->content),
+                    strlen($payload),
                     $file->sourceSkill ?? '<aggregate>',
                 ));
                 $written++;
                 continue;
             }
 
-            if ($existing !== false && !$force) {
+            // A marker-bounded refresh never touches hand-authored content,
+            // so it does not need --force or a confirmation. Only a file we
+            // cannot recognise falls back to the overwrite contract.
+            if ($existing !== false && !$spliced && !$force) {
                 if (!$io->isInteractive()) {
                     $io->error(sprintf(
-                        'bimaaji:install: %s exists and differs; pass --force to overwrite or --dry-run to preview.',
+                        'bimaaji:install: %s exists, carries no `%s` marker, and differs; pass --force to overwrite '
+                        . 'or --dry-run to preview. Adding the marker pair around the framework block makes future '
+                        . 'runs refresh only that region.',
                         $file->path,
+                        ManagedRegion::BEGIN,
                     ));
                     $skipped++;
                     $errors++;
@@ -230,7 +269,7 @@ final class BimaajiInstallCommand
                 }
             }
 
-            if (!$this->writeFile($resolved, $file->content, $io)) {
+            if (!$this->writeFile($resolved, $payload, $io)) {
                 $skipped++;
                 $errors++;
                 continue;

@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
+use Waaseyaa\Bimaaji\Install\SkillResourceException;
+use Waaseyaa\Bimaaji\Install\SkillResourceFailure;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
 
 #[CoversClass(SkillSetParser::class)]
@@ -28,19 +30,90 @@ final class SkillSetParserTest extends TestCase
     }
 
     #[Test]
-    public function returnsEmptyListWhenDirectoryDoesNotExist(): void
+    public function reportsAMissingDirectoryWithTheResolvedPathAndTheReinstallRemedy(): void
     {
-        $parser = new SkillSetParser($this->tempDir . '/missing');
+        $missing = $this->tempDir . '/missing';
+        $parser = new SkillSetParser($missing);
 
-        self::assertSame([], $parser->parse());
+        try {
+            $parser->parse();
+            self::fail('A missing skill resource directory must not parse silently.');
+        } catch (SkillResourceException $exception) {
+            self::assertSame(SkillResourceFailure::Missing, $exception->failure);
+            self::assertSame($missing, $exception->directory);
+            // The diagnostic must name the resolved absolute path, not a
+            // monorepo-shaped `skills/waaseyaa/...` a consumer never has.
+            self::assertStringContainsString($missing, $exception->getMessage());
+            self::assertStringContainsString('composer reinstall waaseyaa/bimaaji', $exception->getMessage());
+        }
     }
 
     #[Test]
-    public function returnsEmptyListForEmptyDirectory(): void
+    public function aConfiguredOverrideGetsTheOverrideRemedyNotTheReinstallRemedy(): void
+    {
+        $parser = new SkillSetParser($this->tempDir . '/missing', configuredOverride: true);
+
+        try {
+            $parser->parse();
+            self::fail('A missing configured skill directory must not parse silently.');
+        } catch (SkillResourceException $exception) {
+            self::assertStringContainsString('bimaaji.skills_directory', $exception->getMessage());
+            self::assertStringNotContainsString('composer reinstall', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function reportsAnEmptyDirectoryAsMissingRatherThanReturningNothing(): void
     {
         $parser = new SkillSetParser($this->tempDir);
 
-        self::assertSame([], $parser->parse());
+        try {
+            $parser->parse();
+            self::fail('An empty skill resource directory must not parse silently.');
+        } catch (SkillResourceException $exception) {
+            self::assertSame(SkillResourceFailure::Missing, $exception->failure);
+            self::assertStringContainsString('contains no <skill-id>/SKILL.md', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function reportsAnUnterminatedFrontmatterBlockAsCorruptAndNamesTheFile(): void
+    {
+        $this->writeSkill('good', "---\nname: Good\n---\nbody");
+        $this->writeSkill('broken', "---\nname: Broken\ndescription: never closed\n\nBody with no closing delimiter.");
+
+        $parser = new SkillSetParser($this->tempDir);
+
+        try {
+            $parser->parse();
+            self::fail('An unterminated frontmatter block must be reported, not skipped.');
+        } catch (SkillResourceException $exception) {
+            self::assertSame(SkillResourceFailure::Corrupt, $exception->failure);
+            self::assertSame($this->tempDir . '/broken/SKILL.md', $exception->skillFile);
+            self::assertStringContainsString('is never closed', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function reportsAnEmptySkillDocumentAsCorrupt(): void
+    {
+        $this->writeSkill('hollow', "   \n\n");
+
+        $parser = new SkillSetParser($this->tempDir);
+
+        try {
+            $parser->parse();
+            self::fail('An empty SKILL.md must be reported as corrupt.');
+        } catch (SkillResourceException $exception) {
+            self::assertSame(SkillResourceFailure::Corrupt, $exception->failure);
+            self::assertStringContainsString('the document is empty', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function exposesTheDirectoryItReads(): void
+    {
+        self::assertSame($this->tempDir, new SkillSetParser($this->tempDir)->directory());
     }
 
     #[Test]

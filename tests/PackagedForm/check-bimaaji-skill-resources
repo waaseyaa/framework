@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+
+# Packaged-form proof for `bin/waaseyaa bimaaji:install` (#2656).
+#
+# Before #2656 the canonical Agent Skills lived at the framework monorepo
+# root (`skills/waaseyaa/<id>/SKILL.md`) and BimaajiServiceProvider fell back
+# to `<projectRoot>/skills/waaseyaa`. That directory exists only in the
+# framework checkout, so `bimaaji:install` worked exclusively in the
+# repository that did not need it and exited 1 with
+# "no skills discovered" for every downstream consumer.
+#
+# This proof builds a disposable consumer from the EXACT candidate tree,
+# installs the packages as COPIES (path repositories with symlink=false, so
+# `vendor/waaseyaa/bimaaji` holds real bytes rather than a link back into
+# the checkout), and drives the command from there. It seeds no skill
+# fixtures: everything the command writes must come from resources shipped
+# inside the installed package. It then mutates only the consumer's own
+# vendor copy to prove the missing-vs-corrupt diagnostics.
+#
+# Run: bash tests/PackagedForm/check-bimaaji-skill-resources
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-bimaaji-skills.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "$1" >&2
+    exit 1
+}
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+
+mkdir -p "$source_root" "$consumer"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+# Mirror the skeleton app exactly as a consumer starts from it.
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+# symlink=false makes Composer copy each package into vendor/, so the proof
+# reads installed bytes rather than following a link back into the checkout.
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+        ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/bimaaji-skills.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    fail 'The packaged-form consumer could not install the candidate framework.'
+fi
+
+# A consumer never has a project-root skills/ directory. If one appeared, the
+# proof would be worthless — it could be reading the old monorepo-only path.
+[[ ! -e "$consumer/skills" ]] || fail 'The consumer unexpectedly has a project-root skills/ directory.'
+
+resources="$consumer/vendor/waaseyaa/bimaaji/resources/skills"
+[[ ! -L "$consumer/vendor/waaseyaa/bimaaji" ]] \
+    || fail 'vendor/waaseyaa/bimaaji is a symlink; this proof requires installed bytes.'
+[[ -d "$resources" ]] \
+    || fail "The installed waaseyaa/bimaaji package ships no skill resources at $resources."
+
+shipped="$(find "$resources" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')"
+[[ "$shipped" -gt 0 ]] || fail "No <skill-id>/SKILL.md documents inside $resources."
+printf 'Installed package ships %s Agent Skill documents.\n' "$shipped"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
+    cat "$work/install-init.out" >&2
+    fail 'The governed installation phase failed on the packaged-form consumer.'
+fi
+
+# 1. The install succeeds from installed package resources alone.
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,cursor --force ) \
+        >"$work/install.out" 2>&1; then
+    cat "$work/install.out" >&2
+    fail 'bimaaji:install failed from a packaged consumer.'
+fi
+grep -Fq 'Client claude:' "$work/install.out"
+grep -Fq 'Client cursor:' "$work/install.out"
+
+[[ -f "$consumer/.cursorrules" ]] || fail 'bimaaji:install wrote no .cursorrules.'
+[[ -f "$consumer/.claude/CLAUDE-WAASEYAA.md" ]] || fail 'bimaaji:install wrote no Claude index.'
+
+installed_skill_files="$(find "$consumer/.claude/skills" -name 'waaseyaa-*.md' | wc -l | tr -d ' ')"
+[[ "$installed_skill_files" -eq "$shipped" ]] \
+    || fail "Expected $shipped Claude skill files, found $installed_skill_files."
+
+# The content must come from the shipped documents, not from a stub.
+first_skill_id="$(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | head -1)"
+[[ -f "$consumer/.claude/skills/waaseyaa-$first_skill_id.md" ]] \
+    || fail "No Claude target file for shipped skill $first_skill_id."
+grep -Fq '<!-- waaseyaa:bimaaji:install BEGIN -->' "$consumer/.cursorrules"
+grep -Fq '<!-- waaseyaa:bimaaji:install END -->' "$consumer/.cursorrules"
+
+# 2. Re-running is idempotent.
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=cursor ) \
+        >"$work/install-retry.out" 2>&1; then
+    cat "$work/install-retry.out" >&2
+    fail 'A second bimaaji:install run must succeed idempotently.'
+fi
+grep -Fq 'Client cursor: 0 written, 1 unchanged, 0 skipped.' "$work/install-retry.out"
+
+# 3. The install is marker-bounded: hand-authored content around the managed
+#    region survives a refresh, and refreshing needs no --force.
+{
+    printf '# House rules\n\nThis line is mine.\n\n'
+    cat "$consumer/.cursorrules"
+    printf '\n## Team addendum\n\nSo is this one.\n'
+} > "$work/edited.cursorrules"
+cp "$work/edited.cursorrules" "$consumer/.cursorrules"
+
+# Change the managed content upstream so the refresh has something to do.
+sed -i '1s/^/Local edit to force a refresh.\n/' "$resources/$first_skill_id/SKILL.md"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=cursor ) \
+        >"$work/install-merge.out" 2>&1; then
+    cat "$work/install-merge.out" >&2
+    fail 'A marker-bounded refresh must succeed without --force.'
+fi
+grep -Fq 'Client cursor: 1 written, 0 unchanged, 0 skipped.' "$work/install-merge.out"
+grep -Fq '# House rules' "$consumer/.cursorrules" \
+    || fail 'The marker-bounded refresh dropped hand-authored content above the region.'
+grep -Fq 'This line is mine.' "$consumer/.cursorrules"
+grep -Fq '## Team addendum' "$consumer/.cursorrules" \
+    || fail 'The marker-bounded refresh dropped hand-authored content below the region.'
+grep -Fq 'So is this one.' "$consumer/.cursorrules"
+grep -Fq 'Local edit to force a refresh.' "$consumer/.cursorrules" \
+    || fail 'The marker-bounded refresh did not update the managed region.'
+
+# 4. A corrupt resource names the offending file and says so.
+cp "$resources/$first_skill_id/SKILL.md" "$work/$first_skill_id.SKILL.md.bak"
+printf -- '---\nname: broken\ndescription: this frontmatter never closes\n\nbody\n' \
+    > "$resources/$first_skill_id/SKILL.md"
+set +e
+( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=cursor --force ) \
+    >"$work/install-corrupt.out" 2>&1
+corrupt_exit=$?
+set -e
+[[ "$corrupt_exit" -ne 0 ]] || fail 'A corrupt SKILL.md must fail the install.'
+grep -Fq 'is corrupt' "$work/install-corrupt.out" \
+    || { cat "$work/install-corrupt.out" >&2; fail 'The corrupt-resource diagnostic is missing.'; }
+grep -Fq "$resources/$first_skill_id/SKILL.md" "$work/install-corrupt.out" \
+    || { cat "$work/install-corrupt.out" >&2; fail 'The corrupt-resource diagnostic does not name the file.'; }
+cp "$work/$first_skill_id.SKILL.md.bak" "$resources/$first_skill_id/SKILL.md"
+
+# 5. A missing resource directory names the resolved vendor path and the
+#    reinstall remedy — not a monorepo-shaped `skills/waaseyaa/...` hint.
+rm -rf "$resources"
+set +e
+( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=cursor --force ) \
+    >"$work/install-missing.out" 2>&1
+missing_exit=$?
+set -e
+[[ "$missing_exit" -ne 0 ]] || fail 'A missing resource directory must fail the install.'
+grep -Fq "$resources" "$work/install-missing.out" \
+    || { cat "$work/install-missing.out" >&2; fail 'The missing-resource diagnostic does not name the resolved directory.'; }
+grep -Fq 'composer reinstall waaseyaa/bimaaji' "$work/install-missing.out" \
+    || { cat "$work/install-missing.out" >&2; fail 'The missing-resource diagnostic offers no remedy.'; }
+if grep -Fq 'skills/waaseyaa/<id>/SKILL.md' "$work/install-missing.out"; then
+    cat "$work/install-missing.out" >&2
+    fail 'The diagnostic still points at the monorepo-only skills/waaseyaa path.'
+fi
+
+printf 'Bimaaji packaged skill-resource proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"

@@ -21,7 +21,14 @@ use Waaseyaa\CLI\Testing\CliTester;
  * Each test gets:
  *  - A per-test temp directory that doubles as both the project root
  *    (chdir target so the install command's `getcwd()` lands inside it)
- *    and the skills source (`<tempDir>/skills/waaseyaa/<id>/SKILL.md`).
+ *    and a *configured* skills source
+ *    (`<tempDir>/skills/waaseyaa/<id>/SKILL.md`, wired through
+ *    `bimaaji.skills_directory`). The shipped default reads the package's
+ *    own `resources/skills`; these tests deliberately override it so the
+ *    write-set assertions stay pinned to two small fixtures rather than
+ *    the live skill set. The default path is proved separately by
+ *    `packages/bimaaji/tests/Architecture/PackagedSkillResourcesTest.php`
+ *    and end to end by `tests/PackagedForm/check-bimaaji-skill-resources`.
  *  - A fresh `BimaajiInstallCommand` constructed with the optional
  *    custom transformer set (defaults to the seven framework
  *    transformers).
@@ -54,7 +61,9 @@ abstract class BimaajiInstallTestCase extends TestCase
     protected function writeSkillFixture(string $id, string $contents): void
     {
         $dir = $this->tempDir . '/skills/waaseyaa/' . $id;
-        mkdir($dir, 0o755, true);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0o755, true);
+        }
         file_put_contents($dir . '/SKILL.md', $contents);
     }
 
@@ -97,7 +106,7 @@ abstract class BimaajiInstallTestCase extends TestCase
             ? null
             : new BimaajiInstallCommand(
                 transformers: $transformers,
-                skillSetParser: new SkillSetParser($this->tempDir . '/skills/waaseyaa'),
+                skillSetParser: new SkillSetParser($this->tempDir . '/skills/waaseyaa', configuredOverride: true),
             );
 
         return CliTester::for(
@@ -139,7 +148,11 @@ abstract class BimaajiInstallTestCase extends TestCase
                 }
 
                 $provider = new \Waaseyaa\Bimaaji\BimaajiServiceProvider();
-                $provider->setKernelContext(projectRoot: $this->tempDir, config: [], manifestFormatters: []);
+                $provider->setKernelContext(
+                    projectRoot: $this->tempDir,
+                    config: ['bimaaji' => ['skills_directory' => $this->tempDir . '/skills/waaseyaa']],
+                    manifestFormatters: [],
+                );
                 $provider->register();
 
                 $resolved = $provider->resolve(BimaajiInstallCommand::class);

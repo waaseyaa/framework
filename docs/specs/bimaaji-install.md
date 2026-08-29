@@ -5,24 +5,89 @@
 > `php artisan boost:install`; framework-native.
 
 **Mission:** `bimaaji-install-command-01KS5W0S`
-**Status:** Shipped (M5 WP01–WP05, 2026-05-23). All sections below reflect the live `bimaaji:install` surface.
+**Status:** Shipped (M5 WP01–WP05, 2026-05-23). Source of truth relocated and installation made marker-bounded by #2656 (2026-08-29). All sections below reflect the live `bimaaji:install` surface.
 
 ## Overview
 
-A first-party CLI command (`bin/waaseyaa bimaaji:install`) that reads
-`skills/waaseyaa/*/SKILL.md` from the installed framework and writes
-per-client config files to the consumer project root. Skill source
-content is canonical (read, not paraphrased — C-003); per-client
-transformation is structural (frontmatter strip, format conversion).
+A first-party CLI command (`bin/waaseyaa bimaaji:install`) that reads the
+canonical Agent Skills shipped **inside the installed `waaseyaa/bimaaji`
+package** and writes per-client config files to the consumer project root.
+Skill source content is canonical (read, not paraphrased — C-003);
+per-client transformation is structural (frontmatter strip, format
+conversion).
 
 The trust contract is explicit: the command never overwrites a
 hand-edited consumer config file without `--force` or an interactive
-`overwrite` prompt (C-002).
+`overwrite` prompt (C-002), and since #2656 it does not need to — a
+re-run refreshes only the delimited region it owns.
+
+## Skill source resolution
+
+| Order | Source | When |
+|---|---|---|
+| 1 | `bimaaji.skills_directory` | An application declares its own skill set. |
+| 2 | `<installed waaseyaa/bimaaji>/resources/skills` | Default. Resolved from `__DIR__` by `Waaseyaa\Bimaaji\Install\PackagedSkillResources`. |
+
+There is no third fallback. Until #2656 the default was
+`<projectRoot>/skills/waaseyaa` — a directory that exists only in the
+framework monorepo. A consumer requires `waaseyaa/core`/`cms`/`full` and
+never has it, so `bimaaji:install` exited 1 with `no skills discovered`
+for exactly the projects the command was written for. Moving the skills
+into the component package makes one path correct everywhere:
+`packages/bimaaji/resources/skills` in the checkout,
+`vendor/waaseyaa/bimaaji/resources/skills` in a consumer.
+
+The monorepo root `skills/waaseyaa/` directory is gone. A single copy is
+canonical, so there is no build-time sync step and no freshness gate to
+keep honest (contrast `bin/check-admin-dist-fresh`, which exists because
+`packages/admin-surface/dist` is a copy).
+
+### Failure diagnostics
+
+`SkillSetParser::parse()` raises `SkillResourceException` rather than
+returning an empty list. Two classes, because the remedy differs:
+
+| `SkillResourceFailure` | Raised when | Message names |
+|---|---|---|
+| `Missing` | The directory is absent, unreadable, or holds no `<id>/SKILL.md`. | The resolved absolute directory, plus `composer reinstall waaseyaa/bimaaji` (packaged default) or the `bimaaji.skills_directory` override to correct. |
+| `Corrupt` | A `SKILL.md` exists but cannot be parsed — unterminated YAML frontmatter, unreadable bytes, empty document. | The offending file path and the specific parse failure. |
+
+Every message names the *resolved absolute path*. The pre-#2656 text
+named `skills/waaseyaa/<id>/SKILL.md`, which sent consumers looking for a
+directory their project never had.
+
+## Marker-bounded installation
+
+Every generated file frames its payload between
+`<!-- waaseyaa:bimaaji:install BEGIN -->` and
+`<!-- waaseyaa:bimaaji:install END -->`
+(`Waaseyaa\Bimaaji\Install\ManagedRegion`).
+
+- **Existing file with one well-ordered marker pair** — only the text
+  between the markers is replaced. Every byte outside is carried through
+  verbatim, so a consumer's notes above and below the block survive a
+  framework upgrade. This path needs no `--force` and no confirmation:
+  it cannot touch hand-authored content.
+- **Existing file with no markers (or an ambiguous/duplicated pair)** —
+  treated as wholly hand-authored. The pre-existing overwrite contract
+  applies: interactive `Overwrite <path>?`, or `--force`. The
+  non-interactive error tells the operator that adding the marker pair
+  around the framework block converts future runs to region refreshes.
+- **Claude per-skill files** — Claude Code requires YAML frontmatter at
+  byte 0, so the marker pair opens *after* it. The skill body refreshes
+  on every run; the consumer's `name`/`description` edits and anything
+  they append below the closing marker are preserved.
+
+Idempotency composes with this: the sha1 compare runs against the
+spliced payload, so an unchanged managed region still reports
+`unchanged` rather than rewriting the file.
 
 ## Source schema (audit result, M5 WP01)
 
-All `skills/waaseyaa/*/SKILL.md` files audited 2026-05-22 carry the
-following YAML frontmatter:
+All shipped `SKILL.md` documents (audited 2026-05-22 at the then-current
+`skills/waaseyaa/`, relocated unchanged to
+`packages/bimaaji/resources/skills/` by #2656) carry the following YAML
+frontmatter:
 
 ```yaml
 ---
@@ -41,10 +106,9 @@ below ~8 KB per skill. Single-file clients (Cursor, Copilot) may apply
 their own truncation strategy in M5 WP02 if a downstream skill grows
 materially beyond that bound.
 
-The audit script is implicit (re-run by re-executing the M5 WP01
-verification block) — there is no committed audit binary. If a new
-skill is added with non-conforming frontmatter, the WP02 transformer
-suite will fail at the unit-test layer.
+The audit is no longer implicit. `packages/bimaaji/tests/Architecture/PackagedSkillResourcesTest.php`
+parses every shipped document on each run and fails when one has no
+name, no description, an empty body, or a non-kebab-case directory id.
 
 ## Supported clients
 
@@ -69,10 +133,8 @@ when a downstream operator integrates a new MCP client).
 Code loads `.claude/skills/<id>.md` individually so users can `/skill
 <id>` an individual entry). The other six clients use the shared
 `AbstractSingleFileClientTransformer` base — one consolidated file
-per project, content framed by
-`<!-- waaseyaa:bimaaji:install BEGIN -->` / `END` markers so a future
-`--merge` mode can splice the block into a hand-authored config
-without clobbering content outside the markers.
+per project. Both shapes are marker-bounded; see
+[Marker-bounded installation](#marker-bounded-installation).
 
 ## Transformer contract
 
@@ -175,15 +237,21 @@ The command never:
 
 | Concern | Resolution |
 |---|---|
-| Skill source schema | Audited (WP01); seven kebab-case skill directories at `skills/waaseyaa/` ship with the required `name` + `description` frontmatter. |
+| Skill source schema | Audited (WP01), now gated by `PackagedSkillResourcesTest`. The kebab-case skill directories ship at `packages/bimaaji/resources/skills/` (relocated from the monorepo root by #2656) with the required `name` + `description` frontmatter. |
 | Seven client transformers | Shipped (WP02) — see [Supported clients](#supported-clients) above. |
 | CLI command + flags + prompts | Shipped (WP03) — `Waaseyaa\Bimaaji\Command\BimaajiInstallCommand`. |
 | Sandbox + exit-code propagation | Shipped (WP04) — three integration-level escape attempts rejected; per-client errors counter feeds the overall exit code. |
-| Doctrine spec + README + verification log | Shipped (WP05 — this commit). |
+| Doctrine spec + README + verification log | Shipped (WP05). |
+| Skill source location | Relocated (#2656) — the canonical set ships at `packages/bimaaji/resources/skills/`; default resolution begins at the installed package; the monorepo-root `skills/waaseyaa/` directory is deleted. |
+| Marker-bounded install | Shipped (#2656) — `Waaseyaa\Bimaaji\Install\ManagedRegion`; a re-run refreshes only the delimited region. |
+| Missing vs corrupt diagnostics | Shipped (#2656) — `SkillResourceException` + `SkillResourceFailure`. |
+| Packaged-form proof | Shipped (#2656) — `tests/PackagedForm/check-bimaaji-skill-resources` (CI job `ci/bimaaji-skill-resources`) drives the command from a consumer built out of the candidate tree with no seeded fixtures. |
 
-PR provenance: `#1557` (WP02), `#1563` (WP03), `#1564` (WP04), and
-this WP05 PR. Full verification artifact:
+PR provenance: `#1557` (WP02), `#1563` (WP03), `#1564` (WP04), the
+WP05 close-out PR, and `#2656` (packaged skill resources). Full M5
+verification artifact:
 `kitty-specs/bimaaji-install-command-01KS5W0S/verification.md`.
 
+<!-- Spec reviewed 2026-08-29 — #2656: skills relocated from the monorepo root into packages/bimaaji/resources/skills, default resolution anchored on the installed package via PackagedSkillResources, install made marker-bounded via ManagedRegion, missing/corrupt diagnostics split via SkillResourceException/SkillResourceFailure. Added Skill source resolution, Failure diagnostics, and Marker-bounded installation sections; corrected the WP01 audit claim (now gated by PackagedSkillResourcesTest). -->
 <!-- Spec reviewed 2026-05-23 — bimaaji-install-command-01KS5W0S (WP05 close-out): filled in Supported clients table, Flag semantics, Interactive UX, Trust contract details; added Implementation Status section. WP01 scaffold sections superseded by shipped reality. -->
 <!-- Spec reviewed 2026-05-22 — bimaaji-install-command-01KS5W0S (WP01 scaffold). -->
