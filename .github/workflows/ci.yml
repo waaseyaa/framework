@@ -884,9 +884,14 @@ jobs:
               delay=$((delay * 2))
             done
           }
-          work=$(mktemp -d)
-          cleanup() { rm -rf "$work"; }
-          trap cleanup EXIT
+          # #2673: the created project is RETAINED for the production-image
+          # step below, which must build from a real create-project consumer
+          # rather than a hand-assembled context. RUNNER_TEMP is per-job and
+          # the runner discards it when the job ends, so nothing outlives the
+          # job that a mktemp -d + trap would have removed.
+          work="$RUNNER_TEMP/skeleton-consumer"
+          rm -rf "$work"
+          mkdir -p "$work"
           if [[ "$SOURCE_SKELETON" == "true" ]]; then
             # The exact release commit advances the skeleton before that
             # version can exist on Packagist. Prove the same consumer flow
@@ -912,6 +917,10 @@ jobs:
               --no-interaction
           fi
           (cd "$work/skel-proj" && ./bin/maintenance/waaseyaa-audit-site)
+          {
+            echo "SKEL_PROJECT=$work/skel-proj"
+            echo "SKEL_PROJECT_USES_PATH_REPOSITORIES=$SOURCE_SKELETON"
+          } >> "$GITHUB_ENV"
 
       - name: Fresh skeleton preserves the complete discovery set without classmap optimization
         run: |
@@ -946,6 +955,73 @@ jobs:
 
       - name: Minimal and full installs expose only installed optional domains
         run: tools/optional-domain-install-shapes.sh
+
+      # #2673. Nothing had ever built skeleton/Dockerfile, and it did not
+      # build: `docker-php-ext-install intl` needs $PHPIZE_DEPS and the ICU
+      # headers (icu-libs ships only the shared objects), `zip` is a runtime
+      # requirement of waaseyaa/structured-import, and `opcache` cannot be
+      # installed at all on a base image that already links it statically.
+      #
+      # This is the lane for it: the runner has a Docker daemon and the step
+      # above has already produced a real create-project consumer, which is
+      # what the acceptance requires as the build context. The **production**
+      # stage is built -- not base, not deps -- and everything asserted below
+      # is read out of the resulting image, never out of the Dockerfile text.
+      #
+      # The saved-layer scan is not redundant with `docker run`: moving the
+      # `apk del` into a later RUN leaves every build-only byte committed in
+      # the earlier layer while the final rootfs looks perfectly clean, and
+      # only a layer-level read can see that.
+      - name: Production Docker image builds and ships its runtime extensions
+        run: |
+          set -euo pipefail
+          if [[ "${SKEL_PROJECT_USES_PATH_REPOSITORIES:-false}" == "true" ]]; then
+            # Release-cut consumers resolve waaseyaa/* from host path
+            # repositories under GITHUB_WORKSPACE, which do not exist inside
+            # the build container, so the deps stage cannot install there. A
+            # release commit is a `chore: release` bump; any Dockerfile change
+            # was proven by this same step on the PR that introduced it.
+            echo "::notice title=Production image build skipped::release-cut consumer resolves waaseyaa/* from host path repositories"
+            exit 0
+          fi
+          test -d "$SKEL_PROJECT"
+          test -f "$SKEL_PROJECT/.env"
+
+          docker build --target production -t waaseyaa-skeleton:ci "$SKEL_PROJECT"
+
+          modules=$(docker run --rm waaseyaa-skeleton:ci php -m)
+          echo "$modules"
+          for required in intl zip pdo_sqlite 'Zend OPcache'; do
+            if ! grep -qxF "$required" <<< "$modules"; then
+              echo "::error title=Extension missing from the production image::$required does not load"
+              exit 1
+            fi
+          done
+          docker run --rm waaseyaa-skeleton:ci php -r 'exit(class_exists("Collator") && (new Collator("en_US"))->compare("a", "b") === -1 ? 0 : 1);'
+
+          # The shipped artefact, not the FROM scratch context probe the #2647
+          # gate uses: the generated .env must be absent from the real image
+          # while its placeholder template survives.
+          docker run --rm waaseyaa-skeleton:ci sh -c 'test ! -e /app/.env && test -e /app/.env.example'
+
+          layers=$(mktemp -d)
+          cleanup() { rm -rf "$layers"; docker image rm -f waaseyaa-skeleton:ci >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker save waaseyaa-skeleton:ci -o "$layers/image.tar"
+          tar -xf "$layers/image.tar" -C "$layers"
+          : > "$layers/entries.txt"
+          while IFS= read -r blob; do
+            tar -tf "$blob" >> "$layers/entries.txt" 2>/dev/null || true
+          done < <(find "$layers" -type f \( -name 'layer.tar' -o -path '*/blobs/*' \))
+          test -s "$layers/entries.txt"
+          build_only='^(usr/bin/(gcc|cc|g\+\+|make|autoconf|automake|m4|libtool)|usr/include/unicode/|usr/include/zip\.h|usr/lib/pkgconfig/(icu-(uc|io|i18n)|libzip)\.pc)($|/)'
+          persisted=$(grep -aE "$build_only" "$layers/entries.txt" | sort -u || true)
+          if [[ -n "$persisted" ]]; then
+            echo "$persisted"
+            echo '::error title=Build dependencies persist in a layer::the apk add and the apk del must share one RUN'
+            exit 1
+          fi
+          echo "No build-only path among $(wc -l < "$layers/entries.txt") saved-layer entries."
 
       # #2647. The runner has a Docker daemon, so this is the lane where the
       # sentinel-secret proof actually executes: it builds a real image from a
