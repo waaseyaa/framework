@@ -86,9 +86,12 @@ Two details are load-bearing and easy to get wrong when copying this:
 - **The delete must share the `RUN` with the install.** An `apk del` in a
   separate `RUN` leaves every build-only byte committed in the earlier layer.
   The final filesystem then looks clean to `docker run` and to `apk info`,
-  while `docker save` still carries `gcc`, `make`, `autoconf`,
-  `/usr/include/unicode/`, `zip.h` and the ICU/libzip `.pc` files in a layer
-  anyone who can pull the image can read.
+  while `docker save` still carries the toolchain in a layer anyone who can
+  pull the image can read. Split that way, this exact stage leaves **34**
+  packages in a layer that are absent from the finished image — `gcc`, `make`,
+  `autoconf` and also `binutils`, `musl-dev`, `libstdc++-dev`, `isl26`,
+  `mpfr4`, `perl`, `icu-dev`, `libzip-dev` and the `.build-deps` virtual
+  package itself.
 - **Install the runtime libraries explicitly, before the virtual package.**
   `icu-dev` and `libzip-dev` pull `icu-libs` and `libzip` as dependencies. If
   they only arrive that way, `apk del .build-deps` takes them with it and the
@@ -116,18 +119,29 @@ docker run --rm my-app:check php -m
 `intl`, `zip`, `pdo_sqlite` and `Zend OPcache` must all appear.
 
 To confirm no build dependency survived — which `docker run` cannot tell you —
-read the saved layers:
+read the saved layers. Compare the packages named in every layer's copy of
+apk's database against the packages in the finished image; anything in the
+first list and not the second was installed and then removed, and its files
+still ship. This needs no list of package names, so it catches the whole
+transitive toolchain, not just the ones you thought to grep for:
 
 ```sh
 docker save my-app:check -o /tmp/image.tar
 mkdir -p /tmp/image && tar -xf /tmp/image.tar -C /tmp/image
+
+docker run --rm --entrypoint sh my-app:check \
+  -c 'sed -n "s/^P://p" /lib/apk/db/installed' | sort -u > /tmp/final.txt
+
 find /tmp/image -type f \( -name layer.tar -o -path '*/blobs/*' \) \
-  -exec tar -tf {} \; 2>/dev/null \
-  | grep -E '^(usr/bin/(gcc|cc|make|autoconf)|usr/include/unicode/|usr/lib/pkgconfig/icu-uc\.pc)($|/)'
+  -exec sh -c 'tar -xOf "$1" lib/apk/db/installed 2>/dev/null' _ {} \; \
+  | sed -n 's/^P://p' | sort -u > /tmp/layers.txt
+
+comm -23 /tmp/layers.txt /tmp/final.txt
 ```
 
-That must print nothing. If it prints anything, your `apk del` is in a later
-`RUN` than the `apk add` it undoes.
+That must print nothing. If it prints anything — `.build-deps`, `gcc`,
+`binutils`, `musl-dev`, … — your `apk del` is in a later `RUN` than the
+`apk add` it undoes.
 
 ## Serving topology
 
@@ -143,6 +157,9 @@ one.
 `composer create-project` consumer it already creates, then reads three things
 out of the resulting image: that `intl`, `zip`, `pdo_sqlite` and `Zend OPcache`
 load under `php -m`, that the generated `.env` is absent while `.env.example`
-survives, and that no build-only path appears in any blob of `docker save`.
+survives, and that no package recorded in a saved layer is missing from the
+final image (with the widened path denylist above as a second, independent
+check). Run against a consumer whose only difference is the split `RUN`, that
+step fails and names all 34 packages, so the check is known to be able to fail.
 `bin/check-skeleton-docker-secret-exclusion` (#2647) continues to bound the
 build context independently.

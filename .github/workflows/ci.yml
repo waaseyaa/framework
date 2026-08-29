@@ -832,9 +832,15 @@ jobs:
     name: ci/skeleton-create-project
     runs-on: ubuntu-24.04
     steps:
+      # fetch-depth: 2 is required by the fail-closed release-cut guard in the
+      # production-image step below: it compares skeleton/Dockerfile at HEAD
+      # against the same path at HEAD's first parent, and depth 1 has no
+      # parent to compare against. Two commits is the whole requirement — the
+      # guard needs one prior revision, not history.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
+          fetch-depth: 2
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -971,17 +977,55 @@ jobs:
       # The saved-layer scan is not redundant with `docker run`: moving the
       # `apk del` into a later RUN leaves every build-only byte committed in
       # the earlier layer while the final rootfs looks perfectly clean, and
-      # only a layer-level read can see that.
+      # only a layer-level read can see that. It is done at PACKAGE level
+      # rather than by matching paths, so it covers the whole transitive
+      # closure of $PHPIZE_DEPS by name without enumerating it; a widened path
+      # denylist runs alongside as corroboration.
       - name: Production Docker image builds and ships its runtime extensions
         run: |
           set -euo pipefail
           if [[ "${SKEL_PROJECT_USES_PATH_REPOSITORIES:-false}" == "true" ]]; then
             # Release-cut consumers resolve waaseyaa/* from host path
-            # repositories under GITHUB_WORKSPACE, which do not exist inside
-            # the build container, so the deps stage cannot install there. A
-            # release commit is a `chore: release` bump; any Dockerfile change
-            # was proven by this same step on the PR that introduced it.
-            echo "::notice title=Production image build skipped::release-cut consumer resolves waaseyaa/* from host path repositories"
+            # repositories under GITHUB_WORKSPACE, which do not exist inside the
+            # build container, so the deps stage cannot install and this image
+            # genuinely cannot be built on that ref.
+            #
+            # That makes this a skip, so it is ENFORCED rather than assumed. The
+            # skip is sound only while skeleton/Dockerfile is byte-identical to
+            # a revision on which this step already built it; if the Dockerfile
+            # changed here, the change would ship unproven, which is the exact
+            # shape of gap that let this file stay broken. So: identical ->
+            # skip, different -> fail, unverifiable -> fail.
+            #
+            # The comparison revision is HEAD's FIRST PARENT. Both shapes that
+            # set SOURCE_SKELETON put the release commit at HEAD -- a
+            # release-cut/* branch head, and the `chore: release ...` push to
+            # main -- and in both the first parent is the main commit the cut
+            # was taken from, which is a revision an ordinary run of this step
+            # already built. It is also the only prior revision this job's
+            # checkout is guaranteed to hold (fetch-depth: 2 above), which is
+            # why it is used in preference to the release-cut source ref or a
+            # PR base: neither is fetched here, so neither could be compared
+            # without turning a fetch failure into a silent skip.
+            #
+            # Identity is the blob object id, so whitespace and line-ending
+            # changes count as differences.
+            parent=$(git -C "$GITHUB_WORKSPACE" rev-parse --verify --quiet 'HEAD^' || true)
+            if [[ -z "$parent" ]]; then
+              echo '::error title=Release-cut skip cannot be verified::HEAD has no reachable first parent in this checkout; the guard needs fetch-depth >= 2'
+              exit 1
+            fi
+            before=$(git -C "$GITHUB_WORKSPACE" rev-parse --verify --quiet "${parent}:skeleton/Dockerfile" || true)
+            after=$(git -C "$GITHUB_WORKSPACE" rev-parse --verify --quiet 'HEAD:skeleton/Dockerfile' || true)
+            if [[ -z "$before" || -z "$after" ]]; then
+              echo "::error title=Release-cut skip cannot be verified::skeleton/Dockerfile is absent at ${parent} or at HEAD"
+              exit 1
+            fi
+            if [[ "$before" != "$after" ]]; then
+              echo "::error title=skeleton/Dockerfile changed in a release commit::${before} at ${parent} became ${after} at HEAD. The production image cannot be built on a release-cut ref, so this change would ship unproven. Land Dockerfile changes through an ordinary pull request, where this step builds them."
+              exit 1
+            fi
+            echo "::notice title=Production image build skipped::skeleton/Dockerfile is byte-identical (${after}) to ${parent}, where this step built it; the release-cut consumer resolves waaseyaa/* from host path repositories absent inside the build container"
             exit 0
           fi
           test -d "$SKEL_PROJECT"
@@ -1009,19 +1053,54 @@ jobs:
           trap cleanup EXIT
           docker save waaseyaa-skeleton:ci -o "$layers/image.tar"
           tar -xf "$layers/image.tar" -C "$layers"
+
+          # (i) Package-level, and complete: every saved layer carries the apk
+          # database as it stood when that layer was committed. A package named
+          # in some layer but absent from the final image was installed and
+          # later removed -- its files are still shipped in the layer that added
+          # them. This needs no list of package names, so it covers the whole
+          # transitive closure of $PHPIZE_DEPS (binutils, musl-dev,
+          # libstdc++-dev, mpfr4, ...) and the `.build-deps` virtual package
+          # itself, none of which a path denylist would enumerate.
+          docker run --rm --entrypoint sh waaseyaa-skeleton:ci \
+            -c 'sed -n "s/^P://p" /lib/apk/db/installed' | sort -u > "$layers/final-packages.txt"
+          test -s "$layers/final-packages.txt"
+          : > "$layers/layer-packages.txt"
           : > "$layers/entries.txt"
+          databases=0
           while IFS= read -r blob; do
             tar -tf "$blob" >> "$layers/entries.txt" 2>/dev/null || true
+            # `|| true`: a saved image also contains non-tar blobs (the config
+            # and manifest JSON), and under `set -e` a failed `tar` inside a
+            # command substitution would abort the step.
+            names=$(tar -xOf "$blob" lib/apk/db/installed 2>/dev/null | sed -n 's/^P://p' || true)
+            if [[ -n "$names" ]]; then
+              databases=$((databases + 1))
+              printf '%s\n' "$names" >> "$layers/layer-packages.txt"
+            fi
           done < <(find "$layers" -type f \( -name 'layer.tar' -o -path '*/blobs/*' \))
           test -s "$layers/entries.txt"
-          build_only='^(usr/bin/(gcc|cc|g\+\+|make|autoconf|automake|m4|libtool)|usr/include/unicode/|usr/include/zip\.h|usr/lib/pkgconfig/(icu-(uc|io|i18n)|libzip)\.pc)($|/)'
+          test "$databases" -gt 0
+          sort -u "$layers/layer-packages.txt" -o "$layers/layer-packages.txt"
+          removed=$(comm -23 "$layers/layer-packages.txt" "$layers/final-packages.txt")
+          if [[ -n "$removed" ]]; then
+            echo "$removed"
+            echo '::error title=Build dependencies persist in a layer::these packages are recorded in a saved layer but absent from the final image, so their files ship. The apk add and the apk del must share one RUN.'
+            exit 1
+          fi
+
+          # (ii) Path-level corroboration over the same layers: the binaries and
+          # headers $PHPIZE_DEPS, icu-dev and libzip-dev actually install. This
+          # is a denylist and is therefore NOT the proof -- (i) is -- but it
+          # fails independently of apk's own bookkeeping.
+          build_only='^(usr/bin/(autoconf|autoheader|autom4te|ar|as|c\+\+|cc|dpkg|dpkg-architecture|dpkg-dev|file|g\+\+|gcc|ld|libtool|m4|make|objdump|perl|pkg-config|pkgconf|ranlib|re2c|strip)($|/)|usr/include/(unicode/|zip\.h|stdio\.h|stdlib\.h)|usr/lib/(libc\.a|libicu[a-z]*\.a|libzip\.a)($|/)|usr/lib/pkgconfig/)'
           persisted=$(grep -aE "$build_only" "$layers/entries.txt" | sort -u || true)
           if [[ -n "$persisted" ]]; then
             echo "$persisted"
-            echo '::error title=Build dependencies persist in a layer::the apk add and the apk del must share one RUN'
+            echo '::error title=Build-only path in a saved layer::a toolchain binary or development header is committed in a layer'
             exit 1
           fi
-          echo "No build-only path among $(wc -l < "$layers/entries.txt") saved-layer entries."
+          echo "Clean: $(wc -l < "$layers/final-packages.txt") packages in the final image, the same set across $databases layer databases, and no build-only path among $(wc -l < "$layers/entries.txt") saved-layer entries."
 
       # #2647. The runner has a Docker daemon, so this is the lane where the
       # sentinel-secret proof actually executes: it builds a real image from a
