@@ -61,6 +61,49 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
         'retention_policy',
     ];
 
+    /**
+     * Singleton counters: one migration-seeded row whose VALUE is the state.
+     *
+     * A row count cannot tell Preserve from Artifact here — both databases hold
+     * exactly one row either way — and the generic fixture below cannot seed
+     * them at all, because their `CHECK (singleton_id = 1)` rejects a second
+     * row. Left to the generic path they were silently skipped, which is how a
+     * scheduler fence reset — the catalogue's own example of a correctness
+     * failure, not lost bookkeeping — could have passed this test.
+     *
+     * @var array<string, string> table => counter column
+     */
+    private const array SINGLETON_COUNTERS = [
+        'cache_generation' => 'generation',
+        'oidc_signing_key_version_sequence' => 'next_version',
+        'waaseyaa_scheduler_fence_sequence' => 'next_fence',
+    ];
+
+    /** Distinctive enough that no migration default can produce it. */
+    private const int SERVING_COUNTER_VALUE = 424_242;
+
+    /**
+     * Non-Artifact tables a single generic row cannot satisfy, asserted as an
+     * exact set so a new one cannot join them silently.
+     *
+     * Each rejects the generic fixture on a CHECK constraint that encodes a
+     * relationship between columns (a version range, a lifecycle enum) or on a
+     * uniqueness constraint against a row its own migration already seeded.
+     * Modelling them properly means modelling the subsystem that writes them,
+     * which is #2548's coherent multi-table fixture, not this test's business.
+     *
+     * @var list<string>
+     */
+    private const array GENERIC_FIXTURE_EXEMPT = [
+        'audit_checkpoint',
+        'waaseyaa_application_master_rekey',
+        'waaseyaa_application_master_version',
+        'waaseyaa_config_generation',
+    ];
+
+    /** @var list<string> tables the generic fixture could not seed */
+    private array $constraintSkips = [];
+
     private string $workspace;
 
     protected function setUp(): void
@@ -77,7 +120,7 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
     /**
      * The reported production failure, as a test: a serving database and an
      * artifact both built from THIS commit's migrations must prepare cleanly
-     * with no application tables declared at all.
+     * once the consumer declares the three tables above — and nothing else.
      *
      * With an uncatalogued table present this throws "Unknown … tables"; the
      * consumer never gets as far as a serving mutation.
@@ -115,6 +158,14 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
         $catalogue = new FrameworkRuntimeTableCatalogue();
         $seeded = $this->seedPreservedRows($serving, $catalogue);
         self::assertNotSame([], $seeded, 'The fixture must seed at least one preserved table.');
+        self::assertSame(
+            self::GENERIC_FIXTURE_EXEMPT,
+            $this->constraintSkips,
+            'A non-Artifact table stopped accepting the generic fixture. Seed it '
+            . 'deliberately or record why it cannot be seeded — do not let it fall '
+            . 'out of this test unnoticed.',
+        );
+        $this->advanceSingletonCounters($serving);
 
         $report = new SqliteArtifactPreparer($catalogue)->prepare(
             currentDatabase: $serving,
@@ -132,6 +183,110 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
             );
             self::assertArrayHasKey($table, $report->tables, $table . ' must appear in the install evidence.');
         }
+
+        foreach (self::SINGLETON_COUNTERS as $table => $column) {
+            self::assertSame(
+                self::SERVING_COUNTER_VALUE,
+                (int) $pdo->query(sprintf('SELECT "%s" FROM "%s" WHERE singleton_id = 1', $column, $table))->fetchColumn(),
+                sprintf('%s carries the artifact counter; the serving value was reset.', $table),
+            );
+            self::assertArrayHasKey($table, $report->tables, $table . ' must appear in the install evidence.');
+        }
+    }
+
+    /**
+     * `waaseyaa_entity_mutation_authority` is the one table that needs both
+     * sides, and neither Preserve nor Artifact expresses that. IdentityMerge
+     * must let the serving row win on a shared key — an aggregate version that
+     * moved backwards re-enables ABA — while an entity only the artifact knows
+     * about keeps the authority row without which
+     * `EntityRepository::hydrate()` refuses to read it.
+     */
+    #[Test]
+    public function identity_merge_keeps_the_serving_row_and_the_artifact_only_row(): void
+    {
+        $serving = $this->migratedDatabase('serving.sqlite');
+        $artifact = $this->migratedDatabase('artifact.sqlite');
+        $candidate = $this->workspace . '/candidate.sqlite';
+
+        // Same key on both sides, with the serving host further ahead.
+        $this->seedMutationAuthority($serving, 'node', '1', 7, 'a');
+        $this->seedMutationAuthority($artifact, 'node', '1', 2, 'b');
+        // An entity the build introduced and the serving host has never seen.
+        $this->seedMutationAuthority($artifact, 'node', '2', 3, 'c');
+
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            currentDatabase: $serving,
+            artifactDatabase: $artifact,
+            candidateDatabase: $candidate,
+            applicationArtifactTables: self::CONSUMER_DECLARED_TABLES,
+        );
+
+        $pdo = new \PDO('sqlite:' . $candidate, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+        $rows = $pdo->query(
+            'SELECT entity_id, aggregate_version, mutation_tag FROM waaseyaa_entity_mutation_authority ORDER BY entity_id',
+        )->fetchAll(\PDO::FETCH_ASSOC);
+
+        self::assertSame(
+            [
+                ['entity_id' => '1', 'aggregate_version' => 7, 'mutation_tag' => str_repeat('a', 64)],
+                ['entity_id' => '2', 'aggregate_version' => 3, 'mutation_tag' => str_repeat('c', 64)],
+            ],
+            array_map(
+                static fn(array $row): array => [
+                    'entity_id' => (string) $row['entity_id'],
+                    'aggregate_version' => (int) $row['aggregate_version'],
+                    'mutation_tag' => (string) $row['mutation_tag'],
+                ],
+                $rows,
+            ),
+        );
+    }
+
+    /**
+     * Move every singleton counter off its migration default on the serving
+     * side. The artifact is built by the same migrations, so a candidate that
+     * still reads the default took the artifact's copy.
+     */
+    private function advanceSingletonCounters(string $path): void
+    {
+        $pdo = new \PDO('sqlite:' . $path, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+        foreach (self::SINGLETON_COUNTERS as $table => $column) {
+            $before = $pdo->query(sprintf('SELECT "%s" FROM "%s" WHERE singleton_id = 1', $column, $table))->fetchColumn();
+            self::assertNotFalse($before, $table . ' must be seeded by its migration.');
+            self::assertNotSame(
+                self::SERVING_COUNTER_VALUE,
+                (int) $before,
+                $table . ' already holds the marker value, so preserving it would prove nothing.',
+            );
+            self::assertSame(
+                1,
+                $pdo->exec(sprintf(
+                    'UPDATE "%s" SET "%s" = %d WHERE singleton_id = 1',
+                    $table,
+                    $column,
+                    self::SERVING_COUNTER_VALUE,
+                )),
+                $table . ' must hold exactly one singleton row.',
+            );
+        }
+    }
+
+    private function seedMutationAuthority(
+        string $path,
+        string $entityType,
+        string $entityId,
+        int $version,
+        string $tagCharacter,
+    ): void {
+        $pdo = new \PDO('sqlite:' . $path, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+        $statement = $pdo->prepare(<<<'SQL'
+            INSERT INTO waaseyaa_entity_mutation_authority (
+                storage_authority, tenant_id, entity_type, entity_id,
+                aggregate_version, mutation_tag, lifecycle_state
+            ) VALUES ('default', 'default', ?, ?, ?, ?, 'active')
+            SQL);
+        $statement->execute([$entityType, $entityId, $version, str_repeat($tagCharacter, 64)]);
     }
 
     /**
@@ -176,6 +331,14 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
             if ($definition->name === 'user') {
                 // Seeded by migratedDatabase(); IdentityMerge has different
                 // round-trip semantics and belongs to #2549, not here.
+                continue;
+            }
+            if (isset(self::SINGLETON_COUNTERS[$definition->name])) {
+                // A value, not a row: advanceSingletonCounters() owns these.
+                continue;
+            }
+            if ($definition->name === 'waaseyaa_entity_mutation_authority') {
+                // IdentityMerge needs both sides seeded; its own test does that.
                 continue;
             }
             if ($definition->policy === \Waaseyaa\Deployer\RuntimeState\RuntimeTablePolicy::Artifact) {
@@ -231,9 +394,10 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
                 }
             } catch (\PDOException) {
                 // A table with constraints or triggers a generic fixture cannot
-                // satisfy. Skipped rather than special-cased: the point is to
-                // prove preservation over a broad sample, not to hand-model
-                // every framework table's invariants.
+                // satisfy. Recorded rather than swallowed: the caller asserts
+                // the exact set, so a table that quietly stops being seeded
+                // fails instead of thinning this test's coverage in silence.
+                $this->constraintSkips[] = $definition->name;
                 continue;
             }
 
@@ -241,6 +405,8 @@ final class MigrationInstalledArtifactPreparationTest extends TestCase
                 'SELECT COUNT(*) FROM "' . $definition->name . '"',
             )->fetchColumn();
         }
+
+        sort($this->constraintSkips, SORT_STRING);
 
         return $seeded;
     }
