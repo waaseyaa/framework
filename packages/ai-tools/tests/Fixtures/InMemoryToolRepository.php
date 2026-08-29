@@ -58,12 +58,12 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         throw new \LogicException('InMemoryToolRepository does not support create().');
     }
 
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
     {
         return $this->store[$id] ?? null;
     }
 
-    public function loadWorkingCopy(string $id): ?EntityInterface
+    public function loadWorkingCopy(int|string $id): ?EntityInterface
     {
         return $this->workingCopies[$id] ?? $this->find($id);
     }
@@ -107,21 +107,21 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         unset($this->store[$id], $this->workingCopies[$id], $this->mutationAuthorities[$id]);
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->setCurrentCalls[] = [$entityId, $revisionId];
 
         return $this->store[$entityId] ?? new ToolTestEntity(['id' => $entityId]);
     }
 
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->rollbackCalls[] = [$entityId, $targetRevisionId];
 
         return new ToolTestEntity(['id' => $entityId, 'revision_id' => 99]);
     }
 
-    public function listRevisions(string $entityId): array
+    public function listRevisions(int|string $entityId): array
     {
         return $this->revisions;
     }
@@ -143,7 +143,7 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         throw new \LogicException('getQuery() not implemented in this test double');
     }
 
-    public function exists(string $id): bool
+    public function exists(int|string $id): bool
     {
         return isset($this->store[$id]);
     }
@@ -153,17 +153,17 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         return count($this->store);
     }
 
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
     {
         return null;
     }
 
-    public function loadPublishedRevision(string $entityId): ?EntityInterface
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface
     {
         return null;
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         return $this->store[$entityId] ?? new ToolTestEntity(['id' => $entityId]);
     }
@@ -186,17 +186,17 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
     // Two-axis translation surface (EntityRepositoryInterface, b1) — this fixture
     // is single-axis only and never exercises it.
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
     }
 
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
     {
         throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
     }
 
-    public function listTranslationRevisions(string $entityId, string $langcode): array
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array
     {
         throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
     }

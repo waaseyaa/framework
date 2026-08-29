@@ -248,12 +248,12 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
      */
     public function __construct(private readonly array $entities) {}
 
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
     {
         return $this->entities[$id] ?? null;
     }
 
-    public function loadWorkingCopy(string $id): ?EntityInterface
+    public function loadWorkingCopy(int|string $id): ?EntityInterface
     {
         return $this->find($id);
     }
@@ -295,7 +295,7 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function exists(string $id): bool
+    public function exists(int|string $id): bool
     {
         return isset($this->entities[$id]);
     }
@@ -305,32 +305,32 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function listRevisions(string $entityId): array
+    public function listRevisions(int|string $entityId): array
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function loadPublishedRevision(string $entityId): ?EntityInterface
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
@@ -350,17 +350,17 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
+    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }
 
-    public function listTranslationRevisions(string $entityId, string $langcode): array
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array
     {
         throw new \LogicException('Not needed by EntityEmbedder.');
     }

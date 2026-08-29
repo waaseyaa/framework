@@ -48,7 +48,7 @@ final class StubNodeTypeEntityTypeManager implements EntityTypeManagerInterface
             /** @param array<string, ?NodeType> $nodeTypesByBundle */
             public function __construct(private readonly array $nodeTypesByBundle) {}
 
-            public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+            public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
             {
                 if (!array_key_exists($id, $this->nodeTypesByBundle)) {
                     throw new \OutOfBoundsException("Unconfigured bundle lookup: '{$id}'.");
@@ -57,7 +57,7 @@ final class StubNodeTypeEntityTypeManager implements EntityTypeManagerInterface
                 return $this->nodeTypesByBundle[$id];
             }
 
-            public function loadWorkingCopy(string $id): ?EntityInterface
+            public function loadWorkingCopy(int|string $id): ?EntityInterface
             {
                 return $this->find($id);
             }
@@ -92,7 +92,7 @@ final class StubNodeTypeEntityTypeManager implements EntityTypeManagerInterface
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function exists(string $id): bool
+            public function exists(int|string $id): bool
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
@@ -102,32 +102,32 @@ final class StubNodeTypeEntityTypeManager implements EntityTypeManagerInterface
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+            public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function listRevisions(string $entityId): array
+            public function listRevisions(int|string $entityId): array
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            public function loadPublishedRevision(int|string $entityId): ?EntityInterface
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
@@ -147,17 +147,17 @@ final class StubNodeTypeEntityTypeManager implements EntityTypeManagerInterface
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
+            public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
             {
                 throw new \BadMethodCallException('Not implemented.');
             }
 
-            public function listTranslationRevisions(string $entityId, string $langcode): array
+            public function listTranslationRevisions(int|string $entityId, string $langcode): array
             {
                 throw new \BadMethodCallException('Not implemented.');
             }

@@ -50,11 +50,11 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 throw new \LogicException('create() not implemented in this test double');
             }
-            public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+            public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
             {
                 return null;
             }
-            public function loadWorkingCopy(string $id): ?EntityInterface
+            public function loadWorkingCopy(int|string $id): ?EntityInterface
             {
                 return $this->find($id);
             }
@@ -76,7 +76,7 @@ final class MediaVersionStorageDriverTest extends TestCase
                 return 1;
             }
             public function delete(EntityInterface $entity): void {}
-            public function exists(string $id): bool
+            public function exists(int|string $id): bool
             {
                 return false;
             }
@@ -84,27 +84,27 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 return 0;
             }
-            public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+            public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
             {
                 return null;
             }
-            public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \RuntimeException('not implemented');
             }
-            public function listRevisions(string $entityId): array
+            public function listRevisions(int|string $entityId): array
             {
                 return [];
             }
-            public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \RuntimeException('not implemented');
             }
-            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            public function loadPublishedRevision(int|string $entityId): ?EntityInterface
             {
                 return null;
             }
-            public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 throw new \RuntimeException('not implemented');
             }
@@ -120,15 +120,15 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 return [];
             }
-            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
+            public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
             {
                 throw new \RuntimeException('not implemented');
             }
-            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
             {
                 throw new \RuntimeException('not implemented');
             }
-            public function listTranslationRevisions(string $entityId, string $langcode): array
+            public function listTranslationRevisions(int|string $entityId, string $langcode): array
             {
                 throw new \RuntimeException('not implemented');
             }
@@ -187,11 +187,11 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 return $this->base->create($values);
             }
-            public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+            public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
             {
                 return $this->base->find($id, $langcode, $fallback);
             }
-            public function loadWorkingCopy(string $id): ?EntityInterface
+            public function loadWorkingCopy(int|string $id): ?EntityInterface
             {
                 return $this->base->loadWorkingCopy($id);
             }
@@ -211,7 +211,7 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 $this->base->delete($entity);
             }
-            public function exists(string $id): bool
+            public function exists(int|string $id): bool
             {
                 return $this->base->exists($id);
             }
@@ -219,27 +219,27 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 return $this->base->count($criteria);
             }
-            public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+            public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
             {
                 return $this->base->loadRevision($entityId, $revisionId);
             }
-            public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 return $this->base->rollback($entityId, $targetRevisionId);
             }
-            public function listRevisions(string $entityId): array
+            public function listRevisions(int|string $entityId): array
             {
                 return $this->base->listRevisions($entityId);
             }
-            public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 return $this->base->setCurrentRevision($entityId, $revisionId);
             }
-            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            public function loadPublishedRevision(int|string $entityId): ?EntityInterface
             {
                 return $this->base->loadPublishedRevision($entityId);
             }
-            public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
+            public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
             {
                 return $this->base->setPublishedRevision($entityId, $revisionId);
             }
@@ -255,15 +255,15 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 return $this->base->findTranslations($entity);
             }
-            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
+            public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
             {
                 return $this->base->saveTranslation($entityId, $langcode, $values, $log);
             }
-            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
             {
                 return $this->base->loadTranslation($entityId, $langcode);
             }
-            public function listTranslationRevisions(string $entityId, string $langcode): array
+            public function listTranslationRevisions(int|string $entityId, string $langcode): array
             {
                 return $this->base->listTranslationRevisions($entityId, $langcode);
             }

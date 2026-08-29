@@ -12,6 +12,76 @@ work-package review files under
 
 ---
 
+## 0. Breaking changes (no-shim)
+
+### 0.1 `EntityRepositoryInterface` accepts `int|string` entity identity (#2674)
+
+**Who is affected:** only classes that *implement*
+`Waaseyaa\Entity\Repository\EntityRepositoryInterface`. Callers are unaffected —
+passing a `string` keeps working, and existing `$repository->find((string) $id)`
+callsites stay valid.
+
+**Why there is no deprecation window:** PHP offers no mechanism for one. An
+implementation that still declares `string` against the widened interface is a
+fatal error *at class load*, not a notice, so there is no state of the world in
+which both shapes load and a notice-emitting shim could exist. Per the stability
+charter (`docs/governance/charter.md`, "No silent breaking changes to public PHP
+API"), the change is called out in a release changelog fragment and carries this
+migration recipe.
+
+**Symptom on upgrade:**
+
+```text
+PHP Fatal error: Declaration of YourRepository::find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+must be compatible with Waaseyaa\Entity\Repository\EntityRepositoryInterface::find(string|int $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+```
+
+It fires when the class is autoloaded, so a repository that is merely registered
+and never invoked still stops kernel boot.
+
+**Recipe.** Change `string $id` → `int|string $id` and `string $entityId` →
+`int|string $entityId` on these twelve methods:
+
+| Method | Parameter |
+|---|---|
+| `find()` | `$id` |
+| `exists()` | `$id` |
+| `loadWorkingCopy()` | `$id` |
+| `loadRevision()` | `$entityId` |
+| `rollback()` | `$entityId` |
+| `listRevisions()` | `$entityId` |
+| `setCurrentRevision()` | `$entityId` |
+| `loadPublishedRevision()` | `$entityId` |
+| `setPublishedRevision()` | `$entityId` |
+| `saveTranslation()` | `$entityId` |
+| `loadTranslation()` | `$entityId` |
+| `listTranslationRevisions()` | `$entityId` |
+
+If the body indexes storage by string, add `$id = (string) $id;` as the first
+statement to restore the previous behaviour. If it forwards to something already
+wide — as `StorageBackedStubRepository` forwards to
+`EntityStorageInterface::load(int|string $id)`, which has always accepted both —
+nothing else changes. The two shipped stubs in `packages/entity/testing/` are the
+canonical worked examples: `QueryOnlyStubRepository` is a pure signature change,
+`StorageBackedStubRepository` a signature change whose delegate was already wide.
+
+### 0.2 Numeric-looking string IDs are no longer coerced (#2674)
+
+Invisible to the type system, so stated here explicitly. `execute()` and
+`EntityInterface::id()` now report a stored value as an `int` only when the cast
+round-trips exactly (`(string) (int) $v === $v`).
+
+- **Integer-keyed types — every auto-increment entity — are unchanged.**
+- **Machine-name-keyed types** (the `node_type` / `taxonomy_vocabulary` shape)
+  stop having ids such as `'007'`, `'1e3'`, `' 9'`, `'+5'` and out-of-range
+  bigints reported as `7`, `1000`, `9`, `5` and `PHP_INT_MAX`. For those rows
+  this is a **repair**: before this change they addressed no row and were
+  unloadable even when `find()` was passed the correct key. A consumer strictly
+  comparing such an id against a hard-coded int with `===` or
+  `in_array(..., true)` will see the change.
+
+---
+
 ## 1. Stable-surface deltas
 
 The following symbols are new `@api`-annotated additions. Existing symbols are

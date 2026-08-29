@@ -422,8 +422,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         return $entity;
     }
 
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $id = (string) $id;
+
         $entityTypeId = $this->entityType->id();
 
         if ($langcode !== null && $fallback) {
@@ -1497,8 +1502,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         }
     }
 
-    public function exists(string $id): bool
+    public function exists(int|string $id): bool
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $id = (string) $id;
+
         return $this->driver->exists($this->entityType->id(), $id);
     }
 
@@ -1507,8 +1517,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         return $this->driver->count($this->entityType->id(), $criteria);
     }
 
-    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1561,8 +1576,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      *
      * @see EntityRepositoryInterface::loadWorkingCopy() for the full contract.
      */
-    public function loadWorkingCopy(string $id): ?EntityInterface
+    public function loadWorkingCopy(int|string $id): ?EntityInterface
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $id = (string) $id;
+
         if ($this->revisionDriver === null) {
             return $this->find($id);
         }
@@ -1583,11 +1603,16 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     }
 
     public function rollback(
-        string $entityId,
+        int|string $entityId,
         int $targetRevisionId,
         ?EntityMutationToken $expected = null,
         ?int $expectedCurrentRevisionId = null,
     ): EntityInterface {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1704,8 +1729,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      *
      * @return list<EntityInterface>
      */
-    public function listRevisions(string $entityId): array
+    public function listRevisions(int|string $entityId): array
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1734,10 +1764,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * at the head of history.
      */
     public function setCurrentRevision(
-        string $entityId,
+        int|string $entityId,
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1852,8 +1887,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * table predating the published-pointer column — so the call is safe and
      * backward-compatible on any revisionable entity type.
      */
-    public function loadPublishedRevision(string $entityId): ?EntityInterface
+    public function loadPublishedRevision(int|string $entityId): ?EntityInterface
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $publishedRevisionId = $this->publishedRevisionId($entityId);
         if ($publishedRevisionId === null) {
             return null;
@@ -1868,8 +1908,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      *
      * @api
      */
-    public function publishedRevisionId(string $entityId): ?int
+    public function publishedRevisionId(int|string $entityId): ?int
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1895,10 +1940,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * revision is how a live-view rollback works.
      */
     public function setPublishedRevision(
-        string $entityId,
+        int|string $entityId,
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         return $this->doSetPublishedRevision($entityId, $revisionId, $expected);
     }
 
@@ -1915,10 +1965,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * @api
      */
     public function promotePublishedRevision(
-        string $entityId,
+        int|string $entityId,
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         return $this->doSetPublishedRevision(
             $entityId,
             $revisionId,
@@ -1938,9 +1993,14 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * @api
      */
     public function clearPublishedRevision(
-        string $entityId,
+        int|string $entityId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -2175,12 +2235,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * @param array<string, mixed> $values Field values for this language.
      */
     public function saveTranslationRevision(
-        string $entityId,
+        int|string $entityId,
         string $langcode,
         array $values,
         ?string $log = null,
         ?EntityMutationToken $expected = null,
     ): int {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $driver = $this->assertTwoAxis(__FUNCTION__);
         $driver->assertEntityMutationAllowed($entityId);
 
@@ -2229,11 +2294,16 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * @return array<string, int> langcode => new per-language revision id
      */
     public function saveTranslationRevisions(
-        string $entityId,
+        int|string $entityId,
         array $byLangcode,
         ?string $log = null,
         ?EntityMutationToken $expected = null,
     ): array {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $driver = $this->assertTwoAxis(__FUNCTION__);
         $driver->assertEntityMutationAllowed($entityId);
         if ($byLangcode === []) {
@@ -2290,8 +2360,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     /**
      * Load a specific per-language revision, or null when it does not exist.
      */
-    public function loadTranslationRevision(string $entityId, string $langcode, int $revisionId): ?EntityInterface
+    public function loadTranslationRevision(int|string $entityId, string $langcode, int $revisionId): ?EntityInterface
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $driver = $this->assertTwoAxis(__FUNCTION__);
 
         $row = $this->readLangcodeRevisionRow($entityId, $langcode, $revisionId);
@@ -2306,8 +2381,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * Load the tip (latest revision) of one language, or null when that language
      * has no revisions yet.
      */
-    public function loadTranslationTip(string $entityId, string $langcode): ?EntityInterface
+    public function loadTranslationTip(int|string $entityId, string $langcode): ?EntityInterface
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $driver = $this->assertTwoAxis(__FUNCTION__);
 
         $latest = $driver->getLatestLangcodeRevisionId($entityId, $langcode);
@@ -2323,8 +2403,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      *
      * @return list<EntityInterface>
      */
-    public function listTranslationRevisions(string $entityId, string $langcode): array
+    public function listTranslationRevisions(int|string $entityId, string $langcode): array
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $driver = $this->assertTwoAxis(__FUNCTION__);
 
         $ids = $driver->getLangcodeRevisionIds($entityId, $langcode);
@@ -2346,8 +2431,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      *
      * @return string[]
      */
-    public function translationLangcodes(string $entityId): array
+    public function translationLangcodes(int|string $entityId): array
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $driver = $this->assertTwoAxis(__FUNCTION__);
 
         return $driver->getLangcodesWithRevisions($entityId);
@@ -2369,12 +2459,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * @return int The new per-language revision id.
      */
     public function saveTranslation(
-        string $entityId,
+        int|string $entityId,
         string $langcode,
         array $values,
         ?string $log = null,
         ?EntityMutationToken $expected = null,
     ): int {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $driver = $this->assertTwoAxis(__FUNCTION__);
         $driver->assertEntityMutationAllowed($entityId);
         if ($this->database === null) {
@@ -2452,8 +2547,13 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * Load the current value of one language from its peer `(id, langcode)` base
      * row, or null when that language has no row yet.
      */
-    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface
     {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         $this->assertTwoAxis(__FUNCTION__);
 
         $row = $this->readDriverRow($this->entityType->id(), $entityId, $langcode);
@@ -2661,10 +2761,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * policy such as {@see RevisionPruningPolicy::keepLastUniform()}.
      */
     public function pruneRevisions(
-        string $entityId,
+        int|string $entityId,
         RevisionPruningPolicy $policy,
         ?EntityMutationToken $expected = null,
     ): RevisionPruningReport {
+        // #2674: reduce the accepted int|string identity domain to the
+        // string domain the driver SPI addresses rows in. Total and
+        // injective, so nothing is re-interpreted numerically.
+        $entityId = (string) $entityId;
+
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -3063,8 +3168,11 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
 
-        // Cast the ID to int if it is numeric.
-        if (isset($row[$idKey]) && is_numeric($row[$idKey])) {
+        // Report the ID as an int only when the cast round-trips exactly, so a
+        // string-keyed machine name such as '007' keeps addressing its own row.
+        // A bare is_numeric() test coerced '007' to 7 and '1e3' to 1000, which
+        // addressed no row and made those entities unloadable entirely (#2674).
+        if (isset($row[$idKey]) && is_string($row[$idKey]) && (string) (int) $row[$idKey] === $row[$idKey]) {
             $row[$idKey] = (int) $row[$idKey];
         }
 

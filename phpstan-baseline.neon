@@ -553,12 +553,6 @@ parameters:
 			path: packages/entity-storage/src/EntityRepository.php
 
 		-
-			message: '#^Loose comparison via "\=\=" is not allowed\.$#'
-			identifier: equal.notAllowed
-			count: 1
-			path: packages/entity-storage/src/SqlEntityQuery.php
-
-		-
 			message: '#^Empty array passed to foreach\.$#'
 			identifier: foreach.emptyArray
 			count: 2

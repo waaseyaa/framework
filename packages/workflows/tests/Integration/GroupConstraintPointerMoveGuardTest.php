@@ -319,17 +319,17 @@ final class GroupConstraintPointerMoveGuardTest extends TestCase
                     ) {}
 
                     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-                    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workflow; }
-                    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
+                    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workflow; }
+                    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->find($id); }
                     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
                     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
                     public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }
                     public function save(EntityInterface $entity, bool $validate = true): int { throw new \LogicException('not needed'); }
                     public function delete(EntityInterface $entity): void {}
-                    public function exists(string $id): bool { return true; }
+                    public function exists(int|string $id): bool { return true; }
                     public function count(array $criteria = []): int { return 0; }
 
-                    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+                    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface
                     {
                         if (!\array_key_exists($revisionId, $this->revisionStates)) {
                             return null;
@@ -352,17 +352,17 @@ final class GroupConstraintPointerMoveGuardTest extends TestCase
                         };
                     }
 
-                    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-                    public function listRevisions(string $entityId): array { return []; }
-                    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
-                    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-                    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+                    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+                    public function listRevisions(int|string $entityId): array { return []; }
+                    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+                    public function loadPublishedRevision(int|string $entityId): ?EntityInterface { return null; }
+                    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
                     public function saveMany(array $entities, bool $validate = true): array { return []; }
                     public function deleteMany(array $entities): int { return 0; }
                     public function findTranslations(EntityInterface $entity): array { return []; }
-                    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
-                    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
-                    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+                    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
+                    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface { return null; }
+                    public function listTranslationRevisions(int|string $entityId, string $langcode): array { return []; }
                 };
             }
         };
