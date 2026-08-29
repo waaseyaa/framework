@@ -33,7 +33,29 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
 
     public function consoleCommands(): iterable
     {
-        yield new HandlerCommand(
+        $projectRoot = $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
+
+        yield self::siteInitCommand($projectRoot);
+        yield self::siteDoctorCommand($projectRoot);
+    }
+
+    /**
+     * The single definition of `site:init`, shared by ordinary provider
+     * discovery and by `ConsoleKernel`'s boot-free command seam.
+     *
+     * `SiteInitHandler` needs only a project root, and
+     * `SiteArtifactRendererFactory::create()` composes its three recipes with
+     * `new` and no container, so nothing here requires a booted framework.
+     * Routing it through restricted boot still reached
+     * `AbstractKernel::bootDatabase()`, so initializing a site contract created
+     * an empty database before any bootstrap command had run — the phantom
+     * file `db:init` then had to be taught to adopt (#2644).
+     */
+    public static function siteInitCommand(string $projectRoot): HandlerCommand
+    {
+        $handler = new SiteInitHandler($projectRoot);
+
+        return new HandlerCommand(
             name: 'site:init',
             description: 'Initialize or deterministically regenerate the governed site contract',
             options: [
@@ -42,9 +64,8 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
                 new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Inspect and report the complete change set without writing'),
                 new HandlerOption('yes', shortcut: 'y', mode: HandlerOptionMode::None, description: 'Publish the reviewed transaction non-interactively'),
             ],
-            handler: [SiteInitHandler::class, 'execute'],
+            handler: \Closure::fromCallable([$handler, 'execute']),
         );
-        yield self::siteDoctorCommand($this->projectRoot !== '' ? $this->projectRoot : (string) getcwd());
     }
 
     /**

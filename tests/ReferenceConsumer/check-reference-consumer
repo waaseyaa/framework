@@ -73,6 +73,16 @@ grep -q 'site:init' "$work_root/pre-init-verify.log"
 # verification while being an invalid installation. site:init runs first because
 # its recipes declare the entity types install:init then synchronizes.
 (cd "$consumer_root" && php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root="$consumer_root" --yes)
+
+# #2644: the site-contract phase is database-free. install:init is the first
+# command allowed to create storage/waaseyaa.sqlite; site:init used to create it
+# as a side effect of restricted boot, leaving behind exactly the zero-table
+# file db:init would then refuse.
+if [[ -e "$consumer_root/storage/waaseyaa.sqlite" ]]; then
+  echo "reference-consumer: site:init must not create the application database" >&2
+  exit 1
+fi
+
 (cd "$consumer_root" && php vendor/bin/waaseyaa install:init --no-interaction)
 
 before=$(php "$framework_source/tests/ReferenceConsumer/prepare.php" snapshot "$framework_source" "$consumer_root")

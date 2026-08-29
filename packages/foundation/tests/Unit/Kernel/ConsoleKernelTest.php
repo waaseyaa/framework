@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
@@ -105,13 +106,14 @@ final class ConsoleKernelTest extends TestCase
      * later refuses as "not Waaseyaa-initialized".
      */
     #[Test]
-    public function siteDoctorDiagnosesWithoutBootingOrCreatingTheDatabase(): void
+    #[DataProvider('siteContractCommandProvider')]
+    public function siteContractCommandsRunWithoutBootingOrCreatingTheDatabase(string $command, array $arguments): void
     {
         $projectRoot = dirname(__DIR__, 6);
-        $database = sys_get_temp_dir() . '/waaseyaa-site-doctor-' . bin2hex(random_bytes(8)) . '.sqlite';
-        $fixture = sys_get_temp_dir() . '/waaseyaa-site-doctor-root-' . bin2hex(random_bytes(8));
+        $database = sys_get_temp_dir() . '/waaseyaa-' . $command . '-' . bin2hex(random_bytes(8)) . '.sqlite';
+        $fixture = sys_get_temp_dir() . '/waaseyaa-site-root-' . bin2hex(random_bytes(8));
         mkdir($fixture, 0o700, true);
-        $_SERVER['argv'] = ['waaseyaa', 'site:doctor', '--strict', '--format=json', '--project-root=' . $fixture];
+        $_SERVER['argv'] = ['waaseyaa', $command, ...$arguments, '--project-root=' . $fixture];
         putenv('APP_ENV=local');
         putenv('WAASEYAA_DB=' . $database);
 
@@ -126,6 +128,20 @@ final class ConsoleKernelTest extends TestCase
         } finally {
             rmdir($fixture);
         }
+    }
+
+    /** @return iterable<string, array{string, list<string>}> */
+    public static function siteContractCommandProvider(): iterable
+    {
+        // site:doctor is the read-only diagnostic the generated verification
+        // command runs first. site:init is the phase that produces the site
+        // contract — it was routed through restricted boot, which still opens
+        // the database, so initializing a contract created an empty SQLite file
+        // before any bootstrap command had run. The Windows create-project lane
+        // caught that; the Linux reference consumer could not, because it had
+        // already materialized the database by that point.
+        yield 'site:doctor' => ['site:doctor', ['--strict', '--format=json']];
+        yield 'site:init' => ['site:init', ['--dry-run']];
     }
 
     #[Test]

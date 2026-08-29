@@ -1049,8 +1049,15 @@ jobs:
             if (-not (Test-Path '.waaseyaa/generated.json')) { throw 'site:init published no ownership metadata.' }
             if (-not (Test-Path 'bin/maintenance/site-verify')) { throw 'site:init generated no verification command.' }
 
-            # (d) Verification is read-only: the strict doctor must not
-            # materialize the database install:init has not created yet.
+            # (d) The whole site-contract phase is database-free. site:init has
+            # just run and the strict doctor runs next; install:init is the
+            # first command allowed to create the database. This assertion is
+            # what caught site:init's own restricted-boot database creation,
+            # which the Linux reference consumer structurally cannot see because
+            # it has already materialized the database by this point.
+            if (Test-Path 'storage/waaseyaa.sqlite') {
+              throw 'site:init created the application database before install:init.'
+            }
             Invoke-Checked 'site:doctor' {
               php vendor/bin/waaseyaa site:doctor --strict --format=json --project-root=$work
             }
