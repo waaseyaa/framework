@@ -1,5 +1,22 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-29 - #2636/#2638 stale deferrals: two live-prose
+constraints deferred current capability to issues that had already closed, so
+this spec understated what is buildable. #2220's AEAD primitive landed as
+Foundation\Security\ApplicationMaster* — but its envelope carries and enforces
+no expiry claim, which #2220's own acceptance required for short-lived cursors,
+so resources/list pagination (now #2636) still owes a registered purpose plus
+its own expiry enforcement; the prerequisite is partially, not fully,
+discharged. #2207 landed
+Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface, which
+PackageManifestCompiler detects by string constant so a provider contributes
+commands without importing Layer 6 — the layer obstacle that blocked the
+Registry server.json console adapter is therefore gone, and what remains is
+that nothing exposes McpRegistryManifest at all (#2638). The 2026-08-04 #1641
+note below still reads "blocked on console-boundary issue #2207"; it is
+superseded by this entry and left in place, as this log is append-only.
+Documentation only; no behaviour change. -->
+
 <!-- Spec reviewed 2026-08-27 - #2561 error-code allocation: eight codes the
 advertised MCP 2026-07-28 revision forbids are renumbered. `-32020..-32099` is
 reserved for the MCP specification (only -32020/-32021/-32022 are defined) and
@@ -155,8 +172,15 @@ The Layer 5 `ContentResourceRegistry` is MCP-neutral and bounded. Its optional
 Search adapter resolves the database-backed catalogue only during a resource
 call and passes the exact immutable principal. Search scans no more than 500 raw
 pointers to return at most 50 safe projections; there is deliberately no
-`nextCursor`, raw count, or hidden-position signal. Exhaustive pagination waits
-for the purpose-bound AEAD sealing primitive tracked in #2220. The window is
+`nextCursor`, raw count, or hidden-position signal. Exhaustive pagination is tracked by
+#2636. Its stated prerequisite, the purpose-bound AEAD sealing primitive of
+#2220, has landed as `Waaseyaa\Foundation\Security\ApplicationMaster*`
+(XChaCha20-Poly1305, purpose-bound key derivation, a boot-time closed
+`ApplicationMasterPurposeRegistry`) — but that envelope carries **no expiry
+claim and enforces none**, and #2220's acceptance called for expiry semantics
+suitable for short-lived cursors. A cursor built on it must therefore register
+its own purpose and carry and enforce its own expiry; see #2636 before
+assuming the prerequisite is fully discharged. The window is
 discovery, not a complete inventory; directly addressed visible content remains
 readable even when it is not listed. The endpoint's existing per-principal rate
 limiter runs before every resource method.
@@ -1180,8 +1204,12 @@ publish a Composer package as an unsupported Registry package type. Official
 submission remains blocked until the URL is publicly reachable, namespace
 ownership is authenticated, the framework release exists, and the preview
 schema is revalidated at submission time. A framework-neutral manifest service
-is available to applications; the generic console adapter is tracked by #2207
-because the current command-provider seam crosses package layers.
+is available to applications, but nothing exposes its output: the emitter is
+container-bound with no route and no command, which #2638 tracks. The layer
+obstacle that blocked the adapter is gone — #2207 landed
+`Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface`,
+which `PackageManifestCompiler` detects by string constant precisely so a
+provider can contribute commands without importing the Layer 6 CLI package.
 
 ## MCP Feature Scope
 
@@ -1189,7 +1217,7 @@ because the current command-provider seam crosses package layers.
 |---------|-----|--------|
 | `tools/list` | Yes | -- |
 | `tools/call` | Yes | -- |
-| `resources/list` | Yes, bounded and opt-in | Pagination after #2220 |
+| `resources/list` | Yes, bounded and opt-in | Pagination — #2636 |
 | `resources/templates/list` | Yes, opt-in | -- |
 | `resources/read` | Yes, access-checked and opt-in | -- |
 | `prompts/list` | No | Deferred; not advertised |
