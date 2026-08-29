@@ -472,9 +472,18 @@ why they cannot drift apart:
 - **No `OAuthAccessTokenValidatorInterface` implementation.** The interface is
   the trust boundary and nothing in the tree implements it (the only
   implementations are anonymous classes in `OAuthMcpAuthTest`). A deployment
-  must supply one, and it MUST verify issuer, integrity or introspection
-  response, expiry, revocation state, and audience binding before returning a
-  principal. Until then `OAuthMcpAuth` cannot be constructed.
+  must supply one, and it MUST, before returning a principal: verify the
+  token's issuer, its integrity or introspection response, its expiry and
+  revocation state, and its audience/resource binding; **map the subject to an
+  active real account**; and return only the granted capability scopes. A token
+  issued for another resource MUST return `null` and MUST never be passed
+  through downstream. Until a validator exists `OAuthMcpAuth` cannot be
+  constructed.
+
+  The active-account duty is the validator's alone. `OAuthMcpAuth` does **not**
+  re-check liveness after `validate()` returns — unlike `BearerTokenAuth`,
+  which duck-types `isActive()` on the account it matched. A validator that
+  returns a principal for a disabled user authenticates that user.
 - **No automatic wiring.** `resolveWriteTierAuth()` has no OAuth branch: it
   resolves an application-bound `WriteTierAuthInterface`, then falls back to
   `DurableBearerTokenAuth`, then to `BearerTokenAuth([])` (always 401).
@@ -487,6 +496,29 @@ why they cannot drift apart:
   default write-tier capability is the literal `present guided content`. A
   capability whose id contains a space cannot be advertised as a scope. #1640
   tracks the profile decision.
+
+#### Three lists must agree
+
+A tool is reachable on the OAuth write tier only when its capability appears in
+**all three** of these, which are configured independently and never derived
+from one another:
+
+1. `mcp.write_tier.capabilities` — the tier allowlist. Defaults to
+   `['present guided content']`.
+2. `scopes_supported` — advertised in the RFC 9728 document and the
+   `WWW-Authenticate` challenge.
+3. the scopes actually granted on the presented token, by the authorization
+   server.
+
+`McpEndpoint` admits the intersection, fail-closed. Any mismatch produces a
+caller that authenticates successfully and then sees an **empty `tools/list`**,
+with no error to read — configuring `scopes_supported` while leaving
+`capabilities` at its default is the common form, and intersects to nothing.
+
+Independently of scope, `tool.entity.*` mutations remain blocked unless
+`mcp.write_tier.allow_generic_entity_mutations` is `true`
+(`genericEntityMutationToolBlocklist()`); the framework-supported remote
+editing path is an app-registered `ContentToolSet`.
 
 ## Per-request bridge execution
 
