@@ -8,7 +8,7 @@
         "ext-pdo_sqlite": "*",
         "ext-sqlite3": "*",
         "symfony/dotenv": "^8.0",
-        "waaseyaa/framework": "^0.1.0-alpha.298"
+        "waaseyaa/framework": "^0.1.0-alpha.299"
     },
     "autoload": {
         "psr-4": {
