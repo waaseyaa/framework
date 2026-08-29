@@ -244,19 +244,23 @@ try {
 
     $runA = Invoke-BimaajiInstall -Root $ConsumerRoot -ClientId 'cursor'
 
-    if ($runA.ExitCode -eq 0) {
-        Fail "case A — bimaaji:install exited 0 with a redirected .waaseyaa. Losing the ownership manifest must be a non-zero exit. Output: $($runA.Output)"
-    }
+    # Filesystem outcome FIRST, exit code last. A containment escape is the
+    # finding that matters; leading with the exit-code assertion would make a
+    # real escape read as a mere exit-code mismatch.
     $escapedManifest = Join-Path $outsideManifest 'bimaaji-install.json'
     if (Test-Path -LiteralPath $escapedManifest) {
-        Fail "case A — the ownership manifest was written OUTSIDE the project root, at $escapedManifest."
+        Fail "case A — CONTAINMENT ESCAPE: the ownership manifest was written OUTSIDE the project root, at $escapedManifest."
     }
     Assert-SentinelUntouched -Sentinel $sentinelA -ExpectedHash $sentinelAHash -Case 'case A'
 
     $strayA = @(Get-ChildItem -LiteralPath $outsideManifest -Force -Recurse |
         Where-Object { $_.FullName -ne $sentinelA })
     if ($strayA.Count -ne 0) {
-        Fail "case A — bimaaji:install created $($strayA.Count) unexpected entr(y|ies) outside the project root: $($strayA.FullName -join ', ')"
+        Fail "case A — CONTAINMENT ESCAPE: bimaaji:install created $($strayA.Count) unexpected entr(y|ies) outside the project root: $($strayA.FullName -join ', ')"
+    }
+
+    if ($runA.ExitCode -eq 0) {
+        Fail "case A — bimaaji:install exited 0 with a redirected .waaseyaa. Nothing escaped, but losing the ownership manifest must still be a non-zero exit. Output: $($runA.Output)"
     }
     Write-Step 'case A PASSED: a junctioned .waaseyaa redirected nothing; exit was non-zero and the sentinel is byte-identical.'
 
@@ -282,20 +286,21 @@ try {
 
     $runB = Invoke-BimaajiInstall -Root $ConsumerRoot -ClientId 'claude'
 
-    if ($runB.ExitCode -eq 0) {
-        Fail "case B — bimaaji:install exited 0 with a redirected .claude/skills. Output: $($runB.Output)"
-    }
     $escapedSkills = @(Get-ChildItem -LiteralPath $outsideSkills -Force -Directory |
         Where-Object { $_.Name -like 'waaseyaa-*' })
     if ($escapedSkills.Count -ne 0) {
-        Fail "case B — skill directories were written OUTSIDE the project root: $($escapedSkills.FullName -join ', ')"
+        Fail "case B — CONTAINMENT ESCAPE: skill directories were written OUTSIDE the project root: $($escapedSkills.FullName -join ', ')"
     }
     Assert-SentinelUntouched -Sentinel $sentinelB -ExpectedHash $sentinelBHash -Case 'case B'
 
     $strayB = @(Get-ChildItem -LiteralPath $outsideSkills -Force -Recurse |
         Where-Object { $_.FullName -ne $sentinelB })
     if ($strayB.Count -ne 0) {
-        Fail "case B — bimaaji:install created $($strayB.Count) unexpected entr(y|ies) outside the project root: $($strayB.FullName -join ', ')"
+        Fail "case B — CONTAINMENT ESCAPE: bimaaji:install created $($strayB.Count) unexpected entr(y|ies) outside the project root: $($strayB.FullName -join ', ')"
+    }
+
+    if ($runB.ExitCode -eq 0) {
+        Fail "case B — bimaaji:install exited 0 with a redirected .claude/skills. Nothing escaped, but the refusal must still be a non-zero exit. Output: $($runB.Output)"
     }
     Write-Step 'case B PASSED: a junctioned .claude/skills redirected nothing; exit was non-zero and the sentinel is byte-identical.'
 

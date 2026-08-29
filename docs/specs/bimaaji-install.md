@@ -117,10 +117,26 @@ the manifest is the provenance boundary that makes later pruning safe, so
 generating files whose ownership was never recorded must not report success.
 
 Regression coverage plants a **sentinel** outside the project root and
-asserts its bytes are unchanged after the run
-(`InstallCommandSandboxContainmentTest`). Asserting only that a rejection
-was printed would pass a command that printed the rejection and clobbered
-the file anyway.
+asserts its bytes are unchanged after the run. Asserting only that a
+rejection was printed would pass a command that printed the rejection and
+clobbered the file anyway.
+
+| Platform | Proof | Redirection mechanism |
+|---|---|---|
+| Linux | `packages/bimaaji/tests/Unit/Command/InstallCommandSandboxContainmentTest` (Unit suite) | POSIX symlink, on a target file and on a target directory |
+| Windows | `bin/check-bimaaji-junction-containment.ps1`, a step in `ci/skeleton-create-project-windows` | Directory junction over `.waaseyaa` and `.claude/skills` |
+
+The Windows gate exists because the `realpath()` resolution above is a
+platform claim: `is_link()` does not report a junction, so without it the
+behaviour the guard depends on would be asserted and never executed. It uses
+junctions rather than symbolic links deliberately — a Windows symlink normally
+needs `SeCreateSymbolicLinkPrivilege` or Developer Mode, a junction does not,
+and a junction is the exact reparse-point shape the guard must catch. Junctions
+are directory-only, so it redirects a target's directory; the file-level case
+is covered on Linux. Two positive controls run first — PHP `realpath()` must
+resolve the junction outside the project root, and an unguarded write through
+it must land outside — so a junction that silently failed to redirect fails the
+gate instead of passing it.
 
 ## Ownership and pruning retired targets
 
