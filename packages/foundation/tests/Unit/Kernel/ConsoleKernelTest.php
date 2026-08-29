@@ -97,6 +97,37 @@ final class ConsoleKernelTest extends TestCase
         self::assertFileDoesNotExist($database);
     }
 
+    /**
+     * #2644: the generated verification command runs `site:doctor --strict`
+     * first, so a booting doctor made verification a write. Ordinary CLI boot
+     * reaches `AbstractKernel::bootDatabase()` before every restricted-discovery
+     * guard, and the zero-table file it left behind is precisely what `db:init`
+     * later refuses as "not Waaseyaa-initialized".
+     */
+    #[Test]
+    public function siteDoctorDiagnosesWithoutBootingOrCreatingTheDatabase(): void
+    {
+        $projectRoot = dirname(__DIR__, 6);
+        $database = sys_get_temp_dir() . '/waaseyaa-site-doctor-' . bin2hex(random_bytes(8)) . '.sqlite';
+        $fixture = sys_get_temp_dir() . '/waaseyaa-site-doctor-root-' . bin2hex(random_bytes(8));
+        mkdir($fixture, 0o700, true);
+        $_SERVER['argv'] = ['waaseyaa', 'site:doctor', '--strict', '--format=json', '--project-root=' . $fixture];
+        putenv('APP_ENV=local');
+        putenv('WAASEYAA_DB=' . $database);
+
+        try {
+            ob_start();
+            (new ConsoleKernel($projectRoot))->handle();
+            ob_get_clean();
+
+            self::assertFileDoesNotExist($database);
+            self::assertFileDoesNotExist($database . '-wal');
+            self::assertFileDoesNotExist($database . '-shm');
+        } finally {
+            rmdir($fixture);
+        }
+    }
+
     #[Test]
     public function maintenanceCommandsRemainAvailableWhenProductionBootIsBlocked(): void
     {

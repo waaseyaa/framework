@@ -9,6 +9,7 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 use Waaseyaa\CLI\ConsoleApplicationFactory;
 use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
+use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\VersionResolver;
 use Waaseyaa\CLI\WaaseyaaConsoleApplication;
 
@@ -49,6 +50,23 @@ final class ConsoleKernel extends AbstractKernel
                 logger: $this->logger,
             );
             $application->addCommand(ConfigCacheDbAuditServiceProvider::dbInitCommand($this->projectRoot));
+
+            return $application->run($input, $output);
+        }
+
+        // #2644: site:doctor is a read-only filesystem diagnostic, and the
+        // generated verification command runs it first. Booting for it reached
+        // AbstractKernel::bootDatabase() — which runs before every
+        // restricted-discovery guard — so verifying an uninitialized project
+        // created storage/waaseyaa.sqlite plus its -wal/-shm sidecars as a side
+        // effect. SiteDoctorHandler needs only a project root, so the command
+        // runs here without a kernel and verification stays literally read-only.
+        if ($input->getFirstArgument() === 'site:doctor') {
+            $application = new WaaseyaaConsoleApplication(
+                version: new VersionResolver($this->projectRoot)->resolve(),
+                logger: $this->logger,
+            );
+            $application->addCommand(SiteServiceProvider::siteDoctorCommand($this->projectRoot));
 
             return $application->run($input, $output);
         }

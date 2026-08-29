@@ -44,7 +44,25 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
             ],
             handler: [SiteInitHandler::class, 'execute'],
         );
-        yield new HandlerCommand(
+        yield self::siteDoctorCommand($this->projectRoot !== '' ? $this->projectRoot : (string) getcwd());
+    }
+
+    /**
+     * The single definition of `site:doctor`, shared by ordinary provider
+     * discovery and by `ConsoleKernel`'s boot-free command seam.
+     *
+     * `SiteDoctorHandler` needs only a project root, and `SiteDoctorService`
+     * reads nothing but the filesystem, so the command is constructible without
+     * a container. That is what lets the kernel run it without booting: a full
+     * boot reaches `AbstractKernel::bootDatabase()` before every
+     * restricted-discovery guard, and would create the very database this
+     * read-only diagnostic exists to report on (#2644).
+     */
+    public static function siteDoctorCommand(string $projectRoot): HandlerCommand
+    {
+        $handler = new SiteDoctorHandler($projectRoot);
+
+        return new HandlerCommand(
             name: 'site:doctor',
             description: 'Verify the governed site contract and architecture boundaries',
             options: [
@@ -52,7 +70,7 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
                 new HandlerOption('strict', mode: HandlerOptionMode::None, description: 'Fail on every warning or error'),
                 new HandlerOption('format', mode: HandlerOptionMode::Required, description: 'Output format: text or json'),
             ],
-            handler: [SiteDoctorHandler::class, 'execute'],
+            handler: \Closure::fromCallable([$handler, 'execute']),
         );
     }
 }

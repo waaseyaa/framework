@@ -217,6 +217,16 @@ from Anokii and vice versa.
 human summary. Exit zero means all required checks passed. Warnings can never
 produce an `OK` summary in strict mode.
 
+The doctor is read-only in the literal sense: it inspects the filesystem, never
+boots the kernel, and never opens or creates the application database. This is a
+governed invariant, not an incidental property of the current checks (#2644).
+`ConsoleKernel` runs `site:doctor` through its boot-free command seam for that
+reason — ordinary console boot materializes the database before any
+restricted-discovery guard, so a booting doctor would create the zero-table
+SQLite file it is meant to report on, and would diagnose a missing site contract
+as an inactive configuration generation. A future check that needs kernel state
+belongs in a different command.
+
 The doctor validates:
 
 - manifest schema and internal references;
