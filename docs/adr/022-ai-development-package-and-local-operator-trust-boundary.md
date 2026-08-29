@@ -168,7 +168,13 @@ The local development plane is distributed as a new package
    the local plane is the stdio server of #2659, reached through the
    transport-neutral contracts of #2657.
 
-### D-2 — `waaseyaa/testing` is **in**; the HTTP MCP package is **out**
+### D-2 — `waaseyaa/ai-agent` and `waaseyaa/testing` are **in**; the HTTP MCP package is **out**
+
+`waaseyaa/ai-agent` MUST be a direct dependency of `waaseyaa/ai-development`. It
+is where the three default-profile tools already live
+(`packages/ai-agent/src/Tool/Bimaaji/`) and, per D-3.0, where
+`LocalOperatorPrincipal` will live. It is absent from every production require
+closure today, and D-10 requires that to be gated rather than assumed.
 
 `waaseyaa/testing` MUST be a direct dependency of `waaseyaa/ai-development` once
 the graph is populated. Rationale: it is not reachable from the framework closure
@@ -186,10 +192,48 @@ The local plane's acting identity is a new `LocalOperatorPrincipal` implementing
 (`packages/access/src/AuthorizationPrincipalInterface.php:14–18`). Its shape is
 modelled directly on the existing non-persisted system principal
 `Waaseyaa\Migration\Account\MigrationSystemAccount`, which solved the same
-problem for batch imports. Because `waaseyaa/ai-development` is a metapackage and
-owns no code (D-1.1), the class lives in a code-bearing package —
-`waaseyaa/ai-tools` per #2658's own framing — and the metapackage merely pulls it
-in. The exact namespace is #2658's to fix.
+problem for batch imports.
+
+**D-3.0 — where the class lives, and why it is not `waaseyaa/ai-tools`.**
+`waaseyaa/ai-development` is a metapackage and owns no code (D-1.1), so the class
+must live in a code-bearing package. #2658's title prefix implies
+`waaseyaa/ai-tools`. That package is the wrong home, and this ADR overrides the
+implication.
+
+`waaseyaa/ai-tools` is a production `require` of **both** the root
+`waaseyaa/framework` manifest (`"waaseyaa/ai-tools": "self.version"`) and
+`packages/full/composer.json` (`"waaseyaa/ai-tools": "^0.1.0-alpha.299"`). Homing
+the principal there would ship the most security-sensitive class in this design
+into every production `full` install and every skeleton install, by a route
+`composer install --no-dev` does not touch — silently contradicting D-1.3.
+
+The class MUST therefore live in a package absent from the production `require`
+closure of `waaseyaa/framework`, `waaseyaa/core`, `waaseyaa/cms`, and
+`waaseyaa/full`. **`waaseyaa/ai-agent` satisfies that today** and is the
+designated home: it is `require-dev` in the root manifest and `suggest`-only in
+`packages/full/composer.json`, it is absent from the framework's 63-package
+require closure (C-5), it already holds the five `#[AsAgentTool]` Bimaaji
+adapters the default profile needs (`packages/ai-agent/src/Tool/Bimaaji/`) so the
+dev metapackage must pull it in regardless, and it sits at the same layer as
+`ai-tools` (both Layer 5, `bin/check-package-layers:129,131`), so the choice
+costs nothing in layer terms. The exact namespace within it is #2658's to fix.
+
+**The invariant is normative; the package name is merely today's satisfying
+answer.** If `waaseyaa/ai-agent` ever enters a production require closure, the
+principal MUST move rather than the invariant bending — and per D-10 that
+invariant MUST be bound to a gate rather than left to review attention.
+
+**D-3.0a — packaging is not the containment, and this ADR does not pretend it
+is.** Even with the class outside every production closure, packaging is the
+weaker of the two controls: a consumer may require `waaseyaa/ai-agent` directly,
+and a future dependency edit could pull it into a production closure without
+anyone noticing the security consequence. **R-6 is the actual containment** —
+construction refusing outside a development runtime and outside the validated
+local stdio transport. R-6 MUST therefore be proven by test, not assumed: #2658
+MUST carry a test that attempts to construct the principal in a
+production-shaped runtime and asserts refusal. A design that depends on the class
+being *absent*, rather than on its *refusing to exist*, is one dependency edit
+away from being wrong.
 
 **Identity storage — the decision is: none.**
 
@@ -307,6 +351,29 @@ It touches no storage and returns no stored value. The other five default
 providers — `Admin`, `JsonApi`, `PublicSurface`, `Routing`, `Sovereignty` — are
 structural in the same way.
 
+**The third tool is inert until #2661 and #2662 land, and the ADR does not
+pretend otherwise.** `bimaaji_search_specs` returns nothing in a real consumer
+install: `BimaajiServiceProvider::resolveSpecsDirectory()` returns `null` unless
+`bimaaji.specs_directory` is explicitly configured
+(`packages/bimaaji/src/BimaajiServiceProvider.php:383–390`), and `docs/specs/`
+ships in no package. Making it answer is **#2661** (lifecycle metadata and a
+sanitized versioned corpus) and **#2662** (cited, version-matched FTS5
+documentation search). It is **not** #2656, which packages canonical Agent
+Skills — a different artefact that does not make this tool return anything.
+
+#2661 is a correctness precondition, not only an availability one: its acceptance
+requires the default index to carry live material only, with superseded and
+historical states behind an explicit labelled filter. Until it lands, a search
+over the raw directory would surface retired designs as if current —
+`docs/specs/entity-storage-two-axis.md` is Superseded (M-004 `vid` model, retired
+alpha.196) while `revision-system-unified.md` is live canonical. Those documents
+do carry supersession banners in prose, but the tool's result shape is *matching
+file, line number, nearest `##`/`###` heading, and a snippet*
+(`packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php:46`), which does not
+carry a top-of-file status banner to the caller. The default profile therefore
+ships three granted tools of which two answer today, and that is a stated
+dependency rather than a defect in this decision.
+
 **Everything else is opt-in and off by default**, and this list is exhaustive of
 what the default profile withholds:
 
@@ -386,6 +453,15 @@ clears. Recorded here so #2655 has an explicit checklist:
   which is a consumer-facing extension point and MUST be mapped then.
 - `bin/check-pr-preflight` and the recorded preflight roster
   (`tools/preflight-gates.json`).
+- **A gate binding D-3.0's closure invariant.** The package homing
+  `LocalOperatorPrincipal` MUST NOT appear in the production `require` closure of
+  `waaseyaa/framework`, `waaseyaa/core`, `waaseyaa/cms`, or `waaseyaa/full`. This
+  is the one D-10 obligation that is not already covered by an existing checker:
+  `bin/check-composer-policy` and `bin/check-package-layers` are the natural
+  hosts, and #2655 chooses. Without it the invariant survives only on review
+  attention, and a routine dependency edit is enough to void it silently — the
+  edit would look like adding a require, not like relocating a security-sensitive
+  class into production.
 
 ## Consequences
 
@@ -393,8 +469,15 @@ clears. Recorded here so #2655 has an explicit checklist:
   `core`, `cms`, `full`, or `framework` starts pulling it in, and nothing about a
   production install changes.
 - The first stdio session is deliberately narrow: an agent can read the
-  application's shape and its specs, and nothing else. That is a smaller opening
-  offer than "it just works with your content", and it is the point.
+  application's shape, and — once #2661 and #2662 land — its documentation, and
+  nothing else. That is a smaller opening offer than "it just works with your
+  content", and it is the point.
+- D-3.0 costs something real: the principal cannot live beside the agent-tool
+  base class it is designed for, because `waaseyaa/ai-tools` is production-present
+  in `framework` and `full`. `waaseyaa/ai-agent` is the home instead. That is a
+  packaging constraint a future dependency edit can quietly break, which is why
+  D-10 requires it to be gated and D-3.0a requires R-6 — the runtime refusal — to
+  be proven by test rather than inferred from where the file happens to sit.
 - D-3.2's string sentinel means the local principal is structurally incapable of
   being mistaken for a user row, and structurally incapable of being the ambient
   acting account (R-4). Any code that assumes an int uid will fail loudly rather
@@ -412,7 +495,10 @@ clears. Recorded here so #2655 has an explicit checklist:
 | Decision | Discharged by | Precondition |
 |---|---|---|
 | D-1, D-2, D-10 | #2655 — register the empty `waaseyaa/ai-development` metapackage through every release gate | This ADR accepted |
+| D-3.0 (home package) | #2658 places the class in `waaseyaa/ai-agent`; #2655 binds the closure invariant to a gate (D-10) | This ADR accepted |
+| D-3.0a (R-6 proven by test) | #2658 — a test asserting refusal in a production-shaped runtime | This ADR accepted |
 | D-3, D-4, D-5, D-6, D-7 | #2658 — implement `LocalOperatorPrincipal` and the least-privilege developer catalogue | **MUST NOT** begin before this ADR is accepted |
+| D-7's third tool answering at all | #2661 (lifecycle metadata + sanitized versioned corpus) then #2662 (cited FTS5 search). Not #2656. | Independent of this ADR; the default profile ships with the tool granted and inert until then |
 | D-8 | #2658 for the default (no content capability, so no content read to gate); the read-side evaluation surface itself lands with the first opt-in capability, sequenced through #2657 | This ADR accepted |
 | D-9.1, D-9.3 | #2657 — extract a transport-neutral tool-registry bridge without enabling HTTP | This ADR accepted |
 | D-9.2 | #2659 — conformant local stdio server | **MUST NOT** begin before #2657's design is accepted |
@@ -422,7 +508,10 @@ clears. Recorded here so #2655 has an explicit checklist:
 - **Q-1 — Where the transport-neutral contracts live.** This ADR requires that
   they exist and that they not depend on HTTP request/response classes (D-9.3).
   It does not decide whether they land in `ai-tools`, in a new package, or as a
-  narrowed port in `foundation`.
+  narrowed port in `foundation`. Whichever is chosen, D-3.0's closure test
+  applies to anything that must not reach a production install; note that
+  `ai-tools` and `foundation` are both production-present, so siting
+  developer-only types in either would repeat the problem D-3.0 fixes.
 - **Q-2 — Where read-side sovereignty evaluation lives.** D-8 fixes the
   obligation and the fail-closed semantics. It does not fix whether the surface
   is a `bimaaji` sibling to `SovereigntyGuardrails`, a foundation-level port, or
