@@ -34,3 +34,18 @@ remain the lifecycle-listener and permission authorities.
 No controller replacement, generic security-service override, user subclass,
 credential access, token construction override, release, deployment, or data
 migration is authorized by this record.
+
+## Follow-up: production route composition (#2694)
+
+The routing package must inject the container's composed
+`AuthExtensionRegistry` into every auth controller that consumes it. Controller
+fallback registries remain available for isolated construction, but production
+HTTP routes may not use them: doing so bypasses application registration,
+profile, role, mail, and redirect policies and suppresses lifecycle events.
+
+Acceptance is a route-registration regression that proves one exact registry
+instance reaches register, forgot-password, verify-email, resend-verification,
+login, logout, and two-factor verification controllers. The runtime logger must
+also reach the three controllers that emit development verification or recovery
+URLs; their `NullLogger` fallback is not a production route composition.
+No controller, extension-slot, token, credential, or session contract changes.

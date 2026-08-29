@@ -10,7 +10,14 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
+use Waaseyaa\Auth\Controller\ForgotPasswordController;
 use Waaseyaa\Auth\Controller\LoginController;
+use Waaseyaa\Auth\Controller\LogoutController;
+use Waaseyaa\Auth\Controller\RegisterController;
+use Waaseyaa\Auth\Controller\ResendVerificationController;
+use Waaseyaa\Auth\Controller\VerifyEmailController;
+use Waaseyaa\Auth\Controller\VerifyTwoFactorController;
+use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
@@ -21,6 +28,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\AuthOidcRouteServiceProvider;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -90,6 +98,7 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
             UserIdentityLookupInterface::class => $this->createStub(UserIdentityLookupInterface::class),
             UserInternalFieldReaderInterface::class => $internalFields,
             LegacyPasswordUpgrade::class => $upgrade,
+            AuthExtensionRegistry::class => AuthExtensionRegistry::defaults(),
         ]);
 
         $provider = new AuthOidcRouteServiceProvider();
@@ -104,6 +113,68 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
             new \ReflectionProperty(LoginController::class, 'passwords')->getValue($controller),
             'The registered login controller must receive the same LegacyPasswordUpgrade the container bound.',
         );
+    }
+
+    /**
+     * Application auth policies and lifecycle listeners are composed into the
+     * container registry. Every route controller that consumes that registry
+     * must receive the composed instance instead of silently using defaults.
+     */
+    #[Test]
+    public function auth_routes_receive_composed_extensions_and_runtime_logging(): void
+    {
+        $entityTypes = $this->createStub(EntityTypeManager::class);
+        $internalFields = $this->createStub(UserInternalFieldReaderInterface::class);
+        $extensions = AuthExtensionRegistry::defaults();
+        $logger = new NullLogger();
+        $services = $this->authRouteServices([
+            AuthConfig::class => AuthConfig::fromArray([]),
+            AuthTokenRepositoryInterface::class => $this->createStub(AuthTokenRepositoryInterface::class),
+            RateLimiterInterface::class => $this->createStub(RateLimiterInterface::class),
+            AuthMailer::class => $this->createStub(AuthMailer::class),
+            TwoFactorService::class => new TwoFactorService(new TwoFactorManager(), $entityTypes, $internalFields),
+            UserIdentityLookupInterface::class => $this->createStub(UserIdentityLookupInterface::class),
+            UserInternalFieldReaderInterface::class => $internalFields,
+            LegacyPasswordUpgrade::class => new LegacyPasswordUpgrade($this->createStub(EntityTypeManagerInterface::class)),
+            AuthExtensionRegistry::class => $extensions,
+            LoggerInterface::class => $logger,
+        ]);
+
+        $provider = new AuthOidcRouteServiceProvider();
+        $provider->setKernelServices($services);
+        $router = new WaaseyaaRouter();
+        new \ReflectionMethod($provider, 'registerAuthRoutes')->invoke($provider, $router, $entityTypes);
+
+        foreach ([
+            'api.auth.register' => RegisterController::class,
+            'api.auth.forgot_password' => ForgotPasswordController::class,
+            'api.auth.verify_email' => VerifyEmailController::class,
+            'api.auth.resend_verification' => ResendVerificationController::class,
+            'api.auth.login' => LoginController::class,
+            'api.auth.logout' => LogoutController::class,
+            'api.auth.2fa.verify' => VerifyTwoFactorController::class,
+        ] as $routeName => $controllerClass) {
+            $controller = $router->getRouteCollection()->get($routeName)?->getDefault('_controller');
+            self::assertInstanceOf($controllerClass, $controller);
+            self::assertSame(
+                $extensions,
+                new \ReflectionProperty($controllerClass, 'extensions')->getValue($controller),
+                "The {$routeName} controller must receive the container's composed auth extension registry.",
+            );
+        }
+
+        foreach ([
+            'api.auth.register' => RegisterController::class,
+            'api.auth.forgot_password' => ForgotPasswordController::class,
+            'api.auth.resend_verification' => ResendVerificationController::class,
+        ] as $routeName => $controllerClass) {
+            $controller = $router->getRouteCollection()->get($routeName)?->getDefault('_controller');
+            self::assertSame(
+                $logger,
+                new \ReflectionProperty($controllerClass, 'logger')->getValue($controller),
+                "The {$routeName} controller must receive the runtime logger.",
+            );
+        }
     }
 
     /**
