@@ -282,9 +282,18 @@ that any change to it produces a different value. Concretely:
    `packages/cache/src/ProtectedCacheDimensions.php:12`,
    `packages/entity-storage/src/SqlEntityQuery.php:1141`,
    `packages/api/src/Controller/ContentSearchController.php:188`, and the queue
-   envelope at `packages/queue/src/Envelope/QueueEnvelopeV1.php:21`. A constant
-   generation means a widened grant is served from a cache entry computed under
-   the narrower one.
+   envelope at `packages/queue/src/Envelope/QueueEnvelopeV1.php:21`.
+
+   A constant generation means cache entries computed under one authority are
+   reused under a different one. The dangerous direction is **narrowing**: an
+   operator revokes a capability, or tightens the read-side sovereignty policy,
+   and the principal keeps being served entries computed while it still held the
+   broader authority — data the now-narrower principal must not see. (The reverse
+   case, a widened grant reading an entry built under the narrower one, is merely
+   an undergrant: the principal sees less than it is entitled to, which is
+   inconvenient, not a disclosure.) Requiring the digest to move on every policy
+   change is what makes revocation take effect at the cache boundary rather than
+   at the next eviction.
 3. It MUST NOT incorporate any machine-identifying value, for the same reason as
    D-3.3.
 
@@ -296,12 +305,46 @@ strict ledger port `Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface`
 `StrictAuditReservation`
 (`packages/foundation/src/Audit/StrictAuditReservation.php:32–38`).
 
-1. `surface` MUST be a dedicated constant naming the local stdio plane. It MUST
+D-5 spans three work units, because no single one can discharge it: the
+principal's audit *identity* exists before any dispatch path does, and the
+enforcement has nowhere to live until the bridge and transport exist. The
+clauses below are grouped by owner so the split is not left to inference.
+
+**D-5.A — the ledger must be real (owner: #2657, enforced again by #2659).**
+
+1. A `NullStrictAuditLedger` MUST NOT satisfy this decision.
+   `Waaseyaa\Foundation\Audit\NullStrictAuditLedger` implements the same
+   interface and records nothing, so "records through
+   `StrictAuditLedgerInterface`" is otherwise satisfiable by a no-op. The local
+   plane MUST refuse to construct, or refuse to dispatch, when the resolved
+   ledger is absent or is a `NullStrictAuditLedger`.
+2. The precedent is exact and already in this codebase: `McpEndpoint` refuses
+   construction when durable audit is on and the ledger is absent or null
+   (`packages/mcp/src/McpEndpoint.php:130–146`), on the stated grounds that such
+   a surface "LOOKS durably audited and records nothing" and that the
+   construction *is* the wiring error. The local plane MUST mirror that refusal
+   rather than reinvent it.
+
+**D-5.B — reserve/finalize around dispatch (owner: #2657).**
+
+3. Every tool dispatch MUST be wrapped in reserve-before-side-effect: the
+   reservation durable *before* the tool runs, the outcome finalized after. A
+   terminal refusal that never reaches execution MUST use the single-shot
+   `record()` rather than a dangling reservation.
+4. `safeArguments` MUST come from the tool's own redaction transform
+   (`argumentsForAudit()`), never from raw JSON-RPC params.
+
+**D-5.C — transport naming and correlation (owner: #2659).**
+
+5. `surface` MUST be a dedicated constant naming the local stdio plane. It MUST
    NOT reuse `mcp.write` or any HTTP surface identifier — the audit trail must
    distinguish a local developer session from a network caller on inspection.
-2. `correlationId` MUST be per-request and MUST join every record produced by
+6. `correlationId` MUST be per-request and MUST join every record produced by
    one tool call.
-3. `actorUid` MUST be `null`. That field is a three-state `?int` whose documented
+
+**D-5.D — the principal's audit identity (owner: #2658).**
+
+7. `actorUid` MUST be `null`. That field is a three-state `?int` whose documented
    semantics are "id N, `0` only when the actor IS anonymous, or `null` for no
    known persisted principal"
    (`packages/foundation/src/Audit/StrictAuditReservation.php:26–28`). The local
@@ -309,9 +352,7 @@ strict ledger port `Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface`
    would yield `0` — silently attributing the session to `AnonymousUser`. The
    principal's identity travels in `metadata` instead, as the sentinel string
    plus the current claims generation.
-4. `safeArguments` MUST come from the tool's own redaction transform
-   (`argumentsForAudit()`), never from raw JSON-RPC params.
-5. No audit record, log line, or error envelope produced by the local plane may
+8. No audit record, log line, or error envelope produced by the local plane may
    contain the OS username, home directory, hostname, or absolute project path.
 
 ### D-6 (normative) — Refusal conditions
@@ -332,16 +373,49 @@ Refusal MUST be an explicit, loud failure — a thrown exception or a structured
 refusal envelope. A silent downgrade to anonymous is not an acceptable
 implementation of any row above.
 
-### D-7 — Default tool profile: documentation and introspection only
+### D-7 (normative) — Default tool profile: an explicit tool-ID allowlist
 
-The default local profile grants **`bimaaji.read` and nothing else**. That
-capability admits exactly three tools, all read-only and all structural:
+**The default profile is a closed list of tool IDs, not a capability grant.**
+The distinction is load-bearing and this ADR settles it in the allowlist's
+favour.
 
-| Tool | Capability | What it reads |
+`AbstractAgentTool::requireCapability()` evaluates a capability *string* against
+the account (`packages/ai-tools/src/AbstractAgentTool.php:216–226`); it consults
+no tool roster. So "grant `bimaaji.read`" is an open set: any class added later
+carrying `#[AsAgentTool(capability: 'bimaaji.read')]` joins the default profile
+the moment it is discovered, with no edit to this ADR, no review of what it
+reads, and no signal to the operator. A least-privilege default that grows by
+attribute is not least-privilege — it is whatever the last merge made it.
+
+1. The default profile MUST be defined as an explicit allowlist of tool **IDs**
+   (the `name:` argument of `#[AsAgentTool]`). Membership is by exact string
+   match against that list.
+2. Capability checks MUST remain in force underneath it. The allowlist narrows;
+   it never widens. A tool on the allowlist whose capability the principal does
+   not hold MUST still be refused by `requireCapability()`. The two controls are
+   layered, and neither is a substitute for the other.
+3. The allowlist MUST be enforced by an **executable exact-membership gate**:
+   adding a tool that would enter the default profile MUST fail CI until the
+   recorded roster is deliberately updated in the same change. Silence is not
+   acceptable as the response to a widened default. The repository already has
+   the shape to copy — the S1 recorded-roster gates compare a live scan against
+   a committed `support/*.json` roster, fail on any divergence, and offer
+   `--write-roster` for the deliberate update (e.g.
+   `bin/check-s1-schema-authority` against
+   `support/s1-schema-authority-roster.json`).
+
+The allowlist's initial membership is exactly these three tools, all read-only
+and all structural:
+
+| Tool ID | Capability | What it reads |
 |---|---|---|
-| `bimaaji_introspect_graph` (`packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php:27`) | `bimaaji.read` | The composed application graph |
-| `bimaaji_introspect_section` (`.../IntrospectSectionTool.php:28`) | `bimaaji.read` | One graph section |
-| `bimaaji_search_specs` (`.../SearchSpecsTool.php:29`) | `bimaaji.read` | Markdown spec bodies |
+| `bimaaji_introspect_graph` (`packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php:26–27`) | `bimaaji.read` | The composed application graph |
+| `bimaaji_introspect_section` (`.../IntrospectSectionTool.php:27–28`) | `bimaaji.read` | One graph section |
+| `bimaaji_search_specs` (`.../SearchSpecsTool.php:28–29`) | `bimaaji.read` | Markdown spec bodies |
+
+Today `bimaaji.read` happens to admit exactly these three. That coincidence is
+the reason the allowlist must exist now, while it is free, rather than after the
+fourth `bimaaji.read` tool has already shipped inside the default.
 
 The graph sections are schema, not rows. `EntityIntrospectionProvider` iterates
 `EntityTypeManagerInterface::getDefinitions()` and emits labels, classes, keys,
@@ -370,9 +444,11 @@ alpha.196) while `revision-system-unified.md` is live canonical. Those documents
 do carry supersession banners in prose, but the tool's result shape is *matching
 file, line number, nearest `##`/`###` heading, and a snippet*
 (`packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php:46`), which does not
-carry a top-of-file status banner to the caller. The default profile therefore
-ships three granted tools of which two answer today, and that is a stated
-dependency rather than a defect in this decision.
+carry a top-of-file status banner to the caller. The allowlist therefore ships
+three members of which two answer today, and that is a stated dependency rather
+than a defect in this decision. The tool stays on the allowlist rather than being
+removed and re-added later: its membership is already reviewed, and D-7.3's gate
+means re-adding it would otherwise read as a deliberate widening of the default.
 
 **Everything else is opt-in and off by default**, and this list is exhaustive of
 what the default profile withholds:
@@ -482,8 +558,16 @@ clears. Recorded here so #2655 has an explicit checklist:
   being mistaken for a user row, and structurally incapable of being the ambient
   acting account (R-4). Any code that assumes an int uid will fail loudly rather
   than binding to uid `0`.
-- D-4 means widening the local grant invalidates the caches computed under the
-  narrower one, rather than serving stale authority.
+- D-4 means a revocation takes effect at the cache boundary: narrowing the local
+  grant, or tightening the read policy, moves the generation and so retires every
+  entry computed under the broader authority, instead of continuing to serve the
+  now-narrower principal data it is no longer entitled to.
+- D-7.3 adds a recorded roster and a gate that the local plane did not previously
+  need. The cost is one more artefact to regenerate deliberately; the thing it
+  buys is that a future `bimaaji.read` tool cannot join the default profile by
+  merge alone. Given the default profile is the whole of this design's
+  least-privilege claim, that trade is worth making now rather than after the
+  first silent widening.
 - The read-side sovereignty surface (D-8) is new work that did not previously
   exist. It is the price of ever enabling `entity.read` on this plane, and it is
   now a stated precondition rather than something discovered late.
@@ -497,8 +581,14 @@ clears. Recorded here so #2655 has an explicit checklist:
 | D-1, D-2, D-10 | #2655 — register the empty `waaseyaa/ai-development` metapackage through every release gate | This ADR accepted |
 | D-3.0 (home package) | #2658 places the class in `waaseyaa/ai-agent`; #2655 binds the closure invariant to a gate (D-10) | This ADR accepted |
 | D-3.0a (R-6 proven by test) | #2658 — a test asserting refusal in a production-shaped runtime | This ADR accepted |
-| D-3, D-4, D-5, D-6, D-7 | #2658 — implement `LocalOperatorPrincipal` and the least-privilege developer catalogue | **MUST NOT** begin before this ADR is accepted |
-| D-7's third tool answering at all | #2661 (lifecycle metadata + sanitized versioned corpus) then #2662 (cited FTS5 search). Not #2656. | Independent of this ADR; the default profile ships with the tool granted and inert until then |
+| D-3, D-4, D-6 | #2658 — implement `LocalOperatorPrincipal` (identity, claims generation, refusal conditions) | **MUST NOT** begin before this ADR is accepted |
+| D-5.A (real ledger, no `NullStrictAuditLedger`) | #2657 defines the refusal at the bridge; #2659 enforces it again at transport construction | This ADR accepted |
+| D-5.B (reserve/finalize around dispatch, redacted arguments) | #2657 — the bridge owns dispatch, so it owns the wrapper. **Not #2658**: no dispatch path exists until the bridge does. | This ADR accepted |
+| D-5.C (stdio `surface` constant, per-request correlation id) | #2659 — the transport owns its own identity and request boundary | **MUST NOT** begin before #2657's design is accepted |
+| D-5.D (principal audit identity: `actorUid: null`, sentinel + generation in `metadata`, no machine-identifying values) | #2658 | **MUST NOT** begin before this ADR is accepted |
+| D-7.1, D-7.2 (tool-ID allowlist, layered capability checks) | #2658 — defines the allowlist and its initial three members | **MUST NOT** begin before this ADR is accepted |
+| D-7.3 (executable exact-membership gate) | #2658 ships the gate with the allowlist; the roster lives beside the S1 rosters in `support/` | This ADR accepted |
+| D-7's third tool answering at all | #2661 (lifecycle metadata + sanitized versioned corpus) then #2662 (cited FTS5 search). Not #2656. | Independent of this ADR; the tool is on the allowlist and inert until then |
 | D-8 | #2658 for the default (no content capability, so no content read to gate); the read-side evaluation surface itself lands with the first opt-in capability, sequenced through #2657 | This ADR accepted |
 | D-9.1, D-9.3 | #2657 — extract a transport-neutral tool-registry bridge without enabling HTTP | This ADR accepted |
 | D-9.2 | #2659 — conformant local stdio server | **MUST NOT** begin before #2657's design is accepted |
