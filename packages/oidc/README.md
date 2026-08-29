@@ -65,7 +65,7 @@ OIDC client.
 | Consent `GET`/`POST /oidc/consent` | Implemented | `Consent\ConsentScreenController` and `Consent\ConsentRepository`. The route is not CSRF-exempt and the controller additionally verifies `_csrf_token`. Approval records a row in `oidc_user_consent` and issues the code; denial redirects with `error=access_denied`. The screen is inline HTML, not a Twig template (the class docblock still says Twig and is stale). |
 | Client registry | Implemented | `oidc_client` entity, `ClientRegistry\OidcClientLookup`, `ClientRegistry\OidcClientSeeder` for the `oidc.clients` config block, `OidcClientAccessPolicy`. Admin JSON:API CRUD at `/api/oidc-clients` (`Waaseyaa\Api\Controller\OidcClientController`); Admin SPA screens under `packages/admin/app/pages/oidc/clients/`. This is **not** RFC 7591 dynamic registration. |
 | Signing-key lifecycle | Implemented | `Key\SigningKeyRepository`, `Key\RealKeyMaterialProvider`, `Key\SigningKeyLifecyclePolicy`, `Key\SigningKeyEmergencyRevocationService`. Stage, propagate, activate, clean up and emergency-revoke are separate audited transitions with their own CLI commands. Issuer signing binds `KeyMaterialProviderInterface` to `Key\RealKeyMaterialProvider` over that repository unconditionally; no configuration redirects issuer signing to files. `Keys\PemFileKeyLoader` is bound separately as `OidcKeyLoaderInterface` (shaped by `oidc.signing_keys` or `OIDC_SIGNING_KEY_DIR`) and is reachable by explicit callers through `Token\InMemoryKeyMaterialProvider`, but nothing in the issuer signing path resolves it. |
-| Encrypted key and token custody | Implemented, two envelope formats | Current runtime writes application-master envelopes; `secretbox.hkdf-v1:` is the legacy format. See [Security: secrets at rest](#security-secrets-at-rest). Opaque access and refresh tokens carry separate encryption keys and separate HMAC-SHA-256 lookup keys under either format. `ext-sodium` is a hard requirement. |
+| Encrypted key and token custody | Implemented, two envelope formats | Which format a process writes depends on whether an `ApplicationMasterKeyring` is bound: a keyring-backed runtime writes application-master envelopes, and a runtime without a bound keyring writes `secretbox.hkdf-v1:` envelopes. The package binds no keyring itself and resolves it optionally, so neither format is universal. See [Security: secrets at rest](#security-secrets-at-rest). Opaque access and refresh tokens carry separate encryption keys and separate HMAC-SHA-256 lookup keys under either format. `ext-sodium` is a hard requirement. |
 | Migrations | Implemented | Eight migrations under `packages/oidc/migrations/`, listed below. |
 | RP-initiated logout / `end_session` | **Absent** | No controller, no route, no `end_session` string anywhere in `packages/oidc/src` or `packages/routing/src`, and no `end_session_endpoint` in the discovery document. Explicitly deferred by the completion spec. |
 | Token introspection (RFC 7662) | Absent | Declared out of scope by the completion spec; relying parties validate ID tokens against JWKS. |
@@ -142,7 +142,7 @@ envelope formats, and which one a given process **writes** depends on the
 custody `OidcServiceProvider::runtimeCustody()` selects. Public-key material
 remains directly readable in both.
 
-### Current: application-master custody
+### Keyring-backed: application-master envelopes
 
 When an `ApplicationMasterKeyring` is bound, `runtimeCustody()` selects it and
 derives no application-secret key. `SecretBoxEnvelope::seal()` then writes a
@@ -151,8 +151,13 @@ JSON `Foundation\Security\ApplicationMasterEnvelope`
 AEAD. Each envelope records its master version, purpose, record identity and
 schema version, and those fields are authenticated as associated data. Opening
 re-checks purpose, record identity and schema version exactly before returning
-plaintext. This is the format a current runtime writes; it carries **no**
-`secretbox.hkdf-v1:` prefix.
+plaintext. This format carries **no** `secretbox.hkdf-v1:` prefix.
+
+`OidcServiceProvider` resolves the keyring with
+`resolveOptional(ApplicationMasterKeyring::class)` and binds none itself. No
+default binding was found anywhere in this repository outside tests, so whether
+an installation gets this format depends on how that application wires its
+secret resolver.
 
 Master-version rotation is covered by dedicated rekey adapters for signing keys
 and both token tables (`Rekey\OidcSigningKeyRekeyAdapter`,
@@ -160,14 +165,14 @@ and both token tables (`Rekey\OidcSigningKeyRekeyAdapter`,
 which implement snapshot, batched transition, verification and rollback against
 the application-master rekey coordinator.
 
-### Legacy: `secretbox.hkdf-v1:` envelopes
+### Without a bound keyring: `secretbox.hkdf-v1:` envelopes
 
 When no keyring is bound, custody falls back to a 32-byte key derived from the
 `ApplicationSecret` (rooted in `WAASEYAA_APP_SECRET`) through a distinct,
 versioned HKDF-SHA-256 purpose per record class. `seal()` then writes
 `secretbox.hkdf-v1:` followed by base64url of a fresh nonce and an
-`XSalsa20-Poly1305` secretbox ciphertext. This is the format the package wrote
-before application-master custody existed.
+`XSalsa20-Poly1305` secretbox ciphertext. This is the older of the two formats,
+and it is what a runtime with no bound keyring writes today.
 
 ### Compatibility and reading
 
@@ -180,9 +185,10 @@ derived legacy key alongside the keyring, so a keyring-backed process can still
 open pre-existing `secretbox.hkdf-v1:` rows. It does not change the write
 format: a keyring-backed process still seals new material as an
 application-master envelope. Without that flag, a bound keyring means legacy
-envelopes cannot be opened. The flag is a migration affordance, not a steady
-state: it re-introduces the `WAASEYAA_APP_SECRET` dependency the keyring
-removes.
+envelopes cannot be opened. Setting it does re-introduce the
+`WAASEYAA_APP_SECRET` dependency that a bound keyring otherwise removes. This
+repository states no policy on how long an installation may leave the flag
+enabled.
 
 Under either format, opaque access and refresh tokens use separate encryption
 keys and separate HMAC-SHA-256 lookup keys. Exact lookup uses the keyed lookup
@@ -190,15 +196,43 @@ column; the bearer value is returned only after its encrypted envelope
 authenticates. Runtime readers accept only authenticated envelopes; there is no
 ongoing plaintext read mode.
 
-### Migrating plaintext rows
+### Normalizing stored custody
 
-`bin/waaseyaa oidc:migrate-secrets --confirm` converts unencrypted signing keys,
-access tokens and refresh tokens in one transaction; run it in maintenance mode
-after taking a trusted backup.
+`bin/waaseyaa oidc:migrate-secrets --confirm` runs
+`Security\LegacyOidcSecretMigrator` over `oidc_signing_key`,
+`oidc_access_token` and `oidc_refresh_token` inside a single
+`oidc_secret_storage_migration` transaction, rolling back on any error and
+returning per-table counts. Run it in maintenance mode after taking a trusted
+backup.
+
+It normalizes rather than only encrypting. Given custody material able to read
+the stored value, each row is treated as follows:
+
+- **Plaintext** signing keys (PEM) and tokens are sealed with the custody the
+  runtime selected. Signing-key material that is neither an envelope nor a PEM
+  private key is refused, as is an empty token value.
+- **`secretbox.hkdf-v1:` envelopes** are opened and resealed under the selected
+  custody, which is how a keyring-backed installation converts legacy rows.
+- **Application-master envelopes whose master version is not the active
+  version** are opened and resealed at the active version. For tokens the keyed
+  lookup index is re-derived too, so a row whose ciphertext is already current
+  but whose `token_lookup` is not is still migrated.
+- **Rows already at the active version** are skipped, and when no keyring is
+  bound existing envelopes are skipped rather than rewritten. For the two token
+  tables this skip is evaluated only for rows that already carry a
+  `token_lookup` value; a row without one is resealed and its lookup index
+  written.
+
+Each update is applied with a compare-and-set condition on the previously
+stored value, and a concurrent modification aborts the migration rather than
+overwriting it. A `token_lookup` that does not correspond to its token is
+refused.
+
 [`docs/upgrade-notes/oidc-secrets-at-rest.md`](../../docs/upgrade-notes/oidc-secrets-at-rest.md)
-records that procedure. Note that the upgrade note is written against the
-`WAASEYAA_APP_SECRET` legacy model and does not yet describe application-master
-custody.
+describes the original plaintext-to-secretbox upgrade only. It is written
+against the `WAASEYAA_APP_SECRET` model and does not describe application-master
+custody or the resealing behaviour above; the behaviour described here comes
+from `LegacyOidcSecretMigrator` itself.
 
 ## Deferred and out of scope
 
