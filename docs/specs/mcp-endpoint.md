@@ -392,8 +392,101 @@ Behavior (`authenticate()` decision order):
 - **Zero added queries (NFR-003):** the status read is an in-memory method call on the already-resolved account object. Kernels — and therefore token maps and their account objects — are constructed per request in every runtime, so the read reflects persisted state as of the current request's boot. No re-load, no cache, no new I/O.
 - Each token maps to a specific user account, so MCP tool calls respect entity access control.
 - `getTokens()` (the admin-fingerprinting accessor, `ServerConfigReadModel` contract) keeps returning the raw token→account map, unchanged.
-- No token expiry in the opaque-bearer model. OAuth 2.1 is not advertised or
-  implemented by this package; adopting it remains a separate product call.
+- No token expiry in the opaque-bearer model. For the credential model that
+  does carry expiry, revocation and audience binding, see the OAuth
+  resource-server section below.
+
+### OAuth 2.1 resource server (write tier)
+
+The package ships the **resource-server half** of the MCP authorization model.
+It does not ship an authorization server, and it does not ship a token
+validator — see "What does not ship" below, which is the part that decides
+whether a deployment can actually turn this on.
+
+`OAuthMcpAuth` implements both `WriteTierAuthInterface` and
+`ScopedMcpAuthInterface`, so a validated token narrows the request's tool
+surface as well as authenticating it:
+
+```php
+final readonly class OAuthMcpAuth implements WriteTierAuthInterface, ScopedMcpAuthInterface
+{
+    public function __construct(
+        private OAuthAccessTokenValidatorInterface $validator,
+        private OAuthProtectedResourceMetadataConfig $resource,
+        private ?LoggerInterface $logger = null,
+    ) {}
+}
+```
+
+**Decision order in `authenticateWithScopes()`** — every branch fails closed:
+
+- No header, or a header that does not start with `bearer ` (case-insensitive),
+  or an empty token after the prefix → `null`.
+- `$validator->validate($token, $this->resource->resource)` — the configured
+  **resource identifier is passed on every call**, so audience binding (RFC
+  8707) is a parameter of the trust boundary rather than an optional check a
+  validator may forget to make.
+- Any `Throwable` from the validator → logged with the exception **class only**
+  (never its message, which can carry token material) and treated as `null`. A
+  validator outage is an authentication failure, not a bypass.
+- A principal with an **empty scope list → `null`**. An empty list means "may
+  use nothing", never "may use everything".
+
+`ScopedPrincipal` carries the **real owning account**, never a token-derived
+identity — approval separation-of-duties comparisons keep their meaning — plus
+the granted capability scopes. `McpEndpoint` intersects the tier's registry
+with those scopes fail-closed.
+
+#### RFC 9728 protected-resource metadata
+
+`OAuthProtectedResourceMetadataConfig` is validated at construction, so a
+malformed deployment fails at boot rather than at first challenge:
+
+| Rule | Effect |
+|---|---|
+| `resource` and each `authorization_servers` entry must be absolute HTTP(S) URIs with no credentials, query, or fragment | `InvalidArgumentException` |
+| HTTPS required except on `localhost` / `127.0.0.1` / `::1` | `InvalidArgumentException` |
+| `authorization_servers` non-empty and duplicate-free | `InvalidArgumentException` |
+| `scopes_supported` entries must be valid OAuth scope tokens (RFC 6749 `scope-token`: no space, no `"`, no `\`) and duplicate-free | `InvalidArgumentException` |
+
+`toArray()` emits `resource`, `authorization_servers`,
+`bearer_methods_supported: ["header"]`, and — only when set —
+`scopes_supported` and `resource_documentation`. `OAuthProtectedResourceMetadata`
+serves it with `Cache-Control: public, max-age=300`.
+
+The same object owns **both** the discovery path and the challenge, which is
+why they cannot drift apart:
+
+- `metadataPath()` → `/.well-known/oauth-protected-resource` + the resource's
+  path (path-specific per RFC 9728, so `/mcp/write` gets its own document).
+- `metadataUri()` → the absolute form, IPv6 hosts bracketed.
+- `challenge()` → `Bearer resource_metadata="<metadataUri>"`, plus
+  `, scope="<space-joined scopes>"` when scopes are configured. This is the
+  `WWW-Authenticate` value `McpEndpoint` returns on 401.
+
+`McpRouteProvider` registers `mcp.oauth_protected_resource` at
+`metadataPath()` **only when** the metadata config is present.
+
+#### What does not ship
+
+- **No `OAuthAccessTokenValidatorInterface` implementation.** The interface is
+  the trust boundary and nothing in the tree implements it (the only
+  implementations are anonymous classes in `OAuthMcpAuthTest`). A deployment
+  must supply one, and it MUST verify issuer, integrity or introspection
+  response, expiry, revocation state, and audience binding before returning a
+  principal. Until then `OAuthMcpAuth` cannot be constructed.
+- **No automatic wiring.** `resolveWriteTierAuth()` has no OAuth branch: it
+  resolves an application-bound `WriteTierAuthInterface`, then falls back to
+  `DurableBearerTokenAuth`, then to `BearerTokenAuth([])` (always 401).
+  Choosing OAuth means binding `WriteTierAuthInterface` to `OAuthMcpAuth`.
+- **No authorization server.** `waaseyaa/oauth-provider` exists in the tree but
+  is not wired to this surface, and PKCE is an authorization-server and client
+  concern that a resource server does not participate in.
+- **Scopes are capability ids, and the two vocabularies do not fully agree.**
+  `scopes_supported` rejects any value containing a space, while the shipped
+  default write-tier capability is the literal `present guided content`. A
+  capability whose id contains a space cannot be advertised as a scope. #1640
+  tracks the profile decision.
 
 ## Per-request bridge execution
 

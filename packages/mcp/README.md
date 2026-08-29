@@ -329,7 +329,7 @@ return [
                 'enabled' => true,
                 'resource' => 'https://cms.example/mcp/write',
                 'authorization_servers' => ['https://identity.example'],
-                'scopes_supported' => ['content.read', 'content.write'],
+                'scopes_supported' => ['tool.entity.read', 'tool.content.search'],
                 'resource_documentation' => 'https://cms.example/docs/mcp',
             ],
         ],
@@ -341,6 +341,16 @@ The framework then serves RFC 9728 metadata at the path-specific well-known
 URI and includes that absolute URI plus scope guidance on every 401 challenge.
 Plain HTTP is accepted only for loopback development; malformed, duplicate, or
 insecure metadata fails application boot.
+
+**`scopes_supported` entries are capability ids, not invented scope names.** A
+token is admitted only for the intersection of the write-tier allowlist and the
+capabilities its scopes name, so a scope no tool declares silently yields a
+caller who authenticates and then sees an empty tool list. Advertise ids that
+exist — `tool.entity.read`, `tool.content.search`, `tool.entity.update` — which
+you can enumerate from the `#[AsAgentTool]` declarations the deployment
+installs. Note that a capability id containing a space is **not** a valid OAuth
+scope token and is rejected at boot; the shipped default write-tier capability,
+`present guided content`, is one such id. #1640 tracks that reconciliation.
 
 Bind `WriteTierAuthInterface` to `OAuthMcpAuth`, constructed with the same
 `OAuthProtectedResourceMetadataConfig` and an application implementation of
