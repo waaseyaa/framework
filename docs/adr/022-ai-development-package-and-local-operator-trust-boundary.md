@@ -611,9 +611,12 @@ clears. Recorded here so #2655 has an explicit checklist:
   local plane reuses that
   type, or the bridge introduces a transport-neutral equivalent that both
   adapters consume, is #2657's call.
-- **Q-4 — Whether the audit `surface` constant is owned by the bridge or the
-  stdio adapter.** D-5.1 fixes that it must be dedicated and must not reuse an
-  HTTP identifier; ownership is a bridge-design detail.
+
+An earlier draft listed a fourth question — whether the audit `surface` constant
+belongs to the bridge or to the stdio adapter. **D-5.C closed it**: the transport
+owns its own identity and request boundary, so the constant and the per-request
+correlation id are #2659's, not #2657's. It is recorded here rather than silently
+dropped so the closure is traceable.
 
 ## Non-goals
 
