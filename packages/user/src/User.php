@@ -48,6 +48,23 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     #[Field(required: false, label: 'Password hash', readOnly: true, read: FieldReadLevel::Internal)]
     public string $pass = '';
 
+    /**
+     * A credential imported from another system, pending upgrade (#2544).
+     *
+     * Kept in its OWN field rather than in `pass` so the two are never
+     * interchangeable strings: `pass` is always a current Waaseyaa hash or
+     * empty, and only this field is ever offered to a legacy verifier. That is
+     * what makes "a current hash is never downgraded" a structural property
+     * instead of a sniffing rule.
+     *
+     * Null for every account the framework created itself, and null again the
+     * moment {@see \Waaseyaa\Auth\Password\LegacyPasswordUpgrade} accepts it
+     * once. It is a password equivalent for as long as it is non-null and is
+     * internal on every read surface, exactly like `pass`.
+     */
+    #[Field(required: false, label: 'Legacy password hash', readOnly: true, settings: ['internal' => true], read: FieldReadLevel::Internal)]
+    public ?string $legacy_pass = null;
+
     /** @var list<string> */
     #[Field(required: false, label: 'Roles', settings: ['subtype' => 'string_list'], read: FieldReadLevel::Internal)]
     public array $roles = [];
@@ -262,6 +279,25 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
         $hash = password_hash($plaintext, \PASSWORD_DEFAULT);
 
         return $this->set('pass', $hash);
+    }
+
+    /** The pending imported credential, or null once there is none (#2544). */
+    public function getLegacyPassword(): ?string
+    {
+        $value = $this->get('legacy_pass');
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * Record an imported credential for one-time upgrade, or clear it.
+     *
+     * A migration writes here and leaves `pass` empty; the first successful
+     * login rewrites `pass` and clears this in the same save.
+     */
+    public function setLegacyPassword(?string $legacyHash): static
+    {
+        return $this->set('legacy_pass', $legacyHash === '' ? null : $legacyHash);
     }
 
     /**

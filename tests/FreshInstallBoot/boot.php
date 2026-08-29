@@ -39,6 +39,7 @@ use Waaseyaa\Auth\Controller\LoginController;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Extension\RegisteredUserReference;
 use Waaseyaa\Auth\Extension\RegistrationContext;
+use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
@@ -134,12 +135,14 @@ try {
     $twoFactor = $resolver->resolve(TwoFactorService::class);
     $identityLookup = $resolver->resolve(UserIdentityLookupInterface::class);
     $internalFields = $resolver->resolve(UserInternalFieldReaderInterface::class);
+    $passwords = $resolver->resolve(LegacyPasswordUpgrade::class);
     if (!$rateLimiter instanceof RateLimiterInterface || !$twoFactor instanceof TwoFactorService
         || !$identityLookup instanceof UserIdentityLookupInterface
-        || !$internalFields instanceof UserInternalFieldReaderInterface) {
+        || !$internalFields instanceof UserInternalFieldReaderInterface
+        || !$passwords instanceof LegacyPasswordUpgrade) {
         throw new RuntimeException('Packaged auth dependencies were not resolvable.');
     }
-    $login = new LoginController($entityTypes, $rateLimiter, $twoFactor, $identityLookup, $internalFields, $extensions);
+    $login = new LoginController($entityTypes, $rateLimiter, $twoFactor, $identityLookup, $internalFields, $extensions, $passwords);
     $wrong = Request::create('/auth/login', 'POST', server: ['REMOTE_ADDR' => '127.0.0.77'], content: json_encode([
         'username' => 'packaged-login',
         'password' => 'wrong password',

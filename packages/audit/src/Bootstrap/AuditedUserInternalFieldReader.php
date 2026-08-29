@@ -30,9 +30,23 @@ final readonly class AuditedUserInternalFieldReader implements UserInternalField
 
     public function credentials(EntityInterface $user): UserCredentialSnapshot
     {
-        $values = $this->read('user.credentials', CapabilityReason::CredentialVerification, $user, ['status', 'pass']);
+        // `legacy_pass` is read under the SAME credential-verification authority
+        // as `pass` — it is a password equivalent until the first successful
+        // login upgrades it away (#2544), so it must not be reachable through
+        // any weaker reason.
+        $values = $this->read(
+            'user.credentials',
+            CapabilityReason::CredentialVerification,
+            $user,
+            ['status', 'pass', 'legacy_pass'],
+        );
+        $legacy = $values['legacy_pass'] ?? null;
 
-        return new UserCredentialSnapshot((bool) ($values['status'] ?? false), (string) ($values['pass'] ?? ''));
+        return new UserCredentialSnapshot(
+            (bool) ($values['status'] ?? false),
+            (string) ($values['pass'] ?? ''),
+            is_string($legacy) && $legacy !== '' ? $legacy : null,
+        );
     }
 
     public function twoFactor(EntityInterface $user): UserTwoFactorSnapshot

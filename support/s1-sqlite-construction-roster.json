@@ -1216,6 +1216,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/auth/tests/Unit/Controller/LoginControllerTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
             "path": "packages/auth/tests/Unit/DatabaseRateLimiterTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -1228,6 +1235,20 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 2
+        },
+        {
+            "path": "packages/auth/tests/Unit/Password/LegacyPasswordUpgradeTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/auth/tests/Unit/Password/LegacyPasswordWiringTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
         },
         {
             "path": "packages/auth/tests/Unit/Rekey/AuthTokenHmacRekeyAdapterRetainedRedTest.php",
@@ -6799,6 +6820,13 @@
             "pattern": "sqlite_dsn_token",
             "class": "test",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Provenance/KernelRevisionAuthorTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 1
         },
         {
