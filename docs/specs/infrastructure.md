@@ -2740,6 +2740,47 @@ application artifact while preserving or merging the serving runtime tables
 according to that catalogue. Applications declare only their artifact-owned
 tables; unknown tables in either input fail closed.
 
+**Completeness is the load-bearing property (#2547, catalogue version 2).**
+Fail-closed rejection only helps if the catalogue actually covers what Framework
+migrations install. It did not: 22 Framework-owned tables were unclassified, so
+a serving database built on the same commit as the artifact was rejected before
+a single row was copied — Framework could boot and pass CI while being unable to
+complete its own documented data refresh.
+
+Two rules follow from that:
+
+- **New migration-installed runtime state is classified in the same change that
+  installs it.** `FrameworkRuntimeTableCatalogueCompletenessTest`'s
+  `PRE_CATALOGUE_ADJUDICATION_TABLES` list is a shrinking ledger of historical
+  debt, not a place to defer work to.
+- **Set comparison is not proof.** That test compares installed names against
+  catalogued ones and stayed green throughout, because a grandfather entry
+  satisfies it. `MigrationInstalledArtifactPreparationTest` drives the real
+  preparer over a real migration-installed database, which is the assertion the
+  production failure actually tripped.
+
+Classification follows who authors the rows. Framework-owned tables whose rows
+the serving host writes are `Preserve` (or `AppendOnly` where the rows are a
+ledger); rows that are content or rebuildable come from the artifact
+(`Artifact`); identity is `IdentityMerge`. Three consequences worth stating,
+because each is a place the obvious answer is wrong:
+
+- **The configuration-authority graph moves as one set.** Foreign keys and
+  cross-table triggers bind those tables together, so preserving some while
+  taking others from the artifact would leave the graph referencing rows that
+  are not there. (Restoring them without firing those triggers against a partial
+  state is #2548.)
+- **Monotonic counters are a correctness concern, not a data-retention one.**
+  `waaseyaa_scheduler_fence_sequence` is preserved because a reset would let a
+  stale lease holder out-fence the live one.
+- **`waaseyaa_schema_authority` is `Artifact`**, not preserved: it counts the
+  migration ledger, and `waaseyaa_migrations` is already artifact-owned. The
+  candidate's schema is the artifact's, so its generation must be too.
+
+`AppendOnly` and `Preserve` are the same code path in the preparer today. The
+distinction is recorded intent — which rows are a rewritable state and which are
+a ledger — so a policy that does distinguish them lands on the right rows.
+
 When an application uninstalls an optional domain, it may pass that domain's
 former tables through `retiredApplicationTables`. Retirement is intentionally
 strict: each table must be absent from the new artifact, must not conflict with
