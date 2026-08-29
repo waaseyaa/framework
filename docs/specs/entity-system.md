@@ -1173,12 +1173,27 @@ Low-level I/O SPI without entity hydration or events:
 ```php
 public function read(string $entityType, string $id, ?string $langcode = null): ?array;
 public function readMultiple(string $entityType, array $ids, ?string $langcode = null): array;
-public function write(string $entityType, string $id, array $values): void;
+public function write(string $entityType, string $id, array $values): string;
 public function remove(string $entityType, string $id): void;
 public function exists(string $entityType, string $id): bool;
 public function count(string $entityType, array $criteria = []): int;
 public function findBy(string $entityType, array $criteria = [], ?array $orderBy = null, ?int $limit = null): array;
 ```
+
+**Row-identity invariant.** `write()` returns the *effective* id of the persisted
+row — the caller-supplied `$id`, or the one the backend assigned when `$id` was
+the empty string. The persisted row MUST also carry that effective id under the
+entity type's id key, so every row later returned by `read()`, `readMultiple()`
+and `findBy()` carries it. `EntityRepository::hydrate()` reads entity identity
+from row values alone and never re-injects the id it addressed the row by, so a
+row that omits the key hydrates an entity whose `id()` is `null`; `isNew()` then
+reports true and the next save inserts a duplicate instead of updating (#2646).
+`SqlStorageDriver` satisfies this structurally — the id is a physical column the
+database populates and every `table.*` SELECT returns. A backend that stores
+rows in an array keyed by id must stamp the id into the row itself; because the
+id key name is entity-type metadata this SPI does not pass, such a driver must
+be *told* the key. `AbstractEntityStorageDriverContract` pins the invariant for
+every implementation via its `AUTO_ID_ENTITY_TYPE` fixture.
 
 #### SqlStorageDriver
 
@@ -1194,7 +1209,7 @@ When `$communityScope` is injected and active, all read/findBy/count/exists/remo
 #### InMemoryStorageDriver
 
 File: `packages/entity-storage/src/Driver/InMemoryStorageDriver.php`
-Constructor: `(?CommunityScope $communityScope = null)`
+Constructor: `(?CommunityScope $communityScope = null, string $idKey = 'id')`
 
 In-memory storage for testing. Accepts an optional `CommunityScope` and applies the same community isolation logic as `SqlStorageDriver` — all read/findBy/count/exists/remove operations are scoped when the context is active. Scoped translation writes also require a visible base owner, stamp the active community, and refuse foreign ownership before mutation.
 
@@ -1203,6 +1218,14 @@ Additional methods beyond the interface:
 - `deleteTranslation(string $entityType, string $id, string $langcode): void`
 - `getAvailableLanguages(string $entityType, string $id): string[]`
 - `clear(): void`
+- `declareIdKey(string $entityType, string $idKey): void` — names the column an
+  entity type stores its primary key under, so an auto-assigned id is stamped
+  into the persisted row under that key (see the row-identity invariant above).
+  `V2EntityRepositoryFactory::create()` calls it from the entity type's own keys
+  before wrapping the driver, which is what makes a `nid`- or `uid`-keyed type
+  round-trip. Drivers receive only an entity-type id per call, so the key cannot
+  be derived; `new InMemoryStorageDriver(idKey: 'nid')` is the escape hatch for a
+  fixture written to directly, before any composition (#2646).
 
 #### RevisionableStorageDriver
 

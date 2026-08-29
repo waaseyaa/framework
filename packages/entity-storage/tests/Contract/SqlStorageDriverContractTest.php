@@ -26,6 +26,15 @@ final class SqlStorageDriverContractTest extends AbstractEntityStorageDriverCont
             'primary key' => ['id'],
         ]);
 
+        $this->database->schema()->createTable(self::AUTO_ID_ENTITY_TYPE, [
+            'fields' => [
+                'id' => ['type' => 'serial', 'not null' => true],
+                'title' => ['type' => 'varchar'],
+                'status' => ['type' => 'varchar'],
+            ],
+            'primary key' => ['id'],
+        ]);
+
         $resolver = new SingleConnectionResolver($this->database);
 
         return new SqlStorageDriver($resolver, 'id');

@@ -18,6 +18,7 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
 {
     public function __construct(
         private readonly ?CommunityScope $communityScope = null,
+        private readonly string $idKey = 'id',
     ) {}
 
     /**
@@ -40,6 +41,33 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
      * @var array<string, int>
      */
     private array $autoIncrement = [];
+
+    /**
+     * Per-entity-type primary key column, declared by the composing factory.
+     *
+     * @var array<string, string>
+     */
+    private array $idKeys = [];
+
+    /**
+     * Declare the column an entity type stores its primary key under.
+     *
+     * A driver is handed only an entity-type id per call, so unlike
+     * {@see SqlStorageDriver} it cannot know whether the key is `id`, `nid` or
+     * `uid`. Composition roots that hold the entity type declare it here; the
+     * constructor default covers hand-built fixtures.
+     */
+    public function declareIdKey(string $entityType, string $idKey): void
+    {
+        if ($idKey !== '') {
+            $this->idKeys[$entityType] = $idKey;
+        }
+    }
+
+    private function idKeyFor(string $entityType): string
+    {
+        return $this->idKeys[$entityType] ?? $this->idKey;
+    }
 
     public function read(string $entityType, string $id, ?string $langcode = null): ?array
     {
@@ -99,9 +127,27 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
             $values['community_id'] = $active;
         }
 
+        $idKey = $this->idKeyFor($entityType);
+
         if ($id === '') {
             $this->autoIncrement[$entityType] = ($this->autoIncrement[$entityType] ?? 0) + 1;
-            $id = (string) $this->autoIncrement[$entityType];
+            $assignedId = $this->autoIncrement[$entityType];
+            $id = (string) $assignedId;
+
+            // Parity with SqlStorageDriver: the effective id is a property of
+            // the PERSISTED ROW, not only of the return value. Its INSERT lets
+            // the database populate a real id column, which every `table.*`
+            // SELECT returns. EntityRepository::hydrate() reads the entity id
+            // solely from $row[<id key>], so a row that omits it hydrates an
+            // entity whose id() is null; isNew() then reports true and the next
+            // save INSERTs a duplicate instead of updating (#2646). Store an
+            // int: that is what a SQLite serial column returns and what
+            // hydrate() normalises numeric ids to.
+            $values[$idKey] = $assignedId;
+        } elseif (!isset($values[$idKey])) {
+            // Row identity is the store key; keep the stored row self-describing
+            // for explicit-id writes whose value bag omits (or nulls) the key.
+            $values[$idKey] = $id;
         }
 
         $this->store[$entityType][$id] = $values;

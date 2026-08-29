@@ -98,6 +98,11 @@ final class V2EntityRepositoryFactory
     ): EntityRepository {
         $storageBoundary ??= new StorageBoundary();
         if ($driver instanceof InMemoryStorageDriver) {
+            // The V1 backend is handed only an entity-type id per call; tell it
+            // which column carries the primary key so an auto-id write stamps
+            // the assigned id under this entity type's own key (#2646).
+            $driver->declareIdKey($entityType->id(), $entityType->getKeys()['id'] ?? 'id');
+
             $driver = new InMemoryStorageDriverV2(
                 $driver,
                 $storageBoundary->driverRowFactory(),

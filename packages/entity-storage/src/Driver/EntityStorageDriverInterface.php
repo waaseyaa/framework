@@ -22,7 +22,7 @@ interface EntityStorageDriverInterface
      * @param string $entityType The entity type machine name (table name).
      * @param string $id The entity ID.
      * @param string|null $langcode Optional language code to load a specific translation.
-     * @return array<string, mixed>|null Raw values, or null if not found.
+     * @return array<string, mixed>|null Raw values including the row's own id key, or null if not found.
      */
     public function read(string $entityType, string $id, ?string $langcode = null): ?array;
 
@@ -42,6 +42,17 @@ interface EntityStorageDriverInterface
      * new row and returns the id the storage backend assigned (for SQL-backed
      * drivers, the auto-increment primary key via lastInsertId). When $id is a
      * non-empty string, the driver returns that same id.
+     *
+     * The persisted row MUST also carry that effective id under the entity
+     * type's id key, including an id the driver assigned itself, so that every
+     * row later returned by {@see read()}, {@see readMultiple()} and
+     * {@see findBy()} carries it. EntityRepository hydrates entity identity
+     * from row values alone and never re-injects the id it addressed the row
+     * by, so a row that omits the key hydrates an entity whose id() is null --
+     * which isNew() reports as new, and whose next save inserts a duplicate
+     * (#2646). A backend that stores rows in an array keyed by id must stamp
+     * the id into the row itself; the id key name is entity-type metadata this
+     * SPI does not pass, so such a driver must be configured with it.
      *
      * @param string $entityType The entity type machine name.
      * @param string $id The entity ID, or empty string for an auto-assigned id.
@@ -82,7 +93,7 @@ interface EntityStorageDriverInterface
      * @param array<string, mixed> $criteria Field => value pairs to filter by.
      * @param array<string, string>|null $orderBy Field => direction ('ASC'/'DESC') pairs.
      * @param int|null $limit Maximum number of results.
-     * @return array<int, array<string, mixed>> List of raw value arrays.
+     * @return array<int, array<string, mixed>> List of raw value arrays, each carrying the row's own id key.
      */
     public function findBy(
         string $entityType,

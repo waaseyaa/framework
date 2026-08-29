@@ -18,6 +18,14 @@ use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 #[CoversNothing]
 abstract class AbstractEntityStorageDriverContract extends TestCase
 {
+    /**
+     * Entity type whose id is assigned by the backend on an empty-id write.
+     *
+     * Subclasses MUST provide storage for this entity type with a
+     * backend-assigned (auto-increment) `id` column.
+     */
+    protected const AUTO_ID_ENTITY_TYPE = 'auto_id_entity';
+
     protected EntityStorageDriverInterface $driver;
 
     abstract protected function createDriver(): EntityStorageDriverInterface;
@@ -82,6 +90,54 @@ abstract class AbstractEntityStorageDriverContract extends TestCase
 
         self::assertNotNull($result);
         self::assertSame('Updated', $result['title']);
+    }
+
+    // ── auto-assigned ids (#2646) ──────────────────────
+
+    #[Test]
+    public function autoAssignedIdIsPersistedInTheStoredRow(): void
+    {
+        $assigned = $this->driver->write(static::AUTO_ID_ENTITY_TYPE, '', ['title' => 'Auto']);
+
+        self::assertNotSame('', $assigned, 'An empty-id write must return the assigned id.');
+
+        $row = $this->driver->read(static::AUTO_ID_ENTITY_TYPE, $assigned);
+
+        self::assertNotNull($row);
+        self::assertArrayHasKey('id', $row, 'A persisted row must carry its own id key.');
+        self::assertSame($assigned, (string) $row['id']);
+    }
+
+    #[Test]
+    public function autoAssignedIdIsPresentOnRowsReturnedByFindBy(): void
+    {
+        $assigned = $this->driver->write(static::AUTO_ID_ENTITY_TYPE, '', ['title' => 'Auto']);
+
+        $results = $this->driver->findBy(static::AUTO_ID_ENTITY_TYPE, ['title' => 'Auto']);
+
+        self::assertCount(1, $results);
+        self::assertArrayHasKey('id', $results[0]);
+        self::assertSame($assigned, (string) $results[0]['id']);
+    }
+
+    #[Test]
+    public function rewritingAnAutoAssignedRowUpdatesItInPlace(): void
+    {
+        $assigned = $this->driver->write(static::AUTO_ID_ENTITY_TYPE, '', ['title' => 'First']);
+
+        $rewritten = $this->driver->write(
+            static::AUTO_ID_ENTITY_TYPE,
+            $assigned,
+            ['id' => $assigned, 'title' => 'Second'],
+        );
+
+        self::assertSame($assigned, $rewritten);
+        self::assertSame(1, $this->driver->count(static::AUTO_ID_ENTITY_TYPE));
+
+        $row = $this->driver->read(static::AUTO_ID_ENTITY_TYPE, $assigned);
+        self::assertNotNull($row);
+        self::assertSame('Second', $row['title']);
+        self::assertSame($assigned, (string) $row['id']);
     }
 
     // ── exists ──────────────────────────────────────────────────────

@@ -298,6 +298,39 @@ final class InMemoryStorageDriverTest extends TestCase
         $row = $this->driver->read('node', $first);
         $this->assertNotNull($row);
         $this->assertSame('One', $row['label']);
+        $this->assertSame(1, $row['id'], 'An auto-assigned id must be readable back off the row.');
+    }
+
+    #[Test]
+    public function explicitIdWriteFillsAnAbsentIdKey(): void
+    {
+        $this->driver->write('node', '9', ['label' => 'Direct']);
+
+        $this->assertSame(['label' => 'Direct', 'id' => '9'], $this->driver->read('node', '9'));
+    }
+
+    #[Test]
+    public function aDeclaredIdKeyIsUsedForAutoAssignedIds(): void
+    {
+        $this->driver->declareIdKey('node', 'nid');
+
+        $row = $this->driver->read('node', $this->driver->write('node', '', ['label' => 'One']));
+
+        $this->assertNotNull($row);
+        $this->assertSame(1, $row['nid']);
+        $this->assertArrayNotHasKey('id', $row);
+    }
+
+    #[Test]
+    public function aConstructorIdKeyIsUsedForAutoAssignedIds(): void
+    {
+        $driver = new InMemoryStorageDriver(null, 'nid');
+
+        $row = $driver->read('node', $driver->write('node', '', ['label' => 'One']));
+
+        $this->assertNotNull($row);
+        $this->assertSame(1, $row['nid']);
+        $this->assertArrayNotHasKey('id', $row);
     }
 
     #[Test]
