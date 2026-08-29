@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Foundation\Diagnostic\CleanUrlProbe;
+use Waaseyaa\Routing\Exception\RouteNotFoundException;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 final class SkeletonLayoutTest extends TestCase
@@ -118,11 +119,28 @@ final class SkeletonLayoutTest extends TestCase
         self::assertStringContainsString('try_files {path} /index.php?{query}', $deployment);
     }
 
+    /**
+     * The skeleton's own route table, asserted whole: it registers the clean-URL
+     * diagnostic probe and nothing else.
+     *
+     * The probe route is load-bearing — `waaseyaa-audit-site` and the operator
+     * clean-URL diagnostic depend on its sentinel.
+     *
+     * `/` must NOT be in that table. The framework's `public.home` route already
+     * binds it to `render.page`, and an application route on `/` shadows it: the
+     * removed `HomeController` served `home.html.twig` as raw bytes, so any Twig
+     * expression an app author added reached the browser unevaluated (#2651).
+     * Both assertions live in one test because both read the same route table
+     * from a single load of the skeleton provider.
+     *
+     * The kernel-level proof lives in
+     * tests/Integration/SkeletonHomepage/SkeletonHomepageRendererTest.php; this
+     * is the cheap structural guard.
+     */
     #[Test]
-    public function skeletonCleanUrlDiagnosticRouteReturnsTheExpectedSentinel(): void
+    public function skeletonRegistersTheCleanUrlProbeAndDoesNotClaimTheHomepage(): void
     {
         $repoRoot = dirname(__DIR__, 4);
-        require_once $repoRoot . '/skeleton/src/Controller/HomeController.php';
         require_once $repoRoot . '/skeleton/src/Provider/AppServiceProvider.php';
 
         $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
@@ -136,6 +154,13 @@ final class SkeletonLayoutTest extends TestCase
         $response = $controller();
         self::assertSame(200, $response->getStatusCode());
         self::assertSame(CleanUrlProbe::SENTINEL, $response->getContent());
+
+        try {
+            $router->match('/');
+            self::fail('The skeleton must not register an application route on "/" — the SSR renderer owns it (#2651).');
+        } catch (RouteNotFoundException) {
+            // Expected: `/` falls through to the framework's public.home route.
+        }
     }
 
     /**
