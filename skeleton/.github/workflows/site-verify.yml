@@ -18,4 +18,4 @@ jobs:
           extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
       - run: composer install --no-interaction --prefer-dist
-      - run: .ci/site-verify
+      - run: composer site-verify

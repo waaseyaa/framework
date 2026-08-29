@@ -3,4 +3,4 @@ set -eu
 
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
-exec "$project_root/bin/maintenance/site-verify"
+exec php "$project_root/.ci/site-verify.php" "$@"

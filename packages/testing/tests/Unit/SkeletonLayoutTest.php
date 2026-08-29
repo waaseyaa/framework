@@ -191,6 +191,50 @@ final class SkeletonLayoutTest extends TestCase
     }
 
     /**
+     * Guard: every skeleton Composer script must be runnable on native
+     * Windows (#2644).
+     *
+     * Composer hands a script that is not an `@`-directive to the OS as a
+     * command. Windows has no shebang support and honours PATHEXT, so an
+     * extensionless POSIX script — which is what `site-verify` and `audit-site`
+     * both were — is not a runnable image there at all. The portable forms are
+     * `@php <file.php>`, `@composer …`, another `@script`, or a PHP callable.
+     *
+     * `audit-site` is a known, deliberate exception: it is an optional
+     * convergence preflight, documented as POSIX-only, and is not part of the
+     * fresh-project lifecycle. It is listed here so that adding a fourth
+     * shebang script is a red test rather than a silent regression.
+     */
+    #[Test]
+    public function skeletonComposerScriptsAreRunnableOnNativeWindows(): void
+    {
+        $repoRoot = dirname(__DIR__, 4);
+        $composer = json_decode((string) file_get_contents($repoRoot . '/skeleton/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($composer);
+
+        $posixOnly = ['audit-site'];
+
+        foreach ((array) ($composer['scripts'] ?? []) as $name => $script) {
+            if (in_array($name, $posixOnly, true)) {
+                continue;
+            }
+            foreach ((array) $script as $line) {
+                self::assertMatchesRegularExpression(
+                    '/^(@|[A-Za-z_\\\\][A-Za-z0-9_\\\\]*::)/',
+                    (string) $line,
+                    sprintf(
+                        'Skeleton Composer script "%s" runs "%s" as an OS command; use @php, @composer, another @script, or a callable.',
+                        $name,
+                        (string) $line,
+                    ),
+                );
+            }
+        }
+
+        self::assertSame('@php .ci/site-verify.php', $composer['scripts']['site-verify'] ?? null);
+    }
+
+    /**
      * Guard: the skeleton README documents one fresh-project lifecycle, in
      * order, and it is the lifecycle the reference-consumer gate proves
      * (#2644). A README that presents a competing sequence — or that names a

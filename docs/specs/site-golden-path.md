@@ -267,8 +267,24 @@ omissions.
 
 ## Generated verification
 
+Verification has two layers. `bin/maintenance/site-verify` is *generated* by
+`site:init` and does the proving. `.ci/site-verify.php` is *committed* by the
+skeleton, is the entry point every adapter invokes, and exists because the
+generated command does not exist until phase 2 of the lifecycle.
+
+The committed entry is plain PHP, loads no autoloader, and boots no kernel, so
+it answers correctly before `composer install` and before `site:init`. It exits
+3 naming `site:init` when there is no site contract, 2 when dependencies are
+absent, and otherwise delegates to the generated command through `PHP_BINARY`
+and returns its status. Composer invokes it as `@php .ci/site-verify.php` so
+that it runs on native Windows, where Composer cannot execute a shebang script
+at all; the POSIX `.ci/site-verify` shell script execs the same file, so the
+pre-init instruction cannot differ between invocation paths (#2644).
+
 `bin/maintenance/site-verify` runs without network access after dependencies
-are installed. It proves:
+are installed. It is itself portable PHP: it re-executes the doctor and each
+acceptance test through `escapeshellarg(PHP_BINARY)` rather than relying on a
+child shebang. It proves:
 
 - manifest validation and generated-artifact integrity;
 - architecture rules;

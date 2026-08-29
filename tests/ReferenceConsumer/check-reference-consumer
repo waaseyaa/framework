@@ -52,6 +52,19 @@ if find "$consumer_root/vendor/waaseyaa" -type l -print -quit | grep -q .; then
 fi
 
 php "$framework_source/tests/ReferenceConsumer/prepare.php" bind-lock "$framework_source" "$consumer_root"
+
+# #2644: verification before site:init is a definite state, not a shell error.
+# The generated command does not exist yet, so the portable entry must name the
+# remedy and exit 3 rather than dying with a 127 "not found".
+pre_init_status=0
+(cd "$consumer_root" && php .ci/site-verify.php) >"$work_root/pre-init-verify.log" 2>&1 || pre_init_status=$?
+if [[ "$pre_init_status" != 3 ]]; then
+  echo "reference-consumer: pre-init verification must exit 3, got $pre_init_status" >&2
+  cat "$work_root/pre-init-verify.log" >&2
+  exit 1
+fi
+grep -q 'site:init' "$work_root/pre-init-verify.log"
+
 # The canonical fresh-project lifecycle is site:init then install:init. Stage 1
 # schema authority removed lazy runtime DDL, so a fresh generated site must
 # materialize the reviewed migration catalog explicitly before any kernel-backed
