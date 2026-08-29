@@ -82,6 +82,47 @@ Idempotency composes with this: the sha1 compare runs against the
 spliced payload, so an unchanged managed region still reports
 `unchanged` rather than rewriting the file.
 
+## Ownership and pruning retired targets
+
+Installation used to visit only the *current* target set, so a skill removed
+or renamed upstream left its generated file on disk forever: the client kept
+discovering retired guidance, and a consumer upgrading across releases
+accumulated the union of every skill set they had ever installed.
+
+`Waaseyaa\Bimaaji\Install\InstalledManifest` is the fix. After a non-dry run
+the command writes `.waaseyaa/bimaaji-install.json`, recording per client the
+exact relative path of every file it generated plus the sha1 of the bytes it
+left on disk. The file belongs in version control — it is the provenance for
+the generated files committed beside it.
+
+**Ownership is recorded, never inferred.** A `waaseyaa-*` filename is a guess,
+and the marker-bounded splice establishes that a generated file can carry
+hand-authored content, so a name match is not a licence to delete. A path
+absent from the manifest is never touched, whatever it is called.
+
+On each run, a recorded target the current set no longer produces resolves one
+of three ways, in descending confidence:
+
+| On-disk state | Outcome |
+|---|---|
+| sha1 matches the manifest | Nobody has touched it. Delete the file, then remove its directory **only if that leaves it empty** — a skill directory holding supporting files the consumer added stays. |
+| sha1 differs, marker pair present | Ours, but edited. Deleting would take hand-authored bytes with it, so the managed region is replaced with a retirement notice and every byte outside the markers is preserved. |
+| sha1 differs, no marker pair | Ownership can no longer be demonstrated. The file is left completely untouched and the claim is released, so no future run touches it either. |
+
+`--dry-run` reports every prune and neutralisation and performs none of them,
+and does not rewrite the manifest. Installing for one client never forgets
+another: `withClient()` replaces one client's record and carries the rest
+through.
+
+A missing, unreadable, malformed, or future-schema manifest loads as empty.
+The worst outcome is that nothing is pruned this run, which is strictly safer
+than guessing at ownership from a file that could not be parsed. The same
+property means the first run after adopting this release has nothing to
+prune — files generated before the manifest existed carry no ownership
+record, and the installer will not delete what it cannot prove it wrote. See
+[docs/upgrade-notes/bimaaji-skill-resources.md](../upgrade-notes/bimaaji-skill-resources.md)
+for the one-time manual cleanup.
+
 ## Source schema (audit result, M5 WP01)
 
 All shipped `SKILL.md` documents (audited 2026-05-22 at the then-current
@@ -121,20 +162,58 @@ when a downstream operator integrates a new MCP client).
 
 | Client id | Transformer | Target path(s) | Upstream convention |
 |---|---|---|---|
-| `claude` | `ClaudeClientTransformer` | `.claude/skills/waaseyaa-<id>.md` per skill plus a shared `.claude/CLAUDE-WAASEYAA.md` index | <https://docs.claude.com/en/docs/claude-code/skills> (verified 2026-05-22) |
-| `cursor` | `CursorClientTransformer` | `.cursorrules` (single file) | Cursor docs (verified 2026-05-22) |
-| `codex` | `CodexClientTransformer` | `.codex/AGENTS.md` (single file) | Codex docs (verified 2026-05-22) |
-| `copilot` | `CopilotClientTransformer` | `.github/copilot-instructions.md` (single file) | GitHub Copilot docs (verified 2026-05-22) |
-| `gemini` | `GeminiClientTransformer` | `GEMINI.md` (single file) | Gemini CLI docs (verified 2026-05-22) |
-| `windsurf` | `WindsurfClientTransformer` | `.windsurfrules` (single file) | Windsurf docs (verified 2026-05-22) |
-| `junie` | `JunieClientTransformer` | `.junie/guidelines.md` (single file) | Junie docs (verified 2026-05-22) |
+| `claude` | `ClaudeClientTransformer` | `.claude/skills/waaseyaa-<id>/SKILL.md` — one **directory** per skill — plus a shared `.claude/CLAUDE-WAASEYAA.md` index | <https://code.claude.com/docs/en/skills> (verified 2026-08-29) |
+| `cursor` | `CursorClientTransformer` | `.cursorrules` (single file) — **legacy, see Convention drift** | <https://cursor.com/help/customization/rules> (verified 2026-08-29) |
+| `codex` | `CodexClientTransformer` | `AGENTS.md` at the repository root (single file, shared with other AGENTS.md readers) | <https://learn.chatgpt.com/docs/agent-configuration/agents-md>, <https://agents.md> (verified 2026-08-29) |
+| `copilot` | `CopilotClientTransformer` | `.github/copilot-instructions.md` (single file) | <https://docs.github.com/en/copilot/how-tos/configure-custom-instructions-in-your-ide/add-repository-instructions-in-your-ide> (verified 2026-08-29) |
+| `gemini` | `GeminiClientTransformer` | `GEMINI.md` (single file) | <https://geminicli.com/docs/cli/gemini-md/> (verified 2026-08-29) |
+| `windsurf` | `WindsurfClientTransformer` | `.windsurfrules` (single file) — **legacy, see Convention drift** | <https://docs.devin.ai/desktop/devin-desktop-faq> (verified 2026-08-29) |
+| `junie` | `JunieClientTransformer` | `.junie/guidelines.md` (single file) — **legacy, see Convention drift** | <https://junie.jetbrains.com/docs/guidelines-and-memory.html> (verified 2026-08-29) |
 
-`ClaudeClientTransformer` is the only multi-file transformer (Claude
-Code loads `.claude/skills/<id>.md` individually so users can `/skill
-<id>` an individual entry). The other six clients use the shared
-`AbstractSingleFileClientTransformer` base — one consolidated file
-per project. Both shapes are marker-bounded; see
+`ClaudeClientTransformer` is the only multi-file transformer. A Claude
+Code project skill is a **directory** — `.claude/skills/<skill-name>/SKILL.md`
+— and the command a user types comes from the directory name; the
+frontmatter `name` is only the display label. A flat
+`.claude/skills/<name>.md` is not a documented layout and is not
+discovered, which is exactly what this transformer emitted until the #2656
+review: the install reported files written that Claude Code would never
+load. The directory-per-skill shape also matches how the canonical set
+ships inside the package, so the install is a structural rename rather
+than a flattening. The other six clients use the shared
+`AbstractSingleFileClientTransformer` base — one consolidated file per
+project. Both shapes are marker-bounded; see
 [Marker-bounded installation](#marker-bounded-installation).
+
+### Convention drift
+
+Every transformer's target was re-verified against first-party vendor
+documentation on 2026-08-29. Two were emitting paths their client does not
+read, and both were corrected in #2656:
+
+| Client | Was | Why it was wrong |
+|---|---|---|
+| `claude` | `.claude/skills/waaseyaa-<id>.md` | Not a discovery layout. A project skill is a directory holding `SKILL.md`. |
+| `codex` | `.codex/AGENTS.md` | Not a discovery location at all — it conflated the project scope with the personal `~/.codex/AGENTS.md`. Codex reads a plain root `AGENTS.md`. |
+
+Three more are **documented as legacy by their vendors but still read**, so
+they are functional and were deliberately left alone in #2656. Each needs its
+own decision rather than a mechanical path swap, and they are tracked
+together as follow-up work:
+
+| Client | Current emission | Vendor's current guidance |
+|---|---|---|
+| `cursor` | `.cursorrules` | `.cursor/rules/*.mdc`, one rule per file, each with `description` / `globs` / `alwaysApply` frontmatter. `.cursorrules` is called legacy and "will be deprecated" but is not removed. |
+| `windsurf` | `.windsurfrules` | The product was rebranded to Devin Desktop (Cognition, 2026-06-02); `docs.windsurf.com` now redirects to `docs.devin.ai`. Discovery order is `.devin/rules/*.md`, then `.windsurf/rules/*.md`, then `.windsurfrules` ("legacy… still read"). |
+| `junie` | `.junie/guidelines.md` | Priority is `.junie/AGENTS.md`, then root `AGENTS.md` plus `.junie/playbook.md` and `.junie/rules/*.md`, with `.junie/guidelines.md` retained as the legacy fallback. |
+
+Note the interaction the follow-up has to resolve: `codex` now writes the
+repository-root `AGENTS.md`, and both Devin Desktop and Junie read that same
+file. Migrating Junie to `.junie/AGENTS.md` — or Windsurf to `.devin/rules/`
+— has to decide whether those clients keep a private copy or defer to the
+shared root file, which is a content-ownership question, not a path swap.
+
+`.github/copilot-instructions.md` and `GEMINI.md` were confirmed current
+against first-party docs with no deprecation language.
 
 ## Transformer contract
 
@@ -248,13 +327,16 @@ The command never:
 | Skill source location | Relocated (#2656) — the canonical set ships at `packages/bimaaji/resources/skills/`; default resolution begins at the installed package; the monorepo-root `skills/waaseyaa/` directory is deleted. |
 | Marker-bounded install | Shipped (#2656) — `Waaseyaa\Bimaaji\Install\ManagedRegion`; a re-run refreshes only the delimited region. |
 | Missing vs corrupt diagnostics | Shipped (#2656) — `SkillResourceException` + `SkillResourceFailure`. |
-| Packaged-form proof | Shipped (#2656) — `tests/PackagedForm/check-bimaaji-skill-resources` (CI job `ci/bimaaji-skill-resources`) drives the command from a consumer built out of the candidate tree with no seeded fixtures. |
+| Packaged-form proof | Shipped (#2656) — `tests/PackagedForm/check-bimaaji-skill-resources` (CI job `ci/bimaaji-skill-resources`) drives the command from a consumer built out of the candidate tree with no seeded fixtures, and asserts the exact installed directory structure rather than mere presence. |
+| Client convention audit | Re-verified 2026-08-29 (#2656). `claude` and `codex` were emitting paths their client does not read and were corrected; `cursor`, `windsurf` and `junie` are vendor-documented legacy-but-read and are tracked as follow-up. See [Convention drift](#convention-drift). |
+| Retired-target pruning | Shipped (#2656) — `InstalledManifest` records ownership; see [Ownership and pruning retired targets](#ownership-and-pruning-retired-targets). |
 
 PR provenance: `#1557` (WP02), `#1563` (WP03), `#1564` (WP04), the
 WP05 close-out PR, and `#2656` (packaged skill resources). Full M5
 verification artifact:
 `kitty-specs/bimaaji-install-command-01KS5W0S/verification.md`.
 
+<!-- Spec reviewed 2026-08-29 — #2656 follow-up review: ClaudeClientTransformer emitted a flat .claude/skills/waaseyaa-<id>.md, which Claude Code does not discover — corrected to the documented .claude/skills/<skill-name>/SKILL.md directory layout, and CodexClientTransformer corrected from the non-existent .codex/AGENTS.md to the repository-root AGENTS.md. Added Convention drift (all seven transformers re-verified; cursor/windsurf/junie recorded as vendor-legacy follow-up) and Ownership and pruning retired targets (InstalledManifest at .waaseyaa/bimaaji-install.json; recorded, never inferred; delete / neutralise / release). -->
 <!-- Spec reviewed 2026-08-29 — #2656: skills relocated from the monorepo root into packages/bimaaji/resources/skills, default resolution anchored on the installed package via PackagedSkillResources, install made marker-bounded via ManagedRegion, missing/corrupt diagnostics split via SkillResourceException/SkillResourceFailure. Added Skill source resolution, Failure diagnostics, and Marker-bounded installation sections; corrected the WP01 audit claim (now gated by PackagedSkillResourcesTest). -->
 <!-- Spec reviewed 2026-05-23 — bimaaji-install-command-01KS5W0S (WP05 close-out): filled in Supported clients table, Flag semantics, Interactive UX, Trust contract details; added Implementation Status section. WP01 scaffold sections superseded by shipped reality. -->
 <!-- Spec reviewed 2026-05-22 — bimaaji-install-command-01KS5W0S (WP01 scaffold). -->

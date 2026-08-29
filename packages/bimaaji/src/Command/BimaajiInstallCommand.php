@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Bimaaji\Command;
 
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
+use Waaseyaa\Bimaaji\Install\InstalledManifest;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
 use Waaseyaa\Bimaaji\Install\SkillResourceException;
@@ -102,6 +103,8 @@ final class BimaajiInstallCommand
         }
 
         $exitCode = 0;
+        $manifest = InstalledManifest::load($projectRoot);
+        $manifestChanged = false;
 
         foreach ($clients as $clientId) {
             $transformer = $this->resolveTransformer($io, $clientId);
@@ -117,6 +120,7 @@ final class BimaajiInstallCommand
                 projectRoot: $projectRoot,
                 dryRun: $dryRun,
                 force: $force,
+                recorded: $manifest->targetsFor($clientId),
             );
 
             $io->writeln(sprintf(
@@ -127,9 +131,28 @@ final class BimaajiInstallCommand
                 $summary['skipped'],
             ));
 
+            if ($summary['pruned'] > 0 || $summary['retired'] > 0 || $summary['released'] > 0) {
+                $io->writeln(sprintf(
+                    'Client %s: %d retired target(s) removed, %d neutralised, %d released.',
+                    $clientId,
+                    $summary['pruned'],
+                    $summary['retired'],
+                    $summary['released'],
+                ));
+            }
+
+            if (!$dryRun) {
+                $manifest = $manifest->withClient($clientId, $summary['owned']);
+                $manifestChanged = true;
+            }
+
             if ($summary['errors'] > 0) {
                 $exitCode = 1;
             }
+        }
+
+        if ($manifestChanged) {
+            $this->writeManifest($io, $projectRoot, $manifest);
         }
 
         return $exitCode;
@@ -190,7 +213,8 @@ final class BimaajiInstallCommand
 
     /**
      * @param list<ParsedSkill> $skills
-     * @return array{written: int, unchanged: int, skipped: int, errors: int}
+     * @param array<string, string> $recorded Paths this command previously wrote for this client, mapped to the sha1 it left on disk.
+     * @return array{written: int, unchanged: int, skipped: int, errors: int, pruned: int, retired: int, released: int, owned: array<string, string>}
      */
     private function installForClient(
         \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
@@ -199,11 +223,15 @@ final class BimaajiInstallCommand
         string $projectRoot,
         bool $dryRun,
         bool $force,
+        array $recorded,
     ): array {
         $written = 0;
         $unchanged = 0;
         $skipped = 0;
         $errors = 0;
+
+        /** @var array<string, string> $owned relative path => sha1 of the bytes now on disk */
+        $owned = [];
 
         foreach ($transformer->targetFiles($skills) as $file) {
             $resolved = $this->resolveAndAssertInSandbox($io, $file, $projectRoot);
@@ -232,6 +260,7 @@ final class BimaajiInstallCommand
 
             if ($existing !== false && sha1($existing) === sha1($payload)) {
                 $unchanged++;
+                $owned[$file->path] = sha1($existing);
                 continue;
             }
 
@@ -276,9 +305,177 @@ final class BimaajiInstallCommand
             }
 
             $written++;
+            $owned[$file->path] = sha1($payload);
         }
 
-        return ['written' => $written, 'unchanged' => $unchanged, 'skipped' => $skipped, 'errors' => $errors];
+        $prune = $this->pruneRetiredTargets(
+            io: $io,
+            projectRoot: $projectRoot,
+            recorded: $recorded,
+            currentPaths: array_keys($owned),
+            dryRun: $dryRun,
+        );
+
+        return [
+            'written' => $written,
+            'unchanged' => $unchanged,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'pruned' => $prune['pruned'],
+            'retired' => $prune['retired'],
+            'released' => $prune['released'],
+            'owned' => $owned,
+        ];
+    }
+
+    /**
+     * Remove targets this command generated in an earlier run that the
+     * current skill set no longer produces — an upstream removal or rename.
+     *
+     * Ownership is read from the manifest, never inferred from the filename:
+     * a path absent from `$recorded` is not touched, whatever it is called.
+     * Three outcomes, in descending confidence:
+     *
+     * - The bytes still match what we wrote → nobody has touched it, delete
+     *   it, then remove its directory if that leaves it empty. A skill
+     *   directory holding supporting files the user added stays.
+     * - The bytes differ but the file still carries a marker pair → ours,
+     *   but edited. Deleting would take hand-authored bytes with it, so the
+     *   managed region is replaced with a retirement notice and everything
+     *   outside the markers is preserved byte-for-byte.
+     * - The bytes differ and there is no marker pair → ownership can no
+     *   longer be demonstrated. Leave the file completely alone and release
+     *   the claim, so no future run touches it either.
+     *
+     * @param array<string, string> $recorded relative path => sha1 previously written
+     * @param list<string> $currentPaths paths the current run produced
+     * @return array{pruned: int, retired: int, released: int}
+     */
+    private function pruneRetiredTargets(
+        \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
+        string $projectRoot,
+        array $recorded,
+        array $currentPaths,
+        bool $dryRun,
+    ): array {
+        $pruned = 0;
+        $retired = 0;
+        $released = 0;
+
+        $obsolete = array_diff_key($recorded, array_flip($currentPaths));
+        ksort($obsolete);
+
+        foreach ($obsolete as $obsoletePath => $recordedSha1) {
+            $resolved = $this->resolveAndAssertInSandbox(
+                $io,
+                new TargetFile(path: $obsoletePath, content: '', sourceSkill: null),
+                $projectRoot,
+            );
+            if ($resolved === null) {
+                // Sandbox rejection already reported; never act on it.
+                $released++;
+                continue;
+            }
+
+            if (!is_file($resolved)) {
+                // Already gone. Nothing to remove, nothing to warn about.
+                $pruned++;
+                continue;
+            }
+
+            $contents = @file_get_contents($resolved);
+            if ($contents === false) {
+                $io->error(sprintf(
+                    'bimaaji:install: cannot read the retired target %s to verify ownership; leaving it in place.',
+                    $obsoletePath,
+                ));
+                $released++;
+                continue;
+            }
+
+            if (sha1($contents) === $recordedSha1) {
+                if ($dryRun) {
+                    $io->writeln(sprintf('[DRY-RUN] would remove retired target %s', $obsoletePath));
+                    $pruned++;
+                    continue;
+                }
+                if (!@unlink($resolved)) {
+                    $io->error(sprintf('bimaaji:install: failed to remove the retired target %s.', $obsoletePath));
+                    $released++;
+                    continue;
+                }
+                // Only the file's own directory, only when empty — a skill
+                // directory carrying the user's supporting files survives.
+                @rmdir(dirname($resolved));
+                $io->writeln(sprintf('Removed retired target %s (unmodified since it was generated).', $obsoletePath));
+                $pruned++;
+                continue;
+            }
+
+            $notice = ManagedRegion::splice(
+                $contents,
+                ManagedRegion::retirementNotice(sprintf(
+                    'The skill that generated `%s` is no longer part of the framework skill set.',
+                    $obsoletePath,
+                )),
+            );
+            if ($notice === null) {
+                $io->writeln(sprintf(
+                    'Left %s in place: it was generated by an earlier run but has since been rewritten without the '
+                    . '`%s` marker, so ownership can no longer be demonstrated. Delete it by hand if it is stale.',
+                    $obsoletePath,
+                    ManagedRegion::BEGIN,
+                ));
+                $released++;
+                continue;
+            }
+
+            if ($dryRun) {
+                $io->writeln(sprintf(
+                    '[DRY-RUN] would neutralise the managed region of retired target %s (your edits outside it are kept)',
+                    $obsoletePath,
+                ));
+                $retired++;
+                continue;
+            }
+
+            if (!$this->writeFile($resolved, $notice, $io)) {
+                $released++;
+                continue;
+            }
+
+            $io->writeln(sprintf(
+                'Retired the managed region of %s; your content outside the markers was preserved.',
+                $obsoletePath,
+            ));
+            $retired++;
+        }
+
+        return ['pruned' => $pruned, 'retired' => $retired, 'released' => $released];
+    }
+
+    private function writeManifest(
+        \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
+        string $projectRoot,
+        InstalledManifest $manifest,
+    ): void {
+        $target = $projectRoot . DIRECTORY_SEPARATOR . InstalledManifest::RELATIVE_PATH;
+        $json = $manifest->toJson();
+
+        $existing = is_file($target) ? @file_get_contents($target) : false;
+        if ($existing !== false && $existing === $json) {
+            return;
+        }
+
+        if (!$this->writeFile($target, $json, $io)) {
+            // Not fatal for the install itself, but the next run cannot
+            // prune what this one wrote — say so rather than failing quietly.
+            $io->error(sprintf(
+                'bimaaji:install: the generated files were written but the ownership manifest %s could not be '
+                . 'updated. A later run will not be able to prune them.',
+                InstalledManifest::RELATIVE_PATH,
+            ));
+        }
     }
 
     private function resolveAndAssertInSandbox(\Waaseyaa\CLI\Command\SymfonyCommandIO $io, TargetFile $file, string $projectRoot): ?string

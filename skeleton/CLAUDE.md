@@ -110,7 +110,7 @@ Install the skills this table routes to with:
 ```
 
 They ship as resources of the installed `waaseyaa/bimaaji` package and land
-in `.claude/skills/waaseyaa-*.md`. Re-run the command after a framework
+in `.claude/skills/waaseyaa-<id>/SKILL.md`. Re-run the command after a framework
 upgrade — it refreshes only the region between the
 `<!-- waaseyaa:bimaaji:install BEGIN -->` / `END` markers, so your own edits
 around it are preserved. Pass `--client=<id>` for any of `claude`, `cursor`,
@@ -145,7 +145,7 @@ Set `WAASEYAA_GOLDEN_SHA` or add `.waaseyaa-golden-sha` for CI drift gates (see 
 |------|----------|---------|
 | **Constitution** | `CLAUDE.md` (this file) | Architecture, conventions, orchestration |
 | **Rules** | `.claude/rules/waaseyaa-*.md` | Framework invariants distributed from the installed Foundation package |
-| **Skills** | `.claude/skills/waaseyaa-*.md` | Subsystem specialists installed by `waaseyaa bimaaji:install` |
+| **Skills** | `.claude/skills/waaseyaa-*/SKILL.md` | Subsystem specialists installed by `waaseyaa bimaaji:install` |
 | **Specs** | `docs/specs/*.md` | Domain contracts — read from disk |
 
 Framework rules are owned by Waaseyaa. Update them via `./vendor/bin/waaseyaa sync-rules` after `composer update`.

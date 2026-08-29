@@ -12,26 +12,46 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
 /**
  * Multi-file transformer for Claude Code.
  *
- * Claude Code reads `.claude/skills/<id>.md` files individually so a user can
- * load just the skill they need with `/skill <id>` rather than carrying the
- * whole guidelines blob in every conversation. We emit one file per skill
- * (`waaseyaa-<id>.md`) plus one consolidated guidelines page
- * (`.claude/CLAUDE-WAASEYAA.md`) that links to each skill — symmetric with
+ * A Claude Code **project skill is a directory**, not a file:
+ * `.claude/skills/<skill-name>/SKILL.md`. The command a user types comes from
+ * the *directory* name; the frontmatter `name` is only the display label shown
+ * in skill listings. A flat `.claude/skills/<name>.md` is not a documented
+ * layout and is not discovered at all — which is what this transformer emitted
+ * until #2656 follow-up review, so every "written" count it reported was
+ * producing files Claude Code would never load.
+ *
+ * We therefore emit one directory per skill
+ * (`.claude/skills/waaseyaa-<id>/SKILL.md`) plus one consolidated guidelines
+ * page (`.claude/CLAUDE-WAASEYAA.md`) that lists each skill — symmetric with
  * the other clients' single-file output for users who prefer the full set.
+ * The directory-per-skill shape also matches the way the canonical set ships
+ * inside this package (`resources/skills/<id>/SKILL.md`), so the install is a
+ * structural rename rather than a flattening.
  *
- * Both outputs are marker-bounded (see {@see ManagedRegion}). For a
- * per-skill file the markers open *after* the YAML frontmatter, because
- * Claude Code requires the frontmatter to start at byte 0 — so the skill
- * body refreshes on every run while a consumer's own `name`/`description`
- * edits, and any notes they append below the closing marker, survive.
+ * Both outputs are marker-bounded (see {@see ManagedRegion}). For a per-skill
+ * file the markers open *after* the YAML frontmatter, because Claude Code
+ * reads frontmatter "only when the opening `---` is the file's first line" —
+ * so the skill body refreshes on every run while a consumer's own
+ * `name`/`description` edits, and any notes they append below the closing
+ * marker, survive. A skill directory may also hold supporting files the user
+ * added; the installer never removes those.
  *
- * Upstream convention: https://docs.claude.com/en/docs/claude-code/skills
- * (verified 2026-05-22).
+ * Upstream convention: <https://code.claude.com/docs/en/skills> §"Where skills
+ * live" (`Project | .claude/skills/<skill-name>/SKILL.md`) and §"How a skill
+ * gets its command name" (verified 2026-08-29).
  *
  * @api
  */
 final class ClaudeClientTransformer implements ClientTransformerInterface
 {
+    /**
+     * Prefix applied to every installed skill directory, so a consumer can
+     * tell framework-installed skills from their own at a glance and the
+     * command names (`/waaseyaa-entity-system`) do not collide with a
+     * project skill of the same bare name.
+     */
+    private const string DIRECTORY_PREFIX = 'waaseyaa-';
+
     public function clientId(): string
     {
         return 'claude';
@@ -43,7 +63,7 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
 
         foreach ($skills as $skill) {
             $files[] = new TargetFile(
-                path: sprintf('.claude/skills/waaseyaa-%s.md', $skill->id),
+                path: sprintf('.claude/skills/%s%s/SKILL.md', self::DIRECTORY_PREFIX, $skill->id),
                 content: $this->renderSkillFile($skill),
                 sourceSkill: $skill->id,
             );
@@ -60,8 +80,12 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
 
     private function renderSkillFile(ParsedSkill $skill): string
     {
+        // `name` must match the directory so the listing label and the
+        // command a user types agree; `description` is what Claude reads to
+        // decide whether to load the skill.
         return sprintf(
-            "---\nname: waaseyaa-%s\ndescription: %s\n---\n\n%s",
+            "---\nname: %s%s\ndescription: %s\n---\n\n%s",
+            self::DIRECTORY_PREFIX,
             $skill->id,
             $this->escapeYamlScalar($skill->description),
             ManagedRegion::wrap($skill->body),
@@ -85,7 +109,13 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
             $lines[] = '_No skills installed._';
         } else {
             foreach ($skills as $skill) {
-                $lines[] = sprintf('- **%s** — %s', $skill->name, $skill->description);
+                $lines[] = sprintf(
+                    '- `/%s%s` — **%s** — %s',
+                    self::DIRECTORY_PREFIX,
+                    $skill->id,
+                    $skill->name,
+                    $skill->description,
+                );
             }
         }
 

@@ -28,10 +28,58 @@ final class ClaudeClientTransformerTest extends TestCase
         self::assertCount(4, $files, 'Claude emits one file per skill plus one shared index — 3 + 1 = 4.');
 
         $paths = array_map(static fn($f): string => $f->path, $files);
-        self::assertContains('.claude/skills/waaseyaa-skill-alpha.md', $paths);
-        self::assertContains('.claude/skills/waaseyaa-skill-beta.md', $paths);
-        self::assertContains('.claude/skills/waaseyaa-skill-gamma.md', $paths);
+        self::assertContains('.claude/skills/waaseyaa-skill-alpha/SKILL.md', $paths);
+        self::assertContains('.claude/skills/waaseyaa-skill-beta/SKILL.md', $paths);
+        self::assertContains('.claude/skills/waaseyaa-skill-gamma/SKILL.md', $paths);
         self::assertContains('.claude/CLAUDE-WAASEYAA.md', $paths);
+    }
+
+    #[Test]
+    public function everySkillTargetIsADirectoryContainingSkillMd(): void
+    {
+        // Claude Code discovers a PROJECT skill only at
+        // `.claude/skills/<skill-name>/SKILL.md`; the command name comes from
+        // the directory. A flat `.claude/skills/<name>.md` is not a documented
+        // layout and is never loaded — the shape this transformer emitted
+        // before the #2656 review. Pin the exact structure, not mere presence.
+        // <https://code.claude.com/docs/en/skills> (verified 2026-08-29).
+        $files = (new ClaudeClientTransformer())->targetFiles(InstallSkillFixtures::all());
+
+        $skillTargets = array_values(array_filter(
+            $files,
+            static fn($file): bool => $file->sourceSkill !== null,
+        ));
+        self::assertCount(3, $skillTargets);
+
+        foreach ($skillTargets as $file) {
+            self::assertMatchesRegularExpression(
+                '#^\.claude/skills/waaseyaa-[a-z0-9]+(-[a-z0-9]+)*/SKILL\.md$#',
+                $file->path,
+                'A Claude project skill must be <directory>/SKILL.md, never a flat .md file.',
+            );
+            self::assertSame(
+                'SKILL.md',
+                basename($file->path),
+                'The discovered file must be named exactly SKILL.md.',
+            );
+            self::assertSame(
+                sprintf('.claude/skills/waaseyaa-%s', $file->sourceSkill),
+                dirname($file->path),
+                'The skill directory name is the command name, so it must carry the skill id.',
+            );
+        }
+    }
+
+    #[Test]
+    public function theFrontmatterNameMatchesTheSkillDirectory(): void
+    {
+        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
+
+        self::assertNotNull($alpha);
+        // Frontmatter must start at byte 0 or Claude Code treats the whole
+        // file, markers included, as skill content.
+        self::assertStringStartsWith("---\nname: waaseyaa-skill-alpha\n", $alpha->content);
     }
 
     #[Test]
@@ -47,7 +95,7 @@ final class ClaudeClientTransformerTest extends TestCase
     public function perSkillFileEmbedsSkillBody(): void
     {
         $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
-        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha.md');
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
 
         self::assertNotNull($alpha);
         self::assertStringContainsString('# Skill Alpha', $alpha->content);
@@ -62,7 +110,7 @@ final class ClaudeClientTransformerTest extends TestCase
         // (`name` + `description`) but the *source* frontmatter keys are
         // not transcribed.
         $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
-        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha.md');
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
 
         self::assertNotNull($alpha);
         // The body section must not include the original "---\nname: ..." line
@@ -78,7 +126,7 @@ final class ClaudeClientTransformerTest extends TestCase
     public function sourceSkillIsRecordedForPerSkillFilesOnly(): void
     {
         $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
-        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha.md');
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
         $index = $this->findByPath($files, '.claude/CLAUDE-WAASEYAA.md');
 
         self::assertSame('skill-alpha', $alpha?->sourceSkill);

@@ -85,6 +85,16 @@ survive upgrades. A target file that carries no markers is treated as wholly
 hand-authored and still needs `--force` (or an interactive confirmation)
 before it is replaced.
 
+The command records what it generated in `.waaseyaa/bimaaji-install.json`
+(commit it) and prunes targets a later skill set no longer produces. Ownership
+is recorded, never inferred from a filename: a path the manifest does not
+claim is never touched, a retired target you have since edited is neutralised
+rather than deleted, and supporting files you add inside a generated skill
+directory survive.
+
+For Claude Code the output is `.claude/skills/waaseyaa-<id>/SKILL.md` — one
+**directory** per skill, which is the only layout Claude Code discovers.
+
 Seven launch clients: `claude`, `cursor`, `codex`, `copilot`, `gemini`,
 `windsurf`, `junie`. See
 [`docs/specs/bimaaji-install.md`](../../docs/specs/bimaaji-install.md)

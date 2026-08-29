@@ -15,7 +15,18 @@
 # the checkout), and drives the command from there. It seeds no skill
 # fixtures: everything the command writes must come from resources shipped
 # inside the installed package. It then mutates only the consumer's own
-# vendor copy to prove the missing-vs-corrupt diagnostics.
+# vendor copy to drive the remaining proofs.
+#
+# It asserts the EXACT installed structure, not mere presence. A flat
+# `.claude/skills/waaseyaa-<id>.md` is not a Claude Code discovery layout, so
+# an earlier revision of this proof passed — "12 written" — while producing
+# files Claude Code would never load.
+#
+# Proofs, in order: install from installed resources; idempotent re-run;
+# marker-bounded refresh; prune of an upstream removal; neutralisation of a
+# retired target the consumer has edited; a look-alike file the ownership
+# manifest does not claim staying untouched; corrupt- and missing-resource
+# diagnostics.
 #
 # Run: bash tests/PackagedForm/check-bimaaji-skill-resources
 
@@ -109,16 +120,49 @@ grep -Fq 'Client cursor:' "$work/install.out"
 [[ -f "$consumer/.cursorrules" ]] || fail 'bimaaji:install wrote no .cursorrules.'
 [[ -f "$consumer/.claude/CLAUDE-WAASEYAA.md" ]] || fail 'bimaaji:install wrote no Claude index.'
 
-installed_skill_files="$(find "$consumer/.claude/skills" -name 'waaseyaa-*.md' | wc -l | tr -d ' ')"
+# Claude Code discovers a project skill ONLY at
+# `.claude/skills/<skill-name>/SKILL.md` — the command name comes from the
+# directory. Assert the exact structure, not mere presence: the previous
+# flat `.claude/skills/waaseyaa-<id>.md` layout wrote bytes Claude never
+# loaded, so a "12 written" summary looked like success while producing
+# nothing usable. <https://code.claude.com/docs/en/skills>
+installed_skill_files="$(find "$consumer/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' | wc -l | tr -d ' ')"
 [[ "$installed_skill_files" -eq "$shipped" ]] \
-    || fail "Expected $shipped Claude skill files, found $installed_skill_files."
+    || fail "Expected $shipped Claude skill directories each holding SKILL.md, found $installed_skill_files."
 
-# The content must come from the shipped documents, not from a stub.
+if find "$consumer/.claude/skills" -maxdepth 1 -type f -name '*.md' -print -quit | grep -q .; then
+    fail 'A flat .md sits directly in .claude/skills/; Claude Code does not discover that layout.'
+fi
+
+# Every shipped skill must have produced its own directory, and the content
+# must come from the shipped document rather than a stub.
+while IFS= read -r skill_id; do
+    target="$consumer/.claude/skills/waaseyaa-$skill_id/SKILL.md"
+    [[ -d "$consumer/.claude/skills/waaseyaa-$skill_id" ]] \
+        || fail "No Claude skill DIRECTORY for shipped skill $skill_id."
+    [[ -f "$target" ]] || fail "No SKILL.md inside .claude/skills/waaseyaa-$skill_id/."
+    # Frontmatter must start at byte 0 or Claude Code treats the whole file
+    # — markers included — as skill content.
+    head -1 "$target" | grep -qx -- '---' \
+        || fail "$target does not open with YAML frontmatter on line 1."
+    grep -qx -- "name: waaseyaa-$skill_id" "$target" \
+        || fail "$target frontmatter name does not match its directory."
+    grep -Fq '<!-- waaseyaa:bimaaji:install BEGIN -->' "$target" \
+        || fail "$target carries no managed-region marker."
+done < <(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+
 first_skill_id="$(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | head -1)"
-[[ -f "$consumer/.claude/skills/waaseyaa-$first_skill_id.md" ]] \
-    || fail "No Claude target file for shipped skill $first_skill_id."
 grep -Fq '<!-- waaseyaa:bimaaji:install BEGIN -->' "$consumer/.cursorrules"
 grep -Fq '<!-- waaseyaa:bimaaji:install END -->' "$consumer/.cursorrules"
+
+# The ownership manifest is what makes pruning safe; it must exist and name
+# the exact targets written.
+manifest="$consumer/.waaseyaa/bimaaji-install.json"
+[[ -f "$manifest" ]] || fail "bimaaji:install wrote no ownership manifest at $manifest."
+grep -Fq ".claude/skills/waaseyaa-$first_skill_id/SKILL.md" "$manifest" \
+    || fail 'The ownership manifest does not record the Claude skill targets.'
+grep -Fq '.cursorrules' "$manifest" \
+    || fail 'The ownership manifest does not record the cursor target.'
 
 # 2. Re-running is idempotent.
 if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=cursor ) \
@@ -155,7 +199,64 @@ grep -Fq 'So is this one.' "$consumer/.cursorrules"
 grep -Fq 'Local edit to force a refresh.' "$consumer/.cursorrules" \
     || fail 'The marker-bounded refresh did not update the managed region.'
 
-# 4. A corrupt resource names the offending file and says so.
+# 4. A skill retired upstream is pruned on the next run — the remove case.
+#    Ownership comes from the manifest, so this is a positive control: the
+#    file must actually disappear, and its directory with it.
+retire_id="$(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -1)"
+[[ "$retire_id" != "$first_skill_id" ]] || fail 'Need at least two shipped skills for the prune proof.'
+cp -R "$resources/$retire_id" "$work/retired-skill-backup"
+[[ -f "$consumer/.claude/skills/waaseyaa-$retire_id/SKILL.md" ]] \
+    || fail "Retire probe target .claude/skills/waaseyaa-$retire_id/SKILL.md is missing."
+
+rm -rf "$resources/$retire_id"
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude --force ) \
+        >"$work/install-prune.out" 2>&1; then
+    cat "$work/install-prune.out" >&2
+    fail 'The pruning run must succeed.'
+fi
+[[ ! -e "$consumer/.claude/skills/waaseyaa-$retire_id/SKILL.md" ]] \
+    || { cat "$work/install-prune.out" >&2; fail "Retired skill waaseyaa-$retire_id was not pruned."; }
+[[ ! -e "$consumer/.claude/skills/waaseyaa-$retire_id" ]] \
+    || fail "Retired skill directory waaseyaa-$retire_id was left behind."
+[[ -f "$consumer/.claude/skills/waaseyaa-$first_skill_id/SKILL.md" ]] \
+    || fail 'Pruning removed a skill that is still shipped.'
+grep -Fq 'Removed retired target' "$work/install-prune.out" \
+    || { cat "$work/install-prune.out" >&2; fail 'The prune was not reported.'; }
+
+# 5. A retired target the consumer has edited is neutralised, never deleted,
+#    and supporting assets beside it survive.
+cp -R "$work/retired-skill-backup" "$resources/$retire_id"
+( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude --force ) >/dev/null 2>&1
+printf '\n## My own notes\n\nKeep this line.\n' >> "$consumer/.claude/skills/waaseyaa-$retire_id/SKILL.md"
+printf 'My reference material.\n' > "$consumer/.claude/skills/waaseyaa-$retire_id/reference.md"
+rm -rf "$resources/$retire_id"
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude --force ) \
+        >"$work/install-retire.out" 2>&1; then
+    cat "$work/install-retire.out" >&2
+    fail 'The retirement run must succeed.'
+fi
+[[ -f "$consumer/.claude/skills/waaseyaa-$retire_id/SKILL.md" ]] \
+    || fail 'A retired target carrying user content must not be deleted.'
+grep -Fq 'Keep this line.' "$consumer/.claude/skills/waaseyaa-$retire_id/SKILL.md" \
+    || fail 'Retirement dropped hand-authored content.'
+grep -Fq 'has been retired' "$consumer/.claude/skills/waaseyaa-$retire_id/SKILL.md" \
+    || fail 'Retirement left the withdrawn guidance in place.'
+[[ -f "$consumer/.claude/skills/waaseyaa-$retire_id/reference.md" ]] \
+    || fail 'Retirement removed a supporting asset the consumer added.'
+
+# 6. A look-alike file the manifest does not claim is never touched. Filename
+#    is a guess about ownership; the manifest is the record.
+mkdir -p "$consumer/.claude/skills/waaseyaa-not-ours"
+printf -- '---\nname: waaseyaa-not-ours\n---\n\nMine, not the framework of it.\n' \
+    > "$consumer/.claude/skills/waaseyaa-not-ours/SKILL.md"
+theirs_before="$(sha1sum "$consumer/.claude/skills/waaseyaa-not-ours/SKILL.md" | cut -d ' ' -f 1)"
+( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude --force ) >/dev/null 2>&1
+[[ "$(sha1sum "$consumer/.claude/skills/waaseyaa-not-ours/SKILL.md" | cut -d ' ' -f 1)" == "$theirs_before" ]] \
+    || fail 'A look-alike file the manifest does not claim was modified.'
+cp -R "$work/retired-skill-backup" "$resources/$retire_id"
+
+# 7. A corrupt resource names the offending file and says so.
 cp "$resources/$first_skill_id/SKILL.md" "$work/$first_skill_id.SKILL.md.bak"
 printf -- '---\nname: broken\ndescription: this frontmatter never closes\n\nbody\n' \
     > "$resources/$first_skill_id/SKILL.md"
@@ -171,7 +272,7 @@ grep -Fq "$resources/$first_skill_id/SKILL.md" "$work/install-corrupt.out" \
     || { cat "$work/install-corrupt.out" >&2; fail 'The corrupt-resource diagnostic does not name the file.'; }
 cp "$work/$first_skill_id.SKILL.md.bak" "$resources/$first_skill_id/SKILL.md"
 
-# 5. A missing resource directory names the resolved vendor path and the
+# 8. A missing resource directory names the resolved vendor path and the
 #    reinstall remedy — not a monorepo-shaped `skills/waaseyaa/...` hint.
 rm -rf "$resources"
 set +e
