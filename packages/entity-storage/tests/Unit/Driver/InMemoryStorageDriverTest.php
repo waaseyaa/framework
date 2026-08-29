@@ -302,11 +302,25 @@ final class InMemoryStorageDriverTest extends TestCase
     }
 
     #[Test]
-    public function explicitIdWriteFillsAnAbsentIdKey(): void
+    public function explicitIdWriteFillsAnAbsentIdKeyOnceItIsDeclared(): void
     {
+        $this->driver->declareIdKey('node', 'id');
+
         $this->driver->write('node', '9', ['label' => 'Direct']);
 
         $this->assertSame(['label' => 'Direct', 'id' => '9'], $this->driver->read('node', '9'));
+    }
+
+    #[Test]
+    public function explicitIdWriteLeavesTheRowAloneWhileTheIdKeyIsOnlyGuessed(): void
+    {
+        $this->driver->write('node', '9', ['label' => 'Direct']);
+
+        $this->assertSame(
+            ['label' => 'Direct'],
+            $this->driver->read('node', '9'),
+            'A guessed id key must never add an undeclared column to a row that was already correct.',
+        );
     }
 
     #[Test]

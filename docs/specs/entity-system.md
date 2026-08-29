@@ -1209,7 +1209,7 @@ When `$communityScope` is injected and active, all read/findBy/count/exists/remo
 #### InMemoryStorageDriver
 
 File: `packages/entity-storage/src/Driver/InMemoryStorageDriver.php`
-Constructor: `(?CommunityScope $communityScope = null, string $idKey = 'id')`
+Constructor: `(?CommunityScope $communityScope = null, ?string $idKey = null)`
 
 In-memory storage for testing. Accepts an optional `CommunityScope` and applies the same community isolation logic as `SqlStorageDriver` — all read/findBy/count/exists/remove operations are scoped when the context is active. Scoped translation writes also require a visible base owner, stamp the active community, and refuse foreign ownership before mutation.
 
@@ -1225,7 +1225,12 @@ Additional methods beyond the interface:
   before wrapping the driver, which is what makes a `nid`- or `uid`-keyed type
   round-trip. Drivers receive only an entity-type id per call, so the key cannot
   be derived; `new InMemoryStorageDriver(idKey: 'nid')` is the escape hatch for a
-  fixture written to directly, before any composition (#2646).
+  fixture written to directly, before any composition (#2646). An *undeclared*
+  driver falls back to `id`, which is right for the great majority of entity
+  types but a guess. The guess is used only on the auto-id branch, where the
+  alternative is a row with no identity at all; an explicit-id write is left
+  untouched, since it already round-tripped correctly and a wrong guess would
+  add an undeclared -- therefore read-level Internal -- column to it.
 
 #### RevisionableStorageDriver
 
