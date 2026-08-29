@@ -224,9 +224,12 @@ The command never:
   absolute paths and `..` traversals before any write happens; the
   nearest-existing-ancestor realpath check catches symlink-based
   escapes that get past the textual guard. (NFR-002.)
-- Overwrites a hand-edited consumer file without `--force` or an
-  explicit `yes` answer to the interactive `Overwrite <path>?` prompt
-  (C-002).
+- Modifies any byte a consumer wrote. Inside a managed region the command
+  owns the content and says so in the generated prelude; outside it, and
+  in a file carrying no markers, nothing changes without `--force` or an
+  explicit `yes` to the interactive `Overwrite <path>?` prompt (C-002).
+  A marker-bounded refresh is exempt from that prompt precisely because
+  it cannot reach hand-authored bytes.
 - Makes any network call (C-004 — no telemetry, no downloads).
 - Paraphrases or rewrites skill body content (C-003 — structural
   transformation only; multi-file Claude transformer adds frontmatter
