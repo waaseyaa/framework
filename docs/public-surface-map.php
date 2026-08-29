@@ -756,6 +756,10 @@ return [
     'Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' => 'public',
     'Waaseyaa\Bimaaji\Install\ClientTransformerInterface' => 'public',
     'Waaseyaa\Bimaaji\Install\Client\AbstractSingleFileClientTransformer' => 'public',
+    // #2656: the failure class carried by SkillResourceException. Public so a
+    // consumer (or a future bimaaji:doctor) can branch on missing-vs-corrupt
+    // without string-matching the diagnostic.
+    'Waaseyaa\Bimaaji\Install\SkillResourceFailure' => 'public',
 
     // Layer 6: Interfaces — public
     'Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface' => 'public',
