@@ -85,6 +85,33 @@ never silently rewrites it.
 
 ## Initialization
 
+### Canonical fresh-project lifecycle
+
+A fresh project reaches a valid, verifiable state through exactly five ordered
+phases, and consumer-facing documentation names no other sequence (#2644):
+
+1. **create** — `composer create-project waaseyaa/waaseyaa`;
+2. **site contract** — `waaseyaa site:init`, which produces `.waaseyaa/site.yaml`,
+   the governed artifact set, and the generated verification command;
+3. **install** — `waaseyaa install:init`, which applies the reviewed migration
+   catalog, synchronizes entity storage schema, and activates the configuration
+   generation;
+4. **verify** — `composer site-verify`; and
+5. **serve**.
+
+`install:init` is the single materialization step. It subsumes `migrate` and
+`schema:sync`, and it is the only one of the three that also activates the
+configuration generation, so a site materialized by `db:init` plus `migrate`
+passes verification while being an invalid installation. It is idempotent, so it
+is re-run after any later `site:init`. `db:init` is a database-administration
+command and is not part of this lifecycle.
+
+`site:init` precedes `install:init` because recipe-declared entity types must
+exist before schema synchronization runs. Because the phases are ordered,
+verification before phase 2 is a definite state rather than an error: the
+verification entry reports that the project is not initialized and names
+`site:init`, and it does so without booting the kernel.
+
 `waaseyaa site:init` is both interactive and automation-safe. Interactive mode
 asks product questions in plain language. Non-interactive mode accepts a
 complete answer document and refuses omitted required decisions.
@@ -100,6 +127,24 @@ Initialization is transactional:
    transaction journal, installing `.waaseyaa/generated.json` last and marking
    the journal committed only after every target is durable.
 
+Host portability is explicit rather than assumed (#2644). `SiteHostPlatform` is
+injected into the initializer and declares three capabilities the transaction
+depends on, each of which the framework previously took for granted:
+
+| Capability | POSIX | Windows | Consequence when absent |
+|---|---|---|---|
+| synchronize a directory handle | yes | no | the durability guarantee narrows to process death, not host death |
+| enforce permission bits | yes | no | modes are declared, never compared |
+| hard-link counts | yes | no | the aliasing clause of the private-file check is not enforced; the symlink and regular-file clauses still are |
+
+On a host without directory synchronization the journal, the lock, and the
+write-then-rename ordering are unchanged, so the transaction remains atomic and
+recoverable across process death; only host-crash durability is POSIX-only. The
+capability is injected rather than read inline from `DIRECTORY_SEPARATOR` so the
+non-POSIX branch is exercised by the ordinary test suite on a Linux runner — an
+untestable platform branch would be a claim rather than a proof — and the tests
+assert that both hosts publish a byte-identical artifact set.
+
 Existing unrecognized files are never overwritten. Re-running the same inputs
 is byte-identical. An ordinary publication failure rolls back every governed
 target before returning. If the process or host stops mid-publication, the
@@ -108,10 +153,28 @@ starting new work. A cleanup failure after the durable commit cannot
 reinterpret the new generation as failed or roll it back.
 
 Generator evolution is explicit. Existing files are validated against the
-digests recorded by the generator that created them; a changed artifact set or
-managed byte sequence requires a declared generator-version migration. The
-current renderer is never used to pretend that historical output was produced
-by a newer version.
+digests recorded by the generator that created them, and the current renderer is
+never used to pretend that historical output was produced by a newer version.
+The two kinds of change are not equally recoverable, and the difference is
+load-bearing (#2644):
+
+- **A changed artifact set** — one generated file added or removed — is compared
+  unconditionally, outside the manifest-digest guard, and refuses regeneration
+  on every already-initialized project with no override and no migration path.
+  Treat the set as frozen; a new committed file belongs in the skeleton, not in
+  the generated set.
+- **Changed managed bytes** of an existing artifact refuse only while the
+  manifest digest is unchanged, because that is the case regeneration cannot
+  distinguish from a substitution. Rebinding
+  `framework.observed_lock_sha256` to the reviewed dependency lock changes the
+  manifest digest, which is exactly the signal that the change is an upgrade,
+  and regeneration then proceeds. That rebind is the sanctioned path, and the
+  refusal message names it.
+
+There is no generator-version migration engine. `generator_version` is read from
+the project's own manifest and the framework has no way to raise it, so the
+version-mismatch branch cannot fire on a framework upgrade; the manifest rebind
+is what carries a project across a renderer change.
 
 ## Recipe contract
 
@@ -190,6 +253,16 @@ from Anokii and vice versa.
 human summary. Exit zero means all required checks passed. Warnings can never
 produce an `OK` summary in strict mode.
 
+The doctor is read-only in the literal sense: it inspects the filesystem, never
+boots the kernel, and never opens or creates the application database. This is a
+governed invariant, not an incidental property of the current checks (#2644).
+`ConsoleKernel` runs `site:doctor` through its boot-free command seam for that
+reason — ordinary console boot materializes the database before any
+restricted-discovery guard, so a booting doctor would create the zero-table
+SQLite file it is meant to report on, and would diagnose a missing site contract
+as an inactive configuration generation. A future check that needs kernel state
+belongs in a different command.
+
 The doctor validates:
 
 - manifest schema and internal references;
@@ -230,8 +303,24 @@ omissions.
 
 ## Generated verification
 
+Verification has two layers. `bin/maintenance/site-verify` is *generated* by
+`site:init` and does the proving. `.ci/site-verify.php` is *committed* by the
+skeleton, is the entry point every adapter invokes, and exists because the
+generated command does not exist until phase 2 of the lifecycle.
+
+The committed entry is plain PHP, loads no autoloader, and boots no kernel, so
+it answers correctly before `composer install` and before `site:init`. It exits
+3 naming `site:init` when there is no site contract, 2 when dependencies are
+absent, and otherwise delegates to the generated command through `PHP_BINARY`
+and returns its status. Composer invokes it as `@php .ci/site-verify.php` so
+that it runs on native Windows, where Composer cannot execute a shebang script
+at all; the POSIX `.ci/site-verify` shell script execs the same file, so the
+pre-init instruction cannot differ between invocation paths (#2644).
+
 `bin/maintenance/site-verify` runs without network access after dependencies
-are installed. It proves:
+are installed. It is itself portable PHP: it re-executes the doctor and each
+acceptance test through `escapeshellarg(PHP_BINARY)` rather than relying on a
+child shebang. It proves:
 
 - manifest validation and generated-artifact integrity;
 - architecture rules;

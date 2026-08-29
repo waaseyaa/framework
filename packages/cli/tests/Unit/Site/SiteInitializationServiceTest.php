@@ -13,6 +13,8 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteInitializationResult;
+use Waaseyaa\CLI\Site\SiteHostPlatform;
+use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\SiteContract\Generation\GeneratedSite;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
@@ -45,6 +47,76 @@ final class SiteInitializationServiceTest extends TestCase
         self::assertSame(array_values(array_filter(array_keys($site->artifacts), static fn(string $path): bool => $path !== '.waaseyaa/.gitignore')), $first->changedPaths);
         self::assertSame([], $second->changedPaths);
         self::assertSame($before, $this->snapshot($root));
+    }
+
+    /**
+     * #2644: `site:init` could not complete on native Windows. `syncDirectory()`
+     * opened the parent directory as a stream to fsync it — POSIX-only — and
+     * the very first governed write, `.waaseyaa/.gitignore`, reached it, so
+     * initialization aborted with "Unable to sync directory" before publishing
+     * anything. That message is exactly what the issue reported.
+     *
+     * The host is injected so the Windows branch is exercised on a Linux
+     * runner; an untestable `DIRECTORY_SEPARATOR` branch would be a claim, not
+     * a proof. The assertion is that the Windows host produces the *same*
+     * artifacts, byte for byte, as the POSIX host — and is idempotent, which
+     * the unguarded `fileperms()` comparison also broke.
+     */
+    #[Test]
+    public function itPublishesAnIdenticalArtifactSetOnAHostThatCannotSyncDirectories(): void
+    {
+        $posixRoot = $this->root();
+        $windowsRoot = $this->root();
+        $site = $this->site();
+
+        $posix = new SiteInitializationService($posixRoot, null, SiteHostPlatform::Posix)->initialize($site);
+
+        $service = new SiteInitializationService($windowsRoot, null, SiteHostPlatform::Windows);
+        $windows = $service->initialize($site);
+        $afterFirst = $this->snapshot($windowsRoot);
+        $repeat = $service->initialize($site);
+
+        self::assertSame($posix->changedPaths, $windows->changedPaths);
+        self::assertSame($this->snapshot($posixRoot), $this->snapshot($windowsRoot));
+        self::assertSame([], $repeat->changedPaths, 'Regeneration must be idempotent without POSIX permission bits.');
+        self::assertSame($afterFirst, $this->snapshot($windowsRoot));
+    }
+
+    /**
+     * #2644: when the framework's renderer changes but the manifest still binds
+     * the previous dependency lock, the manifest digest is unchanged and
+     * regeneration cannot distinguish a reviewed upgrade from a substitution,
+     * so it refuses. This branch had no test, and its message named only a
+     * generator migration that exists as no command — leaving the operator with
+     * no move at all. It must now name the rebind that actually works.
+     */
+    #[Test]
+    public function theByteFreezeRefusalNamesTheManifestRebindAsItsRemedy(): void
+    {
+        $root = $this->root();
+        $service = new SiteInitializationService($root);
+        $service->initialize($this->site());
+
+        // Simulate a renderer whose bytes moved on while the manifest — and so
+        // the manifest digest — stayed exactly where it was.
+        $metadataPath = $root . '/.waaseyaa/generated.json';
+        $metadata = json_decode((string) file_get_contents($metadataPath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($metadata);
+        foreach ($metadata['artifacts'] as $index => $row) {
+            if ($row['path'] === 'tests/Acceptance/SiteGoldenPathTest.php') {
+                $metadata['artifacts'][$index]['managed_sha256'] = str_repeat('a', 64);
+            }
+        }
+        file_put_contents($metadataPath, CanonicalJson::encode($metadata) . "\n");
+
+        try {
+            $service->initialize($this->site());
+            self::fail('Expected the byte-freeze refusal.');
+        } catch (SiteInitializationCollisionException $exception) {
+            self::assertStringContainsString('tests/Acceptance/SiteGoldenPathTest.php', $exception->getMessage());
+            self::assertStringContainsString('framework.observed_lock_sha256', $exception->getMessage());
+            self::assertStringContainsString('composer.lock', $exception->getMessage());
+        }
     }
 
     #[Test]

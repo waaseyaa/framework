@@ -34,14 +34,14 @@
     },
     "scripts": {
         "audit-site": "./bin/maintenance/waaseyaa-audit-site",
-        "site-verify": ".ci/site-verify",
+        "site-verify": "@php .ci/site-verify.php",
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "@php vendor/bin/waaseyaa dev"
         ],
         "regen-lock": "@composer update 'waaseyaa/*' --no-plugins --no-install --no-scripts",
         "post-create-project-cmd": [
-            "php bin/post-create-setup.php"
+            "@php bin/post-create-setup.php"
         ]
     },
     "extra": {

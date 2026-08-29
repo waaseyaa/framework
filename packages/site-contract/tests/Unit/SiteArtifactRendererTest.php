@@ -32,6 +32,13 @@ final class SiteArtifactRendererTest extends TestCase
         )));
 
         self::assertSame($first->contents(), $second->contents());
+        // Treat this list as frozen. `SiteInitializationService::prepare()`
+        // compares the rendered artifact set against the recorded ownership
+        // rows UNCONDITIONALLY — outside the manifest-digest guard — so adding
+        // or removing one generated file permanently refuses regeneration on
+        // every already-initialized project, with no override flag and no
+        // migration command. Changing the *bytes* of an existing artifact is
+        // recoverable by rebinding the manifest lock; changing this set is not.
         self::assertSame([
             '.waaseyaa/.gitignore',
             '.waaseyaa/generated.json',
@@ -49,6 +56,17 @@ final class SiteArtifactRendererTest extends TestCase
         self::assertSame(0o755, $first->artifacts['bin/maintenance/site-verify']->mode);
         self::assertStringContainsString('chdir($root)', $first->artifacts['bin/maintenance/site-verify']->content);
         self::assertStringContainsString('site:doctor --strict --format=json', $first->artifacts['bin/maintenance/site-verify']->content);
+
+        // #2644: the generated acceptance test asserted is_executable() on an
+        // extensionless file. Windows resolves executability through PATHEXT,
+        // so that assertion failed there for a perfectly good file. The
+        // portability property it stood for — the command is runnable PHP — is
+        // now asserted on every host, and the execute bit only on POSIX.
+        $acceptance = $first->artifacts['tests/Acceptance/SiteGoldenPathTest.php']->content;
+        self::assertStringContainsString("DIRECTORY_SEPARATOR === '/'", $acceptance);
+        self::assertStringContainsString('assertStringStartsWith(', $acceptance);
+        self::assertStringContainsString("'#!/usr/bin/env php'", $acceptance);
+        self::assertStringStartsWith('#!/usr/bin/env php', $first->artifacts['bin/maintenance/site-verify']->content);
 
         $metadata = json_decode($first->artifacts['.waaseyaa/generated.json']->content, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('waaseyaa.generated', $metadata['schema']);

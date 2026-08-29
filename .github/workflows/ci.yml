@@ -947,6 +947,140 @@ jobs:
       - name: Minimal and full installs expose only installed optional domains
         run: tools/optional-domain-install-shapes.sh
 
+  # #2644: the fresh-project lifecycle is proven on a native Windows development
+  # host, not only on Linux. Windows is already a declared development host —
+  # bin/check-portable-paths gates tracked paths for "the repository's supported
+  # Linux, macOS, and Windows development hosts" — but no runner had ever
+  # exercised it, so `site:init` shipped unable to complete there at all.
+  #
+  # This lane deliberately makes NO serving claim: no serve, no dev, no
+  # FrankenPHP, no admin build, no Playwright, and it does not run the PHPUnit
+  # suites (a documented set of those is POSIX-only by design). The S1 support
+  # contract's platform.framework_os stays ubuntu-24.04 — that is the serving
+  # runtime — and support/s1-v1.json is untouched.
+  #
+  # Every step is PowerShell and PHP. The Linux consumer harnesses are bash and
+  # cannot run here, which is the point: the portable boundary is the PHP entry.
+  skeleton-create-project-windows:
+    name: ci/skeleton-create-project-windows
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml, sodium, fileinfo, zip
+          coverage: none
+
+      # Composer's download cache. The key is already OS-scoped by runner.os,
+      # and the path is the Windows cache location, not the Linux one.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~\AppData\Local\Composer\files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Fresh create-project completes the lifecycle on Windows
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandArgumentPassing = 'Standard'
+
+          function Invoke-Checked {
+            param([string] $What, [scriptblock] $Body)
+            & $Body
+            if ($LASTEXITCODE -ne 0) { throw "$What failed with exit code $LASTEXITCODE" }
+          }
+
+          $repo = $env:GITHUB_WORKSPACE
+          $work = Join-Path $env:RUNNER_TEMP ('skel-' + [guid]::NewGuid().ToString('N'))
+
+          # The candidate must be tested against THIS checkout. The published
+          # release cannot contain the Windows fixes this lane exists to prove,
+          # so resolving waaseyaa/framework from Packagist would prove nothing.
+          Invoke-Checked 'create-project' {
+            composer create-project waaseyaa/waaseyaa $work `
+              --repository='{"type":"path","url":"skeleton"}' `
+              --stability=dev --no-install --no-scripts --no-interaction
+          }
+
+          # prepare.php is plain PHP and already pins symlink:false, which is
+          # what makes a path repository behave on a host without developer-mode
+          # symlinks.
+          Invoke-Checked 'configure path repositories' {
+            php (Join-Path $repo 'tests/ReferenceConsumer/prepare.php') configure $repo $work
+          }
+          Invoke-Checked 'composer update' {
+            composer update --working-dir=$work --no-interaction --no-scripts --no-plugins
+          }
+          Invoke-Checked 'post-create-project-cmd' {
+            composer run-script --working-dir=$work post-create-project-cmd
+          }
+
+          Push-Location $work
+          try {
+            # (c) Verification before site:init must instruct, not fail with a
+            # shell error. On this host the old sh adapter could not run at all.
+            $preInit = (composer site-verify 2>&1 | Out-String)
+            if ($LASTEXITCODE -ne 3) {
+              throw "Pre-init verification must exit 3 with an instruction, got $LASTEXITCODE. Output: $preInit"
+            }
+            if ($preInit -notmatch 'site:init') {
+              throw "Pre-init verification must name site:init. Output: $preInit"
+            }
+
+            Copy-Item (Join-Path $repo 'tests/ReferenceConsumer/site.answers.yaml') 'site.answers.yaml'
+            Invoke-Checked 'bind-lock' {
+              php (Join-Path $repo 'tests/ReferenceConsumer/prepare.php') bind-lock $repo $work
+            }
+
+            # The lifecycle. site:init is the step that could not complete on
+            # this platform before #2644.
+            Invoke-Checked 'site:init' {
+              php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root=$work --yes
+            }
+            if (-not (Test-Path '.waaseyaa/generated.json')) { throw 'site:init published no ownership metadata.' }
+            if (-not (Test-Path 'bin/maintenance/site-verify')) { throw 'site:init generated no verification command.' }
+
+            # (d) The whole site-contract phase is database-free. site:init has
+            # just run and the strict doctor runs next; install:init is the
+            # first command allowed to create the database. This assertion is
+            # what caught site:init's own restricted-boot database creation,
+            # which the Linux reference consumer structurally cannot see because
+            # it has already materialized the database by this point.
+            if (Test-Path 'storage/waaseyaa.sqlite') {
+              throw 'site:init created the application database before install:init.'
+            }
+            Invoke-Checked 'site:doctor' {
+              php vendor/bin/waaseyaa site:doctor --strict --format=json --project-root=$work
+            }
+            if (Test-Path 'storage/waaseyaa.sqlite') {
+              throw 'site:doctor created the application database.'
+            }
+
+            Invoke-Checked 'install:init' {
+              php vendor/bin/waaseyaa install:init --no-interaction
+            }
+            Invoke-Checked 'composer site-verify' { composer site-verify }
+
+            # Regeneration is idempotent without POSIX permission bits.
+            Invoke-Checked 'site:init (repeat)' {
+              php vendor/bin/waaseyaa site:init --answers=site.answers.yaml --project-root=$work --yes
+            }
+            Invoke-Checked 'composer site-verify (repeat)' { composer site-verify }
+          }
+          finally {
+            Pop-Location
+            Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+          }
+
   packaged-form:
     name: packaged-form
     runs-on: ubuntu-24.04

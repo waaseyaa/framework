@@ -9,9 +9,31 @@ A Waaseyaa CMS application.
 ```bash
 composer create-project waaseyaa/waaseyaa my-app --stability=dev
 cd my-app
-./vendor/bin/waaseyaa site:init
-.ci/site-verify
+php vendor/bin/waaseyaa site:init      # 2. site contract
+php vendor/bin/waaseyaa install:init   # 3. schema + configuration
+composer site-verify                   # 4. verification
+composer run dev                       # 5. serve
 ```
+
+These five phases are the whole fresh-project lifecycle, and they are ordered.
+
+### What each phase does
+
+| Phase | Command | What it produces | What breaks if you skip it |
+|---|---|---|---|
+| 1. Create | `composer create-project` | The application tree, `.env`, and installed dependencies. | — |
+| 2. Site contract | `site:init` | `.waaseyaa/site.yaml`, the governed artifact set, and `bin/maintenance/site-verify`. | Verification has nothing to verify: `composer site-verify` exits 3 and tells you to run this. |
+| 3. Install | `install:init` | The migration ledger, the entity storage schema, and the active configuration generation. | The site has no active configuration generation, so runtime entity writes fail and the site cannot boot outside explicit development mode — even though verification may pass. |
+| 4. Verify | `composer site-verify` | A strict site-contract diagnosis plus the generated acceptance tests. Read-only: it never opens or creates the database. | — |
+| 5. Serve | `composer run dev` | FrankenPHP on `http://127.0.0.1:8080`. | — |
+
+`install:init` is the single materialization step; it subsumes `migrate` and
+`schema:sync` and is the only command that activates the configuration
+generation. It is idempotent, so re-run it after any later `site:init`.
+
+`composer site-verify` is the portable entry point and works identically on
+Linux, macOS, and native Windows. The `.ci/site-verify` shell adapter is a
+POSIX-only convenience that calls the same implementation.
 
 Use `./vendor/bin/waaseyaa` for the CLI. Optional path-linked `waaseyaa/*` checkouts: copy `composer.local.json.example` to `composer.local.json` (see [docs/local-dev.md](docs/local-dev.md)).
 
@@ -22,7 +44,7 @@ enabled Anokii shell. High-volume Updates, Events, Jobs, and Announcements use
 their faster typed content forms and can be placed on pages through governed
 listing blocks.
 
-`.ci/site-verify` is the local, provider-neutral verification boundary. The
+`composer site-verify` is the local, provider-neutral verification boundary. The
 included GitHub workflow merely calls it; another hosted or local runner can do
 the same without changing the application contract.
 
@@ -34,9 +56,12 @@ points and makes the security boundary explicit.
 
 ```
 bin/
-├── dev                  Cross-platform FrankenPHP dev launcher (`composer run dev`)
 ├── post-create-setup.php  One-time setup after `create-project`
 └── maintenance/         Audit/release helpers (optional for beginners)
+
+.ci/
+├── site-verify.php      Portable verification entry (`composer site-verify`)
+└── site-verify          POSIX shell adapter for the same entry
 
 src/
 ├── Access/        Authorization policies
@@ -75,8 +100,10 @@ composer run dev                    # Serve on FrankenPHP at http://127.0.0.1:80
 ./vendor/bin/waaseyaa serve              # Single-worker php -S dev server (zero-config; not for the admin SPA's SSE or production)
 ./vendor/bin/waaseyaa                    # CLI
 ./vendor/bin/waaseyaa site:init          # Initialize/regenerate the governed site contract
-.ci/site-verify                          # Offline provider-neutral site verification
-./bin/maintenance/waaseyaa-audit-site    # Optional convergence preflight
+./vendor/bin/waaseyaa install:init       # Apply migrations, sync entity schema, activate the configuration generation (idempotent)
+composer site-verify                     # Offline provider-neutral site verification (portable; use this on Windows)
+.ci/site-verify                          # POSIX shell adapter for the same verification
+./bin/maintenance/waaseyaa-audit-site    # Optional convergence preflight (POSIX only)
 ```
 
 ### Required PHP extensions

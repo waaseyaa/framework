@@ -9,6 +9,7 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 use Waaseyaa\CLI\ConsoleApplicationFactory;
 use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
+use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\VersionResolver;
 use Waaseyaa\CLI\WaaseyaaConsoleApplication;
 
@@ -53,6 +54,29 @@ final class ConsoleKernel extends AbstractKernel
             return $application->run($input, $output);
         }
 
+        // #2644: the whole site-contract phase runs before the framework has a
+        // database, and neither command needs one. Both handlers take only a
+        // project root, and SiteArtifactRendererFactory composes its recipes
+        // with `new` and no container.
+        //
+        // Booting for them reached AbstractKernel::bootDatabase(), which runs
+        // before every restricted-discovery guard — so `site:doctor` created
+        // the zero-table storage/waaseyaa.sqlite it was supposed to report on,
+        // and `site:init` created it before any bootstrap command had run.
+        // That phantom file is exactly what db:init then had to be taught to
+        // adopt. Running both here means the pre-install phase touches no
+        // database at all, and verification is read-only in the literal sense.
+        if (in_array($input->getFirstArgument(), ['site:init', 'site:doctor'], true)) {
+            $application = new WaaseyaaConsoleApplication(
+                version: new VersionResolver($this->projectRoot)->resolve(),
+                logger: $this->logger,
+            );
+            $application->addCommand(SiteServiceProvider::siteInitCommand($this->projectRoot));
+            $application->addCommand(SiteServiceProvider::siteDoctorCommand($this->projectRoot));
+
+            return $application->run($input, $output);
+        }
+
         $restrictedFieldAccessCommand = $input->getFirstArgument();
         if (in_array($restrictedFieldAccessCommand, [
             'field-access:preflight',
@@ -85,7 +109,6 @@ final class ConsoleKernel extends AbstractKernel
                 'migrate',
                 'migrate:rollback',
                 'migrate:status',
-                'site:init',
                 // #2428: the installation phase must not construct runtime
                 // consumers that require the generation it is about to create.
                 'install:init',

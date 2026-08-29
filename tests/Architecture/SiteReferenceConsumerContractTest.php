@@ -76,18 +76,50 @@ final class SiteReferenceConsumerContractTest extends TestCase
         $gate = (string) file_get_contents($referenceGate);
         $manifest = (string) file_get_contents($answers);
 
+        // #2644: the sh adapter delegates to the portable PHP entry rather than
+        // exec'ing the generated command directly. There is one implementation,
+        // so the pre-init instruction cannot differ between invocation paths,
+        // and native Windows — where Composer cannot execute a shebang script —
+        // reaches the same code through `composer site-verify`.
         self::assertSame(<<<'SH'
             #!/usr/bin/env sh
             set -eu
 
             project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
-            exec "$project_root/bin/maintenance/site-verify"
+            exec php "$project_root/.ci/site-verify.php" "$@"
             SH . "\n", $local);
 
-        $hostedWorkflow = Yaml::parse($hosted);
+        $portableEntry = $root . '/skeleton/.ci/site-verify.php';
+        self::assertFileExists($portableEntry);
+        $entry = (string) file_get_contents($portableEntry);
+        self::assertStringContainsString('declare(strict_types=1);', $entry);
+        self::assertStringContainsString('site:init', $entry, 'The pre-init failure must name its own remedy.');
+        self::assertStringContainsString('exit(3)', $entry);
+        // The entry runs before `composer install` and before the project has a
+        // site contract, so it must not depend on either.
+        self::assertStringNotContainsString('vendor/autoload.php', $entry);
+
+        $skeletonComposer = json_decode(
+            (string) file_get_contents($root . '/skeleton/composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        self::assertIsArray($skeletonComposer);
         self::assertSame(
-            ['composer install --no-interaction --prefer-dist', '.ci/site-verify'],
+            '@php .ci/site-verify.php',
+            $skeletonComposer['scripts']['site-verify'] ?? null,
+            'The Composer verification entry must run through Composer\'s own PHP so it works on native Windows.',
+        );
+
+        $hostedWorkflow = Yaml::parse($hosted);
+        // #2644: the shipped adapter invokes the portable Composer entry, so a
+        // consumer whose CI runs on Windows needs no change, and a consumer who
+        // pushes before running site:init gets the exit-3 instruction rather
+        // than a bare shell "not found".
+        self::assertSame(
+            ['composer install --no-interaction --prefer-dist', 'composer site-verify'],
             array_values(array_filter(array_column($hostedWorkflow['jobs']['verify']['steps'], 'run'))),
         );
         self::assertSame(
@@ -101,6 +133,12 @@ final class SiteReferenceConsumerContractTest extends TestCase
             array_values(array_filter(array_column($frameworkWorkflow['jobs']['site-reference-consumer']['steps'], 'run'))),
         );
 
+        // #2644: the create-project proof is a two-platform matrix. Reducing it
+        // to Linux alone would silently restore the state this issue fixed —
+        // site:init could not complete on Windows at all, and nothing noticed.
+        self::assertArrayHasKey('skeleton-create-project', $frameworkWorkflow['jobs']);
+        self::assertArrayHasKey('skeleton-create-project-windows', $frameworkWorkflow['jobs']);
+
         self::assertStringContainsString('COMPOSER_DISABLE_NETWORK=1', $gate);
         self::assertStringContainsString('framework_source="$work_root/framework-source"', $gate);
         self::assertStringContainsString('candidate_revision=$(git -C "$framework_root" rev-parse HEAD)', $gate);
@@ -112,6 +150,19 @@ final class SiteReferenceConsumerContractTest extends TestCase
         self::assertStringContainsString('site:init', $gate);
         self::assertStringContainsString('site:doctor --strict', $gate);
         self::assertStringContainsString('bin/maintenance/site-verify', $gate);
+
+        // #2644: the canonical fresh-project lifecycle is site:init then
+        // install:init. install:init is the only materialization command that
+        // also activates the configuration generation, so a gate that proved
+        // db:init plus migrate would be proving an invalid installation.
+        self::assertStringContainsString('install:init', $gate);
+        self::assertStringNotContainsString('waaseyaa db:init', $gate);
+        self::assertStringContainsString('.ci/site-verify.php', $gate, 'The gate must prove the pre-init refusal.');
+        self::assertLessThan(
+            (int) strpos($gate, 'install:init'),
+            (int) strpos($gate, 'site:init'),
+            'The reference gate must run site:init before install:init.',
+        );
 
         $site = new SiteManifestParser()->parse($manifest, 'tests/ReferenceConsumer/site.answers.yaml');
         self::assertSame(['announcement', 'event', 'job', 'page', 'update'], array_keys($site->contentTypes));

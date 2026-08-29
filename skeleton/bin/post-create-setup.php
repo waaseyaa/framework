@@ -67,8 +67,16 @@ $dir = basename($root);
 
 echo "  \033[32mWaaseyaa project ready.\033[0m\n";
 echo "\n";
+// #2644: this banner is the first instruction a new project ever shows, so it
+// must be the documented lifecycle. It previously jumped straight to
+// `composer run dev`, which boots a site with no contract, no schema, and no
+// configuration generation.
 echo "  \033[33mcd {$dir}\033[0m\n";
-echo "  \033[33mcomposer run dev\033[0m      Start backend (and admin HMR when configured)\n";
+echo "  \033[33mphp vendor/bin/waaseyaa site:init\033[0m     1. Record the site contract\n";
+echo "  \033[33mphp vendor/bin/waaseyaa install:init\033[0m  2. Apply migrations and activate configuration\n";
+echo "  \033[33mcomposer site-verify\033[0m                  3. Verify\n";
+echo "  \033[33mcomposer run dev\033[0m                      4. Serve (and admin HMR when configured)\n";
+echo "\n";
 echo "  \033[33m./vendor/bin/waaseyaa list\033[0m  See all commands\n";
 echo "\n";
 echo "  {$adminStatus}\n";

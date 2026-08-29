@@ -1655,6 +1655,13 @@
             "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
+            "match_sha256": "cbab020fc225f7693ff6c1a520daf761396c864453d195c3fdc7660167bd5aae",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 1
         },

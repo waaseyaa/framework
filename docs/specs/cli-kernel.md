@@ -19,6 +19,7 @@ are unchanged. -->
 <!-- Spec reviewed 2026-08-13 - issue #2343 WP2: SiteServiceProvider registers the ordinary fully booted `site:init` command. Interactive mode asks plain-language product questions; automation supplies a complete `--answers` document. `--dry-run` is read-only and `--yes` is required for non-interactive publication. The handler delegates deterministic rendering and lock/journal/recovery authority to SiteInitializationService; it does not bypass the provider-neutral contract or create a pre-boot command. -->
 <!-- Spec reviewed 2026-08-08 - Pre-boot maintenance commands: `ConsoleKernel` recognizes exactly `maintenance:on`, `maintenance:off`, and `maintenance:status` before framework or application boot. It loads environment settings, constructs the canonical maintenance commands directly from `MaintenanceSettings` and `MaintenanceState`, and performs only maintenance-flag I/O. These commands must not open a database, run migrations or entity-schema reconciliation, boot providers, or activate field access. They therefore remain available while the application database is missing, stale, or intentionally transitioning during a deployment. All other commands retain normal provider discovery and full console boot. Acceptance: ConsoleKernelTest. -->
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: the canonical `db:init` command factory is reusable by the restricted console bootstrap, allowing schema initialization without booting application providers. Command options and normal provider discovery remain unchanged. -->
+<!-- Spec reviewed 2026-08-29 - #2644: `site:init` and `site:doctor` both join the boot-free command seam. `SiteServiceProvider::siteInitCommand()` and `::siteDoctorCommand()` are now the single definitions of those commands, shared by ordinary provider discovery and by `ConsoleKernel::handle()`'s pre-boot branch, exactly as `ConfigCacheDbAuditServiceProvider::dbInitCommand()` is for `db:init`. Neither handler needs a container: both take only a project root, and `SiteArtifactRendererFactory::create()` composes its three recipes with `new`. `site:init` therefore leaves the restricted pre-boot set (which still opens the database) entirely, so the whole site-contract phase touches no database and `install:init` is the first command that creates one. The doctor reads only the filesystem, so nothing is lost; what is gained is that verification stops being a write. Ordinary CLI boot reaches `AbstractKernel::bootDatabase()` before every restricted-discovery guard, so verifying an uninitialized project created a zero-table `storage/waaseyaa.sqlite` plus `-wal`/`-shm` sidecars and then misreported the missing site contract as an inactive configuration generation. Command names, descriptions, options, and exit codes are unchanged. This SUPERSEDES the 2026-08-13 #2343 WP2 note above, which recorded `site:init` as an ordinary fully booted command that creates no pre-boot command; that note is retained for history. Acceptance: ConsoleKernelTest::siteContractCommandsRunWithoutBootingOrCreatingTheDatabase, SiteDoctorIsReadOnlyTest, and the ci/skeleton-create-project-windows lane that first caught the site:init case. -->
 
 <!-- Spec reviewed 2026-07-25 - #2122 maintenance-mode commands: `MaintenanceServiceProvider` (ProvidesConsoleCommandsInterface) registers `maintenance:on` (`--retry-after`, `--message`), `maintenance:off`, and `maintenance:status` (`--json`) as conventional `HandlerCommand`s dispatching to `Maintenance{On,Off,Status}Handler`. The commands are idempotent with script-friendly exit codes (on/off → 0 on desired state reached, non-zero only on I/O failure; status → 0 serving, 1 in maintenance incl. fail-closed) so deploy tooling can bracket a DB swap. Their parsing, I/O, handler behavior, and normal provider registration remain unchanged; the 2026-08-08 contract above adds an equivalent pre-boot construction path for these exact names. Operator surface: docs/specs/operations-playbooks.md "Playbook I" + CLI Command Reference. Acceptance: MaintenanceCommandsTest. -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 adds optional reason-specific field-read declarations to HandlerCommand metadata. CliFieldReadCapabilityIssuer preserves the exact CLI-valid closed reason, opens an explicit live execution-boundary proof, and binds NoActingContext with a null actor; no CLI account principal or ambient privileged scope is created. -->
@@ -85,6 +86,28 @@ in the explicit local/development/testing allowlist; production, staging, and
 unknown environment names fail closed before filesystem, lock, migration, or
 connection work. Relative paths resolve against the injected project root, not
 the caller's current working directory.
+
+`db:init` classifies a pre-existing database file four ways before it writes
+(#2644):
+
+| State | Disposition |
+|---|---|
+| absent | create and migrate |
+| present, has `waaseyaa_migrations` | migrate |
+| present, holds no tables at all | adopt as a bootstrap artifact and migrate |
+| present, holds any other table | refuse; the operator moves it aside |
+
+The empty case exists because the framework creates that file itself. Any kernel
+boot reaches `bootDatabase()` before the restricted-discovery guards, and
+`DBALDatabase::createSqlite()` opens eagerly, so a zero-table file plus its
+`-wal`/`-shm` sidecars is the normal residue of having run any command. Refusing
+it told an operator to move aside a file they never made, with no recovery short
+of manual filesystem surgery. It is safe to adopt precisely because it is empty;
+a file with any table in it still belongs to someone else, and a connection that
+cannot be inspected is treated as occupied so refusal stays the fail-safe answer.
+
+`db:init` is a database-administration command. It is not part of the canonical
+fresh-project lifecycle, which materializes schema through `install:init`.
 
 `migrate --dry-run` and `migrate --verify` also receive their diagnostic
 redaction posture from the shared bootstrap `RuntimePolicy`. Only `local`,
@@ -173,10 +196,16 @@ retain the invocation reason with the digest-bound exit/count report as the
 durable upgrade evidence.
 
 `install:init` is the governed installation phase (#2428) and belongs to the
-restricted pre-boot command set alongside `schema:sync`, `migrate*`, and
-`site:init`. `ConsoleKernel::handle()` routes it through `bootForSchemaSync()`,
-so it never constructs a runtime consumer that would require the configuration
-generation it is producing, and it exits without entering ordinary runtime boot.
+restricted pre-boot command set alongside `schema:sync` and `migrate*`.
+`ConsoleKernel::handle()` routes it through `bootForSchemaSync()`, so it never
+constructs a runtime consumer that would require the configuration generation it
+is producing, and it exits without entering ordinary runtime boot. It is the
+first command in the lifecycle that opens the database, which is correct: it is
+the command that creates it.
+
+`site:init` left that set in #2644 for the boot-free seam below. Restricted boot
+still calls `bootDatabase()`, so routing the site-contract phase through it
+created an empty database before any bootstrap command had run.
 
 It applies migrations, synchronizes entity schema, and activates the canonical
 empty configuration generation through the genesis seam described in
@@ -198,17 +227,40 @@ through ordinary runtime boot. A fresh site runs `install:init` first; `install`
 could not previously succeed on a new site at all, because it writes
 configuration and no generation existed to write into.
 
+Within the canonical fresh-project lifecycle (#2644), `site:init` runs before
+`install:init`, so the entity types a recipe declares reach `install:init`'s
+schema synchronization in the same pass. Because `install:init` is idempotent,
+it is also the correct command to re-run after any later `site:init` that
+changes the declared content model. `install:init` — not `db:init`, and not
+`migrate` plus `schema:sync` — is the materialization step a consumer-facing
+document names, because it is the only one of the three that also activates the
+configuration generation. A site materialized without it passes site
+verification while being an invalid installation.
+
 ## Site initialization
 
 `SiteServiceProvider` registers `site:init [--answers=PATH] [--project-root=PATH]
-[--dry-run] [--yes]`. It follows ordinary full console boot and composes the
-Layer-0 site-contract package. Interactive mode asks product questions in
-plain language. Non-interactive mode requires a complete answer document and
-explicit `--yes`; `--dry-run` performs no writes. Publication is serialized by
-the project initialization lock and delegates collision refusal, durable
-journaling, rollback, crash recovery, generated ownership, and explicit
-generator-version migration to `SiteInitializationService`. Forge, release,
-and deployment behavior are outside this command.
+[--dry-run] [--yes]`. It runs on the boot-free command seam, alongside
+`site:doctor` and `db:init`, and composes the Layer-0 site-contract package.
+`SiteInitHandler` takes only a project root and
+`SiteArtifactRendererFactory::create()` composes its recipes with `new`, so no
+container is required; routing it through restricted boot would open the
+database, and the site-contract phase runs before the framework has one (#2644).
+Interactive mode asks product questions in plain language. Non-interactive mode
+requires a complete answer document and explicit `--yes`; `--dry-run` performs
+no writes. Publication is serialized by the project initialization lock and
+delegates collision refusal, durable journaling, rollback, crash recovery, and
+generated ownership to `SiteInitializationService`.
+
+Regeneration across a renderer change is carried by the manifest rebind, not by
+a migration engine: there is none, and `generator_version` is read from the
+project's own manifest, so the framework cannot raise it. Rebinding
+`framework.observed_lock_sha256` to the reviewed dependency lock changes the
+manifest digest, which is the signal that distinguishes an upgrade from a
+substitution. See [site-golden-path.md](site-golden-path.md) "Initialization" for
+the full disposition of a changed artifact set versus changed managed bytes.
+
+Forge, release, and deployment behavior are outside this command.
 
 ## Input And Output
 
