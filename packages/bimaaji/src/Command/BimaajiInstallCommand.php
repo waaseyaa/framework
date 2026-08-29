@@ -233,7 +233,17 @@ final class BimaajiInstallCommand
         /** @var array<string, string> $owned relative path => sha1 of the bytes now on disk */
         $owned = [];
 
-        foreach ($transformer->targetFiles($skills) as $file) {
+        $targets = $transformer->targetFiles($skills);
+
+        // The current target set is what the transformer DECLARES, not what
+        // this run managed to write. Deriving it from the write results would
+        // make a transient failure — a permission error, a refused overwrite,
+        // a sandbox rejection — look like an upstream removal, and the pruner
+        // would then delete a file that is still very much current. It would
+        // also make every `--dry-run` report the whole write set as retired.
+        $declaredPaths = array_map(static fn(TargetFile $file): string => $file->path, $targets);
+
+        foreach ($targets as $file) {
             $resolved = $this->resolveAndAssertInSandbox($io, $file, $projectRoot);
             if ($resolved === null) {
                 $skipped++;
@@ -308,11 +318,21 @@ final class BimaajiInstallCommand
             $owned[$file->path] = sha1($payload);
         }
 
+        // A declared target this run could not write keeps whatever ownership
+        // record it already had. Dropping it would quietly disown a file that
+        // still exists and is still current, so a later run could no longer
+        // prune it when it really is retired.
+        foreach ($declaredPaths as $declaredPath) {
+            if (!isset($owned[$declaredPath]) && isset($recorded[$declaredPath])) {
+                $owned[$declaredPath] = $recorded[$declaredPath];
+            }
+        }
+
         $prune = $this->pruneRetiredTargets(
             io: $io,
             projectRoot: $projectRoot,
             recorded: $recorded,
-            currentPaths: array_keys($owned),
+            currentPaths: $declaredPaths,
             dryRun: $dryRun,
         );
 

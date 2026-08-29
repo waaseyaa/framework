@@ -310,6 +310,59 @@ final class BimaajiInstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function aStillDeclaredTargetIsNeverPrunedWhenThisRunCouldNotWriteIt(): void
+    {
+        // Regression: the current set is what the transformer DECLARES. If it
+        // were derived from what the run managed to write, a refused overwrite
+        // or a permission error would look like an upstream removal and the
+        // pruner would delete a file that is still current.
+        $two = $this->stubMultiFileTransformer('multi', ['a.md', 'b.md']);
+        $this->tester([$two])->execute(['--client=multi', '--force']);
+        $recordedSha1 = InstalledManifest::load($this->tempDir)->targetsFor('multi')['b.md'];
+
+        // Diverge b.md so a write is attempted, then make it unwritable so the
+        // attempt fails and b.md drops out of this run's write results.
+        file_put_contents($this->tempDir . '/b.md', ManagedRegion::wrap('locally changed'));
+        chmod($this->tempDir . '/b.md', 0o444);
+        $second = $this->tester([$two]);
+        $second->execute(['--client=multi', '--force']);
+        chmod($this->tempDir . '/b.md', 0o644);
+
+        // b.md is still declared by the transformer, so it is not retired at
+        // all — it must not reach the pruner in any state.
+        self::assertFileExists($this->tempDir . '/b.md');
+        self::assertStringNotContainsString('retired target', $second->getOutput());
+        self::assertStringNotContainsString('released', $second->getOutput());
+        // And its ownership record survives, so a genuine retirement later
+        // can still prune it.
+        self::assertSame(
+            $recordedSha1,
+            InstalledManifest::load($this->tempDir)->targetsFor('multi')['b.md'] ?? null,
+        );
+    }
+
+    #[Test]
+    public function dryRunOnAFreshChangeDoesNotReportTheWriteSetAsRetired(): void
+    {
+        // Regression: with the current set derived from write results, a dry
+        // run wrote nothing and so reported every target as retired.
+        $two = $this->stubMultiFileTransformer('multi', ['a.md', 'b.md']);
+        $this->tester([$two])->execute(['--client=multi', '--force']);
+
+        // Force both files to differ so the dry run has real work to report.
+        file_put_contents($this->tempDir . '/a.md', ManagedRegion::wrap('stale'));
+        file_put_contents($this->tempDir . '/b.md', ManagedRegion::wrap('stale'));
+
+        $tester = $this->tester([$two]);
+        $tester->execute(['--client=multi', '--dry-run']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getOutput());
+        self::assertStringNotContainsString('retired target', $tester->getOutput());
+        self::assertFileExists($this->tempDir . '/a.md');
+        self::assertFileExists($this->tempDir . '/b.md');
+    }
+
+    #[Test]
     public function dryRunReportsAPruneWithoutPerformingIt(): void
     {
         $two = $this->stubMultiFileTransformer('multi', ['a.md', 'b.md']);

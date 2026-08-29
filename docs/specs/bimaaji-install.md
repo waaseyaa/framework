@@ -109,6 +109,14 @@ of three ways, in descending confidence:
 | sha1 differs, marker pair present | Ours, but edited. Deleting would take hand-authored bytes with it, so the managed region is replaced with a retirement notice and every byte outside the markers is preserved. |
 | sha1 differs, no marker pair | Ownership can no longer be demonstrated. The file is left completely untouched and the claim is released, so no future run touches it either. |
 
+"The current set" is what the transformer **declares**, not what the run
+managed to write. Deriving it from the write results would make a transient
+failure — a permission error, a refused overwrite, a sandbox rejection — look
+like an upstream removal, and would make every `--dry-run` report its whole
+write set as retired. A declared target that could not be written also keeps
+whatever ownership record it already had, so a later run can still prune it
+when it genuinely is retired.
+
 `--dry-run` reports every prune and neutralisation and performs none of them,
 and does not rewrite the manifest. Installing for one client never forgets
 another: `withClient()` replaces one client's record and carries the rest
