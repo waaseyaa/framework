@@ -99,6 +99,10 @@ function s1ActivationClass(string $path): string
         'packages/entity-storage/src/Config/DatabaseConfigReplayStateReader.php' => 'active-reader',
         'packages/entity-storage/src/Config/DatabaseConfigurationActivator.php' => 'activation-authority',
         'packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php' => 'active-reader',
+        // #2547: names the configuration tables to declare who OWNS their rows
+        // across an artifact handoff. It neither reads nor mutates configuration
+        // — it is an ownership manifest, which is why it is its own class.
+        'packages/deployer/src/RuntimeState/FrameworkRuntimeTableCatalogue.php' => 'runtime-state-ownership',
         'packages/foundation/src/Kernel/HttpKernel.php' => 'epoch-consumer',
         'packages/foundation/src/Runtime/RuntimeEpochCacheBackend.php' => 'epoch-cache',
         'packages/foundation/src/Runtime/RuntimeEpochInterface.php' => 'epoch-contract',
@@ -143,6 +147,9 @@ function s1ActivationBuildRoster(array $transient): array
             'epoch-cache', 'epoch-composition', 'epoch-consumer', 'epoch-contract', 'epoch-provider',
             'failure-contract', 'legacy-mutation-adapter', 'maintenance-contract', 'mutation-orchestrator',
             'refusing-default', 'request-contract', 'result-contract', 'schema-authority',
+            // #2547: an ownership manifest — declares who owns configuration rows
+            // across an artifact handoff without reading or mutating them.
+            'runtime-state-ownership',
             'testing-or-static-epoch', 'token-contract',
         ],
         s1RosterCanonicalize($transient),
