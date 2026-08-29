@@ -403,6 +403,19 @@ instead, via the shared `.github/actions/composer-install-retry` composite
 action (or an equivalent hand-rolled loop where the job's `run:` shape
 cannot cleanly call a composite action mid-script).
 
+`ci/skeleton-create-project-windows` (#2644) is the one job in this file that
+does not run on Linux. It proves the fresh-project lifecycle — create-project,
+the pre-init verification refusal, `site:init`, `install:init`, and
+`composer site-verify` — on a native Windows development host, where the
+framework previously could not complete `site:init` at all. It cannot use the
+shared `composer-install-retry` composite action (`shell: bash`) or the Linux
+Composer cache path, so it caches `~\AppData\Local\Composer\files` under the
+already-OS-scoped key and is written entirely in PowerShell and PHP. It
+deliberately runs none of the PHPUnit suites: a documented set of those is
+POSIX-only by design, so running them there would be a guaranteed red for
+environmental reasons. It makes no serving claim, and `support/s1-v1.json`'s
+`platform.framework_os` remains the ubuntu-24.04 serving runtime.
+
 The `check-dead-code` job's PHPStan result cache has a separate, stricter
 custody rule. Dead-code reachability is a global property of the analyzed PHP
 universe: a source or PHPDoc change can alter the usage graph without changing

@@ -133,6 +133,12 @@ final class SiteReferenceConsumerContractTest extends TestCase
             array_values(array_filter(array_column($frameworkWorkflow['jobs']['site-reference-consumer']['steps'], 'run'))),
         );
 
+        // #2644: the create-project proof is a two-platform matrix. Reducing it
+        // to Linux alone would silently restore the state this issue fixed —
+        // site:init could not complete on Windows at all, and nothing noticed.
+        self::assertArrayHasKey('skeleton-create-project', $frameworkWorkflow['jobs']);
+        self::assertArrayHasKey('skeleton-create-project-windows', $frameworkWorkflow['jobs']);
+
         self::assertStringContainsString('COMPOSER_DISABLE_NETWORK=1', $gate);
         self::assertStringContainsString('framework_source="$work_root/framework-source"', $gate);
         self::assertStringContainsString('candidate_revision=$(git -C "$framework_root" rev-parse HEAD)', $gate);

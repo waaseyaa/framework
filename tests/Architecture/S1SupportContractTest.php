@@ -69,6 +69,27 @@ final class S1SupportContractTest extends TestCase
             self::assertMatchesRegularExpression('/^    runs-on: ubuntu-24\.04$/m', $suiteJob['job'], $jobId);
         }
 
+        // #2644: the Windows lane is a DEVELOPMENT-host proof. It must stay
+        // pinned like every other runner, and it must never grow into a serving
+        // claim — support/s1-v1.json's platform.framework_os is ubuntu-24.04
+        // and that is the serving runtime the S1 profile describes. A lane that
+        // quietly started serving traffic would widen the support contract
+        // without amending it.
+        self::assertStringNotContainsString('runs-on: windows-latest', $workflow);
+        self::assertSame(
+            1,
+            preg_match('/^  skeleton-create-project-windows:\R(?<job>.*?)(?=^  [a-z0-9_-]+:\R|\z)/ms', $workflow, $windowsJob),
+        );
+        self::assertMatchesRegularExpression('/^    runs-on: windows-2025$/m', $windowsJob['job']);
+        self::assertMatchesRegularExpression('/^    timeout-minutes: \d+$/m', $windowsJob['job']);
+        foreach (['waaseyaa serve', 'waaseyaa dev', 'frankenphp', 'playwright', 'phpunit'] as $servingClaim) {
+            self::assertStringNotContainsString(
+                $servingClaim,
+                $windowsJob['job'],
+                sprintf('The Windows development lane must make no serving claim (%s).', $servingClaim),
+            );
+        }
+
         $playwright = (string) file_get_contents($this->root . '/packages/admin/playwright.config.ts');
         self::assertStringContainsString("name: 'chromium'", $playwright);
         self::assertStringContainsString("name: 'firefox'", $playwright);
