@@ -8,3 +8,19 @@ phpunit.xml.dist
 *.md
 .claude
 .cursor
+
+# Generated secrets must never reach the build context. bin/post-create-setup.php
+# writes .env at create-project time with a random WAASEYAA_JWT_SECRET and
+# WAASEYAA_APP_SECRET; the production stage's `COPY . /app` would otherwise bake
+# both into a distributable image layer. Excluded at the context level, which is
+# the only boundary no later Dockerfile instruction can reach behind. (#2647)
+.env
+.env.*
+**/.env
+**/.env.*
+
+# .env.example carries placeholders only and is the documented template the
+# create-project step reads. The negations come last: `.env.*` matches it, and
+# in .dockerignore the last matching pattern wins.
+!.env.example
+!**/.env.example
