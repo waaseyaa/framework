@@ -35,12 +35,12 @@
         "lcobucci/jwt": "^5.3",
         "league/oauth2-server": "^9.0",
         "symfony/uid": "^7.0",
-        "waaseyaa/access": "^0.1.0-alpha.298",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.298",
-        "waaseyaa/entity": "^0.1.0-alpha.298",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.298",
-        "waaseyaa/foundation": "^0.1.0-alpha.298",
-        "waaseyaa/user": "^0.1.0-alpha.298"
+        "waaseyaa/access": "^0.1.0-alpha.299",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.299",
+        "waaseyaa/entity": "^0.1.0-alpha.299",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.299",
+        "waaseyaa/foundation": "^0.1.0-alpha.299",
+        "waaseyaa/user": "^0.1.0-alpha.299"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0"

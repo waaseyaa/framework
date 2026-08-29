@@ -5,8 +5,8 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.298",
-        "waaseyaa/foundation": "^0.1.0-alpha.298"
+        "waaseyaa/database-legacy": "^0.1.0-alpha.299",
+        "waaseyaa/foundation": "^0.1.0-alpha.299"
     },
     "suggest": {
         "waaseyaa/entity": "^0.1.0-alpha.261",
@@ -15,9 +15,9 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/config": "^0.1.0-alpha.298",
-        "waaseyaa/entity": "^0.1.0-alpha.298",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.298"
+        "waaseyaa/config": "^0.1.0-alpha.299",
+        "waaseyaa/entity": "^0.1.0-alpha.299",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.299"
     },
     "autoload": {
         "psr-4": {

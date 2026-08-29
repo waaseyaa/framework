@@ -7,6 +7,524 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.299] - 2026-08-29
+
+### Added
+
+- Added a deterministic, content-addressed exact-head source artifact and fail-closed verifier for CI reuse.
+
+- **Added — early `#[CoversNothing]` coverage diagnostic (#2410):** local preflight names changed executable lines that need a coverage-bearing Unit or Contract companion.
+
+- **Added — typed consumer auth extensions without ejecting the security core (#2437):** applications can now contribute fail-closed registration/approval, linked profile, redirect, mail-presentation, lifecycle, and initial-role policy while Framework retains credentials, sessions, tokens, 2FA, rate limits, controllers, and authorization.
+
+- Add a checksum-pinned, content-addressed WSL2 development-runtime bootstrap
+  and shared environment identity for Framework and first-party consumers
+  (`FW-DEV-RUNTIME-01`, #2523), without changing global paths or production
+  runtime configuration.
+
+- **Added — bounded agent checkpoints (#2526):** long-running audits can retain hashed file-backed evidence and emit a small product-neutral manifest with verified Git, worktree, process, and mutation state.
+
+- Added a bounded, read-only checkpoint verification mode that detects drifted
+  or missing local claims before interrupted agent work resumes.
+
+- **A member migrated from another system can now sign in with the password they
+  already have, and that login quietly replaces the imported credential with a
+  current Waaseyaa hash.** Framework authentication verified stored passwords
+  with `password_verify()` alone, which cannot read WordPress portable (`$P$` /
+  `$H$`) hashes, so a migrating site had to discard every credential and force
+  its whole roster through a password reset — a hard cutover that loses the
+  people who never complete it. A pluggable
+  `Waaseyaa\Auth\Password\LegacyPasswordVerifierInterface` now sits behind the
+  native check, with a phpass implementation, and `LegacyPasswordUpgrade` makes
+  the single verification decision both `AuthManager` and the HTTP login
+  controller use. An imported credential lives in its own `User::$legacy_pass`
+  field rather than in `pass`, which is what makes "a current hash is never
+  downgraded" structural: `pass` only ever holds a current hash, only
+  `legacy_pass` is ever offered to a legacy verifier, and an account that has a
+  current hash never consults its legacy value at all. `legacy_pass` carries
+  `pass`'s exact read classification — Internal, audited `user.credentials`
+  capability, on every read surface's always-internal list — so it never reaches
+  serialization, logs, or audit payloads. **HTTP `POST /api/auth/login` is
+  wired through `AuthOidcRouteServiceProvider`**, which must receive the same
+  `LegacyPasswordUpgrade` `AuthManager` uses; a bound verifier that never
+  reaches that constructor is a native-only 401. `legacy_pass` is also on
+  `UserAccessPolicy::CREDENTIAL_FIELDS`, so it is Forbidden on the generic
+  field write surface the same way `pass` is. Acceptance triggers one `save()` that
+  writes the new hash and clears the legacy value together; a failed rewrite
+  logs the account id and exception class only and leaves the login successful
+  and the account retryable. The stored iteration count is bounded rather than
+  trusted, so an imported cost parameter cannot turn a login into a denial of
+  service. **Opt-in**: with no `auth.legacy_passwords.formats` configured the
+  chain is empty and authentication behaves exactly as before; an unknown format
+  name fails loudly at boot rather than silently verifying nothing. Modern
+  WordPress `$wpy$` is deliberately NOT supported — its pre-hash must be
+  reproduced byte for byte and a near-miss rejects every password while looking
+  correct. See `docs/upgrade-notes/legacy-password-upgrade.md`, which also
+  states the one real-hash check to run before cutover.
+
+- **Added — page-builder gateways can open a migrated entity that has no
+  stored layout document (#2556):** `PublishingLayoutDraftGateway` and
+  `PublishingPageBuilderRevisionGateway` accept an optional
+  `InitialLayoutDocumentProviderInterface`. Content migrated from another CMS
+  has no page-builder document, `LayoutDraftSnapshot` cannot legally represent
+  that state, and no decorator over the gateway interface can supply one — so
+  a consumer had to fork both gateways to use the page builder at all. A
+  composed provider now supplies the application-chosen canonical document
+  whenever the stored value is absent (`NULL` or an empty/whitespace-only
+  string), as a read projection: nothing is written until an editor saves.
+  The framework hardcodes no document, an empty provider return is refused, a
+  corrupt non-string stored value is still refused, and gateways composed
+  without a provider keep their exact historical refusal behaviour.
+
+- **Added — one shared id-or-UUID resolver, and it is access-neutral by
+  contract (#2557):** `Waaseyaa\Entity\Repository\EntityIdentifierResolver`
+  turns an identifier that may be a primary key or a UUID into an entity, and is
+  the seam consumers were missing. `GenericAdminSurfaceHost`,
+  `JsonApiController`, `SsrPageHandler`, `MediaDownloadRouter` and the GraphQL
+  `EntityResolver` now call it instead of each carrying a private copy.
+  Resolution does **not** authorize: the UUID lookup runs `accessCheck(false)`
+  and never binds an acting account, symmetrically with `find()`, so every
+  caller must run its own operation-specific access check on the result.
+
+- **Added — authorized inline PDF viewing (#2564):** applications can embed `GET /media/{id}/view` in a same-origin iframe while retaining media entity authorization, indistinguishable 404 concealment, content-sniffed PDF eligibility, path confinement, complete-body delivery, and cross-origin frame denial.
+
+- **Added — `media` joins the split-main allowlist (#2591):** the reviewed pre-release fan-out set in `bin/resolve-split-main-targets` now carries `media`, so `split-main.yml` can deliver #2564's inline view to a downstream consumer as the two packages it actually spans. Splitting `foundation` alone registered `/media/{id}/view` against a released `MediaDownloadRouter` that still matched only `media.download`, leaving the route resolvable to no domain router. Dispatch authority, the SHA and green-CI preconditions, the release-overlap refusal, and the rejection of unknown or path-shaped targets are unchanged, and `split.yml` remains the sole release and package-publication authority.
+
+- **Added - bounded XLSX inspection and deterministic dry-run mapping (#2593):** `waaseyaa/structured-import` now validates checksum-pinned OOXML packages under explicit resource ceilings, exposes value-free workbook structure plus an explicit redacted protected-selection channel, refuses formulas and external relationships, and builds checksum-bound create/update/unchanged/conflict plans from caller-supplied identities without persistence.
+
+- The first-party development runtime now has an exact-commit, checksum-pinned
+  consumer launcher, allowing clean Sheg and Anokii checkouts to reuse the
+  Framework-owned bootstrap without copying managed-tool version literals.
+
+- Bundle content models can now declare named, database-enforced unique keys. Data-backed key fields are promoted and backfilled into bundle subtables, runtime schema checks fail closed on missing indexes, and duplicate saves surface a stable bundle-key conflict instead of a driver exception.
+
+### Changed
+
+- **Changed — immutable source promotion (#2404):** Release Readiness now promotes the successful exact-head CI source artifact and executes candidate build and browser acceptance from independently verified extracted bytes.
+
+- Clarified the packaged Admin dist regression that binds its shipped Nuxt build ID to the canonical content signature while keeping it distinct from the broader `dist.signature` procedure fingerprint (#2417).
+
+- Make PHPUnit's 1 GB test-only memory ceiling canonical for discovery, focused runs, full suites, and CI while leaving production runtime limits unchanged (#2495).
+
+- **The revision-attribution NFR test now measures work instead of wall-clock
+  time, so it stops red-lighting PRs that never touched it.**
+  `KernelRevisionAuthorTest` asserted that an attributed save took at most
+  1.05x the median unattributed save. A 5% margin is below the noise floor of a
+  shared CI runner, so the assertion measured the machine as much as the code —
+  it flaked at 1.0546x on an otherwise green tree during unrelated work, which
+  teaches contributors to re-run rather than read failures. NFR-001's actual
+  requirement is "attribution must not add work per save", and that is exact:
+  an attributed save now must issue the identical database statements as an
+  unattributed one — including `schema()` construction, so a save-time
+  `tableExists`/`fieldExists` probe cannot hide — and must consult the account
+  exactly once per save. Both are properties of the code and give the same
+  answer on any machine. The bound was deliberately not merely widened — a
+  wall-clock bound wide enough to survive runner contention is wide enough to
+  admit a per-save query, which is the regression being guarded. A ceiling of
+  two account reads would have passed double `resolveActor()` and per-field
+  `id()` on this one-field fixture, so the test pins the shipped cost of one.
+
+- **Changed — release notes now use deterministic per-PR fragments (#2563):**
+  ordinary pull requests add a uniquely named file under `changes/unreleased/`
+  instead of editing the shared `[Unreleased]` section in `CHANGELOG.md`. The
+  governed release cut validates, renders, archives, and compiles those fragments
+  into the canonical versioned changelog section exactly once.
+
+### Fixed
+
+- **The content-publishing specification's agent asset-tool contract now matches
+  the code an agent actually calls.** Four claims were wrong, and the first two
+  make a conforming caller fail. `asset.upload` was documented as accepting
+  `{filename, content_base64, alt?}`; the real schema is
+  `{filename, content_base64}` built with `additionalProperties: false`, so an
+  agent that trusted the spec and sent `alt` was rejected by schema validation
+  before the handler ran. `ContentToolSet::register()` was documented as
+  `(ToolRegistryInterface, ContentTypeDescriptor, prefix, MediaAssetPolicy)`; it
+  takes `(ToolRegistryInterface $registry, string $prefix)` — the descriptor and
+  the asset store are constructor arguments, and `MediaAssetPolicy` is not a
+  type that exists anywhere in the tree. The spec also called the approved
+  upload types a "descriptor-configurable subset of the media allowlist" when
+  `MediaAssetStore::APPROVED_TYPES` is a fixed constant, and described a
+  "randomized safe filename" when files are stored under their own `sha256`
+  content hash — which is what makes identical bytes deduplicate. The section
+  now also records that `asset.*` is registered only when an
+  `AssetStoreInterface` is supplied and that the framework binds no default, so
+  agent upload is an opt-in a deployment constructs rather than a tool that
+  appears on its own. Documentation only; no behaviour changes.
+
+- **Four further claims in the content-publishing spec's agent asset-tool
+  section now match the code.** The `asset.upload` bullet credited the media
+  `UploadHandler` with a "file-signature/extension agreement" check it does not
+  perform — `validate()` checks the upload error, the size, the `finfo` sniff
+  and the approved-type allowlist, and never compares the filename extension to
+  the sniffed type, so PNG bytes named `photo.jpg` are accepted and stored as
+  `.png`. Readers were being told a defence existed that did not. The input-
+  schema bullet said "mutations require `idempotency_key`", but `asset.upload`
+  is `destructive: true` and requires neither `idempotency_key` nor
+  `expected_revision_id`; sending one is rejected by `additionalProperties:
+  false`, which is the same trap as the `alt` field removed alongside it, and
+  the absence is why a retried upload accretes one `media` row per attempt. The
+  error roster omitted `ASSET_REJECTED`, the only code `asset.upload` raises for
+  a rejected file. The `media` row was called "revisioned" when core `media` is
+  not revisionable — which is precisely why the actor is recorded on the row's
+  `uid` owner field rather than left to the save context. `asset.get`'s input
+  shape, `{asset_id}`, is now written down instead of implied.
+
+- **The MCP endpoint specification no longer states the opposite of the shipped
+  OAuth surface.** `docs/specs/mcp-endpoint.md` asserted that "OAuth 2.1 is not
+  advertised or implemented by this package" while `OAuthMcpAuth`,
+  `OAuthAccessTokenValidatorInterface`, `OAuthProtectedResourceMetadata`,
+  `OAuthProtectedResourceMetadataConfig`, `ScopedMcpAuthInterface`,
+  `ScopedPrincipal` and the `mcp.oauth_protected_resource` route all ship — so
+  the one document an integrator reads before wiring the write tier told them
+  the capability did not exist. The spec now carries an OAuth resource-server
+  section covering the fail-closed decision order, the RFC 9728 validation rules
+  enforced at construction, the shared owner of the discovery path and the
+  `WWW-Authenticate` challenge, and an explicit statement of what does **not**
+  ship: no validator implementation, no OAuth branch in
+  `resolveWriteTierAuth()`, no authorization server, and no PKCE (an
+  authorization-server concern a resource server does not participate in). It
+  also records that checking the subject maps to an *active* account is the
+  validator's duty alone — `OAuthMcpAuth` does not re-check liveness after
+  `validate()` returns, unlike `BearerTokenAuth`.
+
+- **An OAuth protected-resource identifier carrying a query, a fragment, or
+  userinfo is now refused at boot, as it was always documented to be.**
+  `OAuthProtectedResourceMetadataConfig` guarded all four forbidden URI
+  components with a single multi-argument `isset()`, which is a conjunction: it
+  fired only when userinfo **and** password **and** query **and** fragment were
+  all present, so `https://cms.example/mcp/write?tenant=a` was accepted. That is
+  not cosmetic — `metadataUri()` rebuilds the advertised discovery URI from
+  scheme, host, port and path, dropping the query, while `resource` keeps it and
+  is the audience handed to `OAuthAccessTokenValidatorInterface::validate()`, so
+  a client reconciling the two identifiers would see them disagree. Each
+  component is now rejected on its own, matching the sibling
+  `McpServerCardConfig` guard, and three single-component cases plus the
+  `authorization_servers` and `resource_documentation` fields are pinned by
+  tests that fail against the old conjunction.
+
+- **The OAuth write-tier documentation now names the three lists that must
+  agree before any tool is reachable.** A capability must appear on the tier
+  allowlist (`mcp.write_tier.capabilities`), in `scopes_supported`, and among
+  the scopes granted on the presented token; `McpEndpoint` admits the
+  intersection fail-closed, so any mismatch yields a caller who authenticates
+  successfully and then sees an empty `tools/list` with no error to read.
+  `packages/mcp/README.md` advertised `scopes_supported` of
+  `content.read`/`content.write`, capabilities no tool declares, and its example
+  omitted `mcp.write_tier.capabilities` entirely — leaving the default
+  `present guided content` to intersect the advertised scopes to nothing, which
+  is the most common form of the failure. The example now sets both
+  consistently, and both documents record that `tool.entity.*` mutations stay
+  blocked regardless of scope unless
+  `mcp.write_tier.allow_generic_entity_mutations` is enabled.
+
+- **Fixed — installing `waaseyaa/ai-pipeline` no longer hard-blocks field-access
+  boot (#2131):** `pipeline|*|label` now has a framework-owned Public
+  classification, matching the other first-party config labels. A full-framework
+  install reports that key as classified and boots without a consumer
+  classification artifact or uninstalling the package.
+
+- Select FrankenPHP worker mode through an explicit worker-process marker so classic mode cannot return an empty 200 when its worker API returns `false` (#2180).
+
+- Make the Mercure channel-filter browser proof wait for the exact filtered request so a late unfiltered response cannot overwrite its evidence (#2289).
+
+- Use Packagist's main-token Bearer authentication for new split-package registration, and keep verification, evidence, and release bookkeeping observable when registration fails.
+
+- Add a contract-checked fresh-project guide mapping common application concerns to their supported ownership and extension boundaries.
+
+- Published auth UI manifests now distinguish Framework and consumer changes,
+  report drift without overwriting application files, and support an explicit
+  reviewed-baseline workflow for customized login presentation.
+
+- The HTTP kernel now activates durable database-backed request rate limiting
+  and request-body size limiting exactly once in its documented priority stack.
+  Middleware composition rejects duplicate concrete classes, and the middleware
+  spec now distinguishes active security controls from dormant opt-in
+  performance and observability middleware.
+
+- Custom-storage entity types now fail explicitly when resolved through `getRepository()` instead of falling through to Framework SQL schema checks or persistence; their declared backend remains available through `getStorage()`.
+
+- **The `media` row the curated agent asset tooling writes now governs the
+  asset's reachability, on both surfaces.** `MediaAssetStore::get()` accepted an
+  authorization principal and never read it, so every call site read as though a
+  decision were being made when none was; reads now resolve the catalog row and
+  refuse unless that principal may `view` it, and a retracted row — or bytes on
+  disk with no row at all — is indistinguishable from an asset that never
+  existed. `upload()` now records a scheme-qualified `public://` `source_uri`,
+  so the row can be served by the framework's own authorized media download
+  route; the scheme-less value it used to write made the framework create rows
+  that route could not resolve, leaving a consumer needing gated retrieval with
+  no supported path. The store therefore takes the media files root the
+  `public://` scheme resolves against as a new required constructor argument and
+  refuses at construction when its uploads directory is not inside that root,
+  `..` included, rather than writing rows that cannot be served; both methods
+  additionally return `media_id`, the identifier that route is keyed by.
+  Re-uploading the same bytes writes another catalog row; `get()` returns the
+  first matching row the principal may `view`, so an unpublished duplicate does
+  not hide a later published one. Retraction semantics are now stated: unpublishing or deleting the row
+  withdraws the asset from both surfaces, while the content-addressed bytes
+  remain on disk because they may be shared by other rows and
+  `AssetStoreInterface` has no retraction primitive. Rows written before this
+  change carry the old scheme-less `source_uri`; they are still matched on read
+  — now under the access check they never had — but the authorized route cannot
+  serve them until the asset is re-uploaded.
+
+- **Framework can install a consumer artifact through its own runtime-state
+  handoff again.** `FrameworkRuntimeTableCatalogue` did not classify 22
+  Framework-owned tables that current migrations install, so
+  `SqliteArtifactPreparer` rejected a legitimate serving database built on the
+  very same commit — before copying a single row. Framework could boot and pass
+  CI while being unable to complete its own documented data refresh. The
+  configuration-authority graph, scheduler state, publishing idempotency, the
+  key-value `state` store, the two S1 authority tables, and `cache_items` are
+  now each classified with an explicit policy and a stated reason, and the
+  catalogue version is bumped to 2. The configuration tables move as one set
+  because they are one aggregate — foreign keys and cross-table triggers bind
+  them — and the scheduler's monotonic fence sequence is preserved because a
+  reset would let a stale lease holder out-fence the live one, which is a
+  correctness failure rather than lost bookkeeping. `waaseyaa_schema_authority`
+  is taken from the artifact so it agrees with the `waaseyaa_migrations` ledger
+  it counts, which was already artifact-owned, and
+  `waaseyaa_entity_mutation_authority` merges both sides rather than preserving
+  one: a missing row is not a missing convenience but an
+  `UnexpectedValueException` out of entity hydration, so preserving the serving
+  copy alone would have made every entity the artifact introduces unreadable. The completeness test's
+  grandfather list drops from 25 entries to 3, and a new integration test drives
+  the real preparer over a real migration-installed database — the assertion the
+  production failure would have tripped, which a set-comparison test structurally
+  could not. This unblocks the catalogue half of the
+  handoff; a serving database that already carries committed configuration
+  activations still meets the interdependent-restore failure #2548 reports,
+  which is now the next error rather than the first one.
+
+- **Fixed — an authorized editor can now read a body back byte-for-byte
+  (#2552):** `GET /api/node/{id}?workingCopy=1` returned the sanitized
+  projection, which drops `class`, `style`, `data-*`, relative URLs, inline SVG
+  and ARIA state and normalizes structure. A routine read-modify-write therefore
+  destroyed whatever the projection dropped — on the reporting consumer, the
+  `sfn-*` component hooks its theme and view models key off. Adding
+  `&representation=editing` now returns the stored bytes unchanged, and every
+  response carries `meta.representation` so a client knows which projection it
+  holds before writing it back.
+
+  The opt-in is gated rather than declared: it requires `?workingCopy=1`, which
+  is already gated on entity update access, and every HTML attribute that would
+  be returned losslessly must also pass the same field-edit check PATCH uses.
+  A viewable-but-noneditable HTML field therefore fails the whole request with
+  a generic 403; view-hidden fields and HTML fields excluded by a sparse
+  fieldset remain outside that decision. It is refused on collections, where
+  no single entity's update access has been established, and an unsupported
+  value is a 400 rather than a silent fallback.
+
+  The shared sanitizer allowlist was deliberately left alone. Widening it to
+  admit `class` would have loosened anonymous JSON:API, GraphQL, the admin
+  surface and the markdown presenter at once — and `class` cannot be admitted
+  without also admitting protocol-relative `//host/…` URLs, which carry no
+  scheme and so never reach `forceHttpsUrls()`. That would let any author plant
+  a tracking pixel that fires for every anonymous reader. Public output is
+  byte-identical to before.
+
+  Known limitation: the `PATCH` response still echoes the rendered projection,
+  so a client that keeps the mutation response as its next edit state remains
+  lossy on the following save. Making mutation echoes lossless for authorized
+  writers is a separate contract decision, tracked in #2553.
+
+- **A JSON:API mutation can now echo the lossless editor projection, so a client
+  that keeps the response as its next edit state no longer destroys stored
+  markup on its following save.** `#2552` made the *read* lossless, but `PATCH`
+  and `POST` still serialized their echo through the sanitizer, so the normal
+  SPA pattern — hold the mutation response, edit it, send it back — was safe on
+  the first round trip and destructive on the second. `?representation=editing`
+  now applies to writes as well, selecting the projection of the response echo
+  only and never what is written. A mutation is its own authorization anchor, so
+  unlike the read it does not additionally require `?workingCopy=1`; an
+  unrecognized value is a 400 raised before anything is written; and every
+  mutation response now states `meta.representation`, exactly as every
+  single-entity read already did, so a client can tell which projection it is
+  holding. Where the per-field `edit` gate denies an HTML field the echo is
+  downgraded to the sanitized projection and says so rather than failing a write
+  that has already committed. `FieldAutoSaveController` honours the same opt-in
+  on its single-field echo. The projection stays opt-in — the sanitized echo is
+  what protects a consumer that renders the response directly, and every
+  existing consumer was written against it — so no existing client's wire shape
+  changes. The framework's own admin SPA does not opt in: it never hits this
+  JSON:API query, loads and saves through `GenericAdminSurfaceHost`, and a
+  host re-read is still the sanitized projection, so it cannot restore stored
+  markup. Lossless GET plus echo on that host is a follow-up, not a CW-v1
+  pointer change.
+
+- **Fixed — a GraphQL mutation no longer depends on which identifier shape the
+  request used (#2557):** the GraphQL resolver's UUID lookup bound the acting
+  account, which filters on `view`, while its numeric branch never
+  access-checked. An account entitled to update an entity it may not view
+  succeeded by numeric id and received "Entity not found" by UUID. Both paths
+  now reach the same operation-specific guard. Resolution by UUID also honours
+  the entity type's declared `uuid` key rather than assuming a column named
+  `uuid`.
+
+- Prevent page-builder palette clicks from failing silently when no insertion target exists or pending block changes cannot be saved.
+
+- **The MCP endpoint no longer emits JSON-RPC error codes that the `2026-07-28`
+  revision it advertises forbids.** Eight codes sat inside `-32020..-32099`,
+  which that revision reserves for the MCP specification and forbids an
+  implementation from allocating in, or were codes the specification names as
+  retired; the sharpest was `-32002`, which carried two unrelated meanings from
+  the same server — resource-not-found on `resources/read` and an
+  infrastructure outage on `tools/call` — so a client mapping it to
+  resource-not-found rendered an audit outage as a missing resource and retried
+  a different URI instead of backing off. Transport, rate-limit and
+  infrastructure refusals now use a `-31xxx` band outside the JSON-RPC reserved
+  range, each keeping the last two digits of the code it replaces so old log
+  lines stay findable, and the two infrastructure outages are finally distinct
+  codes; `resources/read` answers the specification-named `-32602` in every
+  protocol era. `Waaseyaa\Mcp\McpErrorCode` is now the single allocation point
+  and states the policy, and a new architecture test scans `packages/mcp/src`
+  so a future literal in a forbidden band fails in CI rather than on a
+  consumer's wire. `-32001`/`-32003`/`-32004` are deliberately unchanged — the
+  legacy sub-range is a SHOULD NOT, and those three are wire contracts clients
+  already implement — but they are now recorded with rationale so a new legacy
+  allocation still fails. This is a wire change for clients that branch on the
+  numeric code; every HTTP status, message and `data` member is unchanged. The
+  kernel's route-declared oversize map (`McpRouteProvider::REFUSAL_CODES`)
+  follows the same allocation (`McpErrorCode::REQUEST_TOO_LARGE`) so a
+  `BodySizeLimitMiddleware` 413 and the transport guard's 413 stay one code.
+  See `docs/upgrade-notes/mcp-error-code-allocation.md`.
+
+- **The MCP endpoint skill no longer describes interfaces the package removed.**
+  The document an agent reads before touching this surface carried a
+  three-argument `McpEndpoint` constructor and a
+  `handle(string $method, string $body, ?string $authorizationHeader)` signature
+  — the real ones are ~22 named collaborators and
+  `handle(AccountInterface, HttpRequest)` — and documented
+  `packages/mcp/src/Bridge/{ToolRegistryInterface,ToolExecutorInterface}.php`
+  plus `McpToolDefinition`, none of which exist; the endpoint consumes
+  `Waaseyaa\AI\Tools\ToolRegistryInterface` directly, shaped per tier by
+  `ReadOnlyToolRegistry` and `CapabilityScopedToolRegistry`. Its dispatch
+  diagram and unit-testing example both showed anonymous `/mcp` answering 401,
+  when the public tier runs `PublicAnonymousAuth` and admits a request with no
+  `Authorization` header at all. Its route table claimed `/mcp/write` needs an
+  application-bound `WriteTierAuthInterface`, when that binding is an override:
+  a stock kernel falls through to `DurableBearerTokenAuth` and authenticates
+  operator-issued `mbt_*` tokens, so binding a static map to "enable" the tier
+  shadows the durable default. The error-code table listed five JSON-RPC
+  standard codes and none of the `-31xxx` band, the `-32003`/`-32004` approval
+  handshake, or the three MCP-defined `-3202x` codes. `McpAuthInterface` was
+  shown returning `AccountInterface` rather than
+  `AuthorizationPrincipalInterface`, and `McpResponse` was missing its
+  `headers` property. All corrected against the shipped code.
+
+- **The MCP transport guard's error codes are now asserted on the wire.** The
+  guard's unit tests asserted the HTTP status of every refusal and never the
+  JSON-RPC error code travelling with it, so `FORBIDDEN_ORIGIN`,
+  `UNACCEPTABLE_ACCEPT` and `UNSUPPORTED_CONTENT_TYPE` were exercised by no
+  behavioural test at all — an `Origin` refusal answering the `Content-Type`
+  code passed the whole suite. The error code is the half a JSON-RPC client
+  branches on, so each refusal now decodes its own body and asserts the status
+  and the code together, never the status alone; a missing code fails as a
+  missing key rather than being coalesced to null. The `405` branch for methods
+  that are neither `POST` nor `GET` had no test and now has one. For readers
+  chaining this release's entries: the oversize refusal that the `#2594` entry
+  restored to `/mcp` reaches the wire as `-31043`, the allocation the `#2561`
+  entry states; `-32043` is retired.
+
+- **Fixed — Ordinary draft saves no longer replace the served published projection (`FW-PUBLISHING-DRAFT-PROJECTION-01`, #2562):** After `publish()`, `updateDraft()` cuts a working revision without rewriting the base row that `find()`, `findMany()`, and published listings hydrate. Unbound `publish()` pins and promotes `published_revision_id` so public reads match `loadPublishedRevision()`. Unbound `unpublish()` honors the working-copy token and `clearPublishedRevision()` drops the pointer so unpublished records tip-track again; a forward draft is not copied onto the served row. Later unbound `publish()` restores a forked `workflow_state=draft` to the served state before promotion. Pointerless drafts and undisciplined Playbook-H saves keep tip-tracking behaviour.
+
+- **Fixed — critical transport regressions can no longer silently skip (#2568):** hosted Anthropic, OpenAI-compatible, and stream HTTP transport proofs now fail on fixture startup errors, while a governed inventory preserves explicitly classified optional platform and package-form skips.
+
+- Workflow visibility now distinguishes candidate-state publication declared by
+  `WorkflowState::$published` from the materialized served projection, so custom
+  public state names work and forward drafts remain live through their published
+  pointer without granting literal state ids special meaning.
+
+- Workflow operators can now report impossible legacy serving projections and repair one exact, fingerprint-confirmed workflow-bound record through the guarded published-pointer repository path.
+
+- **Fixed — Admin list filter options are now enforced server-side (#2571):** `SurfaceQueryPolicy` refuses undeclared, empty, malformed, and compound values for optioned filters with its existing generic 400 envelope while preserving free-form filters. Consumers can remove companion allowlists after adopting this release, including Sheg's temporary `AuthoringListPresentation::validateDeclaredFilterValues()` defense from #184/#188.
+
+- **Fixed — Publisher-created drafts retain their governing owner (`FW-PUBLISHING-AUTHORSHIP-01`, #2588):** Applications may declare a server-owned author field on the content descriptor. `createDraft()` stamps the authenticated numeric actor before the first save and binds it into idempotency while retaining the independent revision-author record, so own-unpublished access works without allowing client reassignment; unauthored entity types are unchanged.
+
+- Kernel-level request refusals are now rendered in the wire vocabulary the
+  matched route declares, so an endpoint that advertises JSON-RPC no longer has
+  its own refusal shadowed by a JSON:API document its client cannot interpret.
+  `BodySizeLimitMiddleware`'s 413 and the kernel's malformed-JSON 400 both ran
+  ahead of the MCP endpoint's transport guard, making its `-32043` and `-32700`
+  answers unreachable. A route declares the vocabulary as plain route-option
+  data through `RouteBuilder::refusalTransport()` — a transport name plus a
+  `reason => error code` map — which the kernel resolves once during route
+  matching; `/mcp` and `/mcp/write` now carry that declaration. The seam
+  negotiates the envelope only: the size cap, the decision to refuse, and the
+  HTTP status are untouched — a route declares an error code, never a status —
+  and a reason left unmapped still refuses in JSON:API, so the kernel never
+  invents an error code. One incidental correction: both refusals now render
+  their JSON:API document through the kernel's single JSON:API encoder, so the
+  body-size 413 carries `Content-Type: application/vnd.api+json` instead of
+  `application/json`. The body-size fast path only treats a digit-only
+  `Content-Length` as a declared length, so a garbage header such as
+  `2000000abc` is not rewritten as the JSON-RPC oversize code `-32043`.
+
+- Generated split-mirror `main` branches now redirect issues and pull requests
+  to the Framework monorepo instead of silently accepting work that the next
+  split would overwrite. Release tags remain byte-exact package splits.
+
+- The governed split-main workflow can now project `waaseyaa/field` as part of a reviewed development cohort without creating a release.
+
+- Admin editor routes that resolve a numeric ID to a canonical UUID now retain
+  and refresh mutation authority under both identifiers, so update, delete, and
+  revision restore no longer refuse before sending a correctly fenced request.
+
+- Classify stale Admin entity-editor saves (HTTP 412) as embed lifecycle conflicts so same-origin hosts can present bounded conflict recovery.
+
+- Framework and generated applications now parse the Symfony Dotenv cascade
+  through one once-per-process boundary shared by HTTP, CLI, and retained
+  workers, with process-injected precedence and redacted parse failures.
+
+- Authentication policy and token-secret custody now use the kernel's canonical
+  application environment instead of independently reading `$_ENV` or a legacy
+  config alias.
+
+- `waaseyaa about` now reports the environment and debug policy produced by
+  the kernel's shared typed runtime-policy resolver instead of independently
+  reading PHP environment superglobals.
+
+- Migration dry-run and verification diagnostics now use the kernel's resolved
+  runtime policy for production-like path redaction instead of independently
+  classifying process `APP_ENV`.
+
+- Centralize Foundation-dependent environment and debug classification, fail closed on invalid explicit environment config, and permanently gate new policy bypasses.
+
+### Security
+
+- **Security — publishing idempotency is now partitioned by acting principal (#2555):**
+  `ContentPublisher` binds the stable authorization principal id into the replay
+  record's storage namespace alongside entity type and bundle. Previously two
+  distinct authorized publishers who supplied the same idempotency key and the
+  same payload against the same bundle collided: the second silently received
+  the first's stored response, their own mutation never ran and was never
+  audited, and the first publisher's created entity id and revision id were
+  disclosed to them. Keys derived deterministically from content make that
+  collision plausible rather than theoretical. This was never
+  anonymous-reachable — both callers pass the capability gate and the entity
+  create/update gate first.
+
+  Each principal now executes independently and receives its own response.
+  Within one principal nothing changes: the same key with the same payload still
+  replays the stored response without re-executing, and the same key with a
+  different payload still raises `IDEMPOTENCY_CONFLICT`. Partitioning was chosen
+  over refusing the collision as a conflict because a conflict would let one
+  principal's key choice refuse another principal's unrelated, legitimate
+  mutation.
+
+  Consumers that relied on one principal's key shielding another principal's
+  duplicate submission no longer get that; cross-principal deduplication was a
+  collision, not a contract. Replay records written before the upgrade become
+  unreachable because their namespace no longer matches — no migration is
+  required, the rows are swept by the existing 48-hour TTL, and the only
+  observable effect in that window is that an in-flight retry re-executes
+  instead of replaying. `docs/specs/content-publishing.md` documents the chosen
+  semantics.
+
+  Principal digit strings are normalized without narrowing through PHP's
+  platform integer range, and every namespace component uses an unambiguous
+  typed, NUL-delimited encoding (including null bundles).
 ## [0.1.0-alpha.298] - 2026-08-25
 
 - **Fixed — RelationshipPreSaveListener is production-proven and registers
