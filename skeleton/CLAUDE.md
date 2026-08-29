@@ -97,14 +97,24 @@ $queue->dispatch(new SendWelcomeEmail($userId));
 <!-- Map file patterns to skills and specs as you add them -->
 | File Pattern | Skill | Spec |
 |-------------|-------|------|
-| `src/Entity/**` | `waaseyaa:entity-system` | entity-system.md |
-| `src/Access/**` | `waaseyaa:access-control` | access-control.md |
-| `src/Provider/**` | `feature-dev` | — |
-| `.claude/rules/**` | `waaseyaa:spec-maintenance` | — |
-| `docs/specs/**` | `waaseyaa:spec-maintenance` | — |
+| `src/Entity/**` | `waaseyaa-entity-system` | entity-system.md |
+| `src/Access/**` | `waaseyaa-access-control` | access-control.md |
+| `src/Provider/**` | `waaseyaa-infrastructure` | infrastructure.md |
+| `.claude/rules/**` | `waaseyaa-spec-maintenance` | — |
+| `docs/specs/**` | `waaseyaa-spec-maintenance` | — |
 
-<!-- Note: waaseyaa:* skills are placeholders. They will not function
-     until the skills are built. The entries document intended routing. -->
+Install the skills this table routes to with:
+
+```bash
+./vendor/bin/waaseyaa bimaaji:install --client=claude
+```
+
+They ship as resources of the installed `waaseyaa/bimaaji` package and land
+in `.claude/skills/waaseyaa-<id>/SKILL.md`. Re-run the command after a framework
+upgrade — it refreshes only the region between the
+`<!-- waaseyaa:bimaaji:install BEGIN -->` / `END` markers, so your own edits
+around it are preserved. Pass `--client=<id>` for any of `claude`, `cursor`,
+`codex`, `copilot`, `gemini`, `windsurf`, `junie`.
 
 ## Specs and workflow
 
@@ -122,6 +132,7 @@ php -S localhost:8080 -t public     # Dev server
 bin/maintenance/waaseyaa-version    # Framework provenance (path SHA, lockfile, drift vs golden)
 bin/maintenance/waaseyaa-audit-site # Mechanical convergence preflight (validate + bins + provenance)
 ./vendor/bin/waaseyaa sync-rules    # Update framework rules from Waaseyaa
+./vendor/bin/waaseyaa bimaaji:install --client=claude  # Install framework agent skills
 ```
 
 Set `WAASEYAA_GOLDEN_SHA` or add `.waaseyaa-golden-sha` for CI drift gates (see `docs/specs/version-provenance.md` in the framework repo).
@@ -134,6 +145,7 @@ Set `WAASEYAA_GOLDEN_SHA` or add `.waaseyaa-golden-sha` for CI drift gates (see 
 |------|----------|---------|
 | **Constitution** | `CLAUDE.md` (this file) | Architecture, conventions, orchestration |
 | **Rules** | `.claude/rules/waaseyaa-*.md` | Framework invariants distributed from the installed Foundation package |
+| **Skills** | `.claude/skills/waaseyaa-*/SKILL.md` | Subsystem specialists installed by `waaseyaa bimaaji:install` |
 | **Specs** | `docs/specs/*.md` | Domain contracts — read from disk |
 
 Framework rules are owned by Waaseyaa. Update them via `./vendor/bin/waaseyaa sync-rules` after `composer update`.

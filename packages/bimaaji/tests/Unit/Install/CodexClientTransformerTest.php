@@ -24,7 +24,7 @@ final class CodexClientTransformerTest extends TestCase
     {
         $files = (new CodexClientTransformer())->targetFiles(InstallSkillFixtures::all());
         self::assertCount(1, $files);
-        self::assertSame('.codex/AGENTS.md', $files[0]->path);
+        self::assertSame('AGENTS.md', $files[0]->path);
     }
 
     #[Test]

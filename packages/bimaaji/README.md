@@ -58,6 +58,12 @@ Ship the framework-canonical agent skill pack to a consumer project in
 per-client formats. Lifted in spirit from Laravel Boost's
 `php artisan boost:install`; framework-native, no Node runtime.
 
+The skills are **resources of this package** — `resources/skills/<id>/SKILL.md`
+— so the command reads the same directory whether it runs from the framework
+monorepo or from a consumer's `vendor/waaseyaa/bimaaji`. Nothing is read from
+the consuming project. An application with its own skill set points
+`bimaaji.skills_directory` at it.
+
 ```bash
 # Install for one client
 bin/waaseyaa bimaaji:install --client=claude
@@ -71,6 +77,23 @@ bin/waaseyaa bimaaji:install --client=cursor --dry-run
 # Interactive client selection when omitted on a TTY
 bin/waaseyaa bimaaji:install
 ```
+
+Every generated file frames its payload in
+`<!-- waaseyaa:bimaaji:install BEGIN -->` / `END` markers. A re-run replaces
+only the text between them, so notes you write above or below the block
+survive upgrades. A target file that carries no markers is treated as wholly
+hand-authored and still needs `--force` (or an interactive confirmation)
+before it is replaced.
+
+The command records what it generated in `.waaseyaa/bimaaji-install.json`
+(commit it) and prunes targets a later skill set no longer produces. Ownership
+is recorded, never inferred from a filename: a path the manifest does not
+claim is never touched, a retired target you have since edited is neutralised
+rather than deleted, and supporting files you add inside a generated skill
+directory survive.
+
+For Claude Code the output is `.claude/skills/waaseyaa-<id>/SKILL.md` — one
+**directory** per skill, which is the only layout Claude Code discovers.
 
 Seven launch clients: `claude`, `cursor`, `codex`, `copilot`, `gemini`,
 `windsurf`, `junie`. See

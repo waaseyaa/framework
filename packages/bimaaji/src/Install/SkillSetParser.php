@@ -5,18 +5,30 @@ declare(strict_types=1);
 namespace Waaseyaa\Bimaaji\Install;
 
 /**
- * Parser for the framework's skill set (`skills/waaseyaa/<id>/SKILL.md`).
+ * Parser for the framework's canonical Agent Skill set.
  *
- * Each skill lives in its own directory at the framework root. The
- * `SKILL.md` file uses Markdown with a leading YAML frontmatter block
- * delimited by `---` lines. This parser walks a base directory, reads
- * every `SKILL.md`, parses its frontmatter into a `ParsedSkill`, and
- * returns the list sorted by skill id for deterministic output.
+ * The skills ship as resources inside this package
+ * (`resources/skills/<id>/SKILL.md`), so the same directory resolves in
+ * the monorepo and in a consumer's `vendor/waaseyaa/bimaaji`. See
+ * {@see PackagedSkillResources}. An application may point the parser
+ * somewhere else with `bimaaji.skills_directory`.
+ *
+ * Each skill lives in its own directory. The `SKILL.md` file is Markdown
+ * with a leading YAML frontmatter block delimited by `---` lines. This
+ * parser walks one level of a base directory, reads every `SKILL.md`,
+ * parses its frontmatter into a `ParsedSkill`, and returns the list
+ * sorted by skill id for deterministic output.
  *
  * The frontmatter parser is intentionally tiny — it handles the
  * shape the framework produces (`key: value` pairs on single lines)
  * and nothing else. Bimaaji does not depend on `symfony/yaml`; adding
  * the dep purely for `SKILL.md` parsing would be over-engineering.
+ *
+ * Failures are loud, not silent. `parse()` used to return `[]` for a
+ * missing directory and skip an unreadable document, which is how a
+ * packaged consumer got `no skills discovered` with no way to tell an
+ * absent install from one bad file (#2656). It now raises a
+ * {@see SkillResourceException} that distinguishes the two.
  *
  * @api
  */
@@ -24,27 +36,43 @@ final class SkillSetParser
 {
     private const string FRONTMATTER_DELIMITER = '---';
 
+    /**
+     * @param string $skillsDirectory Absolute path to a directory of `<skill-id>/SKILL.md` documents.
+     * @param bool $configuredOverride True when the path came from `bimaaji.skills_directory` rather than the packaged default; only changes the wording of the failure diagnostic.
+     */
     public function __construct(
         private readonly string $skillsDirectory,
+        private readonly bool $configuredOverride = false,
     ) {}
+
+    /**
+     * The directory this parser reads. Exposed so diagnostics and tests
+     * can name the resolved path rather than re-deriving it.
+     */
+    public function directory(): string
+    {
+        return $this->skillsDirectory;
+    }
 
     /**
      * Parse every SKILL.md file under one level of the skills directory
      * (one skill per subdirectory).
      *
-     * @return list<ParsedSkill>
+     * @return non-empty-list<ParsedSkill>
+     * @throws SkillResourceException When the directory is missing/unreadable/empty, or a SKILL.md cannot be parsed.
      */
     public function parse(): array
     {
         if (!is_dir($this->skillsDirectory)) {
-            return [];
+            throw SkillResourceException::missingDirectory($this->skillsDirectory, $this->configuredOverride);
+        }
+
+        $entries = scandir($this->skillsDirectory);
+        if ($entries === false) {
+            throw SkillResourceException::unreadableDirectory($this->skillsDirectory, $this->configuredOverride);
         }
 
         $skills = [];
-        $entries = scandir($this->skillsDirectory);
-        if ($entries === false) {
-            return [];
-        }
 
         foreach ($entries as $entry) {
             if ($entry === '.' || $entry === '..') {
@@ -54,19 +82,24 @@ final class SkillSetParser
             $skillDir = $this->skillsDirectory . DIRECTORY_SEPARATOR . $entry;
             $skillFile = $skillDir . DIRECTORY_SEPARATOR . 'SKILL.md';
 
-            if (!is_dir($skillDir) || !is_file($skillFile) || !is_readable($skillFile)) {
+            if (!is_dir($skillDir) || !is_file($skillFile)) {
                 continue;
+            }
+
+            if (!is_readable($skillFile)) {
+                throw SkillResourceException::corruptSkill($this->skillsDirectory, $skillFile, 'the file is not readable');
             }
 
             $contents = file_get_contents($skillFile);
             if ($contents === false) {
-                continue;
+                throw SkillResourceException::corruptSkill($this->skillsDirectory, $skillFile, 'the file could not be read');
             }
 
-            $parsed = $this->parseSkill($entry, $contents);
-            if ($parsed !== null) {
-                $skills[] = $parsed;
-            }
+            $skills[] = $this->parseSkill($entry, $contents, $skillFile);
+        }
+
+        if ($skills === []) {
+            throw SkillResourceException::emptyDirectory($this->skillsDirectory, $this->configuredOverride);
         }
 
         usort($skills, static fn(ParsedSkill $a, ParsedSkill $b): int => strcmp($a->id, $b->id));
@@ -74,9 +107,13 @@ final class SkillSetParser
         return $skills;
     }
 
-    private function parseSkill(string $id, string $contents): ?ParsedSkill
+    private function parseSkill(string $id, string $contents, string $file): ParsedSkill
     {
         $contents = ltrim($contents);
+
+        if ($contents === '') {
+            throw SkillResourceException::corruptSkill($this->skillsDirectory, $file, 'the document is empty');
+        }
 
         if (!str_starts_with($contents, self::FRONTMATTER_DELIMITER)) {
             // Missing frontmatter; treat the whole body as plain content
@@ -93,7 +130,11 @@ final class SkillSetParser
         $afterOpening = substr($contents, strlen(self::FRONTMATTER_DELIMITER));
         $closingPosition = strpos($afterOpening, "\n" . self::FRONTMATTER_DELIMITER);
         if ($closingPosition === false) {
-            return null;
+            throw SkillResourceException::corruptSkill(
+                $this->skillsDirectory,
+                $file,
+                'the YAML frontmatter block opens with `---` but is never closed',
+            );
         }
 
         $frontmatterRaw = trim(substr($afterOpening, 0, $closingPosition));

@@ -1088,7 +1088,39 @@ jobs:
           }
           finally {
             Pop-Location
-            Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+          }
+
+          # Handed to the junction-containment step below, which needs a
+          # consumer that has completed install:init and which owns the
+          # cleanup this block used to do.
+          "BIMAAJI_WINDOWS_CONSUMER=$work" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # #2656. resolvePathInSandbox() resolves paths with realpath() rather
+      # than trusting is_link(), precisely because is_link() does not report a
+      # Windows directory junction. Every other containment proof in that
+      # change is a POSIX symlink on Ubuntu, and this lane runs no PHPUnit, so
+      # the Windows behaviour the guard depends on was asserted and never
+      # executed. This step executes it against the real bimaaji:install entry
+      # point.
+      #
+      # It is PowerShell and PHP and makes no serving claim, so it sits inside
+      # this lane's stated contract rather than widening it. Junctions rather
+      # than symbolic links: a Windows symlink normally needs
+      # SeCreateSymbolicLinkPrivilege or Developer Mode, a junction does not,
+      # and a junction is the exact reparse-point shape the guard must catch.
+      # The script carries its own positive controls, so a junction that
+      # silently failed to redirect fails the gate instead of passing it.
+      - name: bimaaji:install containment holds across a Windows junction
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pwsh -File bin/check-bimaaji-junction-containment.ps1 -ConsumerRoot $env:BIMAAJI_WINDOWS_CONSUMER
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Clean up the Windows consumer
+        if: always()
+        run: |
+          if ($env:BIMAAJI_WINDOWS_CONSUMER) {
+            Remove-Item -Recurse -Force $env:BIMAAJI_WINDOWS_CONSUMER -ErrorAction SilentlyContinue
           }
 
   packaged-form:
@@ -1180,6 +1212,44 @@ jobs:
 
       - name: Boot a fresh packaged-form install
         run: bash tests/PackagedForm/check-fresh-install-boot
+
+  bimaaji-skill-resources:
+    # #2656: `bimaaji:install` must work from a real packaged consumer. The
+    # canonical Agent Skills used to live at the monorepo root, so the command
+    # only ever succeeded in the repository that did not need it. This job
+    # builds a consumer from the candidate tree with path repositories set to
+    # symlink=false — vendor/waaseyaa/bimaaji holds installed BYTES, not a link
+    # back into the checkout — seeds no skill fixtures, and drives the command
+    # from those bytes. It also proves the marker-bounded refresh preserves
+    # hand-authored content and that a deleted or corrupt resource produces the
+    # matching diagnostic. The fast repo-state half runs inside ci/unit-tests
+    # as packages/bimaaji/tests/Architecture/PackagedSkillResourcesTest.php.
+    # See tests/PackagedForm/check-bimaaji-skill-resources.
+    name: ci/bimaaji-skill-resources
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # Installs into a fresh mktemp consumer with its own dependency graph, so
+      # it cannot consume prepare-test-plan's vendor archive. Exact key only —
+      # no restore-keys — same rationale as the other consumer-shaped jobs.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Install bimaaji skills from installed package resources
+        run: bash tests/PackagedForm/check-bimaaji-skill-resources
 
   core-only-boot:
     # Boots the kernel from a consumer that requires ONLY waaseyaa/core, installed via a path

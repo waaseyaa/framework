@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\Bimaaji\Command;
 
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
+use Waaseyaa\Bimaaji\Install\InstalledManifest;
+use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
+use Waaseyaa\Bimaaji\Install\SkillResourceException;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Install\TargetFile;
 
@@ -19,10 +22,12 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  * `bin/waaseyaa bimaaji:install` — install Waaseyaa framework guidelines + skills
  * into a consuming project for one or more agent clients.
  *
- * Surfaces the framework's `skills/waaseyaa/*` skill set through per-client
+ * Surfaces the canonical Agent Skill set shipped inside `waaseyaa/bimaaji`
+ * (`resources/skills/<id>/SKILL.md`) through per-client
  * {@see ClientTransformerInterface} implementations (Claude Code, Cursor,
  * Codex, Copilot, Gemini, Windsurf, Junie) and writes the resulting target
- * files to the project root.
+ * files to the project root. Nothing is read from the consuming project;
+ * the source is the installed package (#2656).
  *
  * Flags:
  *
@@ -37,9 +42,18 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  *   `--dry-run`.
  *
  * Idempotency (FR-009): identical existing content is recognised by sha1
- * compare and counted as `unchanged` in the per-client summary. Sandbox
- * discipline (NFR-002): every target path must resolve under the project
- * root before any write happens.
+ * compare and counted as `unchanged` in the per-client summary.
+ *
+ * Marker-bounded (#2656): every generated file frames its payload in the
+ * {@see ManagedRegion} markers. When an existing target already carries a
+ * marker pair, only the text between the markers is replaced and every
+ * byte outside them is preserved, so a re-run refreshes the framework's
+ * guidance without touching a consumer's own notes. A file with no
+ * markers is treated as wholly hand-authored and still requires `--force`
+ * or an interactive confirmation before it is replaced.
+ *
+ * Sandbox discipline (NFR-002): every target path must resolve under the
+ * project root before any write happens.
  *
  * @api
  */
@@ -79,13 +93,18 @@ final class BimaajiInstallCommand
         $dryRun = (bool) $io->option('dry-run');
         $force = (bool) $io->option('force');
 
-        $skills = $this->skillSetParser->parse();
-        if ($skills === []) {
-            $io->error('bimaaji:install: no skills discovered. The skill source directory is empty or missing — run from a project with `skills/waaseyaa/<id>/SKILL.md` files or configure `bimaaji.skills_directory`.');
+        try {
+            $skills = $this->skillSetParser->parse();
+        } catch (SkillResourceException $exception) {
+            // The diagnostic already names the resolved absolute directory
+            // and the remedy for this failure class (missing vs corrupt).
+            $io->error('bimaaji:install: ' . $exception->getMessage());
             return 1;
         }
 
         $exitCode = 0;
+        $manifest = InstalledManifest::load($projectRoot);
+        $manifestChanged = false;
 
         foreach ($clients as $clientId) {
             $transformer = $this->resolveTransformer($io, $clientId);
@@ -101,6 +120,7 @@ final class BimaajiInstallCommand
                 projectRoot: $projectRoot,
                 dryRun: $dryRun,
                 force: $force,
+                recorded: $manifest->targetsFor($clientId),
             );
 
             $io->writeln(sprintf(
@@ -111,9 +131,28 @@ final class BimaajiInstallCommand
                 $summary['skipped'],
             ));
 
+            if ($summary['pruned'] > 0 || $summary['retired'] > 0 || $summary['released'] > 0) {
+                $io->writeln(sprintf(
+                    'Client %s: %d retired target(s) removed, %d neutralised, %d released.',
+                    $clientId,
+                    $summary['pruned'],
+                    $summary['retired'],
+                    $summary['released'],
+                ));
+            }
+
+            if (!$dryRun) {
+                $manifest = $manifest->withClient($clientId, $summary['owned']);
+                $manifestChanged = true;
+            }
+
             if ($summary['errors'] > 0) {
                 $exitCode = 1;
             }
+        }
+
+        if ($manifestChanged && !$this->writeManifest($io, $projectRoot, $manifest)) {
+            $exitCode = 1;
         }
 
         return $exitCode;
@@ -174,7 +213,8 @@ final class BimaajiInstallCommand
 
     /**
      * @param list<ParsedSkill> $skills
-     * @return array{written: int, unchanged: int, skipped: int, errors: int}
+     * @param array<string, string> $recorded Paths this command previously wrote for this client, mapped to the sha1 it left on disk.
+     * @return array{written: int, unchanged: int, skipped: int, errors: int, pruned: int, retired: int, released: int, owned: array<string, string>}
      */
     private function installForClient(
         \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
@@ -183,14 +223,28 @@ final class BimaajiInstallCommand
         string $projectRoot,
         bool $dryRun,
         bool $force,
+        array $recorded,
     ): array {
         $written = 0;
         $unchanged = 0;
         $skipped = 0;
         $errors = 0;
 
-        foreach ($transformer->targetFiles($skills) as $file) {
-            $resolved = $this->resolveAndAssertInSandbox($io, $file, $projectRoot);
+        /** @var array<string, string> $owned relative path => sha1 of the bytes now on disk */
+        $owned = [];
+
+        $targets = $transformer->targetFiles($skills);
+
+        // The current target set is what the transformer DECLARES, not what
+        // this run managed to write. Deriving it from the write results would
+        // make a transient failure — a permission error, a refused overwrite,
+        // a sandbox rejection — look like an upstream removal, and the pruner
+        // would then delete a file that is still very much current. It would
+        // also make every `--dry-run` report the whole write set as retired.
+        $declaredPaths = array_map(static fn(TargetFile $file): string => $file->path, $targets);
+
+        foreach ($targets as $file) {
+            $resolved = $this->resolvePathInSandbox($io, $file->path, $projectRoot);
             if ($resolved === null) {
                 $skipped++;
                 $errors++;
@@ -198,27 +252,51 @@ final class BimaajiInstallCommand
             }
 
             $existing = is_file($resolved) ? @file_get_contents($resolved) : false;
-            if ($existing !== false && sha1($existing) === sha1($file->content)) {
+
+            // Marker-bounded refresh: when the existing file already carries
+            // a managed region, the payload we write is that file with only
+            // its region replaced. Everything outside the markers is carried
+            // through byte-for-byte, so the sha1 idempotency compare and the
+            // overwrite prompt below both operate on the real write set.
+            $payload = $file->content;
+            $spliced = false;
+            if ($existing !== false) {
+                $merged = ManagedRegion::splice($existing, $file->content);
+                if ($merged !== null) {
+                    $payload = $merged;
+                    $spliced = true;
+                }
+            }
+
+            if ($existing !== false && sha1($existing) === sha1($payload)) {
                 $unchanged++;
+                $owned[$file->path] = sha1($existing);
                 continue;
             }
 
             if ($dryRun) {
                 $io->writeln(sprintf(
-                    '[DRY-RUN] would write %s (%d bytes from skill=%s)',
+                    '[DRY-RUN] would %s %s (%d bytes from skill=%s)',
+                    $spliced ? 'refresh the managed region of' : 'write',
                     $file->path,
-                    strlen($file->content),
+                    strlen($payload),
                     $file->sourceSkill ?? '<aggregate>',
                 ));
                 $written++;
                 continue;
             }
 
-            if ($existing !== false && !$force) {
+            // A marker-bounded refresh never touches hand-authored content,
+            // so it does not need --force or a confirmation. Only a file we
+            // cannot recognise falls back to the overwrite contract.
+            if ($existing !== false && !$spliced && !$force) {
                 if (!$io->isInteractive()) {
                     $io->error(sprintf(
-                        'bimaaji:install: %s exists and differs; pass --force to overwrite or --dry-run to preview.',
+                        'bimaaji:install: %s exists, carries no `%s` marker, and differs; pass --force to overwrite '
+                        . 'or --dry-run to preview. Adding the marker pair around the framework block makes future '
+                        . 'runs refresh only that region.',
                         $file->path,
+                        ManagedRegion::BEGIN,
                     ));
                     $skipped++;
                     $errors++;
@@ -230,50 +308,301 @@ final class BimaajiInstallCommand
                 }
             }
 
-            if (!$this->writeFile($resolved, $file->content, $io)) {
+            if (!$this->writeFile($resolved, $payload, $io)) {
                 $skipped++;
                 $errors++;
                 continue;
             }
 
             $written++;
+            $owned[$file->path] = sha1($payload);
         }
 
-        return ['written' => $written, 'unchanged' => $unchanged, 'skipped' => $skipped, 'errors' => $errors];
+        // A declared target this run could not write keeps whatever ownership
+        // record it already had. Dropping it would quietly disown a file that
+        // still exists and is still current, so a later run could no longer
+        // prune it when it really is retired.
+        foreach ($declaredPaths as $declaredPath) {
+            if (!isset($owned[$declaredPath]) && isset($recorded[$declaredPath])) {
+                $owned[$declaredPath] = $recorded[$declaredPath];
+            }
+        }
+
+        $prune = $this->pruneRetiredTargets(
+            io: $io,
+            projectRoot: $projectRoot,
+            recorded: $recorded,
+            currentPaths: $declaredPaths,
+            dryRun: $dryRun,
+        );
+
+        return [
+            'written' => $written,
+            'unchanged' => $unchanged,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'pruned' => $prune['pruned'],
+            'retired' => $prune['retired'],
+            'released' => $prune['released'],
+            'owned' => $owned,
+        ];
     }
 
-    private function resolveAndAssertInSandbox(\Waaseyaa\CLI\Command\SymfonyCommandIO $io, TargetFile $file, string $projectRoot): ?string
+    /**
+     * Remove targets this command generated in an earlier run that the
+     * current skill set no longer produces — an upstream removal or rename.
+     *
+     * Ownership is read from the manifest, never inferred from the filename:
+     * a path absent from `$recorded` is not touched, whatever it is called.
+     * Three outcomes, in descending confidence:
+     *
+     * - The bytes still match what we wrote → nobody has touched it, delete
+     *   it, then remove its directory if that leaves it empty. A skill
+     *   directory holding supporting files the user added stays.
+     * - The bytes differ but the file still carries a marker pair → ours,
+     *   but edited. Deleting would take hand-authored bytes with it, so the
+     *   managed region is replaced with a retirement notice and everything
+     *   outside the markers is preserved byte-for-byte.
+     * - The bytes differ and there is no marker pair → ownership can no
+     *   longer be demonstrated. Leave the file completely alone and release
+     *   the claim, so no future run touches it either.
+     *
+     * @param array<string, string> $recorded relative path => sha1 previously written
+     * @param list<string> $currentPaths paths the current run produced
+     * @return array{pruned: int, retired: int, released: int}
+     */
+    private function pruneRetiredTargets(
+        \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
+        string $projectRoot,
+        array $recorded,
+        array $currentPaths,
+        bool $dryRun,
+    ): array {
+        $pruned = 0;
+        $retired = 0;
+        $released = 0;
+
+        $obsolete = array_diff_key($recorded, array_flip($currentPaths));
+        ksort($obsolete);
+
+        foreach ($obsolete as $obsoletePath => $recordedSha1) {
+            $resolved = $this->resolvePathInSandbox($io, $obsoletePath, $projectRoot);
+            if ($resolved === null) {
+                // Sandbox rejection already reported; never act on it.
+                $released++;
+                continue;
+            }
+
+            if (!is_file($resolved)) {
+                // Already gone. Nothing to remove, nothing to warn about.
+                $pruned++;
+                continue;
+            }
+
+            $contents = @file_get_contents($resolved);
+            if ($contents === false) {
+                $io->error(sprintf(
+                    'bimaaji:install: cannot read the retired target %s to verify ownership; leaving it in place.',
+                    $obsoletePath,
+                ));
+                $released++;
+                continue;
+            }
+
+            if (sha1($contents) === $recordedSha1) {
+                if ($dryRun) {
+                    $io->writeln(sprintf('[DRY-RUN] would remove retired target %s', $obsoletePath));
+                    $pruned++;
+                    continue;
+                }
+                if (!@unlink($resolved)) {
+                    $io->error(sprintf('bimaaji:install: failed to remove the retired target %s.', $obsoletePath));
+                    $released++;
+                    continue;
+                }
+                // Only the file's own directory, only when empty — a skill
+                // directory carrying the user's supporting files survives.
+                @rmdir(dirname($resolved));
+                $io->writeln(sprintf('Removed retired target %s (unmodified since it was generated).', $obsoletePath));
+                $pruned++;
+                continue;
+            }
+
+            $notice = ManagedRegion::splice(
+                $contents,
+                ManagedRegion::retirementNotice(sprintf(
+                    'The skill that generated `%s` is no longer part of the framework skill set.',
+                    $obsoletePath,
+                )),
+            );
+            if ($notice === null) {
+                $io->writeln(sprintf(
+                    'Left %s in place: it was generated by an earlier run but has since been rewritten without the '
+                    . '`%s` marker, so ownership can no longer be demonstrated. Delete it by hand if it is stale.',
+                    $obsoletePath,
+                    ManagedRegion::BEGIN,
+                ));
+                $released++;
+                continue;
+            }
+
+            if ($dryRun) {
+                $io->writeln(sprintf(
+                    '[DRY-RUN] would neutralise the managed region of retired target %s (your edits outside it are kept)',
+                    $obsoletePath,
+                ));
+                $retired++;
+                continue;
+            }
+
+            if (!$this->writeFile($resolved, $notice, $io)) {
+                $released++;
+                continue;
+            }
+
+            $io->writeln(sprintf(
+                'Retired the managed region of %s; your content outside the markers was preserved.',
+                $obsoletePath,
+            ));
+            $retired++;
+        }
+
+        return ['pruned' => $pruned, 'retired' => $retired, 'released' => $released];
+    }
+
+    /**
+     * Persist the ownership manifest.
+     *
+     * Goes through {@see resolvePathInSandbox()} like every other write: a
+     * symlinked or junctioned `.waaseyaa` would otherwise redirect this one
+     * write outside the project root, which the per-target containment
+     * checks never saw because this path never went through them.
+     *
+     * Returns false when the manifest could not be persisted. That is not a
+     * cosmetic failure: the manifest is the provenance boundary that makes
+     * later pruning safe, so generating files whose ownership was never
+     * recorded must not report success.
+     */
+    private function writeManifest(
+        \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
+        string $projectRoot,
+        InstalledManifest $manifest,
+    ): bool {
+        $target = $this->resolvePathInSandbox($io, InstalledManifest::RELATIVE_PATH, $projectRoot);
+        if ($target === null) {
+            $io->error(sprintf(
+                'bimaaji:install: refusing to write the ownership manifest %s. Without it a later run cannot '
+                . 'prove which files it generated, so it will not prune them.',
+                InstalledManifest::RELATIVE_PATH,
+            ));
+
+            return false;
+        }
+
+        $json = $manifest->toJson();
+
+        $existing = is_file($target) ? @file_get_contents($target) : false;
+        if ($existing !== false && $existing === $json) {
+            return true;
+        }
+
+        if (!$this->writeFile($target, $json, $io)) {
+            $io->error(sprintf(
+                'bimaaji:install: the generated files were written but the ownership manifest %s could not be '
+                . 'updated. A later run will not be able to prune them.',
+                InstalledManifest::RELATIVE_PATH,
+            ));
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * The single containment boundary for every path this command touches —
+     * reads, writes, deletes and neutralisations alike.
+     *
+     * Three independent guards, each closing a different escape:
+     *
+     * 1. **Textual.** Absolute paths and `..` traversals are rejected before
+     *    any filesystem call.
+     * 2. **Ancestor.** The nearest *existing* ancestor directory must
+     *    `realpath()` inside the project root. This catches a project
+     *    subdirectory replaced by a symlink or a Windows junction — including
+     *    a redirected `.waaseyaa`, which is why the manifest write goes
+     *    through here too. Only the nearest existing ancestor is resolved, so
+     *    healthy ancestors above the project root (`/`, `/home`) do not
+     *    trigger a rejection.
+     * 3. **Target.** The target path itself must not be a link, and if it
+     *    already exists it must `realpath()` inside the project root. Guard 2
+     *    says nothing about the final path component, so without this a
+     *    target-file symlink redirected reads, writes *and* pruning to an
+     *    arbitrary location — a data-loss path, because the pruner unlinks
+     *    and rewrites.
+     *
+     * Target links are **rejected outright rather than resolved-and-allowed**.
+     * The installer never creates a link, so one at a target path is never
+     * something it produced; following it would also open a time-of-check /
+     * time-of-use window, since the link can be re-pointed between the
+     * `realpath()` and the write. `is_link()` does not report a Windows
+     * directory junction, so the resolved-target check backstops it there.
+     */
+    private function resolvePathInSandbox(\Waaseyaa\CLI\Command\SymfonyCommandIO $io, string $relativePath, string $projectRoot): ?string
     {
-        if ($file->path === '' || $this->isAbsolutePath($file->path) || str_contains($file->path, '..')) {
+        if ($relativePath === '' || $this->isAbsolutePath($relativePath) || str_contains($relativePath, '..')) {
             $io->error(sprintf(
                 'bimaaji:install: rejected suspicious target path %s (absolute or contains ..).',
-                $file->path,
+                $relativePath,
             ));
             return null;
         }
 
-        $intended = $projectRoot . DIRECTORY_SEPARATOR . $file->path;
+        $intended = $projectRoot . DIRECTORY_SEPARATOR . $relativePath;
 
-        // The textual guard above already blocks `..` and absolute paths, so the
-        // would-be target is textually inside $projectRoot. Only do a realpath
-        // check on the *nearest existing ancestor* — that catches symlink-based
-        // escapes (e.g. someone replaced a project subdirectory with a symlink
-        // pointing outside the root) without rejecting on healthy ancestors
-        // that legitimately sit above the project root (`/`, `/home`, etc.).
         $existingAncestor = $this->findNearestExistingAncestor(dirname($intended));
-        if ($existingAncestor !== null) {
-            $resolved = realpath($existingAncestor);
-            if ($resolved === false || !str_starts_with($resolved . DIRECTORY_SEPARATOR, $projectRoot . DIRECTORY_SEPARATOR)) {
-                $io->error(sprintf(
-                    'bimaaji:install: rejected target outside project root: %s resolves outside project root (project root: %s).',
-                    $file->path,
-                    $projectRoot,
-                ));
-                return null;
-            }
+        if ($existingAncestor !== null && !$this->resolvesInside($existingAncestor, $projectRoot)) {
+            $io->error(sprintf(
+                'bimaaji:install: rejected target outside project root: %s resolves outside project root (project root: %s).',
+                $relativePath,
+                $projectRoot,
+            ));
+            return null;
+        }
+
+        // Checked before file_exists(), which is false for a dangling link.
+        if (is_link($intended)) {
+            $io->error(sprintf(
+                'bimaaji:install: refusing to act on %s because it is a symbolic link. bimaaji:install never '
+                . 'creates links, so this is not a file it generated, and following it could read, overwrite or '
+                . 'delete something outside the project. Replace the link with a regular file to manage it here.',
+                $relativePath,
+            ));
+            return null;
+        }
+
+        if (file_exists($intended) && !$this->resolvesInside($intended, $projectRoot)) {
+            $io->error(sprintf(
+                'bimaaji:install: rejected target outside project root: %s resolves outside project root (project root: %s).',
+                $relativePath,
+                $projectRoot,
+            ));
+            return null;
         }
 
         return $intended;
+    }
+
+    /**
+     * True when an existing path resolves to somewhere at or under the
+     * project root, following symlinks and Windows reparse points.
+     */
+    private function resolvesInside(string $path, string $projectRoot): bool
+    {
+        $resolved = realpath($path);
+
+        return $resolved !== false
+            && str_starts_with($resolved . DIRECTORY_SEPARATOR, $projectRoot . DIRECTORY_SEPARATOR);
     }
 
     private function isAbsolutePath(string $path): bool

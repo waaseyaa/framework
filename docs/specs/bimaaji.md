@@ -1,5 +1,8 @@
 # Bimaaji — Application Graph & Agent Mutation Layer
 
+<!-- Spec reviewed 2026-08-29 - #2656 containment review: the ownership manifest write bypassed the sandbox boundary, and the boundary resolved only the nearest existing ancestor, never the target path — so a symlinked .waaseyaa or a target-file symlink redirected writes and the pruner rewrite outside the project root. One boundary now covers every path; a manifest that cannot be persisted is a non-zero exit. Detail in docs/specs/bimaaji-install.md "Containment (NFR-002)". -->
+<!-- Spec reviewed 2026-08-29 - #2656 follow-up review: the Claude transformer emitted a flat .claude/skills/waaseyaa-<id>.md that Claude Code does not discover, and the Codex transformer wrote .codex/AGENTS.md which is not a discovery location at all; both corrected. Added retired-target pruning via InstalledManifest (recorded ownership, never inferred). Detail in docs/specs/bimaaji-install.md. -->
+<!-- Spec reviewed 2026-08-29 - #2656 packaged skill resources: Implementation Status listed M5 (bimaaji-install-command-01KS5W0S) as Deferred while packages/bimaaji/src/Install/ was fully implemented. Flipped it to Shipped and recorded the #2656 change of source-of-truth: the canonical Agent Skills moved from the monorepo root (skills/waaseyaa/) into packages/bimaaji/resources/skills/, default resolution begins at the installed package, and installation is marker-bounded. Detail lives in docs/specs/bimaaji-install.md. -->
 <!-- Spec reviewed 2026-08-04 - #2177 MCP enterprise hardening: Bimaaji's graph/spec provider bindings and introspection tools remain read-only discovery surfaces. Privileged graph and spec introspection is now explicitly curated and withheld from remotely reachable MCP registries unless an application grants the corresponding capability; the graph-generation contract itself is unchanged. -->
 <!-- Spec reviewed 2026-06-22 - WP15 (alpha245 security, audit): MutationValidator runs sovereignty guardrails before structural validation; BimaajiServiceProvider wires SovereigntyGuardrails into the live validator binding. Acceptance: MutationValidatorTest::it_gates_sovereignty_sensitive_operations_through_the_guardrails. -->
 <!-- Spec reviewed 2026-05-23 - M3 WP04 (bimaaji-mcp-bridge-01KS5VS8): added "MCP exposure" subsection enumerating the five bimaaji #[AsAgentTool] adapters surfaced over MCP through AgentToolRegistryBridge. Updated Implementation Status to flip M2 + M3 from "Deferred" to "Shipped". Bound SpecIndexProvider as a container singleton in BimaajiServiceProvider (WP02). -->
@@ -34,9 +37,14 @@
 - `SpecIndexProvider` is now container-bound singleton in `BimaajiServiceProvider`.
 - M3 supersedes the 2026-05-20 PHP-only deferral that closed [#1463](https://github.com/waaseyaa/framework/issues/1463).
 
-**Deferred (post-M3):**
+**Shipped (M5 `bimaaji-install-command-01KS5W0S`, 2026-05-23):**
 
-- Per-client guidelines/skills install command (M5 `bimaaji-install-command-01KS5W0S`).
+- `bin/waaseyaa bimaaji:install` — per-client guidelines/skills install command. Seven `ClientTransformerInterface` implementations under `packages/bimaaji/src/Install/Client/`; contract, flags, and trust guarantees in [docs/specs/bimaaji-install.md](bimaaji-install.md).
+- The canonical Agent Skills ship as resources of this package (`packages/bimaaji/resources/skills/<id>/SKILL.md`) since #2656. They used to live at the framework monorepo root, a path no consumer has, so the command only worked in the repository that did not need it. Default resolution now begins at the installed package; `bimaaji.skills_directory` overrides it.
+- Installation is marker-bounded: a re-run refreshes only the text between the `<!-- waaseyaa:bimaaji:install BEGIN -->` / `END` markers and preserves hand-authored content outside them.
+- Installation is also ownership-tracked. `Waaseyaa\Bimaaji\Install\InstalledManifest` records every generated path per client in `.waaseyaa/bimaaji-install.json`, and a later run prunes targets the current skill set no longer produces. Ownership is recorded, never inferred from a filename. See [docs/specs/bimaaji-install.md](bimaaji-install.md) "Ownership and pruning retired targets".
+- Every path `bimaaji:install` touches — reads, writes, deletes, neutralisations, and the ownership manifest — passes one containment boundary that rejects absolute paths and `..`, requires the nearest existing ancestor to resolve inside the project root, and rejects a target that is a link or that resolves outside it. See [docs/specs/bimaaji-install.md](bimaaji-install.md) "Containment (NFR-002)".
+- Per-client target paths were re-verified against first-party vendor documentation on 2026-08-29. `claude` now writes the documented `.claude/skills/<skill-name>/SKILL.md` directory layout and `codex` the repository-root `AGENTS.md`; both previously wrote paths their client does not read. See [docs/specs/bimaaji-install.md](bimaaji-install.md) "Convention drift".
 
 ## Purpose
 

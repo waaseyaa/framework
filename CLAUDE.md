@@ -89,12 +89,13 @@ When working on files matching these patterns, retrieve the spec for deep contex
 
 | Workflow, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md` |
 | `bin/build-phpunit-shards`, `bin/test-random-order`, `bin/verify-random-order-vendor-archive`, `bin/lib/phpunit-inventory.php`, `.github/workflows/nightly.yml`, the `prepare-test-plan`/`prepare-random-order-plan`/`ci-random-order-shard`/`ci-random-order` jobs in `.github/workflows/ci.yml` (package-safe timing-balanced sharding, random-order proof, single run-scoped dependency artifact — changed-package selection was investigated and removed, see the spec's "Rejected design" section) | — | `docs/specs/ci-test-selection.md`, `docs/specs/governed-gates.md` |
-| `skills/waaseyaa/app-development/*` | — | — |
-| `skills/waaseyaa/framework-extraction/*` | — | `docs/specs/extraction-log.md` |
+| `packages/bimaaji/src/Install/*`, `packages/bimaaji/resources/skills/*` (canonical Agent Skills shipped as package resources; `bimaaji:install`) | — | `docs/specs/bimaaji-install.md`, `docs/specs/bimaaji.md` |
+| `packages/bimaaji/resources/skills/app-development/*` | — | — |
+| `packages/bimaaji/resources/skills/framework-extraction/*` | — | `docs/specs/extraction-log.md` |
 | `docs/audits/*` | — | — |
 | `docs/specs/**`, `.claude/**`, `**/CLAUDE.md` | `waaseyaa:spec-maintenance` | — |
 
-When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicOrSymbol" docs/specs/`) or load `skills/waaseyaa/spec-maintenance/SKILL.md`.
+When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicOrSymbol" docs/specs/`) or load `packages/bimaaji/resources/skills/spec-maintenance/SKILL.md`.
 
 ## Layer Architecture
 
@@ -212,7 +213,7 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 ## Agent context
 
 - **Constitution (this file):** Session-hot rules — orchestration table, layer graph, checklists, gotchas.
-- **Specialist skills:** `skills/waaseyaa/*` — load on demand for a subsystem; each skill lists related specs.
+- **Specialist skills:** `packages/bimaaji/resources/skills/*` — load on demand for a subsystem; each skill lists related specs. They ship as `waaseyaa/bimaaji` package resources so `bimaaji:install` can push them to a consumer project (#2656).
 - **Cold specs:** `docs/specs/*.md` — read directly from disk when you need contracts, file maps, and edge cases (no spec MCP server).
 
 **Workflow precedence:** **Anchor issues** own effort scope and work-package sequencing. **GitHub** owns merge mechanics, CI, releases, and issues. **`docs/specs/`** owns subsystem contracts — read from disk, update when behaviour changes.

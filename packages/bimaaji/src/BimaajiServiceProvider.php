@@ -16,6 +16,7 @@ use Waaseyaa\Bimaaji\Install\Client\CursorClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\GeminiClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\JunieClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\WindsurfClientTransformer;
+use Waaseyaa\Bimaaji\Install\PackagedSkillResources;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Introspection\Admin\AdminIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\Entity\EntityIntrospectionProvider;
@@ -190,13 +191,17 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
 
         // 7. Bind SkillSetParser + BimaajiInstallCommand so the CLI handler
         //    can be resolved by the kernel command-dispatcher (registered in
-        //    consoleCommands() below). Skills directory resolution mirrors
-        //    resolveSpecsDirectory — config['bimaaji']['skills_directory']
-        //    with <projectRoot>/skills/waaseyaa fallback. M5 WP03 of
-        //    mission bimaaji-install-command-01KS5W0S.
+        //    consoleCommands() below). The skills ship as resources inside
+        //    this package; `bimaaji.skills_directory` overrides that for an
+        //    application with its own set. M5 WP03 of mission
+        //    bimaaji-install-command-01KS5W0S; packaged resources per #2656.
         $this->singleton(
             SkillSetParser::class,
-            fn(): SkillSetParser => new SkillSetParser($this->resolveSkillsDirectory()),
+            function (): SkillSetParser {
+                [$directory, $configured] = $this->resolveSkillsDirectory();
+
+                return new SkillSetParser($directory, $configured);
+            },
         );
 
         $this->singleton(
@@ -396,15 +401,26 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
         );
     }
 
-    private function resolveSkillsDirectory(): string
+    /**
+     * Where `bimaaji:install` reads its Agent Skills from.
+     *
+     * Default resolution begins at the resources shipped inside this
+     * installed package, so it works identically in the monorepo and in a
+     * consumer's vendor tree. The previous `<projectRoot>/skills/waaseyaa`
+     * fallback existed only in the framework checkout: a consumer never
+     * has that directory, so `bimaaji:install` always exited 1 for exactly
+     * the projects that needed it (#2656). It is deliberately gone —
+     * an application that wants its own skill set says so explicitly.
+     *
+     * @return array{string, bool} [directory, came from configuration]
+     */
+    private function resolveSkillsDirectory(): array
     {
         $configured = $this->config['bimaaji']['skills_directory'] ?? null;
         if (is_string($configured) && $configured !== '') {
-            return $configured;
+            return [$configured, true];
         }
 
-        $root = $this->projectRoot !== '' ? $this->projectRoot : getcwd();
-
-        return rtrim((string) $root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'skills' . DIRECTORY_SEPARATOR . 'waaseyaa';
+        return [PackagedSkillResources::directory(), false];
     }
 }

@@ -8,15 +8,14 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
- * T013 — hand-edit safety. The WP03 install command does not merge into
- * existing files; the single-file transformers emit a whole-file
- * replacement framed by `<!-- waaseyaa:bimaaji:install BEGIN -->` /
- * `END` markers. Hand-edits to an existing target file are preserved
- * when EITHER (a) the existing content's sha1 matches the would-be
- * content (idempotent no-op), OR (b) `--force` is not set and the
- * stdin is non-interactive (the command errors out without touching
- * the file). This test pins both paths so a future "merge" mode
- * cannot silently clobber hand-edits during a fast-path commit.
+ * T013 — hand-edit safety for a target file the command does not
+ * recognise. Since #2656 the install is marker-bounded: a file carrying a
+ * `<!-- waaseyaa:bimaaji:install BEGIN -->` / `END` pair is refreshed
+ * inside the markers only (proved in `InstallCommandTest`). A file with
+ * NO markers is treated as wholly hand-authored, and the original
+ * contract still holds — it is preserved when EITHER (a) its sha1 matches
+ * the would-be content (idempotent no-op), OR (b) `--force` is absent and
+ * stdin is non-interactive (the command errors out without touching it).
  *
  * @api
  */
@@ -43,7 +42,8 @@ final class InstallCommandPreservesHandEditsTest extends BimaajiInstallTestCase
         );
 
         $output = $tester->getOutput();
-        self::assertStringContainsString('exists and differs', $output);
+        self::assertStringContainsString('carries no', $output);
+        self::assertStringContainsString('and differs', $output);
         self::assertStringContainsString('Client cursor: 0 written, 0 unchanged, 1 skipped.', $output);
     }
 
