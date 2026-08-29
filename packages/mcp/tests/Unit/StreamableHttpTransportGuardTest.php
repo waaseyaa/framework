@@ -149,6 +149,31 @@ final class StreamableHttpTransportGuardTest extends TestCase
     }
 
     /**
+     * Neither GET nor POST: 405 with an empty body, like the GET-SSE refusal.
+     *
+     * These two are the only refusals with no JSON-RPC envelope, which is why
+     * they are asserted directly rather than through refusal(): there is no
+     * error code to pin, and inventing one would be the wrong fix — a method
+     * the transport does not implement is an HTTP-level answer.
+     */
+    #[Test]
+    public function methods_other_than_post_and_get_are_refused_with_405(): void
+    {
+        foreach (['PUT', 'DELETE', 'PATCH'] as $method) {
+            $request = Request::create('/mcp', $method, server: [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_ACCEPT' => 'application/json, text/event-stream',
+            ], content: '{}');
+
+            $response = new StreamableHttpTransportGuard()->validate($this->snapshot($request));
+
+            self::assertSame(405, $response?->statusCode, $method);
+            self::assertSame('', $response?->body, $method);
+            self::assertSame('POST', $response?->headers['Allow'] ?? null, $method);
+        }
+    }
+
+    /**
      * The HTTP status *and* the JSON-RPC error code a refusal puts on the wire.
      *
      * Asserting the status alone leaves the code free to drift: every transport
@@ -166,8 +191,14 @@ final class StreamableHttpTransportGuardTest extends TestCase
 
         $decoded = json_decode($response->body, true, flags: JSON_THROW_ON_ERROR);
         self::assertIsArray($decoded);
+        self::assertSame('2.0', $decoded['jsonrpc'] ?? null, 'Refusal is not a JSON-RPC envelope.');
+        self::assertArrayHasKey('error', $decoded);
+        self::assertIsArray($decoded['error']);
+        // Asserted, not coalesced: a missing code must fail as "no code", not
+        // be smuggled into the tuple as null and reported as a value mismatch.
+        self::assertArrayHasKey('code', $decoded['error']);
 
-        return [$response->statusCode, $decoded['error']['code'] ?? null];
+        return [$response->statusCode, $decoded['error']['code']];
     }
 
     /** @param array<string, string> $overrides */
