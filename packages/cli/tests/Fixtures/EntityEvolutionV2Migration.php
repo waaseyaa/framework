@@ -18,8 +18,11 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
  * and this plan is the only thing that can add `user_id`. On a fresh install
  * the table does not exist when stock migrations apply.
  */
-final readonly class EntityEvolutionV2Migration implements MigrationInterfaceV2
+final class EntityEvolutionV2Migration implements MigrationInterfaceV2
 {
+    /** ColumnSpec type token this fixture authors; set by the test for each logical type. */
+    public static string $specType = 'text';
+
     public function migrationId(): string
     {
         return 'acme/application:v2:add-account-user-id';
@@ -45,7 +48,7 @@ final readonly class EntityEvolutionV2Migration implements MigrationInterfaceV2
                 new AddColumn(
                     'account',
                     'user_id',
-                    new ColumnSpec(type: 'text', nullable: true),
+                    new ColumnSpec(type: self::$specType, nullable: true),
                 ),
             ]),
         );

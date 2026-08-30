@@ -12,6 +12,10 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Command\Migrate\DryRunFormatter;
+use Waaseyaa\CLI\Command\Migrate\DryRunNode;
+use Waaseyaa\CLI\Command\Migrate\DryRunPlanner;
+use Waaseyaa\CLI\Command\Migrate\DryRunResult;
 use Waaseyaa\CLI\Command\Migrate\VerifyAuthorityResult;
 use Waaseyaa\CLI\Command\Migrate\VerifyFormatter;
 use Waaseyaa\CLI\Command\Migrate\VerifyOutcome;
@@ -33,6 +37,10 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
 use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
 
 #[CoversClass(MigrateHandler::class)]
+#[CoversClass(DryRunFormatter::class)]
+#[CoversClass(DryRunNode::class)]
+#[CoversClass(DryRunPlanner::class)]
+#[CoversClass(DryRunResult::class)]
 #[CoversClass(VerifyAuthorityResult::class)]
 #[CoversClass(VerifyFormatter::class)]
 #[CoversClass(VerifyOutcome::class)]
@@ -98,6 +106,27 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
             'ALTER TABLE "widgets" ADD COLUMN "archived_at"',
             $tester->getStdout(),
         );
+    }
+
+    /**
+     * R5: an operation whose state an earlier operation in the same plan changes
+     * must be preserved in the plan and marked state-dependent. Filtering it
+     * against the initial snapshot silently omitted work that apply performs.
+     */
+    #[Test]
+    public function dryRunPreservesAnOperationAPredecessorMakesNecessary(): void
+    {
+        [$connection, , $tester] = self::buildHarness([self::v2Swapping('widgets', 'archived_at')]);
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY, archived_at TEXT)');
+
+        $tester->execute(['--dry-run', '--json']);
+
+        self::assertSame(0, $tester->getExitCode());
+        $payload = json_decode($tester->getStdout(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($payload);
+        $node = $payload['nodes'][0];
+        self::assertTrue($node['state_dependent'], 'the plan cannot resolve this node exactly');
+        self::assertCount(2, $node['steps'], 'both operations are preserved, not filtered');
     }
 
     #[Test]
@@ -352,6 +381,44 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
      * @param list<MigrationInterfaceV2> $v2
      * @return array{0: \Doctrine\DBAL\Connection, 1: MigrationRepository, 2: CliTester}
      */
+    private static function v2Swapping(string $table, string $column): MigrationInterfaceV2
+    {
+        return new class ($table, $column) implements MigrationInterfaceV2 {
+            public function __construct(private string $table, private string $column) {}
+
+            public function migrationId(): string
+            {
+                return 'waaseyaa/test:v2:swap';
+            }
+
+            public function package(): string
+            {
+                return 'waaseyaa/test';
+            }
+
+            public function dependencies(): array
+            {
+                return [];
+            }
+
+            public function plan(): MigrationPlan
+            {
+                return new MigrationPlan(
+                    migrationId: $this->migrationId(),
+                    package: $this->package(),
+                    dependencies: [],
+                    // Non-destructive but state-dependent: the rename frees the
+                    // name the second operation then re-adds. Judged against the
+                    // initial snapshot, the AddColumn looks already satisfied.
+                    root: new CompositeDiff([
+                        new \Waaseyaa\Foundation\Schema\Diff\RenameColumn($this->table, $this->column, 'archived_at_old'),
+                        new AddColumn($this->table, $this->column, new ColumnSpec(type: 'text', nullable: true)),
+                    ]),
+                );
+            }
+        };
+    }
+
     private static function buildHarness(array $v2, bool $isProduction = false): array
     {
         [$connection, $repo] = self::makeConnectionAndRepo();

@@ -48,6 +48,9 @@ final readonly class DryRunFormatter
 
         foreach ($result->nodes as $node) {
             $marker = $node->alreadyApplied ? '[applied]' : '[pending]';
+            if ($node->stateDependent) {
+                $marker .= '[state-dependent]';
+            }
             $lines[] = sprintf('  %s %s (%s)', $marker, $node->id, $node->kind);
             if ($node->dependencies !== []) {
                 $lines[] = '      depends on: ' . implode(', ', $node->dependencies);
@@ -83,6 +86,7 @@ final readonly class DryRunFormatter
                     $node->steps,
                 ),
                 'already_applied' => $node->alreadyApplied,
+                'state_dependent' => $node->stateDependent,
             ];
         }
 

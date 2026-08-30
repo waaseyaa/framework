@@ -6,14 +6,19 @@ namespace Waaseyaa\Foundation\Tests\Unit\Migration\Executor;
 
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Migration\EntityTableMaterializerInterface;
 use Waaseyaa\Foundation\Migration\Executor\ApplyMode;
 use Waaseyaa\Foundation\Migration\Executor\IncompatibleSchemaStateException;
+use Waaseyaa\Foundation\Migration\Executor\OpPreconditionResolver;
+use Waaseyaa\Foundation\Migration\Executor\V2ApplyOutcome;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
+use Waaseyaa\Foundation\Schema\Diff\PlanTargets;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
+use Waaseyaa\Foundation\Schema\Compiler\Sqlite\Translator\SqliteIdentifier;
 use Waaseyaa\Foundation\Schema\Compiler\Validation\DestructiveOpBlockedException;
 use Waaseyaa\Foundation\Schema\Compiler\Validation\PlanPolicy;
 use Waaseyaa\Foundation\Schema\Diff\AddColumn;
@@ -37,6 +42,11 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
  * @see docs/change-records/FW-2701.md
  */
 #[CoversClass(V2PlanExecutor::class)]
+#[CoversClass(OpPreconditionResolver::class)]
+#[CoversClass(IncompatibleSchemaStateException::class)]
+#[CoversClass(V2ApplyOutcome::class)]
+#[CoversClass(ApplyMode::class)]
+#[CoversClass(PlanTargets::class)]
 final class V2LifecycleContractTest extends TestCase
 {
     private DBALDatabase $database;
@@ -134,7 +144,7 @@ final class V2LifecycleContractTest extends TestCase
         ]));
 
         $this->expectException(IncompatibleSchemaStateException::class);
-        $this->expectExceptionMessageMatches('/declared default silver, found gold/');
+        $this->expectExceptionMessageMatches("/declared default 'silver', found 'gold'/");
 
         $this->execute($plan, $this->materializerOwning(['account']));
     }
@@ -185,6 +195,105 @@ final class V2LifecycleContractTest extends TestCase
         self::assertSame(ApplyMode::Applied, $outcome->mode);
         self::assertSame([], $outcome->materializedTables, 'pre-creating the destination would break the rename');
         self::assertTrue($this->tableExists('account'));
+        self::assertFalse($this->tableExists('old_account'));
+    }
+
+    /**
+     * R1: expected and actual defaults must be compared as SQL literals. The
+     * earlier code compared an unquoted PHP string against SQLite's literal
+     * text, which refused values the compiler itself produces.
+     */
+    #[Test]
+    #[DataProvider('roundTripDefaults')]
+    public function a_default_this_compiler_itself_would_emit_is_satisfied(string $authored): void
+    {
+        $literal = SqliteIdentifier::literal($authored);
+        $this->connection->executeStatement(
+            sprintf('CREATE TABLE account (eid INTEGER PRIMARY KEY, v TEXT DEFAULT %s)', $literal),
+        );
+
+        $plan = $this->plan(new CompositeDiff([
+            new AddColumn('account', 'v', new ColumnSpec(type: 'text', nullable: true, default: $authored)),
+        ]));
+
+        self::assertSame(ApplyMode::AlreadySatisfied, $this->execute($plan, $this->materializerOwning([]))->mode);
+    }
+
+    /** @return list<array{string}> */
+    public static function roundTripDefaults(): array
+    {
+        return [['ordinary'], [''], ['NULL'], ['  padded  '], ["it's"], ['0']];
+    }
+
+    /**
+     * R1, the dangerous direction: an authored default against a column that
+     * has none must refuse. The earlier normalization collapsed both to null.
+     */
+    #[Test]
+    #[DataProvider('roundTripDefaults')]
+    public function an_authored_default_is_never_satisfied_by_a_column_without_one(string $authored): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, v TEXT)');
+
+        $plan = $this->plan(new CompositeDiff([
+            new AddColumn('account', 'v', new ColumnSpec(type: 'text', nullable: true, default: $authored)),
+        ]));
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/found none/');
+
+        $this->execute($plan, $this->materializerOwning([]));
+    }
+
+    /** R4: an index whose collation differs from the column's is not equivalent. */
+    #[Test]
+    public function an_index_under_a_different_collation_fails_closed(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, name TEXT COLLATE BINARY)');
+        $this->connection->executeStatement('CREATE UNIQUE INDEX idx_names ON account (name COLLATE NOCASE)');
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/inherited from the column.*found NOCASE/');
+
+        $this->execute(
+            $this->plan(new CompositeDiff([new AddIndex('account', ['name'], 'idx_names', true)])),
+            $this->materializerOwning([]),
+        );
+    }
+
+    /** R4, the other direction: a column declaring NOCASE expects a NOCASE index. */
+    #[Test]
+    public function an_index_inheriting_a_declared_column_collation_is_satisfied(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, name TEXT COLLATE NOCASE)');
+        $this->connection->executeStatement('CREATE UNIQUE INDEX idx_names ON account (name)');
+
+        $outcome = $this->execute(
+            $this->plan(new CompositeDiff([new AddIndex('account', ['name'], 'idx_names', true)])),
+            $this->materializerOwning([]),
+        );
+
+        self::assertSame(ApplyMode::AlreadySatisfied, $outcome->mode);
+    }
+
+    /**
+     * R3: a table an earlier operation produces is not a prerequisite of a
+     * later one, so the materializer must not pre-create the rename target.
+     */
+    #[Test]
+    public function a_rename_followed_by_an_alter_of_the_destination_still_applies(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE old_account (eid INTEGER PRIMARY KEY)');
+
+        $plan = $this->plan(new CompositeDiff([
+            new RenameTable('old_account', 'account'),
+            new AddColumn('account', 'user_id', new ColumnSpec(type: 'text', nullable: true)),
+        ]));
+        $outcome = $this->execute($plan, $this->materializerOwning(['account']));
+
+        self::assertSame(ApplyMode::Applied, $outcome->mode);
+        self::assertSame([], $outcome->materializedTables);
+        self::assertContains('user_id', $this->columns('account'));
         self::assertFalse($this->tableExists('old_account'));
     }
 
@@ -257,6 +366,115 @@ final class V2LifecycleContractTest extends TestCase
         }
 
         self::assertFalse($recording->invoked, 'the materializer must not run before the policy gate');
+    }
+
+    #[Test]
+    public function an_index_on_an_absent_table_is_outstanding_not_satisfied(): void
+    {
+        $outcome = $this->execute(
+            $this->plan(new CompositeDiff([new AddIndex('account', ['user_id'], 'account_user_id')])),
+            $this->materializerOwning(['account']),
+        );
+
+        self::assertSame(ApplyMode::Applied, $outcome->mode);
+    }
+
+    #[Test]
+    public function an_index_with_the_authored_name_but_different_uniqueness_fails_closed(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id TEXT)');
+        $this->connection->executeStatement('CREATE INDEX account_user_id ON account ("user_id")');
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/declared UNIQUE, found the opposite/');
+
+        $this->execute(
+            $this->plan(new CompositeDiff([new AddIndex('account', ['user_id'], 'account_user_id', true)])),
+            $this->materializerOwning([]),
+        );
+    }
+
+    #[Test]
+    public function an_index_with_the_authored_name_but_different_columns_fails_closed(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id TEXT, tenant_id TEXT)');
+        $this->connection->executeStatement('CREATE INDEX account_scope ON account ("tenant_id")');
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/declared columns \(user_id\), found \(tenant_id\)/');
+
+        $this->execute(
+            $this->plan(new CompositeDiff([new AddIndex('account', ['user_id'], 'account_scope')])),
+            $this->materializerOwning([]),
+        );
+    }
+
+    #[Test]
+    public function a_blob_column_does_not_satisfy_an_authored_text_column(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, payload BLOB)');
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/TEXT affinity.*BLOB affinity/s');
+
+        $this->execute(
+            $this->plan(new CompositeDiff([
+                new AddColumn('account', 'payload', new ColumnSpec(type: 'text', nullable: true)),
+            ])),
+            $this->materializerOwning([]),
+        );
+    }
+
+    #[Test]
+    public function doctrines_double_precision_satisfies_an_authored_float(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, ratio DOUBLE PRECISION)');
+
+        $outcome = $this->execute(
+            $this->plan(new CompositeDiff([
+                new AddColumn('account', 'ratio', new ColumnSpec(type: 'float', nullable: true)),
+            ])),
+            $this->materializerOwning([]),
+        );
+
+        self::assertSame(ApplyMode::AlreadySatisfied, $outcome->mode);
+    }
+
+    #[Test]
+    public function a_numeric_affinity_column_does_not_satisfy_an_authored_integer(): void
+    {
+        // DECIMAL resolves to NUMERIC affinity; INTEGER does not. This is the
+        // boundary the boolean allowlist deliberately does NOT generalize.
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, score DECIMAL(10,2))');
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/INTEGER affinity.*NUMERIC affinity/s');
+
+        $this->execute(
+            $this->plan(new CompositeDiff([
+                new AddColumn('account', 'score', new ColumnSpec(type: 'int', nullable: true)),
+            ])),
+            $this->materializerOwning([]),
+        );
+    }
+
+    #[Test]
+    public function doctrines_boolean_spelling_satisfies_an_authored_boolean(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, active BOOLEAN)');
+
+        $outcome = $this->execute(
+            $this->plan(new CompositeDiff([
+                new AddColumn('account', 'active', new ColumnSpec(type: 'boolean', nullable: true)),
+            ])),
+            $this->materializerOwning([]),
+        );
+
+        self::assertSame(
+            ApplyMode::AlreadySatisfied,
+            $outcome->mode,
+            'the allowlist reconciles the two producers for this one logical type',
+        );
     }
 
     #[Test]
