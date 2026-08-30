@@ -112,6 +112,59 @@ final class SqliteCollationOracleTest extends TestCase
         ];
     }
 
+    /**
+     * SQLite's lexer skips a UTF-8 BOM at a **token start** as whitespace, but
+     * treats those same bytes as ordinary identifier characters inside a token.
+     * The distinction is the whole point: `TEXT <BOM>COLLATE NOCASE` carries a
+     * real clause, while `COLLATE<BOM>NOCASE` is one identifier and carries
+     * none. A global strip would get the second case wrong, so the negative
+     * controls below are as load-bearing as the positive one.
+     *
+     * @param non-empty-string $columnDefinition
+     */
+    #[Test]
+    #[DataProvider('byteOrderMarkPlacements')]
+    public function a_byte_order_mark_is_whitespace_only_at_a_token_start(
+        string $columnDefinition,
+        string $column,
+    ): void {
+        $ddl = sprintf('CREATE TABLE t (id INTEGER PRIMARY KEY, %s)', $columnDefinition);
+        $this->connection->executeStatement($ddl);
+
+        $stored = (string) $this->connection->fetchOne(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 't'",
+        );
+        $parsed = new SqliteTableDefinition($stored)->collationOf($column);
+
+        if ($parsed !== null) {
+            self::assertSame($this->effectiveIndexCollation('t', $column), $parsed);
+        }
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function byteOrderMarkPlacements(): array
+    {
+        $bom = "\xEF\xBB\xBF";
+
+        return [
+            // Positive: a BOM at a token start is whitespace, so the clause is real.
+            'before COLLATE' => ['name TEXT ' . $bom . 'COLLATE NOCASE', 'name'],
+            'before the column name' => [$bom . 'name TEXT COLLATE NOCASE', 'name'],
+            'before the type' => ['name ' . $bom . 'TEXT COLLATE NOCASE', 'name'],
+            'before the collation argument' => ['name TEXT COLLATE ' . $bom . 'NOCASE', 'name'],
+            'repeated at a token start' => ['name TEXT ' . $bom . $bom . 'COLLATE NOCASE', 'name'],
+            'after a comma' => ['a TEXT, ' . $bom . 'name TEXT COLLATE NOCASE', 'name'],
+
+            // Negative controls: inside a token those bytes are identifier
+            // characters and must survive intact.
+            'inside the column name' => ['na' . $bom . 'me TEXT COLLATE NOCASE, na TEXT', 'na'],
+            'inside the type name' => ['name TE' . $bom . 'XT COLLATE NOCASE', 'name'],
+            'joined to the COLLATE keyword' => ['name TEXT COLLATE' . $bom . 'NOCASE', 'name'],
+            // (a BOM inside the collation NAME is not a valid variant: SQLite
+            // rejects the statement with "no such collation sequence")
+        ];
+    }
+
     #[Test]
     public function a_table_level_constraint_after_the_column_does_not_change_the_answer(): void
     {

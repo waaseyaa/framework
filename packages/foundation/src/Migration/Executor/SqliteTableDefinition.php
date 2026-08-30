@@ -43,6 +43,8 @@ final readonly class SqliteTableDefinition
         'CONSTRAINT', 'PRIMARY', 'UNIQUE', 'CHECK', 'FOREIGN',
     ];
 
+    private const BYTE_ORDER_MARK = "\xEF\xBB\xBF";
+
     private const TYPE_IDENTIFIER = 'identifier';
     private const TYPE_QUOTED = 'quoted';
     private const TYPE_STRING = 'string';
@@ -215,6 +217,18 @@ final readonly class SqliteTableDefinition
 
             if (ctype_space($char)) {
                 ++$offset;
+                continue;
+            }
+            // SQLite's lexer skips a UTF-8 byte-order mark where a token would
+            // start, treating it as whitespace. This check sits at the top of
+            // the loop, which IS a token-start position, so the same bytes
+            // occurring *inside* a token are never reached here: the identifier
+            // match below consumes them as ordinary identifier characters, which
+            // is also what SQLite does. Stripping them globally would be wrong —
+            // `COLLATE<BOM>NOCASE` is a single identifier to SQLite and carries
+            // no collation clause at all.
+            if (substr($sql, $offset, 3) === self::BYTE_ORDER_MARK) {
+                $offset += 3;
                 continue;
             }
             if ($char === '-' && $offset + 1 < $length && $sql[$offset + 1] === '-') {

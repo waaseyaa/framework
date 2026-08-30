@@ -99,6 +99,9 @@ final class CollationResolverDifferentialTest extends TestCase
             'COLLATE inside the type identifier' => ['name acollate BINARY COLLATE NOCASE'],
             'line comment between COLLATE and argument' => ["name TEXT COLLATE -- c\n NOCASE"],
             'quoted collation name' => ['name TEXT COLLATE "NOCASE"'],
+            // A UTF-8 BOM at a token start is whitespace to SQLite's lexer, so
+            // the clause is real and the column collates NOCASE.
+            'byte-order mark before COLLATE' => ["name TEXT \xEF\xBB\xBFCOLLATE NOCASE"],
         ];
     }
 
