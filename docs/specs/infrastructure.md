@@ -1198,11 +1198,18 @@ token where SQLite sees only a multi-word type name. The **whole** definition is
 before answering, because a later `COLLATE` clause supersedes an earlier one —
 which is the clause SQLite applies.
 
+A collation name is read in **every spelling SQLite accepts**: bare, and
+double-quoted, backtick-quoted, bracketed or single-quoted, since SQLite takes a
+string literal wherever an identifier is expected. Accepting only the bare and
+quoted-identifier forms reported a legitimately `NOCASE` column as unknown, and
+unknown makes the caller refuse a migration whose index is in fact equivalent —
+fail-closed rather than dangerous, but still a wrong answer about valid DDL.
+
 Three outcomes, never two: a declared clause yields its collation; a column
 carrying none yields `BINARY`, authoritative because it is SQLite's documented
 default rather than a guess; anything unresolved — table absent, schema text
-unreadable, column not found, a `COLLATE` clause whose argument is not an
-identifier — is **unknown**. Unknown fails closed: equivalence cannot be
+unreadable, column not found, a `COLLATE` clause whose argument is not a name in
+any of those spellings — is **unknown**. Unknown fails closed: equivalence cannot be
 established, so the operation is refused. Collapsing unknown to `BINARY` would
 silently accept an index with different uniqueness and ordering semantics, which
 is the failure this check exists to prevent. An index entry that is an expression
@@ -1212,7 +1219,13 @@ The parser's predictions are pinned by differential tests that use SQLite itself
 as the oracle: each case creates the table, creates the authored index through the
 real compiler, and compares the parser against `PRAGMA index_xinfo`. The contract
 those tests enforce is one-sided — a non-null result must agree with SQLite;
-returning unknown is always permitted. `MigrationRepository::record()` accepts a nullable
+returning unknown is always permitted. That property is the safety one, and it is
+deliberately permissive: a reader that returned unknown for everything would
+satisfy it while refusing every migration. `SqliteCollationOracleCorpusTest`
+closes the other side over a wide corpus — each row names the collation SQLite
+actually uses and asserts the parser produces exactly it, so no row can pass by
+reporting unknown, and the corpus measures how much real DDL the reader resolves
+rather than only that it never lies. `MigrationRepository::record()` accepts a nullable
 `apply_mode` (`applied` | `already_satisfied`), added idempotently by
 `ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
 and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.
