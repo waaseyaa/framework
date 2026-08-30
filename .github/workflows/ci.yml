@@ -1278,6 +1278,71 @@ jobs:
             Remove-Item -Recurse -Force $env:BIMAAJI_WINDOWS_CONSUMER -ErrorAction SilentlyContinue
           }
 
+  # #2658. The local-operator trust-boundary proofs spawn child PHP processes
+  # (a production-shaped runtime for R-6, and a real `php -S` built-in server
+  # under SAPI `cli-server` for the narrowing-only SAPI seam). Their first
+  # implementation built a `NAME=value command` prefix and called exec() —
+  # POSIX shell syntax that cmd.exe does not parse, so on Windows the probe was
+  # never executed and the proof passed vacuously. They now use proc_open()
+  # with an argv array and an explicit environment map; this lane is what makes
+  # that portability a tested claim rather than an assertion.
+  #
+  # Deliberately NOT folded into ci/skeleton-create-project-windows: that lane
+  # installs a consumer project via `composer create-project` and runs no
+  # PHPUnit at all, so it has neither the monorepo autoloader nor the dev
+  # dependencies these tests need. Bolting a full monorepo install onto it
+  # would roughly double its runtime and blur a lane with a specific charter.
+  #
+  # Scope is only the boundary proofs. The D-7.3 roster-gate sandbox
+  # (tests/Architecture/LocalOperatorToolProfileGateTest.php) is excluded on
+  # purpose: it builds its fixture tree with symlink(), which needs Developer
+  # Mode or SeCreateSymbolicLinkPrivilege on Windows, and it exercises a gate
+  # that runs on the Linux lanes.
+  local-operator-windows:
+    name: ci/local-operator-windows
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      # The same extension set ci/skeleton-create-project-windows installs, and
+      # for the same reason: the root lock file resolves waaseyaa/oidc, whose
+      # lcobucci/jwt and league/oauth2-server dependencies carry ext-sodium
+      # platform requirements. A shorter list makes `composer install` fail
+      # with "lock file does not contain a compatible set of packages" before
+      # any test runs.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml, sodium, fileinfo, zip
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~\AppData\Local\Composer\files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Install dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          composer install --no-interaction --no-progress --no-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Local-operator trust boundary holds on Windows
+        run: |
+          $ErrorActionPreference = 'Stop'
+          php vendor/bin/phpunit --no-coverage `
+            packages/ai-agent/tests/Unit/LocalOperator `
+            tests/Integration/LocalOperator
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   packaged-form:
     name: packaged-form
     runs-on: ubuntu-24.04
@@ -1699,6 +1764,7 @@ jobs:
           run_gate check-s1-configuration-authority
           run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions
+          run_gate check-local-operator-tool-profile
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
           run_gate check-dispatcher-keys

@@ -734,6 +734,22 @@ return [
     'Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface' => 'public',
     'Waaseyaa\AI\Agent\Provider\ProviderInterface' => 'public',
     'Waaseyaa\AI\Agent\Provider\StreamingProviderInterface' => 'public',
+    // ADR-022 D-10 (#2658) — the local AI-development plane's trust boundary.
+    // A deliberate exception to this file's "contract shapes only" scope note:
+    // these are concrete final classes, which are normally implementations and
+    // intentionally untracked. ADR-022 D-10 requires LocalOperatorPrincipal to
+    // be mapped as a consumer-facing extension point, and the three types
+    // beside it are how a consumer reaches it — the attestation is its only
+    // constructor gate (D-6 R-6), the profile is its capability and tool-ID
+    // grant (D-7), and the guard is the executable form of R-4. Mapping them
+    // together means none can be renamed or dropped without a recorded
+    // surface decision. The delta check in tools/check-surface-parity.php
+    // already governs concrete final classes once they are recorded here.
+    'Waaseyaa\AI\Agent\LocalOperator\LocalOperatorPrincipal' => 'public',
+    'Waaseyaa\AI\Agent\LocalOperator\LocalOperatorTransportAttestation' => 'public',
+    'Waaseyaa\AI\Agent\LocalOperator\LocalOperatorToolProfile' => 'public',
+    'Waaseyaa\AI\Agent\LocalOperator\LocalOperatorAccountContextGuard' => 'public',
+    'Waaseyaa\AI\Agent\LocalOperator\LocalOperatorRefusal' => 'public',
     'Waaseyaa\Attachment\Http\AttachmentDownloadMetadataReaderInterface' => 'public',
     'Waaseyaa\Genealogy\Access\GenealogyInternalFieldReaderInterface' => 'public',
     'Waaseyaa\AI\Tools\AbstractAgentTool' => 'public',

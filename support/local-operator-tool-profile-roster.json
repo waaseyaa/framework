@@ -1,0 +1,170 @@
+{
+    "schema_version": 1,
+    "query_version": "local-operator-tool-profile-v1",
+    "default_tool_ids": [
+        "bimaaji_introspect_graph",
+        "bimaaji_introspect_section",
+        "bimaaji_search_specs"
+    ],
+    "default_capabilities": [
+        "bimaaji.read"
+    ],
+    "allowed_classes": [
+        "default-profile",
+        "capability-admissible",
+        "withheld",
+        "dynamic-registration"
+    ],
+    "tools": [
+        {
+            "path": "packages/ai-agent/src/Mcp/McpClientToolSource.php",
+            "tool_id": "<dynamic>",
+            "capability": "<dynamic>",
+            "class": "dynamic-registration"
+        },
+        {
+            "path": "packages/ai-tools/src/Catalogue/AttributeToolRegistry.php",
+            "tool_id": "<dynamic>",
+            "capability": "<dynamic>",
+            "class": "dynamic-registration"
+        },
+        {
+            "path": "packages/ai-tools/src/Content/ContentToolSet.php",
+            "tool_id": "<dynamic>",
+            "capability": "<dynamic>",
+            "class": "dynamic-registration"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Bimaaji/GeneratePatchTool.php",
+            "tool_id": "bimaaji_generate_patch",
+            "capability": "bimaaji.mutate",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php",
+            "tool_id": "bimaaji_introspect_graph",
+            "capability": "bimaaji.read",
+            "class": "default-profile"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Bimaaji/IntrospectSectionTool.php",
+            "tool_id": "bimaaji_introspect_section",
+            "capability": "bimaaji.read",
+            "class": "default-profile"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Bimaaji/ProposeMutationTool.php",
+            "tool_id": "bimaaji_propose_mutation",
+            "capability": "bimaaji.mutate",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php",
+            "tool_id": "bimaaji_search_specs",
+            "capability": "bimaaji.read",
+            "class": "default-profile"
+        },
+        {
+            "path": "packages/ai-tools/src/AiToolsServiceProvider.php",
+            "tool_id": "content.search",
+            "capability": "tool.content.search",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntityCreateTool.php",
+            "tool_id": "entity.create",
+            "capability": "tool.entity.create",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntityDeleteTool.php",
+            "tool_id": "entity.delete",
+            "capability": "tool.entity.delete",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntityListTool.php",
+            "tool_id": "entity.list",
+            "capability": "tool.entity.list",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntityListRevisionsTool.php",
+            "tool_id": "entity.list_revisions",
+            "capability": "tool.entity.read",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntityReadTool.php",
+            "tool_id": "entity.read",
+            "capability": "tool.entity.read",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntityRollbackTool.php",
+            "tool_id": "entity.rollback",
+            "capability": "tool.entity.update",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntitySearchTool.php",
+            "tool_id": "entity.search",
+            "capability": "tool.entity.search",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntitySetCurrentRevisionTool.php",
+            "tool_id": "entity.set_current_revision",
+            "capability": "tool.entity.update",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Entity/EntityUpdateTool.php",
+            "tool_id": "entity.update",
+            "capability": "tool.entity.update",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Relationship/RelationshipTraverseTool.php",
+            "tool_id": "relationship.traverse",
+            "capability": "tool.relationship.traverse",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-tools/src/Vector/VectorSearchTool.php",
+            "tool_id": "vector.search",
+            "capability": "tool.vector.search",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Wayfinding/EditTrailTool.php",
+            "tool_id": "wayfinding_edit_trail",
+            "capability": "present guided content",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Wayfinding/EmitBeaconTool.php",
+            "tool_id": "wayfinding_emit_beacon",
+            "capability": "present guided content",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Wayfinding/GetTrailTool.php",
+            "tool_id": "wayfinding_get_trail",
+            "capability": "present guided content",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Wayfinding/RecordTrailTool.php",
+            "tool_id": "wayfinding_record_trail",
+            "capability": "present guided content",
+            "class": "withheld"
+        },
+        {
+            "path": "packages/ai-agent/src/Tool/Wayfinding/ReRecordTrailTool.php",
+            "tool_id": "wayfinding_rerecord_trail",
+            "capability": "present guided content",
+            "class": "withheld"
+        }
+    ]
+}
