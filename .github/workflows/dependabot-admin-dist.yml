@@ -61,9 +61,147 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # An INDEPENDENT acceptance gate. This does not replace or relocate any
+  # check: bin/build-admin-dist already ends by running
+  # `bin/check-admin-dist-fresh` and `bin/admin-dist-acceptance verify`
+  # against the tree it just produced, and `build` keeps doing exactly that.
+  # What is added here is independence — the same acceptance check, re-run
+  # where its result does not depend on the workspace that produced the
+  # bundle.
+  #
+  # Why that is worth a whole job: `build` runs `npm ci --ignore-scripts` — so
+  # install-time lifecycle hooks are NOT the exposure — and then
+  # `npm run generate`, and that is: the bundler imports and executes
+  # dependency modules in-process to produce the SPA. Dependency code
+  # therefore executes in `build`'s workspace, so a check run there afterwards
+  # shares a disk with code that could rewrite the checker. `build`'s internal
+  # verify is still a useful early failure; it is simply not evidence that can
+  # stand on its own. This job supplies evidence that can, by obtaining the
+  # verifier separately and treating the artifact strictly as data: confined
+  # to three paths, read and hashed, never executed.
+  #
+  # It is also where the pinned interpreter lives. `publish` sets up no PHP by
+  # design, so the `php bin/admin-dist-acceptance verify` it used to run
+  # executed the runner's default interpreter and died parsing this
+  # repository's PHP 8.4+ syntax, blocking every Dependabot admin bump behind
+  # a stale dist (#2704). Adding setup-php to `publish` would put a
+  # third-party action inside the privileged boundary; that separation is the
+  # security property, so the interpreter stays out here instead.
+  validate:
+    name: Verify the rebuilt dist from a clean checkout
+    needs: build
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      # The identity of the exact bytes this job inspected, for `publish` to
+      # re-derive. Downloading by name within one run already resolves to this
+      # run's artifact — that was never broken, and this does not fix a hole.
+      # What it adds is a binding that does not depend on artifact-resolution
+      # semantics at all, and that a test can assert: `publish` demonstrates
+      # it holds the same bytes rather than inheriting the assumption.
+      artifact-digest: ${{ steps.confine.outputs.artifact-digest }}
+    steps:
+      # The verifier's own code, obtained separately from the workspace that
+      # built the bundle.
+      #
+      # The sha pin buys IDENTITY, not trust. It does not make this revision
+      # trustworthy — it makes it unambiguous and reproducible: all three jobs
+      # name the same commit, so the acceptance manifest is judged against the
+      # source contract of the revision it claims to describe, and a reader
+      # can fetch that exact commit and re-run the check. Without the pin the
+      # default ref for pull_request_target is the BASE branch, so the bundle
+      # would be judged against a different revision's dist.markers.json —
+      # that is an identity bug, not a privilege one. persist-credentials:
+      # false so no token is left in .git/config.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+
+      # bin/admin-dist-acceptance requires vendor/autoload.php, so a Composer
+      # bootstrap is unavoidable; it is ordered before the download so the
+      # toolchain is complete while the only bytes on this disk are git's, and
+      # it carries --no-scripts --no-plugins (matching `build`) because
+      # Composer scripts and plugins execute code, which is precisely what
+      # this job exists to keep out. No npm and no node run here at all.
+      - name: Install PHP verification runtime
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts --no-plugins
+
+      # UNTRUSTED HALF — generated output, downloaded as data and never executed.
+      - name: Download the generated artifacts as untrusted data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: admin-dist
+          path: ${{ runner.temp }}/admin-dist
+
+      # Confine, then place. The upload exports exactly three entries with
+      # if-no-files-found: error; this refuses anything else before a single
+      # byte is copied, so an artifact carrying extra or unexpected entries
+      # cannot write outside those three paths. The recursive non-regular-file
+      # check is what stops `cp -a` following a symlink out of the tree.
+      #
+      # AdminDistAcceptanceVerifier reads packages/admin-surface/{dist,
+      # dist.signature,dist.manifest.json} under the project root, so the
+      # bytes are placed at exactly those paths — overwriting the committed
+      # dist in this throwaway workspace only, which nothing here commits or
+      # pushes. The manifest and the tree it describes travel together in one
+      # artifact and land side by side, so what is verified is still "the
+      # bytes that just landed", not the bytes some other tree produced
+      # (#2524).
+      - name: Confine the artifact and place it where the verifier reads
+        id: confine
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/admin-dist
+        run: |
+          set -euo pipefail
+          test -d "$ARTIFACT_ROOT/dist"
+          test -f "$ARTIFACT_ROOT/dist.signature"
+          test -f "$ARTIFACT_ROOT/dist.manifest.json"
+          test "$(find "$ARTIFACT_ROOT" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = 'dist dist.manifest.json dist.signature '
+          if find "$ARTIFACT_ROOT" ! -type d ! -type f -print -quit | grep -q .; then
+            echo 'Artifact contains a non-regular filesystem entry.' >&2
+            exit 1
+          fi
+          grep -Eq '^[0-9a-f]{64}$' "$ARTIFACT_ROOT/dist.signature"
+          # Path-relative and locale-pinned so the two jobs compute it
+          # identically. Covers every byte of the artifact, not just the
+          # signature file, and is published as this job's output.
+          ARTIFACT_DIGEST="$(cd "$ARTIFACT_ROOT" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d ' ' -f 1)"
+          echo "artifact-digest=$ARTIFACT_DIGEST" >> "$GITHUB_OUTPUT"
+          rm -rf packages/admin-surface/dist
+          cp -a "$ARTIFACT_ROOT/dist" packages/admin-surface/dist
+          cp "$ARTIFACT_ROOT/dist.signature" packages/admin-surface/dist.signature
+          cp "$ARTIFACT_ROOT/dist.manifest.json" packages/admin-surface/dist.manifest.json
+
+      # dist.markers.json — the source-contract assertions this re-checks — is
+      # NOT in the artifact: it comes from the pinned checkout, so the claims
+      # are trusted even though the bundle they are checked against is not.
+      - name: Verify the acceptance manifest describes those bytes
+        run: php bin/admin-dist-acceptance verify
+
   publish:
     name: Publish rebuilt admin dist
-    needs: build
+    needs: [build, validate]
+    # NARROWS the gating; it does not replace it. A job `if` is evaluated in
+    # ADDITION to the implicit success() over `needs`, so both `build` and
+    # `validate` must still have succeeded for this to run. That implicit
+    # requirement survives only while this expression contains no status
+    # function: always(), failure() or cancelled() here would override it and
+    # let a write follow a failed or skipped verification. Do not add one.
+    #
+    # `build` already carries this condition, so today this is redundant by
+    # construction — which is the point: it is the job holding the write token
+    # under pull_request_target, and it should not depend on another job's
+    # `if` surviving an edit to `needs` for its own actor gating.
+    if: >-
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: write
       actions: write
@@ -81,9 +219,25 @@ jobs:
           name: admin-dist
           path: ${{ runner.temp }}/admin-dist
 
-      - name: Validate and install generated public artifacts
+      # Structural, shell-only re-validation of the downloaded tree. This job
+      # holds the write token, so it runs no PHP, no Composer and no
+      # third-party action beyond checkout/download-artifact (#2704) — the
+      # acceptance manifest was already verified against these exact bytes by
+      # `validate`, which this job `needs`, so a failed verification can never
+      # reach a write.
+      #
+      # "These exact bytes" is demonstrated rather than assumed: the digest
+      # below is re-derived here and compared against the one `validate`
+      # published as a job output. Name-based download within a run already
+      # resolves to this run's artifact, so this is not closing a hole — it
+      # replaces an assumption about resolution semantics with a check on the
+      # bytes themselves, one that fails closed on an absent or mismatched
+      # digest and that the architecture test can assert. That is what keeps
+      # the manifest landing here the one verified beside this dist (#2524).
+      - name: Structurally validate and install generated public artifacts
         env:
           ARTIFACT_ROOT: ${{ runner.temp }}/admin-dist
+          VALIDATED_DIGEST: ${{ needs.validate.outputs.artifact-digest }}
         run: |
           set -euo pipefail
           test -d "$ARTIFACT_ROOT/dist"
@@ -95,13 +249,19 @@ jobs:
             exit 1
           fi
           grep -Eq '^[0-9a-f]{64}$' "$ARTIFACT_ROOT/dist.signature"
+          if [ -z "$VALIDATED_DIGEST" ]; then
+            echo 'The validate job published no artifact digest; refusing to publish unverified bytes.' >&2
+            exit 1
+          fi
+          ARTIFACT_DIGEST="$(cd "$ARTIFACT_ROOT" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d ' ' -f 1)"
+          if [ "$ARTIFACT_DIGEST" != "$VALIDATED_DIGEST" ]; then
+            echo "Artifact ${ARTIFACT_DIGEST} is not the artifact ${VALIDATED_DIGEST} that was verified." >&2
+            exit 1
+          fi
           rm -rf packages/admin-surface/dist
           cp -a "$ARTIFACT_ROOT/dist" packages/admin-surface/dist
           cp "$ARTIFACT_ROOT/dist.signature" packages/admin-surface/dist.signature
           cp "$ARTIFACT_ROOT/dist.manifest.json" packages/admin-surface/dist.manifest.json
-          # The acceptance manifest must describe the bytes that just landed
-          # here, not the bytes some other tree produced (#2524).
-          php bin/admin-dist-acceptance verify
 
       - name: Commit rebuilt dist to the Dependabot branch
         id: commit

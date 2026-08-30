@@ -31,11 +31,16 @@ final class DependencyWorkflowTest extends TestCase
         self::assertStringContainsString('bin/build-admin-dist', $workflow);
         self::assertStringContainsString('upload-artifact', $workflow);
         self::assertStringContainsString('download-artifact', $workflow);
-        self::assertMatchesRegularExpression('/^  publish:.*?^    needs: build$/ms', $workflow);
+        // publish is gated on the whole unprivileged chain: build generates,
+        // validate verifies, and only then may anything be written (#2704).
+        self::assertMatchesRegularExpression('/^  publish:.*?^    needs: \[build, validate\]$/ms', $workflow);
 
+        // Bounded to the build job alone: validate sits between build and
+        // publish in the file, so using '  publish:' as the end marker here
+        // would silently widen this slice to cover it too.
         $buildJob = strstr($workflow, '  build:');
         self::assertIsString($buildJob);
-        $buildJob = strstr($buildJob, '  publish:', true);
+        $buildJob = strstr($buildJob, '  validate:', true);
         self::assertIsString($buildJob);
         self::assertStringContainsString('contents: read', $buildJob);
         self::assertStringNotContainsString('GH_TOKEN:', $buildJob);
