@@ -1685,6 +1685,20 @@
             "occurrence": 1
         },
         {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "618f21ee07e809a24aedfbe8a777fdefc368cf99fd3e36f5ac2e1c8c8557e2c7",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 1
+        },
+        {
             "path": "packages/cli/tests/Unit/Handler/CommunityTranslationPeerRepairHandlerTest.php",
             "pattern": "dbal_factory",
             "class": "test",

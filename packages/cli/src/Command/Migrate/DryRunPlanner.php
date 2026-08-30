@@ -11,6 +11,7 @@ use Waaseyaa\Foundation\Migration\Executor\OpPrecondition;
 use Waaseyaa\Foundation\Migration\Executor\OpPreconditionResolver;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
+use Waaseyaa\Foundation\Schema\Compiler\CompiledMigrationPlan;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
 use Waaseyaa\Foundation\Schema\Compiler\Validation\PlanPolicy;
 use Waaseyaa\Foundation\Schema\Diff\CompositeDiff;
@@ -57,53 +58,79 @@ final readonly class DryRunPlanner
 
         $ordered = MigrationGraph::build($nodes)->topologicalOrder();
 
+        // Uncertainty accumulates across the WHOLE ordered graph, not within one
+        // migration. An earlier migration file changes what a later one meets,
+        // and dry-run executes nothing, so it cannot observe that change.
+        /** @var list<string> $uncertainTables */
+        $uncertainTables = [];
+        $everythingUncertain = false;
+
         $result = [];
         foreach ($ordered as $node) {
             $alreadyApplied = $this->repository->hasRun($node->id);
+
+            // One analysis produces the preview steps and the uncertainty flag
+            // together, so the two can never disagree.
+            [$steps, $stateDependent] = $this->analyse(
+                $node,
+                $alreadyApplied,
+                $uncertainTables,
+                $everythingUncertain,
+            );
+
             $result[] = new DryRunNode(
                 id: $node->id,
                 package: $node->package,
                 kind: $node->kind->value,
                 dependencies: $node->dependencies,
-                steps: $this->compileStepsFor($node, $alreadyApplied),
+                steps: $steps,
                 alreadyApplied: $alreadyApplied,
-                stateDependent: $this->isStateDependent($node, $alreadyApplied),
+                stateDependent: $stateDependent,
             );
+
+            if ($alreadyApplied) {
+                // Its effects are already in the live database, so it changes
+                // nothing about what a later node will meet.
+                continue;
+            }
+            if ($node->kind !== MigrationKind::V2 || $node->v2 === null) {
+                // A legacy migration's up() body is imperative and opaque to
+                // preview. Once one is pending, no later node can be resolved
+                // against the live snapshot.
+                $everythingUncertain = true;
+                continue;
+            }
+            foreach (PlanTargets::affectedTables($node->v2->plan()->root) as $table) {
+                if (!in_array($table, $uncertainTables, true)) {
+                    $uncertainTables[] = $table;
+                }
+            }
         }
 
         return new DryRunResult($result);
     }
 
     /**
-     * Whether this node's preview depends on state an earlier operation in the
-     * same plan changes, which dry-run cannot observe because it executes
-     * nothing.
+     * Produce this node's preview steps and its uncertainty flag in one pass.
+     *
+     * Mirrors the executor's per-operation walk — same ordering, same target
+     * model, same precondition rule — with one deliberate divergence: the
+     * executor resolves against ground truth because it has already applied the
+     * preceding operations, and preview cannot. Where state is unknown an
+     * operation is reported as outstanding and is never refused, because a
+     * preceding operation may be exactly what changes the state being judged.
+     *
+     * @param list<string> $uncertainTables
+     * @return array{0: list<array<string, mixed>>, 1: bool}
      */
-    private function isStateDependent(MigrationNode $node, bool $alreadyApplied): bool
-    {
+    private function analyse(
+        MigrationNode $node,
+        bool $alreadyApplied,
+        array $uncertainTables,
+        bool $everythingUncertain,
+    ): array {
         if ($alreadyApplied || $node->kind !== MigrationKind::V2 || $node->v2 === null) {
-            return false;
-        }
-
-        $touched = [];
-        foreach ($node->v2->plan()->root->ops as $op) {
-            $targets = PlanTargets::tablesForOp($op);
-            if (array_intersect($targets, $touched) !== []) {
-                return true;
-            }
-            $touched = array_values(array_unique([...$touched, ...$targets]));
-        }
-
-        return false;
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function compileStepsFor(MigrationNode $node, bool $alreadyApplied): array
-    {
-        if ($alreadyApplied || $node->kind !== MigrationKind::V2 || $node->v2 === null) {
-            return [];
+            return [[], false];
         }
 
         $root = $node->v2->plan()->root;
@@ -112,39 +139,47 @@ final readonly class DryRunPlanner
         // in dry-run exactly as it would during apply.
         $compiled = $this->compiler->compile($root, $this->policy);
 
-        // #2701: report what would actually run. Without this the plan advertises
-        // SQL for operations the live schema already satisfies, which is untrue
-        // for one of the two lifecycles the same catalogue has to serve. Note the
-        // check is a snapshot: dry-run does not execute, so it cannot show an
-        // operation becoming outstanding because an earlier one ran.
-        if ($this->preconditions !== null) {
-            $outstanding = [];
-            $touched = [];
-            foreach ($root->ops as $op) {
-                $targets = PlanTargets::tablesForOp($op);
-                // Once an earlier operation has touched this table, the live
-                // snapshot no longer describes the state this operation will
-                // actually meet. Preserve it rather than filter it, and do not
-                // let the resolver refuse on a state a predecessor changes.
-                if (array_intersect($targets, $touched) !== []) {
-                    $outstanding[] = $op;
-                    $touched = array_values(array_unique([...$touched, ...$targets]));
-                    continue;
-                }
-                if ($this->preconditions->resolve($op) === OpPrecondition::NeedsApply) {
-                    $outstanding[] = $op;
-                }
-                $touched = array_values(array_unique([...$touched, ...$targets]));
+        if ($this->preconditions === null) {
+            return [self::stepDictionaries($compiled), $everythingUncertain];
+        }
+
+        $touched = $uncertainTables;
+        $outstanding = [];
+        $stateDependent = $everythingUncertain;
+
+        foreach ($root->ops as $op) {
+            $related = [...PlanTargets::prerequisitesForOp($op), ...PlanTargets::affectedByOp($op)];
+            $uncertain = $everythingUncertain || array_intersect($related, $touched) !== [];
+
+            if ($uncertain) {
+                $outstanding[] = $op;
+                $stateDependent = true;
+            } elseif ($this->preconditions->resolve($op) === OpPrecondition::NeedsApply) {
+                $outstanding[] = $op;
             }
 
-            if ($outstanding === []) {
-                return [];
-            }
-            if (count($outstanding) !== count($root->ops)) {
-                $compiled = $this->compiler->compile(new CompositeDiff($outstanding), $this->policy);
+            foreach (PlanTargets::affectedByOp($op) as $table) {
+                if ($table !== '' && !in_array($table, $touched, true)) {
+                    $touched[] = $table;
+                }
             }
         }
 
+        if ($outstanding === []) {
+            return [[], $stateDependent];
+        }
+        if (count($outstanding) !== count($root->ops)) {
+            $compiled = $this->compiler->compile(new CompositeDiff($outstanding), $this->policy);
+        }
+
+        return [self::stepDictionaries($compiled), $stateDependent];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function stepDictionaries(CompiledMigrationPlan $compiled): array
+    {
         $steps = [];
         foreach ($compiled->steps as $step) {
             $steps[] = $step->toCanonical();

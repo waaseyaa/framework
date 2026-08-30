@@ -1659,6 +1659,48 @@
             "occurrence": 2
         },
         {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/cli/tests/Unit/Command/Migrate/DryRunGraphUncertaintyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
             "path": "packages/cli/tests/Unit/Handler/AddTranslationsMigrationGeneratorTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -5367,6 +5409,181 @@
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "cbab020fc225f7693ff6c1a520daf761396c864453d195c3fdc7660167bd5aae",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 9
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 10
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 11
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 12
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 13
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 14
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 15
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 16
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 17
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 18
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 19
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 20
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 21
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 22
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 23
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteTableDefinitionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 24
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
