@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Provider;
 
-use Composer\Autoload\ClassLoader;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -17,7 +16,7 @@ use Waaseyaa\CLI\Handler\MigrateStatusHandler;
 use Waaseyaa\CLI\Handler\MutationAuthorityBackfillHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
-use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2Migration;
+use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
 use Waaseyaa\Database\DBALDatabase;
 
 /**
@@ -46,12 +45,7 @@ final class MigrateServiceProviderTest extends TestCase
             'extra' => ['waaseyaa' => ['migrations' => ['Waaseyaa\\CLI\\Tests\\Fixtures']]],
         ], JSON_THROW_ON_ERROR));
 
-        // Supply the optimized application classmap required by V2 discovery.
-        foreach (ClassLoader::getRegisteredLoaders() as $loader) {
-            $loader->addClassMap([
-                RootApplicationV2Migration::class => dirname(__DIR__, 2) . '/Fixtures/RootApplicationV2Migration.php',
-            ]);
-        }
+        $migrationClassLoader = RootApplicationV2MigrationAutoloader::register();
 
         $databasePath = $root . '/application.sqlite';
         $connection = DBALDatabase::createSqlite($databasePath, 'testing')->getConnection();
@@ -95,6 +89,7 @@ final class MigrateServiceProviderTest extends TestCase
             self::assertStringContainsString('Ran', $status->getStdout());
             self::assertStringNotContainsString('Pending', $status->getStdout());
         } finally {
+            $migrationClassLoader?->unregister();
             $connection->close();
             unset($status, $apply, $commands, $command, $container, $provider);
             gc_collect_cycles();

@@ -19,22 +19,17 @@ use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
-use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2Migration;
+use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
 
 #[CoversNothing]
 final class RootApplicationV2MigrationRuntimeTest extends TestCase
 {
     private string $root;
+    private ?ClassLoader $migrationClassLoader = null;
 
     protected function setUp(): void
     {
-        // Model the application's optimized classmap without requiring the
-        // entire framework test suite to use optimized dev autoloading.
-        foreach (ClassLoader::getRegisteredLoaders() as $loader) {
-            $loader->addClassMap([
-                RootApplicationV2Migration::class => dirname(__DIR__) . '/Fixtures/RootApplicationV2Migration.php',
-            ]);
-        }
+        $this->migrationClassLoader = RootApplicationV2MigrationAutoloader::register();
 
         $this->root = sys_get_temp_dir() . '/waaseyaa_root_v2_runtime_' . uniqid();
         mkdir($this->root . '/vendor/composer', 0o755, true);
@@ -52,6 +47,7 @@ final class RootApplicationV2MigrationRuntimeTest extends TestCase
 
     protected function tearDown(): void
     {
+        $this->migrationClassLoader?->unregister();
         try {
             new Filesystem()->remove($this->root);
         } catch (IOException) {

@@ -18,12 +18,15 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2Migration;
+use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 
 #[CoversClass(DbInitHandler::class)]
 final class DbInitHandlerTest extends TestCase
 {
     private string $projectRoot;
+    private ?ClassLoader $migrationClassLoader = null;
+    private ?ClassLoader $unrelatedClassLoader = null;
 
     protected function setUp(): void
     {
@@ -40,6 +43,8 @@ final class DbInitHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
+        $this->migrationClassLoader?->unregister();
+        $this->unrelatedClassLoader?->unregister();
         putenv('WAASEYAA_APP_SECRET');
         // Best-effort cleanup: the default-sync test boots a ConsoleKernel whose
         // services hold SQLite handles freed only by the GC cycle collector, so
@@ -91,12 +96,11 @@ final class DbInitHandlerTest extends TestCase
     #[Test]
     public function applies_root_application_v2_migrations(): void
     {
-        // Model the optimized application classmap independently of test order.
-        foreach (ClassLoader::getRegisteredLoaders() as $loader) {
-            $loader->addClassMap([
-                RootApplicationV2Migration::class => dirname(__DIR__, 2) . '/Fixtures/RootApplicationV2Migration.php',
-            ]);
-        }
+        // Random-order runs may already have unrelated application loaders.
+        $this->unrelatedClassLoader = new ClassLoader($this->projectRoot . '/unrelated-vendor');
+        $this->unrelatedClassLoader->register();
+        $this->migrationClassLoader = RootApplicationV2MigrationAutoloader::register();
+        self::assertArrayNotHasKey(RootApplicationV2Migration::class, $this->unrelatedClassLoader->getClassMap());
 
         mkdir($this->projectRoot . '/vendor/composer', 0o755, true);
         file_put_contents($this->projectRoot . '/vendor/composer/installed.json', '{"packages":[]}');
