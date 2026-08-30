@@ -152,6 +152,12 @@ foreach ($phpTestFiles as $path) {
             // polls Process::getIncrementalOutput() on a bounded deadline, which
             // replaced a blocking fgets() on a raw pipe.
             'tests/Architecture/WorktreeCoordinatorTest.php',
+            // #2658: the readiness handshake for the PHP built-in server that
+            // proves the local-operator SAPI seam cannot widen. Polls for an
+            // accepted loopback connection on a bounded 5s deadline, and bails
+            // early via Process::isRunning() if the server dies, so it can
+            // neither hang nor pass on a dead server.
+            'tests/Integration/LocalOperator/LocalOperatorHttpSapiRefusalTest.php',
             'packages/foundation/tests/Integration/Migration/SchemaAuthorityConcurrencyTest.php' => 'subprocess_polling',
             'packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php' => 'subprocess_polling',
             'tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php' => 'filesystem_retry',

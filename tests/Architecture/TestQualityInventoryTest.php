@@ -33,7 +33,9 @@ final class TestQualityInventoryTest extends TestCase
         self::assertSame([], $inventory['determinism']['waits']['unclassified']);
         self::assertSame([], $inventory['determinism']['conditional_skips']['framework_gap']);
         self::assertSame([], $inventory['determinism']['conditional_skips']['unclassified']);
-        self::assertCount(6, array_merge(
+        // 6 before #2658; the seventh is the built-in-server readiness handshake
+        // in LocalOperatorHttpSapiRefusalTest, classified as subprocess_polling.
+        self::assertCount(7, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));
