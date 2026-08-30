@@ -67,6 +67,40 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
     }
 
     #[Test]
+    public function dryRunOmitsSqlForAnOperationTheLiveSchemaAlreadySatisfies(): void
+    {
+        // #2701: the same immutable catalogue serves a fresh site and an
+        // upgraded one. Advertising SQL that apply would skip makes the plan
+        // untrue for one of them.
+        [$connection, $repo, $tester] = self::buildHarness([self::v2Adding('widgets', 'archived_at')]);
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY, archived_at INTEGER)');
+
+        $tester->execute(['--dry-run']);
+
+        self::assertSame(0, $tester->getExitCode());
+        self::assertStringNotContainsString(
+            'ALTER TABLE "widgets" ADD COLUMN "archived_at"',
+            $tester->getStdout(),
+            'the column already exists, so apply would issue no SQL for it',
+        );
+        self::assertCount(0, $repo->allWithChecksums(), 'dry-run still writes no ledger row');
+    }
+
+    #[Test]
+    public function dryRunStillReportsSqlForAnOutstandingOperation(): void
+    {
+        [$connection, , $tester] = self::buildHarness([self::v2Adding('widgets', 'archived_at')]);
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+
+        $tester->execute(['--dry-run']);
+
+        self::assertStringContainsString(
+            'ALTER TABLE "widgets" ADD COLUMN "archived_at"',
+            $tester->getStdout(),
+        );
+    }
+
+    #[Test]
     public function dryRunJsonOutputMatchesDocumentedSchema(): void
     {
         [$connection, , $tester] = self::buildHarness([self::v2Adding('widgets', 'archived_at')]);
@@ -335,6 +369,7 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
             repository: $repo,
             compiler: SqliteCompiler::forVersion('3.40.0'),
             isProduction: $isProduction,
+            connection: $connection,
         );
 
         return [$connection, $repo, self::buildTesterFromHandler($handler)];
