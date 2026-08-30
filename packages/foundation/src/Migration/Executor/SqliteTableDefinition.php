@@ -5,36 +5,48 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Migration\Executor;
 
 /**
- * Reads facts about a table that SQLite exposes only through its stored DDL.
+ * Reads facts about a table that SQLite exposes only through its stored schema.
  *
  * `PRAGMA table_info` reports name, type, nullability and default, but **not**
  * collation. Collation decides an index's uniqueness and ordering semantics, so
  * a precondition check that ignores it can accept an index that behaves
- * differently from the authored one. The stored `sqlite_master.sql` is the only
+ * differently from the authored one. The stored definition is the only
  * read-only source for it.
  *
- * Parsing DDL is unavoidable here, so the parse is written to be *authoritative
- * or silent*: it scans the column-definition list with quote, string, comment
- * and nesting awareness rather than pattern-matching, and it distinguishes three
- * outcomes rather than two:
+ * **This class reads schema text. It issues none.**
  *
- * - a column that declares `COLLATE X` → `X`;
- * - a column that declares none → `BINARY`, which is authoritative because it is
- *   SQLite's documented default, not a guess;
- * - anything it cannot resolve — table absent, DDL unreadable, column not found,
- *   a construct the scanner does not model → **unknown**, reported as `null`.
+ * Interpretation is token-preserving. An earlier character-flattening approach
+ * was wrong in kind, not merely in detail: discarding comments concatenated the
+ * tokens either side of them, and scanning for a keyword by position matched it
+ * inside longer identifiers. Both produced a *confident* answer that disagreed
+ * with SQLite, which is the one failure this class must never have.
+ *
+ * Three outcomes, never two:
+ *
+ * - a column whose definition carries a `COLLATE` clause → that collation
+ *   (the **last** clause, which is the one SQLite applies);
+ * - a column carrying none → `BINARY`, authoritative because it is SQLite's
+ *   documented default rather than a guess;
+ * - anything unresolved — table absent, schema text unreadable, column not
+ *   found, a `COLLATE` clause whose argument is not an identifier → **unknown**,
+ *   reported as `null`.
  *
  * Callers must treat unknown as "cannot establish equivalence" and fail closed.
- * Defaulting unknown to `BINARY` would silently accept a mismatched index, which
- * is the failure this class exists to prevent.
+ * Collapsing unknown to `BINARY` would silently accept a mismatched index.
  *
  * @see docs/change-records/FW-2701.md
  */
 final readonly class SqliteTableDefinition
 {
+    /** Leading bare keywords that introduce a table constraint, not a column. */
     private const CONSTRAINT_KEYWORDS = [
         'CONSTRAINT', 'PRIMARY', 'UNIQUE', 'CHECK', 'FOREIGN',
     ];
+
+    private const TYPE_IDENTIFIER = 'identifier';
+    private const TYPE_QUOTED = 'quoted';
+    private const TYPE_STRING = 'string';
+    private const TYPE_PUNCTUATION = 'punctuation';
 
     public function __construct(private string $sql) {}
 
@@ -43,126 +55,152 @@ final readonly class SqliteTableDefinition
      */
     public function collationOf(string $column): ?string
     {
-        $body = self::columnDefinitionList($this->sql);
-        if ($body === null) {
+        $definitions = self::columnDefinitions(self::tokenize($this->sql));
+        if ($definitions === null) {
             return null;
         }
 
-        foreach (self::splitTopLevel($body) as $definition) {
-            $identifier = self::leadingIdentifier($definition);
-            if ($identifier === null) {
+        foreach ($definitions as $definition) {
+            $first = $definition[0] ?? null;
+            if ($first === null) {
                 continue;
             }
-            [$name, $quoted] = $identifier;
-            // A *bare* leading keyword introduces a table-level constraint. A
-            // quoted one is unambiguously a column name — `"check"` is legal.
-            if (!$quoted && in_array(strtoupper($name), self::CONSTRAINT_KEYWORDS, true)) {
+            if ($first['type'] !== self::TYPE_IDENTIFIER && $first['type'] !== self::TYPE_QUOTED) {
                 continue;
             }
-            if (strcasecmp($name, $column) !== 0) {
+            // A *bare* leading keyword introduces a table constraint. A quoted
+            // one is unambiguously a column name — `"check"` is legal.
+            if ($first['type'] === self::TYPE_IDENTIFIER
+                && in_array(strtoupper($first['value']), self::CONSTRAINT_KEYWORDS, true)
+            ) {
+                continue;
+            }
+            if (strcasecmp($first['value'], $column) !== 0) {
                 continue;
             }
 
-            [$found, $collation] = self::collateToken($definition);
-            if (!$found) {
-                // No COLLATE clause: BINARY is SQLite's documented default, so
-                // this is authoritative rather than an assumption.
-                return 'BINARY';
-            }
-
-            // A COLLATE clause we could not read is unknown, never BINARY.
-            return $collation;
+            return self::collationIn($definition);
         }
 
         return null;
     }
 
     /**
-     * The text between the outermost parentheses of a stored table-creation
-     * statement.
+     * The collation a column definition declares.
      *
-     * This class only ever reads DDL; it issues none.
+     * The whole definition is examined before answering, because a later clause
+     * supersedes an earlier one. `COLLATE` counts only as a standalone token at
+     * the definition's own nesting level, so an occurrence inside an identifier,
+     * a string, or a parenthesised expression such as `CHECK (…)` or a default
+     * expression is correctly not the column's collation.
+     *
+     * @param list<array{type: string, value: string, depth: int}> $definition
      */
-    private static function columnDefinitionList(string $sql): ?string
+    private static function collationIn(array $definition): ?string
     {
-        $depth = 0;
-        $start = null;
-        foreach (self::significantOffsets($sql) as $offset => $char) {
-            if ($char === '(') {
-                if ($depth === 0) {
-                    $start = $offset + 1;
-                }
-                ++$depth;
+        $collation = 'BINARY';
+        $count = count($definition);
+
+        for ($index = 0; $index < $count; ++$index) {
+            $token = $definition[$index];
+            if ($token['depth'] !== 0
+                || $token['type'] !== self::TYPE_IDENTIFIER
+                || strcasecmp($token['value'], 'COLLATE') !== 0
+            ) {
                 continue;
             }
-            if ($char === ')') {
-                --$depth;
-                if ($depth === 0 && $start !== null) {
-                    return substr($sql, $start, $offset - $start);
-                }
-                if ($depth < 0) {
-                    return null;
-                }
+
+            $argument = $definition[$index + 1] ?? null;
+            if ($argument === null
+                || $argument['depth'] !== 0
+                || ($argument['type'] !== self::TYPE_IDENTIFIER && $argument['type'] !== self::TYPE_QUOTED)
+            ) {
+                // A clause we cannot read is unknown, never the default.
+                return null;
             }
+
+            $collation = strtoupper($argument['value']);
+            ++$index;
         }
 
-        return null;
+        return $collation;
     }
 
     /**
-     * Split on commas that are not nested inside parentheses or quoted text.
+     * Split the outermost parenthesised list into one token list per definition.
      *
-     * @return list<string>
+     * @param list<array{type: string, value: string, depth: int}> $tokens
+     * @return list<list<array{type: string, value: string, depth: int}>>|null
      */
-    private static function splitTopLevel(string $body): array
+    private static function columnDefinitions(array $tokens): ?array
     {
-        $parts = [];
-        $depth = 0;
-        $current = '';
-        $length = strlen($body);
-        $significant = self::significantOffsets($body);
-
-        for ($offset = 0; $offset < $length; ++$offset) {
-            $char = $significant[$offset] ?? null;
-            if ($char === null) {
-                // Inside a quoted region or comment: copy verbatim.
-                $current .= $body[$offset];
-                continue;
+        $open = null;
+        foreach ($tokens as $index => $token) {
+            if ($token['type'] === self::TYPE_PUNCTUATION && $token['value'] === '(' && $token['depth'] === 0) {
+                $open = $index;
+                break;
             }
-            if ($char === '(') {
-                ++$depth;
-            } elseif ($char === ')') {
-                --$depth;
-            } elseif ($char === ',' && $depth === 0) {
-                $parts[] = $current;
-                $current = '';
-                continue;
-            }
-            $current .= $char;
+        }
+        if ($open === null) {
+            return null;
         }
 
-        if (trim($current) !== '') {
-            $parts[] = $current;
+        $definitions = [];
+        $current = [];
+        $closed = false;
+
+        for ($index = $open + 1, $count = count($tokens); $index < $count; ++$index) {
+            $token = $tokens[$index];
+            if ($token['depth'] === 0) {
+                // Back to the outer level: this is the list's closing bracket.
+                $closed = $token['type'] === self::TYPE_PUNCTUATION && $token['value'] === ')';
+                break;
+            }
+            if ($token['depth'] === 1 && $token['type'] === self::TYPE_PUNCTUATION && $token['value'] === ',') {
+                $definitions[] = $current;
+                $current = [];
+                continue;
+            }
+            // Re-base depth so a definition's own level is zero.
+            $token['depth'] -= 1;
+            $current[] = $token;
         }
 
-        return $parts;
+        if (!$closed) {
+            // Unbalanced text: nothing here can be asserted.
+            return null;
+        }
+        if ($current !== []) {
+            $definitions[] = $current;
+        }
+
+        return $definitions;
     }
 
     /**
-     * Offsets of characters that are outside string literals, quoted
-     * identifiers and comments, keyed by offset.
+     * Split schema text into tokens, preserving every boundary that matters.
      *
-     * @return array<int, string>
+     * Whitespace and comments are **separators**: they end the token before them
+     * and never merge the text either side. Quoted identifiers, string literals
+     * and parenthesis nesting are preserved so a keyword is only ever recognised
+     * as a keyword.
+     *
+     * @return list<array{type: string, value: string, depth: int}>
      */
-    private static function significantOffsets(string $sql): array
+    private static function tokenize(string $sql): array
     {
-        $result = [];
-        $length = strlen($sql);
+        $tokens = [];
+        $depth = 0;
         $offset = 0;
+        $length = strlen($sql);
 
         while ($offset < $length) {
             $char = $sql[$offset];
 
+            if (ctype_space($char)) {
+                ++$offset;
+                continue;
+            }
             if ($char === '-' && $offset + 1 < $length && $sql[$offset + 1] === '-') {
                 $newline = strpos($sql, "\n", $offset);
                 $offset = $newline === false ? $length : $newline + 1;
@@ -173,128 +211,71 @@ final readonly class SqliteTableDefinition
                 $offset = $end === false ? $length : $end + 2;
                 continue;
             }
-            if ($char === "'" || $char === '"' || $char === '`') {
-                $offset = self::skipQuoted($sql, $offset, $char, $char);
+            if ($char === "'") {
+                [$value, $offset] = self::readDelimited($sql, $offset, "'", "'");
+                $tokens[] = ['type' => self::TYPE_STRING, 'value' => $value, 'depth' => $depth];
+                continue;
+            }
+            if ($char === '"' || $char === '`') {
+                [$value, $offset] = self::readDelimited($sql, $offset, $char, $char);
+                $tokens[] = ['type' => self::TYPE_QUOTED, 'value' => $value, 'depth' => $depth];
                 continue;
             }
             if ($char === '[') {
-                $offset = self::skipQuoted($sql, $offset, '[', ']');
+                [$value, $offset] = self::readDelimited($sql, $offset, '[', ']');
+                $tokens[] = ['type' => self::TYPE_QUOTED, 'value' => $value, 'depth' => $depth];
+                continue;
+            }
+            if (preg_match('/\G[A-Za-z_][A-Za-z0-9_$]*/A', $sql, $matches, 0, $offset) === 1) {
+                $tokens[] = ['type' => self::TYPE_IDENTIFIER, 'value' => $matches[0], 'depth' => $depth];
+                $offset += strlen($matches[0]);
+                continue;
+            }
+            if ($char === '(') {
+                $tokens[] = ['type' => self::TYPE_PUNCTUATION, 'value' => '(', 'depth' => $depth];
+                ++$depth;
+                ++$offset;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                $tokens[] = ['type' => self::TYPE_PUNCTUATION, 'value' => ')', 'depth' => $depth];
+                ++$offset;
                 continue;
             }
 
-            $result[$offset] = $char;
+            $tokens[] = ['type' => self::TYPE_PUNCTUATION, 'value' => $char, 'depth' => $depth];
             ++$offset;
         }
 
-        return $result;
+        return $tokens;
     }
 
-    private static function skipQuoted(string $sql, int $offset, string $open, string $close): int
+    /**
+     * Read a delimited run, honouring a doubled delimiter as an escape.
+     *
+     * @return array{0: string, 1: int}
+     */
+    private static function readDelimited(string $sql, int $offset, string $open, string $close): array
     {
         $length = strlen($sql);
+        $value = '';
         ++$offset;
+
         while ($offset < $length) {
             if ($sql[$offset] === $close) {
-                // A doubled closing character is an escaped literal, not the end.
                 if ($open === $close && $offset + 1 < $length && $sql[$offset + 1] === $close) {
+                    $value .= $close;
                     $offset += 2;
                     continue;
                 }
 
-                return $offset + 1;
+                return [$value, $offset + 1];
             }
+            $value .= $sql[$offset];
             ++$offset;
         }
 
-        return $length;
-    }
-
-    /**
-     * The first identifier in a column definition, unquoted, plus whether it was
-     * written quoted.
-     *
-     * Quoting is load-bearing: a bare `CHECK` starts a table constraint, while
-     * `"check"` is a column whose name happens to be a keyword.
-     *
-     * @return array{0: string, 1: bool}|null
-     */
-    private static function leadingIdentifier(string $definition): ?array
-    {
-        $trimmed = ltrim($definition);
-        if ($trimmed === '') {
-            return null;
-        }
-
-        $first = $trimmed[0];
-        foreach ([['"', '"'], ['`', '`'], ['[', ']']] as [$open, $close]) {
-            if ($first !== $open) {
-                continue;
-            }
-            $end = self::skipQuoted($trimmed, 0, $open, $close);
-            if ($end <= 1) {
-                return null;
-            }
-            $inner = substr($trimmed, 1, $end - 2);
-
-            return [$open === $close ? str_replace($open . $open, $open, $inner) : $inner, true];
-        }
-
-        return preg_match('/^[A-Za-z_][A-Za-z0-9_$]*/', $trimmed, $matches) === 1
-            ? [$matches[0], false]
-            : null;
-    }
-
-    /**
-     * Whether the column definition carries a top-level `COLLATE` clause, and
-     * its argument.
-     *
-     * Occurrences inside a string literal, a comment, or a nested expression
-     * such as a CHECK clause are not the column's collation and are ignored.
-     * Returns `[false, null]` when there is no clause — the caller then applies
-     * SQLite's documented `BINARY` default — and `[true, null]` when a clause is
-     * present but unreadable, which is unknown.
-     *
-     * @return array{0: bool, 1: string|null}
-     */
-    private static function collateToken(string $definition): array
-    {
-        $significant = self::significantOffsets($definition);
-        $flat = '';
-        $map = [];
-        foreach ($significant as $offset => $char) {
-            $map[strlen($flat)] = $offset;
-            $flat .= $char;
-        }
-
-        $depth = 0;
-        $length = strlen($flat);
-        for ($index = 0; $index < $length; ++$index) {
-            $char = $flat[$index];
-            if ($char === '(') {
-                ++$depth;
-                continue;
-            }
-            if ($char === ')') {
-                --$depth;
-                continue;
-            }
-            if ($depth !== 0) {
-                continue;
-            }
-            // `\b` so COLLATED does not match, `\s*` so a clause with no
-            // argument is still *found* — and therefore reported unknown rather
-            // than falling through to the BINARY default.
-            if (preg_match('/\GCOLLATE\b\s*/iA', $flat, $matches, 0, $index) !== 1) {
-                continue;
-            }
-            $after = $index + strlen($matches[0]);
-            if (preg_match('/\G[A-Za-z_][A-Za-z0-9_]*/A', $flat, $name, 0, $after) === 1) {
-                return [true, strtoupper($name[0])];
-            }
-
-            return [true, null];
-        }
-
-        return [false, null];
+        return [$value, $length];
     }
 }

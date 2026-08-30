@@ -1183,18 +1183,33 @@ column's; an index under a different collation is refused, because its uniquenes
 and ordering semantics genuinely differ.
 
 Collation interpretation is **authoritative or silent**. `PRAGMA table_info` does
-not report collation, so `SqliteTableDefinition` scans the stored
-`sqlite_master.sql` with quote, string, comment and nesting awareness and
-distinguishes three outcomes: a declared `COLLATE X` yields `X`; a column with no
-`COLLATE` clause yields `BINARY`, which is authoritative because it is SQLite's
-documented default rather than a guess; and anything unresolved — table absent,
-DDL unreadable, column not found, a `COLLATE` clause whose argument cannot be
-read — is **unknown**. Unknown fails closed: equivalence cannot be established,
-so the operation is refused. Defaulting unknown to `BINARY` would silently accept
-an index with different semantics, which is the failure the check exists to
-prevent. An index entry that is an expression or rowid rather than a plain column
-(`cid < 0`) is likewise refused, because the authored operation models plain
-columns only. `MigrationRepository::record()` accepts a nullable
+not report collation, so `SqliteTableDefinition` reads the stored schema text.
+
+Interpretation is **token-preserving**, and this is a correctness requirement
+rather than an implementation detail. The text is tokenized so that identifiers,
+quoted identifiers, string literals and parenthesis nesting keep their
+boundaries, and comments and whitespace act as **separators** that end the token
+before them. `COLLATE` is recognised only as a standalone token at the column
+definition's own nesting level, so it is never matched inside a longer identifier
+and never merged with an adjacent token. The **whole** definition is examined
+before answering, because a later `COLLATE` clause supersedes an earlier one —
+which is the clause SQLite applies.
+
+Three outcomes, never two: a declared clause yields its collation; a column
+carrying none yields `BINARY`, authoritative because it is SQLite's documented
+default rather than a guess; anything unresolved — table absent, schema text
+unreadable, column not found, a `COLLATE` clause whose argument is not an
+identifier — is **unknown**. Unknown fails closed: equivalence cannot be
+established, so the operation is refused. Collapsing unknown to `BINARY` would
+silently accept an index with different uniqueness and ordering semantics, which
+is the failure this check exists to prevent. An index entry that is an expression
+or rowid rather than a plain column (`cid < 0`) is refused for the same reason.
+
+The parser's predictions are pinned by differential tests that use SQLite itself
+as the oracle: each case creates the table, creates the authored index through the
+real compiler, and compares the parser against `PRAGMA index_xinfo`. The contract
+those tests enforce is one-sided — a non-null result must agree with SQLite;
+returning unknown is always permitted. `MigrationRepository::record()` accepts a nullable
 `apply_mode` (`applied` | `already_satisfied`), added idempotently by
 `ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
 and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.
