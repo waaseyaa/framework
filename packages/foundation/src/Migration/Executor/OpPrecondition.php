@@ -12,6 +12,7 @@ namespace Waaseyaa\Foundation\Migration\Executor;
  * {@see IncompatibleSchemaStateException}.
  *
  * @see docs/change-records/FW-2701.md — C3, C4
+ * @internal
  */
 enum OpPrecondition
 {
