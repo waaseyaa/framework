@@ -1160,10 +1160,28 @@ operation is judged against the state its predecessors left behind rather than
 against a single pre-execution snapshot. `OpPreconditionResolver` compares column
 types by SQLite storage **affinity**, not by rendered SQL text, because the
 canonical materializer emits Doctrine's vocabulary (`CLOB`, `DOUBLE PRECISION`)
-while the v2 compiler emits its own (`TEXT`, `REAL`); a literal `NULL` default
-normalizes to "no default", and index identity is the name the compiler will
-actually emit — compared through `PRAGMA index_xinfo`, so a partial or
-descending index refuses rather than silently satisfying a full ascending one. `MigrationRepository::record()` accepts a nullable
+while the v2 compiler emits its own (`TEXT`, `REAL`).
+
+Affinity alone is not sufficient: the two producers spell one logical type across
+an affinity boundary — Doctrine's `BOOLEAN` is NUMERIC affinity where the compiler
+renders `INTEGER`. That single pair is reconciled by an explicit per-logical-type
+allowlist rather than by equating INTEGER and NUMERIC in general, so a `DECIMAL`
+column still refuses an authored `int`.
+
+Defaults are compared as **SQL literal expressions**, both sides rendered through
+the compiler's own literal renderer. Comparing an unquoted PHP string against
+SQLite's literal text conflates two representations: it refuses an authored empty
+string, an authored `"NULL"`, and any value carrying surrounding whitespace or
+apostrophes, while accepting a column that has no default at all. Only the live
+side normalizes an unquoted `NULL` to "absent", which is what Doctrine emits for a
+nullable column.
+
+Index identity is the name the compiler will actually emit, compared through
+`PRAGMA index_xinfo` so that partiality, sort direction and **collation** all
+participate. An authored index declares no collation and therefore inherits the
+column's, read from `sqlite_master` and defaulting to SQLite's `BINARY`; an index
+under a different collation is refused, because its uniqueness and ordering
+semantics genuinely differ. `MigrationRepository::record()` accepts a nullable
 `apply_mode` (`applied` | `already_satisfied`), added idempotently by
 `ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
 and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.

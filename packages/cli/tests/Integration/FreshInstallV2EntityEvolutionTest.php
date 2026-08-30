@@ -8,6 +8,7 @@ use Composer\Autoload\ClassLoader;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -17,6 +18,7 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\CLI\Tests\Fixtures\EntityEvolutionV2Migration;
 use Waaseyaa\CLI\Tests\Fixtures\EntityEvolutionV2MigrationAutoloader;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -67,6 +69,7 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
 
     protected function tearDown(): void
     {
+        EntityEvolutionV2Migration::$specType = 'text';
         $this->migrationClassLoader?->unregister();
         try {
             new Filesystem()->remove($this->root);
@@ -147,8 +150,60 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
         );
     }
 
-    private function runStockMigrate(string $databasePath, ?KernelServicesInterface $services = null): int
+    /**
+     * R2: the advertised fresh-install rule must hold for the framework's
+     * supported logical types, not only for strings. The materializer emits
+     * Doctrine's spelling (BOOLEAN, DOUBLE PRECISION) while the v2 compiler
+     * renders its own (INTEGER, REAL).
+     *
+     * @param non-empty-string $fieldType
+     * @param non-empty-string $specType
+     */
+    #[Test]
+    #[DataProvider('sqlColumnLogicalTypes')]
+    public function a_fresh_sql_column_site_satisfies_every_supported_logical_type(
+        string $fieldType,
+        string $specType,
+    ): void {
+        $databasePath = $this->root . '/application.sqlite';
+
+        $exit = $this->runStockMigrate(
+            $databasePath,
+            self::servicesWithAccountEntityType('sql-column', $fieldType),
+            $specType,
+        );
+
+        self::assertSame(0, $exit, sprintf('a fresh sql-column install must not abort for %s', $fieldType));
+        $read = self::connect($databasePath);
+        self::assertContains('user_id', self::columnNames($read, 'account'));
+        self::assertSame(
+            'already_satisfied',
+            $read->fetchOne(
+                'SELECT apply_mode FROM waaseyaa_migrations WHERE migration = ?',
+                ['acme/application:v2:add-account-user-id'],
+            ),
+        );
+    }
+
+    /** @return list<array{string, string}> */
+    public static function sqlColumnLogicalTypes(): array
     {
+        return [
+            'boolean' => ['boolean', 'boolean'],
+            'integer' => ['integer', 'int'],
+            'float' => ['float', 'float'],
+            'string' => ['string', 'text'],
+        ];
+    }
+
+    private function runStockMigrate(
+        string $databasePath,
+        ?KernelServicesInterface $services = null,
+        ?string $specType = null,
+    ): int {
+        if ($specType !== null) {
+            EntityEvolutionV2Migration::$specType = $specType;
+        }
         $provider = new MigrateServiceProvider();
         $provider->setKernelContext($this->root, [
             'environment' => 'testing',
@@ -186,7 +241,10 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
      * `account` registered as a real entity type, on the framework-default
      * backend, so the canonical materializer owns its base table.
      */
-    private static function servicesWithAccountEntityType(?string $backend = null): KernelServicesInterface
+    private static function servicesWithAccountEntityType(
+        ?string $backend = null,
+        string $fieldType = 'string',
+    ): KernelServicesInterface
     {
         $manager = new EntityTypeManager(new EventDispatcher());
         $manager->registerEntityType(new EntityType(
@@ -196,7 +254,7 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
             keys: ['id' => 'eid', 'uuid' => 'uuid'],
             primaryStorageBackend: $backend,
             _fieldDefinitions: $backend === null ? [] : [
-                'user_id' => new FieldDefinition(name: 'user_id', type: 'string', targetEntityTypeId: 'account'),
+                'user_id' => new FieldDefinition(name: 'user_id', type: $fieldType, targetEntityTypeId: 'account'),
             ],
         ));
 

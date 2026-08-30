@@ -14,6 +14,7 @@ use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
 use Waaseyaa\Foundation\Schema\Compiler\Validation\PlanPolicy;
 use Waaseyaa\Foundation\Schema\Diff\CompositeDiff;
+use Waaseyaa\Foundation\Schema\Diff\PlanTargets;
 use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
 
 /**
@@ -66,10 +67,34 @@ final readonly class DryRunPlanner
                 dependencies: $node->dependencies,
                 steps: $this->compileStepsFor($node, $alreadyApplied),
                 alreadyApplied: $alreadyApplied,
+                stateDependent: $this->isStateDependent($node, $alreadyApplied),
             );
         }
 
         return new DryRunResult($result);
+    }
+
+    /**
+     * Whether this node's preview depends on state an earlier operation in the
+     * same plan changes, which dry-run cannot observe because it executes
+     * nothing.
+     */
+    private function isStateDependent(MigrationNode $node, bool $alreadyApplied): bool
+    {
+        if ($alreadyApplied || $node->kind !== MigrationKind::V2 || $node->v2 === null) {
+            return false;
+        }
+
+        $touched = [];
+        foreach ($node->v2->plan()->root->ops as $op) {
+            $targets = PlanTargets::tablesForOp($op);
+            if (array_intersect($targets, $touched) !== []) {
+                return true;
+            }
+            $touched = array_values(array_unique([...$touched, ...$targets]));
+        }
+
+        return false;
     }
 
     /**
@@ -93,10 +118,24 @@ final readonly class DryRunPlanner
         // check is a snapshot: dry-run does not execute, so it cannot show an
         // operation becoming outstanding because an earlier one ran.
         if ($this->preconditions !== null) {
-            $outstanding = array_values(array_filter(
-                $root->ops,
-                fn(object $op): bool => $this->preconditions->resolve($op) === OpPrecondition::NeedsApply,
-            ));
+            $outstanding = [];
+            $touched = [];
+            foreach ($root->ops as $op) {
+                $targets = PlanTargets::tablesForOp($op);
+                // Once an earlier operation has touched this table, the live
+                // snapshot no longer describes the state this operation will
+                // actually meet. Preserve it rather than filter it, and do not
+                // let the resolver refuse on a state a predecessor changes.
+                if (array_intersect($targets, $touched) !== []) {
+                    $outstanding[] = $op;
+                    $touched = array_values(array_unique([...$touched, ...$targets]));
+                    continue;
+                }
+                if ($this->preconditions->resolve($op) === OpPrecondition::NeedsApply) {
+                    $outstanding[] = $op;
+                }
+                $touched = array_values(array_unique([...$touched, ...$targets]));
+            }
 
             if ($outstanding === []) {
                 return [];

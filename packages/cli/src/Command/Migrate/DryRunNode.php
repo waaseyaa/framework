@@ -14,6 +14,12 @@ namespace Waaseyaa\CLI\Command\Migrate;
  * For v2 pending nodes, `steps` carries the canonical-JSON dictionary of
  * each {@see \Waaseyaa\Foundation\Schema\Compiler\CompiledStep} the
  * compiler would emit.
+ *
+ * `stateDependent` marks a node whose preview could not be resolved exactly,
+ * because an earlier operation in the same plan changes the state a later one
+ * is judged against and dry-run executes nothing. Such a node's operations are
+ * preserved in `steps` rather than filtered out: showing work that may prove
+ * unnecessary is honest, silently omitting work that will run is not.
  */
 final readonly class DryRunNode
 {
@@ -28,5 +34,6 @@ final readonly class DryRunNode
         public array $dependencies,
         public array $steps,
         public bool $alreadyApplied,
+        public bool $stateDependent = false,
     ) {}
 }

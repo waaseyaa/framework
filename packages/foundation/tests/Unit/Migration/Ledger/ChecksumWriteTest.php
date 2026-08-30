@@ -26,6 +26,7 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
 
 #[CoversClass(MigrationRepository::class)]
 #[CoversClass(Migrator::class)]
+#[CoversClass(V2_0002_add_apply_mode_column::class)]
 final class ChecksumWriteTest extends TestCase
 {
     #[Test]

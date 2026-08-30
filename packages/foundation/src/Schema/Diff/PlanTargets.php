@@ -29,15 +29,42 @@ final readonly class PlanTargets
     public static function tables(CompositeDiff $diff): array
     {
         $tables = [];
+        // Ops are walked in authored order so a table an EARLIER op produces is
+        // never reported as a prerequisite of a later one. Without this, a plan
+        // that renames `old` to `new` and then alters `new` would have `new`
+        // materialized before the rename ran, and the rename would collide.
+        $produced = [];
+
         foreach ($diff->ops as $op) {
             foreach (self::tablesForOp($op) as $table) {
-                if ($table !== '' && !in_array($table, $tables, true)) {
+                if ($table === '' || in_array($table, $produced, true)) {
+                    continue;
+                }
+                if (!in_array($table, $tables, true)) {
                     $tables[] = $table;
+                }
+            }
+            foreach (self::tablesProducedByOp($op) as $table) {
+                if ($table !== '' && !in_array($table, $produced, true)) {
+                    $produced[] = $table;
                 }
             }
         }
 
         return $tables;
+    }
+
+    /**
+     * Tables this op brings into existence, which later ops therefore must not
+     * treat as prerequisites.
+     *
+     * @return list<string>
+     */
+    public static function tablesProducedByOp(SchemaDiffOp $op): array
+    {
+        return $op->kind() === OpKind::RenameTable
+            ? [self::str($op->toCanonical(), 'to')]
+            : [];
     }
 
     /**

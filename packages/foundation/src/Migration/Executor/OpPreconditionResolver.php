@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Migration\Executor;
 use Doctrine\DBAL\Connection;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\Translator\AddIndexTranslator;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\Translator\SqliteColumnType;
+use Waaseyaa\Foundation\Schema\Compiler\Sqlite\Translator\SqliteIdentifier;
 use Waaseyaa\Foundation\Schema\Diff\AddColumn;
 use Waaseyaa\Foundation\Schema\Diff\AddIndex;
 use Waaseyaa\Foundation\Schema\Diff\SchemaDiffOp;
@@ -43,6 +44,24 @@ use Waaseyaa\Foundation\Schema\Diff\SchemaDiffOp;
  */
 final readonly class OpPreconditionResolver
 {
+    /**
+     * Declared-type spellings that mean the same logical type as an authored
+     * {@see \Waaseyaa\Foundation\Schema\Diff\ColumnSpec} token, but resolve to a
+     * different SQLite affinity.
+     *
+     * This is deliberately an explicit, per-logical-type allowlist rather than a
+     * blanket affinity widening. The canonical entity-schema materializer emits
+     * Doctrine's `BOOLEAN` (NUMERIC affinity) for a boolean field while the v2
+     * compiler renders `INTEGER` (INTEGER affinity); both mean "stores 0 or 1".
+     * Equating INTEGER and NUMERIC generally would also accept genuinely
+     * different shapes, so only the pairs below are reconciled.
+     *
+     * @var array<string, list<string>>
+     */
+    private const EQUIVALENT_DECLARED_TYPES = [
+        'boolean' => ['BOOLEAN', 'TINYINT(1)', 'TINYINT'],
+    ];
+
     public function __construct(private Connection $connection) {}
 
     public function resolve(SchemaDiffOp $op): OpPrecondition
@@ -76,7 +95,12 @@ final readonly class OpPreconditionResolver
         $expectedAffinity = self::affinity($expectedType);
         $actualDeclared = trim((string) ($live['type'] ?? ''));
         $actualAffinity = self::affinity($actualDeclared);
-        if ($actualAffinity !== $expectedAffinity) {
+        $reconciled = in_array(
+            strtoupper($actualDeclared),
+            self::EQUIVALENT_DECLARED_TYPES[$op->spec->type] ?? [],
+            true,
+        );
+        if (!$reconciled && $actualAffinity !== $expectedAffinity) {
             throw IncompatibleSchemaStateException::column(
                 $op->table,
                 $op->column,
@@ -104,10 +128,16 @@ final readonly class OpPreconditionResolver
             );
         }
 
-        $actualDefault = self::normalizeDefault($live['dflt_value'] ?? null);
+        // Both sides are compared as SQL literal expressions, produced by the
+        // same renderer the compiler uses. Comparing an unquoted PHP string
+        // against SQLite's literal text conflated two representations: it
+        // refused an authored empty string, an authored "NULL", and any value
+        // with surrounding whitespace or apostrophes, while accepting a column
+        // that had no default at all.
+        $actualDefault = self::normalizeActualDefault($live['dflt_value'] ?? null);
         $expectedDefault = $op->spec->default === null
             ? null
-            : self::normalizeDefault(self::renderDefault($op->spec->default));
+            : SqliteIdentifier::literal($op->spec->default);
 
         if ($actualDefault !== $expectedDefault) {
             throw IncompatibleSchemaStateException::column(
@@ -175,6 +205,21 @@ final readonly class OpPreconditionResolver
             if ((int) ($column['key'] ?? 0) !== 1) {
                 continue;
             }
+            $columnName = (string) ($column['name'] ?? '');
+            $expectedCollation = $this->columnCollation($op->table, $columnName);
+            $actualCollation = strtoupper(trim((string) ($column['coll'] ?? 'BINARY')));
+            if ($actualCollation !== $expectedCollation) {
+                throw IncompatibleSchemaStateException::index(
+                    $op->table,
+                    $name,
+                    sprintf(
+                        'column "%s" would index under %s (inherited from the column), found %s',
+                        $columnName,
+                        $expectedCollation,
+                        $actualCollation === '' ? '(none)' : $actualCollation,
+                    ),
+                );
+            }
             if ((int) ($column['desc'] ?? 0) === 1) {
                 throw IncompatibleSchemaStateException::index(
                     $op->table,
@@ -198,6 +243,37 @@ final readonly class OpPreconditionResolver
         }
 
         return OpPrecondition::AlreadySatisfied;
+    }
+
+    /**
+     * The collation an authored index would use for this column.
+     *
+     * An authored {@see AddIndex} declares no collation, so the index the
+     * compiler emits inherits the column's. SQLite exposes that only in the
+     * table's DDL, so it is read from `sqlite_master` and defaults to `BINARY`
+     * — SQLite's own default — when the column declares none. A live index
+     * whose collation differs is refused rather than accepted, because the
+     * uniqueness and ordering semantics genuinely differ.
+     */
+    private function columnCollation(string $table, string $column): string
+    {
+        $sql = $this->connection->fetchOne(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+            [$table],
+        );
+        if (!is_string($sql) || $sql === '') {
+            return 'BINARY';
+        }
+
+        $quoted = preg_quote($column, '/');
+        $matched = preg_match(
+            '/(?:"' . $quoted . '"|`' . $quoted . '`|\[' . $quoted . '\]|\b' . $quoted . '\b)'
+            . '[^,()]*?\bCOLLATE\s+("?)(\w+)\1/i',
+            $sql,
+            $matches,
+        );
+
+        return $matched === 1 ? strtoupper($matches[2]) : 'BINARY';
     }
 
     /**
@@ -228,8 +304,15 @@ final readonly class OpPreconditionResolver
         return 'NUMERIC';
     }
 
-    /** SQLite reports an absent default and a literal NULL default identically in effect. */
-    private static function normalizeDefault(mixed $value): ?string
+    /**
+     * The live column's default as a SQL literal, or null when it has none.
+     *
+     * SQLite stores the default as the literal expression that created it, so
+     * this is left verbatim apart from trimming. An unquoted `NULL` — which is
+     * what Doctrine emits for a nullable column — means "no default"; a quoted
+     * `'NULL'` is the four-character string and is preserved.
+     */
+    private static function normalizeActualDefault(mixed $value): ?string
     {
         if ($value === null) {
             return null;
@@ -238,20 +321,8 @@ final readonly class OpPreconditionResolver
         if ($text === '' || strtoupper($text) === 'NULL') {
             return null;
         }
-        // SQLite echoes string defaults with their quotes; compare unquoted.
-        if (strlen($text) >= 2 && $text[0] === "'" && str_ends_with($text, "'")) {
-            return str_replace("''", "'", substr($text, 1, -1));
-        }
 
         return $text;
-    }
-
-    private static function renderDefault(mixed $default): string
-    {
-        return match (true) {
-            is_bool($default) => $default ? '1' : '0',
-            default => (string) $default,
-        };
     }
 
     private function tableExists(string $table): bool
