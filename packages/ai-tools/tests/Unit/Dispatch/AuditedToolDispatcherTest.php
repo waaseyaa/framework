@@ -15,6 +15,8 @@ use Waaseyaa\AI\Tools\Dispatch\ToolDispatcherInterface;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\ArrayToolRegistry;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\FinalizeFailingStrictAuditLedger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\FixedPrincipal;
+use Waaseyaa\AI\Tools\Tests\Support\Dispatch\NonLedgerExceptionStrictAuditLedger;
+use Waaseyaa\AI\Tools\Tests\Support\Dispatch\RecordFailingStrictAuditLedger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\RecordingLogger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\RecordingStrictAuditLedger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\ScriptedTool;
@@ -338,6 +340,184 @@ final class AuditedToolDispatcherTest extends TestCase
         self::assertSame(['probe'], array_map(static fn(AgentTool $t): string => $t->name, $dispatcher->tools()));
         self::assertNotNull($dispatcher->tool('probe'));
         self::assertNull($dispatcher->tool('absent'));
+    }
+
+    // ------------------------- unrecordable requests (Codex P2, PR #2718) ---
+
+    /**
+     * The reported defect, at its root.
+     *
+     * `dispatch('')` is reachable from caller input — the MCP `tools/call`
+     * envelope check asserts only that `name` is a string — and it lands on the
+     * unknown-tool path. Passing the empty name through as the audit
+     * `operation` made `StrictAuditReservation` throw inside `recordTerminal()`,
+     * where a broad catch absorbed it: the caller received an ordinary
+     * `TOOL_NOT_FOUND` and the strict ledger recorded nothing at all. That is
+     * the exact guarantee this class exists to provide, defeated by an empty
+     * string.
+     */
+    #[Test]
+    public function an_empty_tool_name_is_durably_recorded_rather_than_silently_passed_through(): void
+    {
+        $ledger = new RecordingStrictAuditLedger();
+
+        $outcome = new AuditedToolDispatcher($this->inner(), $ledger, 'local.stdio', 'corr-1')
+            ->dispatch('', ['a' => 1]);
+
+        // The refusal is still an ordinary lookup refusal — because it WAS
+        // recorded. The fix must not turn a recordable refusal into an outage.
+        self::assertSame(AuditStage::ToolLookupRefused, $outcome->stage);
+        self::assertSame(['record'], $ledger->calls());
+
+        $reservation = $ledger->entriesFor('record')[0]['reservation'];
+        self::assertInstanceOf(StrictAuditReservation::class, $reservation);
+        self::assertSame(AuditedToolDispatcher::UNUSABLE_OPERATION, $reservation->operation);
+        // The name is evidence and survives, in the field a value object does
+        // not police.
+        self::assertSame('', $reservation->metadata['requested_tool']);
+        self::assertSame('blank', $reservation->metadata['requested_tool_rejected']);
+        self::assertSame(0, $reservation->metadata['requested_tool_length']);
+        self::assertSame(1, $reservation->metadata['argument_count']);
+    }
+
+    #[Test]
+    public function a_whitespace_only_tool_name_is_treated_the_same_way(): void
+    {
+        // The value object accepts "   ", so this one would not have thrown —
+        // but an operation of three spaces tells an operator nothing, and
+        // "there is no usable name here" is one condition with one answer.
+        $ledger = new RecordingStrictAuditLedger();
+
+        new AuditedToolDispatcher($this->inner(), $ledger, 'local.stdio', 'corr-1')->dispatch('   ', []);
+
+        $reservation = $ledger->entriesFor('record')[0]['reservation'];
+        self::assertInstanceOf(StrictAuditReservation::class, $reservation);
+        self::assertSame(AuditedToolDispatcher::UNUSABLE_OPERATION, $reservation->operation);
+        self::assertSame('   ', $reservation->metadata['requested_tool']);
+        self::assertSame(3, $reservation->metadata['requested_tool_length']);
+    }
+
+    #[Test]
+    public function an_overlong_tool_name_is_bounded_and_its_true_length_recorded(): void
+    {
+        // The name is caller-controlled and unbounded; the operation is a
+        // durable column. Bounding makes "the ledger always receives an
+        // operation it accepts" total rather than a patch over the empty case.
+        $ledger = new RecordingStrictAuditLedger();
+        $name = str_repeat('n', 5000);
+
+        new AuditedToolDispatcher($this->inner(), $ledger, 'local.stdio', 'corr-1')->dispatch($name, []);
+
+        $reservation = $ledger->entriesFor('record')[0]['reservation'];
+        self::assertInstanceOf(StrictAuditReservation::class, $reservation);
+        self::assertSame(200, \strlen($reservation->operation));
+        self::assertTrue($reservation->metadata['requested_tool_truncated']);
+        self::assertSame(5000, $reservation->metadata['requested_tool_length']);
+    }
+
+    #[Test]
+    public function an_ordinary_name_is_still_the_operation_verbatim(): void
+    {
+        // The projection must not rewrite the common case: existing ledger
+        // queries key off the tool name.
+        $ledger = new RecordingStrictAuditLedger();
+
+        new AuditedToolDispatcher($this->inner(), $ledger, 'local.stdio', 'corr-1')->dispatch('unknown_tool', []);
+
+        $reservation = $ledger->entriesFor('record')[0]['reservation'];
+        self::assertInstanceOf(StrictAuditReservation::class, $reservation);
+        self::assertSame('unknown_tool', $reservation->operation);
+        self::assertArrayNotHasKey('requested_tool', $reservation->metadata);
+    }
+
+    /**
+     * The deeper defect the empty name exposed: a ledger that cannot record a
+     * terminal refusal must not be indistinguishable from one that did.
+     */
+    #[Test]
+    public function a_terminal_refusal_the_ledger_rejects_is_refused_not_answered(): void
+    {
+        $logger = new RecordingLogger();
+
+        $outcome = new AuditedToolDispatcher(
+            $this->inner(),
+            new RecordFailingStrictAuditLedger(),
+            'local.stdio',
+            'corr-1',
+            logger: $logger,
+        )->dispatch('nope', []);
+
+        self::assertSame(AuditStage::AuditUnavailableRefused, $outcome->stage);
+        self::assertNotSame(AuditStage::ToolLookupRefused, $outcome->stage);
+
+        $body = json_decode($outcome->envelope['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(AuditedToolDispatcher::AUDIT_UNAVAILABLE_CODE, $body['code']);
+        self::assertSame('corr-1', $body['correlation_id']);
+        // The caller must not be able to read this as a plain unknown tool.
+        self::assertArrayNotHasKey('errors', $body);
+        self::assertStringNotContainsString('TOOL_NOT_FOUND', $outcome->envelope['content'][0]['text']);
+        self::assertStringNotContainsString('terminal record offline', $outcome->envelope['content'][0]['text']);
+
+        $critical = $logger->withLevel('critical');
+        self::assertCount(1, $critical);
+        self::assertSame('agent_tool.audit_terminal_record_failed', $critical[0]['message']);
+    }
+
+    #[Test]
+    public function a_schema_violation_the_ledger_cannot_record_is_also_refused(): void
+    {
+        // Both terminal paths, not just the one the report happened to reach.
+        $registry = new ArrayToolRegistry([
+            $this->tool(schema: ['type' => 'object', 'required' => ['q'], 'properties' => ['q' => ['type' => 'string']]]),
+        ]);
+
+        $outcome = new AuditedToolDispatcher(
+            new AgentToolDispatcher($registry, new FixedPrincipal()),
+            new RecordFailingStrictAuditLedger(),
+            'local.stdio',
+            'corr-1',
+        )->dispatch('probe', []);
+
+        self::assertSame(AuditStage::AuditUnavailableRefused, $outcome->stage);
+        self::assertNotSame(AuditStage::InputValidationRefused, $outcome->stage);
+    }
+
+    /**
+     * The catch on the reservation path is `\Throwable` on purpose: the
+     * reservation is constructed inside it, and a value object rejects with
+     * `\InvalidArgumentException`, which is not a ledger exception. A catch
+     * narrowed to the ledger's own type would let that escape `dispatch()`,
+     * breaking `ToolDispatcherInterface`'s contract that a caller-caused
+     * failure never throws.
+     */
+    #[Test]
+    public function a_non_ledger_exception_still_fails_closed_instead_of_escaping(): void
+    {
+        /** @var \ArrayObject<int, string> $order */
+        $order = new \ArrayObject();
+
+        $outcome = new AuditedToolDispatcher(
+            $this->inner(order: $order),
+            new NonLedgerExceptionStrictAuditLedger(),
+            'local.stdio',
+            'corr-1',
+        )->dispatch('probe', []);
+
+        self::assertSame(AuditStage::AuditUnavailableRefused, $outcome->stage);
+        self::assertSame([], $order->getArrayCopy(), 'The tool must not run when the attempt cannot be recorded.');
+    }
+
+    #[Test]
+    public function a_non_ledger_exception_on_the_terminal_path_also_fails_closed(): void
+    {
+        $outcome = new AuditedToolDispatcher(
+            $this->inner(),
+            new NonLedgerExceptionStrictAuditLedger(),
+            'local.stdio',
+            'corr-1',
+        )->dispatch('nope', []);
+
+        self::assertSame(AuditStage::AuditUnavailableRefused, $outcome->stage);
     }
 
     // ------------------------------------------------------------- fixtures

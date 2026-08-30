@@ -8,7 +8,6 @@ use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
 use Waaseyaa\Foundation\Audit\AuditStage;
 use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
-use Waaseyaa\Foundation\Audit\StrictAuditLedgerException;
 use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
 use Waaseyaa\Foundation\Audit\StrictAuditReceipt;
 use Waaseyaa\Foundation\Audit\StrictAuditReservation;
@@ -43,6 +42,25 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
  * the raw caller-supplied arguments (D-5.B.4). A tool that throws while
  * redacting does not take the request down and does not cause raw arguments to
  * be substituted: the fallback is structural metadata only.
+ *
+ * ## An unrecordable request is refused, never quietly answered
+ *
+ * Every path out of {@see dispatch()} is either durably recorded or answered
+ * with `AUDIT_TRAIL_UNAVAILABLE`. There is no third state in which a caller is
+ * told what happened while the ledger holds nothing about it.
+ *
+ * This is a correction, and the defect it fixes is worth stating plainly. The
+ * terminal-record path used to return `void` and swallow every failure, so
+ * "recorded" and "lost" looked identical from outside. `dispatch('')` reached
+ * it — the name is caller-controlled and the MCP `tools/call` envelope check
+ * only asserts that `name` is a string — `StrictAuditReservation` rejected the
+ * empty `operation`, the catch absorbed it, and the caller received an ordinary
+ * `TOOL_NOT_FOUND` against an empty ledger. Two things were wrong: a value the
+ * class fed to a value object that would not accept it (fixed by
+ * {@see auditOperation()}, which makes a non-empty bounded operation a total
+ * invariant while the raw name survives in `metadata`), and a swallow that hid
+ * the consequence (fixed by reporting it). The second is the one that mattered
+ * — the empty name was one route to it, not the whole of it.
  *
  * ## D-5.C — the transport owns its identity, and this class enforces that
  *
@@ -81,6 +99,34 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
 
     /** Machine code an agent can branch on when the ledger refuses the attempt. */
     public const string AUDIT_UNAVAILABLE_CODE = 'AUDIT_TRAIL_UNAVAILABLE';
+
+    /**
+     * The audit operation recorded when the requested tool name cannot serve as
+     * one in its own right.
+     *
+     * `StrictAuditReservation` rejects an empty `operation` outright, and this
+     * class accepts `dispatch('')` from caller input — the MCP `tools/call`
+     * envelope check only asserts that `name` is a string. Passing the empty
+     * name straight through therefore made the value object throw *inside* the
+     * record path, where a broad catch swallowed it: the caller got an ordinary
+     * `TOOL_NOT_FOUND` and the ledger recorded nothing, which is exactly the
+     * guarantee this class exists to provide. The name is evidence and must
+     * survive into the record, but it cannot be the field a value object
+     * refuses, so it moves to `metadata` and a fixed operation takes its place.
+     */
+    public const string UNUSABLE_OPERATION = 'tool_name_unusable';
+
+    /**
+     * Longest caller-supplied tool name used verbatim as an audit operation.
+     *
+     * The name is caller-controlled and unbounded; an audit operation is a
+     * durable column. Bounding it here — rather than only rejecting the empty
+     * case — is what makes "every reservation this class builds carries an
+     * acceptable operation" a total invariant instead of a patch over the one
+     * input someone happened to find. The full length always travels in
+     * `metadata`, so truncation loses no evidence.
+     */
+    private const int MAX_OPERATION_LENGTH = 200;
 
     private readonly StrictAuditLedgerInterface $ledger;
 
@@ -183,6 +229,13 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
      * could run is recorded with the single-shot `record()`, because there is no
      * outcome coming and a reservation with no finalization is the documented
      * crash signature — minting one deliberately would forge that signal.
+     *
+     * **Every exit from this method is either durably recorded or visibly
+     * refused.** There is no third state in which the caller is told what
+     * happened while the ledger holds nothing. That is not a stylistic
+     * preference: a dispatcher whose audit failures are indistinguishable from
+     * its audit successes is an unaudited dispatcher that reports otherwise —
+     * the same defect D-5.A refuses at construction, arriving at runtime.
      */
     public function dispatch(string $toolName, array $arguments): ToolDispatchOutcome
     {
@@ -193,12 +246,14 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
             // An unknown tool cannot supply argumentsForAudit(), so only the
             // requested name and safe structural metadata are recorded — never
             // the argument values, whose shape is entirely caller-controlled.
-            $this->recordTerminal(
+            if (!$this->recordTerminal(
                 $outcome->stage,
                 $toolName,
                 [],
                 ['argument_count' => \count($arguments)],
-            );
+            )) {
+                return $this->auditUnavailable();
+            }
 
             return $outcome;
         }
@@ -212,12 +267,14 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
         $violations = ToolInputSchemaValidator::validate($tool->inputSchema, $arguments);
         if ($violations !== []) {
             $outcome = $this->inner->dispatch($toolName, $arguments);
-            $this->recordTerminal(
+            if (!$this->recordTerminal(
                 $outcome->stage,
                 $toolName,
                 [],
                 ['violation_count' => \count($violations)],
-            );
+            )) {
+                return $this->auditUnavailable();
+            }
 
             return $outcome;
         }
@@ -225,21 +282,31 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
         // Redaction is the TOOL's own transform, never the raw arguments.
         $safeArguments = $this->safeArguments($tool, $arguments);
 
+        [$operation, $operationMetadata] = $this->auditOperation($toolName);
+
         $receipt = null;
         try {
             $receipt = $this->ledger->reserve(new StrictAuditReservation(
                 correlationId: $this->correlationId,
                 surface: $this->surface,
-                operation: $toolName,
+                operation: $operation,
                 actorUid: $this->actorUid,
                 safeArguments: $safeArguments,
-                metadata: $this->metadata,
+                metadata: $this->metadata + $operationMetadata,
             ));
-        } catch (StrictAuditLedgerException $e) {
+        } catch (\Throwable $e) {
+            // Deliberately `\Throwable`, not only the ledger exception type.
+            // The reservation is CONSTRUCTED inside this try, and
+            // StrictAuditReservation throws \InvalidArgumentException on a value
+            // it will not accept. A narrower catch would let that escape
+            // dispatch() entirely, breaking ToolDispatcherInterface's contract
+            // that a caller-caused failure never throws — and the answer to
+            // "the attempt could not be made durable" is the same whichever
+            // half failed: refuse, loudly.
             $this->logger?->critical('agent_tool.audit_reservation_failed', [
                 'correlation_id' => $this->correlationId,
                 'surface' => $this->surface,
-                'tool' => $toolName,
+                'tool' => $operation,
                 'exception' => $e::class,
             ]);
 
@@ -247,21 +314,71 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
             // occur without evidence that it was attempted. The caller learns
             // only that it was refused, plus the correlation id to hand to an
             // operator — no exception detail leaves.
-            return new ToolDispatchOutcome(
-                self::errorEnvelope([
-                    'code' => self::AUDIT_UNAVAILABLE_CODE,
-                    'message' => 'Request refused: the audit trail is unavailable.',
-                    'correlation_id' => $this->correlationId,
-                ]),
-                AuditStage::AuditUnavailableRefused,
-            );
+            return $this->auditUnavailable();
         }
 
         $outcome = $this->inner->dispatch($toolName, $arguments);
 
-        $this->finalizeQuietly($receipt, $outcome->stage, $toolName);
+        $this->finalizeQuietly($receipt, $outcome->stage, $operation);
 
         return $outcome;
+    }
+
+    /**
+     * The refusal a caller receives when an attempt could not be made durable.
+     *
+     * Shared by the reservation path and the terminal-record path on purpose:
+     * "this dispatcher could not record what you asked it to do" is one
+     * condition with one answer, and giving it two shapes would invite a caller
+     * to treat one of them as ordinary.
+     */
+    private function auditUnavailable(): ToolDispatchOutcome
+    {
+        return new ToolDispatchOutcome(
+            self::errorEnvelope([
+                'code' => self::AUDIT_UNAVAILABLE_CODE,
+                'message' => 'Request refused: the audit trail is unavailable.',
+                'correlation_id' => $this->correlationId,
+            ]),
+            AuditStage::AuditUnavailableRefused,
+        );
+    }
+
+    /**
+     * A caller-supplied tool name projected into an operation the strict ledger
+     * will accept, plus whatever evidence that projection displaced.
+     *
+     * The invariant is total: every {@see StrictAuditReservation} this class
+     * builds carries a non-empty, bounded operation, and the raw name is never
+     * lost — it travels in `metadata` whenever it could not be the operation
+     * verbatim.
+     *
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function auditOperation(string $toolName): array
+    {
+        $length = \strlen($toolName);
+
+        if (trim($toolName) === '') {
+            // An empty operation is rejected by the value object; a
+            // whitespace-only one is accepted and tells an operator nothing.
+            // Both mean "there is no usable name here", so both take the fixed
+            // operation and keep the raw value as evidence beside it.
+            return [self::UNUSABLE_OPERATION, [
+                'requested_tool' => $toolName,
+                'requested_tool_rejected' => 'blank',
+                'requested_tool_length' => $length,
+            ]];
+        }
+
+        if ($length > self::MAX_OPERATION_LENGTH) {
+            return [substr($toolName, 0, self::MAX_OPERATION_LENGTH), [
+                'requested_tool_truncated' => true,
+                'requested_tool_length' => $length,
+            ]];
+        }
+
+        return [$toolName, []];
     }
 
     /**
@@ -288,21 +405,42 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
      * A terminal stage that never reaches execution: one durable record rather
      * than a reserve/finalize pair.
      *
-     * **The guarantee, stated honestly:** a terminal refusal record is durable
-     * only when the ledger accepts the write. If it does not, the refusal is
-     * STILL returned and the gap is logged at critical — a refusal performs no
-     * side effect, so failing the caller closed would trade a missing log line
-     * for a denial of service.
+     * **Returns whether the record is durable, and the caller must act on it.**
+     * An earlier version returned `void` and swallowed every failure, which
+     * made "the ledger recorded this refusal" and "the ledger rejected it"
+     * indistinguishable to the caller — the deeper defect that an empty tool
+     * name merely exposed, since `StrictAuditReservation` rejects an empty
+     * `operation` and the swallow turned that into an ordinary-looking
+     * `TOOL_NOT_FOUND` with nothing written. The old rationale was that a
+     * refusal performs no side effect, so failing closed would trade a missing
+     * log line for a denial of service. That reasoning does not survive
+     * contact with the reservation path: when the ledger is down, every
+     * *executable* call is already refused with the same
+     * `AUDIT_TRAIL_UNAVAILABLE` envelope, so refusing terminal records too adds
+     * no outage that is not already happening — it only stops this class
+     * reporting a complete trail it does not have.
      *
+     * The catch stays `\Throwable` deliberately, because the reservation is
+     * constructed inside it and a value-object rejection must not escape
+     * `dispatch()`; what changed is that the failure is now *reported* instead
+     * of absorbed. Breadth was never the problem — silence was.
+     *
+     * @param string $toolName The raw caller-supplied name; projected through
+     *        {@see auditOperation()} so the ledger always receives an operation
+     *        it accepts and the name survives as evidence either way.
      * @param array<string, mixed> $safeArguments
      * @param array<string, mixed> $metadata
+     *
+     * @return bool True when the refusal is durably recorded.
      */
     private function recordTerminal(
         AuditStage $stage,
-        string $operation,
+        string $toolName,
         array $safeArguments,
         array $metadata,
-    ): void {
+    ): bool {
+        [$operation, $operationMetadata] = $this->auditOperation($toolName);
+
         try {
             $this->ledger->record(
                 new StrictAuditReservation(
@@ -311,10 +449,12 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
                     operation: $operation,
                     actorUid: $this->actorUid,
                     safeArguments: $safeArguments,
-                    metadata: $this->metadata + $metadata,
+                    metadata: $this->metadata + $operationMetadata + $metadata,
                 ),
                 $stage,
             );
+
+            return true;
         } catch (\Throwable $e) {
             $this->logger?->critical('agent_tool.audit_terminal_record_failed', [
                 'correlation_id' => $this->correlationId,
@@ -323,6 +463,8 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
                 'stage' => $stage->value,
                 'exception' => $e::class,
             ]);
+
+            return false;
         }
     }
 
@@ -333,6 +475,15 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
      * duplicate or silently undo it, so neither is attempted. The reservation
      * stays unfinalized, which is queryable ("reserved" with no "finalized")
      * and is the documented crash-window signature. Loud, and never silent.
+     *
+     * **This is the one place the swallow is correct, and the asymmetry with
+     * {@see recordTerminal()} is deliberate.** There, a failure means the
+     * ledger holds *nothing* about a request, so the caller must be told. Here
+     * the ledger already holds the reservation: the failure is visible as a
+     * dangling record rather than as an absence, and the tool has already run,
+     * so there is nothing left to fail closed about. Converting this into a
+     * refusal would report a committed action as rejected — a worse lie than
+     * the missing outcome row it would be trying to avoid.
      */
     private function finalizeQuietly(StrictAuditReceipt $receipt, AuditStage $stage, string $toolName): void
     {

@@ -594,6 +594,19 @@ carries ADR-022 D-5.A (construction refuses an absent ledger or a
 `NullStrictAuditLedger`) and D-5.B (reserve before the tool runs, finalize
 after, single-shot `record()` for terminal refusals, `safeArguments` from the
 tool's own `argumentsForAudit()`) for the transports that will consume it.
+
+Its terminal-refusal semantics are deliberately **stricter than this
+endpoint's**. `McpEndpoint::auditTerminal()` is best-effort: a refusal it cannot
+record is still returned, and the gap is logged. `AuditedToolDispatcher` instead
+answers `AUDIT_TRAIL_UNAVAILABLE`, the same envelope a failed reservation
+produces, because on that surface every executable call is already refused when
+the ledger is down — so letting terminal refusals through unrecorded buys no
+availability and makes "recorded" and "lost" indistinguishable. It also projects
+the caller-supplied tool name through `auditOperation()` before building any
+reservation, since `StrictAuditReservation` rejects an empty `operation` and the
+tool name is caller-controlled; a blank name becomes the fixed operation
+`tool_name_unusable` and the raw value travels in `metadata`. The HTTP tiers are
+unaffected: `McpEndpoint` builds its own reservations and is unchanged.
 `McpEndpoint` keeps its own inline audit path unchanged, because that path
 interleaves the once-only approval `consume()` between `reserve()` and
 execution — a sequencing the generic decorator does not model, and one whose
