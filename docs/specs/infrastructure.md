@@ -1191,7 +1191,10 @@ quoted identifiers, string literals and parenthesis nesting keep their
 boundaries, and comments and whitespace act as **separators** that end the token
 before them. `COLLATE` is recognised only as a standalone token at the column
 definition's own nesting level, so it is never matched inside a longer identifier
-and never merged with an adjacent token. The **whole** definition is examined
+and never merged with an adjacent token. Identifier boundaries follow SQLite's
+own rule, in which **every byte at or above 0x80 is an identifier character** —
+an ASCII-only rule would end an identifier early and could fabricate a `COLLATE`
+token where SQLite sees only a multi-word type name. The **whole** definition is examined
 before answering, because a later `COLLATE` clause supersedes an earlier one —
 which is the clause SQLite applies.
 

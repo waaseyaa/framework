@@ -226,7 +226,13 @@ final readonly class SqliteTableDefinition
                 $tokens[] = ['type' => self::TYPE_QUOTED, 'value' => $value, 'depth' => $depth];
                 continue;
             }
-            if (preg_match('/\G[A-Za-z_][A-Za-z0-9_$]*/A', $sql, $matches, 0, $offset) === 1) {
+            // SQLite's own identifier rule (sqlite3IsIdChar) treats every byte
+            // >= 0x80 as an identifier character, so a non-ASCII byte does NOT
+            // end an identifier. Matching only ASCII split identifiers early and
+            // could fabricate a standalone COLLATE token where SQLite sees a
+            // multi-word type name — a confident answer that disagreed with the
+            // database, and one that failed open.
+            if (preg_match('/\G[A-Za-z_\x80-\xff][A-Za-z0-9_$\x80-\xff]*/A', $sql, $matches, 0, $offset) === 1) {
                 $tokens[] = ['type' => self::TYPE_IDENTIFIER, 'value' => $matches[0], 'depth' => $depth];
                 $offset += strlen($matches[0]);
                 continue;
