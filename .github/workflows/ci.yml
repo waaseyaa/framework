@@ -1406,6 +1406,70 @@ jobs:
       - name: Install bimaaji skills from installed package resources
         run: bash tests/PackagedForm/check-bimaaji-skill-resources
 
+  split-artifact-acceptance:
+    # #2649 (child of #2527). Release Gate 2 must prove that the EXACT candidate
+    # SURVIVES PACKAGING, not merely that it boots. ci/fresh-install-boot builds
+    # its consumer from path repositories, so vendor/waaseyaa is symlinked into
+    # the checkout and nothing about `git archive`, export, or the split
+    # boundary is exercised. Skeleton Smoke installs genuinely published bytes
+    # but runs AFTER the tag, so it cannot gate one.
+    #
+    # This job seals HEAD into a local Composer ARTIFACT repository (one zip per
+    # member, produced by `git archive`, canonical for waaseyaa/* via `only`),
+    # runs `composer create-project` against it, and asserts composition,
+    # exported files, bootstrap, and --no-dev exclusion against extracted bytes.
+    # Two surfaces #2649 names are RESERVED and recorded as such in
+    # tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json: the
+    # development metapackage (#2655, which depends on #2649 — asserting it here
+    # would be circular) and stdio initialization (#2659, gated behind #2657).
+    #
+    # It creates no tag and publishes nothing. It blocks tag creation only by
+    # being part of this workflow, which release-cut.yml's "Gate 2/5: require
+    # green CI on the exact commit being tagged" waits on before the
+    # release-identity token is minted.
+    #
+    # See tests/PackagedForm/check-split-artifact-acceptance.
+    name: ci/split-artifact-acceptance
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml, zip
+          coverage: none
+
+      # Installs into a fresh mktemp consumer with its own dependency graph, so
+      # it cannot consume prepare-test-plan's vendor archive. Exact key only —
+      # no restore-keys — same rationale as the other consumer-shaped jobs.
+      # waaseyaa/* never touches this cache: the artifact repository is
+      # canonical for those names, so only third-party dependencies are fetched.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      # No --allow-dirty: the seal must prove the bytes under review. The
+      # harness's final step re-runs every live assertion against deliberately
+      # corrupted overlays and fails if any survives, so a green result here is
+      # a harness that was observed failing on this same run.
+      - name: Packaged create-project acceptance on split-shaped artifacts
+        run: |
+          set -euo pipefail
+          bash tests/PackagedForm/check-split-artifact-acceptance | tee /tmp/split-artifact-acceptance.log
+          {
+            echo "### Split-artifact acceptance (#2649)"
+            echo
+            echo '```'
+            sed -n '/Acceptance surfaces/,$p' /tmp/split-artifact-acceptance.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   core-only-boot:
     # Boots the kernel from a consumer that requires ONLY waaseyaa/core, installed via a path
     # repository so it tests the SOURCE core metapackage (no release lag). Guards the class of

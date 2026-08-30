@@ -43,3 +43,23 @@ installed-metadata drift, binds exact Doctrine/PSR versions and source/dist
 references, compares recursive source/copy byte digests, and requires the
 resulting canonical dependency manifest to equal the reviewed
 `support/s1-sqlite-dependency-bytes.json` authority.
+
+`check-split-artifact-acceptance` covers the packaging boundary (#2649). It
+seals the exact commit into a local Composer **artifact** repository — one zip
+per member produced by `git archive`, so the bytes are the bytes git would
+export — and runs `composer create-project` against it with the repository
+declared `only: ["waaseyaa/*"]`, which makes it canonical for those names. The
+consumer therefore installs extracted archive bytes with no path repository, no
+VCS repository, and no symlink into the checkout. It asserts composition (the
+installed set equals the sealed transitive closure of `waaseyaa/framework`
+exactly), exported files (every installed tree byte-identical to its archive,
+plus the #2543 admin-surface manifests exercised as a pinned fixture through the
+consumer procedure in `packages/admin-surface/contract/README.md`), bootstrap,
+and `--no-dev` exclusion including a boot of the `--no-dev` consumer. Two
+surfaces #2649 names are recorded as reserved in
+`fixtures/split-artifact-acceptance-surfaces.json` — the development metapackage
+(#2655, which depends on #2649) and stdio initialization (#2659) — and the
+metapackage entry fails closed once `packages/ai-development` exists. Eleven
+seeded negative controls run on every invocation and the run fails if any
+corruption goes undetected. It seals `HEAD` and refuses a dirty worktree unless
+`--allow-dirty` is passed; Composer 2.9+ is required.
