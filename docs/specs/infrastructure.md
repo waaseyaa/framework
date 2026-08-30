@@ -1,4 +1,10 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-29 - #2700: HttpKernel requires the audited
+user-internal-field reader when constructing SessionMiddleware. Authenticated
+sessions now carry an account session generation; middleware compares it with
+the stored internal generation and fails closed for stale, missing, malformed,
+or unreadable generations. No kernel bootstrap or public configuration shape
+changes. -->
 <!-- Spec reviewed 2026-08-27 - Framework #2624: RuntimePolicy publishes the
 single normalized development-environment classifier for Foundation-dependent
 packages and the resolved debug decision is injected into post-bootstrap
