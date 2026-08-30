@@ -8,6 +8,7 @@ use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
+use Waaseyaa\EntityStorage\EntitySchemaTableMaterializer;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
@@ -110,10 +111,21 @@ final class DbInitHandler
             $v2Migrations = $loader->loadAllV2();
 
             $compiler = SqliteCompiler::forVersion((string) $connection->fetchOne('SELECT sqlite_version()'));
+            // FW-2701: enumerate entity types BEFORE migrating and release that
+            // kernel's own connection immediately, so the materializer runs on
+            // the migration connection and no second handle contends for the
+            // SQLite write lock while a node's transaction is open.
+            [$definitions, $fieldRegistry] = $v2Migrations === [] ? [[], null] : $this->entityTypeSnapshot();
+            $materializer = new EntitySchemaTableMaterializer(
+                new DBALDatabase($connection),
+                static fn(): iterable => $definitions,
+                $fieldRegistry,
+                $logger,
+            );
             $migrator = new Migrator(
                 $connection,
                 $repository,
-                new V2PlanExecutor($connection, $compiler),
+                new V2PlanExecutor($connection, $compiler, $materializer),
                 isProduction: RuntimePolicy::resolve($config)->isProductionLike(),
                 logger: $logger,
             );
@@ -164,6 +176,47 @@ final class DbInitHandler
      * or manual `revisions:enable` step. The schema-sync kernel's DB connection
      * is closed before returning so it never holds a lock on the new file.
      */
+    /**
+     * Registered entity types, captured without holding the enumerating kernel's
+     * database connection.
+     *
+     * `db:init` boots a restricted kernel only to learn which entity types exist.
+     * Its connection is closed before the migration run starts, so targeted
+     * materialization can use the migration connection and stay inside the
+     * Migrator's per-node transaction. A project with no registered types yields
+     * an empty snapshot, and every V2 plan then fails closed on real SQL.
+     *
+     * @return array{0: list<\Waaseyaa\Entity\EntityTypeInterface>, 1: ?\Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface}
+     */
+    private function entityTypeSnapshot(): array
+    {
+        try {
+            $kernel = new ConsoleKernel($this->projectRoot);
+            $kernel->bootForSchemaSync();
+            $entityTypeManager = $kernel->getEntityTypeManager();
+            $database = $kernel->getDatabase();
+        } catch (\Throwable) {
+            // A project with no registered content types cannot enumerate, which
+            // is not a db:init failure: migrations still run and fail closed on
+            // any table nobody owns. The later syncSchema() step reports the same
+            // condition through its own boot if the operator asked for it.
+            return [[], null];
+        }
+
+        try {
+            $registry = null;
+            try {
+                $registry = $entityTypeManager->getFieldRegistry();
+            } catch (\RuntimeException) {
+                $registry = null;
+            }
+
+            return [array_values($entityTypeManager->getDefinitions()), $registry];
+        } finally {
+            $database->getConnection()->close();
+        }
+    }
+
     private function syncSchema(SymfonyCommandIO $io): void
     {
         $kernel = new ConsoleKernel($this->projectRoot);

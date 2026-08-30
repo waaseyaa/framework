@@ -23,8 +23,12 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  *
  * **Post-WP09 ledger discipline.** Every successful v2 apply writes the
  * SHA-256 of the canonical SchemaDiff (`checksum`) and the SHA-256 of
- * the canonical compiled-plan (`diff_hash`) to the ledger. Re-runs
- * compare the computed checksum against the stored one:
+ * the canonical compiled-plan (`diff_hash`) to the ledger. Both are
+ * functions of the authored plan alone, so they are identical whether the
+ * node executed SQL or found the schema already satisfied (FW-2701); the
+ * nullable `apply_mode` column carries that distinction as audit evidence
+ * and is never consulted here. Re-runs compare the computed checksum
+ * against the stored one:
  *
  * - **Match:** node already applied, skip silently.
  * - **Mismatch + `isProduction: true`:** throw {@see ChecksumMismatchException}
@@ -231,8 +235,19 @@ final class Migrator
         $checksum = $plan->checksum();
 
         $this->connection->transactional(function () use ($executor, $plan, $policy, $node, $batch, $checksum): void {
-            $compiled = $executor->execute($plan, $policy);
-            $this->repository->record($node->id, $node->package, $batch, $checksum, $compiled->diffHash());
+            // FW-2701: targeted materialization, precondition classification and
+            // execution all happen inside this transaction alongside the ledger
+            // write, so an interrupted initialization leaves the node wholly
+            // applied or wholly absent.
+            $outcome = $executor->execute($plan, $policy);
+            $this->repository->record(
+                $node->id,
+                $node->package,
+                $batch,
+                $checksum,
+                $outcome->diffHash(),
+                $outcome->mode->value,
+            );
         });
     }
 

@@ -18,6 +18,10 @@ use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\Tests\Fixtures\EntityEvolutionV2MigrationAutoloader;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * waaseyaa/framework#2701 — fresh-install semantics for V2 entity evolution.
@@ -124,6 +128,7 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
             'environment' => 'testing',
             'database' => $databasePath,
         ], []);
+        $provider->setKernelServices(self::servicesWithAccountEntityType());
         $provider->register();
         $handler = $provider->resolve(MigrateHandler::class);
         self::assertInstanceOf(MigrateHandler::class, $handler);
@@ -149,6 +154,30 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
         $tester->execute([]);
 
         return $tester->getExitCode();
+    }
+
+    /**
+     * `account` registered as a real entity type, on the framework-default
+     * backend, so the canonical materializer owns its base table.
+     */
+    private static function servicesWithAccountEntityType(): KernelServicesInterface
+    {
+        $manager = new EntityTypeManager(new EventDispatcher());
+        $manager->registerEntityType(new EntityType(
+            id: 'account',
+            label: 'Account',
+            class: \stdClass::class,
+            keys: ['id' => 'eid', 'uuid' => 'uuid'],
+        ));
+
+        return new class ($manager) implements KernelServicesInterface {
+            public function __construct(private EntityTypeManager $manager) {}
+
+            public function get(string $id): ?object
+            {
+                return $id === EntityTypeManager::class ? $this->manager : null;
+            }
+        };
     }
 
     private static function connect(string $path): Connection
