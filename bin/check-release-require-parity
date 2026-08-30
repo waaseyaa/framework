@@ -5,9 +5,19 @@ set -euo pipefail
 # ----------------------------
 # Release-time structural gate that would have caught the alpha.189 break.
 #
-# Every waaseyaa/* entry in a first-party "require" list must:
-#   (1) have a matching entry in the split.yml split matrix (a `remote:` target), AND
-#   (2) point at a split target repo that already exists on the owner org.
+# Two independent pre-tag checks, with two different rosters:
+#
+#   RR002 -- every `remote:` target declared in the split.yml MATRIX must exist
+#            on the owner org. The matrix is the authoritative roster of what a
+#            release actually pushes, so it is the roster to probe.
+#   RR001 -- every waaseyaa/* entry in a first-party "require" list must have a
+#            matching matrix entry AND an existing target repo.
+#
+# RR002 exists because RR001's roster cannot see a package no first-party
+# manifest requires. waaseyaa/ai-development is exactly that by design: it is
+# referenced only from the skeleton's require-dev (ADR-022 D-1.2/D-1.3), so it
+# never entered RR001's set, and an unreachable split target would have been
+# discovered only after the immutable release tag already existed.
 #
 # Scope = the ROOT composer.json require list PLUS every packages/*/composer.json
 # require list. The root-only check catches packages a consumer pulls directly
@@ -24,7 +34,8 @@ set -euo pipefail
 # though Packagist happily lists the tag.
 #
 # Network: repo-existence uses `git ls-remote`. Set CHECK_REMOTE=0 to run the
-# matrix-membership half only (offline / no token). A GITHUB_TOKEN is used when
+# matrix-membership half only (offline / no token); RR002 is entirely a
+# repo-existence check and is skipped in that mode. A GITHUB_TOKEN is used when
 # present so private/just-created repos resolve.
 #
 # Overridable for testing (e.g. running this script against a worktree of an
@@ -34,6 +45,19 @@ set -euo pipefail
 #   PACKAGES_DIR    path to the packages/ directory   (default: <root>/packages)
 #   REPO_OWNER      org that owns the split repos      (default: waaseyaa)
 #   CHECK_REMOTE    1=check repo existence, 0=skip     (default: 1)
+#   REPO_REMOTE_TEMPLATE
+#                   remote URL template for the existence probe, with {owner}
+#                   and {repo} placeholders
+#                   (default: https://github.com/{owner}/{repo}.git)
+#
+# REPO_REMOTE_TEMPLATE exists so the missing-target case can be reproduced
+# DETERMINISTICALLY. Pointed at `file:///.../{repo}`, a fixture can create bare
+# repositories for the targets that should exist and simply not create the one
+# that should not, which keeps `git ls-remote` as the real mechanism instead of
+# stubbing it, and keeps the regression independent of whether some particular
+# repository happens to exist on GitHub today. A test that asserted a real
+# repository was absent would be fragile, and would silently stop testing
+# anything the moment that repository was created.
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_OWNER="${REPO_OWNER:-waaseyaa}"
@@ -42,6 +66,7 @@ COMPOSER_JSON="${COMPOSER_JSON:-${ROOT_DIR}/composer.json}"
 SPLIT_YML="${SPLIT_YML:-${ROOT_DIR}/.github/workflows/split.yml}"
 PACKAGES_DIR="${PACKAGES_DIR:-${ROOT_DIR}/packages}"
 CHECK_REMOTE="${CHECK_REMOTE:-1}"
+REPO_REMOTE_TEMPLATE="${REPO_REMOTE_TEMPLATE:-}"
 
 if [[ ! -f "${COMPOSER_JSON}" ]]; then
   echo "FAIL [RR000] composer.json not found: ${COMPOSER_JSON}"
@@ -56,7 +81,7 @@ if [[ ! -d "${PACKAGES_DIR}" ]]; then
   exit 1
 fi
 
-export ROOT_DIR REPO_OWNER GITHUB_TOKEN COMPOSER_JSON SPLIT_YML PACKAGES_DIR CHECK_REMOTE
+export ROOT_DIR REPO_OWNER GITHUB_TOKEN COMPOSER_JSON SPLIT_YML PACKAGES_DIR CHECK_REMOTE REPO_REMOTE_TEMPLATE
 
 python3 - <<'PY'
 import json
@@ -98,8 +123,22 @@ if not matrix_remotes:
     sys.exit(1)
 
 
+remote_template = os.environ.get("REPO_REMOTE_TEMPLATE", "")
+
+
+def probe_target(repo: str) -> str:
+    """The remote actually probed, token-free, for use in messages."""
+    if remote_template:
+        return remote_template.format(owner=owner, repo=repo)
+    return f"https://github.com/{owner}/{repo}.git"
+
+
 def repo_exists(repo: str) -> bool:
-    if token:
+    if remote_template:
+        # Explicit template wins and is never given the token: it is used for
+        # deterministic fixtures (file:// bare repositories), not for GitHub.
+        remote = remote_template.format(owner=owner, repo=repo)
+    elif token:
         remote = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
     else:
         remote = f"https://github.com/{owner}/{repo}.git"
@@ -120,6 +159,45 @@ def whoneeds(pkg: str) -> str:
     return ", ".join(sorted(required[pkg]))
 
 
+_exists_cache: dict[str, bool] = {}
+
+
+def repo_exists_cached(repo: str) -> bool:
+    if repo not in _exists_cache:
+        _exists_cache[repo] = repo_exists(repo)
+    return _exists_cache[repo]
+
+
+# RR002 -- the split MATRIX is the authoritative roster of what a release
+# pushes, so it is the roster this check must probe. Deriving the roster from
+# runtime `require` edges (RR001) is structurally incapable of seeing a package
+# that no first-party manifest requires: waaseyaa/ai-development is referenced
+# only from the skeleton's require-dev by design (ADR-022 D-1.2/D-1.3), so it
+# never reached repo_exists() and an unreachable split target would have been
+# discovered only AFTER release-cut.yml had already created the immutable tag,
+# with the matrix leg failing on push. The tag cannot be moved (forward-only
+# recovery, VERSIONING.md), so this must fail BEFORE it exists.
+unreachable_targets: list[str] = []
+if check_remote:
+    for repo in sorted(matrix_remotes):
+        if not repo_exists_cached(repo):
+            unreachable_targets.append(repo)
+
+if unreachable_targets:
+    print("FAIL [RR002] split matrix declares target repo(s) that do not exist.")
+    for repo in unreachable_targets:
+        print(f"    - {repo}   (split.yml matrix target; probed {probe_target(repo)})")
+    print()
+    print("  Every `remote:` target in the split.yml matrix is pushed by a release,")
+    print("  so each one must exist on the owner org BEFORE the release is tagged --")
+    print("  a tag is immutable and recovery is forward-only. Fix: create the repo")
+    print("  under the org, register it on Packagist, and apply tag protection with")
+    print("  bin/configure-split-tag-protection; or drop the matrix entry.")
+    print()
+    print("  This roster comes from the split matrix, NOT from runtime require")
+    print("  edges, so a dev-only or otherwise unrequired package is covered too.")
+    sys.exit(1)
+
 not_in_matrix: list[str] = []
 missing_repo: list[str] = []
 
@@ -127,7 +205,7 @@ for pkg in sorted(required):
     if pkg not in matrix_remotes:
         not_in_matrix.append(pkg)
         continue  # a package with no split target can't have a repo to check
-    if check_remote and not repo_exists(pkg):
+    if check_remote and not repo_exists_cached(pkg):
         missing_repo.append(pkg)
 
 if not_in_matrix or missing_repo:
