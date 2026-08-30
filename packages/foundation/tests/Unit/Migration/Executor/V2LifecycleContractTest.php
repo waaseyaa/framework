@@ -14,11 +14,13 @@ use Waaseyaa\Foundation\Migration\Executor\ApplyMode;
 use Waaseyaa\Foundation\Migration\Executor\IncompatibleSchemaStateException;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
+use Waaseyaa\Foundation\Schema\Compiler\Validation\DestructiveOpBlockedException;
 use Waaseyaa\Foundation\Schema\Compiler\Validation\PlanPolicy;
 use Waaseyaa\Foundation\Schema\Diff\AddColumn;
 use Waaseyaa\Foundation\Schema\Diff\AddIndex;
 use Waaseyaa\Foundation\Schema\Diff\ColumnSpec;
 use Waaseyaa\Foundation\Schema\Diff\CompositeDiff;
+use Waaseyaa\Foundation\Schema\Diff\DropColumn;
 use Waaseyaa\Foundation\Schema\Diff\RenameColumn;
 use Waaseyaa\Foundation\Schema\Diff\RenameTable;
 use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
@@ -196,6 +198,65 @@ final class V2LifecycleContractTest extends TestCase
         $outcome = $this->execute($plan, $this->materializerOwning(['account']));
 
         self::assertSame(ApplyMode::AlreadySatisfied, $outcome->mode);
+    }
+
+    #[Test]
+    public function a_partial_index_does_not_satisfy_a_full_one(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id TEXT)');
+        $this->connection->executeStatement('CREATE INDEX account_user_id ON account ("user_id") WHERE "user_id" IS NOT NULL');
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/found a partial one/');
+
+        $this->execute(
+            $this->plan(new CompositeDiff([new AddIndex('account', ['user_id'], 'account_user_id')])),
+            $this->materializerOwning(['account']),
+        );
+    }
+
+    #[Test]
+    public function a_descending_index_does_not_satisfy_an_ascending_one(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id TEXT)');
+        $this->connection->executeStatement('CREATE INDEX account_user_id ON account ("user_id" DESC)');
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/descending/');
+
+        $this->execute(
+            $this->plan(new CompositeDiff([new AddIndex('account', ['user_id'], 'account_user_id')])),
+            $this->materializerOwning(['account']),
+        );
+    }
+
+    #[Test]
+    public function a_policy_refusal_fires_before_the_materializer_is_invoked(): void
+    {
+        // Step 1 of the documented sequence is load-bearing: the full compile,
+        // and therefore every policy refusal, must happen before anything
+        // touches the database.
+        $recording = new class implements EntityTableMaterializerInterface {
+            public bool $invoked = false;
+
+            public function materialize(array $tables): array
+            {
+                $this->invoked = true;
+
+                return [];
+            }
+        };
+
+        $plan = $this->plan(new CompositeDiff([new DropColumn('account', 'user_id')]));
+
+        try {
+            $this->execute($plan, $recording);
+            self::fail('a destructive op must be refused under the default policy');
+        } catch (DestructiveOpBlockedException) {
+            // expected
+        }
+
+        self::assertFalse($recording->invoked, 'the materializer must not run before the policy gate');
     }
 
     #[Test]

@@ -165,10 +165,26 @@ final readonly class OpPreconditionResolver
             );
         }
 
-        $liveColumns = array_column(
-            $this->connection->fetchAllAssociative(sprintf('PRAGMA index_info(%s)', $this->quote($name))),
-            'name',
-        );
+        // index_xinfo (not index_info) exposes sort direction. An authored
+        // AddIndex has no descending form, so a DESC column is a real mismatch
+        // and must refuse rather than silently satisfy.
+        $liveColumns = [];
+        foreach ($this->connection->fetchAllAssociative(
+            sprintf('PRAGMA index_xinfo(%s)', $this->quote($name)),
+        ) as $column) {
+            if ((int) ($column['key'] ?? 0) !== 1) {
+                continue;
+            }
+            if ((int) ($column['desc'] ?? 0) === 1) {
+                throw IncompatibleSchemaStateException::index(
+                    $op->table,
+                    $name,
+                    sprintf('declared ascending columns, found "%s" descending', (string) ($column['name'] ?? '')),
+                );
+            }
+            $liveColumns[] = $column['name'];
+        }
+
         if ($liveColumns !== $op->columns) {
             throw IncompatibleSchemaStateException::index(
                 $op->table,

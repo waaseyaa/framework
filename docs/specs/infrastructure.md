@@ -1162,7 +1162,8 @@ types by SQLite storage **affinity**, not by rendered SQL text, because the
 canonical materializer emits Doctrine's vocabulary (`CLOB`, `DOUBLE PRECISION`)
 while the v2 compiler emits its own (`TEXT`, `REAL`); a literal `NULL` default
 normalizes to "no default", and index identity is the name the compiler will
-actually emit. `MigrationRepository::record()` accepts a nullable
+actually emit — compared through `PRAGMA index_xinfo`, so a partial or
+descending index refuses rather than silently satisfying a full ascending one. `MigrationRepository::record()` accepts a nullable
 `apply_mode` (`applied` | `already_satisfied`), added idempotently by
 `ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
 and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.

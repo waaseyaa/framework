@@ -5379,6 +5379,20 @@
             "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
+            "match_sha256": "6f9ecae904fbfca083f69864b18bcb9c4240a82d7524020c024a09ac5aaa2e51",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6f9ecae904fbfca083f69864b18bcb9c4240a82d7524020c024a09ac5aaa2e51",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 1
         },
@@ -5474,6 +5488,20 @@
             "occurrence": 14
         },
         {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 15
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 16
+        },
+        {
             "path": "packages/foundation/tests/Unit/Migration/Executor/V2PlanExecutorTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -5535,6 +5563,13 @@
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Ledger/ChecksumWriteTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/Ledger/ChecksumWriteTest.php",

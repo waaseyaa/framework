@@ -12,6 +12,7 @@ use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\LedgerRow;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\MigrationCatalogFingerprint;
+use Waaseyaa\Foundation\Migration\LedgerSchema\V2_0002_add_apply_mode_column;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -120,12 +121,87 @@ final class ChecksumWriteTest extends TestCase
         );
         self::assertContains('checksum', $columns);
         self::assertContains('diff_hash', $columns);
+        // FW-2701 extends the same upgrade path with the apply_mode audit column.
+        self::assertContains('apply_mode', $columns);
 
         // Existing pre-WP09 row survives the migration with null hashes.
-        $row = $connection->executeQuery('SELECT checksum, diff_hash FROM waaseyaa_migrations')->fetchAssociative();
+        $row = $connection->executeQuery('SELECT checksum, diff_hash, apply_mode FROM waaseyaa_migrations')->fetchAssociative();
         self::assertNotFalse($row);
         self::assertNull($row['checksum']);
         self::assertNull($row['diff_hash']);
+        self::assertNull($row['apply_mode'], 'rows written before FW-2701 carry no apply mode');
+    }
+
+    #[Test]
+    public function ensureCurrentSchemaUpgradesAPreFw2701LedgerAndKeepsRecordingUsable(): void
+    {
+        // A site that already ran WP09 has checksum/diff_hash but not apply_mode.
+        // Without the upgrade its first record() would fail on "no such column".
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $connection->executeStatement(
+            'CREATE TABLE waaseyaa_migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration VARCHAR(255) NOT NULL,
+                package VARCHAR(128) NOT NULL,
+                batch INTEGER NOT NULL,
+                ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                checksum VARCHAR(64) NULL,
+                diff_hash VARCHAR(64) NULL
+            )',
+        );
+        $connection->executeStatement(
+            'INSERT INTO waaseyaa_migrations (migration, package, batch, checksum) VALUES (?, ?, ?, ?)',
+            ['waaseyaa/foundation:v2:earlier', 'waaseyaa/foundation', 1, str_repeat('a', 64)],
+        );
+
+        // The production upgrade path a real site runs, which also installs the
+        // canonical identity constraint the ledger readers require.
+        $repository = new MigrationRepository($connection);
+        $repository->installOrUpgradeLedger();
+
+        self::assertContains('apply_mode', array_column(
+            $connection->executeQuery('PRAGMA table_info(waaseyaa_migrations)')->fetchAllAssociative(),
+            'name',
+        ));
+        self::assertNull(
+            $repository->getApplyMode('waaseyaa/foundation:v2:earlier'),
+            'a row written before this upgrade reports no apply mode',
+        );
+
+        $repository->record(
+            'waaseyaa/foundation:v2:later',
+            'waaseyaa/foundation',
+            2,
+            str_repeat('b', 64),
+            str_repeat('c', 64),
+            'already_satisfied',
+        );
+
+        self::assertSame('already_satisfied', $repository->getApplyMode('waaseyaa/foundation:v2:later'));
+    }
+
+    #[Test]
+    public function theLedgerSchemaAuthoringRecordDocumentsTheApplyModeColumn(): void
+    {
+        // The authoring record is what audit tooling and verify mode read to
+        // answer "what does the ledger schema look like at v2.0002".
+        $plan = new V2_0002_add_apply_mode_column()->plan();
+
+        self::assertSame('waaseyaa/foundation:v2:ledger-add-apply-mode-column', $plan->migrationId);
+        self::assertSame(
+            ['waaseyaa/foundation:v2:ledger-add-checksum-columns'],
+            $plan->dependencies,
+            'it must order after the WP09 columns it extends',
+        );
+        self::assertSame(
+            [[
+                'column' => 'apply_mode',
+                'kind' => 'add_column',
+                'spec' => ['default' => null, 'length' => 32, 'nullable' => true, 'type' => 'varchar'],
+                'table' => 'waaseyaa_migrations',
+            ]],
+            $plan->toCanonical()['ops'],
+        );
     }
 
     /**
