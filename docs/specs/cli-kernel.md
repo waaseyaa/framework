@@ -192,6 +192,13 @@ not a diagnostic warning.
 bootstrap `RuntimePolicy` used by the kernel. It does not re-read `APP_ENV`,
 `APP_DEBUG`, or PHP environment superglobals after configuration assembly.
 
+`migrate --dry-run` reports only the operations that would actually run. When a
+precondition resolver is available it filters out operations the live schema
+already satisfies, so the plan is truthful for both lifecycle states rather than
+advertising SQL that apply would skip. The check is a snapshot: dry-run executes
+nothing, so it cannot show an operation becoming outstanding because an earlier
+operation in the same plan ran.
+
 `db:init` enumerates registered entity types **before** the migration run and
 releases that kernel's own database connection first, so targeted materialization
 (#2701) runs on the migration connection and no second handle contends for the

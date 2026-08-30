@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Schema\Diff;
 
 /**
- * Enumerates the physical tables a {@see CompositeDiff} touches.
+ * Enumerates the physical tables a {@see CompositeDiff} requires to already
+ * exist before it runs.
  *
  * Reads each op's canonical dictionary rather than its implementation class, so
  * the closed op set stays enforced in one place ({@see OpKind}) and adding an op
@@ -21,7 +22,7 @@ namespace Waaseyaa\Foundation\Schema\Diff;
 final readonly class PlanTargets
 {
     /**
-     * Every table named by the composite, in deterministic order.
+     * Every table the composite requires to pre-exist, in deterministic order.
      *
      * @return list<string>
      */
@@ -60,12 +61,11 @@ final readonly class PlanTargets
                 self::str($canonical, 'table'),
                 self::str(self::arr($canonical, 'spec'), 'referenced_table'),
             ],
-            // A rename needs the source to exist; the destination is what the
-            // rest of the plan will address afterwards.
-            OpKind::RenameTable => [
-                self::str($canonical, 'from'),
-                self::str($canonical, 'to'),
-            ],
+            // Only the SOURCE is a prerequisite. The destination is what the
+            // rename itself produces — materializing it first would make the
+            // rename collide with a table that should not exist yet, breaking
+            // renames that worked before targeted materialization existed.
+            OpKind::RenameTable => [self::str($canonical, 'from')],
         };
     }
 

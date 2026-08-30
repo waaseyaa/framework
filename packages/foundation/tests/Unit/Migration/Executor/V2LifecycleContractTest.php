@@ -19,6 +19,8 @@ use Waaseyaa\Foundation\Schema\Diff\AddColumn;
 use Waaseyaa\Foundation\Schema\Diff\AddIndex;
 use Waaseyaa\Foundation\Schema\Diff\ColumnSpec;
 use Waaseyaa\Foundation\Schema\Diff\CompositeDiff;
+use Waaseyaa\Foundation\Schema\Diff\RenameColumn;
+use Waaseyaa\Foundation\Schema\Diff\RenameTable;
 use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
 
 /**
@@ -91,7 +93,7 @@ final class V2LifecycleContractTest extends TestCase
         $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id INTEGER)');
 
         $this->expectException(IncompatibleSchemaStateException::class);
-        $this->expectExceptionMessageMatches('/S1-DB110.*declared type TEXT, found INTEGER/s');
+        $this->expectExceptionMessageMatches('/S1-DB110.*declared TEXT \(TEXT affinity\), found INTEGER \(INTEGER affinity\)/s');
 
         $this->execute($this->addUserId(), $this->materializerOwning(['account']));
     }
@@ -105,6 +107,83 @@ final class V2LifecycleContractTest extends TestCase
         $this->expectExceptionMessageMatches('/S1-DB110.*declared NULL, found NOT NULL/s');
 
         $this->execute($this->addUserId(), $this->materializerOwning(['account']));
+    }
+
+    #[Test]
+    public function a_doctrine_spelling_of_the_same_column_is_satisfied_not_refused(): void
+    {
+        // The canonical materializer emits Doctrine's vocabulary. TEXT and CLOB
+        // are the same SQLite column; refusing this would abort every
+        // sql-column fresh install.
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id CLOB DEFAULT NULL)');
+
+        $outcome = $this->execute($this->addUserId(), $this->materializerOwning(['account']));
+
+        self::assertSame(ApplyMode::AlreadySatisfied, $outcome->mode);
+    }
+
+    #[Test]
+    public function a_differing_default_value_fails_closed(): void
+    {
+        $this->connection->executeStatement("CREATE TABLE account (eid INTEGER PRIMARY KEY, tier TEXT DEFAULT 'gold')");
+
+        $plan = $this->plan(new CompositeDiff([
+            new AddColumn('account', 'tier', new ColumnSpec(type: 'text', nullable: true, default: 'silver')),
+        ]));
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches('/declared default silver, found gold/');
+
+        $this->execute($plan, $this->materializerOwning(['account']));
+    }
+
+    #[Test]
+    public function an_index_with_the_same_columns_but_a_different_name_does_not_satisfy(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id TEXT)');
+        $this->connection->executeStatement('CREATE INDEX unrelated_index ON account ("user_id")');
+
+        $plan = $this->plan(new CompositeDiff([new AddIndex('account', ['user_id'], 'account_user_id')]));
+        $outcome = $this->execute($plan, $this->materializerOwning(['account']));
+
+        self::assertSame(ApplyMode::Applied, $outcome->mode, 'the authored index must still be created');
+        $names = array_column(
+            $this->connection->fetchAllAssociative('PRAGMA index_list("account")'),
+            'name',
+        );
+        self::assertContains('account_user_id', $names);
+    }
+
+    #[Test]
+    public function an_operation_made_necessary_by_an_earlier_operation_is_not_dropped(): void
+    {
+        // Classifying the whole plan against one pre-execution snapshot would
+        // judge the AddColumn against a table that still has the OLD column
+        // name, and drop it as already satisfied.
+        $this->connection->executeStatement('CREATE TABLE account (eid INTEGER PRIMARY KEY, legacy_id TEXT)');
+
+        $plan = $this->plan(new CompositeDiff([
+            new RenameColumn('account', 'legacy_id', 'archived_id'),
+            new AddColumn('account', 'legacy_id', new ColumnSpec(type: 'text', nullable: true)),
+        ]));
+        $outcome = $this->execute($plan, $this->materializerOwning(['account']));
+
+        self::assertSame(ApplyMode::Applied, $outcome->mode);
+        self::assertSame(['eid', 'archived_id', 'legacy_id'], $this->columns('account'));
+    }
+
+    #[Test]
+    public function a_rename_destination_is_never_materialized(): void
+    {
+        $this->connection->executeStatement('CREATE TABLE old_account (eid INTEGER PRIMARY KEY)');
+
+        $plan = $this->plan(new CompositeDiff([new RenameTable('old_account', 'account')]));
+        $outcome = $this->execute($plan, $this->materializerOwning(['account']));
+
+        self::assertSame(ApplyMode::Applied, $outcome->mode);
+        self::assertSame([], $outcome->materializedTables, 'pre-creating the destination would break the rename');
+        self::assertTrue($this->tableExists('account'));
+        self::assertFalse($this->tableExists('old_account'));
     }
 
     #[Test]
@@ -220,6 +299,14 @@ final class V2LifecycleContractTest extends TestCase
     private static function compilerFor(Connection $connection): SqliteCompiler
     {
         return SqliteCompiler::forVersion((string) $connection->fetchOne('SELECT sqlite_version()'));
+    }
+
+    private function tableExists(string $table): bool
+    {
+        return (int) $this->connection->fetchOne(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+            [$table],
+        ) === 1;
     }
 
     /** @return list<string> */
