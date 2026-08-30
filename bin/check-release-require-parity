@@ -113,10 +113,147 @@ for label, path in sources:
             pkg = name.split("/", 1)[1]
             required.setdefault(pkg, set()).add(label)
 
-# Split matrix `remote:` targets. Parsed with a regex so we don't depend on a
-# YAML library being installed on the runner.
-split_text = split_path.read_text(encoding="utf-8")
-matrix_remotes = set(re.findall(r"remote:\s*'([^']+)'", split_text))
+# Split matrix `remote:` targets.
+#
+# Parsed with a regex rather than a YAML library, deliberately and on
+# evidence. The gate executes in three places, and NONE of them provisions a
+# YAML parser:
+#
+#   1. release-cut.yml, the pre-tag gate  -- checkout only, no setup-python
+#   2. split.yml, verify-require-parity   -- checkout only, no setup-python
+#   3. tests/Architecture/SplitTargetReachabilityGateTest, which executes this
+#      script -- so the PHP test lane would need it too
+#
+# No workflow pip-installs PyYAML and no repository tooling imports it, so
+# "import yaml happens to succeed on today's runner image" would be an
+# undeclared dependency of a release-critical gate -- the same class of latent
+# fragility as the quote-blind pattern below: a property that holds by
+# accident, is written down nowhere, and changes silently when an image or a
+# lane changes. Provisioning it would mean editing three lanes, two of them on
+# the release path, to read one list. Refusing what cannot be parsed (RR003 /
+# RR004) buys the same safety with no dependency at all.
+#
+# The cost of that choice is that the pattern recognises exactly ONE spelling.
+# Every other valid YAML spelling of the same row -- remote: "beta", bare
+# remote: beta, a folded scalar, an alias -- would parse to nothing. DROPPING
+# those is the defect, and RR000 below cannot catch it: it fires only when the
+# roster is ENTIRELY empty, so seventy-odd parseable rows keep it satisfied
+# while a single edited row disappears unseen. A blind-pass guard defends
+# against total parse failure and is powerless against a partial one, which is
+# the shape that actually occurs when someone edits one matrix row.
+#
+# Note the symmetry, because it is the same mistake twice: RR001's roster could
+# not see a package that no manifest requires, and this roster could not see a
+# target whose YAML uses a different quote character. Both are "the input is
+# structurally incapable of representing the thing being gated". Widening the
+# pattern to also accept double quotes would fix one reported input and leave
+# the class intact.
+#
+# So anything that looks like a `remote:` key but does not match the supported
+# form is REFUSED (RR003), never skipped.
+SUPPORTED_REMOTE = re.compile(r"remote:\s*'([^']+)'")
+DECLARES_REMOTE = re.compile(r"(?<![A-Za-z0-9_])remote:")
+
+MATRIX_KEY = re.compile(r"^(\s*)matrix:\s*$")
+LIST_ITEM = re.compile(r"^\s*-\s")
+
+split_lines = split_path.read_text(encoding="utf-8").splitlines()
+
+
+def significant(line: str) -> bool:
+    stripped = line.strip()
+    return stripped != "" and not stripped.startswith("#")
+
+
+def matrix_body() -> list[tuple[int, str]]:
+    """The lines belonging to the split job's `matrix:` block.
+
+    Structure this cannot understand is refused rather than reduced to a
+    partial roster: a missing matrix, more than one, or an empty body all stop
+    the gate. RR000's total-emptiness guard is a floor, not a substitute --
+    the general rule is that the gate must fully understand its input.
+    """
+    starts = [
+        (number, match.group(1))
+        for number, line in enumerate(split_lines, start=1)
+        if significant(line) and (match := MATRIX_KEY.match(line))
+    ]
+    if len(starts) != 1:
+        print(
+            f"FAIL [RR004] expected exactly one `matrix:` block in {split_path}, found {len(starts)}."
+        )
+        print("  The split matrix is the roster this gate probes; it cannot probe an")
+        print("  ambiguous or absent one. Refusing rather than guessing.")
+        sys.exit(1)
+
+    start_number, indent = starts[0]
+    body: list[tuple[int, str]] = []
+    for number, line in enumerate(split_lines[start_number:], start=start_number + 1):
+        if significant(line) and (len(line) - len(line.lstrip())) <= len(indent):
+            break
+        body.append((number, line))
+
+    if not [line for _, line in body if significant(line)]:
+        print(f"FAIL [RR004] the `matrix:` block in {split_path} is empty.")
+        sys.exit(1)
+
+    return body
+
+
+matrix_remotes: set[str] = set()
+unsupported: list[tuple[int, str]] = []
+structureless: list[tuple[int, str]] = []
+entries = 0
+for line_number, line in matrix_body():
+    if not significant(line):
+        continue
+    if not LIST_ITEM.match(line):
+        # A key inside the matrix block (`package:`) rather than an entry.
+        # Only entries are probed, but an entry-looking line that declares a
+        # remote we cannot read is still refused below.
+        if DECLARES_REMOTE.search(line) and not SUPPORTED_REMOTE.findall(line):
+            unsupported.append((line_number, line.strip()))
+        continue
+
+    entries += 1
+    found = SUPPORTED_REMOTE.findall(line)
+    if found:
+        matrix_remotes.update(found)
+        continue
+    # Two distinct faults, kept distinct so the diagnosis is accurate: a row
+    # that declares a remote this parser cannot read (RR003, syntax) versus a
+    # row that declares no remote at all (RR004, structure).
+    if DECLARES_REMOTE.search(line):
+        unsupported.append((line_number, line.strip()))
+    else:
+        structureless.append((line_number, line.strip()))
+
+if entries == 0:
+    print(f"FAIL [RR004] the `matrix:` block in {split_path} declares no entries.")
+    sys.exit(1)
+
+if structureless:
+    print("FAIL [RR004] split matrix entry declares no `remote:` target.")
+    for line_number, text in structureless:
+        print(f"    - {split_path}:{line_number}: {text}")
+    print()
+    print("  Every matrix entry is pushed by a release, so every entry must name")
+    print("  the repository it is pushed to. An entry this gate cannot attribute")
+    print("  to a target is refused rather than ignored.")
+    sys.exit(1)
+
+if unsupported:
+    print("FAIL [RR003] split.yml declares matrix target(s) this gate cannot parse.")
+    for line_number, text in unsupported:
+        print(f"    - {split_path}:{line_number}: {text}")
+    print()
+    print("  Supported form (single quotes):  remote: 'name'")
+    print("  A target this gate cannot read is a target it cannot prove exists,")
+    print("  and a release would push it regardless. Refusing is deliberate:")
+    print("  silently dropping the row is how an unreachable target reaches the")
+    print("  immutable tag. Fix: single-quote the value, or teach this parser the")
+    print("  new form -- do not let it skip what it cannot read.")
+    sys.exit(1)
 
 if not matrix_remotes:
     print("FAIL [RR000] No `remote:` matrix entries parsed from split.yml — refusing to pass blind.")

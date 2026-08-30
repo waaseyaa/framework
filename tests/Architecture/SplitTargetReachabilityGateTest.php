@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -234,15 +235,127 @@ final class SplitTargetReachabilityGateTest extends TestCase
     }
 
     /**
+     * The concealment shape, which is the whole point of this fixture.
+     *
+     * The roster is parsed with a regex (see the gate's header for why a YAML
+     * library is not available in either lane that runs it), and a regex
+     * recognises exactly one spelling. A matrix that mixes spellings is what
+     * makes the defect dangerous rather than obvious: the single-quoted entry
+     * parses, so the roster is non-empty, so the blind-pass guard is satisfied
+     * — and the double-quoted and bare entries vanish unseen. Neither missing
+     * target is provisioned here, so a gate that dropped them would report
+     * success on a matrix with two unreachable targets.
+     *
+     * Both unparseable rows must be named, not just the first: stopping at one
+     * would leave the second concealed on the next run.
+     */
+    #[Test]
+    public function mixed_scalar_formats_are_refused_rather_than_silently_dropped(): void
+    {
+        $fixture = $this->fixture(
+            ['alpha', 'beta', 'gamma'],
+            provisioned: ['alpha'],
+            styles: ['alpha' => 'single', 'beta' => 'double', 'gamma' => 'bare'],
+        );
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('FAIL [RR003]', $output);
+        self::assertStringContainsString('remote: "beta"', $output);
+        self::assertStringContainsString('remote: gamma', $output);
+        self::assertStringNotContainsString(
+            'Require parity verified',
+            $output,
+            'The parseable survivor must not be allowed to report success for the whole matrix.',
+        );
+    }
+
+    /**
+     * The same mixed matrix, fully provisioned. It must STILL refuse: the
+     * objection is that the gate cannot read the rows, not that those
+     * particular repositories are missing. Passing here would mean the gate
+     * had gone back to probing only what it happens to understand.
+     */
+    #[Test]
+    public function unreadable_rows_are_refused_even_when_every_repository_exists(): void
+    {
+        $fixture = $this->fixture(
+            ['alpha', 'beta', 'gamma'],
+            provisioned: ['alpha', 'beta', 'gamma'],
+            styles: ['alpha' => 'single', 'beta' => 'double', 'gamma' => 'bare'],
+        );
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('FAIL [RR003]', $output);
+    }
+
+    /**
+     * Structure the gate cannot understand must stop it, not shrink it. The
+     * total-emptiness guard (RR000) is a floor, not a substitute: these are
+     * the partial and malformed shapes it cannot see.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function malformedMatrices(): iterable
+    {
+        yield 'no matrix block at all' => ["jobs:\n  split:\n    steps:\n      - run: true\n", 'RR004'];
+        yield 'matrix present but empty' => ["        package:\n", 'RR004'];
+        yield 'matrix with no list entries' => ["        package: {}\n", 'RR004'];
+        yield 'entry without a remote key' => ["        package:\n          - { local: 'packages/alpha' }\n", 'RR004'];
+    }
+
+    #[Test]
+    #[DataProvider('malformedMatrices')]
+    public function malformed_matrix_structure_is_a_named_failure(string $body, string $rule): void
+    {
+        $fixture = $this->fixture(['alpha'], provisioned: ['alpha']);
+        if (str_starts_with($body, 'jobs:')) {
+            file_put_contents($fixture . '/split.yml', $body);
+        } else {
+            $this->writeSplitYaml($fixture, $body);
+        }
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('FAIL [' . $rule . ']', $output);
+    }
+
+    /**
+     * Fast feedback on the real workflow. The release gate would catch a row
+     * this parser cannot read, but only at release time; this says so on the
+     * commit that introduces it.
+     */
+    #[Test]
+    public function every_matrix_row_in_this_repository_uses_the_supported_form(): void
+    {
+        $offenders = [];
+        foreach (explode("\n", $this->read(self::SPLIT)) as $number => $line) {
+            if (str_starts_with(ltrim($line), '#') || preg_match('/(?<![A-Za-z0-9_])remote:/', $line) !== 1) {
+                continue;
+            }
+            if (preg_match("/remote:\s*'[^']+'/", $line) !== 1) {
+                $offenders[] = sprintf('%s:%d: %s', self::SPLIT, $number + 1, trim($line));
+            }
+        }
+
+        self::assertSame([], $offenders, "Rows the release gate cannot parse:\n" . implode("\n", $offenders));
+    }
+
+    /**
      * A disposable repository shaped like this one: a root manifest requiring
      * nothing (so RR001's roster is empty and only RR002 can speak), an empty
      * packages directory, a split workflow declaring `$targets`, and a bare git
      * repository for each of `$provisioned`.
      *
-     * @param list<string> $targets
-     * @param list<string> $provisioned
+     * @param list<string>          $targets
+     * @param list<string>          $provisioned
+     * @param array<string, string> $styles target => single|double|bare
      */
-    private function fixture(array $targets, array $provisioned): string
+    private function fixture(array $targets, array $provisioned, array $styles = []): string
     {
         $root = sys_get_temp_dir() . '/waaseyaa-split-reachability-' . bin2hex(random_bytes(6));
         mkdir($root . '/packages', recursive: true);
@@ -259,18 +372,17 @@ final class SplitTargetReachabilityGateTest extends TestCase
 
         $rows = '';
         foreach ($targets as $target) {
-            $rows .= sprintf("          - { local: 'packages/%s', remote: '%s' }
-", $target, $target);
+            $rows .= sprintf(
+                "          - { local: 'packages/%s', remote: %s }\n",
+                $target,
+                match ($styles[$target] ?? 'single') {
+                    'single' => "'" . $target . "'",
+                    'double' => '"' . $target . '"',
+                    'bare' => $target,
+                },
+            );
         }
-        file_put_contents(
-            $root . '/split.yml',
-            'jobs:
-  split:
-    strategy:
-      matrix:
-        package:
-' . $rows,
-        );
+        $this->writeSplitYaml($root, "        package:\n" . $rows);
 
         foreach ($provisioned as $target) {
             $path = $root . '/remotes/' . $target;
@@ -280,6 +392,15 @@ final class SplitTargetReachabilityGateTest extends TestCase
         }
 
         return $root;
+    }
+
+    /** Write the split workflow around a caller-supplied matrix body. */
+    private function writeSplitYaml(string $root, string $matrixBody): void
+    {
+        file_put_contents(
+            $root . '/split.yml',
+            "jobs:\n  split:\n    strategy:\n      matrix:\n" . $matrixBody,
+        );
     }
 
     /** @return array{0: int, 1: string} */
