@@ -1146,6 +1146,19 @@ final class Migrator
 
 Migrations are topologically sorted by `Migration::$after` dependencies. Each batch gets an incrementing batch number. Rollback undoes the last batch in reverse order.
 
+### Fresh-install reconciliation (#2701)
+
+`Migrator` wraps each v2 node's compile, targeted table materialization,
+execution and ledger write in one transaction, so an interrupted initialization
+leaves the node wholly applied or wholly absent — including a table the
+materializer created for it. `V2PlanExecutor` takes an optional
+`EntityTableMaterializerInterface`; without one, an absent table simply fails
+closed on real SQL. `MigrationRepository::record()` accepts a nullable
+`apply_mode` (`applied` | `already_satisfied`), added idempotently by
+`ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
+and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.
+
+
 ### MigrationRepository
 
 File: `packages/foundation/src/Migration/MigrationRepository.php`

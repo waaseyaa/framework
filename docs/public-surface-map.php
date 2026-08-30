@@ -31,6 +31,10 @@ return [
     'Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\DiagnosticCode' => 'public',
     'Waaseyaa\Foundation\Migration\SchemaAuthorityManifest' => 'public',
+    // #2701: the seam a composition site implements so the migration runtime can
+    // ask the canonical entity-schema materializer for an absent entity base
+    // table without foundation (layer 0) importing entity-storage (layer 1).
+    'Waaseyaa\Foundation\Migration\EntityTableMaterializerInterface' => 'public',
     'Waaseyaa\Foundation\Log\LoggerInterface' => 'public',
     'Waaseyaa\Foundation\Security\SecretClass' => 'public',
     'Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy' => 'public',
@@ -79,6 +83,10 @@ return [
     'Waaseyaa\Foundation\Schema\Compiler\Validation\ValidationException' => 'public',
     'Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2' => 'public',
     'Waaseyaa\Foundation\Migration\Dag\MigrationKind' => 'public',
+    // #2701: audit vocabulary recorded in the ledger's apply_mode column.
+    'Waaseyaa\Foundation\Migration\Executor\ApplyMode' => 'public',
+    // #2701: internal classification result; not an authoring concept.
+    'Waaseyaa\Foundation\Migration\Executor\OpPrecondition' => 'internal',
     'Waaseyaa\Foundation\ServiceProvider\ServiceProviderInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\ServiceProvider' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface' => 'public',
