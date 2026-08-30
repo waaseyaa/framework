@@ -176,6 +176,77 @@ during field projection to **omission** of that field (success result, no
 disclosure policy; see docs/specs/mcp-endpoint.md "FieldReadDenied on
 anonymous `entity.read` / `entity.search`".
 
+### Local operator principal and the default local profile (ADR-022, #2658)
+
+`packages/ai-agent/src/LocalOperator/` holds the acting identity of the local
+AI-development plane. It exists because a CLI process runs under SAPI `cli`,
+which is absent from `HttpKernel::DEV_FALLBACK_SAPIS`
+(`['cli-server', 'frankenphp']`), so a stdio transport starts with no acting
+account and `AbstractAgentTool::requireCapability()` refuses every call.
+ADR-022 C-2 forbids the obvious shortcut — `DevAdminAccount`, whose own
+`ALLOWED_SAPIS` *does* include `cli`, and which is a wildcard on every axis.
+
+| Class | Role |
+|---|---|
+| `LocalOperatorPrincipal` | The never-persisted `AuthorizationPrincipalInterface`. Fixed string sentinel id `local-operator:stdio`, strict-membership `hasPermission()`, role `local_operator`, unbound tenant/community, and a `claimsGeneration()` digest over the granted capabilities, the admitted tool ids, the active `SovereigntyProfile`, and any tenant/community binding. Also supplies `auditActorUid()` (always `null`) and `auditMetadata()` for a `StrictAuditReservation`. |
+| `LocalOperatorTransportAttestation` | The only constructor gate (D-6 R-6). Refuses a SAPI other than `cli`, a runtime that is not an explicitly configured development environment (`RuntimePolicy::isExplicitDevelopment()`), and any transport id other than `waaseyaa.local.stdio`. **`PHP_SAPI` is consulted unconditionally and first**; the `$narrowingSapi` test seam is consulted second and can only ADD a refusal — see "The SAPI seam narrows only" below. |
+| `LocalOperatorToolProfile` | The D-7 default catalogue: an explicit tool-ID allowlist (`bimaaji_introspect_graph`, `bimaaji_introspect_section`, `bimaaji_search_specs`) plus the capability grant (`bimaaji.read`). Refuses any capability on `WITHHELD_CAPABILITIES`, which is D-8's fail-closed posture until a read-side sovereignty evaluation exists. |
+| `LocalOperatorAccountContextGuard` | An `AccountContextInterface` decorator that refuses the principal on **both** `set()` and `current()` (D-6 R-4). `EntityRepository::resolveActor()` casts the ambient account id to `int`, and `(int) 'local-operator:stdio'` is `0` — the `AnonymousUser` id. Guarding only `set()` would leave two live paths to a prohibited read: wrapping a context that already holds the principal, and mutation of the inner context through a second reference taken before the wrap. `current()` is the side `resolveActor()` actually consumes. The transport wraps its account context in one; the principal is passed directly to the gate and to `requireCapability()`, never installed as the ambient actor. |
+| `LocalOperatorRefusal` | The loud failure every refusal row raises, carrying the ADR row (`R-4`, `R-5`, `R-6`, `D-7`, `D-8`) it discharges. |
+
+**The SAPI seam narrows only.** `LocalOperatorTransportAttestation` accepts a
+`$narrowingSapi` argument so a test can prove the refusal for a SAPI its own
+process cannot run under. `PHP_SAPI` is checked unconditionally and first, and
+the argument is checked second and only to add a refusal. The asymmetry is
+load-bearing: a `$sapi ?? PHP_SAPI` resolution would let anything running under
+a real `cli-server` process obtain a principal by passing the string `'cli'` —
+a seam that can mint authority is not a seam. No in-process test can catch that
+regression, because the suite runs under `cli` and both resolutions behave
+identically there. `tests/Integration/LocalOperator/LocalOperatorHttpSapiRefusalTest.php`
+therefore starts PHP's own built-in server (SAPI `cli-server`), issues an HTTP
+request, and asserts refusal with every other gate deliberately satisfied. It
+doubles as the end-to-end form of R-1.
+
+**The out-of-process proofs are portable.** They invoke child PHP through
+`proc_open()` with an argv array and an explicit environment map, never a
+`NAME=value command` shell prefix — that is POSIX syntax, and `cmd.exe` parses
+it as a program named `APP_ENV=local`, so on Windows the probe would not run at
+all and the proof would pass vacuously. The `ci/local-operator-windows` job
+executes `packages/ai-agent/tests/Unit/LocalOperator` and
+`tests/Integration/LocalOperator` on `windows-2025` so that portability is a
+tested claim. The D-7.3 roster-gate sandbox is excluded from that lane: it
+builds its fixture tree with `symlink()`, which needs Developer Mode on
+Windows, and it exercises a gate that runs on the Linux lanes.
+
+**The allowlist is not a capability grant, and that distinction is gated.**
+`requireCapability()` evaluates a capability string and consults no tool
+roster, so a future class carrying `#[AsAgentTool(capability: 'bimaaji.read')]`
+would otherwise join the default profile on discovery.
+`bin/check-local-operator-tool-profile` scans every `#[AsAgentTool]` and every
+literal `new AgentTool(...)` under `packages/*/src`, classifies each as
+`default-profile` / `capability-admissible` / `withheld` /
+`dynamic-registration`, and diffs against
+`support/local-operator-tool-profile-roster.json`. Detection is a token walk, so
+it tolerates arbitrary whitespace, and the cheap file prefilter is the bare
+identifier `AgentTool` — a strict superset of what the walk can match. That
+matters: a prefilter of `'AgentTool('` made `new AgentTool (` (one space, valid
+PHP, lints clean) invisible, and the gate reported green with an unrostered
+`bimaaji.read` tool present. The gate's entire value rests on its scan being
+complete, so both spacings carry seeded regression controls. The `capability-admissible`
+class — granted capability, unlisted tool id — is empty today and cannot grow
+without a deliberate roster update. Two cross-checks read
+`LocalOperatorToolProfile::DEFAULT_TOOL_IDS` rather than the roster, so a
+reflexive `--write-roster` cannot silence a rename or removal. Seeded positive
+control: `tests/Architecture/LocalOperatorToolProfileGateTest.php`.
+
+**Not owned here.** The dispatch path does not exist yet. The strict-ledger
+refusal (`NullStrictAuditLedger` must not satisfy D-5) and the
+reserve/finalize wrapper around dispatch are #2657's; the stdio `surface`
+constant and per-request correlation id are #2659's. `bimaaji_search_specs` is
+on the allowlist and inert until #2661 and #2662 —
+`BimaajiServiceProvider::resolveSpecsDirectory()` returns `null` unless
+`bimaaji.specs_directory` is configured, and `docs/specs/` ships in no package.
+
 ## Agent Execution
 
 ### AgentInterface
@@ -1046,6 +1117,11 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-agent/src/AgentResult.php` | `AgentResult` | Execution result with actions |
 | `packages/ai-agent/src/AgentAction.php` | `AgentAction` | Single action value object |
 | `packages/ai-agent/src/AgentAuditLog.php` | `AgentAuditLog` | Audit log entry |
+| `packages/ai-agent/src/LocalOperator/LocalOperatorPrincipal.php` | `LocalOperatorPrincipal` | Never-persisted local development plane identity (ADR-022 D-3/D-4/D-5.D) |
+| `packages/ai-agent/src/LocalOperator/LocalOperatorTransportAttestation.php` | `LocalOperatorTransportAttestation` | The `cli` + explicit-dev + stdio-transport construction gate (D-6 R-6) |
+| `packages/ai-agent/src/LocalOperator/LocalOperatorToolProfile.php` | `LocalOperatorToolProfile` | Default tool-ID allowlist + capability grant (D-7), fail-closed on content capabilities (D-8) |
+| `packages/ai-agent/src/LocalOperator/LocalOperatorAccountContextGuard.php` | `LocalOperatorAccountContextGuard` | Refuses the principal as the ambient acting account (D-6 R-4) |
+| `packages/ai-agent/src/LocalOperator/LocalOperatorRefusal.php` | `LocalOperatorRefusal` | Row-tagged refusal exception for D-6/D-7/D-8 |
 | `packages/ai-agent/src/ToolRegistry.php` | `ToolRegistry` | Tool registration and lookup |
 | `packages/ai-agent/src/ToolRegistryInterface.php` | `ToolRegistryInterface` | Tool registry contract |
 | `packages/ai-agent/src/Provider/ProviderInterface.php` | `ProviderInterface` | LLM provider contract (sendMessage) |
