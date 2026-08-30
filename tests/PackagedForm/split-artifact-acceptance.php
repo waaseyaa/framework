@@ -502,13 +502,10 @@ function assert_composition(array $seal, Installation $installation): void
                 $version,
             ));
         }
-        if ((string) ($package['installation-source'] ?? '') !== 'dist') {
-            fail(sprintf(
-                'Installed %s came from "%s", not from a distributable artifact.',
-                $name,
-                (string) ($package['installation-source'] ?? '(none)'),
-            ));
-        }
+
+        // Artifact ORIGIN is asserted for every member, metapackage or not:
+        // the dist Composer recorded must be a zip inside the local artifact
+        // repository, so nothing was satisfied from a registry.
         $distType = (string) ($package['dist']['type'] ?? '');
         if ($distType !== 'zip') {
             fail(sprintf('Installed %s has dist type "%s", not "zip".', $name, $distType));
@@ -522,11 +519,73 @@ function assert_composition(array $seal, Installation $installation): void
                 $artifacts,
             ));
         }
+
+        assert_installation_shape($name, $package, $installation);
     }
 
     assert_no_source_symlinks($installation);
 
     assert_development_plane($seal, $installation);
+}
+
+/**
+ * What Composer must have DONE with a sealed member, keyed on package type.
+ *
+ * A `type: metapackage` package is never downloaded and never extracted:
+ * Composer resolves it, records its dist, and installs nothing. Its
+ * `installed.json` entry therefore carries no `installation-source` and a null
+ * `install-path`, and no directory appears under `vendor/`. That is correct
+ * behaviour, not a defect, and it was invisible here until #2655 put the first
+ * metapackage into the INSTALLED set — `core`, `cms` and `full` are sealed and
+ * resolvable but deliberately absent from the framework closure, so no
+ * metapackage had ever reached this loop before.
+ *
+ * The relaxation is keyed on TYPE, never on name. A name-keyed exemption would
+ * silently admit the next metapackage, and would keep passing if
+ * `waaseyaa/ai-development` ever stopped being one. And it is not an
+ * exemption in any case: the metapackage branch asserts its own invariant
+ * positively — nothing installed, nothing extracted — so a metapackage that
+ * suddenly grew an installation is a finding, exactly like a code-bearing
+ * package that lost one.
+ *
+ * @param array<string, mixed> $package the installed.json record
+ */
+function assert_installation_shape(string $name, array $package, Installation $installation): void
+{
+    $type = (string) ($package['type'] ?? '');
+    $source = $package['installation-source'] ?? null;
+    $installedPath = $installation->vendor . '/' . $name;
+
+    if ($type !== 'metapackage') {
+        if ((string) ($source ?? '') !== 'dist') {
+            fail(sprintf(
+                'Installed %s came from "%s", not from a distributable artifact.',
+                $name,
+                (string) ($source ?? '(none)'),
+            ));
+        }
+
+        return;
+    }
+
+    if ($source !== null) {
+        fail(sprintf(
+            'Metapackage %s records installation-source "%s"; Composer installs no bytes for a '
+            . 'metapackage, so a recorded source means this is no longer one.',
+            $name,
+            (string) $source,
+        ));
+    }
+    if (($package['install-path'] ?? null) !== null) {
+        fail(sprintf(
+            'Metapackage %s records install-path "%s"; a metapackage is never extracted.',
+            $name,
+            (string) $package['install-path'],
+        ));
+    }
+    if (is_dir($installedPath)) {
+        fail(sprintf('Metapackage %s must own no vendor directory, but %s exists.', $name, $installedPath));
+    }
 }
 
 /**
@@ -655,8 +714,12 @@ function assert_no_source_symlinks(Installation $installation): void
  */
 function assert_exported_files(array $seal, Installation $installation, array $only = []): void
 {
-    /** @var list<string> $closure */
-    $closure = $seal['framework_closure'];
+    /** @var list<string> $frameworkClosure */
+    $frameworkClosure = $seal['framework_closure'];
+    /** @var list<string> $developmentOnly */
+    $developmentOnly = $seal['development_only'];
+    $installedSet = array_merge($frameworkClosure, $developmentOnly);
+    $records = $installation->packages();
 
     foreach ((array) $seal['members'] as $member) {
         $name = (string) $member['name'];
@@ -668,11 +731,21 @@ function assert_exported_files(array $seal, Installation $installation, array $o
         }
         // The seal REPRESENTS every split package — that is acceptance bullet
         // one, and it is what makes the repository canonical for waaseyaa/*.
-        // Only the framework closure is INSTALLED, though: the metapackages
-        // and the opt-in distribution extensions (DIR-004) are resolvable but
-        // deliberately absent. `composition` owns that boundary; this surface
-        // compares bytes for what a consumer actually received.
-        if (!in_array($name, $closure, true)) {
+        // Only what a consumer INSTALLS is byte-compared, though: the
+        // consumer-facing metapackages and the opt-in distribution extensions
+        // (DIR-004) are resolvable but deliberately absent. `composition` owns
+        // that boundary. The development plane (#2655) IS installed — as a
+        // development dependency — so its code-bearing members are compared
+        // here too rather than growing the installed set without growing the
+        // byte proof.
+        if (!in_array($name, $installedSet, true)) {
+            continue;
+        }
+        // A metapackage is resolved and never extracted, so there are no
+        // installed bytes to compare. `assert_installation_shape` asserts that
+        // absence positively; comparing a directory that must not exist is
+        // what would be wrong here.
+        if ((string) ($records[$name]['type'] ?? '') === 'metapackage') {
             continue;
         }
 
@@ -947,6 +1020,60 @@ function self_test(array $seal, Installation $dev, Installation $noDev, string $
                 foreach ($document['packages'] as $index => $package) {
                     if (($package['name'] ?? '') === 'waaseyaa/entity') {
                         $document['packages'][$index]['dist']['url'] = 'https://registry.example.invalid/entity.zip';
+                    }
+                }
+
+                return $document;
+            }),
+        );
+        assert_composition($seal, $overlay);
+    };
+
+    // The invariant #2655 relaxed for metapackages must still BITE for every
+    // code-bearing package. A metapackage legitimately records no
+    // installation-source; a library that records none was never extracted,
+    // which is the packaging failure this surface exists to catch.
+    $controls['code-bearing-package-without-dist'] = static function () use ($seal, $dev, $scratch): void {
+        $overlay = $dev->withInstalledJson(
+            mutate_installed_json($dev, $scratch . '/no-dist.json', static function (array $document): array {
+                foreach ($document['packages'] as $index => $package) {
+                    if (($package['name'] ?? '') === 'waaseyaa/entity') {
+                        unset($document['packages'][$index]['installation-source']);
+                    }
+                }
+
+                return $document;
+            }),
+        );
+        assert_composition($seal, $overlay);
+    };
+
+    // The relaxation is keyed on TYPE, so it must stop applying the moment the
+    // package stops being a metapackage. This is the regression a name-keyed
+    // exemption would have masked.
+    $controls['metapackage-reclassified-as-library'] = static function () use ($seal, $dev, $scratch): void {
+        $overlay = $dev->withInstalledJson(
+            mutate_installed_json($dev, $scratch . '/reclassified.json', static function (array $document): array {
+                foreach ($document['packages'] as $index => $package) {
+                    if (($package['name'] ?? '') === 'waaseyaa/ai-development') {
+                        $document['packages'][$index]['type'] = 'library';
+                    }
+                }
+
+                return $document;
+            }),
+        );
+        assert_composition($seal, $overlay);
+    };
+
+    // And the metapackage branch is an assertion, not a skip: a metapackage
+    // that suddenly reports an installation is a finding too.
+    $controls['metapackage-reports-an-installation'] = static function () use ($seal, $dev, $scratch): void {
+        $overlay = $dev->withInstalledJson(
+            mutate_installed_json($dev, $scratch . '/meta-installed.json', static function (array $document): array {
+                foreach ($document['packages'] as $index => $package) {
+                    if (($package['name'] ?? '') === 'waaseyaa/ai-development') {
+                        $document['packages'][$index]['installation-source'] = 'dist';
                     }
                 }
 

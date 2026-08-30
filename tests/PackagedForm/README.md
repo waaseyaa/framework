@@ -59,10 +59,15 @@ the development plane (`waaseyaa/ai-development` is sealed, arrives in the dev
 consumer as a development dependency, carries the two members ADR-022 D-2
 requires, never reaches `waaseyaa/mcp`, and is in no production closure), and
 `--no-dev` exclusion — which removes every development-only member — including
-a boot of the `--no-dev` consumer. One surface #2649 names is still recorded as
-reserved in `fixtures/split-artifact-acceptance-surfaces.json`: stdio
-initialization (#2659). The development metapackage was reserved the same way
-until #2655 landed; its fail-closed hatch fired as designed. Thirteen seeded
-negative controls run on every invocation and the run fails if any corruption
-goes undetected. It seals `HEAD` and refuses a dirty worktree unless
+a boot of the `--no-dev` consumer. Artifact origin (a zip inside the local
+artifact repository) is asserted for every member; what Composer must have
+*done* with it is keyed on package type, because a `type: metapackage` is
+resolved and never extracted — so it must record no installation-source, a null
+install-path, and no vendor directory, while a code-bearing package must record
+a `dist` installation. One surface #2649 names is still recorded as reserved in
+`fixtures/split-artifact-acceptance-surfaces.json`: stdio initialization
+(#2659). The development metapackage was reserved the same way until #2655
+landed; its fail-closed hatch fired as designed. Sixteen seeded negative
+controls run on every invocation and the run fails if any corruption goes
+undetected. It seals `HEAD` and refuses a dirty worktree unless
 `--allow-dirty` is passed; Composer 2.9+ is required.

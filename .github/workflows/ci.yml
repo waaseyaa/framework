@@ -917,16 +917,83 @@ jobs:
           else
             # Ordinary PR/main CI proves the latest committed skeleton floor is
             # resolvable from the already-published release line.
+            #
+            # One narrow exception, and it is DATA rather than a special case
+            # written into this script: a first-party package the skeleton
+            # references that has never been split cannot exist on Packagist,
+            # and cannot until one release cut later. Those names are listed in
+            # support/skeleton-unpublished-packages.json and each gets a path
+            # repository scoped with `only` to exactly that name, so every
+            # other name still resolves from the published line and this job
+            # keeps proving what it claims. The steady state is an empty list;
+            # the step below fails once a listed package is published, which is
+            # what forces the entry back out.
+            mapfile -t unpublished < <(
+              php -r '
+                $roster = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+                foreach ($roster["packages"] as $entry) {
+                    printf("%s %s%s", $entry["package"], $entry["path"], PHP_EOL);
+                }
+              ' "$GITHUB_WORKSPACE/support/skeleton-unpublished-packages.json"
+            )
+
             composer_retry composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
               --repository='{"type":"path","url":"skeleton"}' \
               --stability=dev \
+              --no-install --no-scripts \
               --no-interaction
+
+            # The steady state of this roster is EMPTY, so the empty-array
+            # expansion is the path this loop is most likely to take.
+            for entry in ${unpublished[@]+"${unpublished[@]}"}; do
+              [ -n "$entry" ] || continue
+              pkg="${entry%% *}"
+              rel="${entry##* }"
+              slug="$(printf '%s' "$pkg" | tr '/' '-')"
+              echo "::notice title=Unpublished first-party package::${pkg} resolves from ${rel} until it is published (support/skeleton-unpublished-packages.json)"
+              composer config --working-dir="$work/skel-proj" "repositories.${slug}" \
+                "{\"type\":\"path\",\"url\":\"${GITHUB_WORKSPACE}/${rel}\",\"only\":[\"${pkg}\"]}"
+            done
+
+            composer_retry composer install --working-dir="$work/skel-proj" --no-interaction
+            composer run-script --working-dir="$work/skel-proj" post-create-project-cmd
           fi
           (cd "$work/skel-proj" && ./bin/maintenance/waaseyaa-audit-site)
           {
             echo "SKEL_PROJECT=$work/skel-proj"
             echo "SKEL_PROJECT_USES_PATH_REPOSITORIES=$SOURCE_SKELETON"
           } >> "$GITHUB_ENV"
+
+      # An exception nobody is forced to remove becomes permanent. Every name
+      # in support/skeleton-unpublished-packages.json claims to be unpublished;
+      # this asks Packagist whether that is still true and fails the moment it
+      # is not, so the narrowing above cannot outlive the reason for it. The
+      # steady state is an empty roster, which makes this a no-op.
+      - name: The unpublished-package exception is still necessary
+        run: |
+          set -euo pipefail
+          published=()
+          while read -r pkg; do
+            [ -n "$pkg" ] || continue
+            code="$(curl -s -o /dev/null -w '%{http_code}' "https://repo.packagist.org/p2/${pkg}.json")"
+            echo "packagist ${pkg} -> HTTP ${code}"
+            if [ "$code" = "200" ]; then
+              published+=("$pkg")
+            elif [ "$code" != "404" ]; then
+              echo "::warning title=Packagist unreachable::${pkg} returned HTTP ${code}; not treating that as published."
+            fi
+          done < <(
+            php -r '
+              $roster = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+              foreach ($roster["packages"] as $entry) {
+                  echo $entry["package"], PHP_EOL;
+              }
+            ' support/skeleton-unpublished-packages.json
+          )
+          if [ "${#published[@]}" -gt 0 ]; then
+            echo "::error title=Stale unpublished-package roster::${published[*]} is on Packagist now. Remove the entry from support/skeleton-unpublished-packages.json so ci/skeleton-create-project resolves the whole skeleton from the published release line again."
+            exit 1
+          fi
 
       - name: Fresh skeleton preserves the complete discovery set without classmap optimization
         run: |
