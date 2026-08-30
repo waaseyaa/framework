@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Access\User\UserSessionSnapshot;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
@@ -24,6 +26,13 @@ use Waaseyaa\User\User;
 #[CoversClass(SessionMiddleware::class)]
 final class SessionMiddlewareTest extends TestCase
 {
+    private function internalFields(int $generation = 0): UserInternalFieldReaderInterface
+    {
+        $reader = $this->createStub(UserInternalFieldReaderInterface::class);
+        $reader->method('sessionIdentity')->willReturn(new UserSessionSnapshot('', '', [], $generation));
+        return $reader;
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,7 +51,7 @@ final class SessionMiddlewareTest extends TestCase
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->expects($this->never())->method('find');
 
-        $middleware = new SessionMiddleware($repository);
+        $middleware = new SessionMiddleware($repository, internalFields: $this->internalFields());
         $request = Request::create('/test');
 
         $capturedAccount = null;
@@ -72,9 +81,9 @@ final class SessionMiddlewareTest extends TestCase
             ->with('42')
             ->willReturn($user);
 
-        $middleware = new SessionMiddleware($repository);
+        $middleware = new SessionMiddleware($repository, internalFields: $this->internalFields());
         $request = Request::create('/test');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42, 'waaseyaa_session_generation' => 0]);
 
         $capturedAccount = null;
         $next = new class($capturedAccount) implements HttpHandlerInterface {
@@ -94,6 +103,56 @@ final class SessionMiddlewareTest extends TestCase
     }
 
     #[Test]
+    public function rejects_a_session_without_a_generation(): void
+    {
+        $user = new User(['uid' => 42, 'name' => 'admin']);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        $request = Request::create('/test');
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+
+        $capturedAccount = null;
+        new SessionMiddleware($repository, internalFields: $this->internalFields(2))->process($request, new class($capturedAccount) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$ref) {}
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->attributes->get('_account');
+                return new Response('ok');
+            }
+        });
+
+        self::assertInstanceOf(AnonymousUser::class, $capturedAccount);
+        self::assertSame([], $request->attributes->get('_session'));
+    }
+
+    #[Test]
+    public function rejects_and_clears_a_session_from_an_older_generation(): void
+    {
+        $user = new User(['uid' => 42, 'name' => 'admin', 'session_generation' => 2]);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        $request = Request::create('/test');
+        $request->attributes->set('_session', [
+            'waaseyaa_uid' => 42,
+            'waaseyaa_session_generation' => 1,
+            'unrelated' => 'preserved',
+        ]);
+
+        $capturedAccount = null;
+        new SessionMiddleware($repository, internalFields: $this->internalFields(2))->process($request, new class($capturedAccount) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$ref) {}
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->attributes->get('_account');
+                return new Response('ok');
+            }
+        });
+
+        self::assertInstanceOf(AnonymousUser::class, $capturedAccount);
+        self::assertSame(['unrelated' => 'preserved'], $request->attributes->get('_session'));
+    }
+
+    #[Test]
     public function falls_back_to_anonymous_when_user_not_found(): void
     {
         $repository = $this->createMock(EntityRepositoryInterface::class);
@@ -104,7 +163,7 @@ final class SessionMiddlewareTest extends TestCase
 
         $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 999]);
+        $request->attributes->set('_session', ['waaseyaa_uid' => 999, 'waaseyaa_session_generation' => 0]);
 
         $capturedAccount = null;
         $next = new class($capturedAccount) implements HttpHandlerInterface {
@@ -133,7 +192,7 @@ final class SessionMiddlewareTest extends TestCase
 
         $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42, 'waaseyaa_session_generation' => 0]);
 
         $capturedAccount = null;
         $next = new class($capturedAccount) implements HttpHandlerInterface {
@@ -158,7 +217,7 @@ final class SessionMiddlewareTest extends TestCase
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->expects($this->never())->method('find');
 
-        $middleware = new SessionMiddleware($repository, $devAccount);
+        $middleware = new SessionMiddleware($repository, $devAccount, internalFields: $this->internalFields());
         $request = Request::create('/test');
 
         $capturedAccount = null;
@@ -190,9 +249,9 @@ final class SessionMiddlewareTest extends TestCase
             ->with('42')
             ->willReturn($user);
 
-        $middleware = new SessionMiddleware($repository, $devAccount);
+        $middleware = new SessionMiddleware($repository, $devAccount, internalFields: $this->internalFields());
         $request = Request::create('/test');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42, 'waaseyaa_session_generation' => 0]);
 
         $capturedAccount = null;
         $next = new class($capturedAccount) implements HttpHandlerInterface {
@@ -223,7 +282,7 @@ final class SessionMiddlewareTest extends TestCase
 
         $middleware = new SessionMiddleware($repository, $devAccount);
         $request = Request::create('/test');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 999]);
+        $request->attributes->set('_session', ['waaseyaa_uid' => 999, 'waaseyaa_session_generation' => 0]);
 
         $capturedAccount = null;
         $next = new class($capturedAccount) implements HttpHandlerInterface {
@@ -253,7 +312,7 @@ final class SessionMiddlewareTest extends TestCase
 
         $middleware = new SessionMiddleware($repository, $devAccount);
         $request = Request::create('/test');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42, 'waaseyaa_session_generation' => 0]);
 
         $capturedAccount = null;
         $next = new class($capturedAccount) implements HttpHandlerInterface {
@@ -437,9 +496,9 @@ final class SessionMiddlewareTest extends TestCase
             ->willReturn($user);
 
         $context = new RequestAccountContext();
-        $middleware = new SessionMiddleware($repository, accountContext: $context);
+        $middleware = new SessionMiddleware($repository, accountContext: $context, internalFields: $this->internalFields());
         $request = Request::create('/test');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42, 'waaseyaa_session_generation' => 0]);
 
         $capturedAccount = null;
         $next = new class($capturedAccount) implements HttpHandlerInterface {

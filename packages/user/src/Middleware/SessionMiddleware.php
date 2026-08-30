@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -15,8 +16,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\User\AnonymousUser;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\Session\NativeSession;
 use Waaseyaa\User\Session\SessionCookiePolicy;
+use Waaseyaa\User\User;
 
 #[AsMiddleware(pipeline: 'http', priority: 30)]
 final class SessionMiddleware implements HttpMiddlewareInterface
@@ -54,6 +57,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         private readonly array $trustedProxies = [],
         private readonly ?AccountContextInterface $accountContext = null,
         private readonly array $statelessPathPrefixes = [],
+        private readonly ?UserInternalFieldReaderInterface $internalFields = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -196,13 +200,19 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     private function resolveAccount(Request $request): AccountInterface
     {
         $session = $request->attributes->get('_session') ?? ($_SESSION ?? []);
-        $uid = $session['waaseyaa_uid'] ?? null;
+        $uid = $session[AuthenticatedSession::USER_ID_KEY] ?? null;
 
         if ($uid === null) {
             if ($this->devFallback !== null) {
                 $this->logger->info('SessionMiddleware: using dev fallback account (all permissions granted). This should only happen in development.');
                 return $this->devFallback;
             }
+            return new AnonymousUser();
+        }
+
+        $generation = $session[AuthenticatedSession::GENERATION_KEY] ?? null;
+        if (!is_int($generation)) {
+            $this->clearSessionIdentity($request, $session);
             return new AnonymousUser();
         }
 
@@ -213,10 +223,28 @@ final class SessionMiddleware implements HttpMiddlewareInterface
             return new AnonymousUser();
         }
 
-        if ($user instanceof AccountInterface) {
+        if ($user instanceof User) {
+            $currentGeneration = $this->internalFields?->sessionIdentity($user)->generation;
+            if ($currentGeneration === null || $generation !== $currentGeneration) {
+                $this->clearSessionIdentity($request, $session);
+                $this->logger->info(sprintf('SessionMiddleware: revoked stale session for user %s.', $uid));
+                return new AnonymousUser();
+            }
+
             return $user;
         }
 
         return new AnonymousUser();
+    }
+
+    /** @param array<string, mixed> $session */
+    private function clearSessionIdentity(Request $request, array $session): void
+    {
+        unset($session[AuthenticatedSession::USER_ID_KEY], $session[AuthenticatedSession::GENERATION_KEY]);
+        if ($request->attributes->has('_session')) {
+            $request->attributes->set('_session', $session);
+        } else {
+            AuthenticatedSession::clearIdentity();
+        }
     }
 }

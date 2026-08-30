@@ -82,12 +82,13 @@ final readonly class AuditedUserInternalFieldReader implements UserInternalField
 
     public function sessionIdentity(EntityInterface $user): UserSessionSnapshot
     {
-        $values = $this->read('user.session-identity', CapabilityReason::SessionBootstrap, $user, ['name', 'mail', 'roles']);
+        $values = $this->read('user.session-identity', CapabilityReason::SessionBootstrap, $user, ['name', 'mail', 'roles', 'session_generation']);
 
         return new UserSessionSnapshot(
             (string) ($values['name'] ?? ''),
             (string) ($values['mail'] ?? ''),
             $this->strings($values['roles'] ?? []),
+            max(0, (int) ($values['session_generation'] ?? 0)),
         );
     }
 

@@ -6,14 +6,17 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\User\Session\AuthenticatedSession;
 
 final class ResetPasswordController
 {
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuthTokenRepositoryInterface $tokenRepo,
+        private readonly UserInternalFieldReaderInterface $internalFields,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -50,7 +53,9 @@ final class ResetPasswordController
         $user = $entity;
 
         // 5. Update password
+        $generation = $this->internalFields->sessionIdentity($user)->generation;
         $user->setRawPassword($password);
+        $user->setSessionGeneration($generation + 1);
         $repository->save($user);
 
         // 6. Consume token and revoke all password_reset tokens for user
@@ -61,7 +66,7 @@ final class ResetPasswordController
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_regenerate_id(true);
         }
-        unset($_SESSION['waaseyaa_uid']);
+        AuthenticatedSession::clearIdentity();
 
         // 8. Return 200
         return new JsonResponse([

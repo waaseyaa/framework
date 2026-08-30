@@ -107,6 +107,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                 ->controller(new ResetPasswordController(
                     entityTypeManager: $etm,
                     tokenRepo: $tokenRepo,
+                    internalFields: $internalFields,
                 ))
                 ->allowAll()
                 ->methods('POST')
@@ -206,6 +207,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     twoFactor: $twoFactor,
                     rateLimiter: $rateLimiter,
                     entityTypeManager: $etm,
+                    internalFields: $internalFields,
                     extensions: $extensions,
                 ))
                 ->allowAll()

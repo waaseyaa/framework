@@ -19,6 +19,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\User\AuthMailer;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 final class RegisterController
@@ -188,7 +189,7 @@ final class RegisterController
             if (session_status() === PHP_SESSION_ACTIVE) {
                 session_regenerate_id(true);
             }
-            $_SESSION['waaseyaa_uid'] = $user->id();
+            AuthenticatedSession::issue($user, $this->internalFields->sessionIdentity($user)->generation);
         }
 
         $this->extensions->dispatch('registered', (string) $user->id(), [

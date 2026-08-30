@@ -294,6 +294,8 @@ final class UserAccessPolicyTest extends TestCase
             ['two_factor_secret', 'edit'],
             ['two_factor_secret', 'view'],
             ['two_factor_recovery_codes_hash', 'edit'],
+            ['session_generation', 'edit'],
+            ['session_generation', 'view'],
         ];
     }
 

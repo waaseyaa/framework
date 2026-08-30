@@ -13,6 +13,7 @@ use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 final class LoginController
@@ -116,10 +117,10 @@ final class LoginController
             ]);
         }
 
-        $_SESSION['waaseyaa_uid'] = $user->id();
+        $identity = $this->internalFields->sessionIdentity($user);
+        AuthenticatedSession::issue($user, $identity->generation);
         session_regenerate_id(true);
 
-        $identity = $this->internalFields->sessionIdentity($user);
         $this->extensions->dispatch('login_succeeded', (string) $user->id());
 
         return new JsonResponse([

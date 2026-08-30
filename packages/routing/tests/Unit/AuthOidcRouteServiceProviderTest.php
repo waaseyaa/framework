@@ -14,6 +14,7 @@ use Waaseyaa\Auth\Controller\ForgotPasswordController;
 use Waaseyaa\Auth\Controller\LoginController;
 use Waaseyaa\Auth\Controller\LogoutController;
 use Waaseyaa\Auth\Controller\RegisterController;
+use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\ResendVerificationController;
 use Waaseyaa\Auth\Controller\VerifyEmailController;
 use Waaseyaa\Auth\Controller\VerifyTwoFactorController;
@@ -162,6 +163,14 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
                 "The {$routeName} controller must receive the container's composed auth extension registry.",
             );
         }
+
+        $resetController = $router->getRouteCollection()->get('api.auth.reset_password')?->getDefault('_controller');
+        self::assertInstanceOf(ResetPasswordController::class, $resetController);
+        self::assertSame(
+            $internalFields,
+            new \ReflectionProperty(ResetPasswordController::class, 'internalFields')->getValue($resetController),
+            'Password reset must receive the audited session-generation reader used for account-wide revocation.',
+        );
 
         foreach ([
             'api.auth.register' => RegisterController::class,

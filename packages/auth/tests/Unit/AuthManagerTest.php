@@ -57,6 +57,7 @@ final class AuthManagerTest extends TestCase
         $this->auth->login($user);
 
         $this->assertSame($user->id(), $_SESSION['waaseyaa_uid']);
+        $this->assertSame(0, $_SESSION['waaseyaa_session_generation']);
     }
 
     public function testLoginRegeneratesSessionId(): void
@@ -67,6 +68,7 @@ final class AuthManagerTest extends TestCase
         $this->auth->login($user);
 
         $this->assertSame($user->id(), $_SESSION['waaseyaa_uid']);
+        $this->assertSame(0, $_SESSION['waaseyaa_session_generation']);
     }
 
     public function testLogoutClearsAllSessionData(): void
@@ -106,9 +108,16 @@ final class AuthManagerTest extends TestCase
 
     public function testIsAuthenticatedReturnsTrueWhenSessionHasUid(): void
     {
-        $_SESSION = ['waaseyaa_uid' => '123'];
+        $_SESSION = ['waaseyaa_uid' => '123', 'waaseyaa_session_generation' => 0];
 
         $this->assertTrue($this->auth->isAuthenticated());
+    }
+
+    public function testIsAuthenticatedReturnsFalseForLegacyUnversionedSession(): void
+    {
+        $_SESSION = ['waaseyaa_uid' => '123'];
+
+        $this->assertFalse($this->auth->isAuthenticated());
     }
 
     public function testIsAuthenticatedReturnsFalseWhenNoSession(): void

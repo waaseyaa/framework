@@ -6,6 +6,7 @@ namespace Waaseyaa\Auth;
 
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 /**
@@ -52,7 +53,7 @@ final class AuthManager
             session_regenerate_id(true);
         }
 
-        $_SESSION['waaseyaa_uid'] = $user->id();
+        AuthenticatedSession::issue($user, $this->internalFields->sessionIdentity($user)->generation);
     }
 
     /**
@@ -79,6 +80,9 @@ final class AuthManager
      */
     public function isAuthenticated(): bool
     {
-        return isset($_SESSION['waaseyaa_uid']) && $_SESSION['waaseyaa_uid'] !== '';
+        return isset($_SESSION[AuthenticatedSession::USER_ID_KEY])
+            && $_SESSION[AuthenticatedSession::USER_ID_KEY] !== ''
+            && isset($_SESSION[AuthenticatedSession::GENERATION_KEY])
+            && is_int($_SESSION[AuthenticatedSession::GENERATION_KEY]);
     }
 }
