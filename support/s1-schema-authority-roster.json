@@ -1760,6 +1760,20 @@
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 1
         },
@@ -1797,6 +1811,20 @@
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 6
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 8
         },
         {
             "path": "packages/cli/tests/Unit/Handler/MigrateHandlerDryRunVerifyTest.php",
