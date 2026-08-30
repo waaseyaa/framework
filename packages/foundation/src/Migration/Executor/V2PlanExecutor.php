@@ -62,7 +62,7 @@ final readonly class V2PlanExecutor
         // 2. Targeted materialization of absent prerequisite entity base tables.
         $materialized = [];
         if ($this->materializer !== null && !$plan->root->isEmpty()) {
-            $materialized = $this->materializer->materialize(PlanTargets::tables($plan->root));
+            $materialized = $this->materializer->materialize(PlanTargets::prerequisiteTables($plan->root));
         }
 
         // An empty authored plan is a successful no-op apply (§15 Q3), not an

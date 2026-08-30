@@ -206,8 +206,28 @@ final readonly class OpPreconditionResolver
                 continue;
             }
             $columnName = (string) ($column['name'] ?? '');
+            // cid < 0 marks an expression or rowid entry. The authored op models
+            // plain columns only, so equivalence cannot be established.
+            if ((int) ($column['cid'] ?? 0) < 0) {
+                throw IncompatibleSchemaStateException::index(
+                    $op->table,
+                    $name,
+                    'declared plain columns, found an expression or rowid entry',
+                );
+            }
             $expectedCollation = $this->columnCollation($op->table, $columnName);
-            $actualCollation = strtoupper(trim((string) ($column['coll'] ?? 'BINARY')));
+            if ($expectedCollation === null) {
+                throw IncompatibleSchemaStateException::index(
+                    $op->table,
+                    $name,
+                    sprintf(
+                        'the collation of column "%s" could not be established from the stored schema, '
+                        . 'so index equivalence cannot be proven',
+                        $columnName,
+                    ),
+                );
+            }
+            $actualCollation = strtoupper(trim((string) ($column['coll'] ?? '')));
             if ($actualCollation !== $expectedCollation) {
                 throw IncompatibleSchemaStateException::index(
                     $op->table,
@@ -243,37 +263,6 @@ final readonly class OpPreconditionResolver
         }
 
         return OpPrecondition::AlreadySatisfied;
-    }
-
-    /**
-     * The collation an authored index would use for this column.
-     *
-     * An authored {@see AddIndex} declares no collation, so the index the
-     * compiler emits inherits the column's. SQLite exposes that only in the
-     * table's DDL, so it is read from `sqlite_master` and defaults to `BINARY`
-     * — SQLite's own default — when the column declares none. A live index
-     * whose collation differs is refused rather than accepted, because the
-     * uniqueness and ordering semantics genuinely differ.
-     */
-    private function columnCollation(string $table, string $column): string
-    {
-        $sql = $this->connection->fetchOne(
-            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
-            [$table],
-        );
-        if (!is_string($sql) || $sql === '') {
-            return 'BINARY';
-        }
-
-        $quoted = preg_quote($column, '/');
-        $matched = preg_match(
-            '/(?:"' . $quoted . '"|`' . $quoted . '`|\[' . $quoted . '\]|\b' . $quoted . '\b)'
-            . '[^,()]*?\bCOLLATE\s+("?)(\w+)\1/i',
-            $sql,
-            $matches,
-        );
-
-        return $matched === 1 ? strtoupper($matches[2]) : 'BINARY';
     }
 
     /**
@@ -323,6 +312,30 @@ final readonly class OpPreconditionResolver
         }
 
         return $text;
+    }
+
+    /**
+     * The collation an authored index would use for this column, or null when
+     * it cannot be established.
+     *
+     * An authored {@see AddIndex} declares no collation, so the index the
+     * compiler emits inherits the column's. SQLite exposes that only in the
+     * stored DDL, which {@see SqliteTableDefinition} scans. A null result means
+     * "unknown", and callers fail closed rather than assuming `BINARY` — an
+     * assumption would silently accept an index with different uniqueness and
+     * ordering semantics, which is the whole reason collation is checked.
+     */
+    private function columnCollation(string $table, string $column): ?string
+    {
+        $sql = $this->connection->fetchOne(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+            [$table],
+        );
+        if (!is_string($sql) || $sql === '') {
+            return null;
+        }
+
+        return new SqliteTableDefinition($sql)->collationOf($column);
     }
 
     private function tableExists(string $table): bool

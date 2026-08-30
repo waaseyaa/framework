@@ -37,7 +37,7 @@ final class PlanTargetsTest extends TestCase
         // the rename is about to produce, and the rename then collides.
         self::assertSame(
             ['old_account'],
-            PlanTargets::tablesForOp(new RenameTable('old_account', 'account')),
+            PlanTargets::prerequisitesForOp(new RenameTable('old_account', 'account')),
         );
     }
 
@@ -46,7 +46,7 @@ final class PlanTargetsTest extends TestCase
     {
         self::assertSame(
             ['profile', 'account'],
-            PlanTargets::tablesForOp(new AddForeignKey(
+            PlanTargets::prerequisitesForOp(new AddForeignKey(
                 'profile',
                 new ForeignKeySpec('account', ['account_id'], ['eid']),
             )),
@@ -58,10 +58,10 @@ final class PlanTargetsTest extends TestCase
     {
         $spec = new ColumnSpec(type: 'text', nullable: true);
 
-        self::assertSame(['account'], PlanTargets::tablesForOp(new AddColumn('account', 'a', $spec)));
-        self::assertSame(['account'], PlanTargets::tablesForOp(new DropColumn('account', 'a')));
-        self::assertSame(['account'], PlanTargets::tablesForOp(new AddIndex('account', ['a'])));
-        self::assertSame(['account'], PlanTargets::tablesForOp(new RenameColumn('account', 'a', 'b')));
+        self::assertSame(['account'], PlanTargets::prerequisitesForOp(new AddColumn('account', 'a', $spec)));
+        self::assertSame(['account'], PlanTargets::prerequisitesForOp(new DropColumn('account', 'a')));
+        self::assertSame(['account'], PlanTargets::prerequisitesForOp(new AddIndex('account', ['a'])));
+        self::assertSame(['account'], PlanTargets::prerequisitesForOp(new RenameColumn('account', 'a', 'b')));
     }
 
     #[Test]
@@ -74,13 +74,13 @@ final class PlanTargetsTest extends TestCase
             new AddColumn('profile', 'c', $spec),
         ]);
 
-        self::assertSame(['profile', 'account'], PlanTargets::tables($diff));
+        self::assertSame(['profile', 'account'], PlanTargets::prerequisiteTables($diff));
     }
 
     #[Test]
     public function an_empty_composite_requires_nothing(): void
     {
-        self::assertSame([], PlanTargets::tables(new CompositeDiff()));
+        self::assertSame([], PlanTargets::prerequisiteTables(new CompositeDiff()));
     }
 
     #[Test]

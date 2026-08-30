@@ -1179,9 +1179,22 @@ nullable column.
 Index identity is the name the compiler will actually emit, compared through
 `PRAGMA index_xinfo` so that partiality, sort direction and **collation** all
 participate. An authored index declares no collation and therefore inherits the
-column's, read from `sqlite_master` and defaulting to SQLite's `BINARY`; an index
-under a different collation is refused, because its uniqueness and ordering
-semantics genuinely differ. `MigrationRepository::record()` accepts a nullable
+column's; an index under a different collation is refused, because its uniqueness
+and ordering semantics genuinely differ.
+
+Collation interpretation is **authoritative or silent**. `PRAGMA table_info` does
+not report collation, so `SqliteTableDefinition` scans the stored
+`sqlite_master.sql` with quote, string, comment and nesting awareness and
+distinguishes three outcomes: a declared `COLLATE X` yields `X`; a column with no
+`COLLATE` clause yields `BINARY`, which is authoritative because it is SQLite's
+documented default rather than a guess; and anything unresolved — table absent,
+DDL unreadable, column not found, a `COLLATE` clause whose argument cannot be
+read — is **unknown**. Unknown fails closed: equivalence cannot be established,
+so the operation is refused. Defaulting unknown to `BINARY` would silently accept
+an index with different semantics, which is the failure the check exists to
+prevent. An index entry that is an expression or rowid rather than a plain column
+(`cid < 0`) is likewise refused, because the authored operation models plain
+columns only. `MigrationRepository::record()` accepts a nullable
 `apply_mode` (`applied` | `already_satisfied`), added idempotently by
 `ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
 and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.

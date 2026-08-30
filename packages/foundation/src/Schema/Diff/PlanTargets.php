@@ -5,8 +5,15 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Schema\Diff;
 
 /**
- * Enumerates the physical tables a {@see CompositeDiff} requires to already
- * exist before it runs.
+ * Answers two different questions about the tables a {@see CompositeDiff} names.
+ *
+ * **Prerequisites** are the tables an operation requires to already exist.
+ * **Affected** tables are the ones it changes. They are not the same set, and
+ * conflating them is a defect: a rename *requires* its source but *changes*
+ * both its source and its destination. Materialization must use prerequisites,
+ * or it pre-creates the table the rename is about to produce; uncertainty
+ * tracking must use affected tables, or a later operation is judged against a
+ * table an earlier one already altered.
  *
  * Reads each op's canonical dictionary rather than its implementation class, so
  * the closed op set stays enforced in one place ({@see OpKind}) and adding an op
@@ -26,7 +33,7 @@ final readonly class PlanTargets
      *
      * @return list<string>
      */
-    public static function tables(CompositeDiff $diff): array
+    public static function prerequisiteTables(CompositeDiff $diff): array
     {
         $tables = [];
         // Ops are walked in authored order so a table an EARLIER op produces is
@@ -36,7 +43,7 @@ final readonly class PlanTargets
         $produced = [];
 
         foreach ($diff->ops as $op) {
-            foreach (self::tablesForOp($op) as $table) {
+            foreach (self::prerequisitesForOp($op) as $table) {
                 if ($table === '' || in_array($table, $produced, true)) {
                     continue;
                 }
@@ -44,7 +51,7 @@ final readonly class PlanTargets
                     $tables[] = $table;
                 }
             }
-            foreach (self::tablesProducedByOp($op) as $table) {
+            foreach (self::producedByOp($op) as $table) {
                 if ($table !== '' && !in_array($table, $produced, true)) {
                     $produced[] = $table;
                 }
@@ -60,7 +67,7 @@ final readonly class PlanTargets
      *
      * @return list<string>
      */
-    public static function tablesProducedByOp(SchemaDiffOp $op): array
+    private static function producedByOp(SchemaDiffOp $op): array
     {
         return $op->kind() === OpKind::RenameTable
             ? [self::str($op->toCanonical(), 'to')]
@@ -68,9 +75,53 @@ final readonly class PlanTargets
     }
 
     /**
+     * Every table this composite changes, in deterministic order.
+     *
+     * Distinct from {@see prerequisiteTables()}: this is what becomes unknown to
+     * anything reasoning about state after the composite runs.
+     *
      * @return list<string>
      */
-    public static function tablesForOp(SchemaDiffOp $op): array
+    public static function affectedTables(CompositeDiff $diff): array
+    {
+        $tables = [];
+        foreach ($diff->ops as $op) {
+            foreach (self::affectedByOp($op) as $table) {
+                if ($table !== '' && !in_array($table, $tables, true)) {
+                    $tables[] = $table;
+                }
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * Every table one op changes.
+     *
+     * A rename changes both ends: the source stops existing and the destination
+     * starts. A foreign key changes only the table carrying the constraint —
+     * the referenced table is a prerequisite, not a casualty.
+     *
+     * @return list<string>
+     */
+    public static function affectedByOp(SchemaDiffOp $op): array
+    {
+        $canonical = $op->toCanonical();
+
+        return match ($op->kind()) {
+            OpKind::RenameTable => [
+                self::str($canonical, 'from'),
+                self::str($canonical, 'to'),
+            ],
+            default => [self::str($canonical, 'table')],
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function prerequisitesForOp(SchemaDiffOp $op): array
     {
         $canonical = $op->toCanonical();
 
