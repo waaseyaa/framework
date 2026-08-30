@@ -1,6 +1,6 @@
 {
     "manifestVersion": 1,
-    "identityDigest": "cac6c6a79ad9dea7f9e0abb2cfd2cf488d8f3bd8d47e41829caa62c8c25b66f3",
+    "identityDigest": "b53097a4daddc2e165b00540df4cd330383e728cdd1d7ab60930767d80270339",
     "identityExcludes": [
         "acceptance"
     ],
@@ -11,12 +11,12 @@
         "acceptance": "Scan the installed dist directory and require the same published.treeDigest."
     },
     "source": {
-        "signature": "b029f4b1b2f6a6c3f84f28e33af0b6202cbe0c9d2e4c04bb9ecbc4c8448302b9",
-        "buildIdSignature": "89be6151c23ceaa00adee714ad8865a75bf939d9b95914e0501f62234dcbc53e",
-        "buildId": "waaseyaa-89be6151c23ceaa00adee714ad8865a7"
+        "signature": "91b12d36fa5b5570a8817eb5e8deaaa3762f59857d7a31ddfcdd6f80822e7567",
+        "buildIdSignature": "14ca160117afaa5592572b4dab62f91643f15d2a6f5d03fa789ba421717b0630",
+        "buildId": "waaseyaa-14ca160117afaa5592572b4dab62f916"
     },
     "published": {
-        "treeDigest": "f21f9b885bff61d0aa750bcf98d1705fd72929584bf7c20f0cbe8ed6701d46ca",
+        "treeDigest": "6607ec0950c36da7eb088f363d5f0d63427c3c456c534bdfa7da3146f2e5bc8d",
         "fileCount": 98,
         "byteCount": 593082
     },
@@ -52,13 +52,12 @@
         "intermediate": {
             "root": "packages/admin/.output",
             "artifactCount": 99,
-            "inventoryDigest": "7b5ef1580bad0856ddf02bf48c9953f87779f188e8d165ddfc545fd3e5b3a852"
+            "inventoryDigest": "707eabac283752bc8a4f77ee242a37508620b758645e7d8995df2b2be8a480ac"
         },
-        "previousPublishedTreeDigest": "f92bf45270675ff676ad08da6826ddb9e2a09fb7242f55f6d39d784bf2b91f39",
+        "previousPublishedTreeDigest": "f21f9b885bff61d0aa750bcf98d1705fd72929584bf7c20f0cbe8ed6701d46ca",
         "changed": {
             "added": [
-                "_nuxt/B5-fQWz6.js",
-                "_nuxt/builds/meta/waaseyaa-89be6151c23ceaa00adee714ad8865a7.json"
+                "_nuxt/builds/meta/waaseyaa-14ca160117afaa5592572b4dab62f916.json"
             ],
             "modified": [
                 "200.html",
@@ -82,14 +81,13 @@
                 "workflows/index.html"
             ],
             "removed": [
-                "_nuxt/CuPdbbaz.js",
-                "_nuxt/builds/meta/waaseyaa-c874fac430d725664be8d2a59fe2e28c.json"
+                "_nuxt/builds/meta/waaseyaa-89be6151c23ceaa00adee714ad8865a7.json"
             ]
         },
         "toolchain": {
             "nodePin": "24",
-            "nodeRuntime": "v24.20.0",
-            "npmRuntime": "11.19.0"
+            "nodeRuntime": "v24.19.0",
+            "npmRuntime": "11.17.0"
         }
     }
 }
