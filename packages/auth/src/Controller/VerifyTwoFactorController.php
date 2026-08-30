@@ -6,10 +6,12 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 /**
@@ -38,6 +40,7 @@ final class VerifyTwoFactorController
         private readonly TwoFactorService $twoFactor,
         private readonly RateLimiterInterface $rateLimiter,
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly UserInternalFieldReaderInterface $internalFields,
         ?AuthExtensionRegistry $extensions = null,
     ) {
         $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
@@ -98,7 +101,7 @@ final class VerifyTwoFactorController
         }
 
         if ($isPending) {
-            $_SESSION['waaseyaa_uid'] = $user->id();
+            AuthenticatedSession::issue($user, $this->internalFields->sessionIdentity($user)->generation);
             unset($_SESSION['waaseyaa_pending_2fa_uid']);
             if (session_status() === \PHP_SESSION_ACTIVE) {
                 session_regenerate_id(true);

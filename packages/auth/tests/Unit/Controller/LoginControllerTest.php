@@ -6,6 +6,8 @@ namespace Waaseyaa\Auth\Tests\Unit\Controller;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -178,6 +180,27 @@ final class LoginControllerTest extends TestCase
         ]));
 
         $this->assertNotSame(401, $response->getStatusCode(), (string) $response->getContent());
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function successful_login_issues_a_generation_bound_session(): void
+    {
+        session_save_path(sys_get_temp_dir());
+        self::assertTrue(session_start());
+        [$entityTypeManager, $upgrade] = $this->migratedRosterController();
+        $controller = $this->makeLegacyController($entityTypeManager, $upgrade);
+
+        $response = $controller($this->makeRequest([
+            'username' => 'migrated.member',
+            'password' => 'the password they already have',
+        ]));
+
+        self::assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        self::assertArrayHasKey('waaseyaa_uid', $_SESSION);
+        self::assertSame(0, $_SESSION['waaseyaa_session_generation']);
+        session_write_close();
     }
 
     #[Test]

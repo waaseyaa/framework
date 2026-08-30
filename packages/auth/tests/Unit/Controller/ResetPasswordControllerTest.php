@@ -10,10 +10,13 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Access\User\UserSessionSnapshot;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\User\User;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 #[CoversClass(ResetPasswordController::class)]
 final class ResetPasswordControllerTest extends TestCase
@@ -53,10 +56,14 @@ final class ResetPasswordControllerTest extends TestCase
     private function makeController(
         ?EntityTypeManager $entityTypeManager = null,
         ?AuthTokenRepositoryInterface $tokenRepo = null,
+        int $generation = 0,
     ): ResetPasswordController {
+        $internalFields = $this->createStub(UserInternalFieldReaderInterface::class);
+        $internalFields->method('sessionIdentity')->willReturn(new UserSessionSnapshot('', '', [], $generation));
         return new ResetPasswordController(
             entityTypeManager: $entityTypeManager ?? $this->makeEntityTypeManager(),
             tokenRepo: $tokenRepo ?? $this->makeTokenRepo(),
+            internalFields: $internalFields,
         );
     }
 
@@ -180,5 +187,25 @@ final class ResetPasswordControllerTest extends TestCase
         $data = json_decode((string) $response->getContent(), true);
         $this->assertTrue($data['ok']);
         $this->assertStringContainsString('Password has been reset', $data['message']);
+        $this->assertSame(1, (new UserInternalFieldReaderFixture())->sessionIdentity($user)->generation);
+    }
+
+    #[Test]
+    public function invalid_token_does_not_advance_session_generation(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects(self::never())->method('save');
+        $controller = $this->makeController(
+            entityTypeManager: $this->makeEntityTypeManager($storage),
+            tokenRepo: $this->makeTokenRepo(null),
+            generation: 3,
+        );
+
+        $controller($this->makeRequest([
+            'token' => 'invalid',
+            'password' => 'newpassword123',
+            'password_confirmation' => 'newpassword123',
+        ]));
+
     }
 }

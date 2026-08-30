@@ -34,6 +34,7 @@ final class UserFieldReadClassificationTest extends TestCase
             'two_factor_secret' => FieldReadLevel::Internal,
             'two_factor_recovery_codes_hash' => FieldReadLevel::Internal,
             'two_factor_last_used_step' => FieldReadLevel::Internal,
+            'session_generation' => FieldReadLevel::Internal,
         ];
 
         self::assertEqualsCanonicalizing(array_keys($expected), array_keys($definitions));

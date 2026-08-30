@@ -296,6 +296,7 @@ final class RegisterControllerTest extends TestCase
         $this->assertSame('Alice', $data['data']['name']);
         $this->assertSame('alice@example.com', $data['data']['email']);
         $this->assertFalse($data['data']['email_verified']);
+        $this->assertSame(0, $_SESSION['waaseyaa_session_generation']);
     }
 
     #[Test]
@@ -325,6 +326,7 @@ final class RegisterControllerTest extends TestCase
         $this->assertSame(201, $response->getStatusCode());
         $data = json_decode((string) $response->getContent(), true);
         $this->assertTrue($data['data']['email_verified']);
+        $this->assertSame(0, $_SESSION['waaseyaa_session_generation']);
     }
 
     #[Test]

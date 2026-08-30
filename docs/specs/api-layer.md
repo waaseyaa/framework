@@ -1,5 +1,12 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-29 - #2700: AuthOidcRouteServiceProvider injects the
+audited user-internal-field reader into password-reset and two-factor
+verification controllers. Reset atomically advances the account's session
+generation and clears the current session; two-factor promotion binds the
+issued authenticated session to the current generation. Route, request, and
+response shapes are unchanged. -->
+
 <!-- Spec reviewed 2026-08-29 - #2694: AuthOidcRouteServiceProvider resolves
 the application-composed AuthExtensionRegistry once and injects it into every
 auth route controller that consumes the registry, and passes the runtime logger

@@ -45,7 +45,7 @@ final class UserSensitiveFieldCompletenessTest extends TestCase
      * Field names that are NEVER legitimately viewable by a non-admin — the
      * credential class. Conservative on purpose (avoids `status`/`roles`/etc.).
      */
-    private const string SENSITIVE_PATTERN = '/(secret|passwd|password|^pass$|_pass$|token|_hash$|hash$|two_factor|recovery|private_key|api_key|credential)/i';
+    private const string SENSITIVE_PATTERN = '/(secret|passwd|password|^pass$|_pass$|token|_hash$|hash$|two_factor|recovery|private_key|api_key|credential|^session_generation$)/i';
 
     #[Test]
     public function everySensitiveUserFieldIsForbiddenToANonAdmin(): void
@@ -61,6 +61,7 @@ final class UserSensitiveFieldCompletenessTest extends TestCase
         self::assertContains('two_factor_secret', $sensitive, 'derivation must include the declared credential fields');
         self::assertContains('pass', $sensitive, 'derivation must include the password credential key');
         self::assertContains('legacy_pass', $sensitive, 'derivation must include the imported-credential key');
+        self::assertContains('session_generation', $sensitive, 'derivation must include the session-revocation key');
 
         foreach ($sensitive as $field) {
             self::assertTrue(

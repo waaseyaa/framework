@@ -103,6 +103,9 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     #[Field(type: 'integer', label: 'Two-factor last-used step', description: 'Last consumed TOTP time step; blocks replay of a code within its validity window. null until the first successful TOTP verification.', settings: ['weight' => 52, 'internal' => true], read: FieldReadLevel::Internal)]
     public ?int $two_factor_last_used_step = null;
 
+    #[Field(type: 'integer', required: false, default: 0, label: 'Session generation', description: 'Monotonic generation used to revoke all password-authenticated sessions.', settings: ['internal' => true], read: FieldReadLevel::Internal)]
+    public int $session_generation = 0;
+
     /**
      * @param array<string, mixed> $values Initial entity values.
      * @param array<string, string> $entityKeys Explicit keys when reconstructing via {@see ContentEntityBase::duplicateInstance()}.
@@ -120,6 +123,7 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
             'roles' => [],
             'permissions' => [],
             'status' => true,
+            'session_generation' => 0,
         ];
 
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
@@ -312,6 +316,15 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
         }
 
         return password_verify($plaintext, $hash);
+    }
+
+    public function setSessionGeneration(int $generation): static
+    {
+        if ($generation < 0) {
+            throw new \InvalidArgumentException('Session generation cannot be negative.');
+        }
+
+        return $this->set('session_generation', $generation);
     }
 
     // -----------------------------------------------------------------

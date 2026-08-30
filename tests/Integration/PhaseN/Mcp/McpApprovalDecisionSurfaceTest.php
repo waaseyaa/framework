@@ -62,8 +62,10 @@ use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 /**
@@ -220,7 +222,8 @@ final class McpApprovalDecisionSurfaceTest extends TestCase
 
     private function login(int $uid): void
     {
-        $_SESSION['waaseyaa_uid'] = $uid;
+        $_SESSION[AuthenticatedSession::USER_ID_KEY] = $uid;
+        $_SESSION[AuthenticatedSession::GENERATION_KEY] = 0;
         $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
     }
 
@@ -325,7 +328,10 @@ final class McpApprovalDecisionSurfaceTest extends TestCase
             'http.identity-bootstrap',
         ));
         $pipeline = new HttpPipeline()
-            ->withMiddleware(new SessionMiddleware($this->entityTypeManager->getRepository('user')))
+            ->withMiddleware(new SessionMiddleware(
+                $this->entityTypeManager->getRepository('user'),
+                internalFields: new UserInternalFieldReaderFixture(),
+            ))
             ->withMiddleware(new CsrfMiddleware())
             ->withMiddleware(new FieldReadContextMiddleware($principalFactory, new AccountFieldReadScope()))
             ->withMiddleware(new AuthorizationMiddleware(new AccessChecker()));

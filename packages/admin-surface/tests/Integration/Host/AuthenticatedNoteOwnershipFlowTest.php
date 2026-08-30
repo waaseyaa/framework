@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface\Tests\Integration\Host;
 
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -50,6 +51,7 @@ use Waaseyaa\Note\Note;
 use Waaseyaa\Note\NoteAccessPolicy;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 /**
@@ -172,7 +174,10 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
             $method,
             content: $payload === [] ? null : json_encode($payload, JSON_THROW_ON_ERROR),
         );
-        $request->attributes->set('_session', ['waaseyaa_uid' => 73]);
+        $request->attributes->set('_session', [
+            AuthenticatedSession::USER_ID_KEY => 73,
+            AuthenticatedSession::GENERATION_KEY => 0,
+        ]);
         $match = new UrlMatcher($router->getRouteCollection(), new RequestContext('', $method))->match($path);
         $route = $router->getRouteCollection()->get($match['_route']);
         self::assertNotNull($route);
@@ -181,7 +186,10 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
         self::assertIsCallable($controller);
 
         $pipeline = new HttpPipeline()
-            ->withMiddleware(new SessionMiddleware($this->entityTypeManager->getRepository('user')))
+            ->withMiddleware(new SessionMiddleware(
+                $this->entityTypeManager->getRepository('user'),
+                internalFields: new UserInternalFieldReaderFixture(),
+            ))
             ->withMiddleware(new FieldReadContextMiddleware($this->principalFactory(), $this->scope))
             ->withMiddleware(new AuthorizationMiddleware(new AccessChecker()));
 

@@ -13,6 +13,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
@@ -605,6 +606,10 @@ final class HttpKernel extends AbstractKernel
         if (!$communityContext instanceof CommunityContextInterface) {
             throw new \LogicException('The HTTP pipeline requires the Foundation community context binding.');
         }
+        $internalFields = $this->getHttpServiceResolver()->resolve(UserInternalFieldReaderInterface::class);
+        if (!$internalFields instanceof UserInternalFieldReaderInterface) {
+            throw new \LogicException('The HTTP pipeline requires the audited User internal-field reader.');
+        }
 
         $builtIns = [
             // Outermost response policy: it unwinds after every cookie writer
@@ -653,6 +658,7 @@ final class HttpKernel extends AbstractKernel
                 // mirrors `_account` into it on every request (FR-002).
                 accountContext: $this->accountContext(),
                 statelessPathPrefixes: $this->sessionStatelessPaths(),
+                internalFields: $internalFields,
             ),
             new CommunityMiddleware($communityContext),
             // Same resolved session.cookie policy as SessionMiddleware, so a

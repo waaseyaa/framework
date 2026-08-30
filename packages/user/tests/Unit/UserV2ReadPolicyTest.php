@@ -112,7 +112,7 @@ final class UserV2ReadPolicyTest extends TestCase
         $policy = new UserProtectedFieldReadPolicy();
         $admin = $this->principal(1, ['administer users']);
 
-        foreach (['mail', 'pass', 'password_hash', 'role', 'roles', 'permissions', 'email_verified', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'] as $field) {
+        foreach (['mail', 'pass', 'password_hash', 'role', 'roles', 'permissions', 'email_verified', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step', 'session_generation'] as $field) {
             self::assertTrue($policy->access($admin, $this->structure(5), $this->subject([]), $field)->isForbidden(), $field);
         }
     }

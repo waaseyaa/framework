@@ -27,7 +27,7 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
             ['user.two-factor', CapabilityReason::CredentialVerification, ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step']],
             ['user.mail-delivery', CapabilityReason::MailDelivery, ['name', 'mail']],
             ['user.verification', CapabilityReason::CredentialVerification, ['mail', 'email_verified']],
-            ['user.session-identity', CapabilityReason::SessionBootstrap, ['name', 'mail', 'roles']],
+            ['user.session-identity', CapabilityReason::SessionBootstrap, ['name', 'mail', 'roles', 'session_generation']],
             ['user.maintenance-authorization', CapabilityReason::MaintenanceCli, ['roles', 'permissions']],
         ] as [$issuer, $reason, $fields]) {
             $registry->register(new CapabilityDeclaration(
@@ -56,6 +56,7 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
                 'email_verified' => 1, 'roles' => ['editor'], 'permissions' => ['edit'],
                 'two_factor_secret' => 'secret', 'two_factor_recovery_codes_hash' => ['recovery'],
                 'two_factor_last_used_step' => 123,
+                'session_generation' => 4,
             ];
             public function id(): int|string|null { return 7; }
             public function uuid(): string { return 'user-7'; }
@@ -75,6 +76,7 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
         self::assertSame('member@example.test', $reader->mailDelivery($user)->mail);
         self::assertTrue($reader->verification($user)->emailVerified);
         self::assertSame(['editor'], $reader->sessionIdentity($user)->roles);
+        self::assertSame(4, $reader->sessionIdentity($user)->generation);
         self::assertSame(['editor'], $reader->maintenanceAuthorization($user)->roles);
         self::assertSame([
             // #2544: `legacy_pass` is read under the SAME credential-verification
@@ -83,7 +85,8 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
             ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'],
             ['name', 'mail'],
             ['mail', 'email_verified'],
-            ['name', 'mail', 'roles'],
+            ['name', 'mail', 'roles', 'session_generation'],
+            ['name', 'mail', 'roles', 'session_generation'],
             ['roles', 'permissions'],
         ], array_map(static fn(PrivilegedReadDescriptor $descriptor): array => $descriptor->fields, $descriptors));
     }
