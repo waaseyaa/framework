@@ -48,9 +48,6 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface;
  */
 final class ToolIdAllowlistRegistry implements ToolRegistryInterface
 {
-    /** @var list<string> */
-    private readonly array $allowedToolIds;
-
     /**
      * @param list<string> $allowedToolIds Tool ids (the `name:` argument of
      *        `#[AsAgentTool]`) admitted by exact string match. An EMPTY list
@@ -59,10 +56,8 @@ final class ToolIdAllowlistRegistry implements ToolRegistryInterface
      */
     public function __construct(
         private readonly ToolRegistryInterface $inner,
-        array $allowedToolIds,
-    ) {
-        $this->allowedToolIds = array_values($allowedToolIds);
-    }
+        private readonly array $allowedToolIds,
+    ) {}
 
     public function register(AgentTool $tool): void
     {
