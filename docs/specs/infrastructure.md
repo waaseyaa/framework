@@ -1153,7 +1153,16 @@ execution and ledger write in one transaction, so an interrupted initialization
 leaves the node wholly applied or wholly absent — including a table the
 materializer created for it. `V2PlanExecutor` takes an optional
 `EntityTableMaterializerInterface`; without one, an absent table simply fails
-closed on real SQL. `MigrationRepository::record()` accepts a nullable
+closed on real SQL. It compiles the authored plan in full first — so policy and
+capability refusals fire before any database contact, and `diff_hash` is fixed —
+then classifies and executes one operation at a time in authored order, so each
+operation is judged against the state its predecessors left behind rather than
+against a single pre-execution snapshot. `OpPreconditionResolver` compares column
+types by SQLite storage **affinity**, not by rendered SQL text, because the
+canonical materializer emits Doctrine's vocabulary (`CLOB`, `DOUBLE PRECISION`)
+while the v2 compiler emits its own (`TEXT`, `REAL`); a literal `NULL` default
+normalizes to "no default", and index identity is the name the compiler will
+actually emit. `MigrationRepository::record()` accepts a nullable
 `apply_mode` (`applied` | `already_satisfied`), added idempotently by
 `ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
 and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.

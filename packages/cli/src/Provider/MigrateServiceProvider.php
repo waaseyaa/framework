@@ -106,6 +106,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
                 $repository,
                 $this->sqliteCompiler($connection),
                 $this->isProduction(),
+                $connection,
             );
         });
 

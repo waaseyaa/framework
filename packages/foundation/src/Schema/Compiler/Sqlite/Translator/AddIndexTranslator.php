@@ -37,7 +37,7 @@ final class AddIndexTranslator
             );
         }
 
-        $name = $op->name ?? self::deriveName($op->table, $op->columns);
+        $name = self::resolveName($op);
 
         $unique = $op->unique ? 'UNIQUE ' : '';
         $quotedColumns = implode(', ', array_map(
@@ -65,6 +65,17 @@ final class AddIndexTranslator
     /**
      * @param list<string> $columns
      */
+    /**
+     * The index name this op will actually create.
+     *
+     * Public so runtime precondition checks resolve the same identifier the
+     * compiler emits, instead of re-deriving it and drifting.
+     */
+    public static function resolveName(AddIndex $op): string
+    {
+        return $op->name ?? self::deriveName($op->table, $op->columns);
+    }
+
     private static function deriveName(string $table, array $columns): string
     {
         $base = 'idx_' . $table . '_' . implode('__', $columns);

@@ -20,6 +20,7 @@ use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\Tests\Fixtures\EntityEvolutionV2MigrationAutoloader;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
@@ -121,14 +122,39 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
         );
     }
 
-    private function runStockMigrate(string $databasePath): int
+    #[Test]
+    public function a_fresh_sql_column_site_records_already_satisfied_through_the_real_materializer(): void
+    {
+        // The canonical materializer emits the field column itself on this
+        // backend, so the authored node has no work. Proving this end to end
+        // matters: a stubbed materializer emitting the v2 compiler's own SQL
+        // vocabulary would hide a comparison that refuses Doctrine's spelling
+        // and aborts every sql-column fresh install.
+        $databasePath = $this->root . '/application.sqlite';
+
+        $exit = $this->runStockMigrate($databasePath, self::servicesWithAccountEntityType('sql-column'));
+
+        self::assertSame(0, $exit, 'a fresh sql-column install must not abort');
+        $read = self::connect($databasePath);
+        self::assertContains('user_id', self::columnNames($read, 'account'));
+        self::assertSame(
+            'already_satisfied',
+            $read->fetchOne(
+                'SELECT apply_mode FROM waaseyaa_migrations WHERE migration = ?',
+                ['acme/application:v2:add-account-user-id'],
+            ),
+            'the materializer created the column, so the node had nothing to apply',
+        );
+    }
+
+    private function runStockMigrate(string $databasePath, ?KernelServicesInterface $services = null): int
     {
         $provider = new MigrateServiceProvider();
         $provider->setKernelContext($this->root, [
             'environment' => 'testing',
             'database' => $databasePath,
         ], []);
-        $provider->setKernelServices(self::servicesWithAccountEntityType());
+        $provider->setKernelServices($services ?? self::servicesWithAccountEntityType());
         $provider->register();
         $handler = $provider->resolve(MigrateHandler::class);
         self::assertInstanceOf(MigrateHandler::class, $handler);
@@ -160,7 +186,7 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
      * `account` registered as a real entity type, on the framework-default
      * backend, so the canonical materializer owns its base table.
      */
-    private static function servicesWithAccountEntityType(): KernelServicesInterface
+    private static function servicesWithAccountEntityType(?string $backend = null): KernelServicesInterface
     {
         $manager = new EntityTypeManager(new EventDispatcher());
         $manager->registerEntityType(new EntityType(
@@ -168,6 +194,10 @@ final class FreshInstallV2EntityEvolutionTest extends TestCase
             label: 'Account',
             class: \stdClass::class,
             keys: ['id' => 'eid', 'uuid' => 'uuid'],
+            primaryStorageBackend: $backend,
+            _fieldDefinitions: $backend === null ? [] : [
+                'user_id' => new FieldDefinition(name: 'user_id', type: 'string', targetEntityTypeId: 'account'),
+            ],
         ));
 
         return new class ($manager) implements KernelServicesInterface {
