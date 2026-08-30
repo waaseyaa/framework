@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Provider;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -18,6 +19,9 @@ use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 /**
  * Regression guard for the migrate* command wiring.
@@ -35,7 +39,8 @@ use Waaseyaa\Database\DBALDatabase;
 final class MigrateServiceProviderTest extends TestCase
 {
     #[Test]
-    public function declared_commands_apply_and_report_root_v2_migrations_through_the_provider(): void
+    #[DataProvider('migrationEnvironments')]
+    public function declared_commands_apply_and_report_root_v2_migrations_through_the_provider(string $environment, bool $strict): void
     {
         $root = sys_get_temp_dir() . '/waaseyaa_provider_v2_' . bin2hex(random_bytes(8));
         mkdir($root . '/vendor/composer', 0o777, true);
@@ -53,7 +58,12 @@ final class MigrateServiceProviderTest extends TestCase
 
         try {
             $provider = new MigrateServiceProvider();
-            $provider->setKernelContext($root, ['environment' => 'testing', 'database' => $databasePath], []);
+            $provider->setKernelContext($root, ['environment' => $environment, 'database' => $databasePath], []);
+            $logger = $this->createMock(LoggerInterface::class);
+            $logger->expects($strict ? self::never() : self::once())->method('warning')->with(self::stringContains('Skipping re-apply'));
+            $services = $this->createMock(KernelServicesInterface::class);
+            $services->method('get')->willReturnCallback(static fn(string $id): ?object => $id === LoggerInterface::class ? $logger : null);
+            $provider->setKernelServices($services);
             $provider->register();
             $container = new class ($provider) implements ContainerInterface {
                 public function __construct(private MigrateServiceProvider $provider) {}
@@ -88,6 +98,19 @@ final class MigrateServiceProviderTest extends TestCase
             self::assertStringContainsString('acme/application:v2:add-widget-profile', $status->getStdout());
             self::assertStringContainsString('Ran', $status->getStdout());
             self::assertStringNotContainsString('Pending', $status->getStdout());
+
+            $connection->executeStatement('UPDATE waaseyaa_migrations SET checksum = ?', [str_repeat('0', 64)]);
+            $ledger = $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations');
+            $schema = $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name');
+            try {
+                $apply->execute([]);
+                self::assertFalse($strict, 'Production-like environments must reject checksum drift.');
+                self::assertSame(0, $apply->getExitCode());
+            } catch (ChecksumMismatchException) {
+                self::assertTrue($strict, 'Development must warn and skip checksum drift.');
+            }
+            self::assertSame($ledger, $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations'));
+            self::assertSame($schema, $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name'));
         } finally {
             $migrationClassLoader?->unregister();
             $connection->close();
@@ -95,6 +118,11 @@ final class MigrateServiceProviderTest extends TestCase
             gc_collect_cycles();
             new Filesystem()->remove($root);
         }
+    }
+
+    public static function migrationEnvironments(): array
+    {
+        return [['development', false], ['testing', false], ['production', true], ['staging', true]];
     }
 
     #[Test]

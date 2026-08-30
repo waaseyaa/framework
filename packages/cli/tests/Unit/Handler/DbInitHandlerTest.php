@@ -118,6 +118,14 @@ final class DbInitHandlerTest extends TestCase
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
         new MigrationRepository($connection)->createTable();
         $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+        $schemaBefore = $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name');
+        $ledgerBefore = $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations');
+
+        $dryRun = $this->createTester()->executeMap(['--dry-run' => true]);
+        self::assertSame(0, $dryRun->getExitCode());
+        self::assertStringContainsString('acme/application:v2:add-widget-profile', $dryRun->getStdout());
+        self::assertSame($schemaBefore, $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name'));
+        self::assertSame($ledgerBefore, $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations'));
         $connection->close();
 
         $tester = $this->createTester();
@@ -130,7 +138,53 @@ final class DbInitHandlerTest extends TestCase
             'name',
         );
         self::assertContains('profile', $columns);
+        $dryRun->executeMap(['--dry-run' => true]);
+        self::assertStringContainsString('No pending migrations', $dryRun->getStdout());
         $readConnection->close();
+    }
+
+    #[Test]
+    public function declaring_the_default_root_directory_preserves_applied_ledger_identity(): void
+    {
+        mkdir($this->projectRoot . '/migrations');
+        file_put_contents($this->projectRoot . '/migrations/01_init.php', <<<'PHP'
+<?php
+return new class extends \Waaseyaa\Foundation\Migration\Migration {
+    public function up(\Waaseyaa\Foundation\Migration\SchemaBuilder $schema): void {
+        $schema->create('legacy_widgets', function ($table): void { $table->id(); });
+    }
+};
+PHP);
+        $first = $this->createTester()->executeMap(['--no-sync-schema' => true]);
+        self::assertSame(0, $first->getExitCode());
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->projectRoot . '/storage/waaseyaa.sqlite']);
+        try {
+            $original = $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations');
+            self::assertSame('app:01_init', $original[0]['migration']);
+            mkdir($this->projectRoot . '/vendor/composer', 0o755, true);
+            file_put_contents($this->projectRoot . '/vendor/composer/installed.json', '{"packages":[]}');
+            file_put_contents($this->projectRoot . '/composer.json', json_encode([
+                'name' => 'acme/application',
+                'extra' => ['waaseyaa' => ['migrations' => ['migrations', './migrations/']]],
+            ], JSON_THROW_ON_ERROR));
+            file_put_contents($this->projectRoot . '/migrations/02_next.php', <<<'PHP'
+<?php
+return new class extends \Waaseyaa\Foundation\Migration\Migration {
+    public function up(\Waaseyaa\Foundation\Migration\SchemaBuilder $schema): void {
+        $schema->create('next_widgets', function ($table): void { $table->id(); });
+    }
+};
+PHP);
+            $upgrade = $this->createTester()->executeMap(['--no-sync-schema' => true]);
+            self::assertSame(0, $upgrade->getExitCode());
+            self::assertStringContainsString('Ran 1 migration.', $upgrade->getStdout());
+            self::assertSame($original, $connection->fetchAllAssociative("SELECT * FROM waaseyaa_migrations WHERE migration = 'app:01_init'"));
+            self::assertSame(['app:01_init', 'app:02_next'], $connection->fetchFirstColumn('SELECT migration FROM waaseyaa_migrations ORDER BY migration'));
+            $upgrade->executeMap(['--no-sync-schema' => true]);
+            self::assertStringContainsString('No pending migrations', $upgrade->getStdout());
+        } finally {
+            $connection->close();
+        }
     }
 
     // ----- P0-3 (wayfinding-stress-remediation-01KVGK4Q): a fresh db:init must

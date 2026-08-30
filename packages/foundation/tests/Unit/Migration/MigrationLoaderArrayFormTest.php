@@ -136,9 +136,9 @@ final class MigrationLoaderArrayFormTest extends TestCase
 
         $loaded = $loader->loadAll();
 
-        self::assertSame(['acme/application'], array_keys($loaded));
-        self::assertArrayHasKey('acme/application:01_init', $loaded['acme/application']);
-        self::assertArrayNotHasKey('app', $loaded);
+        self::assertSame(['app'], array_keys($loaded));
+        self::assertArrayHasKey('app:01_init', $loaded['app']);
+        self::assertArrayNotHasKey('acme/application', $loaded);
     }
 
     #[Test]
