@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+
+# Split-shaped packaged create-project acceptance (#2649).
+#
+# Builds the EXACT candidate into a local Composer ARTIFACT repository and runs
+# `composer create-project` against it, so the consumer's entire waaseyaa/*
+# graph arrives as extracted archive bytes. No path repository, no VCS
+# repository, no symlink back into the checkout, no Packagist lookup for any
+# waaseyaa/* name.
+#
+# Why this exists alongside the two proofs it sits between:
+#
+#   - `check-fresh-install-boot` (#2426) runs pre-tag but resolves every
+#     waaseyaa/* through PATH repositories. Its consumer's vendor tree is
+#     symlinked into the checkout, so export, archive generation, and the split
+#     boundary are never exercised. It owns fresh-install boot; this owns
+#     packaging.
+#   - `Skeleton Smoke (Packaged-form CI)` installs genuinely published bytes,
+#     but only AFTER the tag exists. A post-publication proof cannot block a
+#     publication, which is why it stays ALERT-ONLY: it watches registry
+#     propagation, a property this gate structurally cannot see and must not
+#     pretend to.
+#
+# This gate does not create a tag and does not authorize a release. It creates
+# nothing outside a mktemp directory, contacts no registry for waaseyaa/*, and
+# publishes nothing. It blocks tag creation only by being part of ci.yml, which
+# release-cut.yml's "Gate 2/5: require green CI on the exact commit being
+# tagged" waits on before any irreversible action.
+#
+# Usage: check-split-artifact-acceptance [--allow-dirty]
+#   --allow-dirty  Seal HEAD even though the worktree is dirty. Local iteration
+#                  only; CI must never pass it, because the seal would then
+#                  prove bytes that are not the bytes under review.
+
+set -euo pipefail
+
+allow_dirty=false
+if [[ "${1:-}" == '--allow-dirty' ]]; then
+    allow_dirty=true
+fi
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+engine="$root/tests/PackagedForm/split-artifact-acceptance.php"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+# Composer 2.8.x cannot download a LOCAL artifact dist on PHP 8.5: it falls back
+# to Composer\Util\RemoteFilesystem, and stream_context_create() now rejects the
+# protected callback that class passes. The failure is a bare TypeError with no
+# mention of artifacts, so name it here rather than let a future reader
+# rediscover it. Hosted CI installs the current Composer and is unaffected.
+composer_version="$("$composer_bin" --version --no-interaction 2>/dev/null \
+    | sed -n 's/^Composer version \([0-9][0-9.]*\).*/\1/p' | head -1)"
+if [[ -z "$composer_version" ]]; then
+    echo 'Could not determine the Composer version.' >&2
+    exit 1
+fi
+composer_major="${composer_version%%.*}"
+composer_minor="$(printf '%s' "$composer_version" | cut -d . -f 2)"
+if [[ "$composer_major" -lt 2 || ( "$composer_major" -eq 2 && "$composer_minor" -lt 9 ) ]]; then
+    echo "Composer >= 2.9 is required (found ${composer_version}): earlier versions cannot download a local artifact dist on PHP 8.5." >&2
+    echo 'Set COMPOSER_BIN to a current composer.phar, or run `composer self-update`.' >&2
+    exit 1
+fi
+
+if [[ "$allow_dirty" != true && -n "$("$root/bin/git" -C "$root" status --porcelain=v1)" ]]; then
+    echo 'Split-artifact acceptance seals HEAD and refuses a dirty worktree.' >&2
+    echo 'Commit the change, or pass --allow-dirty for local iteration only.' >&2
+    exit 1
+fi
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-split-artifact.XXXXXX")"
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+artifacts="$work/artifacts"
+seal="$work/seal.json"
+consumer="$work/consumer"
+nodev="$work/consumer-nodev"
+version="$(tr -d '[:space:]' < "$root/VERSION")"
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+
+echo "== Sealing the candidate into a local artifact repository"
+php "$engine" seal "$root" "$artifacts" "$seal" "$version"
+
+# `only` makes the artifact repository CANONICAL for waaseyaa/*: Composer never
+# consults Packagist for those names, so a published release cannot silently
+# satisfy a requirement the candidate was supposed to. Third-party dependencies
+# still resolve normally, exactly as a consumer's would.
+repository="$(php -r 'echo json_encode(["type" => "artifact", "url" => $argv[1], "only" => ["waaseyaa/*"]], JSON_UNESCAPED_SLASHES);' "$artifacts")"
+
+echo "== create-project from the artifact repository"
+"$composer_bin" create-project waaseyaa/waaseyaa "$consumer" \
+    --repository="$repository" \
+    --stability=dev \
+    --no-install --no-scripts --no-interaction --no-progress >"$work/create-project.out" 2>&1 \
+    || { tail -60 "$work/create-project.out" >&2; exit 1; }
+
+rm -f "$consumer/composer.lock"
+"$composer_bin" config --working-dir="$consumer" repositories.waaseyaa-artifacts "$repository"
+
+"$composer_bin" install --working-dir="$consumer" \
+    --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install.out" 2>&1 \
+    || { tail -80 "$work/install.out" >&2; exit 1; }
+
+# The create-project script runs from the INSTALLED skeleton bytes, which is
+# half of what "packaged create-project acceptance" means.
+"$composer_bin" run-script --working-dir="$consumer" post-create-project-cmd >"$work/post-create.out" 2>&1 \
+    || { cat "$work/post-create.out" >&2; exit 1; }
+test -f "$consumer/.env"
+
+# Overrides only. The generated .env is otherwise the one a real consumer gets.
+# WAASEYAA_DEV_FALLBACK_ACCOUNT is forced off: a dev fallback account masks
+# access denials, so any acceptance run with it enabled proves less than it
+# appears to.
+{
+    printf '\nAPP_ENV=local\n'
+    printf 'APP_DEBUG=false\n'
+    printf 'WAASEYAA_DEV_FALLBACK_ACCOUNT=false\n'
+} >> "$consumer/.env"
+
+echo "== Governed installation phase (artifact-installed consumer)"
+( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1 \
+    || { cat "$work/install-init.out" >&2; echo 'The governed installation phase failed on the artifact consumer.' >&2; exit 1; }
+grep -Fq 'Installation is complete.' "$work/install-init.out"
+
+echo "== Surface: composition"
+php "$engine" assert composition "$seal" "$consumer"
+
+echo "== Surface: exported-files"
+php "$engine" assert exported-files "$seal" "$consumer"
+
+echo "== Surface: bootstrap"
+cp "$root/tests/SplitArtifactAcceptance/boot.php" "$consumer/boot.php"
+php "$consumer/boot.php" >"$work/boot.out" 2>&1 \
+    || { cat "$work/boot.out" >&2; echo 'The artifact-installed consumer could not boot.' >&2; exit 1; }
+grep -Fq 'split-artifact kernel boot OK' "$work/boot.out"
+grep -Fq 'split-artifact entity round-trip OK' "$work/boot.out"
+
+echo "== Surface: --no-dev exclusion"
+mkdir -p "$nodev"
+( cd "$consumer" && tar --warning=no-timestamp --exclude='./vendor' --exclude='./storage/waaseyaa.sqlite' -cf - . ) \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$nodev"
+"$composer_bin" install --working-dir="$nodev" \
+    --no-dev --no-interaction --no-progress --prefer-dist --no-scripts >"$work/install-nodev.out" 2>&1 \
+    || { tail -80 "$work/install-nodev.out" >&2; exit 1; }
+php "$engine" assert no-dev-exclusion "$seal" "$nodev"
+
+# Booting the --no-dev consumer is the runtime half of the same surface. A class
+# under src/ that extends a dev-only symbol is invisible until exactly here:
+# PackageManifestCompiler reflection-loads it during boot, and the consumer's
+# kernel dies with "Application failed to boot" (waaseyaa/graphql alpha.106 ->
+# alpha.107, a production outage on minoo).
+( cd "$nodev" && php vendor/bin/waaseyaa install:init ) >"$work/install-init-nodev.out" 2>&1 \
+    || { cat "$work/install-init-nodev.out" >&2; echo 'The governed installation phase failed on the --no-dev consumer.' >&2; exit 1; }
+cp "$root/tests/SplitArtifactAcceptance/boot.php" "$nodev/boot.php"
+php "$nodev/boot.php" >"$work/boot-nodev.out" 2>&1 \
+    || { cat "$work/boot-nodev.out" >&2; echo 'The --no-dev artifact consumer could not boot.' >&2; exit 1; }
+grep -Fq 'split-artifact entity round-trip OK' "$work/boot-nodev.out"
+
+# A harness that has only ever passed is not evidence. Every live assertion is
+# re-run against deliberately corrupted overlays and must fail; if any survives,
+# this run fails even though everything above was green.
+echo "== Seeded negative controls"
+php "$engine" self-test "$seal" "$consumer" "$nodev" "$work/negative-controls"
+
+echo
+echo "Acceptance surfaces (#2649):"
+php "$engine" surfaces
+echo
+printf 'Candidate: %s\nSealed version: %s\nArtifact members: %s\n' \
+    "$candidate" "$version" "$(find "$artifacts" -name '*.zip' | wc -l | tr -d ' ')"
+printf 'Split-artifact acceptance passed. This gate created no tag and published nothing.\n'
