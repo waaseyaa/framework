@@ -213,7 +213,12 @@ final class DbInitHandler
 
             return [array_values($entityTypeManager->getDefinitions()), $registry];
         } finally {
-            $database->getConnection()->close();
+            // Same custody rule as syncSchema(): release the enumerating kernel's
+            // handle so it never holds a lock on the file the migration run is
+            // about to write.
+            if ($database instanceof DBALDatabase) {
+                $database->getConnection()->close();
+            }
         }
     }
 

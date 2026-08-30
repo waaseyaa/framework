@@ -192,6 +192,17 @@ not a diagnostic warning.
 bootstrap `RuntimePolicy` used by the kernel. It does not re-read `APP_ENV`,
 `APP_DEBUG`, or PHP environment superglobals after configuration assembly.
 
+`db:init` enumerates registered entity types **before** the migration run and
+releases that kernel's own database connection first, so targeted materialization
+(#2701) runs on the migration connection and no second handle contends for the
+SQLite write lock while a node's transaction is open. The enumeration is skipped
+entirely when the V2 catalogue is empty, and a project with no registered content
+types yields an empty snapshot rather than a `db:init` failure — every V2 plan then
+fails closed on real SQL. `--no-sync-schema` still suppresses the full schema-sync
+step; it does not suppress targeted materialization, which is part of applying a
+migration rather than a separate provisioning pass.
+
+
 ## Installation lifecycle
 
 ### Legacy mutation-authority upgrade

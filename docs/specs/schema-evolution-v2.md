@@ -254,6 +254,48 @@ and throws in production-like environments without changing the applied row.
 
 ---
 
+### 9.1 Fresh-install semantics for entity evolution (#2701)
+
+The canonical entity-schema materializer remains authoritative for entity
+base-table existence. A v2 migration neither creates that table itself nor
+performs database I/O; the runtime reconciles lifecycle state on its behalf,
+inside the node's transaction.
+
+For each pending v2 node, in order:
+
+1. The authored plan is compiled **in full** first, so `PlanPolicy` refusals and
+   SQLite capability refusals fire before anything touches the database. The
+   resulting compiled plan is what supplies `diff_hash`, whatever executes below.
+2. Any *registered entity base table* the plan targets that is absent is
+   materialized through the canonical materializer, injected by the composition
+   site as an `EntityTableMaterializerInterface`. Only targeted tables, never a
+   full synchronization, and never an existing table. Tables the materializer does
+   not own stay absent so the migration fails closed on real SQL.
+3. Each authored operation is classified against live state. An operation the
+   schema still needs is outstanding; one the schema **exactly** satisfies is
+   dropped from the executed set; one that exists in a different shape raises
+   `IncompatibleSchemaStateException`. Only `AddColumn` and `AddIndex` can be
+   exactly satisfied — renames and drops never qualify, because an absent source
+   is ambiguous and nothing may be skipped on the strength of a name.
+4. Outstanding operations execute. A node whose operations were all already
+   satisfied issues no SQL.
+
+Unrestricted schema synchronization is **not** run ahead of migrations: doing so
+would let it act before a migration's intended order and validation.
+
+**Backend dependence is the reason this contract exists.** On the framework
+default `sql-blob`, synchronization emits entity-key columns plus `_data` and
+never a per-field column, in either lifecycle — so a v2 `AddColumn` is genuinely
+outstanding on a fresh install and on an upgrade alike. On `sql-column` it emits
+the field column at creation and adds it to an existing table, so the same node is
+already satisfied once the table is materialized.
+
+**Ledger.** `checksum` and `diff_hash` are functions of the authored plan alone
+and are therefore identical across lifecycles; replay guarding and verification
+are unchanged. The nullable `apply_mode` column records `applied` or
+`already_satisfied` as audit evidence only, and is never consulted by either.
+
+
 ## 10. Non-goals (explicit)
 
 The following are **out of scope** for initial delivery unless the epic is explicitly expanded:

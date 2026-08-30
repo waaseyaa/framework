@@ -240,6 +240,13 @@ final class Migrator
             // write, so an interrupted initialization leaves the node wholly
             // applied or wholly absent.
             $outcome = $executor->execute($plan, $policy);
+            if ($outcome->materializedTables !== []) {
+                $this->logger?->info(sprintf(
+                    'Migration "%s" materialized absent entity base table(s) before applying: %s.',
+                    $node->id,
+                    implode(', ', $outcome->materializedTables),
+                ));
+            }
             $this->repository->record(
                 $node->id,
                 $node->package,

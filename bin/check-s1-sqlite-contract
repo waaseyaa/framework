@@ -57,6 +57,11 @@ function s1SqliteConstructionClass(string $path, string $patternId): string
     $reviewed = [
         'packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
         'packages/cli/src/Handler/DbInitHandler.php|dbal_factory' => 'serving-entrypoint',
+        // #2701: wraps the migration connection already opened above so targeted
+        // entity-table materialization runs inside the Migrator's transaction.
+        // Opens nothing; identical custody to a migration wrapping its inherited
+        // connection.
+        'packages/cli/src/Handler/DbInitHandler.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
         'packages/cli/src/Provider/MigrateServiceProvider.php|dbal_factory' => 'serving-entrypoint',
         'packages/database-legacy/src/DBALDatabase.php|doctrine_factory' => 'serving-connection-authority',
         'packages/database-legacy/src/DBALDatabase.php|pdo_sqlite_token' => 'serving-connection-authority',
