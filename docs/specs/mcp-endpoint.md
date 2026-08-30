@@ -52,6 +52,8 @@ error. Pinned by `EntityToolFieldReadDeniedMappingTest`. -->
 
 <!-- Spec reviewed 2026-08-04 - #1641 MCP identity and Registry discovery: `/.well-known/mcp.json` remains a Waaseyaa compatibility card and no longer embeds the invalid nested Registry projection. Official Registry `server.json` is a separate, deployment-owned `McpRegistryManifest`, pinned to schema 2025-12-11 and constructible only from an explicit namespaced id plus public HTTPS Streamable HTTP remote; no request Host is an authority source. One injected McpImplementationInfo now feeds legacy initialize, modern server metadata, the card, and the Registry manifest. Explicit mcp.implementation config wins; the framework monorepo uses its release-managed VERSION; consuming sites use Composer's installed waaseyaa/mcp version. The stale informational 0.1.0 response bytes deliberately migrate to the honest implementation version; protocol compatibility remains negotiated only by protocolVersion. Malformed identity/card/Registry config fails closed. Registry publication stays blocked until a real public deployment, namespace authentication, release, and submission-time preview-schema revalidation exist. The framework-neutral manifest model ships here; its CLI adapter is blocked on console-boundary issue #2207. -->
 
+<!-- Spec reviewed 2026-08-30 - #2657 transport-neutral dispatch extraction (ADR-022 D-9.3): the dispatch behaviour of AgentToolRegistryBridge moved verbatim into waaseyaa/ai-tools (Layer 5) as Waaseyaa\AI\Tools\Dispatch\AgentToolDispatcher behind the new ToolDispatcherInterface, and the bridge is now a thin facade over it. Nothing on the wire changed: the same schema enforcement, the same sanitized INTERNAL_ERROR envelope, the same name-ordered tools/list, the same audit-stage classification, and the same mcp.tool_execution_failed / mcp.tool_output_schema_violation log keys (the dispatcher takes a log prefix and the facade passes "mcp"). Waaseyaa\Mcp\CapabilityScopedToolRegistry likewise delegates to a shared Waaseyaa\AI\Tools\Registry\CapabilityScopedToolRegistry, and a new sibling ToolIdAllowlistRegistry narrows by exact tool id for ADR-022 D-7. A new AuditedToolDispatcher decorator carries D-5.A (construction refuses an absent ledger or NullStrictAuditLedger, mirroring McpEndpoint:130-146) and D-5.B (reserve before the tool runs, finalize after, single-shot record() for terminal refusals, safeArguments from the tool own argumentsForAudit()); it is NOT wired into McpEndpoint, whose inline audit path — including the approval consume between reserve and execute — is unchanged. The reason for the move is packaging, not logic: McpRouteProvider registers /mcp/write unconditionally on install, so a local stdio plane reusing the bridge would have bought an HTTP route to get dispatch semantics. /mcp, /mcp/write, their auth defaults, and their route registration are untouched. -->
+
 <!-- Spec reviewed 2026-08-07 - #2295: tools/list catalogues are sorted by tool name at AgentToolRegistryBridge, making the wire response independent of Composer manifest, optimized-classmap, and provider discovery order without changing internal registry order. -->
 <!-- Spec reviewed 2026-08-04 - #2205 dual-era MCP 2026-07-28: request era is selected only from params._meta["io.modelcontextprotocol/protocolVersion"], never from HTTP headers. McpProtocolRequestValidator requires object-valued per-request client capabilities, validates optional client identity, and checks the required version/method/name mirrors after authentication, rate limiting, JSON parsing, and request acceptance; mismatches close the audit pair with invalid_params_refused and expose no raw header values. Modern routing implements server/discover, tools/list, and tools/call; adds resultType and server identity metadata; uses private/ttlMs=0 plus Cache-Control: no-store for principal-varying discovery, tool catalogues, and pre-route protocol refusals; rejects unsupported modern methods with HTTP 404; and accepts no modern core notifications. The legacy initialize/ping/notification lifecycle and successful-result bytes remain unchanged. Deliberate malformed-traffic change: legacy unknown version headers now return -32022 after authentication (or 401 before it), and stray modern mirrors fail -32020. StreamableHttpTransportGuard remains era-neutral while preserving Origin, size, content type, dual Accept, POST-only, and stateless JSON-response enforcement. -->
 
@@ -125,8 +127,8 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/Auth/ScopedMcpAuthInterface.php` / `src/Auth/ScopedPrincipal.php` | Scope-aware auth contract: account + explicit token scopes (#2177 F3) |
 | `src/Auth/DurableBearerTokenAuth.php` | Production write-tier auth over the durable `Waaseyaa\Auth\Token\Bearer` store (#2177 F3) |
 | `src/Auth/BearerTokenAuth.php` | STATIC in-memory token map — quarantined to the empty fail-closed default and test fixtures (#2177 F3); constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
-| `src/Bridge/AgentToolRegistryBridge.php` | Adapts the framework-wide `Waaseyaa\AI\Tools` registry directly to MCP descriptors and calls |
-| `src/ReadOnlyToolRegistry.php` / `src/CapabilityScopedToolRegistry.php` | Tool-visibility wrappers for the public read-only `/mcp` and the `/mcp/write` tier |
+| `src/Bridge/AgentToolRegistryBridge.php` | Façade over `Waaseyaa\AI\Tools\Dispatch\AgentToolDispatcher`; adapts the framework-wide registry to MCP descriptors and calls (#2657) |
+| `src/ReadOnlyToolRegistry.php` / `src/CapabilityScopedToolRegistry.php` | Tool-visibility wrappers for the public read-only `/mcp` and the `/mcp/write` tier. The capability-scoped one delegates to `Waaseyaa\AI\Tools\Registry\CapabilityScopedToolRegistry` (#2657) |
 
 ### Optional content search tool
 
@@ -556,10 +558,46 @@ contract, while the bridge binds the authenticated account for one request.
 ```
 McpEndpoint::handleToolsCall()
     -> AgentToolRegistryBridge::execute($toolName, $arguments)
+    -> AgentToolDispatcher::dispatch()                                      <-- #2657
     -> ToolInputSchemaValidator::validate($tool->inputSchema, $arguments)   <-- #2145
     -> AgentToolInterface::execute($arguments, $authenticatedAccount)
     -> Result as {content: [{type: "text", text: "..."}]}
 ```
+
+### The bridge is a façade over a transport-neutral dispatcher (#2657)
+
+**Nothing on the wire changed.** As of #2657 (ADR-022 D-9.3) the bridge's
+behaviour lives in `Waaseyaa\AI\Tools\Dispatch\AgentToolDispatcher`
+(`waaseyaa/ai-tools`, Layer 5) behind `ToolDispatcherInterface`, and
+`AgentToolRegistryBridge` delegates to it. The same schema enforcement, the
+same sanitized `INTERNAL_ERROR` envelope, the same name-ordered `tools/list`,
+the same audit-stage classification, and the same `mcp.tool_execution_failed` /
+`mcp.tool_output_schema_violation` log keys — the dispatcher takes a log prefix
+and the façade passes `mcp`.
+
+**The reason is packaging, not logic.** `McpRouteProvider` registers
+`/mcp/write` unconditionally the moment `waaseyaa/mcp` is installed, so a local
+stdio plane that wanted these dispatch semantics would have had to buy an HTTP
+route to get them (ADR-022 C-4, D-1.4). Dispatch never needed HTTP; only its
+address did. `Waaseyaa\Mcp\CapabilityScopedToolRegistry` delegates to a shared
+`Waaseyaa\AI\Tools\Registry\CapabilityScopedToolRegistry` for the same reason,
+and a sibling `ToolIdAllowlistRegistry` narrows by exact tool id for ADR-022
+D-7's closed-list default profile.
+
+`tests/Architecture/TransportNeutralToolDispatchTest.php` proves the neutrality
+by running a complete dispatch in a child process with no Composer autoloader —
+only `ai-tools`, `access`, and `foundation` are loadable, and any class
+requested outside them is recorded rather than loaded.
+
+**`AuditedToolDispatcher` is not wired into `McpEndpoint`.** The new decorator
+carries ADR-022 D-5.A (construction refuses an absent ledger or a
+`NullStrictAuditLedger`) and D-5.B (reserve before the tool runs, finalize
+after, single-shot `record()` for terminal refusals, `safeArguments` from the
+tool's own `argumentsForAudit()`) for the transports that will consume it.
+`McpEndpoint` keeps its own inline audit path unchanged, because that path
+interleaves the once-only approval `consume()` between `reserve()` and
+execution — a sequencing the generic decorator does not model, and one whose
+correctness is not worth re-deriving for no behavioural gain.
 
 ## Input-schema enforcement (`tools/call`)
 
