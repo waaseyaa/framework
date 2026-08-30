@@ -24,6 +24,7 @@ $policyId = [
     'self_version_scope' => 'CP006',
     'path_repository_parity' => 'CP007',
     'path_lock_dependency_keys' => 'CP008',
+    'development_plane_containment' => 'CP009',
 ];
 
 $errors = 0;
@@ -265,6 +266,131 @@ foreach ($manifestPaths as $path) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// CP009 — development-plane containment (ADR-022 D-1.2, D-3.0, D-10).
+//
+// The local AI-development plane must stay outside every production install.
+// Two packages carry that obligation:
+//
+//   - `waaseyaa/ai-development` is a require-dev metapackage. D-1.2: it MUST
+//     NOT appear in the `require` block of waaseyaa/framework, core, cms, or
+//     full; consumers opt in by name. D-1.3: the skeleton installs it under
+//     require-dev only.
+//   - `waaseyaa/ai-agent` homes `LocalOperatorPrincipal` (D-3.0). The ADR is
+//     explicit that the package name is "merely today's satisfying answer" and
+//     the *invariant* is normative: the homing package must be absent from the
+//     production require closure of all four manifests. D-3.0a is equally
+//     explicit that packaging is the weaker of the two controls — the runtime
+//     refusal is the real one — but D-10 still requires this half to be gated,
+//     because "a routine dependency edit is enough to void it silently: the
+//     edit would look like adding a require, not like relocating a
+//     security-sensitive class into production".
+//
+// Why this gate is hosted here rather than in `bin/check-package-layers`:
+// the invariant is a *manifest closure* property, not a layer property. An
+// edge from `waaseyaa/full` to `waaseyaa/ai-agent` breaks no layer rule at
+// all, and three of the four production roots are metapackages, which
+// check-package-layers deliberately skips before it looks at anything else.
+// This script, by contrast, already reads the root manifest and every
+// packages/* manifest, and already owns a "this package must not appear in
+// that require block" rule (CP004, core's install-safe runtime surface).
+// CP009 is that same shape, generalized from one require block to a closure.
+//
+// The traversal follows `require` only, and only from the four production
+// roots. `packages/ai-development/composer.json` is never a traversal root and
+// is never reached from one (its own containment is checked below), so the dev
+// metapackage's own require of `waaseyaa/ai-agent` is invisible here — the
+// gate cannot trip on the very graph it exists to keep separate.
+//
+// The seeded positive control lives in
+// tests/Architecture/DevelopmentPlaneClosureGateTest.php: it plants real
+// dependency edges into a disposable fixture root (via ROOT_DIR) and asserts
+// CP009 goes red for each one. A closure gate never observed failing proves
+// nothing.
+$productionRoots = [
+    'composer.json',
+    'packages/core/composer.json',
+    'packages/cms/composer.json',
+    'packages/full/composer.json',
+];
+
+/** package => why it must stay out of production */
+$developmentPlanePackages = [
+    'waaseyaa/ai-development' => 'the require-dev development metapackage (ADR-022 D-1.2)',
+    'waaseyaa/ai-agent' => 'the package homing LocalOperatorPrincipal (ADR-022 D-3.0)',
+];
+
+// Non-vacuity anchor. Every production root that declares any `waaseyaa/*`
+// require reaches foundation — `packages/cms` and `packages/full` only
+// transitively, which is what makes this bind the *walk* and not just the
+// first hop. If such a closure stops reaching it, the traversal is broken and
+// a green result would be an artefact rather than a finding.
+//
+// A manifest with no `waaseyaa/*` require at all is skipped rather than
+// failed: its closure is empty because there is genuinely nothing to contain,
+// not because the walk broke. That case is real — this script accepts a
+// `ROOT_DIR` override, and the fixture roots in
+// tests/Integration/Policy/CheckComposerPolicyTest.php and
+// tests/Integration/ReleaseTooling/CpNewCheckTest.php are exactly it.
+$closureAnchor = 'waaseyaa/foundation';
+
+foreach ($productionRoots as $rootManifest) {
+    if (!is_file($rootDir . '/' . $rootManifest)) {
+        continue;
+    }
+
+    $closure = waaseyaaRequireClosure($rootDir, $rootManifest);
+
+    if ($closure !== [] && !isset($closure[$closureAnchor])) {
+        $fail(
+            'development_plane_containment',
+            $rootManifest,
+            sprintf(
+                'the production require closure reached %d waaseyaa/* package(s) and not %s',
+                count($closure),
+                $closureAnchor,
+            ),
+            'a working closure traversal — a closure that cannot reach foundation cannot prove containment either',
+        );
+        continue;
+    }
+
+    foreach ($developmentPlanePackages as $contained => $why) {
+        if (!isset($closure[$contained])) {
+            continue;
+        }
+
+        $fail(
+            'development_plane_containment',
+            $rootManifest,
+            sprintf('%s reaches %s via %s', $rootManifest, $contained, implode(' -> ', $closure[$contained])),
+            sprintf(
+                '%s must stay outside every production require closure — %s. Revert the dependency edit, '
+                . 'or (ADR-022 D-3.0) relocate the principal to a package that still satisfies the invariant',
+                $contained,
+                $why,
+            ),
+        );
+    }
+}
+
+// D-1.2 / D-1.3, checked directly rather than only through the closure: the
+// development metapackage belongs in `require-dev`, in any first-party
+// manifest that names it at all.
+foreach ($manifestPaths as $path) {
+    $rel = relativePath($rootDir, $path);
+    $require = readComposerJson($path)['require'] ?? [];
+    if (is_array($require) && array_key_exists('waaseyaa/ai-development', $require)) {
+        $fail(
+            'development_plane_containment',
+            $rel,
+            'waaseyaa/ai-development in require',
+            'move it to require-dev — ADR-022 D-1.3: the development plane is installed as a development '
+            . 'dependency only, so `composer install --no-dev` removes it and everything it pulls',
+        );
+    }
+}
+
 if ($cpNewWarning !== null) {
     $emitErr('WARNING [CP-NEW] ' . $cpNewWarning);
 } elseif ($expectedVersion !== null) {
@@ -354,6 +480,51 @@ function isExcluded(string $rel): bool
     return in_array('vendor', $parts, true)
         || in_array('node_modules', $parts, true)
         || str_starts_with($rel, '.worktrees/');
+}
+
+/**
+ * The transitive `waaseyaa/*` **runtime** require closure of one manifest.
+ *
+ * `require` only: `require-dev` is not installed by a consumer and is the whole
+ * mechanism by which the development plane stays out of production (ADR-022
+ * D-1.3). Each entry maps the reached package to the manifest chain that
+ * reached it, so a CP009 failure can name the edit that caused it rather than
+ * only its consequence.
+ *
+ * @return array<string, list<string>> package => path from the root manifest
+ */
+function waaseyaaRequireClosure(string $rootDir, string $manifestRelative): array
+{
+    $reached = [];
+    $queue = [];
+
+    foreach (array_keys(readComposerJson($rootDir . '/' . $manifestRelative)['require'] ?? []) as $dependency) {
+        if (is_string($dependency) && str_starts_with($dependency, 'waaseyaa/')) {
+            $queue[] = [$dependency, [$manifestRelative, $dependency]];
+        }
+    }
+
+    while ($queue !== []) {
+        /** @var array{0: string, 1: list<string>} $entry */
+        $entry = array_shift($queue);
+        [$package, $chain] = $entry;
+        if (isset($reached[$package])) {
+            continue;
+        }
+        $reached[$package] = $chain;
+
+        $childPath = $rootDir . '/packages/' . substr($package, strlen('waaseyaa/')) . '/composer.json';
+        if (!is_file($childPath)) {
+            continue;
+        }
+        foreach (array_keys(readComposerJson($childPath)['require'] ?? []) as $dependency) {
+            if (is_string($dependency) && str_starts_with($dependency, 'waaseyaa/') && !isset($reached[$dependency])) {
+                $queue[] = [$dependency, [...$chain, $dependency]];
+            }
+        }
+    }
+
+    return $reached;
 }
 
 /**
