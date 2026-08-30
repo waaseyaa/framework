@@ -23,6 +23,10 @@ says so rather than editing the claim away.
 - **Unverified** is stated explicitly where it applies; nothing here is guessed.
 - S12–S15 are new: findings discovered *during* the follow-up work that were never
   in the 2026-08-29 pass.
+- **Second pass.** S10, S14 and S15 were corrected again after review, because the
+  first pass of this reconciliation introduced errors of its own. The same rule
+  applies to those: the wrong claim is named and corrected in place, not deleted.
+  S15 in particular was wrong twice, and both formulations are recorded there.
 
 ---
 
@@ -456,10 +460,40 @@ if (!file_exists($envFile) && file_exists($envExample)) {
 ```
 
 `$content` is passed straight into `str_replace()` at `:17-18` with no `false`
-check. One correction to the original write-up: `file_exists()` already guards the
-*missing* case, so triggering the failure needs a file that exists but cannot be
-read — permissions, or an I/O error. The consequence stands: a silently empty
-`.env`, and therefore an application with no generated secrets. Unfiled.
+check. The unchecked read is real and the finding stands.
+
+**Two corrections to the original write-up, and to the first pass of this
+reconciliation, which repeated the second one.**
+
+First, the trigger. `file_exists()` at `:9` already guards the *missing* case, so
+reaching the unchecked read needs a file that exists but cannot be read —
+permissions, or an I/O error.
+
+Second, and more consequentially, **the stated outcome is wrong**. The audit said
+the failure produces "a PHP 8.5 deprecation and an empty `.env`, silently", and
+the first pass of this reconciliation carried that forward as "a silently empty
+`.env`, and therefore an application with no generated secrets". Neither is what
+happens. `skeleton/bin/post-create-setup.php:3` declares `strict_types=1`, and the
+first call to consume `$content` is `str_replace()` at `:17` — which runs
+*before* `file_put_contents($envFile, $content)` at `:24`. Under strict types,
+`str_replace()`'s `$subject` parameter is `array|string`, so `false` throws
+immediately:
+
+```
+PHP Fatal error:  Uncaught TypeError: str_replace(): Argument #3 ($subject)
+must be of type array|string, false given
+```
+
+Confirmed by execution on PHP 8.5.8: uncaught `TypeError`, exit status 255. The
+script therefore **aborts setup loudly**, and because it runs as
+`post-create-project-cmd` (`skeleton/composer.json:43-45`) Composer reports the
+failed script rather than completing quietly. No empty `.env` is written, because
+control never reaches `:24`.
+
+So the defect is a missing `false` check that converts an I/O failure into an
+unhandled `TypeError` several lines away from its cause — a legibility problem,
+not a silent-corruption one. That is a materially smaller defect than the audit
+claimed, and the smaller claim is the true one. Unfiled.
 
 ### S11 — STILL OPEN
 
@@ -528,56 +562,112 @@ image that does not serve, on a runtime they never tested against.
 #2702 is a decision issue: compare FPM compatibility against a self-serving
 FrankenPHP default, and do not assume the answer.
 
-### S14 — The Dependabot admin-dist rebuild's privileged job ran `php` with no interpreter — FIXED — #2704 (`7cc9dfcba`, PR #2705)
+### S14 — The Dependabot admin-dist rebuild's privileged job ran an unpinned PHP that could not parse the verifier — FIXED — #2704 (`7cc9dfcba`, PR #2705)
 
 Every admin dependency bump was blocked. `dependabot-admin-dist.yml`'s `publish`
-job — the one holding `contents: write` under `pull_request_target` — invoked
-`php` with no `setup-php` step, so the rebuild died before it could commit.
+job — the one holding `contents: write` under `pull_request_target` — ran
+`php bin/admin-dist-acceptance verify` with **no `setup-php` step**, so it
+executed whatever interpreter the runner ships by default.
+
+**Wording correction.** The first pass of this reconciliation said the job "ran
+`php` with no interpreter", and #2704's own title says the same. That is
+inaccurate, and the shipped source says so precisely
+(`.github/workflows/dependabot-admin-dist.yml:83-86`): the job "executed the
+runner's default interpreter and died parsing this repository's PHP 8.4+ syntax".
+PHP was present. Its **version** was unsuitable. The specific construct is
+`bin/admin-dist-acceptance:73`:
+
+```php
+new AdminDistWorkspaceGuard()->assertAcceptable($root, array_values($porcelain));
+```
+
+`new` without parentheses before a method call is PHP 8.4+ syntax, so an older
+interpreter fails at *parse* time — before any logic runs, and with an error that
+names a syntax problem rather than a version mismatch.
 
 The repair is a three-job split rather than adding `setup-php` to the privileged
 job: `build` (`.github/workflows/dependabot-admin-dist.yml:14`), `validate`
 (`:90`), `publish` (`:188`). That is the better shape for a second reason the
-issue title does not carry: it **removes an interpreter from a `contents: write`
-job running under `pull_request_target`**. `build` and `validate` run at
-`contents: read` (`:19-20`, `:93-94`) and own the PHP toolchain (`:35`, `:123`);
-`publish` holds the write credential (`:205-206`) and runs no language runtime of
-its own. Verification now happens in a clean checkout rather than where the
-bundler ran.
+issue title does not carry: it **keeps the pinned interpreter, and the
+third-party action that installs it, out of a `contents: write` job running under
+`pull_request_target`**. `build` and `validate` run at `contents: read`
+(`:19-20`, `:93-94`) and own the PHP toolchain, pinned to `php-version: '8.5'`
+(`:35-37`, `:123-125`); `publish` holds the write credential (`:205-206`) and
+sets up no PHP by design, the workflow being explicit that "adding setup-php to
+`publish` would put a third-party action inside the privileged boundary; that
+separation is the security property" (`:87-89`). Verification now happens in a
+clean checkout rather than where the bundler ran.
 
-### S15 — A rebuild that commits via `GITHUB_TOKEN` cannot re-run the PR-scoped half of its own required checks — STILL OPEN, unfiled
+### S15 — A `GITHUB_TOKEN`-authored rebuild leaves its own `pull_request` runs awaiting approval, and the dispatch workaround measures less — STILL OPEN — #2707
 
-An observation, recorded rather than filed.
+**This finding was wrong in its first two formulations, and the corrections are
+the substance of it.** Recording them, rather than editing them away, is the
+point of the exercise.
 
-`.github/workflows/dependabot-admin-dist.yml:281-291` pushes the rebuilt dist
-with a `GITHUB_TOKEN`-derived credential and then dispatches CI by hand, with the
-mechanism stated in the workflow itself: "A `GITHUB_TOKEN` push does not emit
-another `pull_request` synchronize run." The workaround is
-`gh workflow run ci.yml --ref "$HEAD_REF"`.
+**The original framing was false.** It was handed to this reconciliation as "a
+rebuild that commits via `GITHUB_TOKEN` cannot report the `pull_request` checks
+its own PR requires". Checks are not structurally unreportable.
 
-Checked rather than assumed, the sharp form of this claim needs qualifying. All
-22 contexts in the `main-protection` ruleset's required-status-check roster live
-in `ci.yml`, which does accept `workflow_dispatch`
-(`.github/workflows/ci.yml:12-17`), and a dispatched run's check runs attach to
-the dispatched ref's tip — the PR head SHA. So the required roster *is*
-reproduced. What is lost is narrower, and real:
+**The first rewrite was better but still wrong.** It kept a "three workflows are
+never re-run at all" bullet naming `admin.yml`, `surface-parity.yml` and
+`changelog-discipline.yml`, and it listed `spec-drift` as a required gate. All
+four of those claims are incorrect. What is actually true:
 
-- **Two required gates degrade silently.** `ci/coverage`'s changed-lines
-  threshold reads `github.event.pull_request.base.sha || github.event.before`
+- **The `pull_request` runs exist; they sit at `action_required`, awaiting
+  approval.** GitHub documents that a workflow-created or workflow-updated PR
+  using `GITHUB_TOKEN` produces approval-required `opened` / `synchronize` /
+  `reopened` `pull_request` runs. Once approved, they complete normally. The
+  evidence is direct: run **33287914400** is `name=Admin SPA`,
+  `event=pull_request`, `status=completed`, `conclusion=success`,
+  `head_sha=2a05e10d180f804d449b95540261958fd0d23262` — that is `admin.yml`
+  running on a rebuilt Dependabot head, successfully, on the `pull_request`
+  event. `changelog-discipline` likewise succeeded on that SHA after approval.
+  So approval, not impossibility, was the blocker.
+- **`admin.yml` and `changelog-discipline.yml` do re-run.** They were pending
+  approval, not skipped. The earlier bullet inferred "never re-run" from their
+  lacking a `workflow_dispatch` trigger, which does not follow.
+- **`surface-parity.yml` correctly does not run.** It carries path filters
+  (`.github/workflows/surface-parity.yml:14-23`: `packages/**/src/**`,
+  `packages/**/testing/**`, `src/**`, the surface maps, `CHANGELOG.md`,
+  `changes/unreleased/**`, the checker, and itself). An admin dependency bump and
+  its `packages/admin-surface/dist/**` rebuild match none of them. Its silence is
+  designed behaviour, not a gap.
+- **`spec-drift` is not a required context.** The `main-protection` ruleset's
+  required-status-check roster holds 22 contexts, and `spec-drift` is absent from
+  it (verified via `gh api repos/waaseyaa/framework/rulesets/15181711`). Calling
+  it a "required gate" was simply wrong.
+- **The workflow's own comment is part of the problem.**
+  `.github/workflows/dependabot-admin-dist.yml:285` asserts "A `GITHUB_TOKEN`
+  push does not emit another `pull_request` synchronize run." The first rewrite
+  cited that comment as authoritative. It is the obsolete claim #2707's
+  acceptance calls out for refresh: push-event suppression and documented
+  approval-required PR behaviour are two different things, and the comment
+  conflates them.
+
+**What survives, and it is real: the dispatch workaround measures less than the
+run it substitutes for.** `.github/workflows/dependabot-admin-dist.yml:281-291`
+pushes the rebuilt dist and then runs `gh workflow run ci.yml --ref "$HEAD_REF"`.
+All 22 required contexts do live in `ci.yml`, which accepts `workflow_dispatch`
+(`.github/workflows/ci.yml:12-17`), and the dispatched run's check runs attach to
+the ref tip — the PR head SHA — so the roster is reproduced. But two jobs are
+event-shaped and degrade on that path:
+
+- **`ci/coverage` — required, and it degrades.** Its changed-lines threshold reads
+  `github.event.pull_request.base.sha || github.event.before`
   (`.github/workflows/ci.yml:777`); on `workflow_dispatch` both are empty, so
-  `bin/check-changed-php-coverage` runs with `--base=""`. `spec-drift` branches
-  on `github.event_name == 'pull_request'` (`.github/workflows/ci.yml:216-220`)
-  and takes its non-PR path, because `github.base_ref` is empty. Both report
-  green under the same check names, having measured less.
-- **Three workflows are never re-run at all.** They carry no `workflow_dispatch`
-  trigger and their `push` filters do not match a `dependabot/**` branch:
-  `.github/workflows/admin.yml:1-13` (jobs `admin/contracts`, `admin/build`,
-  `admin/adapters`, `admin/integration`, `admin/release`),
-  `.github/workflows/surface-parity.yml:13-14`, and
-  `.github/workflows/changelog-discipline.yml`. None of those contexts is in the
-  required roster today, so nothing is *blocked* — but nothing re-validates the
-  rebuilt commit either.
+  `bin/check-changed-php-coverage` runs with `--base=""` and reports green under
+  the required context name having measured a smaller thing.
+- **`spec-drift` — not required, and it degrades too.** It branches on
+  `github.event_name == 'pull_request'` (`.github/workflows/ci.yml:216-220`) and
+  takes its non-PR path because `github.base_ref` is empty. Worth recording, but
+  it blocks nothing.
 
-Not filed, per the scope of this reconciliation.
+**Owner: #2707** ("CI: handle bot-authored PR workflow approvals and reconcile
+check reporting"), open. Its problem statement reaches the same conclusion from
+the observed data — REST check-runs returned all 22 required context names on
+each exact head while the PR GraphQL `statusCheckRollup` was empty and
+mergeability stayed `BLOCKED` — and it states the discipline this finding twice
+failed to apply: "Do not infer missing checks solely from an empty PR rollup."
 
 ---
 
@@ -637,6 +727,6 @@ Worth recording so a later pass does not re-litigate these:
 > What remains, in the order the open issues sequence it: **S5** → #2650 (gated
 > on #2649's packaged-form harness, and on #2661 before `docs/` can be reasoned
 > about); **S4** → #2655 → #2657 → #2659; **S13** → #2702, a decision that blocks
-> nothing else; **S1's residue** → #2664 → #2665. **S9**, **S10**, **S11** and
-> the `docs/specs/**` row from **S7** are unfiled and remain a single small
-> documentation-and-hygiene sweep. **S15** is an observation with no owner.
+> nothing else; **S15** → #2707; **S1's residue** → #2664 → #2665. **S9**,
+> **S10**, **S11** and the `docs/specs/**` row from **S7** are unfiled and remain
+> a single small documentation-and-hygiene sweep.
