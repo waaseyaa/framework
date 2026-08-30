@@ -1194,7 +1194,13 @@ definition's own nesting level, so it is never matched inside a longer identifie
 and never merged with an adjacent token. Identifier boundaries follow SQLite's
 own rule, in which **every byte at or above 0x80 is an identifier character** —
 an ASCII-only rule would end an identifier early and could fabricate a `COLLATE`
-token where SQLite sees only a multi-word type name. The **whole** definition is examined
+token where SQLite sees only a multi-word type name.
+
+One lexer exception is modelled explicitly: a UTF-8 byte-order mark is treated as
+whitespace **only where a token would start**. Inside a token those same bytes are
+ordinary identifier characters, which is why they are not stripped globally —
+`TEXT <BOM>COLLATE NOCASE` carries a real clause, while `COLLATE<BOM>NOCASE` is a
+single identifier carrying none. The **whole** definition is examined
 before answering, because a later `COLLATE` clause supersedes an earlier one —
 which is the clause SQLite applies.
 
