@@ -19,6 +19,8 @@ use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2Migration;
 use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 
 #[CoversClass(DbInitHandler::class)]
@@ -94,8 +96,13 @@ final class DbInitHandlerTest extends TestCase
     }
 
     #[Test]
-    public function applies_root_application_v2_migrations(): void
+    #[DataProvider('migrationEnvironments')]
+    public function applies_root_application_v2_migrations(string $environment, bool $strict): void
     {
+        file_put_contents($this->projectRoot . '/config/waaseyaa.php', '<?php return ' . var_export([
+            'environment' => $environment,
+            'database' => $this->projectRoot . '/storage/waaseyaa.sqlite',
+        ], true) . ';');
         // Random-order runs may already have unrelated application loaders.
         $this->unrelatedClassLoader = new ClassLoader($this->projectRoot . '/unrelated-vendor');
         $this->unrelatedClassLoader->register();
@@ -128,7 +135,9 @@ final class DbInitHandlerTest extends TestCase
         self::assertSame($ledgerBefore, $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations'));
         $connection->close();
 
-        $tester = $this->createTester();
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($strict ? self::never() : self::once())->method('warning')->with(self::stringContains('Skipping re-apply'));
+        $tester = $this->createTester($logger);
         $tester->executeMap(['--no-sync-schema' => true]);
 
         self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
@@ -140,7 +149,27 @@ final class DbInitHandlerTest extends TestCase
         self::assertContains('profile', $columns);
         $dryRun->executeMap(['--dry-run' => true]);
         self::assertStringContainsString('No pending migrations', $dryRun->getStdout());
-        $readConnection->close();
+        try {
+            $readConnection->executeStatement('UPDATE waaseyaa_migrations SET checksum = ?', [str_repeat('0', 64)]);
+            $ledger = $readConnection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations');
+            $schema = $readConnection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name');
+            try {
+                $tester->executeMap(['--no-sync-schema' => true]);
+                self::assertFalse($strict, 'Production-like environments must reject checksum drift.');
+                self::assertSame(0, $tester->getExitCode());
+            } catch (ChecksumMismatchException) {
+                self::assertTrue($strict, 'Development must warn and skip checksum drift.');
+            }
+            self::assertSame($ledger, $readConnection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations'));
+            self::assertSame($schema, $readConnection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name'));
+        } finally {
+            $readConnection->close();
+        }
+    }
+
+    public static function migrationEnvironments(): array
+    {
+        return [['development', false], ['testing', false], ['production', true], ['staging', true]];
     }
 
     #[Test]
@@ -148,13 +177,13 @@ final class DbInitHandlerTest extends TestCase
     {
         mkdir($this->projectRoot . '/migrations');
         file_put_contents($this->projectRoot . '/migrations/01_init.php', <<<'PHP'
-<?php
-return new class extends \Waaseyaa\Foundation\Migration\Migration {
-    public function up(\Waaseyaa\Foundation\Migration\SchemaBuilder $schema): void {
-        $schema->create('legacy_widgets', function ($table): void { $table->id(); });
-    }
-};
-PHP);
+            <?php
+            return new class extends \Waaseyaa\Foundation\Migration\Migration {
+                public function up(\Waaseyaa\Foundation\Migration\SchemaBuilder $schema): void {
+                    $schema->create('legacy_widgets', function ($table): void { $table->id(); });
+                }
+            };
+            PHP);
         $first = $this->createTester()->executeMap(['--no-sync-schema' => true]);
         self::assertSame(0, $first->getExitCode());
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->projectRoot . '/storage/waaseyaa.sqlite']);
@@ -168,13 +197,13 @@ PHP);
                 'extra' => ['waaseyaa' => ['migrations' => ['migrations', './migrations/']]],
             ], JSON_THROW_ON_ERROR));
             file_put_contents($this->projectRoot . '/migrations/02_next.php', <<<'PHP'
-<?php
-return new class extends \Waaseyaa\Foundation\Migration\Migration {
-    public function up(\Waaseyaa\Foundation\Migration\SchemaBuilder $schema): void {
-        $schema->create('next_widgets', function ($table): void { $table->id(); });
-    }
-};
-PHP);
+                <?php
+                return new class extends \Waaseyaa\Foundation\Migration\Migration {
+                    public function up(\Waaseyaa\Foundation\Migration\SchemaBuilder $schema): void {
+                        $schema->create('next_widgets', function ($table): void { $table->id(); });
+                    }
+                };
+                PHP);
             $upgrade = $this->createTester()->executeMap(['--no-sync-schema' => true]);
             self::assertSame(0, $upgrade->getExitCode());
             self::assertStringContainsString('Ran 1 migration.', $upgrade->getStdout());
@@ -489,9 +518,9 @@ PHP);
         }
     }
 
-    private function createTester(): CliTester
+    private function createTester(?LoggerInterface $logger = null): CliTester
     {
-        $handler = new DbInitHandler(projectRoot: $this->projectRoot);
+        $handler = new DbInitHandler(projectRoot: $this->projectRoot, logger: $logger);
         $definition = new HandlerCommand(
             name: 'db:init',
             description: 'Initialize the database on first deploy and apply pending migrations.',

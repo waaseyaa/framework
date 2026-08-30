@@ -1288,12 +1288,17 @@ Per spec §15 Q9, `extra.waaseyaa.migrations` also accepts an **ordered list** o
 **Entry classification heuristic (v1):** entries containing a backslash are FQCN namespace prefixes; everything else is a path string. Full discovery rules — including the no-match warning, classmap optimization requirement, and Windows-path caveat — live in `docs/adr/009-migration-manifest-discovery.md`.
 
 **Root applications:** the root `composer.json` may declare the same key. Its
-non-empty Composer `name` becomes the package/ledger identity, namespace entries
+non-empty Composer `name` becomes the default package identity, namespace entries
 use the optimized root classmap, and relative paths resolve from the project
 root. A declaration without a package name fails closed. The historical
 undeclared `<projectRoot>/migrations` fallback remains supported under package
-`app`; it is suppressed when the declared root path already names that
-directory so one migration never receives two identities.
+`app`. Root declarations resolving to that canonical directory keep the same
+`app:*` ledger IDs and suppress the fallback; aliases never rename applied
+migrations. Other root paths and installed package paths keep Composer ownership.
+Kernel and CLI Migrator compositions use canonical RuntimePolicy and their
+runtime/configured logger for development warn-and-skip versus production-like
+checksum refusal. `db:init --dry-run` includes pending V2 entries without
+executing plans or updating schema/ledger.
 
 **v2 ordering:** within a package, list entries traverse left-to-right. Across packages, the unified migration DAG (mission #529 / WP06) reorders nodes by their declared `dependencies()`; raw discovery order is only the input. Within an FQCN entry, classmap iteration order is implementation-defined — v2 plans should not depend on it. Use explicit `MigrationInterfaceV2::dependencies()` for cross-migration ordering.
 

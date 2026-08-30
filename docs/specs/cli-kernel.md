@@ -125,6 +125,13 @@ migrator use the same executor contract. `migrate:status` reports pending and
 completed V2 identities as well as legacy migrations; resolving or executing
 read-only status does not create the migration ledger. `migrate --dry-run` and
 `--verify` observe the same V2 catalogue used by apply.
+`db:init --dry-run` also enumerates pending V2 identities on initialized
+databases without executing plans or updating schema/ledger. A declared root
+path resolving to the canonical `migrations/` directory keeps historical `app:*`
+ledger IDs; discovery upgrades do not rename or replay applied migrations.
+All three Migrator composition sites pass the shared `RuntimePolicy` and a
+runtime/configured logger. Development-like checksum drift warns and skips;
+production-like drift throws without updating the applied ledger row.
 
 This composition does not define new fresh-install plan semantics. In particular,
 V2 entity evolution against absent or already-current tables remains the separate

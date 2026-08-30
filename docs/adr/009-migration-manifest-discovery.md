@@ -80,8 +80,10 @@ path entries for that package resolve against the project root.
 For backward compatibility, an application with no declaration may still place
 legacy migration files in `<projectRoot>/migrations`, loaded under the
 historical `app` package key. If a root manifest path already resolves to that
-directory, the fallback does not run, so the same migration cannot be loaded
-twice under different ledger identities.
+directory, the declared migration also keeps the historical `app:*` ledger ID
+and the fallback does not run. This applies to canonical path aliases too:
+discovery upgrades must not replay existing `app:*` rows under the root Composer
+name. Non-default root paths continue to use the root Composer identity.
 
 ### Coexistence with the string form
 

@@ -12,6 +12,9 @@ use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
@@ -34,6 +37,7 @@ final class DbInitHandler
 {
     public function __construct(
         private readonly string $projectRoot,
+        private readonly ?LoggerInterface $logger = null,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -95,12 +99,13 @@ final class DbInitHandler
 
             $repository = new MigrationRepository($connection);
             $repository->installOrUpgradeLedger();
+            $logger = $this->logger ?? LogManager::fromConfig($config['logging'] ?? []);
 
             $manifest = new PackageManifestCompiler(
                 basePath: $this->projectRoot,
                 storagePath: $this->projectRoot . '/storage',
             )->load();
-            $loader = new MigrationLoader($this->projectRoot, $manifest);
+            $loader = new MigrationLoader($this->projectRoot, $manifest, $logger);
             $migrations = $loader->loadAll();
             $v2Migrations = $loader->loadAllV2();
 
@@ -109,6 +114,8 @@ final class DbInitHandler
                 $connection,
                 $repository,
                 new V2PlanExecutor($connection, $compiler),
+                isProduction: RuntimePolicy::resolve($config)->isProductionLike(),
+                logger: $logger,
             );
             $result = $migrator->run($migrations, $v2Migrations);
 
@@ -267,7 +274,8 @@ final class DbInitHandler
             basePath: $this->projectRoot,
             storagePath: $this->projectRoot . '/storage',
         )->load();
-        $migrations = new MigrationLoader($this->projectRoot, $manifest)->loadAll();
+        $loader = new MigrationLoader($this->projectRoot, $manifest);
+        $migrations = $loader->loadAll();
 
         $pending = [];
         foreach ($migrations as $package => $set) {
@@ -275,6 +283,12 @@ final class DbInitHandler
                 if (!$repository->hasRun($name)) {
                     $pending[] = $name;
                 }
+            }
+        }
+
+        foreach ($loader->loadAllV2() as $migration) {
+            if (!$repository->hasRun($migration->migrationId())) {
+                $pending[] = $migration->migrationId();
             }
         }
 

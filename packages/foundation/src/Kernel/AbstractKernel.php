@@ -436,12 +436,14 @@ abstract class AbstractKernel
 
         $this->migrationRepository = new MigrationRepository($connection);
 
-        $this->migrationLoader = new MigrationLoader($this->projectRoot, $this->manifest);
+        $this->migrationLoader = new MigrationLoader($this->projectRoot, $this->manifest, $this->logger);
         $compiler = SqliteCompiler::forVersion((string) $connection->fetchOne('SELECT sqlite_version()'));
         $this->migrator = new Migrator(
             $connection,
             $this->migrationRepository,
             new V2PlanExecutor($connection, $compiler),
+            isProduction: RuntimePolicy::resolve($this->config)->isProductionLike(),
+            logger: $this->logger,
         );
     }
 

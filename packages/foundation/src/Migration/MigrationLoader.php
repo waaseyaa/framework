@@ -64,27 +64,32 @@ final class MigrationLoader
     {
         $migrations = [];
         $declaredDirectories = [];
+        $appDir = $this->basePath . '/migrations';
+        $canonicalAppDir = self::canonicalPath($appDir);
+        $rootPackage = $this->rootPackageName();
 
         foreach ($this->manifest->migrations as $package => $entry) {
-            $packageMigrations = [];
             foreach (self::normalizeEntries($entry) as $item) {
                 if (self::looksLikeNamespace($item)) {
                     continue; // v2 entries are handled by loadAllV2()
                 }
                 $resolved = $this->resolvePackageMigrationDirectory($package, $item);
-                $declaredDirectories[] = self::canonicalPath($resolved);
-                $packageMigrations += $this->loadFromDirectory($resolved, $package);
-            }
-            if ($packageMigrations !== []) {
-                $migrations[$package] = $packageMigrations;
+                $canonical = self::canonicalPath($resolved);
+                $declaredDirectories[] = $canonical;
+                // This directory was already discovered as app before root
+                // declarations were supported. Keep its persisted ledger IDs.
+                $owner = $package === $rootPackage && $canonical === $canonicalAppDir ? 'app' : $package;
+                $loaded = $this->loadFromDirectory($resolved, $owner);
+                if ($loaded !== []) {
+                    $migrations[$owner] = ($migrations[$owner] ?? []) + $loaded;
+                }
             }
         }
 
-        $appDir = $this->basePath . '/migrations';
-        if (!in_array(self::canonicalPath($appDir), $declaredDirectories, true)) {
+        if (!in_array($canonicalAppDir, $declaredDirectories, true)) {
             $appMigrations = $this->loadFromDirectory($appDir, 'app');
             if ($appMigrations !== []) {
-                $migrations['app'] = $appMigrations;
+                $migrations['app'] = ($migrations['app'] ?? []) + $appMigrations;
             }
         }
 

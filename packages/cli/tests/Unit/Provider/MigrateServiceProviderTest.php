@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\InstallInitHandler;
 use Waaseyaa\CLI\Handler\MigrateHandler;
@@ -43,25 +44,27 @@ final class MigrateServiceProviderTest extends TestCase
     public function declared_commands_apply_and_report_root_v2_migrations_through_the_provider(string $environment, bool $strict): void
     {
         $root = sys_get_temp_dir() . '/waaseyaa_provider_v2_' . bin2hex(random_bytes(8));
-        mkdir($root . '/vendor/composer', 0o777, true);
-        file_put_contents($root . '/vendor/composer/installed.json', '{"packages":[]}');
-        file_put_contents($root . '/composer.json', json_encode([
-            'name' => 'acme/application',
-            'extra' => ['waaseyaa' => ['migrations' => ['Waaseyaa\\CLI\\Tests\\Fixtures']]],
-        ], JSON_THROW_ON_ERROR));
-
-        $migrationClassLoader = RootApplicationV2MigrationAutoloader::register();
-
-        $databasePath = $root . '/application.sqlite';
-        $connection = DBALDatabase::createSqlite($databasePath, 'testing')->getConnection();
-        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
-
+        $migrationClassLoader = null;
+        $connection = null;
         try {
+            mkdir($root . '/vendor/composer', 0o777, true);
+            file_put_contents($root . '/vendor/composer/installed.json', '{"packages":[]}');
+            file_put_contents($root . '/composer.json', json_encode([
+                'name' => 'acme/application',
+                'extra' => ['waaseyaa' => ['migrations' => ['Waaseyaa\\CLI\\Tests\\Fixtures']]],
+            ], JSON_THROW_ON_ERROR));
+
+            $migrationClassLoader = RootApplicationV2MigrationAutoloader::register();
+
+            $databasePath = $root . '/application.sqlite';
+            $connection = DBALDatabase::createSqlite($databasePath, 'testing')->getConnection();
+            $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+
             $provider = new MigrateServiceProvider();
             $provider->setKernelContext($root, ['environment' => $environment, 'database' => $databasePath], []);
             $logger = $this->createMock(LoggerInterface::class);
             $logger->expects($strict ? self::never() : self::once())->method('warning')->with(self::stringContains('Skipping re-apply'));
-            $services = $this->createMock(KernelServicesInterface::class);
+            $services = $this->createStub(KernelServicesInterface::class);
             $services->method('get')->willReturnCallback(static fn(string $id): ?object => $id === LoggerInterface::class ? $logger : null);
             $provider->setKernelServices($services);
             $provider->register();
@@ -113,10 +116,14 @@ final class MigrateServiceProviderTest extends TestCase
             self::assertSame($schema, $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name'));
         } finally {
             $migrationClassLoader?->unregister();
-            $connection->close();
+            $connection?->close();
             unset($status, $apply, $commands, $command, $container, $provider);
             gc_collect_cycles();
-            new Filesystem()->remove($root);
+            try {
+                new Filesystem()->remove($root);
+            } catch (IOException) {
+                // Windows can retain SQLite handles in provider service cycles.
+            }
         }
     }
 
