@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Integration;
 
+use Composer\Autoload\ClassLoader;
 use Doctrine\DBAL\DriverManager;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -17,18 +19,28 @@ use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2Migration;
 
+#[CoversNothing]
 final class RootApplicationV2MigrationRuntimeTest extends TestCase
 {
     private string $root;
 
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir().'/waaseyaa_root_v2_runtime_'.uniqid();
-        mkdir($this->root.'/vendor/composer', 0o755, true);
-        file_put_contents($this->root.'/vendor/composer/installed.json', '{"packages":[]}');
+        // Model the application's optimized classmap without requiring the
+        // entire framework test suite to use optimized dev autoloading.
+        foreach (ClassLoader::getRegisteredLoaders() as $loader) {
+            $loader->addClassMap([
+                RootApplicationV2Migration::class => dirname(__DIR__) . '/Fixtures/RootApplicationV2Migration.php',
+            ]);
+        }
+
+        $this->root = sys_get_temp_dir() . '/waaseyaa_root_v2_runtime_' . uniqid();
+        mkdir($this->root . '/vendor/composer', 0o755, true);
+        file_put_contents($this->root . '/vendor/composer/installed.json', '{"packages":[]}');
         file_put_contents(
-            $this->root.'/composer.json',
+            $this->root . '/composer.json',
             json_encode([
                 'name' => 'acme/application',
                 'extra' => ['waaseyaa' => [
@@ -41,7 +53,7 @@ final class RootApplicationV2MigrationRuntimeTest extends TestCase
     protected function tearDown(): void
     {
         try {
-            (new Filesystem())->remove($this->root);
+            new Filesystem()->remove($this->root);
         } catch (IOException) {
             // The provider retains its SQLite connection for the process lifetime;
             // Windows keeps the WAL handle locked until PHPUnit releases it.
@@ -51,7 +63,7 @@ final class RootApplicationV2MigrationRuntimeTest extends TestCase
     #[Test]
     public function stock_runtime_discovers_plans_applies_reports_and_verifies_root_v2_migration(): void
     {
-        $databasePath = $this->root.'/application.sqlite';
+        $databasePath = $this->root . '/application.sqlite';
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $databasePath]);
         $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
         $connection->close();
@@ -123,7 +135,7 @@ final class RootApplicationV2MigrationRuntimeTest extends TestCase
         return CliTester::for($command, new class implements ContainerInterface {
             public function get(string $id): mixed
             {
-                throw new \RuntimeException('Not found: '.$id);
+                throw new \RuntimeException('Not found: ' . $id);
             }
 
             public function has(string $id): bool
