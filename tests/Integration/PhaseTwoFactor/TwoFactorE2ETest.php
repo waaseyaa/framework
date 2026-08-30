@@ -22,6 +22,7 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 /**
@@ -59,7 +60,12 @@ final class TwoFactorE2ETest extends TestCase
         $this->rateLimiter = new RateLimiter();
         $this->setupCtrl = new SetupTwoFactorController($this->service);
         $this->enableCtrl = new EnableTwoFactorController($this->service);
-        $this->verifyCtrl = new VerifyTwoFactorController($this->service, $this->rateLimiter, $this->entityTypeManager);
+        $this->verifyCtrl = new VerifyTwoFactorController(
+            $this->service,
+            $this->rateLimiter,
+            $this->entityTypeManager,
+            new UserInternalFieldReaderFixture(),
+        );
         $this->disableCtrl = new DisableTwoFactorController($this->service);
         $_SESSION = [];
     }
@@ -97,7 +103,8 @@ final class TwoFactorE2ETest extends TestCase
         $this->assertTrue($verifyBody['data']['attributes']['verified']);
 
         // Session must be promoted
-        $this->assertSame($this->user->id(), $_SESSION['waaseyaa_uid'] ?? null);
+        $this->assertSame($this->user->id(), $_SESSION[AuthenticatedSession::USER_ID_KEY] ?? null);
+        $this->assertSame(0, $_SESSION[AuthenticatedSession::GENERATION_KEY] ?? null);
         $this->assertArrayNotHasKey('waaseyaa_pending_2fa_uid', $_SESSION);
     }
 

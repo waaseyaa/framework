@@ -33,7 +33,10 @@ if (!is_dir($sessionPath) && !mkdir($sessionPath, 0o700, true)) {
 session_save_path($sessionPath);
 session_id('media-field-read-regression');
 session_start();
-$_SESSION = ['waaseyaa_uid' => $uid];
+$_SESSION = [
+    \Waaseyaa\User\Session\AuthenticatedSession::USER_ID_KEY => $uid,
+    \Waaseyaa\User\Session\AuthenticatedSession::GENERATION_KEY => 0,
+];
 $_SERVER = [
     'REQUEST_METHOD' => 'GET',
     'REQUEST_URI' => $path . ($query !== '' ? '?' . $query : ''),

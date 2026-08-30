@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface\Tests\Integration\Host;
 
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -55,6 +56,7 @@ use Waaseyaa\Taxonomy\Term;
 use Waaseyaa\Taxonomy\Vocabulary;
 use Waaseyaa\Taxonomy\VocabularyAccessPolicy;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 /** Migrated-shape, session-authenticated vocabulary admin regression. */
@@ -311,7 +313,10 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
             $method,
             content: $payload === [] ? null : json_encode($payload, JSON_THROW_ON_ERROR),
         );
-        $request->attributes->set('_session', ['waaseyaa_uid' => 81]);
+        $request->attributes->set('_session', [
+            AuthenticatedSession::USER_ID_KEY => 81,
+            AuthenticatedSession::GENERATION_KEY => 0,
+        ]);
         $context = new RequestContext('', $method);
         $match = (new UrlMatcher($router->getRouteCollection(), $context))->match($path);
         $route = $router->getRouteCollection()->get($match['_route']);
@@ -321,7 +326,10 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         self::assertIsCallable($controller);
 
         $pipeline = (new HttpPipeline())
-            ->withMiddleware(new SessionMiddleware($this->entityTypeManager->getRepository('user')))
+            ->withMiddleware(new SessionMiddleware(
+                $this->entityTypeManager->getRepository('user'),
+                internalFields: new UserInternalFieldReaderFixture(),
+            ))
             ->withMiddleware(new FieldReadContextMiddleware($this->principalFactory(), $this->scope))
             ->withMiddleware(new AuthorizationMiddleware(new AccessChecker()));
 

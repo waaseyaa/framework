@@ -31,6 +31,7 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 #[CoversNothing]
@@ -87,7 +88,10 @@ final class AuthorizationPipelineTest extends TestCase
 
         $pipeline = $this->buildPipeline();
         $request = $this->buildRequest('/api/node', '_permission', 'access content');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 1]);
+        $request->attributes->set('_session', [
+            AuthenticatedSession::USER_ID_KEY => 1,
+            AuthenticatedSession::GENERATION_KEY => 0,
+        ]);
 
         $response = $pipeline->handle($request, $this->successHandler());
 
@@ -103,7 +107,10 @@ final class AuthorizationPipelineTest extends TestCase
 
         $pipeline = $this->buildPipeline();
         $request = $this->buildRequest('/api/node', '_permission', 'access content');
-        $request->attributes->set('_session', ['waaseyaa_uid' => 2]);
+        $request->attributes->set('_session', [
+            AuthenticatedSession::USER_ID_KEY => 2,
+            AuthenticatedSession::GENERATION_KEY => 0,
+        ]);
 
         $response = $pipeline->handle($request, $this->successHandler());
 
@@ -158,7 +165,10 @@ final class AuthorizationPipelineTest extends TestCase
         $scope = new AccountFieldReadScope();
 
         return new HttpPipeline()
-            ->withMiddleware(new SessionMiddleware($userRepository))
+            ->withMiddleware(new SessionMiddleware(
+                $userRepository,
+                internalFields: new UserInternalFieldReaderFixture(),
+            ))
             ->withMiddleware(new FieldReadContextMiddleware($principalFactory, $scope))
             ->withMiddleware(new AuthorizationMiddleware($accessChecker));
     }

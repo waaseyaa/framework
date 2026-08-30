@@ -39,7 +39,9 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
 /**
@@ -144,7 +146,10 @@ final class AdminOperationsAdministratorSessionTest extends TestCase
 
         $request = Request::create($route->getPath(), 'GET');
         $request->attributes->set('_route_object', $route);
-        $request->attributes->set('_session', ['waaseyaa_uid' => 71]);
+        $request->attributes->set('_session', [
+            AuthenticatedSession::USER_ID_KEY => 71,
+            AuthenticatedSession::GENERATION_KEY => 0,
+        ]);
 
         $ledger = new DatabaseStrictPrivilegedReadLedger($this->database);
         $principalFactory = new AccountPrincipalFactory(new IdentityBootstrapReader(
@@ -153,7 +158,10 @@ final class AdminOperationsAdministratorSessionTest extends TestCase
             'http.identity-bootstrap',
         ));
         $pipeline = new HttpPipeline()
-            ->withMiddleware(new SessionMiddleware($this->entityTypeManager->getRepository('user')))
+            ->withMiddleware(new SessionMiddleware(
+                $this->entityTypeManager->getRepository('user'),
+                internalFields: new UserInternalFieldReaderFixture(),
+            ))
             ->withMiddleware(new FieldReadContextMiddleware($principalFactory, new AccountFieldReadScope()))
             ->withMiddleware(new AuthorizationMiddleware(new AccessChecker()));
 
