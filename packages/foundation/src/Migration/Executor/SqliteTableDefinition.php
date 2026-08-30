@@ -28,8 +28,8 @@ namespace Waaseyaa\Foundation\Migration\Executor;
  * - a column carrying none → `BINARY`, authoritative because it is SQLite's
  *   documented default rather than a guess;
  * - anything unresolved — table absent, schema text unreadable, column not
- *   found, a `COLLATE` clause whose argument is not an identifier → **unknown**,
- *   reported as `null`.
+ *   found, a `COLLATE` clause whose argument is not a name in any of the
+ *   spellings SQLite accepts → **unknown**, reported as `null`.
  *
  * Callers must treat unknown as "cannot establish equivalence" and fail closed.
  * Collapsing unknown to `BINARY` would silently accept a mismatched index.
@@ -47,6 +47,22 @@ final readonly class SqliteTableDefinition
     private const TYPE_QUOTED = 'quoted';
     private const TYPE_STRING = 'string';
     private const TYPE_PUNCTUATION = 'punctuation';
+
+    /**
+     * Token types SQLite accepts where a collation name is expected.
+     *
+     * All four spellings name the same collating sequence — `COLLATE NOCASE`,
+     * `COLLATE "NOCASE"`, `` COLLATE `NOCASE` ``, `COLLATE [NOCASE]` and
+     * `COLLATE 'NOCASE'` — because SQLite accepts a string literal wherever an
+     * identifier is expected. Reading only the bare and quoted-identifier forms
+     * reported a legitimately `NOCASE` column as unknown, and unknown makes the
+     * caller refuse a migration whose index is in fact equivalent. That is
+     * fail-closed rather than dangerous, but it is still a wrong answer about
+     * valid DDL.
+     */
+    private const COLLATION_NAME_TYPES = [
+        self::TYPE_IDENTIFIER, self::TYPE_QUOTED, self::TYPE_STRING,
+    ];
 
     public function __construct(private string $sql) {}
 
@@ -113,7 +129,7 @@ final readonly class SqliteTableDefinition
             $argument = $definition[$index + 1] ?? null;
             if ($argument === null
                 || $argument['depth'] !== 0
-                || ($argument['type'] !== self::TYPE_IDENTIFIER && $argument['type'] !== self::TYPE_QUOTED)
+                || !in_array($argument['type'], self::COLLATION_NAME_TYPES, true)
             ) {
                 // A clause we cannot read is unknown, never the default.
                 return null;
