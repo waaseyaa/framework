@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
+use Composer\Autoload\ClassLoader;
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,6 +17,7 @@ use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2Migration;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 
 #[CoversClass(DbInitHandler::class)]
@@ -45,7 +47,7 @@ final class DbInitHandlerTest extends TestCase
         // is process-local and harmless (POSIX unlink-open-file just works on the
         // Linux CI). Don't let temp-dir cleanup fail the test.
         try {
-            (new Filesystem())->remove($this->projectRoot);
+            new Filesystem()->remove($this->projectRoot);
         } catch (IOException) {
             // Intentionally ignored -- see above.
         }
@@ -89,10 +91,17 @@ final class DbInitHandlerTest extends TestCase
     #[Test]
     public function applies_root_application_v2_migrations(): void
     {
-        mkdir($this->projectRoot.'/vendor/composer', 0o755, true);
-        file_put_contents($this->projectRoot.'/vendor/composer/installed.json', '{"packages":[]}');
+        // Model the optimized application classmap independently of test order.
+        foreach (ClassLoader::getRegisteredLoaders() as $loader) {
+            $loader->addClassMap([
+                RootApplicationV2Migration::class => dirname(__DIR__, 2) . '/Fixtures/RootApplicationV2Migration.php',
+            ]);
+        }
+
+        mkdir($this->projectRoot . '/vendor/composer', 0o755, true);
+        file_put_contents($this->projectRoot . '/vendor/composer/installed.json', '{"packages":[]}');
         file_put_contents(
-            $this->projectRoot.'/composer.json',
+            $this->projectRoot . '/composer.json',
             json_encode([
                 'name' => 'acme/application',
                 'extra' => ['waaseyaa' => [
@@ -101,9 +110,9 @@ final class DbInitHandlerTest extends TestCase
             ], JSON_THROW_ON_ERROR),
         );
 
-        $dbPath = $this->projectRoot.'/storage/waaseyaa.sqlite';
+        $dbPath = $this->projectRoot . '/storage/waaseyaa.sqlite';
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
-        (new MigrationRepository($connection))->createTable();
+        new MigrationRepository($connection)->createTable();
         $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
         $connection->close();
 
