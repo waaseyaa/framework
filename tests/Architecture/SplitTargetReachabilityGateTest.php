@@ -71,6 +71,68 @@ final class SplitTargetReachabilityGateTest extends TestCase
         self::assertStringContainsString('unreachable_targets', $gate);
     }
 
+    /**
+     * The roster comes from a YAML parse, and there is no text-scanning path
+     * left to fall back to. Three generations of substring scanning were
+     * bypassed in three different ways; a residual fallback would restore all
+     * of them the moment the parser was unavailable, which is the one moment
+     * nobody is watching.
+     */
+    #[Test]
+    public function the_matrix_is_parsed_as_yaml_with_no_text_scanning_fallback(): void
+    {
+        $gate = $this->read(self::GATE);
+
+        self::assertStringContainsString('import yaml', $gate);
+        self::assertStringContainsString('yaml.safe_load', $gate);
+        self::assertStringContainsString('FAIL [RR005]', $gate);
+
+        foreach (['re.compile', 'SUPPORTED_REMOTE', 'DECLARES_REMOTE', 'findall'] as $scanner) {
+            self::assertStringNotContainsString(
+                $scanner,
+                $gate,
+                'No substring-scanning machinery may survive as a fallback roster.',
+            );
+        }
+    }
+
+    /**
+     * Every lane that runs this gate must provision the parser, because the
+     * gate fails closed without one. A lane that did not would be red for a
+     * reason unrelated to the release, and the pressure would be to restore
+     * the fallback.
+     */
+    #[Test]
+    public function every_lane_that_runs_the_gate_provisions_the_parser(): void
+    {
+        foreach ([
+            '.github/workflows/release-cut.yml' => ['Verify root require / split parity'],
+            '.github/workflows/split.yml' => ['Verify root require / split parity'],
+            '.github/workflows/ci.yml' => [
+                'Execute shard once with test and coverage evidence',
+                'Execute the shard in replayable random order',
+            ],
+        ] as $workflow => $consumers) {
+            $text = $this->read($workflow);
+            $provision = strpos($text, 'Provision the YAML parser the split-matrix gate requires');
+            self::assertIsInt($provision, $workflow . ' must provision the parser.');
+
+            foreach ($consumers as $consumer) {
+                $position = strpos($text, $consumer);
+                self::assertIsInt($position, sprintf('%s must still contain "%s".', $workflow, $consumer));
+            }
+        }
+
+        // Both PHP lanes execute the gate through this very test class, so the
+        // provisioning must be paired with the step that runs the suite.
+        $ci = $this->read('.github/workflows/ci.yml');
+        self::assertSame(
+            2,
+            substr_count($ci, 'Provision the YAML parser the split-matrix gate requires'),
+            'Both the sharded and random-order test lanes execute the gate.',
+        );
+    }
+
     /** RR001 keeps its own roster and its own diagnostics; RR002 is additive. */
     #[Test]
     public function the_require_edge_check_is_kept_alongside_it(): void
@@ -235,22 +297,18 @@ final class SplitTargetReachabilityGateTest extends TestCase
     }
 
     /**
-     * The concealment shape, which is the whole point of this fixture.
+     * Every scalar spelling of the same row is one target, and the gate must
+     * see all three.
      *
-     * The roster is parsed with a regex (see the gate's header for why a YAML
-     * library is not available in either lane that runs it), and a regex
-     * recognises exactly one spelling. A matrix that mixes spellings is what
-     * makes the defect dangerous rather than obvious: the single-quoted entry
-     * parses, so the roster is non-empty, so the blind-pass guard is satisfied
-     * — and the double-quoted and bare entries vanish unseen. Neither missing
-     * target is provisioned here, so a gate that dropped them would report
-     * success on a matrix with two unreachable targets.
-     *
-     * Both unparseable rows must be named, not just the first: stopping at one
-     * would leave the second concealed on the next run.
+     * A substring scanner recognised only single quotes, so `remote: "beta"`
+     * and bare `remote: gamma` vanished while the single-quoted survivor kept
+     * the roster non-empty and the blind-pass guard satisfied. Only `alpha` is
+     * provisioned here, so a gate that dropped the other two would report
+     * success on a matrix with two unreachable targets. Reading the YAML makes
+     * all three ordinary targets, and the two missing repositories are named.
      */
     #[Test]
-    public function mixed_scalar_formats_are_refused_rather_than_silently_dropped(): void
+    public function every_scalar_spelling_of_a_target_is_seen(): void
     {
         $fixture = $this->fixture(
             ['alpha', 'beta', 'gamma'],
@@ -261,24 +319,19 @@ final class SplitTargetReachabilityGateTest extends TestCase
         [$exitCode, $output] = $this->runGate($fixture);
 
         self::assertSame(1, $exitCode, $output);
-        self::assertStringContainsString('FAIL [RR003]', $output);
-        self::assertStringContainsString('remote: "beta"', $output);
-        self::assertStringContainsString('remote: gamma', $output);
+        self::assertStringContainsString('FAIL [RR002]', $output);
+        self::assertStringContainsString('beta', $output);
+        self::assertStringContainsString('gamma', $output);
         self::assertStringNotContainsString(
             'Require parity verified',
             $output,
-            'The parseable survivor must not be allowed to report success for the whole matrix.',
+            'The single-quoted survivor must not report success for the whole matrix.',
         );
     }
 
-    /**
-     * The same mixed matrix, fully provisioned. It must STILL refuse: the
-     * objection is that the gate cannot read the rows, not that those
-     * particular repositories are missing. Passing here would mean the gate
-     * had gone back to probing only what it happens to understand.
-     */
+    /** The same mixed matrix, fully provisioned, is ordinary valid YAML and passes. */
     #[Test]
-    public function unreadable_rows_are_refused_even_when_every_repository_exists(): void
+    public function mixed_scalar_spellings_pass_once_every_target_is_provisioned(): void
     {
         $fixture = $this->fixture(
             ['alpha', 'beta', 'gamma'],
@@ -288,8 +341,156 @@ final class SplitTargetReachabilityGateTest extends TestCase
 
         [$exitCode, $output] = $this->runGate($fixture);
 
+        self::assertSame(0, $exitCode, $output);
+    }
+
+    /**
+     * Bypass 1 — the inline comment. A line scanner cannot tell a `remote:`
+     * inside a trailing comment from a real one, and counted it: with both
+     * REAL targets provisioned it still failed, demanding a repository for a
+     * target that exists only in a comment. That is a false red on the
+     * immutable-tag path, and the pressure it creates is to "fix" the roster
+     * rather than the parser. YAML discards the comment, so the matrix passes.
+     */
+    #[Test]
+    public function a_target_named_only_inside_a_comment_is_not_a_target(): void
+    {
+        $fixture = $this->fixture(['alpha', 'beta'], provisioned: ['alpha', 'beta']);
+        $this->writeSplitYaml($fixture, <<<'YAML'
+                package:
+                  - { local: 'packages/alpha', remote: 'alpha' }
+                  - { local: 'packages/beta', remote: 'beta' }  # remote: 'ghost'
+            YAML);
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(0, $exitCode, $output);
+        self::assertStringNotContainsString('ghost', $output);
+    }
+
+    /** And a fully commented-out entry is not a target either. */
+    #[Test]
+    public function a_commented_out_entry_is_not_a_target(): void
+    {
+        $fixture = $this->fixture(['alpha'], provisioned: ['alpha']);
+        $this->writeSplitYaml($fixture, <<<'YAML'
+                package:
+                  - { local: 'packages/alpha', remote: 'alpha' }
+                  # - { local: 'packages/ghost', remote: 'ghost' }
+            YAML);
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(0, $exitCode, $output);
+    }
+
+    /**
+     * Bypass 2 — the flow-style `include`. This is the concealment shape: a
+     * real matrix leg that a release pushes, invisible to a scanner keyed on
+     * list-item lines, with the ordinary entry surviving to keep the roster
+     * non-empty. `ghost` has no repository, and the line scanner reported
+     * success anyway.
+     *
+     * `include` is refused rather than resolved (see the gate's header): it
+     * transforms the leg set by rules this gate does not reimplement, so the
+     * declared list would no longer be the roster.
+     */
+    #[Test]
+    public function a_flow_style_include_leg_cannot_hide_behind_an_ordinary_entry(): void
+    {
+        $fixture = $this->fixture(['alpha'], provisioned: ['alpha']);
+        $this->writeSplitYaml($fixture, <<<'YAML'
+                package:
+                  - { local: 'packages/alpha', remote: 'alpha' }
+                include: [{ local: 'packages/ghost', remote: 'ghost' }]
+            YAML);
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
         self::assertSame(1, $exitCode, $output);
-        self::assertStringContainsString('FAIL [RR003]', $output);
+        self::assertStringContainsString('FAIL [RR004]', $output);
+        self::assertStringContainsString('include', $output);
+        self::assertStringNotContainsString('Require parity verified', $output);
+    }
+
+    /** `exclude` is refused for the same reason: it also changes what ships. */
+    #[Test]
+    public function an_exclude_key_is_refused_too(): void
+    {
+        $fixture = $this->fixture(['alpha'], provisioned: ['alpha']);
+        $this->writeSplitYaml($fixture, <<<'YAML'
+                package:
+                  - { local: 'packages/alpha', remote: 'alpha' }
+                exclude: [{ remote: 'alpha' }]
+            YAML);
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('FAIL [RR004]', $output);
+        self::assertStringContainsString('exclude', $output);
+    }
+
+    /**
+     * Flow style is valid YAML and must simply work — the objection to the
+     * `include` fixture above is the transform, not the notation.
+     */
+    #[Test]
+    public function a_flow_style_entry_list_is_read_like_any_other(): void
+    {
+        $fixture = $this->fixture(['alpha'], provisioned: ['alpha']);
+        $this->writeSplitYaml($fixture, <<<'YAML'
+                package: [{ local: 'packages/alpha', remote: 'alpha' }, { local: 'packages/ghost', remote: 'ghost' }]
+            YAML);
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('FAIL [RR002]', $output);
+        self::assertStringContainsString('ghost', $output);
+    }
+
+    /**
+     * A block-style entry spread over several lines is also just a target.
+     * The previous parser refused these; nothing about them is ambiguous.
+     */
+    #[Test]
+    public function a_block_style_entry_is_read_like_any_other(): void
+    {
+        $fixture = $this->fixture(['alpha'], provisioned: ['alpha']);
+        $this->writeSplitYaml($fixture, <<<'YAML'
+                package:
+                  - local: 'packages/alpha'
+                    remote: 'alpha'
+                  - local: 'packages/ghost'
+                    remote: 'ghost'
+            YAML);
+
+        [$exitCode, $output] = $this->runGate($fixture);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('FAIL [RR002]', $output);
+        self::assertStringContainsString('ghost', $output);
+    }
+
+    /**
+     * The parser is a declared dependency of every lane that runs this gate,
+     * and its absence must be a named failure rather than a fallback. A gate
+     * that degraded to text scanning here would reintroduce every bypass
+     * above at exactly the moment nobody was watching.
+     */
+    #[Test]
+    public function the_gate_fails_closed_without_a_yaml_parser(): void
+    {
+        $fixture = $this->fixture(['alpha'], provisioned: ['alpha']);
+        mkdir($fixture . '/noyaml');
+        file_put_contents($fixture . '/noyaml/yaml.py', "raise ImportError('provisioning check')\n");
+
+        [$exitCode, $output] = $this->runGate($fixture, ['PYTHONPATH' => $fixture . '/noyaml']);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('FAIL [RR005]', $output);
+        self::assertStringNotContainsString('Require parity verified', $output);
     }
 
     /**
@@ -325,24 +526,45 @@ final class SplitTargetReachabilityGateTest extends TestCase
     }
 
     /**
-     * Fast feedback on the real workflow. The release gate would catch a row
-     * this parser cannot read, but only at release time; this says so on the
-     * commit that introduces it.
+     * Fast feedback on the real workflow: it must parse, declare exactly the
+     * matrix this gate expects, use neither transform key, and contain the
+     * development metapackage's target. The release gate would catch a
+     * malformed matrix, but only at release time; this says so on the commit
+     * that introduces it.
      */
     #[Test]
-    public function every_matrix_row_in_this_repository_uses_the_supported_form(): void
+    public function the_real_split_matrix_parses_and_declares_its_targets(): void
     {
-        $offenders = [];
-        foreach (explode("\n", $this->read(self::SPLIT)) as $number => $line) {
-            if (str_starts_with(ltrim($line), '#') || preg_match('/(?<![A-Za-z0-9_])remote:/', $line) !== 1) {
-                continue;
-            }
-            if (preg_match("/remote:\s*'[^']+'/", $line) !== 1) {
-                $offenders[] = sprintf('%s:%d: %s', self::SPLIT, $number + 1, trim($line));
-            }
-        }
+        $script = <<<'PY'
+            import json, sys, yaml
+            document = yaml.safe_load(open(sys.argv[1]))
+            matrix = document["jobs"]["split"]["strategy"]["matrix"]
+            print(json.dumps({
+                "keys": sorted(matrix),
+                "remotes": sorted(entry["remote"] for entry in matrix["package"]),
+            }))
+            PY;
+        $file = tempnam(sys_get_temp_dir(), 'waaseyaa-split-probe-');
+        file_put_contents($file, $script);
+        $this->cleanup[] = $file;
 
-        self::assertSame([], $offenders, "Rows the release gate cannot parse:\n" . implode("\n", $offenders));
+        exec(sprintf(
+            'python3 %s %s 2>&1',
+            escapeshellarg($file),
+            escapeshellarg($this->repoRoot . '/' . self::SPLIT),
+        ), $output, $exitCode);
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        /** @var array{keys: list<string>, remotes: list<string>} $parsed */
+        $parsed = json_decode(implode("\n", $output), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(['package'], $parsed['keys'], 'The matrix must declare only its entry list.');
+        self::assertContains('ai-development', $parsed['remotes']);
+        self::assertSame(
+            $parsed['remotes'],
+            array_values(array_unique($parsed['remotes'])),
+            'Every split target must be declared once.',
+        );
     }
 
     /**
@@ -394,19 +616,53 @@ final class SplitTargetReachabilityGateTest extends TestCase
         return $root;
     }
 
-    /** Write the split workflow around a caller-supplied matrix body. */
+    /**
+     * Write the split workflow around a caller-supplied matrix body.
+     *
+     * The body is re-indented to sit under `matrix:` while its RELATIVE
+     * nesting is preserved, so a fixture can be written at whatever
+     * indentation reads well in PHP without its meaning depending on how the
+     * heredoc happened to be laid out. Fixture indentation that silently
+     * changed a fixture's meaning would be its own small version of the bug
+     * this class exists for.
+     */
     private function writeSplitYaml(string $root, string $matrixBody): void
     {
+        $lines = explode("\n", rtrim($matrixBody, "\n"));
+        $common = null;
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $indent = strlen($line) - strlen(ltrim($line));
+            $common = $common === null ? $indent : min($common, $indent);
+        }
+
+        $body = '';
+        foreach ($lines as $line) {
+            $body .= trim($line) === ''
+                ? "\n"
+                : '        ' . substr($line, $common ?? 0) . "\n";
+        }
+
         file_put_contents(
             $root . '/split.yml',
-            "jobs:\n  split:\n    strategy:\n      matrix:\n" . $matrixBody,
+            "jobs:\n  split:\n    strategy:\n      matrix:\n" . $body,
         );
     }
 
-    /** @return array{0: int, 1: string} */
-    private function runGate(string $fixture): array
+    /**
+     * @param array<string, string> $environment extra variables for this run
+     *
+     * @return array{0: int, 1: string}
+     */
+    private function runGate(string $fixture, array $environment = []): array
     {
-        $command = sprintf(
+        $prefix = '';
+        foreach ($environment as $name => $value) {
+            $prefix .= sprintf('%s=%s ', $name, escapeshellarg($value));
+        }
+        $command = $prefix . sprintf(
             'SPLIT_YML=%s COMPOSER_JSON=%s PACKAGES_DIR=%s REPO_REMOTE_TEMPLATE=%s CHECK_REMOTE=1 GITHUB_TOKEN= bash %s 2>&1',
             escapeshellarg($fixture . '/split.yml'),
             escapeshellarg($fixture . '/composer.json'),

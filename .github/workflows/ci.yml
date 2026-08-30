@@ -480,6 +480,20 @@ jobs:
           name: phpunit-shard-plan
           path: build/ci
 
+      # tests/Architecture/SplitTargetReachabilityGateTest EXECUTES
+      # bin/check-release-require-parity, which parses the split matrix as YAML
+      # and fails closed (RR005) without a parser. Declared here for the same
+      # reason it is declared in release-cut.yml and split.yml: the gate must
+      # never be exercised against an environment that silently lacks it.
+      - name: Provision the YAML parser the split-matrix gate requires
+        run: |
+          set -euo pipefail
+          python3 -c 'import yaml' 2>/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq python3-yaml
+          }
+          python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
+
       - name: Execute shard once with test and coverage evidence
         env:
           SHARD_ID: ${{ matrix.id }}
@@ -631,6 +645,20 @@ jobs:
             rm -rf vendor
             composer_retry composer install --no-interaction --prefer-dist --no-progress
           fi
+
+      # tests/Architecture/SplitTargetReachabilityGateTest EXECUTES
+      # bin/check-release-require-parity, which parses the split matrix as YAML
+      # and fails closed (RR005) without a parser. Declared here for the same
+      # reason it is declared in release-cut.yml and split.yml: the gate must
+      # never be exercised against an environment that silently lacks it.
+      - name: Provision the YAML parser the split-matrix gate requires
+        run: |
+          set -euo pipefail
+          python3 -c 'import yaml' 2>/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq python3-yaml
+          }
+          python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
 
       - name: Execute the shard in replayable random order
         run: php bin/test-random-order --plan=build/ci/random-order-plan.json --shard=${{ matrix.id }}

@@ -313,6 +313,20 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+      # `bin/check-release-require-parity` parses the split matrix as YAML and
+      # FAILS CLOSED (RR005) without a parser -- it never falls back to text
+      # scanning, because a substring roster cannot tell a real matrix target
+      # from text that resembles one. The dependency is therefore declared here
+      # rather than inherited from whatever the runner image happens to ship.
+      - name: Provision the YAML parser the split-matrix gate requires
+        run: |
+          set -euo pipefail
+          python3 -c 'import yaml' 2>/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq python3-yaml
+          }
+          python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
+
       - name: Verify root require / split parity
         env:
           REPO_OWNER: ${{ github.repository_owner }}

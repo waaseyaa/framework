@@ -86,10 +86,10 @@ export ROOT_DIR REPO_OWNER GITHUB_TOKEN COMPOSER_JSON SPLIT_YML PACKAGES_DIR CHE
 python3 - <<'PY'
 import json
 import os
-import re
 import subprocess
 import sys
 import pathlib
+import typing
 
 composer_path = pathlib.Path(os.environ["COMPOSER_JSON"])
 split_path = pathlib.Path(os.environ["SPLIT_YML"])
@@ -113,147 +113,124 @@ for label, path in sources:
             pkg = name.split("/", 1)[1]
             required.setdefault(pkg, set()).add(label)
 
-# Split matrix `remote:` targets.
+# Split matrix targets, parsed as YAML.
 #
-# Parsed with a regex rather than a YAML library, deliberately and on
-# evidence. The gate executes in three places, and NONE of them provisions a
-# YAML parser:
+# This gate's roster must equal what a release actually pushes. Three
+# generations of substring scanning failed that in three different ways, each
+# found by whoever looked next rather than by the gate: single-quote-only
+# matching dropped `remote: "x"` and bare `remote: x`; line classification
+# counted a commented-out `remote:` as a real target; and a flow-style
+# `include:` leg was invisible to a scanner keyed on list-item lines. The class
+# is not "the pattern is too narrow" -- it is that a substring scanner cannot
+# distinguish YAML structure from text that resembles it, so every widening
+# patches an instance and leaves the class open.
 #
-#   1. release-cut.yml, the pre-tag gate  -- checkout only, no setup-python
-#   2. split.yml, verify-require-parity   -- checkout only, no setup-python
-#   3. tests/Architecture/SplitTargetReachabilityGateTest, which executes this
-#      script -- so the PHP test lane would need it too
+# So the matrix is parsed as YAML, and the parser is a DECLARED dependency of
+# every lane that runs this gate (release-cut.yml, split.yml
+# verify-require-parity, and the two PHP test lanes whose architecture suite
+# executes this script). If it is missing the gate FAILS CLOSED -- it never
+# falls back to substring scanning, never skips, and never degrades to a
+# partial roster, because a partial roster is precisely the failure being
+# removed.
+try:
+    import yaml
+except ImportError:
+    # ImportError, not ModuleNotFoundError: a PyYAML that is present but
+    # broken must fail closed for the same reason an absent one does.
+    print("FAIL [RR005] PyYAML is required to read the split matrix and is not usable.")
+    print()
+    print("  This gate refuses to fall back to text scanning: a roster derived by")
+    print("  substring matching cannot distinguish a real matrix target from text")
+    print("  that resembles one, and a partial roster passes while an unreachable")
+    print("  target reaches the immutable release tag. Install it in this lane")
+    print("  (python3-yaml, or pip install pyyaml) and re-run.")
+    sys.exit(1)
+
+try:
+    split_document = yaml.safe_load(split_path.read_text(encoding="utf-8"))
+except yaml.YAMLError as error:
+    print(f"FAIL [RR005] {split_path} is not valid YAML: {error}")
+    sys.exit(1)
+
+
+def fail_structure(message: str, *details: str) -> "typing.NoReturn":
+    print(f"FAIL [RR004] {message}")
+    for detail in details:
+        print(f"    {detail}")
+    print()
+    print("  The split matrix is the roster this gate probes and the roster a")
+    print("  release pushes. Structure it cannot represent exactly is refused,")
+    print("  never reduced to the part that happened to parse.")
+    sys.exit(1)
+
+
+if not isinstance(split_document, dict) or not isinstance(split_document.get("jobs"), dict):
+    fail_structure(f"{split_path} declares no `jobs:` mapping.")
+
+matrices = {
+    job_name: job["strategy"]["matrix"]
+    for job_name, job in split_document["jobs"].items()
+    if isinstance(job, dict)
+    and isinstance(job.get("strategy"), dict)
+    and "matrix" in job["strategy"]
+}
+if len(matrices) != 1:
+    fail_structure(
+        f"expected exactly one job with a `strategy.matrix`, found {len(matrices)}.",
+        *(f"job: {name}" for name in sorted(matrices)),
+    )
+
+matrix_job, matrix = next(iter(matrices.items()))
+if not isinstance(matrix, dict):
+    fail_structure(f"the `matrix` of job `{matrix_job}` is not a mapping.")
+
+# `include` and `exclude` are REFUSED rather than resolved, deliberately.
 #
-# No workflow pip-installs PyYAML and no repository tooling imports it, so
-# "import yaml happens to succeed on today's runner image" would be an
-# undeclared dependency of a release-critical gate -- the same class of latent
-# fragility as the quote-blind pattern below: a property that holds by
-# accident, is written down nowhere, and changes silently when an image or a
-# lane changes. Provisioning it would mean editing three lanes, two of them on
-# the release path, to read one list. Refusing what cannot be parsed (RR003 /
-# RR004) buys the same safety with no dependency at all.
-#
-# The cost of that choice is that the pattern recognises exactly ONE spelling.
-# Every other valid YAML spelling of the same row -- remote: "beta", bare
-# remote: beta, a folded scalar, an alias -- would parse to nothing. DROPPING
-# those is the defect, and RR000 below cannot catch it: it fires only when the
-# roster is ENTIRELY empty, so seventy-odd parseable rows keep it satisfied
-# while a single edited row disappears unseen. A blind-pass guard defends
-# against total parse failure and is powerless against a partial one, which is
-# the shape that actually occurs when someone edits one matrix row.
-#
-# Note the symmetry, because it is the same mistake twice: RR001's roster could
-# not see a package that no manifest requires, and this roster could not see a
-# target whose YAML uses a different quote character. Both are "the input is
-# structurally incapable of representing the thing being gated". Widening the
-# pattern to also accept double quotes would fix one reported input and leave
-# the class intact.
-#
-# So anything that looks like a `remote:` key but does not match the supported
-# form is REFUSED (RR003), never skipped.
-SUPPORTED_REMOTE = re.compile(r"remote:\s*'([^']+)'")
-DECLARES_REMOTE = re.compile(r"(?<![A-Za-z0-9_])remote:")
-
-MATRIX_KEY = re.compile(r"^(\s*)matrix:\s*$")
-LIST_ITEM = re.compile(r"^\s*-\s")
-
-split_lines = split_path.read_text(encoding="utf-8").splitlines()
-
-
-def significant(line: str) -> bool:
-    stripped = line.strip()
-    return stripped != "" and not stripped.startswith("#")
-
-
-def matrix_body() -> list[tuple[int, str]]:
-    """The lines belonging to the split job's `matrix:` block.
-
-    Structure this cannot understand is refused rather than reduced to a
-    partial roster: a missing matrix, more than one, or an empty body all stop
-    the gate. RR000's total-emptiness guard is a floor, not a substitute --
-    the general rule is that the gate must fully understand its input.
-    """
-    starts = [
-        (number, match.group(1))
-        for number, line in enumerate(split_lines, start=1)
-        if significant(line) and (match := MATRIX_KEY.match(line))
-    ]
-    if len(starts) != 1:
-        print(
-            f"FAIL [RR004] expected exactly one `matrix:` block in {split_path}, found {len(starts)}."
+# Both transform the leg set: `include` can append legs or extend existing
+# ones depending on whether its keys match an existing combination, and
+# `exclude` removes them. Resolving that correctly means reimplementing
+# GitHub's expansion semantics, and an approximation of those semantics is a
+# second source of divergence between what this gate believes ships and what
+# ships -- the same defect in a new place. Refusing is total and cannot be
+# subtly wrong. This repository's matrix needs neither key; if one is ever
+# genuinely required, the resolution must be implemented deliberately, with
+# its own tests, rather than approximated here.
+for transform in ("include", "exclude"):
+    if transform in matrix:
+        fail_structure(
+            f"the `matrix` of job `{matrix_job}` uses `{transform}:`, which this gate does not resolve.",
+            f"`{transform}` changes which legs a release pushes, so the declared",
+            "list is no longer the roster. Express every split target as an",
+            "ordinary matrix entry, or teach this gate GitHub's expansion rules",
+            "deliberately -- do not let it read a roster it knows is incomplete.",
         )
-        print("  The split matrix is the roster this gate probes; it cannot probe an")
-        print("  ambiguous or absent one. Refusing rather than guessing.")
-        sys.exit(1)
 
-    start_number, indent = starts[0]
-    body: list[tuple[int, str]] = []
-    for number, line in enumerate(split_lines[start_number:], start=start_number + 1):
-        if significant(line) and (len(line) - len(line.lstrip())) <= len(indent):
-            break
-        body.append((number, line))
+entries: list[tuple[str, object]] = []
+for axis, value in matrix.items():
+    if not isinstance(value, list):
+        fail_structure(
+            f"matrix axis `{axis}` of job `{matrix_job}` is not a list.",
+            f"found: {type(value).__name__}",
+        )
+    for index, entry in enumerate(value):
+        entries.append((f"{axis}[{index}]", entry))
 
-    if not [line for _, line in body if significant(line)]:
-        print(f"FAIL [RR004] the `matrix:` block in {split_path} is empty.")
-        sys.exit(1)
-
-    return body
-
+if not entries:
+    fail_structure(f"the `matrix` of job `{matrix_job}` declares no entries.")
 
 matrix_remotes: set[str] = set()
-unsupported: list[tuple[int, str]] = []
-structureless: list[tuple[int, str]] = []
-entries = 0
-for line_number, line in matrix_body():
-    if not significant(line):
+targetless: list[str] = []
+for location, entry in entries:
+    if not isinstance(entry, dict) or not isinstance(entry.get("remote"), str) or not entry["remote"].strip():
+        targetless.append(f"{location}: {entry!r}")
         continue
-    if not LIST_ITEM.match(line):
-        # A key inside the matrix block (`package:`) rather than an entry.
-        # Only entries are probed, but an entry-looking line that declares a
-        # remote we cannot read is still refused below.
-        if DECLARES_REMOTE.search(line) and not SUPPORTED_REMOTE.findall(line):
-            unsupported.append((line_number, line.strip()))
-        continue
+    matrix_remotes.add(entry["remote"])
 
-    entries += 1
-    found = SUPPORTED_REMOTE.findall(line)
-    if found:
-        matrix_remotes.update(found)
-        continue
-    # Two distinct faults, kept distinct so the diagnosis is accurate: a row
-    # that declares a remote this parser cannot read (RR003, syntax) versus a
-    # row that declares no remote at all (RR004, structure).
-    if DECLARES_REMOTE.search(line):
-        unsupported.append((line_number, line.strip()))
-    else:
-        structureless.append((line_number, line.strip()))
-
-if entries == 0:
-    print(f"FAIL [RR004] the `matrix:` block in {split_path} declares no entries.")
-    sys.exit(1)
-
-if structureless:
-    print("FAIL [RR004] split matrix entry declares no `remote:` target.")
-    for line_number, text in structureless:
-        print(f"    - {split_path}:{line_number}: {text}")
-    print()
-    print("  Every matrix entry is pushed by a release, so every entry must name")
-    print("  the repository it is pushed to. An entry this gate cannot attribute")
-    print("  to a target is refused rather than ignored.")
-    sys.exit(1)
-
-if unsupported:
-    print("FAIL [RR003] split.yml declares matrix target(s) this gate cannot parse.")
-    for line_number, text in unsupported:
-        print(f"    - {split_path}:{line_number}: {text}")
-    print()
-    print("  Supported form (single quotes):  remote: 'name'")
-    print("  A target this gate cannot read is a target it cannot prove exists,")
-    print("  and a release would push it regardless. Refusing is deliberate:")
-    print("  silently dropping the row is how an unreachable target reaches the")
-    print("  immutable tag. Fix: single-quote the value, or teach this parser the")
-    print("  new form -- do not let it skip what it cannot read.")
-    sys.exit(1)
+if targetless:
+    fail_structure(
+        f"matrix entr{'y' if len(targetless) == 1 else 'ies'} of job `{matrix_job}` name no `remote:` target.",
+        *targetless,
+    )
 
 if not matrix_remotes:
     print("FAIL [RR000] No `remote:` matrix entries parsed from split.yml — refusing to pass blind.")
