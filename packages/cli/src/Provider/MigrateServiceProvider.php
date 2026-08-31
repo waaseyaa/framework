@@ -20,6 +20,9 @@ use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
 use Waaseyaa\Foundation\Kernel\RuntimePolicy;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogManager;
+use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
@@ -115,7 +118,11 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
         $this->singleton(MigrateStatusHandler::class, function (): MigrateStatusHandler {
             [$migrator, , $loader] = $this->migrationRuntime();
 
-            return new MigrateStatusHandler($migrator, static fn(): array => $loader->loadAll());
+            return new MigrateStatusHandler(
+                $migrator,
+                static fn(): array => $loader->loadAll(),
+                static fn(): array => $loader->loadAllV2(),
+            );
         });
     }
 
@@ -147,9 +154,19 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
             basePath: $projectRoot,
             storagePath: $projectRoot . '/storage',
         )->load();
-        $loader = new MigrationLoader($projectRoot, $manifest);
+        $logger = $this->resolveOptional(LoggerInterface::class);
+        if (!$logger instanceof LoggerInterface) {
+            $logger = LogManager::fromConfig($this->config['logging'] ?? []);
+        }
+        $loader = new MigrationLoader($projectRoot, $manifest, $logger);
 
-        $migrator = new Migrator($connection, $repository);
+        $migrator = new Migrator(
+            $connection,
+            $repository,
+            new V2PlanExecutor($connection, $this->sqliteCompiler($connection)),
+            isProduction: $this->isProduction(),
+            logger: $logger,
+        );
 
         return $this->runtime = [$migrator, $repository, $loader, $connection, $dbPath];
     }

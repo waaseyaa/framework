@@ -109,6 +109,35 @@ cannot be inspected is treated as occupied so refusal stays the fail-safe answer
 `db:init` is a database-administration command. It is not part of the canonical
 fresh-project lifecycle, which materializes schema through `install:init`.
 
+### Migration catalogue and V2 execution
+
+`MigrateServiceProvider` composes one lazy migration runtime from the injected
+project root and database configuration. Its `migrate` and `migrate:status`
+handlers consume both legacy and V2 catalogues from the stock `MigrationLoader`.
+Root applications declare `extra.waaseyaa.migrations` in their Composer manifest
+under their Composer package name, through the same discovery contract as
+installed packages. V2 namespace discovery requires an optimized application
+classmap; see [ADR 009](../adr/009-migration-manifest-discovery.md).
+
+The provider's `Migrator` receives `V2PlanExecutor` with a SQLite compiler built
+for the live database version. `db:init`, `install:init`, and the kernel-exposed
+migrator use the same executor contract. `migrate:status` reports pending and
+completed V2 identities as well as legacy migrations; resolving or executing
+read-only status does not create the migration ledger. `migrate --dry-run` and
+`--verify` observe the same V2 catalogue used by apply.
+`db:init --dry-run` also enumerates pending V2 identities on initialized
+databases without executing plans or updating schema/ledger. A declared root
+path resolving to the canonical `migrations/` directory keeps historical `app:*`
+ledger IDs; discovery upgrades do not rename or replay applied migrations.
+All three Migrator composition sites pass the shared `RuntimePolicy` and a
+runtime/configured logger. Development-like checksum drift warns and skips;
+production-like drift throws without updating the applied ledger row.
+
+This composition does not define new fresh-install plan semantics. In particular,
+V2 entity evolution against absent or already-current tables remains the separate
+contract decision in framework #2701; discovery support does not make an
+unconditional `AddColumn` plan safe for both states.
+
 `migrate --dry-run` and `migrate --verify` also receive their diagnostic
 redaction posture from the shared bootstrap `RuntimePolicy`. Only `local`,
 `dev`, `development`, and `testing`, after trim and case normalization, retain
