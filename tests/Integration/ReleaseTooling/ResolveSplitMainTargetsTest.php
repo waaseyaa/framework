@@ -218,6 +218,38 @@ final class ResolveSplitMainTargetsTest extends TestCase
         }
     }
 
+    #[Test]
+    public function resolves_the_complete_claudriel_cohort_without_duplicates(): void
+    {
+        $names = ['access', 'audit', 'auth', 'user', 'routing', 'ai-tools', 'mcp', 'relationship', 'site-contract'];
+        [$exit, $stdout, $stderr] = $this->runScript(implode(',', $names) . ', auth, user, ai-tools, mcp, relationship');
+
+        self::assertSame(0, $exit, $stderr);
+        self::assertSame('', $stderr);
+        self::assertSame(['include' => array_map(
+            static fn(string $name): array => ['local' => 'packages/' . $name, 'remote' => $name],
+            $names,
+        )], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function newly_reviewed_cohort_targets_resolve_individually_and_refuse_paths(): void
+    {
+        foreach (['auth', 'user', 'ai-tools', 'mcp', 'relationship'] as $name) {
+            [$exit, $stdout, $stderr] = $this->runScript($name);
+            self::assertSame(0, $exit, $stderr);
+            self::assertSame('', $stderr);
+            self::assertSame(['include' => [['local' => 'packages/' . $name, 'remote' => $name]]], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+
+            foreach (['packages/' . $name, '../' . $name, $name . ',not-a-package'] as $invalid) {
+                [$exit, $stdout, $stderr] = $this->runScript($invalid);
+                self::assertSame(2, $exit);
+                self::assertSame('', $stdout, 'Invalid selections must not emit a partial cohort.');
+                self::assertStringContainsString('not allowlisted', $stderr);
+            }
+        }
+    }
+
     /** @return array{int, string, string} */
     private function runScript(string $selection): array
     {
