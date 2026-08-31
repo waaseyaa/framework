@@ -35,6 +35,23 @@ $packages = [
     'waaseyaa/messaging',
     'waaseyaa/engagement',
 ];
+/**
+ * The local AI-development plane. Both shapes here are production installs
+ * (`composer install --no-dev`), so neither may contain it — ADR-022 D-1.2, the
+ * same invariant bin/check-composer-policy CP009 enforces against manifests.
+ *
+ * Unconditional rather than keyed to $expectedPresent: unlike the optional
+ * domains above, there is no shape a consumer can ask for that puts this in a
+ * production install. `waaseyaa/testing` is listed because
+ * packages/ai-development is its only first-party runtime requirer, so its
+ * presence here would mean the plane came in. `waaseyaa/ai-agent` is
+ * deliberately NOT listed: `full` opts into it by name, so it is already
+ * covered, correctly and shape-dependently, by $packages.
+ */
+$developmentPlanePackages = [
+    'waaseyaa/ai-development',
+    'waaseyaa/testing',
+];
 $corePackages = [
     'waaseyaa/entity',
     'waaseyaa/entity-storage',
@@ -63,6 +80,12 @@ foreach ($packages as $package) {
 }
 foreach ($corePackages as $package) {
     $assert(InstalledVersions::isInstalled($package), sprintf('core package %s is not installed', $package));
+}
+foreach ($developmentPlanePackages as $package) {
+    $assert(
+        !InstalledVersions::isInstalled($package),
+        sprintf('development-plane package %s is installed in a production shape', $package),
+    );
 }
 
 $kernel = new HttpKernel($projectRoot);
@@ -229,9 +252,10 @@ if ($failures !== []) {
 }
 
 printf(
-    "optional-domain-install-smoke: %s PASS (%d packages, %d catalog entries, %d routes)\n",
+    "optional-domain-install-smoke: %s PASS (%d packages, %d catalog entries, %d routes, %d development-plane packages absent)\n",
     $shape,
     count($packages),
     array_sum(array_map('count', $entityIdsByPackage)),
     count($routes),
+    count($developmentPlanePackages),
 );

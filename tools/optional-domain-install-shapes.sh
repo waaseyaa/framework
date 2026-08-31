@@ -28,8 +28,28 @@ install_shape() {
       --no-update --no-interaction
   fi
 
+  # PRODUCTION shapes, hence --no-dev. This fixture's whole claim is that a
+  # consumer sees an optional domain only when it asked for one by name, and
+  # `minimal` is the control: nothing optional, nothing discovered, no routes.
+  #
+  # Installing dev dependencies silently voided that control. The skeleton's
+  # require-dev now names waaseyaa/ai-development (ADR-022 D-1.3), which
+  # requires waaseyaa/ai-agent — so `minimal` acquired an optional domain
+  # nobody had opted into, with its two entities, its discovery entries and
+  # POST /api/ai/agent/run all present. That is not a bad assertion; it is the
+  # fixture no longer installing the shape it claims to install.
+  #
+  # The developer install is separately owned by ci/skeleton-create-project's
+  # "Fresh skeleton preserves the complete discovery set" step, which installs
+  # WITH dev dependencies and asserts the plane's surface by name. Nothing is
+  # lost by making this one production-shaped; the two steps now cover the two
+  # install shapes that actually exist instead of both covering one.
+  #
+  # `full` is unaffected in kind: its seven optional domains are added to
+  # `require` by the `composer require` above, not to require-dev, so --no-dev
+  # keeps every one of them.
   COMPOSER_ROOT_VERSION=dev-main composer install --working-dir="$project_root" \
-    --no-interaction --no-scripts --no-plugins --quiet
+    --no-dev --no-interaction --no-scripts --no-plugins --quiet
 
   local database_path="$project_root/storage/waaseyaa.sqlite"
   (cd "$project_root" && APP_ENV=testing WAASEYAA_DB="$database_path" php vendor/bin/waaseyaa db:init)
