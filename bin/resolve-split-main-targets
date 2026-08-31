@@ -13,6 +13,11 @@ declare(strict_types=1);
 
 $allowlist = [
     'ai-development' => ['local' => 'packages/ai-development', 'remote' => 'ai-development'],
+    'ai-tools' => ['local' => 'packages/ai-tools', 'remote' => 'ai-tools'],
+    'auth' => ['local' => 'packages/auth', 'remote' => 'auth'],
+    'user' => ['local' => 'packages/user', 'remote' => 'user'],
+    'mcp' => ['local' => 'packages/mcp', 'remote' => 'mcp'],
+    'relationship' => ['local' => 'packages/relationship', 'remote' => 'relationship'],
     'foundation' => ['local' => 'packages/foundation', 'remote' => 'foundation'],
     'database-legacy' => ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
     'config' => ['local' => 'packages/config', 'remote' => 'config'],
