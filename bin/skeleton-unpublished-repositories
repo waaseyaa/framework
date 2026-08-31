@@ -1,0 +1,250 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/lib/internal-version-sync.php';
+
+/**
+ * bin/skeleton-unpublished-repositories <repo-root>
+ *
+ * Emits the Composer `repositories` entries that ci/skeleton-create-project's
+ * ORDINARY lane must add for the first-party packages listed in
+ * support/skeleton-unpublished-packages.json — packages the skeleton manifest
+ * references that Packagist cannot serve yet because they have never been
+ * split.
+ *
+ * Why this is a script and not two lines of inline `php -r` in the workflow:
+ *
+ * A path repository has no version of its own, so Composer guesses one from the
+ * checkout's Git state. On a pull-request run `actions/checkout` lands on a
+ * DETACHED merge commit with no branch ref, so the guess is `dev-<sha>` — a
+ * version with no `extra.branch-alias` entry, which therefore cannot satisfy
+ * the skeleton's governed `^<VERSION>` floor. The job then failed every
+ * Composer attempt with "found waaseyaa/ai-development[dev-<sha>] but it does
+ * not match the constraint" (#2717 on head 734f9b64c, merge 1b0504d11).
+ *
+ * The fix is to stop letting Composer guess: each rostered path repository
+ * declares `options.versions` pinning exactly its own package to the version
+ * the checkout already claims to be (the tracked VERSION file), which is the
+ * same value bin/sync-internal-versions writes into the skeleton's constraint.
+ * Nothing is faked — no tag is invented and no gate is lowered; the checkout is
+ * simply named as the version it is.
+ *
+ * The narrowing stays narrow. Every emitted repository keeps `only`, so each
+ * one can satisfy exactly the package it is rostered for and every other name
+ * still resolves from the published release line. The release lane
+ * (SOURCE_SKELETON=true) owns its own path repositories and never calls this.
+ *
+ * Output: one tab-separated record per rostered package, in roster order —
+ *
+ *     <slug>\t<package>\t<path>\t<version>\t<repository-json>
+ *
+ * An empty roster (the correct steady state) emits nothing and exits 0.
+ *
+ * Exit codes:
+ *   0 — success (including the empty-roster steady state)
+ *   1 — the roster, the tracked VERSION, or the skeleton floor is unusable
+ */
+
+const ROSTER_RELATIVE = 'support/skeleton-unpublished-packages.json';
+const SKELETON_RELATIVE = 'skeleton/composer.json';
+
+$rootArgument = (string) ($argv[1] ?? '');
+if (trim($rootArgument) === '') {
+    fwrite(STDERR, "Usage: bin/skeleton-unpublished-repositories <repo-root>\n");
+    exit(1);
+}
+
+// The emitted `url` is consumed from inside the CREATED CONSUMER PROJECT, not
+// from here, so a relative root would be resolved against the wrong directory
+// and Composer would look for the package somewhere it has never existed.
+// Canonicalize before anything is built out of it: the workflow already passes
+// an absolute $GITHUB_WORKSPACE, so this costs the lane nothing and makes the
+// script's contract true for every caller.
+$root = realpath($rootArgument);
+if ($root === false || !is_dir($root)) {
+    fwrite(STDERR, sprintf("Error: repository root is not an existing directory: %s\n", $rootArgument));
+    exit(1);
+}
+$root = rtrim($root, '/');
+
+/**
+ * @throws RuntimeException
+ *
+ * @return array<string, mixed>
+ */
+function readJsonObject(string $path, string $label): array
+{
+    if (!is_file($path)) {
+        throw new RuntimeException("{$label} is missing: {$path}");
+    }
+
+    $contents = file_get_contents($path);
+    if ($contents === false) {
+        throw new RuntimeException("{$label} is unreadable: {$path}");
+    }
+
+    try {
+        $decoded = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        throw new RuntimeException("{$label} is not valid JSON ({$path}): " . $e->getMessage(), 0, $e);
+    }
+
+    if (!is_array($decoded) || array_is_list($decoded)) {
+        throw new RuntimeException("{$label} must be a JSON object: {$path}");
+    }
+
+    return $decoded;
+}
+
+try {
+    $roster = readJsonObject($root . '/' . ROSTER_RELATIVE, 'The unpublished-package roster');
+
+    if (($roster['schema_version'] ?? null) !== 1) {
+        throw new RuntimeException(sprintf(
+            'The unpublished-package roster declares schema_version %s; this script only understands 1.',
+            var_export($roster['schema_version'] ?? null, true),
+        ));
+    }
+
+    $entries = $roster['packages'] ?? null;
+    if (!is_array($entries) || !array_is_list($entries)) {
+        throw new RuntimeException('The unpublished-package roster must carry a "packages" array.');
+    }
+
+    // Refuse to pin against a VERSION the repository cannot vouch for.
+    //
+    // resolveRepositoryVersion() keeps a documented compatibility fallback to
+    // `git describe --tags` for checkouts with no VERSION file. That fallback
+    // is right for the shared library and wrong here: this script pins a path
+    // repository to a version the SKELETON FLOOR is then compared against, and
+    // a tag reachable from the checkout is not the same claim as the tracked
+    // version the release process advances in lockstep with that floor. So the
+    // tracked file is required explicitly, before the call — otherwise a
+    // VERSION-less tree with any semver tag would silently pin to it.
+    $versionPath = $root . '/VERSION';
+    if (!is_file($versionPath)) {
+        throw new RuntimeException(sprintf(
+            'The tracked version file is missing: %s. This script pins rostered path repositories to the '
+            . 'tracked VERSION and will not fall back to a Git tag.',
+            $versionPath,
+        ));
+    }
+
+    // Throws on an empty, whitespace, wildcard, dev-*, or otherwise malformed
+    // tracked version rather than emitting a repository that would silently
+    // resolve to nonsense.
+    $version = resolveRepositoryVersion($root);
+    $constraint = expectedConstraint($version);
+
+    $skeleton = readJsonObject($root . '/' . SKELETON_RELATIVE, 'The skeleton manifest');
+    $skeletonRequires = array_merge(
+        is_array($skeleton['require'] ?? null) ? $skeleton['require'] : [],
+        is_array($skeleton['require-dev'] ?? null) ? $skeleton['require-dev'] : [],
+    );
+
+    $records = [];
+    $seen = [];
+
+    foreach ($entries as $index => $entry) {
+        $where = sprintf('%s entry #%d', ROSTER_RELATIVE, $index);
+
+        if (!is_array($entry) || array_is_list($entry)) {
+            throw new RuntimeException("{$where} must be a JSON object.");
+        }
+
+        $package = $entry['package'] ?? null;
+        $path = $entry['path'] ?? null;
+
+        if (!is_string($package) || preg_match('#^waaseyaa/[a-z0-9]+(-[a-z0-9]+)*$#', $package) !== 1) {
+            throw new RuntimeException(sprintf(
+                '%s names %s, which is not a first-party waaseyaa/* package.',
+                $where,
+                var_export($package, true),
+            ));
+        }
+
+        if (isset($seen[$package])) {
+            throw new RuntimeException("{$where} repeats {$package}; a package may be rostered once.");
+        }
+        $seen[$package] = true;
+
+        // The path is not free-form. A roster that could point anywhere would
+        // be a way to satisfy an arbitrary name from the checkout; it may only
+        // name the monorepo directory that owns the package.
+        $expectedPath = 'packages/' . substr($package, strlen('waaseyaa/'));
+        if ($path !== $expectedPath) {
+            throw new RuntimeException(sprintf(
+                '%s maps %s to %s; the only permitted path is %s.',
+                $where,
+                $package,
+                var_export($path, true),
+                $expectedPath,
+            ));
+        }
+
+        $manifest = readJsonObject($root . '/' . $path . '/composer.json', "The manifest for {$package}");
+        if (($manifest['name'] ?? null) !== $package) {
+            throw new RuntimeException(sprintf(
+                '%s/composer.json names %s, not %s.',
+                $path,
+                var_export($manifest['name'] ?? null, true),
+                $package,
+            ));
+        }
+
+        // The pinned version only helps if it satisfies what the skeleton
+        // actually asks for. bin/sync-internal-versions keeps every skeleton
+        // waaseyaa/* constraint at exactly ^<VERSION>, so anything else means
+        // the floor and the checkout have drifted and the pin would be a
+        // guess — fail instead of resolving something the lane cannot claim.
+        $declared = $skeletonRequires[$package] ?? null;
+        if (!is_string($declared)) {
+            throw new RuntimeException(sprintf(
+                '%s is rostered as unpublished, but %s does not require it.',
+                $package,
+                SKELETON_RELATIVE,
+            ));
+        }
+        if ($declared !== $constraint) {
+            throw new RuntimeException(sprintf(
+                '%s requires %s %s, but the tracked VERSION is %s (expected %s). '
+                . 'Re-run bin/sync-internal-versions before relying on the unpublished-package roster.',
+                SKELETON_RELATIVE,
+                $package,
+                $declared,
+                $version,
+                $constraint,
+            ));
+        }
+
+        $repository = [
+            'type' => 'path',
+            'url' => $root . '/' . $path,
+            // `only` is what keeps this narrowing to one name: every other
+            // package the skeleton needs still comes from Packagist.
+            'only' => [$package],
+            // The whole point. Without this, Composer guesses dev-<sha> on a
+            // detached checkout and the governed floor rejects it.
+            'options' => ['versions' => [$package => $version]],
+        ];
+
+        $records[] = implode("\t", [
+            str_replace('/', '-', $package),
+            $package,
+            $path,
+            $version,
+            json_encode($repository, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+        ]);
+    }
+} catch (RuntimeException $e) {
+    fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+
+foreach ($records as $record) {
+    echo $record, "\n";
+}
+
+exit(0);

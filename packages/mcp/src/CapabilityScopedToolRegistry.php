@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Mcp;
 
 use Waaseyaa\AI\Tools\AgentTool;
-use Waaseyaa\AI\Tools\ToolNotFoundException;
+use Waaseyaa\AI\Tools\Registry\CapabilityScopedToolRegistry as SharedCapabilityScopedToolRegistry;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 
 /**
@@ -22,11 +22,27 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface;
  * {@see ReadOnlyToolRegistry} are untouched (C-001); per-tool
  * `AbstractAgentTool::requireCapability` remains the authorization layer.
  *
+ * **The filtering itself now lives in `waaseyaa/ai-tools`** as
+ * {@see SharedCapabilityScopedToolRegistry}, and this class delegates to it
+ * (ADR-022 Q-3). The local development plane cannot require `waaseyaa/mcp` to
+ * obtain a narrowing decorator — `McpRouteProvider` registers `/mcp/write`
+ * unconditionally on install (ADR-022 C-4, D-1.4) — and duplicating the
+ * predicate would leave two visibility filters to keep in agreement. One
+ * implementation, two consumers; this type stays so the MCP tier wiring and
+ * its `LogicException` message are unchanged.
+ *
  * @api
  */
 final class CapabilityScopedToolRegistry implements ToolRegistryInterface
 {
+    private readonly SharedCapabilityScopedToolRegistry $delegate;
+
     /**
+     * The constructor arguments are retained as properties, not merely forwarded:
+     * `McpServiceProviderTest` reflects into `$blockedToolNames` to prove the
+     * write tier's structural block on generic entity mutations is wired, and
+     * that proof must keep working across this delegation.
+     *
      * @param list<string> $allowedCapabilities Tools whose capability is listed
      *        are visible (destructive included). An EMPTY allowlist exposes
      *        nothing — the fail-closed shape a scopeless credential gets when
@@ -39,53 +55,31 @@ final class CapabilityScopedToolRegistry implements ToolRegistryInterface
         private readonly ToolRegistryInterface $inner,
         private readonly array $allowedCapabilities,
         private readonly array $blockedToolNames = [],
-    ) {}
+    ) {
+        $this->delegate = new SharedCapabilityScopedToolRegistry(
+            $this->inner,
+            $this->allowedCapabilities,
+            $this->blockedToolNames,
+        );
+    }
 
     public function register(AgentTool $tool): void
     {
-        if (!$this->isVisible($tool)) {
-            throw new \LogicException(sprintf(
-                'Refusing to register tool "%s" on this capability-scoped MCP tier (capability "%s" is not on the allowlist).',
-                $tool->name,
-                $tool->capability,
-            ));
-        }
-
-        $this->inner->register($tool);
+        $this->delegate->register($tool);
     }
 
     public function get(string $name): AgentTool
     {
-        $tool = $this->inner->get($name);
-        if (!$this->isVisible($tool)) {
-            // Off-tier tools are hidden behind the same error an unregistered name yields.
-            throw ToolNotFoundException::forName($name);
-        }
-
-        return $tool;
+        return $this->delegate->get($name);
     }
 
     public function has(string $name): bool
     {
-        if (!$this->inner->has($name)) {
-            return false;
-        }
-
-        return $this->isVisible($this->inner->get($name));
+        return $this->delegate->has($name);
     }
 
     public function all(): iterable
     {
-        foreach ($this->inner->all() as $tool) {
-            if ($this->isVisible($tool)) {
-                yield $tool;
-            }
-        }
-    }
-
-    private function isVisible(AgentTool $tool): bool
-    {
-        return !\in_array($tool->name, $this->blockedToolNames, true)
-            && \in_array($tool->capability, $this->allowedCapabilities, true);
+        yield from $this->delegate->all();
     }
 }

@@ -24,13 +24,14 @@ declare(strict_types=1);
  *  - `assert` runs one named acceptance surface against an installed consumer.
  *
  * The surface roster is DATA, in
- * `tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json`, so the
- * two surfaces #2649 names that cannot exist yet — the development metapackage
- * (#2655, which itself depends on #2649) and stdio initialization (#2659) — are
- * recorded as reserved with their blocking issue instead of being silently
- * dropped. Reserved surfaces fail closed the moment their blocker lands: see
- * `assert_composition`, which refuses to stay quiet once
- * `packages/ai-development` exists in the seal.
+ * `tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json`, so a
+ * member #2649 names that cannot exist yet is recorded as reserved with its
+ * blocking issue instead of being silently dropped, and fails closed the
+ * moment its blocker lands. The development metapackage (#2655) was such a
+ * member — it depended on #2649, so it could not be required here — and its
+ * fail-closed hatch did its job: `waaseyaa/ai-development` now exists, the
+ * member is live, and `assert_development_plane` asserts it instead. stdio
+ * initialization (#2659) is still reserved.
  *
  * Usage:
  *   php split-artifact-acceptance.php seal <repo> <artifacts-dir> <manifest> <version>
@@ -210,7 +211,7 @@ function surfaces(): array
 // ---------------------------------------------------------------------------
 
 /**
- * @return array{name: string, require: array<string, string>}
+ * @return array{name: string, require: array<string, string>, require_dev: array<string, string>}
  */
 function stamp_archive(string $archive, string $version, string $commit): array
 {
@@ -258,8 +259,40 @@ function stamp_archive(string $archive, string $version, string $commit): array
 
     /** @var array<string, string> $require */
     $require = is_array($manifest['require'] ?? null) ? $manifest['require'] : [];
+    /** @var array<string, string> $requireDev */
+    $requireDev = is_array($manifest['require-dev'] ?? null) ? $manifest['require-dev'] : [];
 
-    return ['name' => (string) $manifest['name'], 'require' => $require];
+    return ['name' => (string) $manifest['name'], 'require' => $require, 'require_dev' => $requireDev];
+}
+
+/**
+ * Transitive `waaseyaa/*` closure over sealed `require` metadata.
+ *
+ * @param list<string>                       $seeds
+ * @param array<string, array<string, string>> $requires package => its require block
+ *
+ * @return list<string> sorted
+ */
+function waaseyaa_closure(array $seeds, array $requires): array
+{
+    $seen = [];
+    $queue = $seeds;
+    while ($queue !== []) {
+        $name = array_shift($queue);
+        if (isset($seen[$name])) {
+            continue;
+        }
+        $seen[$name] = true;
+        foreach (array_keys($requires[$name] ?? []) as $dependency) {
+            if (str_starts_with((string) $dependency, 'waaseyaa/')) {
+                $queue[] = (string) $dependency;
+            }
+        }
+    }
+    $closure = array_keys($seen);
+    sort($closure);
+
+    return $closure;
 }
 
 function git_archive(string $repo, string $treeish, string $target): void
@@ -290,11 +323,12 @@ function seal(string $repo, string $artifacts, string $manifestPath, string $ver
 
     $members = [];
     $requires = [];
+    $requireDevs = [];
 
     // Roles are named so the seal manifest answers #2649's first acceptance
     // bullet directly: skeleton, root framework dist, split packages. The
-    // development metapackage (#2655) needs no builder change — it is a
-    // packages/* directory, so it is sealed the day it exists.
+    // development metapackage (#2655) needed no builder change — it is a
+    // packages/* directory, so it was sealed the day it existed.
     $plan = [['root-framework-dist', '', 'HEAD']];
     $plan[] = ['skeleton', 'skeleton', 'HEAD:skeleton'];
     foreach (glob($repo . '/packages/*/composer.json') ?: [] as $packageManifest) {
@@ -320,27 +354,29 @@ function seal(string $repo, string $artifacts, string $manifestPath, string $ver
             'byte_count' => $digest['bytes'],
         ];
         $requires[$stamped['name']] = $stamped['require'];
+        $requireDevs[$stamped['name']] = $stamped['require_dev'];
     }
 
     // Transitive waaseyaa/* closure of the root framework dist. `composition`
     // asserts the installed set equals this EXACTLY, so a package silently
     // added to or dropped from the graph is a failure rather than a shrug.
-    $closure = [];
-    $queue = ['waaseyaa/framework'];
-    while ($queue !== []) {
-        $name = array_shift($queue);
-        if (isset($closure[$name])) {
-            continue;
-        }
-        $closure[$name] = true;
-        foreach (array_keys($requires[$name] ?? []) as $dependency) {
-            if (str_starts_with((string) $dependency, 'waaseyaa/')) {
-                $queue[] = (string) $dependency;
-            }
+    $closure = waaseyaa_closure(['waaseyaa/framework'], $requires);
+
+    // The development plane (#2655, ADR-022 D-1). The skeleton installs
+    // `waaseyaa/ai-development` under `require-dev` ONLY, so a dev consumer
+    // gets it and a `--no-dev` consumer must not. Seeding from the skeleton's
+    // own require-dev rather than from a hardcoded name means the seal
+    // describes what a consumer actually receives, and a package added to or
+    // dropped from that bundle moves the expectation instead of going unseen.
+    $developmentSeeds = [];
+    foreach (array_keys($requireDevs['waaseyaa/waaseyaa'] ?? []) as $dependency) {
+        if (str_starts_with((string) $dependency, 'waaseyaa/')) {
+            $developmentSeeds[] = (string) $dependency;
         }
     }
-    $closure = array_keys($closure);
-    sort($closure);
+    $developmentClosure = waaseyaa_closure($developmentSeeds, $requires);
+    $developmentOnly = array_values(array_diff($developmentClosure, $closure));
+    sort($developmentOnly);
 
     write_json($manifestPath, [
         'schema_version' => 1,
@@ -349,6 +385,8 @@ function seal(string $repo, string $artifacts, string $manifestPath, string $ver
         'artifacts_dir' => $artifacts,
         'members' => $members,
         'framework_closure' => $closure,
+        'development_closure' => $developmentClosure,
+        'development_only' => $developmentOnly,
     ]);
 
     printf(
@@ -433,8 +471,12 @@ final class Installation
  */
 function assert_composition(array $seal, Installation $installation): void
 {
-    /** @var list<string> $expected */
-    $expected = $seal['framework_closure'];
+    /** @var list<string> $frameworkClosure */
+    $frameworkClosure = $seal['framework_closure'];
+    /** @var list<string> $developmentOnly */
+    $developmentOnly = $seal['development_only'];
+    $expected = array_values(array_unique(array_merge($frameworkClosure, $developmentOnly)));
+    sort($expected);
     $installed = array_keys($installation->waaseyaaPackages());
     sort($installed);
 
@@ -442,7 +484,8 @@ function assert_composition(array $seal, Installation $installation): void
     $unexpected = array_values(array_diff($installed, $expected));
     if ($missing !== [] || $unexpected !== []) {
         fail(sprintf(
-            "Installed waaseyaa/* composition does not equal the sealed framework closure.\n  missing: %s\n  unexpected: %s",
+            'Installed waaseyaa/* composition does not equal the sealed framework closure plus the '
+            . "development plane.\n  missing: %s\n  unexpected: %s",
             $missing === [] ? '(none)' : implode(', ', $missing),
             $unexpected === [] ? '(none)' : implode(', ', $unexpected),
         ));
@@ -459,13 +502,10 @@ function assert_composition(array $seal, Installation $installation): void
                 $version,
             ));
         }
-        if ((string) ($package['installation-source'] ?? '') !== 'dist') {
-            fail(sprintf(
-                'Installed %s came from "%s", not from a distributable artifact.',
-                $name,
-                (string) ($package['installation-source'] ?? '(none)'),
-            ));
-        }
+
+        // Artifact ORIGIN is asserted for every member, metapackage or not:
+        // the dist Composer recorded must be a zip inside the local artifact
+        // repository, so nothing was satisfied from a registry.
         $distType = (string) ($package['dist']['type'] ?? '');
         if ($distType !== 'zip') {
             fail(sprintf('Installed %s has dist type "%s", not "zip".', $name, $distType));
@@ -479,20 +519,145 @@ function assert_composition(array $seal, Installation $installation): void
                 $artifacts,
             ));
         }
+
+        assert_installation_shape($name, $package, $installation);
     }
 
     assert_no_source_symlinks($installation);
 
-    // Reserved surface, failing closed. #2655 (the development metapackage)
-    // depends on #2649, so it cannot be asserted here today — but the moment
-    // the package exists in the tree, this gate stops pretending it does not.
+    assert_development_plane($seal, $installation);
+}
+
+/**
+ * What Composer must have DONE with a sealed member, keyed on package type.
+ *
+ * A `type: metapackage` package is never downloaded and never extracted:
+ * Composer resolves it, records its dist, and installs nothing. Its
+ * `installed.json` entry therefore carries no `installation-source` and a null
+ * `install-path`, and no directory appears under `vendor/`. That is correct
+ * behaviour, not a defect, and it was invisible here until #2655 put the first
+ * metapackage into the INSTALLED set — `core`, `cms` and `full` are sealed and
+ * resolvable but deliberately absent from the framework closure, so no
+ * metapackage had ever reached this loop before.
+ *
+ * The relaxation is keyed on TYPE, never on name. A name-keyed exemption would
+ * silently admit the next metapackage, and would keep passing if
+ * `waaseyaa/ai-development` ever stopped being one. And it is not an
+ * exemption in any case: the metapackage branch asserts its own invariant
+ * positively — nothing installed, nothing extracted — so a metapackage that
+ * suddenly grew an installation is a finding, exactly like a code-bearing
+ * package that lost one.
+ *
+ * @param array<string, mixed> $package the installed.json record
+ */
+function assert_installation_shape(string $name, array $package, Installation $installation): void
+{
+    $type = (string) ($package['type'] ?? '');
+    $source = $package['installation-source'] ?? null;
+    $installedPath = $installation->vendor . '/' . $name;
+
+    if ($type !== 'metapackage') {
+        if ((string) ($source ?? '') !== 'dist') {
+            fail(sprintf(
+                'Installed %s came from "%s", not from a distributable artifact.',
+                $name,
+                (string) ($source ?? '(none)'),
+            ));
+        }
+
+        return;
+    }
+
+    if ($source !== null) {
+        fail(sprintf(
+            'Metapackage %s records installation-source "%s"; Composer installs no bytes for a '
+            . 'metapackage, so a recorded source means this is no longer one.',
+            $name,
+            (string) $source,
+        ));
+    }
+    if (($package['install-path'] ?? null) !== null) {
+        fail(sprintf(
+            'Metapackage %s records install-path "%s"; a metapackage is never extracted.',
+            $name,
+            (string) $package['install-path'],
+        ));
+    }
+    if (is_dir($installedPath)) {
+        fail(sprintf('Metapackage %s must own no vendor directory, but %s exists.', $name, $installedPath));
+    }
+}
+
+/**
+ * The development metapackage, packaged (#2655, ADR-022 D-1 and D-2).
+ *
+ * This was a reserved surface that failed closed until `packages/ai-development`
+ * existed. It exists, so the claim is asserted rather than deferred: the plane
+ * must be sealed as a split artifact, must arrive in a dev consumer as a
+ * DEVELOPMENT dependency, must carry the two members D-2 makes mandatory, and
+ * must not have dragged `waaseyaa/mcp` in behind it (D-1.4 — that package
+ * registers `/mcp/write` unconditionally, so requiring it would put an HTTP
+ * route in every application that installed a development tool).
+ *
+ * `assert_no_dev_exclusion` owns the other half: `--no-dev` removes all of it.
+ *
+ * @param array<string, mixed> $seal
+ */
+function assert_development_plane(array $seal, Installation $installation): void
+{
     $sealedNames = array_column((array) $seal['members'], 'name');
-    if (in_array('waaseyaa/ai-development', $sealedNames, true)) {
-        fail(
-            'waaseyaa/ai-development is now sealed, so the reserved development-metapackage surface is live. '
-            . 'Flip its entry in tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json to '
-            . '"status": "live" and assert it here (#2655).',
-        );
+    if (!in_array('waaseyaa/ai-development', $sealedNames, true)) {
+        fail('waaseyaa/ai-development is not in the seal: the development plane was never packaged.');
+    }
+
+    /** @var list<string> $frameworkClosure */
+    $frameworkClosure = $seal['framework_closure'];
+    /** @var list<string> $developmentClosure */
+    $developmentClosure = $seal['development_closure'];
+    /** @var list<string> $developmentOnly */
+    $developmentOnly = $seal['development_only'];
+
+    // D-1.2 — the plane is in no production require closure. The manifest-level
+    // form of this is CP009 in bin/check-composer-policy; here it is checked
+    // against the bytes a consumer actually resolved.
+    foreach (['waaseyaa/ai-development', 'waaseyaa/ai-agent'] as $contained) {
+        if (in_array($contained, $frameworkClosure, true)) {
+            fail(sprintf(
+                '%s is inside the production require closure of waaseyaa/framework (ADR-022 D-1.2 / D-3.0).',
+                $contained,
+            ));
+        }
+    }
+
+    // D-2 — both members are mandatory, and both are development-only.
+    foreach (['waaseyaa/ai-development', 'waaseyaa/ai-agent', 'waaseyaa/testing'] as $member) {
+        if (!in_array($member, $developmentOnly, true)) {
+            fail(sprintf(
+                '%s is not a development-only member of the local plane (ADR-022 D-2). development_only: %s',
+                $member,
+                implode(', ', $developmentOnly),
+            ));
+        }
+    }
+
+    // D-1.4 — the plane must not reach the HTTP MCP package.
+    if (in_array('waaseyaa/mcp', $developmentClosure, true)) {
+        fail('waaseyaa/ai-development reaches waaseyaa/mcp, which registers /mcp/write unconditionally (ADR-022 D-1.4).');
+    }
+
+    // D-1.3 — Composer must have classified it as a development dependency.
+    // The consumer's own installed.json is the authority on that, not the
+    // manifest we sealed it from.
+    $document = read_json($installation->installedJson);
+    $devNames = (array) ($document['dev-package-names'] ?? []);
+    foreach ($developmentOnly as $member) {
+        if (!in_array($member, $devNames, true)) {
+            fail(sprintf(
+                '%s was installed, but the consumer does not record it as a development dependency '
+                . '(ADR-022 D-1.3). A production-scoped install would survive --no-dev.',
+                $member,
+            ));
+        }
     }
 }
 
@@ -549,8 +714,12 @@ function assert_no_source_symlinks(Installation $installation): void
  */
 function assert_exported_files(array $seal, Installation $installation, array $only = []): void
 {
-    /** @var list<string> $closure */
-    $closure = $seal['framework_closure'];
+    /** @var list<string> $frameworkClosure */
+    $frameworkClosure = $seal['framework_closure'];
+    /** @var list<string> $developmentOnly */
+    $developmentOnly = $seal['development_only'];
+    $installedSet = array_merge($frameworkClosure, $developmentOnly);
+    $records = $installation->packages();
 
     foreach ((array) $seal['members'] as $member) {
         $name = (string) $member['name'];
@@ -562,11 +731,21 @@ function assert_exported_files(array $seal, Installation $installation, array $o
         }
         // The seal REPRESENTS every split package — that is acceptance bullet
         // one, and it is what makes the repository canonical for waaseyaa/*.
-        // Only the framework closure is INSTALLED, though: the metapackages
-        // and the opt-in distribution extensions (DIR-004) are resolvable but
-        // deliberately absent. `composition` owns that boundary; this surface
-        // compares bytes for what a consumer actually received.
-        if (!in_array($name, $closure, true)) {
+        // Only what a consumer INSTALLS is byte-compared, though: the
+        // consumer-facing metapackages and the opt-in distribution extensions
+        // (DIR-004) are resolvable but deliberately absent. `composition` owns
+        // that boundary. The development plane (#2655) IS installed — as a
+        // development dependency — so its code-bearing members are compared
+        // here too rather than growing the installed set without growing the
+        // byte proof.
+        if (!in_array($name, $installedSet, true)) {
+            continue;
+        }
+        // A metapackage is resolved and never extracted, so there are no
+        // installed bytes to compare. `assert_installation_shape` asserts that
+        // absence positively; comparing a directory that must not exist is
+        // what would be wrong here.
+        if ((string) ($records[$name]['type'] ?? '') === 'metapackage') {
             continue;
         }
 
@@ -700,7 +879,18 @@ function assert_no_dev_exclusion(array $seal, Installation $installation): void
         fail('The --no-dev consumer still records dev package names.');
     }
 
-    foreach (['phpunit/phpunit', 'wikimedia/composer-merge-plugin'] as $devOnly) {
+    // ADR-022 D-1.3 is asserted in the same breath as the third-party dev
+    // dependencies, because it is the same property: `composer install
+    // --no-dev` must remove the development metapackage AND everything it
+    // pulls. `development_only` is derived from the seal rather than named
+    // here, so growing the plane grows this assertion.
+    /** @var list<string> $developmentOnly */
+    $developmentOnly = $seal['development_only'];
+    if ($developmentOnly === []) {
+        fail('The seal records no development-only packages, so this assertion would prove nothing (#2655).');
+    }
+
+    foreach ([...$developmentOnly, 'phpunit/phpunit', 'wikimedia/composer-merge-plugin'] as $devOnly) {
         if (isset($installation->packages()[$devOnly])) {
             fail(sprintf('--no-dev install still carries the development dependency %s.', $devOnly));
         }
@@ -839,14 +1029,96 @@ function self_test(array $seal, Installation $dev, Installation $noDev, string $
         assert_composition($seal, $overlay);
     };
 
-    // The reserved development-metapackage surface (#2655) claims to fail
-    // closed once the package exists. Prove that claim instead of asserting
-    // it: sealing the name must make this gate demand the surface be flipped
-    // to live. Nothing is created in the repository — only the in-memory seal
-    // is amended.
-    $controls['reserved-metapackage-appeared'] = static function () use ($seal, $dev): void {
-        $seal['members'][] = ['role' => 'split-package', 'name' => 'waaseyaa/ai-development'];
+    // The invariant #2655 relaxed for metapackages must still BITE for every
+    // code-bearing package. A metapackage legitimately records no
+    // installation-source; a library that records none was never extracted,
+    // which is the packaging failure this surface exists to catch.
+    $controls['code-bearing-package-without-dist'] = static function () use ($seal, $dev, $scratch): void {
+        $overlay = $dev->withInstalledJson(
+            mutate_installed_json($dev, $scratch . '/no-dist.json', static function (array $document): array {
+                foreach ($document['packages'] as $index => $package) {
+                    if (($package['name'] ?? '') === 'waaseyaa/entity') {
+                        unset($document['packages'][$index]['installation-source']);
+                    }
+                }
+
+                return $document;
+            }),
+        );
+        assert_composition($seal, $overlay);
+    };
+
+    // The relaxation is keyed on TYPE, so it must stop applying the moment the
+    // package stops being a metapackage. This is the regression a name-keyed
+    // exemption would have masked.
+    $controls['metapackage-reclassified-as-library'] = static function () use ($seal, $dev, $scratch): void {
+        $overlay = $dev->withInstalledJson(
+            mutate_installed_json($dev, $scratch . '/reclassified.json', static function (array $document): array {
+                foreach ($document['packages'] as $index => $package) {
+                    if (($package['name'] ?? '') === 'waaseyaa/ai-development') {
+                        $document['packages'][$index]['type'] = 'library';
+                    }
+                }
+
+                return $document;
+            }),
+        );
+        assert_composition($seal, $overlay);
+    };
+
+    // And the metapackage branch is an assertion, not a skip: a metapackage
+    // that suddenly reports an installation is a finding too.
+    $controls['metapackage-reports-an-installation'] = static function () use ($seal, $dev, $scratch): void {
+        $overlay = $dev->withInstalledJson(
+            mutate_installed_json($dev, $scratch . '/meta-installed.json', static function (array $document): array {
+                foreach ($document['packages'] as $index => $package) {
+                    if (($package['name'] ?? '') === 'waaseyaa/ai-development') {
+                        $document['packages'][$index]['installation-source'] = 'dist';
+                    }
+                }
+
+                return $document;
+            }),
+        );
+        assert_composition($seal, $overlay);
+    };
+
+    // ADR-022 D-1.2, seeded. The development plane entering a production
+    // require closure is the failure this whole design exists to prevent, and
+    // "it has never happened" is not evidence that it would be caught.
+    $controls['development-plane-in-production-closure'] = static function () use ($seal, $dev): void {
+        $seal['framework_closure'][] = 'waaseyaa/ai-development';
+        sort($seal['framework_closure']);
         assert_composition($seal, $dev);
+    };
+
+    // ADR-022 D-1.3, seeded at the consumer end: the plane installed, but
+    // production-scoped. Everything above would still be green — the package
+    // is present, the closure matches — and only the dev-scope check notices.
+    $controls['development-plane-production-scoped'] = static function () use ($seal, $dev, $scratch): void {
+        $overlay = $dev->withInstalledJson(
+            mutate_installed_json($dev, $scratch . '/dev-scoped.json', static function (array $document): array {
+                $document['dev-package-names'] = array_values(array_filter(
+                    (array) ($document['dev-package-names'] ?? []),
+                    static fn(mixed $name): bool => $name !== 'waaseyaa/ai-development',
+                ));
+
+                return $document;
+            }),
+        );
+        assert_composition($seal, $overlay);
+    };
+
+    // The other half of D-1.3: `--no-dev` must actually remove it.
+    $controls['development-package-retained-after-no-dev'] = static function () use ($seal, $noDev, $scratch): void {
+        $overlay = $noDev->withInstalledJson(
+            mutate_installed_json($noDev, $scratch . '/nodev-development.json', static function (array $document): array {
+                $document['packages'][] = ['name' => 'waaseyaa/ai-development', 'version' => '0.0.0'];
+
+                return $document;
+            }),
+        );
+        assert_no_dev_exclusion($seal, $overlay);
     };
 
     $controls['source-symlink-installed'] = static function () use ($dev, $scratch): void {

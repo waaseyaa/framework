@@ -10,11 +10,16 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Smoke tests for metapackages: cms, core, full.
+ * Smoke tests for metapackages: cms, core, full, ai-development.
  *
  * Verifies that one representative class from each declared dependency
  * is reachable via the autoloader. Catches broken autoloader config,
  * missing package splits, and namespace regressions.
+ *
+ * `waaseyaa/ai-development` is the require-dev development plane (ADR-022
+ * D-1). It is autoloadable in this monorepo because its two members are root
+ * `require-dev` entries — which is the same reason a consumer only sees these
+ * classes after `composer require --dev waaseyaa/ai-development`.
  */
 #[CoversNothing]
 final class MetapackageSmokeTest extends TestCase
@@ -52,6 +57,16 @@ final class MetapackageSmokeTest extends TestCase
         ];
     }
 
+    /** @return array<string, array{string}> */
+    public static function aiDevelopmentClasses(): array
+    {
+        return [
+            'local operator principal' => [\Waaseyaa\AI\Agent\LocalOperator\LocalOperatorPrincipal::class],
+            'default profile tool'     => [\Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectGraphTool::class],
+            'testing fixture factory'  => [\Waaseyaa\Testing\Factory\EntityFactory::class],
+        ];
+    }
+
     #[Test]
     #[DataProvider('coreClasses')]
     public function core_metapackage_dependencies_are_autoloadable(string $class): void
@@ -79,6 +94,16 @@ final class MetapackageSmokeTest extends TestCase
         $this->assertTrue(
             class_exists($class),
             "Class {$class} (waaseyaa/full dependency) not found in autoloader.",
+        );
+    }
+
+    #[Test]
+    #[DataProvider('aiDevelopmentClasses')]
+    public function ai_development_metapackage_dependencies_are_autoloadable(string $class): void
+    {
+        $this->assertTrue(
+            class_exists($class),
+            "Class {$class} (waaseyaa/ai-development dependency) not found in autoloader.",
         );
     }
 }

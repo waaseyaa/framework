@@ -766,6 +766,13 @@ return [
     'Waaseyaa\AI\Tools\AgentToolResult' => 'public',
     'Waaseyaa\AI\Tools\ToolRegistryInterface' => 'public',
     'Waaseyaa\AI\Tools\ProvidesAgentToolsInterface' => 'public',
+    // ADR-022 D-9.3 (#2657) — the transport-neutral tool-dispatch contract both
+    // MCP adapters consume. Public because the whole point of the extraction is
+    // that a second transport (#2659's stdio server) implements against it
+    // without requiring waaseyaa/mcp, whose McpRouteProvider registers
+    // /mcp/write on install. The concrete dispatchers and narrowing registries
+    // beside it are final classes and stay untracked per this file's scope note.
+    'Waaseyaa\AI\Tools\Dispatch\ToolDispatcherInterface' => 'public',
     'Waaseyaa\AI\Tools\Resource\ContentResourceProviderInterface' => 'public',
     'Waaseyaa\AI\Tools\Attribute\AsAgentTool' => 'public',
     'Waaseyaa\AI\Vector\VectorStoreInterface' => 'public',

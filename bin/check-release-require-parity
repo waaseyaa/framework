@@ -5,9 +5,19 @@ set -euo pipefail
 # ----------------------------
 # Release-time structural gate that would have caught the alpha.189 break.
 #
-# Every waaseyaa/* entry in a first-party "require" list must:
-#   (1) have a matching entry in the split.yml split matrix (a `remote:` target), AND
-#   (2) point at a split target repo that already exists on the owner org.
+# Two independent pre-tag checks, with two different rosters:
+#
+#   RR002 -- every `remote:` target declared in the split.yml MATRIX must exist
+#            on the owner org. The matrix is the authoritative roster of what a
+#            release actually pushes, so it is the roster to probe.
+#   RR001 -- every waaseyaa/* entry in a first-party "require" list must have a
+#            matching matrix entry AND an existing target repo.
+#
+# RR002 exists because RR001's roster cannot see a package no first-party
+# manifest requires. waaseyaa/ai-development is exactly that by design: it is
+# referenced only from the skeleton's require-dev (ADR-022 D-1.2/D-1.3), so it
+# never entered RR001's set, and an unreachable split target would have been
+# discovered only after the immutable release tag already existed.
 #
 # Scope = the ROOT composer.json require list PLUS every packages/*/composer.json
 # require list. The root-only check catches packages a consumer pulls directly
@@ -24,7 +34,8 @@ set -euo pipefail
 # though Packagist happily lists the tag.
 #
 # Network: repo-existence uses `git ls-remote`. Set CHECK_REMOTE=0 to run the
-# matrix-membership half only (offline / no token). A GITHUB_TOKEN is used when
+# matrix-membership half only (offline / no token); RR002 is entirely a
+# repo-existence check and is skipped in that mode. A GITHUB_TOKEN is used when
 # present so private/just-created repos resolve.
 #
 # Overridable for testing (e.g. running this script against a worktree of an
@@ -34,6 +45,19 @@ set -euo pipefail
 #   PACKAGES_DIR    path to the packages/ directory   (default: <root>/packages)
 #   REPO_OWNER      org that owns the split repos      (default: waaseyaa)
 #   CHECK_REMOTE    1=check repo existence, 0=skip     (default: 1)
+#   REPO_REMOTE_TEMPLATE
+#                   remote URL template for the existence probe, with {owner}
+#                   and {repo} placeholders
+#                   (default: https://github.com/{owner}/{repo}.git)
+#
+# REPO_REMOTE_TEMPLATE exists so the missing-target case can be reproduced
+# DETERMINISTICALLY. Pointed at `file:///.../{repo}`, a fixture can create bare
+# repositories for the targets that should exist and simply not create the one
+# that should not, which keeps `git ls-remote` as the real mechanism instead of
+# stubbing it, and keeps the regression independent of whether some particular
+# repository happens to exist on GitHub today. A test that asserted a real
+# repository was absent would be fragile, and would silently stop testing
+# anything the moment that repository was created.
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_OWNER="${REPO_OWNER:-waaseyaa}"
@@ -42,6 +66,7 @@ COMPOSER_JSON="${COMPOSER_JSON:-${ROOT_DIR}/composer.json}"
 SPLIT_YML="${SPLIT_YML:-${ROOT_DIR}/.github/workflows/split.yml}"
 PACKAGES_DIR="${PACKAGES_DIR:-${ROOT_DIR}/packages}"
 CHECK_REMOTE="${CHECK_REMOTE:-1}"
+REPO_REMOTE_TEMPLATE="${REPO_REMOTE_TEMPLATE:-}"
 
 if [[ ! -f "${COMPOSER_JSON}" ]]; then
   echo "FAIL [RR000] composer.json not found: ${COMPOSER_JSON}"
@@ -56,15 +81,15 @@ if [[ ! -d "${PACKAGES_DIR}" ]]; then
   exit 1
 fi
 
-export ROOT_DIR REPO_OWNER GITHUB_TOKEN COMPOSER_JSON SPLIT_YML PACKAGES_DIR CHECK_REMOTE
+export ROOT_DIR REPO_OWNER GITHUB_TOKEN COMPOSER_JSON SPLIT_YML PACKAGES_DIR CHECK_REMOTE REPO_REMOTE_TEMPLATE
 
 python3 - <<'PY'
 import json
 import os
-import re
 import subprocess
 import sys
 import pathlib
+import typing
 
 composer_path = pathlib.Path(os.environ["COMPOSER_JSON"])
 split_path = pathlib.Path(os.environ["SPLIT_YML"])
@@ -88,18 +113,146 @@ for label, path in sources:
             pkg = name.split("/", 1)[1]
             required.setdefault(pkg, set()).add(label)
 
-# Split matrix `remote:` targets. Parsed with a regex so we don't depend on a
-# YAML library being installed on the runner.
-split_text = split_path.read_text(encoding="utf-8")
-matrix_remotes = set(re.findall(r"remote:\s*'([^']+)'", split_text))
+# Split matrix targets, parsed as YAML.
+#
+# This gate's roster must equal what a release actually pushes. Three
+# generations of substring scanning failed that in three different ways, each
+# found by whoever looked next rather than by the gate: single-quote-only
+# matching dropped `remote: "x"` and bare `remote: x`; line classification
+# counted a commented-out `remote:` as a real target; and a flow-style
+# `include:` leg was invisible to a scanner keyed on list-item lines. The class
+# is not "the pattern is too narrow" -- it is that a substring scanner cannot
+# distinguish YAML structure from text that resembles it, so every widening
+# patches an instance and leaves the class open.
+#
+# So the matrix is parsed as YAML, and the parser is a DECLARED dependency of
+# every lane that runs this gate (release-cut.yml, split.yml
+# verify-require-parity, and the two PHP test lanes whose architecture suite
+# executes this script). If it is missing the gate FAILS CLOSED -- it never
+# falls back to substring scanning, never skips, and never degrades to a
+# partial roster, because a partial roster is precisely the failure being
+# removed.
+try:
+    import yaml
+except ImportError:
+    # ImportError, not ModuleNotFoundError: a PyYAML that is present but
+    # broken must fail closed for the same reason an absent one does.
+    print("FAIL [RR005] PyYAML is required to read the split matrix and is not usable.")
+    print()
+    print("  This gate refuses to fall back to text scanning: a roster derived by")
+    print("  substring matching cannot distinguish a real matrix target from text")
+    print("  that resembles one, and a partial roster passes while an unreachable")
+    print("  target reaches the immutable release tag. Install it in this lane")
+    print("  (python3-yaml, or pip install pyyaml) and re-run.")
+    sys.exit(1)
+
+try:
+    split_document = yaml.safe_load(split_path.read_text(encoding="utf-8"))
+except yaml.YAMLError as error:
+    print(f"FAIL [RR005] {split_path} is not valid YAML: {error}")
+    sys.exit(1)
+
+
+def fail_structure(message: str, *details: str) -> "typing.NoReturn":
+    print(f"FAIL [RR004] {message}")
+    for detail in details:
+        print(f"    {detail}")
+    print()
+    print("  The split matrix is the roster this gate probes and the roster a")
+    print("  release pushes. Structure it cannot represent exactly is refused,")
+    print("  never reduced to the part that happened to parse.")
+    sys.exit(1)
+
+
+if not isinstance(split_document, dict) or not isinstance(split_document.get("jobs"), dict):
+    fail_structure(f"{split_path} declares no `jobs:` mapping.")
+
+matrices = {
+    job_name: job["strategy"]["matrix"]
+    for job_name, job in split_document["jobs"].items()
+    if isinstance(job, dict)
+    and isinstance(job.get("strategy"), dict)
+    and "matrix" in job["strategy"]
+}
+if len(matrices) != 1:
+    fail_structure(
+        f"expected exactly one job with a `strategy.matrix`, found {len(matrices)}.",
+        *(f"job: {name}" for name in sorted(matrices)),
+    )
+
+matrix_job, matrix = next(iter(matrices.items()))
+if not isinstance(matrix, dict):
+    fail_structure(f"the `matrix` of job `{matrix_job}` is not a mapping.")
+
+# `include` and `exclude` are REFUSED rather than resolved, deliberately.
+#
+# Both transform the leg set: `include` can append legs or extend existing
+# ones depending on whether its keys match an existing combination, and
+# `exclude` removes them. Resolving that correctly means reimplementing
+# GitHub's expansion semantics, and an approximation of those semantics is a
+# second source of divergence between what this gate believes ships and what
+# ships -- the same defect in a new place. Refusing is total and cannot be
+# subtly wrong. This repository's matrix needs neither key; if one is ever
+# genuinely required, the resolution must be implemented deliberately, with
+# its own tests, rather than approximated here.
+for transform in ("include", "exclude"):
+    if transform in matrix:
+        fail_structure(
+            f"the `matrix` of job `{matrix_job}` uses `{transform}:`, which this gate does not resolve.",
+            f"`{transform}` changes which legs a release pushes, so the declared",
+            "list is no longer the roster. Express every split target as an",
+            "ordinary matrix entry, or teach this gate GitHub's expansion rules",
+            "deliberately -- do not let it read a roster it knows is incomplete.",
+        )
+
+entries: list[tuple[str, object]] = []
+for axis, value in matrix.items():
+    if not isinstance(value, list):
+        fail_structure(
+            f"matrix axis `{axis}` of job `{matrix_job}` is not a list.",
+            f"found: {type(value).__name__}",
+        )
+    for index, entry in enumerate(value):
+        entries.append((f"{axis}[{index}]", entry))
+
+if not entries:
+    fail_structure(f"the `matrix` of job `{matrix_job}` declares no entries.")
+
+matrix_remotes: set[str] = set()
+targetless: list[str] = []
+for location, entry in entries:
+    if not isinstance(entry, dict) or not isinstance(entry.get("remote"), str) or not entry["remote"].strip():
+        targetless.append(f"{location}: {entry!r}")
+        continue
+    matrix_remotes.add(entry["remote"])
+
+if targetless:
+    fail_structure(
+        f"matrix entr{'y' if len(targetless) == 1 else 'ies'} of job `{matrix_job}` name no `remote:` target.",
+        *targetless,
+    )
 
 if not matrix_remotes:
     print("FAIL [RR000] No `remote:` matrix entries parsed from split.yml — refusing to pass blind.")
     sys.exit(1)
 
 
+remote_template = os.environ.get("REPO_REMOTE_TEMPLATE", "")
+
+
+def probe_target(repo: str) -> str:
+    """The remote actually probed, token-free, for use in messages."""
+    if remote_template:
+        return remote_template.format(owner=owner, repo=repo)
+    return f"https://github.com/{owner}/{repo}.git"
+
+
 def repo_exists(repo: str) -> bool:
-    if token:
+    if remote_template:
+        # Explicit template wins and is never given the token: it is used for
+        # deterministic fixtures (file:// bare repositories), not for GitHub.
+        remote = remote_template.format(owner=owner, repo=repo)
+    elif token:
         remote = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
     else:
         remote = f"https://github.com/{owner}/{repo}.git"
@@ -120,6 +273,45 @@ def whoneeds(pkg: str) -> str:
     return ", ".join(sorted(required[pkg]))
 
 
+_exists_cache: dict[str, bool] = {}
+
+
+def repo_exists_cached(repo: str) -> bool:
+    if repo not in _exists_cache:
+        _exists_cache[repo] = repo_exists(repo)
+    return _exists_cache[repo]
+
+
+# RR002 -- the split MATRIX is the authoritative roster of what a release
+# pushes, so it is the roster this check must probe. Deriving the roster from
+# runtime `require` edges (RR001) is structurally incapable of seeing a package
+# that no first-party manifest requires: waaseyaa/ai-development is referenced
+# only from the skeleton's require-dev by design (ADR-022 D-1.2/D-1.3), so it
+# never reached repo_exists() and an unreachable split target would have been
+# discovered only AFTER release-cut.yml had already created the immutable tag,
+# with the matrix leg failing on push. The tag cannot be moved (forward-only
+# recovery, VERSIONING.md), so this must fail BEFORE it exists.
+unreachable_targets: list[str] = []
+if check_remote:
+    for repo in sorted(matrix_remotes):
+        if not repo_exists_cached(repo):
+            unreachable_targets.append(repo)
+
+if unreachable_targets:
+    print("FAIL [RR002] split matrix declares target repo(s) that do not exist.")
+    for repo in unreachable_targets:
+        print(f"    - {repo}   (split.yml matrix target; probed {probe_target(repo)})")
+    print()
+    print("  Every `remote:` target in the split.yml matrix is pushed by a release,")
+    print("  so each one must exist on the owner org BEFORE the release is tagged --")
+    print("  a tag is immutable and recovery is forward-only. Fix: create the repo")
+    print("  under the org, register it on Packagist, and apply tag protection with")
+    print("  bin/configure-split-tag-protection; or drop the matrix entry.")
+    print()
+    print("  This roster comes from the split matrix, NOT from runtime require")
+    print("  edges, so a dev-only or otherwise unrequired package is covered too.")
+    sys.exit(1)
+
 not_in_matrix: list[str] = []
 missing_repo: list[str] = []
 
@@ -127,7 +319,7 @@ for pkg in sorted(required):
     if pkg not in matrix_remotes:
         not_in_matrix.append(pkg)
         continue  # a package with no split target can't have a repo to check
-    if check_remote and not repo_exists(pkg):
+    if check_remote and not repo_exists_cached(pkg):
         missing_repo.append(pkg)
 
 if not_in_matrix or missing_repo:

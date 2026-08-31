@@ -137,9 +137,11 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
     }
 
     /**
-     * #2649's first acceptance bullet, as data. The development metapackage is
-     * reserved because #2655 DEPENDS ON #2649: requiring it here would make the
-     * pair circular and neither could land.
+     * #2649's first acceptance bullet, as data. The development metapackage
+     * was reserved because #2655 DEPENDED ON #2649 — requiring it there would
+     * have made the pair circular. #2655 landed, the fail-closed hatch fired,
+     * and the member is live: the engine now asserts the plane instead of
+     * asserting that it does not exist.
      */
     #[Test]
     public function the_artifact_repository_represents_every_named_member(): void
@@ -154,21 +156,49 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
         );
 
         $byId = array_column($fixture['artifact_repository_members'], null, 'id');
-        self::assertSame('reserved', $byId['development-metapackage']['status']);
-        self::assertSame('#2655', $byId['development-metapackage']['blocked_by']);
+        self::assertSame('live', $byId['development-metapackage']['status']);
+        self::assertNull($byId['development-metapackage']['blocked_by']);
         self::assertSame('waaseyaa/ai-development', $byId['development-metapackage']['package']);
 
-        // The reserved member is not a comment: the engine fails closed the
-        // moment the package is sealed, and a seeded negative control proves
-        // that it does. This assertion keeps the two ends tied together.
-        $engine = $this->read(self::ENGINE);
-        self::assertStringContainsString("in_array('waaseyaa/ai-development', \$sealedNames, true)", $engine);
-        self::assertStringContainsString("\$controls['reserved-metapackage-appeared']", $engine);
-
-        self::assertDirectoryDoesNotExist(
-            $this->repoRoot . '/packages/ai-development',
-            'waaseyaa/ai-development now exists (#2655): flip the reserved member and surface to live.',
+        // A live member is a claim about bytes, so both ends must exist: the
+        // package in the tree, and the assertion that consumes it.
+        self::assertDirectoryExists($this->repoRoot . '/packages/ai-development');
+        self::assertSame(
+            'metapackage',
+            $this->json('packages/ai-development/composer.json')['type'] ?? null,
+            'ADR-022 D-1.1: the development plane owns no code.',
         );
+
+        $engine = $this->read(self::ENGINE);
+        self::assertStringContainsString('function assert_development_plane(', $engine);
+        self::assertStringContainsString("in_array('waaseyaa/ai-development', \$sealedNames, true)", $engine);
+    }
+
+    /**
+     * ADR-022 D-1.2 / D-1.3, as repository state. These four manifests are
+     * what a consumer installs; `bin/check-composer-policy` CP009 gates the
+     * closures on every run, and this pins the direct-require half beside the
+     * harness that proves it against packaged bytes.
+     */
+    #[Test]
+    public function the_development_plane_is_a_development_dependency_of_the_skeleton_only(): void
+    {
+        foreach ([
+            'composer.json',
+            'packages/core/composer.json',
+            'packages/cms/composer.json',
+            'packages/full/composer.json',
+        ] as $production) {
+            self::assertArrayNotHasKey(
+                'waaseyaa/ai-development',
+                $this->json($production)['require'] ?? [],
+                sprintf('ADR-022 D-1.2: %s must not require the development plane.', $production),
+            );
+        }
+
+        $skeleton = $this->json('skeleton/composer.json');
+        self::assertArrayHasKey('waaseyaa/ai-development', $skeleton['require-dev'] ?? []);
+        self::assertArrayNotHasKey('waaseyaa/ai-development', $skeleton['require'] ?? []);
     }
 
     /**
@@ -193,7 +223,12 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
             'composition-package-dropped',
             'composition-foreign-version',
             'dist-outside-artifact-repo',
-            'reserved-metapackage-appeared',
+            'code-bearing-package-without-dist',
+            'metapackage-reclassified-as-library',
+            'metapackage-reports-an-installation',
+            'development-plane-in-production-closure',
+            'development-plane-production-scoped',
+            'development-package-retained-after-no-dev',
             'source-symlink-installed',
             'dev-package-retained',
             'dev-flag-retained',
@@ -338,5 +373,14 @@ final class SplitArtifactAcceptanceGateTest extends TestCase
         self::assertFileExists($path);
 
         return (string) file_get_contents($path);
+    }
+
+    /** @return array<string, mixed> */
+    private function json(string $relative): array
+    {
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($this->read($relative), true, flags: JSON_THROW_ON_ERROR);
+
+        return $decoded;
     }
 }
