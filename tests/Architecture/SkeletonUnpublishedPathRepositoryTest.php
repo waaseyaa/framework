@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -50,9 +51,11 @@ final class SkeletonUnpublishedPathRepositoryTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach ($this->cleanupPaths as $path) {
-            $this->removeTree($path);
-        }
+        // Filesystem::remove(), not a hand-rolled recursive remover: #2491's
+        // criterion, pinned by RecursiveRemoverContractTest. It unlinks a
+        // directory symlink instead of descending through it, which matters
+        // here because these fixtures are real Git checkouts.
+        new Filesystem()->remove($this->cleanupPaths);
         $this->cleanupPaths = [];
     }
 
@@ -675,21 +678,4 @@ final class SkeletonUnpublishedPathRepositoryTest extends TestCase
         file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
     }
 
-    private function removeTree(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-
-        rmdir($path);
-    }
 }
