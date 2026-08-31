@@ -5,15 +5,24 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Provider;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Database\DBALDatabase;
+use Psr\Container\ContainerInterface;
+use Symfony\Component\Filesystem\Exception\IOException;
+use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\InstallInitHandler;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
 use Waaseyaa\CLI\Handler\MutationAuthorityBackfillHandler;
 use Waaseyaa\CLI\Provider\MigrateServiceProvider;
+use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 /**
  * Regression guard for the migrate* command wiring.
@@ -30,6 +39,99 @@ use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 #[CoversClass(MigrateServiceProvider::class)]
 final class MigrateServiceProviderTest extends TestCase
 {
+    #[Test]
+    #[DataProvider('migrationEnvironments')]
+    public function declared_commands_apply_and_report_root_v2_migrations_through_the_provider(string $environment, bool $strict): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_provider_v2_' . bin2hex(random_bytes(8));
+        $migrationClassLoader = null;
+        $connection = null;
+        try {
+            mkdir($root . '/vendor/composer', 0o777, true);
+            file_put_contents($root . '/vendor/composer/installed.json', '{"packages":[]}');
+            file_put_contents($root . '/composer.json', json_encode([
+                'name' => 'acme/application',
+                'extra' => ['waaseyaa' => ['migrations' => ['Waaseyaa\\CLI\\Tests\\Fixtures']]],
+            ], JSON_THROW_ON_ERROR));
+
+            $migrationClassLoader = RootApplicationV2MigrationAutoloader::register();
+
+            $databasePath = $root . '/application.sqlite';
+            $connection = DBALDatabase::createSqlite($databasePath, 'testing')->getConnection();
+            $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+
+            $provider = new MigrateServiceProvider();
+            $provider->setKernelContext($root, ['environment' => $environment, 'database' => $databasePath], []);
+            $logger = $this->createMock(LoggerInterface::class);
+            $logger->expects($strict ? self::never() : self::once())->method('warning')->with(self::stringContains('Skipping re-apply'));
+            $services = $this->createStub(KernelServicesInterface::class);
+            $services->method('get')->willReturnCallback(static fn(string $id): ?object => $id === LoggerInterface::class ? $logger : null);
+            $provider->setKernelServices($services);
+            $provider->register();
+            $container = new class ($provider) implements ContainerInterface {
+                public function __construct(private MigrateServiceProvider $provider) {}
+
+                public function get(string $id): mixed
+                {
+                    return $this->provider->resolve($id);
+                }
+
+                public function has(string $id): bool
+                {
+                    return isset($this->provider->getBindings()[$id]);
+                }
+            };
+            $commands = [];
+            foreach ($provider->consoleCommands() as $command) {
+                $commands[$command->name] = $command;
+            }
+
+            $status = CliTester::for($commands['migrate:status'], $container)->execute([]);
+            self::assertSame(0, $status->getExitCode());
+            self::assertStringContainsString('acme/application:v2:add-widget-profile', $status->getStdout());
+            self::assertStringContainsString('Pending', $status->getStdout());
+            self::assertSame(0, (int) $connection->fetchOne("SELECT COUNT(*) FROM sqlite_master WHERE name = 'waaseyaa_migrations'"));
+
+            $apply = CliTester::for($commands['migrate'], $container)->execute([]);
+            self::assertSame(0, $apply->getExitCode(), $apply->getOutput());
+            self::assertContains('profile', array_column($connection->fetchAllAssociative('PRAGMA table_info(widgets)'), 'name'));
+
+            $status->execute([]);
+            self::assertSame(0, $status->getExitCode());
+            self::assertStringContainsString('acme/application:v2:add-widget-profile', $status->getStdout());
+            self::assertStringContainsString('Ran', $status->getStdout());
+            self::assertStringNotContainsString('Pending', $status->getStdout());
+
+            $connection->executeStatement('UPDATE waaseyaa_migrations SET checksum = ?', [str_repeat('0', 64)]);
+            $ledger = $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations');
+            $schema = $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name');
+            try {
+                $apply->execute([]);
+                self::assertFalse($strict, 'Production-like environments must reject checksum drift.');
+                self::assertSame(0, $apply->getExitCode());
+            } catch (ChecksumMismatchException) {
+                self::assertTrue($strict, 'Development must warn and skip checksum drift.');
+            }
+            self::assertSame($ledger, $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations'));
+            self::assertSame($schema, $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name'));
+        } finally {
+            $migrationClassLoader?->unregister();
+            $connection?->close();
+            unset($status, $apply, $commands, $command, $container, $provider);
+            gc_collect_cycles();
+            try {
+                new Filesystem()->remove($root);
+            } catch (IOException) {
+                // Windows can retain SQLite handles in provider service cycles.
+            }
+        }
+    }
+
+    public static function migrationEnvironments(): array
+    {
+        return [['development', false], ['testing', false], ['production', true], ['staging', true]];
+    }
+
     #[Test]
     public function resolving_read_only_status_does_not_install_the_migration_ledger(): void
     {

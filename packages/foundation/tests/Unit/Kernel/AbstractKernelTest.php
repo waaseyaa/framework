@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
@@ -15,6 +17,11 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\ScheduleEntryRegistry;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
+use Waaseyaa\Foundation\Migration\MigrationRepository;
+use Waaseyaa\Foundation\Schema\Diff\CompositeDiff;
+use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
+use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretProviderInterface;
 use Waaseyaa\Foundation\Security\SecretReference;
@@ -29,6 +36,54 @@ use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 #[CoversClass(ScheduleEntryRegistry::class)]
 final class AbstractKernelTest extends TestCase
 {
+    #[Test]
+    #[DataProvider('migrationEnvironments')]
+    public function kernel_migrator_uses_runtime_policy_and_logger(string $environment, bool $strict): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($strict ? self::never() : self::once())->method('log')
+            ->with(LogLevel::WARNING, self::stringContains('Skipping re-apply'), self::anything());
+        $kernel = new class ($this->projectRoot, $logger) extends AbstractKernel {
+            public function prepareMigrations(DBALDatabase $database, string $environment): void
+            {
+                $this->database = $database;
+                $this->config = ['environment' => $environment];
+                $this->manifest = new PackageManifest(providers: []);
+                $this->bootMigrations();
+            }
+        };
+        $database = DBALDatabase::createSqlite(':memory:', 'testing');
+        $connection = $database->getConnection();
+        try {
+            $repository = new MigrationRepository($connection);
+            $repository->installOrUpgradeLedger();
+            $id = 'acme/application:v2:policy-test';
+            $repository->record($id, 'acme/application', 1, str_repeat('0', 64));
+            $before = $repository->getCompletedWithDetails();
+            $migration = $this->createStub(MigrationInterfaceV2::class);
+            $migration->method('migrationId')->willReturn($id);
+            $migration->method('package')->willReturn('acme/application');
+            $migration->method('dependencies')->willReturn([]);
+            $migration->method('plan')->willReturn(new MigrationPlan($id, 'acme/application', [], CompositeDiff::empty()));
+            $kernel->prepareMigrations($database, $environment);
+            try {
+                $result = $kernel->getMigrator()->run([], [$migration]);
+                self::assertFalse($strict, 'Production-like environments must reject checksum drift.');
+                self::assertSame(0, $result->count);
+            } catch (ChecksumMismatchException) {
+                self::assertTrue($strict, 'Development must warn and skip checksum drift.');
+            }
+            self::assertSame($before, $repository->getCompletedWithDetails());
+        } finally {
+            $connection->close();
+        }
+    }
+
+    public static function migrationEnvironments(): array
+    {
+        return [['development', false], ['testing', false], ['production', true], ['staging', true]];
+    }
+
     public function test_field_access_preflight_preserves_parameterless_boot_override_compatibility(): void
     {
         $kernel = new class ($this->projectRoot) extends AbstractKernel {
@@ -80,7 +135,7 @@ final class AbstractKernelTest extends TestCase
     {
         ProcessFieldReadRuntime::reset();
         putenv('WAASEYAA_APP_SECRET');
-        (new Filesystem())->remove($this->projectRoot);
+        new Filesystem()->remove($this->projectRoot);
     }
 
     #[Test]

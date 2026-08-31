@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
 
 /**
  * @api
@@ -15,20 +16,26 @@ final class MigrateStatusHandler
     /** @var \Closure(): array<string, array<string, \Waaseyaa\Foundation\Migration\Migration>> */
     private \Closure $migrationsProvider;
 
+    /** @var \Closure(): list<MigrationInterfaceV2> */
+    private \Closure $v2MigrationsProvider;
+
     /**
      * @param \Closure(): array<string, array<string, \Waaseyaa\Foundation\Migration\Migration>> $migrationsProvider
+     * @param \Closure(): list<MigrationInterfaceV2>|null $v2MigrationsProvider
      */
     public function __construct(
         private readonly Migrator $migrator,
         \Closure $migrationsProvider,
+        ?\Closure $v2MigrationsProvider = null,
     ) {
         $this->migrationsProvider = $migrationsProvider;
+        $this->v2MigrationsProvider = $v2MigrationsProvider ?? static fn(): array => [];
     }
 
     public function execute(SymfonyCommandIO $io): int
     {
         $migrations = ($this->migrationsProvider)();
-        $migrationStatus = $this->migrator->status($migrations);
+        $migrationStatus = $this->migrator->status($migrations, ($this->v2MigrationsProvider)());
 
         $rows = [];
         foreach ($migrationStatus['completed'] as $entry) {
