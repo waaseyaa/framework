@@ -6,6 +6,7 @@
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP asserts Framework SQL-backed entity tables only (S1-DB106). Custom EntityStorageInterface storageClass is not forced to own an SQL table. EntityStorageInterface and EntityQueryInterface are class-level @api. AttachmentSchema::apply() is the strict coordinated transition; local boot ensureTable() is best-effort. -->
 # Entity System
 
+<!-- Spec reviewed 2026-08-30 - #2728: EntityEvents::PRE_DELETE is a GUARD event and now dispatches IMMEDIATELY inside the delete transaction on both delete() and deleteMany() (doDelete() no longer passes $unitOfWork to it), so a refusing pre-delete listener rolls back the base row, its revisions and the mutation-authority tombstone for the whole batch. POST_DELETE is unchanged: still buffered, still dispatched only after a successful commit. deleteMany() interleaving changes from pre1,post1,pre2,post2 to pre1,pre2,post1,post2. The mutation-authority tombstone deliberately stays AHEAD of the guard, mirroring doSave()'s claim() before PRE_SAVE. EntityRepository::__construct() gains the symmetric invariant that a mutation authority requires a database. Supersedes the #1856 header's "deleteMany PRE_DELETE buffering is unchanged" note. -->
 <!-- Spec reviewed 2026-08-27 - #2624: configuration-authority composition
 uses the canonical RuntimePolicy development classifier for active-generation
 and mutation-storage decisions. Invalid explicit environment configuration is
@@ -610,8 +611,8 @@ declared — before #2674 this interface contradicted them, and the note above.
 
 - **PRE-write events dispatch IMMEDIATELY, inside the batch transaction** — `EntityEvents::PRE_SAVE` and `BeforeSaveEvent` fire before each entity's row is written, exactly as they do for a single `save()`. Rationale: a PRE event announces *intent*; listeners that mutate the entity (classification label resolution writes resolved columns via `$entity->set()`) or issue guarding DB writes (the attachment at-most-one-active sibling demote) only work if they run before the write — under the old buffer-everything model those mutations happened *after* the batch had committed, so they were silently never persisted, and two attachment-style guards in one batch cross-demoted each other post-commit. The "listeners never observe rolled-back work" goal that buffering exists for is still satisfied: an immediate PRE listener's DB writes JOIN the batch transaction and roll back with it. This also makes `BeforeSaveEvent`'s documented abort contract real inside batches: an `AbortOperationException` thrown for entity *k* of a batch aborts the `UnitOfWork` transaction and rolls back the WHOLE batch (no partial writes) — previously the buffered "abort" fired after every row had already committed. Pinned by `EntityRepositoryTest::saveManyDispatchesPreWriteEventsBeforeRowsAreWritten` / `::saveManyAbortFromBeforeSaveOnSecondEntityRollsBackWholeBatch`.
 - **POST/AFTER events remain buffered** — `POST_SAVE`, `REVISION_CREATED`, `AfterSaveEvent` are buffered by the `UnitOfWork` and dispatched only after successful commit (discarded on rollback), unchanged.
-- **The delete path is deliberately NOT aligned** — `doDelete()` still buffers `PRE_DELETE` under `deleteMany()`, so batch deletes bypass pre-delete guards (e.g. `RelationshipDeleteGuardListener`, documented as single-delete-only in #1852). Aligning it is a flagged follow-up (see the `dispatchEvent()` docblock in `EntityRepository`); it changes #1852's documented behavior and needs its own blast-radius pass.
-- **PRE/POST listener pairing must be entity-correlated** — `saveMany()` still dispatches `pre1, pre2, …, post1, post2, …`. Listeners that capture `isNew()` (or any other per-entity PRE state) in PRE and read it in POST must key that state on the entity object (`WeakMap` / `SplObjectStorage`), consume the matching entry on POST, and must not keep a listener-wide boolean slot. A single-slot `pendingIsNew` attributes every buffered POST from the last PRE in a mixed create/update batch (#1856). Framework listeners that pair PRE→POST on `isNew()` (`EntityWriteAuditListener`, `EntityLifecycleAuditListener`, `ThreadParticipantBootstrapSubscriber`) use object-keyed maps. Single saves remain PRE-then-POST and are unaffected. `deleteMany()` PRE_DELETE buffering is a separate follow-up (#1852).
+- **The delete path is aligned as of #2728** — `doDelete()` dispatches `PRE_DELETE` IMMEDIATELY (it no longer passes `$unitOfWork`), so a refusing pre-delete guard (e.g. `RelationshipDeleteGuardListener`) throws inside the open delete transaction and rolls back the base row, its revisions AND the mutation-authority tombstone — for the whole batch under `deleteMany()`. `POST_DELETE` still passes `$unitOfWork` and stays buffered until after commit. The earlier "buffering is batch-only / #1852 single-delete-only" framing was wrong in both directions: `delete()` opens its own `UnitOfWork` whenever a mutation authority and database are wired — which is every repository `EntityTypeManagerFactory` builds — so single deletes were unguarded in production too. Pinned by `EntityRepositoryTest::deleteDispatchesPreDeleteInsideTheTransactionBeforeAnyRowIsRemoved` / `::deleteManyRefusalOnSecondEntityRollsBackWholeBatchIncludingMutationAuthority` and `tests/Integration/Relationship/RelationshipDeleteGuardKernelWiringTest.php`.
+- **PRE/POST listener pairing must be entity-correlated** — `saveMany()` still dispatches `pre1, pre2, …, post1, post2, …`. Listeners that capture `isNew()` (or any other per-entity PRE state) in PRE and read it in POST must key that state on the entity object (`WeakMap` / `SplObjectStorage`), consume the matching entry on POST, and must not keep a listener-wide boolean slot. A single-slot `pendingIsNew` attributes every buffered POST from the last PRE in a mixed create/update batch (#1856). Framework listeners that pair PRE→POST on `isNew()` (`EntityWriteAuditListener`, `EntityLifecycleAuditListener`, `ThreadParticipantBootstrapSubscriber`) use object-keyed maps. Single saves remain PRE-then-POST and are unaffected. `deleteMany()` now interleaves `pre1, pre2, …, post1, post2, …` for the same reason (#2728) — a listener pairing PRE→POST per entity via an object-keyed map is unaffected; one assuming PRE/POST adjacency is not.
 
 ### EntityIdentifierResolver
 
@@ -961,11 +962,16 @@ the restore removes. Admin restore and the AI restore tools share this helper.
 
 ### Delete (via EntityRepository)
 
-1. Calls `$entity->preDelete()` lifecycle hook (if entity extends `EntityBase`)
-2. Dispatches `EntityEvents::PRE_DELETE` event
-3. Removes from storage driver (`$driver->remove()`)
-4. Dispatches `EntityEvents::POST_DELETE` event
-5. Calls `$entity->postDelete()` lifecycle hook (if entity extends `EntityBase`)
+`delete()` and `deleteMany()` run this sequence inside a `UnitOfWork` transaction whenever a mutation authority and database are wired.
+
+1. Asserts the tenancy mutation gate (`revisionDriver->assertEntityMutationAllowed()`) — a read-only check that throws `TenancyViolationException` before anything is announced
+2. Tombstones the mutation-authority row (compare-and-swap `UPDATE`; throws `EntityMutationConflictException` on a stale token, `MissingEntityMutationTokenException` when the entity carries none). Deliberately **ahead** of the guard, mirroring `doSave()` where `claim()` precedes `PRE_SAVE` — so a stale-token delete is refused by the authority before any `PRE_DELETE` listener runs
+3. Calls `$entity->preDelete()` lifecycle hook (if entity extends `EntityBase`)
+4. Dispatches `EntityEvents::PRE_DELETE` **immediately, inside the transaction** (guard event, #2728) — a listener's throw rolls back everything above and below
+5. Deletes every revision row for the id (revisionable types)
+6. Removes from storage driver (`$driver->remove()`)
+7. Dispatches `EntityEvents::POST_DELETE` (notification event — buffered until after a successful commit, discarded on rollback)
+8. Calls `$entity->postDelete()` lifecycle hook (if entity extends `EntityBase`)
 
 ### Load
 
@@ -1693,10 +1699,11 @@ preSave($isNew) → PRE_SAVE event → persist → POST_SAVE event → postSave(
 Execution order within `delete()`:
 
 ```
-preDelete() → PRE_DELETE event → remove → POST_DELETE event → postDelete()
+tombstone (mutation authority) → preDelete() → PRE_DELETE event (in-transaction guard)
+    → delete revisions → remove → POST_DELETE event (post-commit) → postDelete()
 ```
 
-Hooks are only called when the entity is an instance of `EntityBase`. They run inside `UnitOfWork` transactions for batch operations (`saveMany`/`deleteMany`).
+Hooks are only called when the entity is an instance of `EntityBase`. They run inside the `UnitOfWork` transaction (single and batch alike), but they are IN-MEMORY calls: a rollback undoes the database work around them, not the hook invocation itself. `postDelete()` has therefore already fired for every entity processed before a mid-batch refusal.
 
 ## Configuration Entities
 
@@ -2455,7 +2462,7 @@ type-mapping table.
 - **`entity_reference` field definitions need `target_entity_type_id`**: `EntityTypeBuilder` looks for `target_entity_type_id` or `targetEntityTypeId`, not `target`. Wrong key causes silent fallback to String type with no reference resolution.
 - **`EntityBase` lifecycle hooks**: `preSave(bool $isNew)`, `postSave(bool $isNew)`, `preDelete()`, `postDelete()` are no-op by default. Override in subclasses. Order: `preSave()` → PRE_SAVE event → persist → POST_SAVE event → `postSave()`.
 - **`EntityRepository` auto-validation**: An `EntityValidator` is injected by default into every kernel-built repository (alpha.204, #1643) — `save()` validates against the merged three-layer constraint map (`EntityTypeValidationConstraints::forEntityType()`) and throws `EntityValidationException` before any storage write. Pass `validate: false` to bypass for migrations/bulk imports (`saveMany()` also respects this), or set `WAASEYAA_ENTITY_VALIDATION=0|false|off` to disable the kernel wiring globally at boot.
-- **`saveMany()`/`deleteMany()` use UnitOfWork**: Batch operations wrap all writes in a single transaction. Events are buffered and dispatched only after successful commit. Requires `$database` to be non-null (throws `LogicException` otherwise).
+- **`saveMany()`/`deleteMany()` use UnitOfWork**: Batch operations wrap all writes in a single transaction. Buffering is by event ROLE, not by batch-ness: GUARD events (`PRE_SAVE`, `BeforeSaveEvent`, `PRE_DELETE`) dispatch immediately inside the transaction so a refusal rolls the work back; NOTIFICATION events (`POST_SAVE`, `POST_DELETE`, `REVISION_CREATED`, `AfterSaveEvent`) are buffered and dispatched only after successful commit, and discarded on rollback. Requires `$database` to be non-null (throws `LogicException` otherwise).
 - **`_data` JSON blob**: `SqlSchemaHandler` adds a `_data` TEXT column. `SqlEntityStorage::splitForStorage()` puts non-schema values into it as JSON; `mapRowToEntity()` merges them back on load. Adding fields to an entity that aren't declared as columns means they live in `_data` and won't be queryable in SQL.
 - **`EntityEvent` uses public properties**: `$event->entity` and `$event->originalEntity` are public readonly — no getter methods. Common mistake: `$event->getEntity()`.
 

@@ -15,6 +15,9 @@ use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
+use Waaseyaa\Foundation\Schema\Diff\CompositeDiff;
+use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
+use Waaseyaa\Foundation\Schema\Migration\MigrationPlan;
 
 #[CoversClass(MigrateStatusHandler::class)]
 final class MigrateStatusHandlerTest extends TestCase
@@ -53,9 +56,56 @@ final class MigrateStatusHandlerTest extends TestCase
         $this->assertStringContainsString('Pending', $stdout);
     }
 
-    private function createTester(Migrator $migrator, \Closure $migrationsProvider): CliTester
+    #[Test]
+    public function shows_pending_v2_migrations(): void
     {
-        $handler = new MigrateStatusHandler($migrator, $migrationsProvider);
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $repository = new MigrationRepository($connection);
+        $repository->createTable();
+        $migrator = new Migrator($connection, $repository);
+
+        $v2 = new class implements MigrationInterfaceV2 {
+            public function migrationId(): string
+            {
+                return 'acme/application:v2:add-profile';
+            }
+
+            public function package(): string
+            {
+                return 'acme/application';
+            }
+
+            public function dependencies(): array
+            {
+                return [];
+            }
+
+            public function plan(): MigrationPlan
+            {
+                return new MigrationPlan(
+                    migrationId: $this->migrationId(),
+                    package: $this->package(),
+                    dependencies: [],
+                    root: new CompositeDiff([]),
+                );
+            }
+        };
+
+        $tester = $this->createTester($migrator, static fn(): array => [], static fn(): array => [$v2]);
+        $tester->execute([]);
+
+        self::assertSame(0, $tester->getExitCode());
+        self::assertStringContainsString('acme/application:v2:add-profile', $tester->getStdout());
+        self::assertStringContainsString('Pending', $tester->getStdout());
+    }
+
+    private function createTester(
+        Migrator $migrator,
+        \Closure $migrationsProvider,
+        ?\Closure $v2MigrationsProvider = null,
+    ): CliTester
+    {
+        $handler = new MigrateStatusHandler($migrator, $migrationsProvider, $v2MigrationsProvider);
         $definition = new HandlerCommand(
             name: 'migrate:status',
             description: 'Show the status of each migration',

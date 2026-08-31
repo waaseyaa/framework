@@ -32,7 +32,7 @@ final class MigrationLoaderArrayFormTest extends TestCase
     protected function setUp(): void
     {
         $this->basePath = sys_get_temp_dir() . '/waaseyaa_loader_test_' . uniqid();
-        mkdir($this->basePath . '/migrations', 0777, true);
+        mkdir($this->basePath . '/migrations', 0o777, true);
         $this->createdDirs[] = $this->basePath . '/migrations';
         $this->createdDirs[] = $this->basePath;
     }
@@ -51,7 +51,7 @@ final class MigrationLoaderArrayFormTest extends TestCase
     public function stringFormStillLoadsLegacyMigrationsAsBefore(): void
     {
         $packageDir = $this->basePath . '/vendor/legacy/foo/migrations';
-        mkdir($packageDir, 0777, true);
+        mkdir($packageDir, 0o777, true);
         $this->createdDirs[] = $packageDir;
         $this->createdDirs[] = dirname($packageDir);
         $this->createdDirs[] = dirname(dirname($packageDir));
@@ -77,8 +77,8 @@ final class MigrationLoaderArrayFormTest extends TestCase
         // loader must respect the authored order.
         $dirZ = $this->basePath . '/vendor/legacy/foo/migrations_z';
         $dirA = $this->basePath . '/vendor/legacy/foo/migrations_a';
-        mkdir($dirZ, 0777, true);
-        mkdir($dirA, 0777, true);
+        mkdir($dirZ, 0o777, true);
+        mkdir($dirA, 0o777, true);
         $this->createdDirs[] = $dirZ;
         $this->createdDirs[] = $dirA;
         $this->createdDirs[] = dirname($dirZ);
@@ -118,6 +118,30 @@ final class MigrationLoaderArrayFormTest extends TestCase
     }
 
     #[Test]
+    public function declared_root_path_resolves_from_project_and_suppresses_legacy_fallback(): void
+    {
+        file_put_contents(
+            $this->basePath . '/composer.json',
+            json_encode(['name' => 'acme/application'], JSON_THROW_ON_ERROR),
+        );
+        $this->writeLegacyMigration($this->basePath . '/migrations/01_init.php');
+
+        $loader = new MigrationLoader(
+            $this->basePath,
+            new PackageManifest(
+                providers: [],
+                migrations: ['acme/application' => 'migrations'],
+            ),
+        );
+
+        $loaded = $loader->loadAll();
+
+        self::assertSame(['app'], array_keys($loaded));
+        self::assertArrayHasKey('app:01_init', $loaded['app']);
+        self::assertArrayNotHasKey('acme/application', $loaded);
+    }
+
+    #[Test]
     public function fqcnEntryWithNoMatchingClassesLogsWarning(): void
     {
         $logger = self::collectingLogger();
@@ -138,12 +162,37 @@ final class MigrationLoaderArrayFormTest extends TestCase
     }
 
     #[Test]
+    public function default_root_aliases_do_not_rename_other_root_or_installed_paths(): void
+    {
+        file_put_contents($this->basePath . '/composer.json', '{"name":"acme/application"}');
+        $this->writeLegacyMigration($this->basePath . '/migrations/01_init.php');
+        $extra = $this->basePath . '/patches';
+        $installed = $this->basePath . '/vendor/acme/plugin/migrations';
+        mkdir($extra);
+        mkdir($installed, 0o755, true);
+        $this->createdDirs[] = $extra;
+        $this->createdDirs[] = $installed;
+        $this->writeLegacyMigration($extra . '/02_patch.php');
+        $this->writeLegacyMigration($installed . '/01_init.php');
+        $loader = new MigrationLoader($this->basePath, new PackageManifest(providers: [], migrations: [
+            'acme/application' => ['migrations', './migrations/', $this->basePath . '/migrations', 'patches'],
+            'acme/plugin' => 'migrations',
+        ]));
+
+        $loaded = $loader->loadAll();
+        self::assertSame(['app', 'acme/application', 'acme/plugin'], array_keys($loaded));
+        self::assertSame(['app:01_init'], array_keys($loaded['app']));
+        self::assertSame(['acme/application:02_patch'], array_keys($loaded['acme/application']));
+        self::assertSame(['acme/plugin:01_init'], array_keys($loaded['acme/plugin']));
+    }
+
+    #[Test]
     public function loadAllSkipsFqcnEntriesAndLoadAllV2SkipsPathEntries(): void
     {
         // Mixed manifest: one path, one FQCN. loadAll() sees only the
         // path; loadAllV2() sees only the FQCN.
         $packageDir = $this->basePath . '/vendor/mixed/pkg/migrations';
-        mkdir($packageDir, 0777, true);
+        mkdir($packageDir, 0o777, true);
         $this->createdDirs[] = $packageDir;
         $this->createdDirs[] = dirname($packageDir);
         $this->createdDirs[] = dirname(dirname($packageDir));
@@ -173,15 +222,15 @@ final class MigrationLoaderArrayFormTest extends TestCase
     private function writeLegacyMigration(string $absolutePath): void
     {
         $content = <<<'PHP'
-<?php
+            <?php
 
-use Waaseyaa\Foundation\Migration\Migration;
-use Waaseyaa\Foundation\Migration\SchemaBuilder;
+            use Waaseyaa\Foundation\Migration\Migration;
+            use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
-return new class extends Migration {
-    public function up(SchemaBuilder $schema): void {}
-};
-PHP;
+            return new class extends Migration {
+                public function up(SchemaBuilder $schema): void {}
+            };
+            PHP;
         file_put_contents($absolutePath, $content);
     }
 
@@ -190,14 +239,38 @@ PHP;
         return new class implements LoggerInterface {
             /** @var list<array{level: LogLevel, message: string}> */
             public array $records = [];
-            public function debug(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::DEBUG, $message); }
-            public function info(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::INFO, $message); }
-            public function notice(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::NOTICE, $message); }
-            public function warning(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::WARNING, $message); }
-            public function error(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::ERROR, $message); }
-            public function critical(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::CRITICAL, $message); }
-            public function alert(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::ALERT, $message); }
-            public function emergency(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::EMERGENCY, $message); }
+            public function debug(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::DEBUG, $message);
+            }
+            public function info(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::INFO, $message);
+            }
+            public function notice(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::NOTICE, $message);
+            }
+            public function warning(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::WARNING, $message);
+            }
+            public function error(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::ERROR, $message);
+            }
+            public function critical(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::CRITICAL, $message);
+            }
+            public function alert(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::ALERT, $message);
+            }
+            public function emergency(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::EMERGENCY, $message);
+            }
             public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
             {
                 $this->records[] = ['level' => $level, 'message' => (string) $message];

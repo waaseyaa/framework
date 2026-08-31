@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -21,6 +22,8 @@ final class EntityRepositoryAggregateConcurrencyTest extends TestCase
 {
     private DBALDatabase $database;
     private EntityRepository $repository;
+    /** @var list<string> */
+    private array $dispatchedEvents = [];
 
     protected function setUp(): void
     {
@@ -44,8 +47,13 @@ final class EntityRepositoryAggregateConcurrencyTest extends TestCase
                 PRIMARY KEY (storage_authority, tenant_id, entity_type, entity_id)
             )
             SQL);
+        $this->dispatchedEvents = [];
         $dispatcher = $this->createStub(EventDispatcherInterface::class);
-        $dispatcher->method('dispatch')->willReturnArgument(0);
+        $dispatcher->method('dispatch')->willReturnCallback(function (object $event, ?string $eventName = null): object {
+            $this->dispatchedEvents[] = $eventName ?? $event::class;
+
+            return $event;
+        });
         $this->repository = V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
             new SqlStorageDriver(new SingleConnectionResolver($this->database)),
@@ -122,6 +130,54 @@ final class EntityRepositoryAggregateConcurrencyTest extends TestCase
             self::assertSame('one', $this->repository->find('1')?->label());
             self::assertSame('winner-two', $this->repository->find('2')?->label());
         }
+    }
+
+    /**
+     * #2728 pins the ordering decision inside doDelete(): the
+     * mutation-authority compare-and-swap runs BEFORE the PRE_DELETE guard
+     * dispatch, mirroring doSave() where claim() precedes PRE_SAVE. A stale
+     * mutation token is therefore refused by the authority before any
+     * PRE_DELETE listener runs. This test fails the moment anyone hoists the
+     * guard dispatch above the tombstone.
+     */
+    #[Test]
+    public function staleMutationTokenIsRefusedByTheAuthorityBeforeAnyPreDeleteListenerRuns(): void
+    {
+        $this->seed('1', 'v1');
+        $staleDelete = $this->repository->find('1');
+        $winner = $this->repository->find('1');
+        self::assertNotNull($staleDelete);
+        self::assertNotNull($winner);
+
+        $winner->set('label', 'winner');
+        $this->repository->save($winner);
+        $winnerAuthority = $this->authorityRow('1');
+
+        $this->dispatchedEvents = [];
+        try {
+            $this->repository->delete($staleDelete);
+            self::fail('A stale delete must be refused by the mutation authority.');
+        } catch (EntityMutationConflictException) {
+            self::assertSame('winner', $this->repository->find('1')?->label());
+            self::assertSame($winnerAuthority, $this->authorityRow('1'));
+            self::assertSame('active', $this->authorityRow('1')['lifecycle_state'] ?? null);
+            self::assertNotContains(EntityEvents::PRE_DELETE->value, $this->dispatchedEvents);
+            self::assertNotContains(EntityEvents::POST_DELETE->value, $this->dispatchedEvents);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function authorityRow(string $entityId): ?array
+    {
+        $row = $this->database->getConnection()->fetchAssociative(
+            'SELECT aggregate_version, mutation_tag, lifecycle_state FROM waaseyaa_entity_mutation_authority'
+            . " WHERE entity_type = 'aggregate' AND entity_id = ?",
+            [$entityId],
+        );
+
+        return $row === false ? null : $row;
     }
 
     private function seed(string $id, string $label): void

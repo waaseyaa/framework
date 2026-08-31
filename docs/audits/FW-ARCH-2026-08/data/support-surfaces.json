@@ -1,0 +1,896 @@
+{
+  "executableFiles": [
+    ".github/workflows/admin-dist.yml",
+    ".github/workflows/admin.yml",
+    ".github/workflows/auto-merge.yml",
+    ".github/workflows/changelog-discipline.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/dependabot-admin-dist.yml",
+    ".github/workflows/dependency-audit.yml",
+    ".github/workflows/discord-release.yml",
+    ".github/workflows/github-release.yml",
+    ".github/workflows/manual-claude-review.yml",
+    ".github/workflows/nightly.yml",
+    ".github/workflows/packagist-recover.yml",
+    ".github/workflows/packagist-register.yml",
+    ".github/workflows/packagist-update.yml",
+    ".github/workflows/release-cut.yml",
+    ".github/workflows/release-gate.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/skeleton-smoke.yml",
+    ".github/workflows/split-main.yml",
+    ".github/workflows/split.yml",
+    ".github/workflows/surface-parity.yml",
+    ".github/workflows/sync-skeleton.yml",
+    "bin/admin-dist-acceptance",
+    "bin/agent-checkpoint",
+    "bin/audit-composer-deps",
+    "bin/audit-require-dev-layers",
+    "bin/build-admin-dist",
+    "bin/build-exact-source-artifact",
+    "bin/build-phpunit-shards",
+    "bin/build-split-contribution-boundary",
+    "bin/changelog-fragments",
+    "bin/check-access-hardening",
+    "bin/check-admin-coercion-patterns",
+    "bin/check-admin-dist-fresh",
+    "bin/check-bimaaji-junction-containment.ps1",
+    "bin/check-changed-php-coverage",
+    "bin/check-changelog-shape",
+    "bin/check-composer-policy",
+    "bin/check-contract-suite-coverage",
+    "bin/check-covers-nothing-companions",
+    "bin/check-dead-code",
+    "bin/check-dispatcher-keys",
+    "bin/check-distribution-extensions",
+    "bin/check-external-consumers",
+    "bin/check-getquery-bindings",
+    "bin/check-governed-secret-access",
+    "bin/check-ingestion-defaults",
+    "bin/check-local-operator-tool-profile",
+    "bin/check-monorepo-release-shape",
+    "bin/check-no-secrets",
+    "bin/check-openapi",
+    "bin/check-package-layers",
+    "bin/check-package-layers-pl008-self-test",
+    "bin/check-php-coverage-baseline",
+    "bin/check-phpstan",
+    "bin/check-phpstan-paths",
+    "bin/check-phpunit-paths",
+    "bin/check-phpunit-skip-policy",
+    "bin/check-portable-paths",
+    "bin/check-pr-preflight",
+    "bin/check-release-publish-shape",
+    "bin/check-release-require-parity",
+    "bin/check-release-tag-parity",
+    "bin/check-runtime-policy-custody",
+    "bin/check-s1-configuration-activation",
+    "bin/check-s1-configuration-authority",
+    "bin/check-s1-schema-authority",
+    "bin/check-s1-sqlite-contract",
+    "bin/check-skeleton-docker-secret-exclusion",
+    "bin/check-support-contract",
+    "bin/check-symfony-imports",
+    "bin/check-upgrade-contract",
+    "bin/check-vendor-fresh",
+    "bin/clean-package-vendors",
+    "bin/configure-split-tag-protection",
+    "bin/dev-runtime",
+    "bin/dev-runtime-consumer",
+    "bin/generate-release-evidence",
+    "bin/git",
+    "bin/lib/internal-version-sync.php",
+    "bin/lib/phpunit-inventory.php",
+    "bin/lib/s1-roster.php",
+    "bin/materialize-exact-source-artifact",
+    "bin/merge-clover-coverage",
+    "bin/normalize-admin-dist",
+    "bin/project-hooks",
+    "bin/promote-exact-source-artifact",
+    "bin/refresh-governance-artifacts",
+    "bin/refresh-phpunit-timings",
+    "bin/resolve-split-main-targets",
+    "bin/run-hermetic-admin-build",
+    "bin/summarize-php-coverage",
+    "bin/sync-internal-versions",
+    "bin/test-isolated-package",
+    "bin/test-mutation-pilot",
+    "bin/test-quality-inventory",
+    "bin/test-random-order",
+    "bin/verify-exact-source-artifact",
+    "bin/verify-random-order-vendor-archive",
+    "bin/waaseyaa",
+    "bin/wait-for-green-ci",
+    "bin/worktree-coordinator",
+    "packages/admin/app/middleware/auth.global.ts",
+    "packages/admin/app/pages/[entityType]/[id]/history.vue",
+    "packages/admin/app/pages/[entityType]/[id]/index.vue",
+    "packages/admin/app/pages/[entityType]/create.vue",
+    "packages/admin/app/pages/[entityType]/index.vue",
+    "packages/admin/app/pages/[entityType]/pipeline.vue",
+    "packages/admin/app/pages/classification/policies/[id].vue",
+    "packages/admin/app/pages/classification/policies/index.vue",
+    "packages/admin/app/pages/entity-editor-embed/[entityType]/[id].vue",
+    "packages/admin/app/pages/forgot-password.vue",
+    "packages/admin/app/pages/index.vue",
+    "packages/admin/app/pages/login.vue",
+    "packages/admin/app/pages/mcp/approvals.vue",
+    "packages/admin/app/pages/mcp/server-config.vue",
+    "packages/admin/app/pages/mcp/tools/[name].vue",
+    "packages/admin/app/pages/mcp/tools/index.vue",
+    "packages/admin/app/pages/media/[uuid]/versions.vue",
+    "packages/admin/app/pages/mercure/monitor.vue",
+    "packages/admin/app/pages/notifications/index.vue",
+    "packages/admin/app/pages/oidc/clients/[id].vue",
+    "packages/admin/app/pages/oidc/clients/index.vue",
+    "packages/admin/app/pages/page-builder-embed/[surface]/[id].vue",
+    "packages/admin/app/pages/page-builder/[surface]/[id].vue",
+    "packages/admin/app/pages/queue/index.vue",
+    "packages/admin/app/pages/register.vue",
+    "packages/admin/app/pages/reset-password.vue",
+    "packages/admin/app/pages/scheduler/index.vue",
+    "packages/admin/app/pages/verify-email.vue",
+    "packages/admin/app/pages/workflows/[id].vue",
+    "packages/admin/app/pages/workflows/index.vue",
+    "packages/admin/app/plugins/admin.ts",
+    "packages/admin/app/plugins/wayfindingSession.client.ts",
+    "public/index.php",
+    "scripts/acceptance-frankenphp-worker.sh",
+    "scripts/build-release-candidate.sh",
+    "scripts/layer0_audit/dead_code_candidates.php",
+    "scripts/layer0_audit/export_public_api.php",
+    "scripts/layer0_audit/map_tests_to_symbols.php",
+    "scripts/layer0_audit/merge_findings.php",
+    "scripts/layer0_boot_probe.php",
+    "scripts/splitsh-lite-simulate.sh",
+    "skeleton/.ci/README.md",
+    "skeleton/.ci/site-verify",
+    "skeleton/.ci/site-verify.php",
+    "skeleton/.claude/rules/waaseyaa-data-freshness.md",
+    "skeleton/.claude/rules/waaseyaa-framework.md",
+    "skeleton/.claude/rules/waaseyaa-shell-compat.md",
+    "skeleton/.dockerignore",
+    "skeleton/.env.example",
+    "skeleton/.github/workflows/site-verify.yml",
+    "skeleton/.gitignore",
+    "skeleton/CLAUDE.md",
+    "skeleton/Dockerfile",
+    "skeleton/README.md",
+    "skeleton/bin/maintenance/deploy-artifact-smoke",
+    "skeleton/bin/maintenance/golden-public-index.php",
+    "skeleton/bin/maintenance/verify-deploy-rsync",
+    "skeleton/bin/maintenance/waaseyaa-audit-site",
+    "skeleton/bin/maintenance/waaseyaa-version",
+    "skeleton/bin/post-create-setup.php",
+    "skeleton/composer.json",
+    "skeleton/composer.local.json.example",
+    "skeleton/config/entity-types.php",
+    "skeleton/config/frankenphp/Caddyfile",
+    "skeleton/config/frankenphp/php.ini",
+    "skeleton/config/services.php",
+    "skeleton/config/waaseyaa.php",
+    "skeleton/docs/application-anatomy.md",
+    "skeleton/docs/local-dev.md",
+    "skeleton/files/.gitkeep",
+    "skeleton/phpunit.xml.dist",
+    "skeleton/public/.htaccess",
+    "skeleton/public/index.php",
+    "skeleton/src/Access/.gitkeep",
+    "skeleton/src/Controller/.gitkeep",
+    "skeleton/src/Domain/.gitkeep",
+    "skeleton/src/Entity/.gitkeep",
+    "skeleton/src/Http/BootFailureResponder.php",
+    "skeleton/src/Ingestion/.gitkeep",
+    "skeleton/src/Provider/.gitkeep",
+    "skeleton/src/Provider/AppServiceProvider.php",
+    "skeleton/src/Search/.gitkeep",
+    "skeleton/src/Seed/.gitkeep",
+    "skeleton/src/Support/.gitkeep",
+    "skeleton/storage/.gitkeep",
+    "skeleton/templates/404.html.twig",
+    "skeleton/templates/home.html.twig",
+    "skeleton/templates/page.html.twig",
+    "skeleton/tests/.gitkeep",
+    "skeleton/tests/Integration/.gitkeep",
+    "skeleton/tests/Unit/.gitkeep",
+    "skeleton/tests/Unit/Http/BootFailureResponderTest.php"
+  ],
+  "rootScripts": [
+    {
+      "name": "check-composer-policy",
+      "commands": "php bin/check-composer-policy",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-changelog-shape",
+      "commands": "php bin/check-changelog-shape",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-changelog-fragments",
+      "commands": "php bin/changelog-fragments validate",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-distribution-extensions",
+      "commands": "php bin/check-distribution-extensions",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-local-operator-tool-profile",
+      "commands": "php bin/check-local-operator-tool-profile",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-openapi",
+      "commands": "bash bin/check-openapi",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-external-consumers",
+      "commands": "php bin/check-external-consumers ai-agent-orphans",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-ingestion-defaults",
+      "commands": "bash bin/check-ingestion-defaults",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-no-secrets",
+      "commands": "bash bin/check-no-secrets",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-governed-secret-access",
+      "commands": "php bin/check-governed-secret-access",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-runtime-policy-custody",
+      "commands": "php bin/check-runtime-policy-custody",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-package-layers",
+      "commands": "php bin/check-package-layers",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-symfony-imports",
+      "commands": "php bin/check-symfony-imports",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "test:inventory",
+      "commands": "php bin/test-quality-inventory --format=json",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "hooks:install",
+      "commands": "bash bin/project-hooks install",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "hooks:doctor",
+      "commands": "bash bin/project-hooks doctor",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "cs-check",
+      "commands": "php-cs-fixer fix --dry-run --diff",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "cs-fix",
+      "commands": "php-cs-fixer fix",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "dev",
+      "commands": [
+        "Composer\\Config::disableProcessTimeout",
+        "@dev:php"
+      ],
+      "primary_audit": "A6"
+    },
+    {
+      "name": "dev:admin",
+      "commands": [
+        "Composer\\Config::disableProcessTimeout",
+        "NUXT_BACKEND_URL=http://127.0.0.1:${APP_PORT:-8080} bin/waaseyaa admin:dev"
+      ],
+      "primary_audit": "A6"
+    },
+    {
+      "name": "dev:php",
+      "commands": [
+        "Composer\\Config::disableProcessTimeout",
+        "PHP_CLI_SERVER_WORKERS=4 bin/waaseyaa serve"
+      ],
+      "primary_audit": "A6"
+    },
+    {
+      "name": "phpstan",
+      "commands": "phpstan analyse --memory-limit=512M",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-portable-paths",
+      "commands": "php bin/check-portable-paths",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-phpstan-paths",
+      "commands": "bash bin/check-phpstan-paths",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-phpunit-paths",
+      "commands": "bash bin/check-phpunit-paths",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-phpunit-skip-policy",
+      "commands": "php bin/check-phpunit-skip-policy",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-contract-suite-coverage",
+      "commands": "bash bin/check-contract-suite-coverage",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-admin-coercion-patterns",
+      "commands": "bash bin/check-admin-coercion-patterns",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-admin-coercion-self-test",
+      "commands": "bash bin/check-admin-coercion-patterns --self-test",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-dead-code",
+      "commands": "php bin/check-dead-code",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-getquery-bindings",
+      "commands": "php bin/check-getquery-bindings",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-dispatcher-keys",
+      "commands": "php bin/check-dispatcher-keys",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-pr-preflight",
+      "commands": "php bin/check-pr-preflight",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "refresh-governance-artifacts",
+      "commands": "php bin/refresh-governance-artifacts",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-admin-dist-fresh",
+      "commands": "php bin/check-admin-dist-fresh",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-admin-dist-manifest",
+      "commands": "php bin/admin-dist-acceptance verify",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-field-guards",
+      "commands": "bash tests/Tooling/FieldGuardsTest.sh",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-access-hardening",
+      "commands": "bash tests/Tooling/AccessHardeningGateTest.sh",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-s1-sqlite-contract",
+      "commands": "php bin/check-s1-sqlite-contract",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-s1-schema-authority",
+      "commands": "php bin/check-s1-schema-authority",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-s1-configuration-authority",
+      "commands": "php bin/check-s1-configuration-authority",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-s1-configuration-activation",
+      "commands": "php bin/check-s1-configuration-activation",
+      "primary_audit": "A6"
+    },
+    {
+      "name": "test",
+      "commands": [
+        "Composer\\Config::disableProcessTimeout",
+        "vendor/bin/phpunit --no-coverage"
+      ],
+      "primary_audit": "A6"
+    },
+    {
+      "name": "test:random",
+      "commands": [
+        "Composer\\Config::disableProcessTimeout",
+        "php bin/test-random-order"
+      ],
+      "primary_audit": "A6"
+    },
+    {
+      "name": "verify",
+      "commands": [
+        "@cs-check",
+        "@phpstan",
+        "@check-changelog-shape",
+        "@check-changelog-fragments",
+        "@check-portable-paths",
+        "@check-phpstan-paths",
+        "@check-phpunit-paths",
+        "@check-phpunit-skip-policy",
+        "@check-contract-suite-coverage",
+        "@check-s1-sqlite-contract",
+        "@check-s1-schema-authority",
+        "@check-s1-configuration-authority",
+        "@check-s1-configuration-activation",
+        "@check-composer-policy",
+        "@check-package-layers",
+        "@check-package-layers-pl008-self-test",
+        "@check-distribution-extensions",
+        "@check-local-operator-tool-profile",
+        "@check-no-secrets",
+        "@check-governed-secret-access",
+        "@check-runtime-policy-custody",
+        "@check-ingestion-defaults",
+        "@check-symfony-imports",
+        "@check-dead-code",
+        "@check-getquery-bindings",
+        "@check-dispatcher-keys",
+        "@check-admin-coercion-patterns",
+        "@check-admin-coercion-self-test",
+        "@check-admin-dist-fresh",
+        "@check-admin-dist-manifest",
+        "@check-field-guards",
+        "@check-access-hardening",
+        "@check-openapi",
+        "@test"
+      ],
+      "primary_audit": "A6"
+    },
+    {
+      "name": "check-package-layers-pl008-self-test",
+      "commands": "php bin/check-package-layers-pl008-self-test",
+      "primary_audit": "A6"
+    }
+  ],
+  "gates": {
+    "schema_version": 1,
+    "_comment": "Governed-gate manifest consumed by bin/check-pr-preflight and bin/refresh-governance-artifacts (docs/specs/governed-gates.md §1). Every fast repo-state gate hosted CI blocks merge on appears here; tests/Architecture/PreflightParityTest.php binds this file to composer.json and the workflow files so it cannot drift from CI. {base} in a run command is replaced with the diff base ref (committed-state gates).",
+    "gates": [
+      {
+        "id": "check-composer-policy",
+        "alias": "check-composer-policy",
+        "run": "php bin/check-composer-policy",
+        "repair": "fix the reported composer.json policy violation (CPxxx codes are documented in bin/check-composer-policy)",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#php bin/check-composer-policy"
+      },
+      {
+        "id": "check-portable-paths",
+        "alias": "check-portable-paths",
+        "run": "php bin/check-portable-paths",
+        "repair": "rename the offending tracked path to a portable form",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-portable-paths"
+      },
+      {
+        "id": "check-package-layers",
+        "alias": "check-package-layers",
+        "run": "php bin/check-package-layers",
+        "repair": "move the dependency to a permitted layer or add a KERNEL_EXEMPT_FILES entry with rationale",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#php bin/check-package-layers"
+      },
+      {
+        "id": "check-symfony-imports",
+        "alias": "check-symfony-imports",
+        "run": "php bin/check-symfony-imports",
+        "repair": "use the Waaseyaa abstraction or extend .symfony-import-allowlist.json with a reviewed entry",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-symfony-imports",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "use the Waaseyaa abstraction, or add a reviewed .symfony-import-allowlist.json entry"
+        }
+      },
+      {
+        "id": "check-phpstan-paths",
+        "alias": "check-phpstan-paths",
+        "run": "bash bin/check-phpstan-paths",
+        "repair": "add the missing path to phpstan.neon paths",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-phpstan-paths"
+      },
+      {
+        "id": "check-phpunit-paths",
+        "alias": "check-phpunit-paths",
+        "run": "bash bin/check-phpunit-paths",
+        "repair": "add the missing test directory to phpunit.xml.dist",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-phpunit-paths"
+      },
+      {
+        "id": "check-phpunit-skip-policy",
+        "alias": "check-phpunit-skip-policy",
+        "run": "php bin/check-phpunit-skip-policy",
+        "repair": "remove the skip from a required-hosted proof, narrow a broad catch, or add a reviewed tools/phpunit-skip-policy.json entry with an explicit predicate and rationale",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-phpunit-skip-policy",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "classify the exact semantic site in tools/phpunit-skip-policy.json; required-hosted files and broad catches cannot be allowlisted"
+        }
+      },
+      {
+        "id": "check-package-layers-pl008-self-test",
+        "alias": "check-package-layers-pl008-self-test",
+        "run": "php bin/check-package-layers-pl008-self-test",
+        "repair": "restore the PL008 detection behavior in bin/check-package-layers",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-package-layers-pl008-self-test"
+      },
+      {
+        "id": "check-distribution-extensions",
+        "alias": "check-distribution-extensions",
+        "run": "php bin/check-distribution-extensions",
+        "repair": "keep distribution-extension packages out of the core metapackage require graphs",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-distribution-extensions"
+      },
+      {
+        "id": "check-local-operator-tool-profile",
+        "alias": "check-local-operator-tool-profile",
+        "run": "php bin/check-local-operator-tool-profile",
+        "repair": "review the reported tool change — it alters the local operator's least-privilege default (ADR-022 D-7) — then regenerate with php bin/check-local-operator-tool-profile --write-roster and commit support/local-operator-tool-profile-roster.json",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-local-operator-tool-profile",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "the roster records the local operator's least-privilege default (ADR-022 D-7) — review what changed, decide deliberately whether the tool belongs on LocalOperatorToolProfile::DEFAULT_TOOL_IDS, then run php bin/check-local-operator-tool-profile --write-roster and commit the roster"
+        }
+      },
+      {
+        "id": "check-getquery-bindings",
+        "alias": "check-getquery-bindings",
+        "run": "php bin/check-getquery-bindings",
+        "repair": "bind the query (->setAccount / ->accessCheck(false)) or append a commented exemption via php bin/check-getquery-bindings --generate-baseline",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-getquery-bindings",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "php bin/check-getquery-bindings --generate-baseline, then replace every \"# TODO: add exemption reason\" stub with a real reviewed reason before committing"
+        }
+      },
+      {
+        "id": "check-dispatcher-keys",
+        "alias": "check-dispatcher-keys",
+        "run": "php bin/check-dispatcher-keys",
+        "repair": "fix the dispatcher key or regenerate with php bin/check-dispatcher-keys --generate-baseline",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-dispatcher-keys",
+        "refresh": {
+          "mode": "auto",
+          "write": "php bin/check-dispatcher-keys --generate-baseline"
+        }
+      },
+      {
+        "id": "check-admin-coercion-patterns",
+        "alias": "check-admin-coercion-patterns",
+        "run": "bash bin/check-admin-coercion-patterns",
+        "repair": "use the canonical admin coercion helper for the flagged pattern",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-admin-coercion-patterns"
+      },
+      {
+        "id": "check-admin-coercion-self-test",
+        "alias": "check-admin-coercion-self-test",
+        "run": "bash bin/check-admin-coercion-patterns --self-test",
+        "repair": "restore detection behavior in bin/check-admin-coercion-patterns",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-admin-coercion-self-test"
+      },
+      {
+        "id": "check-admin-dist-fresh",
+        "alias": "check-admin-dist-fresh",
+        "run": "php bin/check-admin-dist-fresh",
+        "repair": "rebuild the admin dist with bin/build-admin-dist and commit the result",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-admin-dist-fresh",
+        "refresh": {
+          "mode": "auto",
+          "write": "bash bin/build-admin-dist"
+        }
+      },
+      {
+        "id": "check-admin-dist-manifest",
+        "alias": "check-admin-dist-manifest",
+        "run": "php bin/admin-dist-acceptance verify",
+        "repair": "rebuild and re-accept the admin dist with bin/build-admin-dist and commit dist/, dist.signature and dist.manifest.json together",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-admin-dist-manifest",
+        "refresh": {
+          "mode": "auto",
+          "write": "bash bin/build-admin-dist"
+        }
+      },
+      {
+        "id": "check-field-guards",
+        "alias": "check-field-guards",
+        "run": "bash tests/Tooling/FieldGuardsTest.sh",
+        "repair": "restore the field-guard wiring the test asserts (including the ci.yml run_gate line)",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-field-guards"
+      },
+      {
+        "id": "check-access-hardening",
+        "alias": "check-access-hardening",
+        "run": "bash tests/Tooling/AccessHardeningGateTest.sh",
+        "repair": "fix the access-hardening finding or add a reviewed tools/access-hardening-baseline.php entry",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-access-hardening",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "fix the finding or add a reviewed tools/access-hardening-baseline.php entry with rationale"
+        }
+      },
+      {
+        "id": "check-openapi",
+        "alias": "check-openapi",
+        "run": "bash bin/check-openapi",
+        "repair": "regenerate/fix the OpenAPI document per bin/check-openapi output",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#run_gate check-openapi"
+      },
+      {
+        "id": "check-support-contract",
+        "run": "php bin/check-support-contract",
+        "repair": "align support/s1-v1.json and the runtime surfaces it binds (hand-edited contract)",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#php bin/check-support-contract --ci",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "hand-edit support/s1-v1.json and the duplicated expected values inside bin/check-support-contract so contract and runtime agree"
+        }
+      },
+      {
+        "id": "check-s1-sqlite-contract",
+        "alias": "check-s1-sqlite-contract",
+        "run": "php bin/check-s1-sqlite-contract",
+        "repair": "review the diff, then php bin/check-s1-sqlite-contract --write-construction-roster and commit the roster",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#php bin/check-s1-sqlite-contract --ci",
+        "refresh": {
+          "mode": "auto",
+          "write": "php bin/check-s1-sqlite-contract --write-construction-roster"
+        }
+      },
+      {
+        "id": "check-s1-configuration-activation",
+        "alias": "check-s1-configuration-activation",
+        "run": "php bin/check-s1-configuration-activation",
+        "repair": "review the diff, then php bin/check-s1-configuration-activation --write-roster and commit the roster",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#php bin/check-s1-configuration-activation",
+        "refresh": {
+          "mode": "auto",
+          "write": "php bin/check-s1-configuration-activation --write-roster"
+        }
+      },
+      {
+        "id": "check-s1-configuration-authority",
+        "alias": "check-s1-configuration-authority",
+        "run": "php bin/check-s1-configuration-authority",
+        "repair": "review the diff, then php bin/check-s1-configuration-authority --write-roster and commit the roster",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#php bin/check-s1-configuration-authority",
+        "refresh": {
+          "mode": "auto",
+          "write": "php bin/check-s1-configuration-authority --write-roster"
+        }
+      },
+      {
+        "id": "check-s1-schema-authority",
+        "alias": "check-s1-schema-authority",
+        "run": "php bin/check-s1-schema-authority",
+        "repair": "review the diff, then php bin/check-s1-schema-authority --write-roster and commit the roster",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#php bin/check-s1-schema-authority",
+        "refresh": {
+          "mode": "auto",
+          "write": "php bin/check-s1-schema-authority --write-roster"
+        }
+      },
+      {
+        "id": "check-governed-secret-access",
+        "alias": "check-governed-secret-access",
+        "run": "php bin/check-governed-secret-access",
+        "repair": "route the access through the governed secret surface or add a reviewed tools/governed-secret-access-baseline.php entry",
+        "profile": "default",
+        "enforced_by": "architecture-test:GovernedSecretAccessContractTest.php",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "route the access through the governed secret surface or add a reviewed tools/governed-secret-access-baseline.php entry"
+        }
+      },
+      {
+        "id": "check-runtime-policy-custody",
+        "alias": "check-runtime-policy-custody",
+        "run": "php bin/check-runtime-policy-custody",
+        "repair": "route debug/environment classification through RuntimePolicy or add a reviewed low-layer baseline entry with rationale",
+        "profile": "default",
+        "enforced_by": "architecture-test:RuntimePolicyCustodyContractTest.php",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "route the policy through RuntimePolicy; baseline only an unavoidable lower-layer authority with explicit package-cycle rationale"
+        }
+      },
+      {
+        "id": "check-covers-nothing-companions",
+        "run": "php bin/check-covers-nothing-companions --base={base}",
+        "base": true,
+        "repair": "add a changed coverage-bearing Unit/Contract companion that exercises the affected branch through a real public boundary",
+        "profile": "default",
+        "enforced_by": "architecture-test:CoversNothingCompanionDiagnosticTest.php"
+      },
+      {
+        "id": "check-changelog-shape",
+        "alias": "check-changelog-shape",
+        "run": "php bin/check-changelog-shape",
+        "repair": "fix the CHANGELOG.md structure per bin/check-changelog-shape output",
+        "profile": "default",
+        "enforced_by": "architecture-test:ChangelogShapeGuardTest.php"
+      },
+      {
+        "id": "check-changelog-fragments",
+        "alias": "check-changelog-fragments",
+        "run": "php bin/changelog-fragments validate",
+        "repair": "fix fragment names/content per changes/README.md and rerun the validator",
+        "profile": "default",
+        "enforced_by": "architecture-test:ChangelogFragmentsTest.php"
+      },
+      {
+        "id": "check-contract-suite-coverage",
+        "alias": "check-contract-suite-coverage",
+        "run": "bash bin/check-contract-suite-coverage",
+        "repair": "add the missing contract-suite coverage entry",
+        "profile": "default",
+        "enforced_by": "verify-only"
+      },
+      {
+        "id": "check-ingestion-defaults",
+        "alias": "check-ingestion-defaults",
+        "run": "bash bin/check-ingestion-defaults",
+        "repair": "restore the required ingestion defaults invariants under defaults/",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#bash bin/check-ingestion-defaults"
+      },
+      {
+        "id": "check-no-secrets",
+        "alias": "check-no-secrets",
+        "run": "bash bin/check-no-secrets",
+        "repair": "remove the secret-shaped finding (and rotate the credential if it was real)",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#bash bin/check-no-secrets"
+      },
+      {
+        "id": "check-release-publish-shape",
+        "run": "bash bin/check-release-publish-shape",
+        "repair": "restore the exactly-once publish shape in the release workflows",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#bin/check-release-publish-shape"
+      },
+      {
+        "id": "surface-parity",
+        "run": "php tools/check-surface-parity.php --base={base}",
+        "base": true,
+        "repair": "keep every current map entry loadable; for a removal or public downgrade, add the exact current-change CHANGELOG directive documented in stability-charter.md §8.1",
+        "profile": "default",
+        "enforced_by": "workflow:surface-parity.yml#check-surface-parity.php",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "record each new public element's disposition in docs/public-surface-map.php; authorize a removal, rename, or public downgrade only with the exact current-change CHANGELOG grammar in stability-charter.md §8.1"
+        }
+      },
+      {
+        "id": "spec-drift",
+        "run": "bash tools/drift-detector.sh --include-worktree {base}",
+        "base": true,
+        "repair": "update the affected spec in the same change set, or commit a 'spec-reviewed: <spec-path> - <reason>' trailer",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#drift-detector.sh"
+      },
+      {
+        "id": "changelog-discipline",
+        "run": "bash tools/check-changelog-discipline.sh --include-worktree {base}",
+        "base": true,
+        "repair": "add a validated changes/unreleased fragment (the PR-body 'no-changelog: <reason>' override is applied by CI only)",
+        "profile": "default",
+        "enforced_by": "workflow:changelog-discipline.yml#check-changelog-discipline.sh"
+      },
+      {
+        "id": "cs-check",
+        "alias": "cs-check",
+        "run": "composer cs-check",
+        "repair": "composer cs-fix",
+        "profile": "default",
+        "enforced_by": "workflow:ci.yml#composer cs-check"
+      },
+      {
+        "id": "phpstan",
+        "alias": "phpstan",
+        "run": "composer phpstan",
+        "repair": "fix the reported static-analysis errors (single-process fallback: php -d memory_limit=4G vendor/bin/phpstan analyse)",
+        "profile": "full",
+        "enforced_by": "workflow:ci.yml#composer phpstan"
+      },
+      {
+        "id": "check-dead-code",
+        "alias": "check-dead-code",
+        "run": "php bin/check-dead-code",
+        "repair": "delete the dead code or mark an intentional extension point with @api (baseline regen per CLAUDE.md is a reviewed exception)",
+        "profile": "full",
+        "enforced_by": "workflow:ci.yml#bin/check-dead-code",
+        "refresh": {
+          "mode": "manual",
+          "instruction": "delete the dead code or mark intentional extension points with @api; baseline regeneration (phpstan-dead-code-baseline.neon) is a reviewed exception per CLAUDE.md"
+        }
+      }
+    ]
+  },
+  "baselineFiles": [
+    ".symfony-import-allowlist.json",
+    "bin/check-php-coverage-baseline",
+    "bin/lib/s1-roster.php",
+    "docs/audits/2026-05-17-dead-code-baseline-audit.md",
+    "docs/history/plans/v1.0-semantic-baseline-report.md",
+    "docs/history/superpowers/plans/2026-03-12-phpstan-baseline-regen.md",
+    "packages/cli/src/Handler/PerformanceBaselineHandler.php",
+    "phpstan-baseline.neon",
+    "phpstan-dead-code-baseline.neon",
+    "support/local-operator-tool-profile-roster.json",
+    "support/s1-configuration-activation-roster.json",
+    "support/s1-configuration-authority-roster.json",
+    "support/s1-schema-authority-roster.json",
+    "support/s1-sqlite-construction-roster.json",
+    "tests/Architecture/S1RosterSchemaV2Test.php",
+    "tests/Baselines/LicenseFileTest.php",
+    "tests/Baselines/performance_regression_v1.1.json",
+    "tests/Integration/Phase15/SemanticWarmBaselineIntegrationTest.php",
+    "tests/Integration/Security/ApplicationMasterPurposeRosterRetainedRedTest.php",
+    "tests/Integration/Tooling/S1RosterLibraryTest.php",
+    "tools/access-hardening-baseline.php",
+    "tools/dispatcher-key-baseline.txt",
+    "tools/getquery-bindings-baseline.txt",
+    "tools/governed-secret-access-baseline.php",
+    "tools/package-layers-cycle-baseline.txt",
+    "tools/package-layers-string-literal-baseline.txt",
+    "tools/package-layers-test-edge-baseline.txt",
+    "tools/package-layers-undeclared-baseline.txt",
+    "tools/php-coverage-baseline.json",
+    "tools/runtime-policy-custody-baseline.php"
+  ]
+}

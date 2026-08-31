@@ -137,7 +137,7 @@ is not used. Canonical envelope contract: docs/specs/api-layer.md. -->
 <!-- Spec reviewed 2026-04-25 - packages/testing stub entities: constructor/metadata alignment for EntityTypeManager parity tests only; no kernel/bootstrap contract change -->
 <!-- Spec reviewed 2026-04-24 - packages/http-client StreamHttpClient; packages/inertia InertiaServiceProvider (PHPStan-only); packages/queue timestamped migrations + CreateQueueTables DDL (waaseyaa_queue_jobs / waaseyaa_failed_jobs) -->
 <!-- Spec reviewed 2026-04-24 - Layer 0 env variable contract subsection (APP_ENV, APP_DEBUG, WAASEYAA_DB, WAASEYAA_CONFIG_DIR, .env/EnvLoader) + assert/IO review note after boot guard -->
-<!-- Spec reviewed 2026-04-22 - PackageManifest: removed persisted commands/routes (ADR docs/adr/0001); legacy extra.waaseyaa.commands|routes log warning only; fromArray strips legacy cache keys; mergeRootWaaseyaa merges providers+permissions only; attributeEntityTypes; ProviderRegistry entity_auto_register; ServiceProvider::mergeChildProvider; BuiltinRouteRegistrar: MCP route owned by mcp package only, sortRoutesByPriority after provider routes; MigrationLoader InstalledVersions; queue/notification/scheduler extra.waaseyaa.migrations -->
+<!-- Spec reviewed 2026-08-29 - PackageManifest root applications contribute providers, permissions, and migrations under their Composer package identity (#2695). -->
 <!-- Spec reviewed 2026-04-30 - layer-graph file-level scan + named-file kernel exemption surface (mission #824 WP02 surface C) -->
 <!-- Spec reviewed 2026-04-22 - require-dev layer audit script + CI integration (warn-only), plus composer layer graph docs -->
 <!-- Spec reviewed 2026-04-21 - Composer layer graph (bin/check-package-layers), HTTP JSON-first error surface, database-legacy ADR 007 cross-link -->
@@ -1286,6 +1286,19 @@ Per spec §15 Q9, `extra.waaseyaa.migrations` also accepts an **ordered list** o
 `PackageManifestCompiler::validateMigrationsEntry()` rejects malformed entries (associative arrays, non-string elements, non-string-or-array top-level values) with stable code `INVALID_MIGRATION_ENTRY` (`InvalidMigrationEntryException`). `MigrationLoader` exposes two methods that walk the same manifest in order: `loadAll()` resolves path entries to legacy `Migration` instances; `loadAllV2()` resolves FQCN entries via Composer's classmap to `MigrationInterfaceV2` instances. The string form (`"migrations": "migrations"`) is preserved indefinitely (Q9 — no removal date) and is internally normalised to a single-element list.
 
 **Entry classification heuristic (v1):** entries containing a backslash are FQCN namespace prefixes; everything else is a path string. Full discovery rules — including the no-match warning, classmap optimization requirement, and Windows-path caveat — live in `docs/adr/009-migration-manifest-discovery.md`.
+
+**Root applications:** the root `composer.json` may declare the same key. Its
+non-empty Composer `name` becomes the default package identity, namespace entries
+use the optimized root classmap, and relative paths resolve from the project
+root. A declaration without a package name fails closed. The historical
+undeclared `<projectRoot>/migrations` fallback remains supported under package
+`app`. Root declarations resolving to that canonical directory keep the same
+`app:*` ledger IDs and suppress the fallback; aliases never rename applied
+migrations. Other root paths and installed package paths keep Composer ownership.
+Kernel and CLI Migrator compositions use canonical RuntimePolicy and their
+runtime/configured logger for development warn-and-skip versus production-like
+checksum refusal. `db:init --dry-run` includes pending V2 entries without
+executing plans or updating schema/ledger.
 
 **v2 ordering:** within a package, list entries traverse left-to-right. Across packages, the unified migration DAG (mission #529 / WP06) reorders nodes by their declared `dependencies()`; raw discovery order is only the input. Within an FQCN entry, classmap iteration order is implementation-defined — v2 plans should not depend on it. Use explicit `MigrationInterfaceV2::dependencies()` for cross-migration ordering.
 
