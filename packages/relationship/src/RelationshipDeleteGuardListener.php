@@ -16,9 +16,18 @@ use Waaseyaa\Entity\Event\EntityEvent;
  * type — so scoping the guard to one type (the historical hardcoded
  * 'node') silently orphaned edges for all other relatable types.
  * Registered by RelationshipServiceProvider::boot() on
- * EntityEvents::PRE_DELETE; the throw aborts the delete before the row
- * is removed. Note: deleteMany() buffers lifecycle events until after
- * commit (UnitOfWork), so only the single-delete path is guarded.
+ * EntityEvents::PRE_DELETE. Since #2728 the guard runs INSIDE the delete
+ * transaction on BOTH delete() and deleteMany(): the throw aborts before
+ * the row is removed and rolls back the row, its revisions and the
+ * mutation-authority tombstone — for the whole batch, not just the
+ * refused entity. (Correcting the previous note here: buffering was never
+ * batch-only. delete() opens its own UnitOfWork whenever a mutation
+ * authority and database are wired, so before #2728 this guard was
+ * unguarded on both paths in every DBAL-backed composition.)
+ *
+ * Because the guard's getQuery() SELECTs run on the transaction's own
+ * connection, inside a batch it observes rows already removed for earlier
+ * entities — batch order is semantically load-bearing.
  */
 final class RelationshipDeleteGuardListener
 {

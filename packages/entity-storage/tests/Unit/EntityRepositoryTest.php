@@ -822,6 +822,327 @@ final class EntityRepositoryTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->repository->deleteMany([$this->newEntity('1')]);
     }
+    // -----------------------------------------------------------------------
+    // Delete-path guard timing (#2728)
+    //
+    // PRE_DELETE is a GUARD event: it dispatches immediately, inside any open
+    // delete transaction, so a refusing listener rolls back the row, its
+    // revisions AND the mutation-authority tombstone. POST_DELETE stays a
+    // NOTIFICATION event: buffered until after a successful commit, discarded
+    // on rollback. Before #2728 doDelete() handed PRE_DELETE to the UnitOfWork
+    // buffer, so the guard only ran after commit — on BOTH delete() and
+    // deleteMany(), in every DBAL-backed composition.
+    // -----------------------------------------------------------------------
+
+    /**
+     * @return array{EntityRepository, DBALDatabase}
+     */
+    private function createSqlRepositoryWithDatabase(): array
+    {
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        new SqlSchemaHandler($this->entityType, $db)->ensureTable();
+
+        return [
+            \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+                $this->entityType,
+                $driver,
+                $this->eventDispatcher,
+                database: $db,
+            ),
+            $db,
+        ];
+    }
+
+    private function countTestEntityRows(DBALDatabase $db): int
+    {
+        return (int) $db->getConnection()->fetchOne('SELECT COUNT(*) FROM test_entity');
+    }
+
+    /**
+     * @return array{aggregate_version: int, mutation_tag: string, lifecycle_state: string}|null
+     */
+    private function authorityRow(DBALDatabase $db, string $entityId): ?array
+    {
+        $row = $db->getConnection()->fetchAssociative(
+            'SELECT aggregate_version, mutation_tag, lifecycle_state FROM waaseyaa_entity_mutation_authority'
+            . " WHERE entity_type = 'test_entity' AND entity_id = ?",
+            [$entityId],
+        );
+
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'aggregate_version' => (int) $row['aggregate_version'],
+            'mutation_tag' => (string) $row['mutation_tag'],
+            'lifecycle_state' => (string) $row['lifecycle_state'],
+        ];
+    }
+
+    #[Test]
+    public function deleteDispatchesPreDeleteInsideTheTransactionBeforeAnyRowIsRemoved(): void
+    {
+        [$repository, $db] = $this->createSqlRepositoryWithDatabase();
+        $entity = $this->newEntity('1', 'Doomed');
+        $repository->save($entity);
+
+        $observed = [];
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_DELETE->value,
+            function () use (&$observed, $db): void {
+                $observed[] = ['pre', $this->countTestEntityRows($db), $db->getConnection()->isTransactionActive()];
+            },
+        );
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_DELETE->value,
+            function () use (&$observed, $db): void {
+                $observed[] = ['post', $this->countTestEntityRows($db), $db->getConnection()->isTransactionActive()];
+            },
+        );
+
+        $repository->delete($entity);
+
+        $this->assertSame(
+            [['pre', 1, true], ['post', 0, false]],
+            $observed,
+            'PRE_DELETE must run inside the open delete transaction with the row still present; '
+            . 'POST_DELETE must run after commit with the row gone.',
+        );
+    }
+
+    #[Test]
+    public function deleteCommitsRowRemovalAndTombstoneWhenNoListenerRefuses(): void
+    {
+        [$repository, $db] = $this->createSqlRepositoryWithDatabase();
+        $entity = $this->newEntity('1', 'Allowed');
+        $repository->save($entity);
+
+        $before = $this->authorityRow($db, '1');
+        $this->assertNotNull($before);
+        $this->assertSame('active', $before['lifecycle_state']);
+
+        $postLog = [];
+        $this->eventDispatcher->addListener(EntityEvents::PRE_DELETE->value, static function (): void {});
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_DELETE->value,
+            function () use (&$postLog, $db): void {
+                $postLog[] = $db->getConnection()->isTransactionActive();
+            },
+        );
+
+        $repository->delete($entity);
+
+        $this->assertSame(0, $this->countTestEntityRows($db));
+        $this->assertNull($repository->find('1'));
+
+        $after = $this->authorityRow($db, '1');
+        $this->assertNotNull($after);
+        $this->assertSame($before['aggregate_version'] + 1, $after['aggregate_version']);
+        $this->assertSame('tombstone', $after['lifecycle_state']);
+
+        $this->assertSame([false], $postLog, 'POST_DELETE must fire exactly once, after commit.');
+    }
+
+    #[Test]
+    public function deleteRefusedByPreDeleteListenerRollsBackRowAndMutationAuthority(): void
+    {
+        [$repository, $db] = $this->createSqlRepositoryWithDatabase();
+        $entity = $this->newEntity('1', 'Protected');
+        $repository->save($entity);
+
+        $before = $this->authorityRow($db, '1');
+        $this->assertNotNull($before);
+        $this->assertSame('active', $before['lifecycle_state']);
+        $tokenVersionBefore = $entity->mutationToken()?->aggregateVersion;
+
+        $guard = [];
+        $postLog = [];
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_DELETE->value,
+            function () use (&$guard, $db): never {
+                $guard[] = [$this->countTestEntityRows($db), $db->getConnection()->isTransactionActive()];
+
+                throw new \DomainException('refused');
+            },
+        );
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_DELETE->value,
+            function () use (&$postLog): void {
+                $postLog[] = 'post';
+            },
+        );
+
+        try {
+            $repository->delete($entity);
+            $this->fail('A refusing PRE_DELETE listener must propagate out of delete().');
+        } catch (\DomainException $e) {
+            $this->assertSame('refused', $e->getMessage());
+        }
+
+        $this->assertSame([[1, true]], $guard, 'The guard must observe the row still present, inside a transaction.');
+        $this->assertSame(1, $this->countTestEntityRows($db), 'A refused delete must not remove the row.');
+        $this->assertNotNull($repository->find('1'));
+        $this->assertSame($before, $this->authorityRow($db, '1'), 'The tombstone must roll back with the row.');
+        $this->assertSame($tokenVersionBefore, $entity->mutationToken()?->aggregateVersion);
+        $this->assertSame([], $postLog, 'POST_DELETE must not fire for a refused delete.');
+    }
+
+    #[Test]
+    public function deleteManyRefusalOnSecondEntityRollsBackWholeBatchIncludingMutationAuthority(): void
+    {
+        [$repository, $db] = $this->createSqlRepositoryWithDatabase();
+        $e1 = $this->newEntity('1', 'First');
+        $e2 = $this->newEntity('2', 'Second');
+        $repository->saveMany([$e1, $e2]);
+
+        $before1 = $this->authorityRow($db, '1');
+        $before2 = $this->authorityRow($db, '2');
+        $this->assertNotNull($before1);
+        $this->assertNotNull($before2);
+
+        $postLog = [];
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_DELETE->value,
+            static function (EntityEvent $event): void {
+                if ((string) $event->entity->id() === '2') {
+                    throw new \DomainException('second entity refused');
+                }
+            },
+        );
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_DELETE->value,
+            function (EntityEvent $event) use (&$postLog): void {
+                $postLog[] = (string) $event->entity->id();
+            },
+        );
+
+        try {
+            $repository->deleteMany([$e1, $e2]);
+            $this->fail('A refusing PRE_DELETE listener must propagate out of deleteMany().');
+        } catch (\DomainException $e) {
+            $this->assertSame('second entity refused', $e->getMessage());
+        }
+
+        $this->assertSame(2, $this->countTestEntityRows($db), 'A mid-batch refusal must roll back the WHOLE batch.');
+        $this->assertNotNull($repository->find('1'));
+        $this->assertNotNull($repository->find('2'));
+        $this->assertSame($before1, $this->authorityRow($db, '1'));
+        $this->assertSame($before2, $this->authorityRow($db, '2'));
+        $this->assertSame('active', $this->authorityRow($db, '1')['lifecycle_state']);
+        $this->assertSame([], $postLog, 'Buffered POST_DELETE events must be discarded on rollback.');
+    }
+
+    /**
+     * The one observable ordering change #2728 ships: with PRE_DELETE
+     * immediate, a batch interleaves pre1, pre2, post1, post2 instead of
+     * pre1, post1, pre2, post2. The row counts each guard observes document
+     * the same-connection uncommitted-read visibility that follows from it.
+     */
+    #[Test]
+    public function deleteManyDispatchesEveryPreDeleteBeforeAnyPostDelete(): void
+    {
+        [$repository, $db] = $this->createSqlRepositoryWithDatabase();
+        $e1 = $this->newEntity('1', 'First');
+        $e2 = $this->newEntity('2', 'Second');
+        $repository->saveMany([$e1, $e2]);
+
+        $log = [];
+        $guardRowCounts = [];
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_DELETE->value,
+            function (EntityEvent $event) use (&$log, &$guardRowCounts, $db): void {
+                $log[] = 'pre:' . (string) $event->entity->id();
+                $guardRowCounts[] = $this->countTestEntityRows($db);
+            },
+        );
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_DELETE->value,
+            static function (EntityEvent $event) use (&$log): void {
+                $log[] = 'post:' . (string) $event->entity->id();
+            },
+        );
+
+        $repository->deleteMany([$e1, $e2]);
+
+        $this->assertSame(['pre:1', 'pre:2', 'post:1', 'post:2'], $log);
+        $this->assertSame(
+            [2, 1],
+            $guardRowCounts,
+            'Each in-transaction guard observes the rows already removed for earlier batch entities.',
+        );
+    }
+
+    #[Test]
+    public function deleteWithoutADatabaseStillRefusesBeforeTheRowIsRemoved(): void
+    {
+        $entity = $this->newEntity('1', 'Untransacted');
+        $this->repository->save($entity);
+
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_DELETE->value,
+            static function (): never {
+                throw new \DomainException('refused');
+            },
+        );
+
+        try {
+            $this->repository->delete($entity);
+            $this->fail('A refusing PRE_DELETE listener must propagate out of the untransacted delete path.');
+        } catch (\DomainException $e) {
+            $this->assertSame('refused', $e->getMessage());
+        }
+
+        $this->assertNotNull(
+            $this->repository->find('1'),
+            'With no mutation authority there is no tombstone, and the immediate guard refuses before any write.',
+        );
+    }
+
+    #[Test]
+    public function constructingARepositoryWithAMutationAuthorityButNoDatabaseIsRefused(): void
+    {
+        $boundary = new StorageBoundary();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('requires the database');
+
+        new EntityRepository(
+            $this->entityType,
+            new InMemoryStorageDriverV2(
+                new InMemoryStorageDriver(),
+                $boundary->driverRowFactory(),
+                $boundary->driverSnapshotReader(),
+            ),
+            $this->eventDispatcher,
+            null,
+            null,
+            new \Waaseyaa\EntityStorage\Concurrency\EntityMutationAuthority(DBALDatabase::createSqlite(), 'primary'),
+        );
+    }
+
+    #[Test]
+    public function constructingADbalRepositoryWithoutAMutationAuthorityIsRefused(): void
+    {
+        $boundary = new StorageBoundary();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('requires the universal entity mutation authority');
+
+        new EntityRepository(
+            $this->entityType,
+            new InMemoryStorageDriverV2(
+                new InMemoryStorageDriver(),
+                $boundary->driverRowFactory(),
+                $boundary->driverSnapshotReader(),
+            ),
+            $this->eventDispatcher,
+            null,
+            DBALDatabase::createSqlite(),
+            null,
+        );
+    }
 
     // -----------------------------------------------------------------------
     // Lifecycle hooks
