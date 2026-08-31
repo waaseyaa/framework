@@ -66,12 +66,14 @@ catch or normalization expressions are **not defect counts**.
 
 ## Baseline versus adoption branch
 
-The documentation candidate starts at
-`61dabd434df3beec04953a2297f11bc5771384f0`, after the PRE_DELETE transaction fix
-[#2735](https://github.com/waaseyaa/framework/pull/2735). Its fix does not rewrite
-the frozen census or the original failing baseline evidence for #2728. Source
-observations in this report apply to the frozen baseline unless explicitly marked
-as post-baseline. Migration PRs #2706/#2712 are not folded into this source baseline.
+The initial portable-audit documentation was based at
+`61dabd434df3beec04953a2297f11bc5771384f0`; this final synthesis candidate starts
+at `e3ff47a403476f1d643906ac54c546ff58a8c841`. Both are after the PRE_DELETE
+transaction fix [#2735](https://github.com/waaseyaa/framework/pull/2735). That fix
+does not rewrite the frozen census or the original failing baseline evidence for
+#2728. Source observations in this report apply to the frozen baseline unless
+explicitly marked as post-baseline. Migration PRs #2706/#2712 are not folded into
+this source baseline.
 
 Boundary IDs **B01–B08** always mean the eight rows in the authority map. Earlier
 behavioral checkpoint artifacts also used B-prefixed directory names; this report

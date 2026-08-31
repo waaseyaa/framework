@@ -16,7 +16,7 @@
 D0 contract decisions
   ├─ identity: #2670 #2549 #2756 #2762 #2766
   ├─ async outcome: #2740 #2741 #2743 #2745 #2747 #2750
-  ├─ optional/adapters: #1606 #1608 #2759 #2763
+  ├─ optional/adapters: #1606 #1608 #2737 #2759 #2763
   └─ deploy durability: #2765
 
 D1 canonical internals
@@ -27,7 +27,7 @@ D1 canonical internals
 
 D2 convergence and removal
   ├─ remove boot repair: #2761
-  ├─ converge adapters: #2746 #2751 #2758 #2759 #2763
+  ├─ converge adapters: #2737 #2746 #2751 #2758 #2759 #2763
   ├─ typed absence: #1606 #1608
   └─ delete no-op/shadow paths: #2752 and A6-approved test helpers
 
@@ -51,8 +51,8 @@ D4 retirement
    before adding constraints.
 4. **Schema authority:** #2730/#2731/#2732 with #1625/#2682; remove #2761 boot DDL
    only when migration/fresh-install ownership covers the same schema.
-5. **Adapter convergence:** #2751, #2759 and #2763; then typed optional outcomes
-   #1606/#1608 and malformed-input handling #2746.
+5. **Adapter convergence:** #2737, #2751, #2759 and #2763; then typed optional
+   outcomes #1606/#1608 and malformed-input handling #2746.
 6. **Deployment:** resolve #2548/#2549, ratify #2765, then run crash/restart and
    relational aggregate qualification.
 7. **Distribution cleanup:** repair A6 conformance examples/hooks; delete #2752;
@@ -65,4 +65,3 @@ production composition; explicit backend/lifecycle profile; negative control;
 separate command exits/full logs; changed-line coverage; public compatibility and
 upgrade note; independent adversarial review against the issue invariant. A green
 full suite is necessary but not a substitute for the boundary proof.
-

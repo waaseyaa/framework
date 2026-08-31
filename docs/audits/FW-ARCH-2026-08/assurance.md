@@ -14,7 +14,7 @@ treated as pass.
 | G5 Deployment recovery | Nonempty relational fixtures; identity mapping; kill/restart at every activation phase; directory durability | FAIL | #2548 #2549 #2765 |
 | G6 Authorization/read custody | Explicit grant, Forbidden wins, audited privileged reads and fail-closed missing authority through real routes | PARTIAL | A2; #2729 #2766 |
 | G7 Observability | Production logger reaches every catch/downgrade; failures have typed state and recovery path | FAIL | #1608 #2763 and A7 logger cluster |
-| G8 Adapter convergence | Shared transport/config/policy; typed optional absence; no success-shaped placeholder | FAIL | #1606 #1608 #2746 #2751 #2759 |
+| G8 Adapter convergence | Shared validation/transport/config/policy; typed optional absence; no success-shaped placeholder | FAIL | #1606 #1608 #2737 #2746 #2751 #2759 |
 | G9 Storage-profile honesty | Each entity/feature declares supported layouts; supported layouts pass real round trips; unsupported ones refuse | PARTIAL | A1/A2; #2682 |
 | G10 Worker/request isolation | Principal, field-read, Inertia and schema/cache state cleared or composition-scoped across sequential requests | PARTIAL | A3; #2764 |
 | G11 Distributed consumer truth | Sealed split install, no-dev boot, extension authoring examples and negative conformance controls | PARTIAL | A6 #2726 #2055 |
@@ -45,4 +45,3 @@ treated as pass.
 
 These gates should be introduced with self-tests and bounded runtime cost. They must
 not weaken existing preflight, coverage, admin-dist or package-boundary checks.
-

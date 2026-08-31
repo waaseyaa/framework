@@ -77,9 +77,10 @@ independent text-normalization paths after lifecycle proof.
 
 ### R5 — Optional adapters fork shared policy or hide failure
 
-Examples: success-shaped null LLM #1608, malformed beacon self-targeting #2746,
-leaf HTTP clients #2751, media upload authority #2759 and search projection silence
-#2763. Narrow adapters locally recreate transport, configuration or error semantics.
+Examples: success-shaped null LLM #1608, AI-tool admission bypass #2737, malformed
+beacon self-targeting #2746, leaf HTTP clients #2751, media upload authority #2759
+and search projection silence #2763. Narrow adapters locally recreate validation,
+transport, configuration or error semantics.
 
 Disposition: **consolidate** on shared transport/policy/result types. Retain explicit
 offline/null construction only when absence is a typed non-success outcome.
@@ -129,8 +130,7 @@ require canonical logger wiring for every production failure-catching collaborat
 |---|---|
 | Keep | Package/layer boundaries; canonical repository; explicit-grant access; audited privileged reads; migration-owned schema requirements; admin bundle integrity gates; per-request GraphQL execution context; Inertia `finally` cleanup; bounded installer refusal/rollback controls |
 | Remove after replacement | Geo no-op provider #2752; retired/shadow telemetry precedent #1860; production boot DDL #2761; duplicate adapter transport/policy paths #2751/#2759; stale first-party test assumptions and optional no-op assurance hooks under A6 |
-| Replace/consolidate | Issues #2670, #2729–#2734, #2740–#2751, #2753–#2766 plus existing schema/deployer owners #1625/#2548/#2549/#2682 |
+| Replace/consolidate | Issues #2670, #2729–#2734, #2737, #2740–#2751, #2753–#2766 plus existing schema/deployer owners #1625/#2548/#2549/#2682 |
 | Defer with trigger | database-legacy #1588 and dormant storage seams #2055 until consumer migration proof; timing flake #2716 until deterministic transport fixture; unsupported storage/profile cells until an explicit support decision |
 
 No code path is deleted merely because current applications do not call it.
-
