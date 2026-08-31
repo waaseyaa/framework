@@ -1146,6 +1146,145 @@ final class Migrator
 
 Migrations are topologically sorted by `Migration::$after` dependencies. Each batch gets an incrementing batch number. Rollback undoes the last batch in reverse order.
 
+### Fresh-install reconciliation (#2701)
+
+`Migrator` wraps each v2 node's compile, targeted table materialization,
+execution and ledger write in one transaction, so an interrupted initialization
+leaves the node wholly applied or wholly absent — including a table the
+materializer created for it. `V2PlanExecutor` takes an optional
+`EntityTableMaterializerInterface`; without one, an absent table simply fails
+closed on real SQL. It compiles the authored plan in full first — so policy and
+capability refusals fire before any database contact, and `diff_hash` is fixed —
+then classifies and executes one operation at a time in authored order, so each
+operation is judged against the state its predecessors left behind rather than
+against a single pre-execution snapshot. `OpPreconditionResolver` compares column
+types by SQLite storage **affinity**, not by rendered SQL text, because the
+canonical materializer emits Doctrine's vocabulary (`CLOB`, `DOUBLE PRECISION`)
+while the v2 compiler emits its own (`TEXT`, `REAL`).
+
+Affinity alone is not sufficient: the two producers spell one logical type across
+an affinity boundary — Doctrine's `BOOLEAN` is NUMERIC affinity where the compiler
+renders `INTEGER`. That single pair is reconciled by an explicit per-logical-type
+allowlist rather than by equating INTEGER and NUMERIC in general, so a `DECIMAL`
+column still refuses an authored `int`.
+
+Primary-key membership is read from `PRAGMA table_xinfo.pk` and refuses under
+`[S1-DB110]`. A primary key is not expressible in `ColumnSpec` — the compiler
+renders only `<type> [NOT NULL] [DEFAULT <literal>]` — so such a column is not
+the one the operation declares. `pk` is a **1-based position within the key**,
+not a flag, so membership is any non-zero value and a column in a later position
+of a composite key counts. The check runs before the type, nullability and
+default comparisons, because SQLite reports an `INTEGER PRIMARY KEY` rowid alias
+as `notnull = 0` although it cannot hold NULL, which makes the nullability
+reading untrustworthy for exactly that column.
+
+**The column comparison is closed over SQLite's constraint grammar.**
+`column-constraint` and `table-constraint` are finite productions, so the
+properties a live column can carry outside the authored vocabulary are a closed
+list, and each is decided by the source that owns it:
+
+| Property | Source | Refuses when |
+|---|---|---|
+| `PRIMARY KEY` | `PRAGMA table_xinfo.pk` | non-zero (a 1-based position) |
+| generated / hidden | `PRAGMA table_xinfo.hidden` | non-zero |
+| `UNIQUE` constraint | `PRAGMA index_list.origin` = `u` + `index_info` | the column is a member |
+| `REFERENCES` | `PRAGMA foreign_key_list.from` | the column is a **source** |
+| type / nullability / default | `PRAGMA table_xinfo` | compared as described above |
+| `COLLATE` | stored DDL, via `SqliteTableDefinition` | effective collation ≠ `BINARY` |
+| `NOT NULL` conflict policy | stored DDL | the applied policy ≠ `ABORT` |
+| `CHECK` dependence | stored DDL | the expression can read this column |
+
+Reaching the end is therefore a *proof* of equivalence, not an absence of
+findings. `table_xinfo` replaces `table_info` because the latter omits generated
+columns entirely, which made a generated target look missing and deferred the
+failure to a raw SQL error instead of an auditable `[S1-DB110]` refusal.
+
+Three refusals are narrower than a blanket rule, because each has a legitimate
+shape beside it that must still be accepted. An index created by `CREATE INDEX`
+(`origin` = `c`) is a separate schema object with its own authored form,
+`AddIndex`, and never makes a column unauthorable — entity schema synchronization
+emits exactly that for `uuid`, so conflating it with a `UNIQUE` constraint would
+refuse every ordinary entity table. A foreign key refuses only where this column
+is the source; being the referenced target is a property of the other table. And
+explicit `ON CONFLICT ABORT` and explicit `COLLATE BINARY` restate the defaults
+the compiler's own output carries, so they are compared semantically and
+accepted.
+
+`CHECK` is judged by whether its expression **can read** the column, wherever the
+constraint is written, and the reader closes that question transitively through
+generated columns. The supported reference grammar, the one-sided
+over-approximation that makes it sound, the explicit unknown-refuses cases, and
+the stated limitations are recorded in `docs/change-records/FW-2701.md`.
+
+Defaults are compared as **SQL literal expressions**, both sides rendered through
+the compiler's own literal renderer. Comparing an unquoted PHP string against
+SQLite's literal text conflates two representations: it refuses an authored empty
+string, an authored `"NULL"`, and any value carrying surrounding whitespace or
+apostrophes, while accepting a column that has no default at all. Only the live
+side normalizes an unquoted `NULL` to "absent", which is what Doctrine emits for a
+nullable column.
+
+Index identity is the name the compiler will actually emit, compared through
+`PRAGMA index_xinfo` so that partiality, sort direction and **collation** all
+participate. An authored index declares no collation and therefore inherits the
+column's; an index under a different collation is refused, because its uniqueness
+and ordering semantics genuinely differ.
+
+Collation interpretation is **authoritative or silent**. `PRAGMA table_info` does
+not report collation, so `SqliteTableDefinition` reads the stored schema text.
+
+Interpretation is **token-preserving**, and this is a correctness requirement
+rather than an implementation detail. The text is tokenized so that identifiers,
+quoted identifiers, string literals and parenthesis nesting keep their
+boundaries, and comments and whitespace act as **separators** that end the token
+before them. `COLLATE` is recognised only as a standalone token at the column
+definition's own nesting level, so it is never matched inside a longer identifier
+and never merged with an adjacent token. Identifier boundaries follow SQLite's
+own rule, in which **every byte at or above 0x80 is an identifier character** —
+an ASCII-only rule would end an identifier early and could fabricate a `COLLATE`
+token where SQLite sees only a multi-word type name.
+
+One lexer exception is modelled explicitly: a UTF-8 byte-order mark is treated as
+whitespace **only where a token would start**. Inside a token those same bytes are
+ordinary identifier characters, which is why they are not stripped globally —
+`TEXT <BOM>COLLATE NOCASE` carries a real clause, while `COLLATE<BOM>NOCASE` is a
+single identifier carrying none. The **whole** definition is examined
+before answering, because a later `COLLATE` clause supersedes an earlier one —
+which is the clause SQLite applies.
+
+A collation name is read in **every spelling SQLite accepts**: bare, and
+double-quoted, backtick-quoted, bracketed or single-quoted, since SQLite takes a
+string literal wherever an identifier is expected. Accepting only the bare and
+quoted-identifier forms reported a legitimately `NOCASE` column as unknown, and
+unknown makes the caller refuse a migration whose index is in fact equivalent —
+fail-closed rather than dangerous, but still a wrong answer about valid DDL.
+
+Three outcomes, never two: a declared clause yields its collation; a column
+carrying none yields `BINARY`, authoritative because it is SQLite's documented
+default rather than a guess; anything unresolved — table absent, schema text
+unreadable, column not found, a `COLLATE` clause whose argument is not a name in
+any of those spellings — is **unknown**. Unknown fails closed: equivalence cannot be
+established, so the operation is refused. Collapsing unknown to `BINARY` would
+silently accept an index with different uniqueness and ordering semantics, which
+is the failure this check exists to prevent. An index entry that is an expression
+or rowid rather than a plain column (`cid < 0`) is refused for the same reason.
+
+The parser's predictions are pinned by differential tests that use SQLite itself
+as the oracle: each case creates the table, creates the authored index through the
+real compiler, and compares the parser against `PRAGMA index_xinfo`. The contract
+those tests enforce is one-sided — a non-null result must agree with SQLite;
+returning unknown is always permitted. That property is the safety one, and it is
+deliberately permissive: a reader that returned unknown for everything would
+satisfy it while refusing every migration. `SqliteCollationOracleCorpusTest`
+closes the other side over a wide corpus — each row names the collation SQLite
+actually uses and asserts the parser produces exactly it, so no row can pass by
+reporting unknown, and the corpus measures how much real DDL the reader resolves
+rather than only that it never lies. `MigrationRepository::record()` accepts a nullable
+`apply_mode` (`applied` | `already_satisfied`), added idempotently by
+`ensureCurrentSchema()`. It is audit evidence: `hasRun()`, `getStoredChecksum()`
+and verification never read it. See `docs/specs/schema-evolution-v2.md` §9.1.
+
+
 ### MigrationRepository
 
 File: `packages/foundation/src/Migration/MigrationRepository.php`

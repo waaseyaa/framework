@@ -60,7 +60,8 @@ final class MigrationRepository
                 batch INTEGER NOT NULL,
                 ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 checksum VARCHAR(64) NULL,
-                diff_hash VARCHAR(64) NULL
+                diff_hash VARCHAR(64) NULL,
+                apply_mode VARCHAR(32) NULL
             )',
         );
 
@@ -272,6 +273,13 @@ final class MigrationRepository
                 'ALTER TABLE ' . self::TABLE . ' ADD COLUMN diff_hash VARCHAR(64) NULL',
             );
         }
+        // FW-2701: audit-only. Null on every row written before this upgrade,
+        // and never consulted by replay guarding or verification.
+        if (! in_array('apply_mode', $existingColumns, true)) {
+            $this->connection->executeStatement(
+                'ALTER TABLE ' . self::TABLE . ' ADD COLUMN apply_mode VARCHAR(32) NULL',
+            );
+        }
     }
 
     private function ensureUniqueMigrationIdentity(): void
@@ -374,6 +382,7 @@ final class MigrationRepository
         int $batch,
         ?string $checksum = null,
         ?string $diffHash = null,
+        ?string $applyMode = null,
     ): void {
         $this->requireWritableLedger();
         $row = [
@@ -387,8 +396,30 @@ final class MigrationRepository
         if ($diffHash !== null) {
             $row['diff_hash'] = $diffHash;
         }
+        if ($applyMode !== null) {
+            $row['apply_mode'] = $applyMode;
+        }
 
         $this->connection->insert(self::TABLE, $row);
+    }
+
+    /**
+     * Audit evidence for how a node reached its applied state.
+     *
+     * Null for rows written before FW-2701 and for legacy migrations. Never
+     * consulted by replay guarding or verification, which compare hashes.
+     */
+    public function getApplyMode(string $migration): ?string
+    {
+        if (!$this->assertReadableLedger()) {
+            return null;
+        }
+        $value = $this->connection->fetchOne(
+            'SELECT apply_mode FROM ' . self::TABLE . ' WHERE migration = ?',
+            [$migration],
+        );
+
+        return is_string($value) ? $value : null;
     }
 
     public function remove(string $migration): void

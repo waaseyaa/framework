@@ -106,6 +106,7 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
                 $repository,
                 $this->sqliteCompiler($connection),
                 $this->isProduction(),
+                $connection,
             );
         });
 
@@ -160,15 +161,49 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
         }
         $loader = new MigrationLoader($projectRoot, $manifest, $logger);
 
+        // FW-2701: the materializer shares this Connection, so a table it creates
+        // is visible inside the Migrator's per-node transaction. Definitions are
+        // resolved lazily because entity types finish registering after this
+        // runtime is built.
+        $materializer = new \Waaseyaa\EntityStorage\EntitySchemaTableMaterializer(
+            $database,
+            function (): iterable {
+                $manager = $this->resolveOptional(\Waaseyaa\Entity\EntityTypeManager::class);
+
+                return $manager instanceof \Waaseyaa\Entity\EntityTypeManager
+                    ? $manager->getDefinitions()
+                    : [];
+            },
+            $this->entityFieldRegistry(),
+            $logger,
+        );
+
         $migrator = new Migrator(
             $connection,
             $repository,
-            new V2PlanExecutor($connection, $this->sqliteCompiler($connection)),
+            new V2PlanExecutor($connection, $this->sqliteCompiler($connection), $materializer),
             isProduction: $this->isProduction(),
             logger: $logger,
         );
 
         return $this->runtime = [$migrator, $repository, $loader, $connection, $dbPath];
+    }
+
+    /** Field registry for entity materialization, when entity types are registered. */
+    private function entityFieldRegistry(): ?\Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface
+    {
+        $manager = $this->resolveOptional(\Waaseyaa\Entity\EntityTypeManager::class);
+
+        if (!$manager instanceof \Waaseyaa\Entity\EntityTypeManager) {
+            return null;
+        }
+
+        try {
+            return $manager->getFieldRegistry();
+        } catch (\RuntimeException) {
+            // No registry configured; bundle subtables are out of scope anyway.
+            return null;
+        }
     }
 
     /**

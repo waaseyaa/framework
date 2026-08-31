@@ -192,6 +192,49 @@ not a diagnostic warning.
 bootstrap `RuntimePolicy` used by the kernel. It does not re-read `APP_ENV`,
 `APP_DEBUG`, or PHP environment superglobals after configuration assembly.
 
+`migrate --dry-run` reports the operations that would actually run. When a
+precondition resolver is available it filters out operations the live schema
+already satisfies, so the plan is truthful for both lifecycle states rather than
+advertising SQL that apply would skip.
+
+Because dry-run executes nothing, it cannot observe state that an earlier
+operation changes. Uncertainty is therefore tracked across the **whole ordered
+migration graph**, walking the same topological order the `Migrator` walks, not
+within a single migration:
+
+- A pending **legacy** migration is opaque — its `up()` body is imperative and
+  cannot be pre-compiled — so every node ordered after it is uncertain.
+- A pending **v2** migration marks the tables it *affects* as uncertain for every
+  later node. Affected is not the same as prerequisite: a rename requires its
+  source but changes both its source and its destination.
+- An **already-applied** migration adds no uncertainty, because its effects are
+  already present in the database the snapshot describes.
+
+Uncertain operations are **preserved** rather than filtered, and the node is
+reported `state_dependent` — `[pending][state-dependent]` in text and
+`"state_dependent": true` in JSON. Showing work that may prove unnecessary is
+honest; silently omitting work that will run is not. Uncertain operations are
+also exempt from the incompatibility refusal, because a preceding operation may
+be exactly what changes the state being judged.
+
+Preview and apply share the operation-target model, the ordering, and the
+precondition rule. They diverge in one documented place: the executor resolves
+against ground truth because it has already applied preceding operations, and
+preview cannot, so unknown state resolves to "outstanding, never refused". The
+steps and the uncertainty flag are produced by a single analysis, so they cannot
+disagree.
+
+`db:init` enumerates registered entity types **before** the migration run and
+releases that kernel's own database connection first, so targeted materialization
+(#2701) runs on the migration connection and no second handle contends for the
+SQLite write lock while a node's transaction is open. The enumeration is skipped
+entirely when the V2 catalogue is empty, and a project with no registered content
+types yields an empty snapshot rather than a `db:init` failure — every V2 plan then
+fails closed on real SQL. `--no-sync-schema` still suppresses the full schema-sync
+step; it does not suppress targeted materialization, which is part of applying a
+migration rather than a separate provisioning pass.
+
+
 ## Installation lifecycle
 
 ### Legacy mutation-authority upgrade

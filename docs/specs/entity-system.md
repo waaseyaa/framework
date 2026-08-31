@@ -1094,6 +1094,22 @@ Key methods:
 
 **Field type → SQL column.** `deriveColumnSpec(string $fieldType, array $fieldDef): array` maps field-definition type strings to column shapes consumed by the schema layer (`type`, optional `length`, etc.), including explicit handling for `text_long`, `uri`, and `entity_reference`. Unknown types log at `warning` and fall back to `text`. Full mapping table, URI length default, `FieldStorage::Data` note, and vendor nuance: [`field/column-derivation.md`](./field/column-derivation.md).
 
+### EntitySchemaTableMaterializer (#2701)
+
+The migration runtime's view of entity schema authority. Given the table names a
+v2 plan targets, it materializes exactly those that are registered entity **base**
+tables and do not yet exist, through the same `EntitySchemaSync` path `schema:sync`
+uses, so entity table shape keeps one authority rather than two.
+
+Ownership is keyed on `EntityTypeInterface::id()`. Bundle subtables are excluded,
+because `{base}__{bundle}` is materialized only when a field registry is wired and
+the bundle carries at least one field; revision and translation siblings are
+excluded for the same reason. It never touches an existing table, and leaves
+unowned names absent so the migration fails closed. Definitions are supplied as a
+callable and resolved at materialize time, because composition sites build the
+migration runtime before entity types finish registering.
+
+
 ### EntitySchemaSync
 
 File: `packages/entity-storage/src/EntitySchemaSync.php`

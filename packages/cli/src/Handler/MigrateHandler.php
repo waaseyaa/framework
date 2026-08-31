@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
+use Doctrine\DBAL\Connection;
 use Waaseyaa\CLI\Command\Migrate\DryRunFormatter;
 use Waaseyaa\CLI\Command\Migrate\DryRunPlanner;
 use Waaseyaa\CLI\Command\Migrate\OutputSanitizer;
@@ -11,6 +12,7 @@ use Waaseyaa\CLI\Command\Migrate\VerifyFormatter;
 use Waaseyaa\CLI\Command\Migrate\VerifyRunner;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
+use Waaseyaa\Foundation\Migration\Executor\OpPreconditionResolver;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
@@ -38,6 +40,7 @@ final class MigrateHandler
         private readonly ?MigrationRepository $repository = null,
         private readonly ?SqliteCompiler $compiler = null,
         private readonly bool $isProduction = true,
+        private readonly ?Connection $connection = null,
     ) {
         $this->migrationsProvider = $migrationsProvider;
         $this->v2MigrationsProvider = $v2MigrationsProvider ?? static fn(): array => [];
@@ -96,7 +99,13 @@ final class MigrateHandler
         }
 
         $sanitizer = new OutputSanitizer($this->isProduction);
-        $planner = new DryRunPlanner($this->repository, $this->compiler);
+        $planner = new DryRunPlanner(
+            $this->repository,
+            $this->compiler,
+            preconditions: $this->connection !== null
+                ? new OpPreconditionResolver($this->connection)
+                : null,
+        );
         $formatter = new DryRunFormatter($sanitizer);
 
         $result = $planner->plan(($this->migrationsProvider)(), ($this->v2MigrationsProvider)());
