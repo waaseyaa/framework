@@ -956,14 +956,20 @@ jobs:
             # keeps proving what it claims. The steady state is an empty list;
             # the step below fails once a listed package is published, which is
             # what forces the entry back out.
-            mapfile -t unpublished < <(
-              php -r '
-                $roster = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
-                foreach ($roster["packages"] as $entry) {
-                    printf("%s %s%s", $entry["package"], $entry["path"], PHP_EOL);
-                }
-              ' "$GITHUB_WORKSPACE/support/skeleton-unpublished-packages.json"
-            )
+            #
+            # bin/skeleton-unpublished-repositories renders each entry into a
+            # complete repository object rather than a bare url, because a path
+            # repository has no version of its own and Composer guesses one from
+            # the checkout. On a PR run actions/checkout lands on a DETACHED
+            # merge commit with no branch ref, so the guess is dev-<sha>, which
+            # carries no branch-alias and cannot satisfy the skeleton's governed
+            # ^<VERSION> floor — #2717 failed every attempt that way. The script
+            # pins each rostered package to the tracked VERSION the checkout
+            # already claims to be, keeps `only`, and refuses a roster, VERSION,
+            # or skeleton floor it cannot verify. Assigning its output (rather
+            # than piping it into mapfile) is deliberate: under `set -e` a
+            # failure here stops the job instead of quietly yielding no entries.
+            unpublished="$(php "$GITHUB_WORKSPACE/bin/skeleton-unpublished-repositories" "$GITHUB_WORKSPACE")"
 
             composer_retry composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
               --repository='{"type":"path","url":"skeleton"}' \
@@ -971,17 +977,14 @@ jobs:
               --no-install --no-scripts \
               --no-interaction
 
-            # The steady state of this roster is EMPTY, so the empty-array
-            # expansion is the path this loop is most likely to take.
-            for entry in ${unpublished[@]+"${unpublished[@]}"}; do
-              [ -n "$entry" ] || continue
-              pkg="${entry%% *}"
-              rel="${entry##* }"
-              slug="$(printf '%s' "$pkg" | tr '/' '-')"
-              echo "::notice title=Unpublished first-party package::${pkg} resolves from ${rel} until it is published (support/skeleton-unpublished-packages.json)"
-              composer config --working-dir="$work/skel-proj" "repositories.${slug}" \
-                "{\"type\":\"path\",\"url\":\"${GITHUB_WORKSPACE}/${rel}\",\"only\":[\"${pkg}\"]}"
-            done
+            # The steady state of this roster is EMPTY, so the single blank
+            # line is the path this loop is most likely to take. Input arrives
+            # on fd 3 so the loop never eats the stdin `composer config` reads.
+            while IFS=$'\t' read -r slug pkg rel pinned config <&3; do
+              [ -n "$slug" ] || continue
+              echo "::notice title=Unpublished first-party package::${pkg} resolves from ${rel} pinned to ${pinned} until it is published (support/skeleton-unpublished-packages.json)"
+              composer config --working-dir="$work/skel-proj" "repositories.${slug}" "$config"
+            done 3<<< "$unpublished"
 
             composer_retry composer install --working-dir="$work/skel-proj" --no-interaction
             composer run-script --working-dir="$work/skel-proj" post-create-project-cmd

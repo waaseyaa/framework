@@ -32,6 +32,7 @@ final class SkeletonUnpublishedPackagesTest extends TestCase
 {
     private const string ROSTER = 'support/skeleton-unpublished-packages.json';
     private const string WORKFLOW = '.github/workflows/ci.yml';
+    private const string RENDERER = 'bin/skeleton-unpublished-repositories';
 
     private string $repoRoot;
 
@@ -110,6 +111,14 @@ final class SkeletonUnpublishedPackagesTest extends TestCase
      * only narrow if the repository it adds is scoped with `only`. A path
      * repository without `only` would let the checkout satisfy *any* name and
      * silently void the job's whole claim.
+     *
+     * The job no longer hand-assembles that repository JSON. It renders each
+     * entry through {@see self::RENDERER}, which also pins the package to the
+     * tracked VERSION — without that pin, a detached PR checkout made Composer
+     * guess `dev-<sha>` and no attempt could satisfy the skeleton floor
+     * (#2717). What the rendered object actually contains, and that it really
+     * resolves, is proved behaviourally in
+     * {@see SkeletonUnpublishedPathRepositoryTest}; this test owns the seam.
      */
     #[Test]
     public function the_workflow_consumes_the_roster_and_scopes_every_repository_it_adds(): void
@@ -117,7 +126,8 @@ final class SkeletonUnpublishedPackagesTest extends TestCase
         $workflow = $this->read(self::WORKFLOW);
 
         self::assertStringContainsString(self::ROSTER, $workflow);
-        self::assertStringContainsString('\\"only\\":[\\"${pkg}\\"]', $workflow);
+        self::assertStringContainsString(self::RENDERER, $workflow);
+        self::assertFileExists($this->repoRoot . '/' . self::RENDERER);
         self::assertStringContainsString('name: The unpublished-package exception is still necessary', $workflow);
         self::assertStringContainsString('repo.packagist.org/p2/${pkg}.json', $workflow);
     }
