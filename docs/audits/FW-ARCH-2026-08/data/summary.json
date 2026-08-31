@@ -1,0 +1,94 @@
+{
+  "head": "50750231a8036ae7afc68416fed8ea271e47159f",
+  "tracked_files": 7818,
+  "package_directories": 77,
+  "composer_packages": 76,
+  "php_libraries": 73,
+  "metapackages": 3,
+  "javascript_packages": 1,
+  "source_php_files": 2515,
+  "package_primary_coverage": {
+    "A2": 15,
+    "A4": 37,
+    "A3": 16,
+    "A6": 7,
+    "A1": 1,
+    "A5": 1
+  },
+  "file_primary_coverage": {
+    "A6": 2558,
+    "A3": 1514,
+    "A2": 1322,
+    "A4": 2250,
+    "A1": 155,
+    "A5": 19
+  },
+  "public_map_entries": 687,
+  "public_map_dispositions": {
+    "public": 611,
+    "internal": 76
+  },
+  "public_map_unresolved": [],
+  "api_tagged_sites": 1698,
+  "internal_dependency_edges": {
+    "require": 367,
+    "require-dev": 109,
+    "suggest": 19
+  },
+  "unresolved_internal_edges": [],
+  "mutual_runtime_dependency_pairs": [
+    [
+      "waaseyaa/access",
+      "waaseyaa/entity"
+    ],
+    [
+      "waaseyaa/ai-agent",
+      "waaseyaa/ai-observability"
+    ],
+    [
+      "waaseyaa/cache",
+      "waaseyaa/foundation"
+    ],
+    [
+      "waaseyaa/entity",
+      "waaseyaa/field"
+    ],
+    [
+      "waaseyaa/foundation",
+      "waaseyaa/queue"
+    ]
+  ],
+  "entrypoint_candidates": {
+    "provider_hook": 213,
+    "attribute": 63,
+    "route_registration": 124,
+    "worker_entry": 24,
+    "command_declaration": 151,
+    "manifest_provider": 86,
+    "composer_binary": 1
+  },
+  "lexical_signals": {
+    "fallback_candidate": 2526,
+    "registry_candidate": 74,
+    "normalization_candidate": 355,
+    "broad_catch": 489,
+    "environment_read": 96,
+    "concrete_repository_reference": 12,
+    "deprecated_marker": 13
+  },
+  "preflight_gate_count": 39,
+  "executable_support_files": 194,
+  "baseline_allowlist_roster_files": 30,
+  "layer_map_gaps": [],
+  "layer_doc_drift": [
+    {
+      "package": "site-contract",
+      "executable": 0,
+      "documented": null
+    }
+  ],
+  "root_lock_sha256": "f660a1af9c1340c2bc99d76810db7b14ef8ed06f11a7263801a3c9f8ab333f80",
+  "root_manifest_sha256": "df801946cfb0aa58ac63fe7bcfb077407f8108a60dfa88b29d3755700a748a1e",
+  "public_map_sha256": "fca0de79af2c6e3a89504921f83889e3f2c181465db7299535f49ae047c85cd0",
+  "source_review": "static_census_only_no_behavioral_certification"
+}
