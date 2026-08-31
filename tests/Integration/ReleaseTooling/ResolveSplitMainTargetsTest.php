@@ -192,6 +192,32 @@ final class ResolveSplitMainTargetsTest extends TestCase
         self::assertStringContainsString('at least one', $stderr);
     }
 
+    #[Test]
+    public function resolves_the_ai_development_metapackage_once(): void
+    {
+        [$exit, $stdout, $stderr] = $this->runScript('ai-development, ai-development');
+
+        self::assertSame(0, $exit, $stderr);
+        self::assertSame('', $stderr);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/ai-development', 'remote' => 'ai-development'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function ai_development_does_not_authorize_paths_or_partial_selections(): void
+    {
+        foreach (['packages/ai-development', '../ai-development', 'ai-development,not-a-package'] as $selection) {
+            [$exit, $stdout, $stderr] = $this->runScript($selection);
+
+            self::assertSame(2, $exit);
+            self::assertSame('', $stdout, 'Refused selections must not publish a partial matrix.');
+            self::assertStringContainsString('not allowlisted', $stderr);
+        }
+    }
+
     /** @return array{int, string, string} */
     private function runScript(string $selection): array
     {

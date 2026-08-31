@@ -12,6 +12,7 @@ declare(strict_types=1);
  */
 
 $allowlist = [
+    'ai-development' => ['local' => 'packages/ai-development', 'remote' => 'ai-development'],
     'foundation' => ['local' => 'packages/foundation', 'remote' => 'foundation'],
     'database-legacy' => ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
     'config' => ['local' => 'packages/config', 'remote' => 'config'],
