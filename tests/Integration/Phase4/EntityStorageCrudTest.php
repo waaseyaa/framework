@@ -296,20 +296,30 @@ final class EntityStorageCrudTest extends TestCase
         $this->assertSame(['pre_save:Events!', 'post_save:Events!'], $firedEvents);
     }
 
+    /**
+     * #2728: the pre-then-post order below held under both the old and the new
+     * dispatch model, so it silently tolerated the defect. The recorded
+     * transaction state is what actually pins the contract — PRE_DELETE is a
+     * guard event dispatched inside the open delete transaction, POST_DELETE is
+     * a notification dispatched only after the commit.
+     */
     public function testDeleteDispatchesPreAndPostDeleteEvents(): void
     {
         $firedEvents = [];
+        $transactionState = [];
 
         $this->eventDispatcher->addListener(
             EntityEvents::PRE_DELETE->value,
-            function (EntityEvent $event) use (&$firedEvents) {
+            function (EntityEvent $event) use (&$firedEvents, &$transactionState) {
                 $firedEvents[] = 'pre_delete:' . $event->entity->label();
+                $transactionState[] = $this->database->getConnection()->isTransactionActive();
             },
         );
         $this->eventDispatcher->addListener(
             EntityEvents::POST_DELETE->value,
-            function (EntityEvent $event) use (&$firedEvents) {
+            function (EntityEvent $event) use (&$firedEvents, &$transactionState) {
                 $firedEvents[] = 'post_delete:' . $event->entity->label();
+                $transactionState[] = $this->database->getConnection()->isTransactionActive();
             },
         );
 
@@ -318,9 +328,15 @@ final class EntityStorageCrudTest extends TestCase
 
         // Clear save events and delete.
         $firedEvents = [];
+        $transactionState = [];
         $this->storage->delete($entity);
 
         $this->assertSame(['pre_delete:Bye!', 'post_delete:Bye!'], $firedEvents);
+        $this->assertSame(
+            [true, false],
+            $transactionState,
+            'PRE_DELETE must fire inside the delete transaction; POST_DELETE only after commit.',
+        );
     }
 
     // ---- QUERY tests ----

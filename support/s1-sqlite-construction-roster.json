@@ -2644,6 +2644,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/entity-storage/tests/Unit/EntityRepositoryRevisionTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 2
+        },
+        {
             "path": "packages/entity-storage/tests/Unit/EntityRepositorySaveManyAuditPairingTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -2726,6 +2733,27 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 10
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/EntityRepositoryTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 11
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/EntityRepositoryTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 12
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/EntityRepositoryTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 13
         },
         {
             "path": "packages/entity-storage/tests/Unit/EntityRepositoryTranslationAxisTest.php",
@@ -6887,6 +6915,13 @@
         },
         {
             "path": "tests/Integration/Queue/QueueIntegrationTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Relationship/RelationshipDeleteGuardKernelWiringTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
