@@ -207,6 +207,34 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_complete_ai_development_delivery_set(): void
+    {
+        [$exit, $stdout, $stderr] = $this->runScript('ai-development,ai-agent,bimaaji,ai-agent');
+
+        self::assertSame(0, $exit, $stderr);
+        self::assertSame('', $stderr);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/ai-development', 'remote' => 'ai-development'],
+                ['local' => 'packages/ai-agent', 'remote' => 'ai-agent'],
+                ['local' => 'packages/bimaaji', 'remote' => 'bimaaji'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function ai_development_delivery_targets_refuse_path_shaped_selections(): void
+    {
+        foreach (['ai-agent', 'bimaaji'] as $name) {
+            [$exit, $stdout, $stderr] = $this->runScript('packages/' . $name);
+
+            self::assertSame(2, $exit);
+            self::assertSame('', $stdout);
+            self::assertStringContainsString('not allowlisted', $stderr);
+        }
+    }
+
+    #[Test]
     public function ai_development_does_not_authorize_paths_or_partial_selections(): void
     {
         foreach (['packages/ai-development', '../ai-development', 'ai-development,not-a-package'] as $selection) {

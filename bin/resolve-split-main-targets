@@ -12,9 +12,11 @@ declare(strict_types=1);
  */
 
 $allowlist = [
+    'ai-agent' => ['local' => 'packages/ai-agent', 'remote' => 'ai-agent'],
     'ai-development' => ['local' => 'packages/ai-development', 'remote' => 'ai-development'],
     'ai-tools' => ['local' => 'packages/ai-tools', 'remote' => 'ai-tools'],
     'auth' => ['local' => 'packages/auth', 'remote' => 'auth'],
+    'bimaaji' => ['local' => 'packages/bimaaji', 'remote' => 'bimaaji'],
     'user' => ['local' => 'packages/user', 'remote' => 'user'],
     'mcp' => ['local' => 'packages/mcp', 'remote' => 'mcp'],
     'relationship' => ['local' => 'packages/relationship', 'remote' => 'relationship'],
