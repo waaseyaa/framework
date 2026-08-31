@@ -1,5 +1,26 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-30 - #2657: `waaseyaa/ai-tools` gains two
+namespaces that are library code only — no service provider, no route, no
+attribute, no discovery convention. `Dispatch/` holds `ToolDispatcherInterface`
+and `AgentToolDispatcher`, the schema-enforcing, exception-sanitizing,
+audit-stage-classifying dispatch path lifted verbatim out of
+`Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge` (which now delegates to it), plus
+`AuditedToolDispatcher`, a reserve-before-side-effect decorator that refuses to
+construct on an absent or record-nothing `StrictAuditLedgerInterface` and takes
+its audit surface and correlation id from the calling transport. Every path out
+of its `dispatch()` is either durably recorded or answered with
+`AUDIT_TRAIL_UNAVAILABLE`: caller-supplied tool names are projected through
+`auditOperation()` so the strict ledger always receives a non-empty bounded
+operation (a blank name becomes `tool_name_unusable` with the raw value kept in
+`metadata`), and a terminal refusal the ledger rejects is refused to the caller
+rather than answered as an ordinary lookup miss. `Registry/`
+holds the shared `CapabilityScopedToolRegistry` the MCP tier now delegates to,
+and `ToolIdAllowlistRegistry`, an exact-membership narrowing decorator for
+ADR-022 D-7 closed-list local profile. Tool authorization is unchanged:
+`AbstractAgentTool::requireCapability()` remains the only authorization layer
+and the registries only decide visibility. -->
+
 <!-- Spec reviewed 2026-08-27 - #2544: `EntityFieldRedaction::ALWAYS_INTERNAL_FIELDS` gains `legacy_pass`, so an imported credential pending upgrade is redacted from agent-tool output exactly like `pass`. -->
 
 <!-- Spec reviewed 2026-08-27 - #2624: McpServiceProvider's development-only

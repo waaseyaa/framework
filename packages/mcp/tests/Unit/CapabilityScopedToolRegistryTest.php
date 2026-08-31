@@ -14,6 +14,7 @@ use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
+use Waaseyaa\AI\Tools\Registry\CapabilityScopedToolRegistry as SharedCapabilityScopedToolRegistry;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
@@ -101,6 +102,49 @@ final class CapabilityScopedToolRegistryTest extends TestCase
         // …while the authenticated write tier does expose it.
         $writeNames = $this->names(new CapabilityScopedToolRegistry($inner, [self::WRITE_CAP]));
         self::assertContains('wf_record', $writeNames);
+    }
+
+    /**
+     * #2657: the filtering moved to `waaseyaa/ai-tools` and this class now
+     * delegates (ADR-022 Q-3). The local plane cannot require `waaseyaa/mcp` to
+     * obtain a narrowing decorator — `McpRouteProvider` registers `/mcp/write`
+     * unconditionally on install — and two copies of a visibility predicate is
+     * the worse failure mode for a control that decides what a caller can see.
+     * These assertions say the delegation is behaviour-identical, in both
+     * directions, including the fail-closed empty allowlist.
+     */
+    #[Test]
+    public function it_delegates_to_the_shared_registry_without_changing_visibility(): void
+    {
+        $cases = [
+            'allowlisted' => [[self::WRITE_CAP], []],
+            'empty allowlist is fail-closed' => [[], []],
+            'blocked name wins over an allowlisted capability' => [[self::WRITE_CAP], ['wf_record']],
+        ];
+
+        foreach ($cases as $label => [$capabilities, $blocked]) {
+            $mcp = new CapabilityScopedToolRegistry($this->populatedInner(), $capabilities, $blocked);
+            $shared = new SharedCapabilityScopedToolRegistry($this->populatedInner(), $capabilities, $blocked);
+
+            self::assertSame($this->names($shared), $this->names($mcp), $label);
+            self::assertSame(
+                $shared->has('wf_record'),
+                $mcp->has('wf_record'),
+                $label . ' (has)',
+            );
+        }
+    }
+
+    #[Test]
+    public function an_off_tier_get_still_raises_the_unregistered_error_through_the_delegate(): void
+    {
+        // "Not registered" and "not yours" must stay indistinguishable; a
+        // delegation that leaked a different exception would turn the tier
+        // boundary into an enumeration oracle.
+        $registry = new CapabilityScopedToolRegistry($this->populatedInner(), [self::WRITE_CAP]);
+
+        $this->expectException(ToolNotFoundException::class);
+        $registry->get('entity_read');
     }
 
     private function attributeCatalogue(): AttributeToolRegistry

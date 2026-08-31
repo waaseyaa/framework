@@ -6,75 +6,77 @@ namespace Waaseyaa\Mcp\Bridge;
 
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AgentTool;
-use Waaseyaa\AI\Tools\AgentToolResult;
-use Waaseyaa\AI\Tools\Error\SanitizedToolError;
-use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
-use Waaseyaa\AI\Tools\ToolNotFoundException;
+use Waaseyaa\AI\Tools\Dispatch\AgentToolDispatcher;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
-use Waaseyaa\Foundation\Audit\AuditStage;
 use Waaseyaa\Foundation\Log\LoggerInterface;
-use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Per-request adapter binding the framework-wide
  * {@see AgentToolRegistryInterface} to MCP descriptors and calls.
  *
+ * **This class is now a façade over the transport-neutral
+ * {@see AgentToolDispatcher}** (ADR-022 D-9.3, #2657). Every behaviour it used
+ * to implement — input-schema enforcement, output-schema enforcement,
+ * exception sanitization, audit-stage classification, name-ordered listing —
+ * moved into `waaseyaa/ai-tools` unchanged, and this class delegates. The
+ * reason is packaging, not logic: the dispatch path never needed HTTP, but it
+ * lived in `waaseyaa/mcp`, whose `McpRouteProvider` registers `/mcp/write` the
+ * moment the package is installed. A local stdio plane that wanted the same
+ * dispatch semantics would have had to buy an HTTP route to get them.
+ *
+ * The façade stays because the MCP tiers' public shape is a contract of its
+ * own: `execute()` returns the bare envelope, `executeClassified()` returns
+ * {@see ToolExecutionOutcome}, and the log key remains
+ * `mcp.tool_execution_failed`. None of that changed.
+ *
  * Construction is cheap; tool resolution is lazy through the underlying
- * `AttributeToolRegistry`. The supplied {@see AccountInterface} is forwarded
- * to every tool invocation so per-tool capability enforcement runs as the
- * initiator (see ADR-019).
- *
- * Every `tools/call` is validated against the tool's own advertised
- * `inputSchema` before the handler runs (#2145) — see {@see self::execute()}.
- *
- * This class is also the sanitization boundary for unhandled tool exceptions:
- * nothing derived from a {@see \Throwable} ever reaches the caller — see
- * {@see SanitizedToolError}.
+ * `AttributeToolRegistry`. The supplied principal is forwarded to every tool
+ * invocation so per-tool capability enforcement runs as the initiator (see
+ * ADR-019).
  *
  * @api
  */
 final class AgentToolRegistryBridge
 {
-    private readonly LoggerInterface $logger;
+    /**
+     * Log-event prefix preserved from before the extraction, so
+     * `mcp.tool_execution_failed` and `mcp.tool_output_schema_violation` remain
+     * the keys an operator greps for.
+     */
+    private const string LOG_PREFIX = 'mcp';
+
+    private readonly AgentToolDispatcher $dispatcher;
 
     /**
      * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      * @param ?LoggerInterface $logger Destination for the detail of an unhandled
      *        tool exception. Optional so bare construction (unit tests, hosts with
-     *        no logging) keeps working — it defaults to {@see NullLogger}, which
+     *        no logging) keeps working — it defaults to a null logger, which
      *        discards the detail. Sanitization of the RESPONSE does not depend on
      *        a logger being present: with or without one, the caller receives the
      *        same fixed envelope.
      */
     public function __construct(
-        private readonly AgentToolRegistryInterface $registry,
-        private readonly AuthorizationPrincipalInterface $account,
+        AgentToolRegistryInterface $registry,
+        AuthorizationPrincipalInterface $account,
         ?LoggerInterface $logger = null,
     ) {
-        $this->logger = $logger ?? new NullLogger();
+        $this->dispatcher = new AgentToolDispatcher($registry, $account, $logger, self::LOG_PREFIX);
     }
 
+    /**
+     * Every visible tool, ordered by name.
+     *
+     * @return list<AgentTool>
+     */
     public function getTools(): array
     {
-        $out = [];
-        foreach ($this->registry->all() as $tool) {
-            $out[] = $tool;
-        }
-        usort(
-            $out,
-            static fn(AgentTool $left, AgentTool $right): int => strcmp($left->name, $right->name),
-        );
-
-        return $out;
+        return $this->dispatcher->tools();
     }
 
     public function getTool(string $name): ?AgentTool
     {
-        try {
-            return $this->registry->get($name);
-        } catch (ToolNotFoundException) {
-            return null;
-        }
+        return $this->dispatcher->tool($name);
     }
 
     /**
@@ -98,158 +100,13 @@ final class AgentToolRegistryBridge
      *
      * The stage cannot be recovered from the envelope afterwards — a capability
      * refusal and an infrastructure failure both surface as `isError: true` — so
-     * it is decided here, where the `AgentToolResult` and its `summary` are still
-     * in hand. {@see execute()} is the unchanged envelope-only façade.
+     * it is decided where the `AgentToolResult` and its `summary` are still in
+     * hand. {@see execute()} is the unchanged envelope-only façade.
      */
     public function executeClassified(string $toolName, array $arguments): ToolExecutionOutcome
     {
-        try {
-            $tool = $this->registry->get($toolName);
-        } catch (ToolNotFoundException) {
-            // The message is built from the caller's OWN tool name rather than
-            // echoed from the exception, so this arm cannot become a leak if the
-            // exception's text ever changes. An off-tier tool is hidden behind
-            // this same response by the tier registries — "not registered" and
-            // "not yours" are deliberately indistinguishable.
-            return new ToolExecutionOutcome(
-                self::errorEnvelope([
-                    'code' => 'TOOL_NOT_FOUND',
-                    'message' => \sprintf('No tool is registered under the name "%s".', $toolName),
-                ]),
-                AuditStage::ToolLookupRefused,
-            );
-        }
+        $outcome = $this->dispatcher->dispatch($toolName, $arguments);
 
-        $violations = ToolInputSchemaValidator::validate($tool->inputSchema, $arguments);
-        if ($violations !== []) {
-            return new ToolExecutionOutcome(
-                self::validationFailedEnvelope($toolName, $violations),
-                AuditStage::InputValidationRefused,
-            );
-        }
-
-        try {
-            $result = $tool->impl->execute($arguments, $this->account);
-        } catch (\Throwable $e) {
-            // An exception that escapes a tool is an infrastructure failure, and
-            // its message is operator-facing (DSNs, credentials, absolute paths,
-            // internal class names). The caller gets a fixed envelope plus a
-            // correlation id; the detail goes to the log under the same id.
-            // Deliberate domain failures never reach here — tools return them as
-            // AgentToolResult values, which pass through untouched below.
-            $correlationId = SanitizedToolError::correlationId();
-            $this->logger->error(
-                'mcp.tool_execution_failed',
-                SanitizedToolError::logContext($e, $correlationId, $toolName),
-            );
-
-            return new ToolExecutionOutcome(
-                self::errorEnvelope(SanitizedToolError::body($correlationId)),
-                AuditStage::ExecutionFailed,
-            );
-        }
-
-        if (!$result->isError && $tool->outputSchema !== null) {
-            $outputViolations = $result->structuredContent === null
-                ? [['field' => '$', 'message' => 'structuredContent is required by the advertised outputSchema.']]
-                : ToolInputSchemaValidator::validate($tool->outputSchema, $result->structuredContent);
-            if ($outputViolations !== []) {
-                $correlationId = SanitizedToolError::correlationId();
-                $this->logger->error('mcp.tool_output_schema_violation', [
-                    'correlation_id' => $correlationId,
-                    'tool' => $toolName,
-                    'violation_count' => \count($outputViolations),
-                ]);
-
-                return new ToolExecutionOutcome(
-                    self::errorEnvelope(SanitizedToolError::body($correlationId)),
-                    AuditStage::ExecutionFailed,
-                );
-            }
-        }
-
-        return new ToolExecutionOutcome(
-            self::toolResultToMcpEnvelope($result),
-            self::classify($result),
-        );
-    }
-
-    /**
-     * The established structured error envelope, reusing the machine code and
-     * `{field, message}` shape Content Publishing already emits — an agent
-     * parses a schema rejection exactly like a domain rejection.
-     *
-     * @param list<array{field: string, message: string}> $violations
-     *
-     * @return array{content: array<int, array{type: string, text: string}>, isError: bool}
-     */
-    private static function validationFailedEnvelope(string $toolName, array $violations): array
-    {
-        return self::errorEnvelope([
-            'code' => 'VALIDATION_FAILED',
-            'message' => \sprintf(
-                'Arguments do not satisfy the declared input schema for "%s".',
-                $toolName,
-            ),
-            'errors' => $violations,
-        ]);
-    }
-
-    /**
-     * Wrap a structured body in the MCP `isError` result envelope. Every
-     * bridge-authored failure goes through here, so they all share one
-     * `{code, message, ...}` shape an agent can branch on.
-     *
-     * @param array<string, mixed> $body
-     *
-     * @return array{content: array<int, array{type: string, text: string}>, isError: bool}
-     */
-    private static function errorEnvelope(array $body): array
-    {
-        return [
-            'content' => [[
-                'type' => 'text',
-                'text' => \json_encode($body, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES),
-            ]],
-            'isError' => true,
-        ];
-    }
-
-    /**
-     * Classify a returned {@see AgentToolResult}.
-     *
-     * `forbidden` is the summary every `AbstractAgentTool` guard emits for a
-     * capability, per-entity, or per-field denial — see
-     * `AbstractAgentTool::requireCapability()` and its siblings. Treating that
-     * as an authorization refusal rather than a generic execution failure is
-     * what lets the audit trail answer "was this refused, or did it break?".
-     */
-    private static function classify(AgentToolResult $result): AuditStage
-    {
-        if (!$result->isError) {
-            return AuditStage::ExecutionSucceeded;
-        }
-
-        return $result->summary === 'forbidden'
-            ? AuditStage::AuthorizationRefused
-            : AuditStage::ExecutionFailed;
-    }
-
-    /**
-     * Convert an {@see AgentToolResult} into the MCP `tools/call` envelope.
-     *
-     * @return array{content: array<int, array{type: string, text: string}>, isError?: bool}
-     */
-    private static function toolResultToMcpEnvelope(AgentToolResult $result): array
-    {
-        $envelope = ['content' => $result->content];
-        if ($result->structuredContent !== null) {
-            $envelope['structuredContent'] = $result->structuredContent;
-        }
-        if ($result->isError) {
-            $envelope['isError'] = true;
-        }
-
-        return $envelope;
+        return new ToolExecutionOutcome($outcome->envelope, $outcome->stage);
     }
 }
