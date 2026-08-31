@@ -13,8 +13,10 @@ inside the open delete transaction — exactly as `doSave()` has dispatched
 `PRE_SAVE` and `BeforeSaveEvent` since the 2026-07-02 remediation.
 
 `EntityEvents::POST_DELETE` is unchanged: it is a **notification** event, still
-buffered by the `UnitOfWork` and dispatched only after a successful commit,
-discarded entirely on rollback. Nothing in `UnitOfWork` changed.
+buffered by the `UnitOfWork` and dispatched after its successful commit,
+discarded on rollback of that unit. An outer transaction can still be open at
+dispatch time; see the existing nested-transaction hazard below. Nothing in
+`UnitOfWork` changed.
 
 No public signature was widened. Event timing is nevertheless observable, so the
 compatibility impact is enumerated below.
@@ -27,8 +29,10 @@ buffering was batch-only and that "only the single-`delete()` path is guarded".
 That was wrong in **both** directions. `delete()` opens its own `UnitOfWork`
 whenever a mutation authority and a database are wired — which is every
 repository `EntityTypeManagerFactory` builds — so single deletes buffered
-`PRE_DELETE` past the commit too. Pre-delete guards were ineffective on both
-paths in every DBAL-backed production composition.
+`PRE_DELETE` past the commit too. Pre-delete guards therefore ran too late on
+both paths. Without an outer transaction the deletion was already durable; an
+outer transaction that rolled back on the propagated refusal could still
+preserve the row.
 
 ---
 
@@ -55,11 +59,14 @@ paths in every DBAL-backed production composition.
    documented consequence of same-connection uncommitted reads; it is
    deliberately **not** ratified as a contract by a test, so a future
    order-insensitive guard is not a breaking change.
-6. **A previously silent failure disappears.** `UnitOfWork`'s buffered-dispatch
+6. **The guard-induced notification mismatch disappears.** `UnitOfWork`'s buffered-dispatch
    loop has no per-event `try`/`catch`, so a throwing *buffered* `PRE_DELETE`
    also suppressed that entity's `POST_DELETE` — cache/SSR invalidation, search
    de-indexing, `ai-vector` embedding cleanup and both audit listeners never
-   observed deletes that *had* committed. Those listeners now fire correctly.
+   observed deletes that *had* committed without an outer transaction. A guard
+   refusal now rolls the deletion back and emits no `POST_DELETE`; it does not
+   send a success notification for the refused delete. Successful deletions
+   retain their existing notification path.
 7. **`POST_DELETE`, `POST_SAVE`, `REVISION_CREATED` and `AfterSaveEvent`
    semantics are byte-identical.**
 8. **`EntityRepository::__construct()` gains one new refusal.** A repository
@@ -117,43 +124,49 @@ None in-framework. `RelationshipDeleteGuardListener` is the only production
 extensions that subscribe to `EntityEvents::PRE_DELETE` should check points 2,
 3 and 4 above.
 
-### For `delete()` *callers* — the data outcome reverses, the error surface does not
+### For `delete()` *callers* — distinguish unfenced and fenced execution
 
 Get the baseline right first, because it is counter-intuitive. Before #2728 a
 refusing guard **still threw to the caller** — `UnitOfWork`'s buffered-dispatch
 drain runs *outside* its `try`/`catch` (`UnitOfWork.php:74-85`), so the throw
-propagated out of `transaction()` after the commit had already happened. Callers
-were not receiving `204`; they were receiving an error *and* losing the row.
+propagated out of `transaction()` after that unit's commit. Without an outer
+transaction, callers were not receiving `204`; they were receiving an error
+*and* losing the row. Inside `DatabaseFenceGuard`, that commit only released a
+savepoint: the propagated refusal rolled back the outer transaction, preserving
+the row even before #2728.
 
-So the change for every caller below is:
+The change for a refusal **without an outer transaction** is:
 
 > **"error, row deleted" → "error, row preserved."**
 
-| Caller | Before #2728 | After #2728 |
+| Caller / execution context | Before #2728 | After #2728 |
 |---|---|---|
-| `packages/api/src/JsonApiController.php:1464` | error, **row deleted**, edge orphaned | error, **row preserved** |
-| `packages/graphql/src/Resolver/EntityResolver.php:381` | error, **row deleted** | error, **row preserved** |
-| `packages/ai-tools/src/Entity/EntityDeleteTool.php:100` | error, **row deleted** | error, **row preserved** |
-| `packages/field/src/Classification/Job/PurgeJob.php:168` | error, entity **purged** | error, entity **retained** |
+| `JsonApiController` delete without an outer transaction | error, **row deleted**, edge orphaned | error, **row preserved** |
+| GraphQL `EntityResolver` delete without an outer transaction | error, **row deleted** | error, **row preserved** |
+| `EntityDeleteTool` without an outer transaction | error, **row deleted** | error, **row preserved** |
+| `PurgeJob::run()` without a lease or another outer transaction | policy failure, entity **purged** | policy failure, entity **retained** |
+| `PurgeJob` effect inside `DatabaseFenceGuard` on the same connection | policy failure, entity **retained** by outer rollback | policy failure, entity **retained** |
 
 That is a strict improvement: #2728 removes the data loss, and introduces no new
 error path. What it does **not** do is improve the *shape* of that error. The
 guard signals refusal with a bare `\RuntimeException`
-(`RelationshipDeleteGuardListener.php:85`), and every caller above catches only
-`EntityMutationConflictException`, so the refusal surfaces as an unhandled
-exception (an HTTP **500** rather than a clean `409`/`422`). That wart is
+(`RelationshipDeleteGuardListener.php:85`). The API's
+`EntityMutationConflictException` mapping does not catch it, so the HTTP refusal
+can still surface as **500** rather than a clean `409`/`422`. That wart is
 **pre-existing and unchanged by this PR** — it is tracked in #2733, not
 introduced here.
 
-The one genuinely new outcome is retention. `PurgeJob` previously purged the
-entity and then aborted; it now retains it. Because
+For **unfenced** `PurgeJob` execution, retention is the new outcome. Fenced
+execution already retained the entity on refusal, on both versions. Because
 [`../specs/relationship-modeling.md`](../specs/relationship-modeling.md)
 deliberately rejects cascade semantics, a relationship-linked entity has no
 automatic repoint-or-delete path, so it can be **retained past its retention
-deadline** until an operator removes or repoints the edge. `PurgeJob`'s only
-`try`/`catch` is per *policy* (`PurgeJob.php:73-88`), not per entity, so the
-remaining entities of that policy are skipped either way — that part is
-unchanged.
+deadline** until an operator removes or repoints the edge. `PurgeJob::run()`
+catches `\Throwable` per *policy*, not per entity: a guard refusal logs
+`classification.retention.purge_failed`, skips the remaining entities of that
+policy, and continues to the next policy. It rethrows `LeaseLostException`.
+This catch behavior and the fenced retention outcome are pre-existing, not new
+error paths introduced by #2728.
 
 Deciding the correct refusal surface for these callers — a typed exception, a
 `409` mapping, and a retention story for permanently blocked entities — is
