@@ -1,0 +1,30 @@
+{
+    "name": "waaseyaa/ai-development",
+    "description": "Waaseyaa local AI-development plane — a require-dev metapackage. Never a production dependency.",
+    "type": "metapackage",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "waaseyaa/ai-agent": "^0.1.0-alpha.299",
+        "waaseyaa/testing": "^0.1.0-alpha.299"
+    },
+    "minimum-stability": "stable",
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev",
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../ai-agent"
+        },
+        {
+            "type": "path",
+            "url": "../testing"
+        }
+    ]
+}

@@ -55,11 +55,19 @@ installed set equals the sealed transitive closure of `waaseyaa/framework`
 exactly), exported files (every installed tree byte-identical to its archive,
 plus the #2543 admin-surface manifests exercised as a pinned fixture through the
 consumer procedure in `packages/admin-surface/contract/README.md`), bootstrap,
-and `--no-dev` exclusion including a boot of the `--no-dev` consumer. Two
-surfaces #2649 names are recorded as reserved in
-`fixtures/split-artifact-acceptance-surfaces.json` — the development metapackage
-(#2655, which depends on #2649) and stdio initialization (#2659) — and the
-metapackage entry fails closed once `packages/ai-development` exists. Eleven
-seeded negative controls run on every invocation and the run fails if any
-corruption goes undetected. It seals `HEAD` and refuses a dirty worktree unless
+the development plane (`waaseyaa/ai-development` is sealed, arrives in the dev
+consumer as a development dependency, carries the two members ADR-022 D-2
+requires, never reaches `waaseyaa/mcp`, and is in no production closure), and
+`--no-dev` exclusion — which removes every development-only member — including
+a boot of the `--no-dev` consumer. Artifact origin (a zip inside the local
+artifact repository) is asserted for every member; what Composer must have
+*done* with it is keyed on package type, because a `type: metapackage` is
+resolved and never extracted — so it must record no installation-source, a null
+install-path, and no vendor directory, while a code-bearing package must record
+a `dist` installation. One surface #2649 names is still recorded as reserved in
+`fixtures/split-artifact-acceptance-surfaces.json`: stdio initialization
+(#2659). The development metapackage was reserved the same way until #2655
+landed; its fail-closed hatch fired as designed. Sixteen seeded negative
+controls run on every invocation and the run fails if any corruption goes
+undetected. It seals `HEAD` and refuses a dirty worktree unless
 `--allow-dirty` is passed; Composer 2.9+ is required.

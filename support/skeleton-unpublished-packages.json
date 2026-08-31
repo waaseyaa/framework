@@ -1,0 +1,14 @@
+{
+    "schema_version": 1,
+    "_comment": "First-party packages the skeleton manifest references that are NOT yet served by Packagist. ci/skeleton-create-project's ordinary lane proves the committed skeleton floor resolves from the ALREADY-PUBLISHED release line, so a package that has never been split cannot resolve there and never will until one release cut later. Rather than weaken that proof for every name, the job adds a path repository scoped with `only` to exactly the packages listed here; every other name still comes from Packagist. This roster is deliberately hostile to rot: tests/Architecture/SkeletonUnpublishedPackagesTest.php binds it to the skeleton manifest and to the workflow, and the job itself runs a live control that FAILS once a listed package is published, which is what forces the entry back out. An empty list is the correct steady state.",
+    "packages": [
+        {
+            "package": "waaseyaa/ai-development",
+            "path": "packages/ai-development",
+            "issue": "#2655",
+            "introduced_in": "0.1.0-alpha.299",
+            "reason": "ADR-022 D-1.3 requires the skeleton to install the local AI-development plane under require-dev. The package is created by #2655, so its first Packagist version is the release cut that follows #2655 — no published version can satisfy the skeleton's constraint before then. This is a one-cycle bootstrap window, not a permanent exception.",
+            "remove_when": "https://repo.packagist.org/p2/waaseyaa/ai-development.json stops returning 404 (the first release cut after #2655 merges, which splits packages/ai-development to github.com/waaseyaa/ai-development and crawls it). Delete this entry; ci/skeleton-create-project then resolves the whole skeleton from the published line again. The job's 'unpublished-package exception is still necessary' step fails until you do."
+        }
+    ]
+}
