@@ -83,6 +83,18 @@
             "enforced_by": "workflow:ci.yml#run_gate check-distribution-extensions"
         },
         {
+            "id": "check-local-operator-tool-profile",
+            "alias": "check-local-operator-tool-profile",
+            "run": "php bin/check-local-operator-tool-profile",
+            "repair": "review the reported tool change — it alters the local operator's least-privilege default (ADR-022 D-7) — then regenerate with php bin/check-local-operator-tool-profile --write-roster and commit support/local-operator-tool-profile-roster.json",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-local-operator-tool-profile",
+            "refresh": {
+                "mode": "manual",
+                "instruction": "the roster records the local operator's least-privilege default (ADR-022 D-7) — review what changed, decide deliberately whether the tool belongs on LocalOperatorToolProfile::DEFAULT_TOOL_IDS, then run php bin/check-local-operator-tool-profile --write-roster and commit the roster"
+            }
+        },
+        {
             "id": "check-getquery-bindings",
             "alias": "check-getquery-bindings",
             "run": "php bin/check-getquery-bindings",

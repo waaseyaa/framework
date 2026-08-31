@@ -1,0 +1,539 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Executable exact-membership gate for the local operator's default tool
+ * profile (ADR-022 D-7.3, issue #2658's added acceptance criterion).
+ *
+ * The problem it closes: `AbstractAgentTool::requireCapability()` evaluates a
+ * capability *string* against the account and consults no tool roster, so
+ * "grant `bimaaji.read`" is an open set — any class added later carrying
+ * `#[AsAgentTool(capability: 'bimaaji.read')]` would join the default profile
+ * the moment it is discovered, with no ADR edit and no operator signal. A
+ * least-privilege default that grows by attribute is not least-privilege.
+ *
+ * The shape is the established one (`bin/check-s1-schema-authority`): scan
+ * live, diff against a committed `support/*.json` roster, fail on divergence,
+ * and offer `--write-roster` for the deliberate update. Plain functions, no
+ * autoloader — like the S1 verifiers it must run pre-`composer install`.
+ *
+ * Each discovered `#[AsAgentTool]` is classified:
+ *
+ *   default-profile        the tool id is on LocalOperatorToolProfile::DEFAULT_TOOL_IDS
+ *   capability-admissible  the tool's capability IS granted by the default profile but
+ *                          its id is NOT on the allowlist — the dangerous class this
+ *                          gate exists for; empty today
+ *   withheld               the capability is not granted by the default profile
+ *
+ * Beyond the roster diff, three cross-checks run:
+ *
+ *   1. every allowlisted tool id must be discovered live (catches a rename or
+ *      a deletion, which the roster diff alone would report only as a removal)
+ *   2. the live `default-profile` id set must equal DEFAULT_TOOL_IDS exactly
+ *   3. no tool whose capability is in WITHHELD_CAPABILITIES may be classified
+ *      into the default profile
+ *
+ * Usage:
+ *   php bin/check-local-operator-tool-profile
+ *   php bin/check-local-operator-tool-profile --write-roster
+ *   php bin/check-local-operator-tool-profile --root=DIR   # scan another tree (seeded control)
+ *   php bin/check-local-operator-tool-profile --roster=PATH
+ *
+ * Exit codes: 0 pass, 1 divergence, 2 infrastructure failure.
+ */
+
+const LOCAL_OPERATOR_ROSTER_RELATIVE = 'support/local-operator-tool-profile-roster.json';
+const LOCAL_OPERATOR_PROFILE_RELATIVE = 'packages/ai-agent/src/LocalOperator/LocalOperatorToolProfile.php';
+const LOCAL_OPERATOR_QUERY_VERSION = 'local-operator-tool-profile-v1';
+const LOCAL_OPERATOR_REPAIR = 'php bin/check-local-operator-tool-profile --write-roster';
+
+$root = dirname(__DIR__);
+$rosterPath = null;
+$writeRoster = false;
+
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if (!is_string($argument)) {
+        continue;
+    }
+    if ($argument === '--write-roster') {
+        $writeRoster = true;
+    } elseif (str_starts_with($argument, '--root=')) {
+        $root = rtrim(substr($argument, strlen('--root=')), '/');
+    } elseif (str_starts_with($argument, '--roster=')) {
+        $rosterPath = substr($argument, strlen('--roster='));
+    } else {
+        fwrite(STDERR, "check-local-operator-tool-profile: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+$rosterPath ??= $root . '/' . LOCAL_OPERATOR_ROSTER_RELATIVE;
+
+/**
+ * Read a `list<string>` class constant out of the profile source.
+ *
+ * Source parsing, not reflection: the gate must run before `composer install`
+ * has produced an autoloader, exactly as the S1 verifiers do.
+ *
+ * @return list<string>
+ */
+function localOperatorConstantList(string $source, string $name): array
+{
+    $pattern = '/public\s+const\s+array\s+' . preg_quote($name, '/') . '\s*=\s*\[(.*?)\];/s';
+    if (preg_match($pattern, $source, $match) !== 1) {
+        throw new RuntimeException("LocalOperatorToolProfile::{$name} was not found in the profile source.");
+    }
+    preg_match_all("/'((?:[^'\\\\]|\\\\.)*)'/", $match[1], $values);
+
+    return array_values(array_map(
+        static fn(string $raw): string => stripcslashes($raw),
+        $values[1],
+    ));
+}
+
+/**
+ * Blank every comment and doc-comment while preserving line breaks.
+ *
+ * Used when reading the profile's constants out of source: the docblocks above
+ * them quote capability strings while explaining the policy, and a naive
+ * literal sweep would otherwise read documentation as data.
+ */
+function localOperatorMaskComments(string $source): string
+{
+    $masked = '';
+    foreach (token_get_all($source) as $token) {
+        if (is_array($token) && in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true)) {
+            $masked .= preg_replace('/[^\n]/', ' ', $token[1]);
+            continue;
+        }
+        $masked .= is_array($token) ? $token[1] : $token;
+    }
+
+    return $masked;
+}
+
+/**
+ * Collect the argument text of a call whose opening `(` sits at token index
+ * `$open`, walking the token stream so nested calls and parentheses inside
+ * string literals cannot end it early.
+ *
+ * @param list<array{0: int, 1: string, 2: int}|string> $tokens
+ */
+function localOperatorArguments(array $tokens, int $open): string
+{
+    $depth = 0;
+    $text = '';
+    for ($i = $open, $count = count($tokens); $i < $count; $i++) {
+        $token = $tokens[$i];
+        $value = is_array($token) ? $token[1] : $token;
+        if ($value === '(' || $value === '[') {
+            $depth++;
+            if ($depth === 1 && $value === '(') {
+                continue;
+            }
+        } elseif ($value === ')' || $value === ']') {
+            $depth--;
+            if ($depth === 0) {
+                return $text;
+            }
+        }
+        $text .= $value;
+    }
+
+    return $text;
+}
+
+/** The last `\`-separated segment of a possibly-qualified name token. */
+function localOperatorShortName(string $name): string
+{
+    $segments = explode('\\', $name);
+
+    return (string) end($segments);
+}
+
+/**
+ * Scan `packages/<pkg>/src/` for every static agent-tool declaration.
+ *
+ * Two declaration forms exist in this repository and both are covered:
+ *
+ *   - `#[AsAgentTool(name: ..., capability: ...)]`, hydrated by
+ *     `AttributeToolRegistry`
+ *   - `new AgentTool(name: ..., capability: ...)`, registered programmatically
+ *     (e.g. `AiToolsServiceProvider` registers `content.search` this way, and
+ *     an attribute-only scan would not see it)
+ *
+ * A construction whose `name:` or `capability:` is not a literal — a remote
+ * tool hydrated by `McpClientToolSource`, a descriptor-driven `ContentToolSet`
+ * entry — cannot be statically resolved to a tool id, so it is recorded as
+ * `dynamic-registration` rather than dropped. Such a site can never enter the
+ * default profile (membership is exact match against a closed literal list),
+ * but recording it means a *new* dynamic registration site still has to pass
+ * through a deliberate roster update.
+ *
+ * @param list<string> $defaultToolIds
+ * @param list<string> $defaultCapabilities
+ * @return list<array{path: string, tool_id: string, capability: string, class: string, line: int}>
+ */
+function localOperatorScan(string $root, array $defaultToolIds, array $defaultCapabilities): array
+{
+    $packagesDir = $root . '/packages';
+    if (!is_dir($packagesDir)) {
+        throw new RuntimeException("No packages/ directory under {$root}.");
+    }
+
+    $files = [];
+    foreach (new DirectoryIterator($packagesDir) as $package) {
+        if ($package->isDot() || !$package->isDir()) {
+            continue;
+        }
+        $srcDir = $package->getPathname() . '/src';
+        if (!is_dir($srcDir)) {
+            continue;
+        }
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($srcDir, FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $path = str_replace('\\', '/', $file->getPathname());
+            $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
+            if (str_contains($relative, '/vendor/') || str_starts_with($relative, 'vendor/')) {
+                continue;
+            }
+            $files[$relative] = $path;
+        }
+    }
+    ksort($files);
+
+    $entries = [];
+    foreach ($files as $relative => $absolute) {
+        $contents = (string) file_get_contents($absolute);
+        // Prefilter on the bare identifier only. It must be a strict SUPERSET
+        // of what the token walk below can match, or the gate develops a blind
+        // spot that costs nothing to exploit and is invisible in review:
+        // `new AgentTool (` with a space is valid PHP, lints clean, and a
+        // prefilter containing the paren would skip the whole file. The token
+        // walk already tolerates arbitrary whitespace (it hops comments and
+        // whitespace via localOperatorNextMeaningful()), so the prefilter must
+        // not be narrower than the tokenizer. This gate's entire value rests
+        // on its scan being complete.
+        if (!str_contains($contents, 'AgentTool')) {
+            continue;
+        }
+
+        /** @var list<array{0: int, 1: string, 2: int}|string> $tokens */
+        $tokens = token_get_all($contents);
+        $count = count($tokens);
+        for ($i = 0; $i < $count; $i++) {
+            $token = $tokens[$i];
+            if (!is_array($token)) {
+                continue;
+            }
+
+            $anchor = null;
+            $open = null;
+            if ($token[0] === T_ATTRIBUTE) {
+                // `#[` — the next non-whitespace token names the attribute.
+                $next = localOperatorNextMeaningful($tokens, $i + 1);
+                if ($next !== null
+                    && is_array($tokens[$next])
+                    && localOperatorShortName($tokens[$next][1]) === 'AsAgentTool'
+                ) {
+                    $paren = localOperatorNextMeaningful($tokens, $next + 1);
+                    if ($paren !== null && $tokens[$paren] === '(') {
+                        $anchor = $token[2];
+                        $open = $paren;
+                    }
+                }
+            } elseif ($token[0] === T_NEW) {
+                $next = localOperatorNextMeaningful($tokens, $i + 1);
+                if ($next !== null
+                    && is_array($tokens[$next])
+                    && localOperatorShortName($tokens[$next][1]) === 'AgentTool'
+                ) {
+                    $paren = localOperatorNextMeaningful($tokens, $next + 1);
+                    if ($paren !== null && $tokens[$paren] === '(') {
+                        $anchor = $token[2];
+                        $open = $paren;
+                    }
+                }
+            }
+
+            if ($anchor === null || $open === null) {
+                continue;
+            }
+
+            $arguments = localOperatorArguments($tokens, $open);
+            $literal = "/\\bname\\s*:\\s*'((?:[^'\\\\]|\\\\.)*)'/";
+            $capabilityLiteral = "/\\bcapability\\s*:\\s*'((?:[^'\\\\]|\\\\.)*)'/";
+            $hasName = preg_match($literal, $arguments, $nameMatch) === 1;
+            $hasCapability = preg_match($capabilityLiteral, $arguments, $capabilityMatch) === 1;
+
+            if (!$hasName || !$hasCapability) {
+                $entries[] = [
+                    'path' => $relative,
+                    'tool_id' => '<dynamic>',
+                    'capability' => '<dynamic>',
+                    'class' => 'dynamic-registration',
+                    'line' => $anchor,
+                ];
+                continue;
+            }
+
+            $toolId = stripcslashes($nameMatch[1]);
+            $capability = stripcslashes($capabilityMatch[1]);
+
+            if (in_array($toolId, $defaultToolIds, true)) {
+                $class = 'default-profile';
+            } elseif (in_array($capability, $defaultCapabilities, true)) {
+                $class = 'capability-admissible';
+            } else {
+                $class = 'withheld';
+            }
+
+            $entries[] = [
+                'path' => $relative,
+                'tool_id' => $toolId,
+                'capability' => $capability,
+                'class' => $class,
+                'line' => $anchor,
+            ];
+        }
+    }
+
+    usort($entries, static fn(array $left, array $right): int => [$left['tool_id'], $left['path'], $left['line']]
+        <=> [$right['tool_id'], $right['path'], $right['line']]);
+
+    return $entries;
+}
+
+/**
+ * Index of the next token that is not whitespace, a comment, or a doc comment.
+ *
+ * @param list<array{0: int, 1: string, 2: int}|string> $tokens
+ */
+function localOperatorNextMeaningful(array $tokens, int $from): ?int
+{
+    for ($i = $from, $count = count($tokens); $i < $count; $i++) {
+        $token = $tokens[$i];
+        if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+            continue;
+        }
+
+        return $i;
+    }
+
+    return null;
+}
+
+/**
+ * @param list<array{path: string, tool_id: string, capability: string, class: string, line: int}> $entries
+ * @return list<array{path: string, tool_id: string, capability: string, class: string}>
+ */
+function localOperatorCanonicalize(array $entries): array
+{
+    return array_values(array_map(static fn(array $entry): array => [
+        'path' => $entry['path'],
+        'tool_id' => $entry['tool_id'],
+        'capability' => $entry['capability'],
+        'class' => $entry['class'],
+    ], $entries));
+}
+
+/**
+ * @param list<string> $defaultToolIds
+ * @param list<string> $defaultCapabilities
+ * @param list<array{path: string, tool_id: string, capability: string, class: string, line: int}> $entries
+ * @return array<string, mixed>
+ */
+function localOperatorRosterDocument(array $defaultToolIds, array $defaultCapabilities, array $entries): array
+{
+    return [
+        'schema_version' => 1,
+        'query_version' => LOCAL_OPERATOR_QUERY_VERSION,
+        'default_tool_ids' => $defaultToolIds,
+        'default_capabilities' => $defaultCapabilities,
+        'allowed_classes' => ['default-profile', 'capability-admissible', 'withheld', 'dynamic-registration'],
+        'tools' => localOperatorCanonicalize($entries),
+    ];
+}
+
+/**
+ * @param list<array<string, string>> $recorded
+ * @param list<array{path: string, tool_id: string, capability: string, class: string, line: int}> $live
+ * @return list<string>
+ */
+function localOperatorDiff(array $recorded, array $live): array
+{
+    $keyOf = static fn(array $entry): string => implode('|', [
+        $entry['tool_id'], $entry['capability'], $entry['class'], $entry['path'],
+    ]);
+
+    $recordedKeys = [];
+    foreach ($recorded as $entry) {
+        $recordedKeys[$keyOf($entry)] = $entry;
+    }
+    $liveKeys = [];
+    foreach ($live as $entry) {
+        $liveKeys[$keyOf($entry)] = $entry;
+    }
+
+    $lines = [];
+    foreach ($liveKeys as $key => $entry) {
+        if (!isset($recordedKeys[$key])) {
+            $lines[] = sprintf(
+                'new tool not in roster: %s (capability=%s class=%s) at %s:%d',
+                $entry['tool_id'],
+                $entry['capability'],
+                $entry['class'],
+                $entry['path'],
+                $entry['line'],
+            );
+        }
+    }
+    foreach ($recordedKeys as $key => $entry) {
+        if (!isset($liveKeys[$key])) {
+            $lines[] = sprintf(
+                'rostered tool no longer present as recorded: %s (capability=%s class=%s) at %s',
+                $entry['tool_id'],
+                $entry['capability'],
+                $entry['class'],
+                $entry['path'],
+            );
+        }
+    }
+
+    if ($lines !== []) {
+        $lines[] = sprintf(
+            'repair: review the changes above — a change in the default-profile or capability-admissible classes '
+            . 'is a change to the local operator\'s least-privilege default and needs deliberate review — then '
+            . 'regenerate with %s and commit the roster.',
+            LOCAL_OPERATOR_REPAIR,
+        );
+    }
+
+    return $lines;
+}
+
+$errors = [];
+$live = [];
+$document = [];
+
+try {
+    $profileSource = @file_get_contents($root . '/' . LOCAL_OPERATOR_PROFILE_RELATIVE);
+    if ($profileSource === false) {
+        throw new RuntimeException('Cannot read ' . LOCAL_OPERATOR_PROFILE_RELATIVE . " under {$root}.");
+    }
+    $profileSource = localOperatorMaskComments($profileSource);
+    $defaultToolIds = localOperatorConstantList($profileSource, 'DEFAULT_TOOL_IDS');
+    $defaultCapabilities = localOperatorConstantList($profileSource, 'DEFAULT_CAPABILITIES');
+    $withheldCapabilities = localOperatorConstantList($profileSource, 'WITHHELD_CAPABILITIES');
+
+    $live = localOperatorScan($root, $defaultToolIds, $defaultCapabilities);
+    $document = localOperatorRosterDocument($defaultToolIds, $defaultCapabilities, $live);
+
+    if ($writeRoster) {
+        file_put_contents(
+            $rosterPath,
+            json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+        fwrite(STDOUT, sprintf(
+            "Wrote %d agent tools (%d in the default local operator profile).\n",
+            count($live),
+            count(array_filter($live, static fn(array $e): bool => $e['class'] === 'default-profile')),
+        ));
+        exit(0);
+    }
+
+    if (!is_file($rosterPath)) {
+        throw new RuntimeException("Required local operator tool roster is missing: {$rosterPath}");
+    }
+    $recorded = json_decode((string) file_get_contents($rosterPath), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($recorded) || array_is_list($recorded)) {
+        throw new RuntimeException('The local operator tool roster must be a JSON object.');
+    }
+
+    if ($recorded !== $document) {
+        $errors[] = 'Recorded local operator tool roster differs from the live #[AsAgentTool] scan.';
+        $diff = localOperatorDiff(
+            is_array($recorded['tools'] ?? null) ? $recorded['tools'] : [],
+            $live,
+        );
+        if ($diff === []) {
+            $diff = [sprintf(
+                'roster metadata (schema/query/default ids/default capabilities/classes) differs — regenerate '
+                . 'with %s and commit the roster.',
+                LOCAL_OPERATOR_REPAIR,
+            )];
+        }
+        array_push($errors, ...$diff);
+    }
+
+    // 1. Every allowlisted tool id must exist. A rename or a deletion silently
+    //    empties the default profile; a membership gate that cannot see that is
+    //    not a membership gate.
+    $liveIds = array_column($live, 'tool_id');
+    foreach ($defaultToolIds as $toolId) {
+        if (!in_array($toolId, $liveIds, true)) {
+            $errors[] = sprintf(
+                'Allowlisted tool id "%s" matches no #[AsAgentTool] in the repository — it was renamed or removed. '
+                . 'Update LocalOperatorToolProfile::DEFAULT_TOOL_IDS deliberately, then %s.',
+                $toolId,
+                LOCAL_OPERATOR_REPAIR,
+            );
+        }
+    }
+
+    // 2. The live default-profile set must equal the allowlist exactly.
+    $liveDefault = array_values(array_unique(array_column(
+        array_filter($live, static fn(array $e): bool => $e['class'] === 'default-profile'),
+        'tool_id',
+    )));
+    sort($liveDefault);
+    $expectedDefault = array_values(array_unique($defaultToolIds));
+    sort($expectedDefault);
+    if ($liveDefault !== $expectedDefault) {
+        $errors[] = sprintf(
+            'Live default-profile tool ids [%s] differ from LocalOperatorToolProfile::DEFAULT_TOOL_IDS [%s].',
+            implode(', ', $liveDefault),
+            implode(', ', $expectedDefault),
+        );
+    }
+
+    // 3. A withheld capability may never reach the default profile.
+    foreach ($live as $entry) {
+        if ($entry['class'] === 'default-profile' && in_array($entry['capability'], $withheldCapabilities, true)) {
+            $errors[] = sprintf(
+                'Tool "%s" is on the default allowlist but declares withheld capability "%s" (%s:%d).',
+                $entry['tool_id'],
+                $entry['capability'],
+                $entry['path'],
+                $entry['line'],
+            );
+        }
+        if (!in_array($entry['class'], $document['allowed_classes'], true)) {
+            $errors[] = sprintf('Invalid class %s for tool %s.', $entry['class'], $entry['tool_id']);
+        }
+    }
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'ERROR: ' . $exception->getMessage() . "\n");
+    exit(2);
+}
+
+if ($errors !== []) {
+    foreach (array_values(array_unique($errors)) as $error) {
+        fwrite(STDERR, "ERROR: {$error}\n");
+    }
+    exit(1);
+}
+
+$counts = array_count_values(array_column($live, 'class'));
+ksort($counts);
+fwrite(STDOUT, sprintf(
+    "Local operator tool profile roster passed: %d agent tools; %s\n",
+    count($live),
+    json_encode($counts, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+));

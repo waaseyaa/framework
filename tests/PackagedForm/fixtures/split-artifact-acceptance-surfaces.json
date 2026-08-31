@@ -1,0 +1,78 @@
+{
+    "schema_version": 1,
+    "_comment": "Acceptance-surface roster for the split-artifact release gate (#2649). #2649's acceptance names five surfaces: composition, exported files, bootstrap, stdio initialization, and --no-dev exclusion. Two of them cannot be built yet. The development metapackage (waaseyaa/ai-development) is #2655, and #2655 DEPENDS ON #2649 — requiring it here would make the pair circular and neither could land. stdio initialization is #2659, which is gated behind #2657's design, which is not accepted. Recording them as reserved (rather than narrowing the acceptance in silence) is what lets the harness grow those assertions without being rebuilt. tests/Architecture/SplitArtifactAcceptanceGateTest.php binds this file to the harness so a live surface cannot lose its implementation and a reserved surface cannot lose its blocking issue. tests/PackagedForm/split-artifact-acceptance.php::assert_composition additionally fails CLOSED once packages/ai-development exists, so the reserved entry cannot quietly rot after #2655 lands.",
+    "issue": "#2649",
+    "parent": "#2527",
+    "surfaces": [
+        {
+            "id": "composition",
+            "status": "live",
+            "implementation": "tests/PackagedForm/split-artifact-acceptance.php",
+            "marker": "function assert_composition(",
+            "blocked_by": null,
+            "note": "The installed waaseyaa/* set equals the sealed transitive closure of waaseyaa/framework exactly, every member carries the sealed candidate version, and every member was installed from a zip dist inside the local artifact repository."
+        },
+        {
+            "id": "exported-files",
+            "status": "live",
+            "implementation": "tests/PackagedForm/split-artifact-acceptance.php",
+            "marker": "function assert_exported_files(",
+            "blocked_by": null,
+            "note": "Every installed package tree is byte-identical to the archive git exported, the skeleton's pinned exported paths survive create-project, and the #2543 admin-surface manifests are consumed as a pinned fixture through the documented consumer procedure."
+        },
+        {
+            "id": "bootstrap",
+            "status": "live",
+            "implementation": "tests/SplitArtifactAcceptance/boot.php",
+            "marker": "split-artifact kernel boot OK",
+            "blocked_by": null,
+            "note": "The artifact-installed consumer completes the governed installation phase and then boots through ordinary runtime, with a day-one entity round-trip. Both the dev and the --no-dev consumer are booted."
+        },
+        {
+            "id": "stdio-initialization",
+            "status": "reserved",
+            "implementation": null,
+            "marker": null,
+            "blocked_by": "#2659",
+            "note": "Reserved. stdio initialization is #2659, which is gated behind #2657's design and is not accepted. When it lands, add an assert_stdio_initialization() hook to tests/PackagedForm/split-artifact-acceptance.php, drive it from the artifact-installed consumer in tests/PackagedForm/check-split-artifact-acceptance, and flip this entry to live."
+        },
+        {
+            "id": "no-dev-exclusion",
+            "status": "live",
+            "implementation": "tests/PackagedForm/split-artifact-acceptance.php",
+            "marker": "function assert_no_dev_exclusion(",
+            "blocked_by": null,
+            "note": "A second consumer installed with --no-dev carries no development dependency, registers no test namespace, retains the complete runtime closure, and still boots."
+        }
+    ],
+    "artifact_repository_members": [
+        {
+            "id": "skeleton",
+            "status": "live",
+            "package": "waaseyaa/waaseyaa",
+            "blocked_by": null,
+            "note": "Sealed from HEAD:skeleton and consumed through composer create-project."
+        },
+        {
+            "id": "root-framework-dist",
+            "status": "live",
+            "package": "waaseyaa/framework",
+            "blocked_by": null,
+            "note": "Sealed from HEAD. This is the whole-repository dist Packagist serves for the metapackage manifest, not a trimmed stand-in."
+        },
+        {
+            "id": "split-packages",
+            "status": "live",
+            "package": "waaseyaa/*",
+            "blocked_by": null,
+            "note": "Every packages/*/composer.json is sealed from HEAD:packages/<dir>, which is the tree the split mirror publishes."
+        },
+        {
+            "id": "development-metapackage",
+            "status": "reserved",
+            "package": "waaseyaa/ai-development",
+            "blocked_by": "#2655",
+            "note": "Reserved. #2655 depends on #2649, so the package does not exist yet and requiring it here would be circular. No builder change is needed when it lands: the seal enumerates packages/*/composer.json, so waaseyaa/ai-development is sealed the day it is added. assert_composition() fails closed at that moment and names this entry."
+        }
+    ]
+}

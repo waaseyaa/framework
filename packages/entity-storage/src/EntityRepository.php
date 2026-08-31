@@ -141,6 +141,17 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         if ($this->database instanceof DBALDatabase && $this->mutationAuthority === null) {
             throw new \LogicException('A DBAL-backed EntityRepository requires the universal entity mutation authority.');
         }
+        // #2728 symmetric invariant: an authority without a database would
+        // tombstone outside any transaction, so an immediate PRE_DELETE
+        // refusal could not roll that write back. With this check,
+        // mutationAuthority !== null implies database !== null, which makes
+        // delete()'s untransacted fallback provably tombstone-free.
+        if ($this->mutationAuthority !== null && $this->database === null) {
+            throw new \LogicException(
+                'An EntityRepository carrying the universal entity mutation authority requires the database that '
+                . 'authority writes through, so the tombstone executes inside the delete transaction.',
+            );
+        }
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
         $this->logger = $logger ?? new \Waaseyaa\Foundation\Log\NullLogger();
         $storageBoundary ??= new StorageBoundary();
@@ -1453,10 +1464,15 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             $entity->preDelete();
         }
 
+        // #2728: PRE_DELETE is a GUARD event, so it dispatches IMMEDIATELY —
+        // inside any open delete transaction — exactly as doSave() dispatches
+        // PRE_SAVE / BeforeSaveEvent. A refusing listener's throw propagates
+        // out of the UnitOfWork callback and rolls back the row, its revisions
+        // and the mutation-authority tombstone. Handing it $unitOfWork buffered
+        // it past the commit, so guards refused work that was already durable.
         $this->dispatchEvent(
             $this->eventFactory->create($entity, $entity),
             EntityEvents::PRE_DELETE->value,
-            $unitOfWork,
         );
 
         if ($this->revisionDriver !== null && $this->entityType->isRevisionable()) {
@@ -1480,18 +1496,24 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
      * Dispatch a lifecycle event, buffering it until after commit when a
      * UnitOfWork batch is in flight.
      *
-     * Buffering is now POST/AFTER-only: doSave()'s PRE_SAVE and
-     * BeforeSaveEvent dispatch sites deliberately do NOT pass $unitOfWork
-     * (audit-remediation batch 2026-07-02, WP2 review) — pre-write events
-     * fire immediately inside the batch transaction so guarding listeners
-     * run before the write and a BeforeSaveEvent abort rolls back the
-     * whole batch. FOLLOW-UP (delete-path symmetry): doDelete() still
-     * buffers PRE_DELETE under deleteMany(), so batch deletes bypass
-     * pre-delete guards (e.g. RelationshipDeleteGuardListener — documented
-     * in #1852 as single-delete-only). Aligning the delete path with the
-     * save path's immediate-PRE semantics is deliberately out of scope
-     * here; it changes #1852's documented behavior and needs its own
-     * blast-radius pass.
+     * Buffering is POST/AFTER-only. The split is by event ROLE, and it is
+     * the same on the save and the delete path (#2728):
+     *
+     * - GUARD events — PRE_SAVE, BeforeSaveEvent, PRE_DELETE — dispatch
+     *   IMMEDIATELY, inside any open transaction, so a refusing listener's
+     *   throw rolls the work back and a listener's own writes on this
+     *   connection join (and roll back with) the transaction. They must
+     *   never be handed a $unitOfWork.
+     * - NOTIFICATION events — POST_SAVE, POST_DELETE, REVISION_CREATED,
+     *   AfterSaveEvent — are buffered and dispatched only after a
+     *   successful commit, and discarded entirely on rollback.
+     *
+     * Correcting a stale premise: the delete-path buffering was never
+     * batch-only. delete() opens its own UnitOfWork whenever a mutation
+     * authority and database are wired — which is every repository
+     * EntityTypeManagerFactory builds — so before #2728 single deletes were
+     * unguarded in production too, not just deleteMany(). The old
+     * "#1852 single-delete-only" note was wrong in both directions.
      */
     private function dispatchEvent(object $event, string $eventName, ?UnitOfWork $unitOfWork = null): void
     {
