@@ -40,6 +40,32 @@ use Waaseyaa\Foundation\Schema\Diff\SchemaDiffOp;
  * match the declared shape throws {@see IncompatibleSchemaStateException} rather
  * than being applied over or skipped.
  *
+ * **The column comparison is closed over SQLite's constraint grammar.** The
+ * authored vocabulary is {@see \Waaseyaa\Foundation\Schema\Diff\ColumnSpec}, and
+ * the compiler renders only `<type> [NOT NULL] [DEFAULT <literal>]`, so any
+ * other property of a live column is a real divergence. SQLite's
+ * `column-constraint` and `table-constraint` productions are finite, which makes
+ * that a decidable question rather than an open-ended one:
+ *
+ * | Property | Source |
+ * |---|---|
+ * | `PRIMARY KEY`, generated / hidden, type, nullability, default | `PRAGMA table_xinfo` |
+ * | `UNIQUE` constraint membership | `PRAGMA index_list` (`origin` = `u`) + `index_info` |
+ * | `REFERENCES` source membership | `PRAGMA foreign_key_list` |
+ * | `COLLATE`, `NOT NULL` conflict policy, `CHECK` dependence | stored DDL, via {@see SqliteTableDefinition} |
+ *
+ * Catalogue is authority wherever a catalogue exists; only the last row has no
+ * pragma. Because the production list is closed, reaching the end is a proof of
+ * equivalence rather than an absence of findings.
+ *
+ * Three refusals are deliberately narrower than a blanket rule, because each has
+ * a legitimate shape beside it that must still be accepted: an independently created
+ * index (`origin` = `c` in `index_list`) is a separate schema object with its own
+ * authored form, {@see AddIndex}, and never makes the column unauthorable; a
+ * foreign key refuses only where this column is the **source**; and explicit
+ * `ON CONFLICT ABORT` and `COLLATE BINARY` restate the defaults the compiler's
+ * own output carries, so they are compared semantically and accepted.
+ *
  * @see docs/change-records/FW-2701.md — C3 already satisfied, C4 fail closed
  */
 final readonly class OpPreconditionResolver
@@ -60,6 +86,21 @@ final readonly class OpPreconditionResolver
      */
     private const EQUIVALENT_DECLARED_TYPES = [
         'boolean' => ['BOOLEAN', 'TINYINT(1)', 'TINYINT'],
+    ];
+
+    /**
+     * `PRAGMA table_xinfo.hidden`, in SQLite's own numbering.
+     *
+     * Zero is an ordinary column. Everything else is a column an authored
+     * `AddColumn` cannot declare, and is named in the refusal so an operator can
+     * tell a generated column from a virtual table's hidden one.
+     *
+     * @var array<int, string>
+     */
+    private const HIDDEN_COLUMN_KINDS = [
+        1 => 'hidden',
+        2 => 'VIRTUAL generated',
+        3 => 'STORED generated',
     ];
 
     public function __construct(private Connection $connection) {}
@@ -89,6 +130,100 @@ final readonly class OpPreconditionResolver
 
         if ($live === null) {
             return OpPrecondition::NeedsApply;
+        }
+
+        // Structural properties first, and before type, nullability and default,
+        // because they are the most consequential divergences and because a
+        // primary key is the reason the nullability reading below cannot be
+        // trusted for this column at all.
+        //
+        // A generated column is absent from PRAGMA table_info entirely, which is
+        // why the whole comparison reads table_xinfo: without it this column
+        // looked missing, the operation was applied, and SQLite refused it with a
+        // raw error instead of an auditable refusal.
+        $hidden = (int) ($live['hidden'] ?? 0);
+        if ($hidden !== 0) {
+            throw IncompatibleSchemaStateException::column(
+                $op->table,
+                $op->column,
+                sprintf(
+                    'declared a plain column, found a %s column',
+                    self::HIDDEN_COLUMN_KINDS[$hidden] ?? 'hidden',
+                ),
+            );
+        }
+
+        // `pk` is a 1-based position within the key, not a flag: membership is
+        // any non-zero value. Testing `pk === 1` would silently miss a column
+        // sitting later in a composite key.
+        $primaryKeyPosition = (int) ($live['pk'] ?? 0);
+        if ($primaryKeyPosition !== 0) {
+            throw IncompatibleSchemaStateException::column(
+                $op->table,
+                $op->column,
+                sprintf(
+                    'declared a plain column, found column %d of the table primary key',
+                    $primaryKeyPosition,
+                ),
+            );
+        }
+
+        // `origin` separates a UNIQUE *constraint* of the table, which is part of
+        // the column and unauthorable, from an independently created index,
+        // which is a separate object AddIndex authors. EntitySchemaSync emits the
+        // latter for entity `uuid` columns, so conflating them would refuse every
+        // ordinary entity table.
+        foreach ($this->indexes($op->table) as $index) {
+            if ((string) ($index['origin'] ?? '') !== 'u') {
+                continue;
+            }
+            $name = (string) ($index['name'] ?? '');
+            if (!$this->indexCovers($name, $op->column)) {
+                continue;
+            }
+
+            throw IncompatibleSchemaStateException::column(
+                $op->table,
+                $op->column,
+                sprintf('declared a plain column, found a member of a UNIQUE constraint (index "%s")', $name),
+            );
+        }
+
+        // Only the source side. Being the *target* of another table's foreign key
+        // is a property of that other table, not of this column.
+        foreach ($this->connection->fetchAllAssociative(
+            sprintf('PRAGMA foreign_key_list(%s)', $this->quote($op->table)),
+        ) as $foreignKey) {
+            if (strcasecmp((string) ($foreignKey['from'] ?? ''), $op->column) !== 0) {
+                continue;
+            }
+
+            throw IncompatibleSchemaStateException::column(
+                $op->table,
+                $op->column,
+                sprintf(
+                    'declared a plain column, found the source of a foreign key into "%s"("%s")',
+                    (string) ($foreignKey['table'] ?? ''),
+                    (string) ($foreignKey['to'] ?? ''),
+                ),
+            );
+        }
+
+        // The only reading with no catalogue behind it, and the one that
+        // establishes whether the stored text is a column list we can model at
+        // all — so it runs before the value comparisons, which are meaningless
+        // for a column this reader cannot locate. `COLLATE`, a `NOT NULL`
+        // conflict policy and a `CHECK` that can read this column exist solely
+        // here, and each is unauthorable. An unreadable construct is returned as
+        // a reason too, so unknown refuses rather than passing silently.
+        $divergences = $this->definition($op->table)?->plainColumnDivergences($op->column)
+            ?? ['its stored definition could not be retrieved'];
+        if ($divergences !== []) {
+            throw IncompatibleSchemaStateException::column(
+                $op->table,
+                $op->column,
+                'declared a plain column, but ' . implode('; ', $divergences),
+            );
         }
 
         $expectedType = SqliteColumnType::render($op->spec);
@@ -166,9 +301,7 @@ final readonly class OpPreconditionResolver
         $name = AddIndexTranslator::resolveName($op);
 
         $live = null;
-        foreach ($this->connection->fetchAllAssociative(
-            sprintf('PRAGMA index_list(%s)', $this->quote($op->table)),
-        ) as $index) {
+        foreach ($this->indexes($op->table) as $index) {
             if ((string) ($index['name'] ?? '') === $name) {
                 $live = $index;
                 break;
@@ -327,15 +460,18 @@ final readonly class OpPreconditionResolver
      */
     private function columnCollation(string $table, string $column): ?string
     {
+        return $this->definition($table)?->collationOf($column);
+    }
+
+    /** The table's stored definition, or null when it cannot be retrieved. */
+    private function definition(string $table): ?SqliteTableDefinition
+    {
         $sql = $this->connection->fetchOne(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
             [$table],
         );
-        if (!is_string($sql) || $sql === '') {
-            return null;
-        }
 
-        return new SqliteTableDefinition($sql)->collationOf($column);
+        return is_string($sql) && $sql !== '' ? new SqliteTableDefinition($sql) : null;
     }
 
     private function tableExists(string $table): bool
@@ -347,13 +483,43 @@ final readonly class OpPreconditionResolver
     }
 
     /**
+     * Columns as `table_xinfo` reports them.
+     *
+     * `table_info` omits generated columns, which made a generated target look
+     * absent — outstanding rather than incompatible — and deferred the failure to
+     * a raw SQL error. `table_xinfo` is the same rows plus `hidden`.
+     *
      * @return list<array<string, mixed>>
      */
     private function columns(string $table): array
     {
         return $this->connection->fetchAllAssociative(
-            sprintf('PRAGMA table_info(%s)', $this->quote($table)),
+            sprintf('PRAGMA table_xinfo(%s)', $this->quote($table)),
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function indexes(string $table): array
+    {
+        return $this->connection->fetchAllAssociative(
+            sprintf('PRAGMA index_list(%s)', $this->quote($table)),
+        );
+    }
+
+    /** Whether a named index includes this column among its key columns. */
+    private function indexCovers(string $index, string $column): bool
+    {
+        foreach ($this->connection->fetchAllAssociative(
+            sprintf('PRAGMA index_info(%s)', $this->quote($index)),
+        ) as $entry) {
+            if (strcasecmp((string) ($entry['name'] ?? ''), $column) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function quote(string $identifier): string

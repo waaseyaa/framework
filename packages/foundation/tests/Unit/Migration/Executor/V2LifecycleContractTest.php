@@ -121,6 +121,119 @@ final class V2LifecycleContractTest extends TestCase
         $this->execute($this->addUserId(), $this->materializerOwning(['account']));
     }
 
+    /**
+     * A primary key is not expressible in `ColumnSpec`, and the compiler renders
+     * only `<type> [NOT NULL] [DEFAULT <literal>]`, so a live primary-key column
+     * is not the column an authored `AddColumn` declares and can never exactly
+     * satisfy it.
+     *
+     * The rowid-alias case is the dangerous one: `INTEGER PRIMARY KEY` reports
+     * `notnull = 0` while being incapable of holding NULL, so the nullability
+     * comparison reads a value that misdescribes the column and no other check
+     * can catch it.
+     */
+    #[Test]
+    #[DataProvider('primaryKeyDeclarations')]
+    public function a_primary_key_column_never_satisfies_an_authored_plain_column(
+        string $ddl,
+        bool $nullable,
+        int $position,
+    ): void {
+        $this->connection->executeStatement($ddl);
+
+        $this->expectException(IncompatibleSchemaStateException::class);
+        $this->expectExceptionMessageMatches(
+            sprintf('/S1-DB110.*column %d of the table primary key/s', $position),
+        );
+
+        $this->execute(
+            $this->plan(new CompositeDiff([
+                new AddColumn('account', 'user_id', new ColumnSpec(type: 'int', nullable: $nullable)),
+            ])),
+            $this->materializerOwning([]),
+        );
+    }
+
+    /** @return array<string, array{string, bool, int}> */
+    public static function primaryKeyDeclarations(): array
+    {
+        return [
+            // The reported case: a rowid alias, which reports notnull = 0.
+            'inline integer rowid primary key' => [
+                'CREATE TABLE account (user_id INTEGER PRIMARY KEY)',
+                true,
+                1,
+            ],
+            // Same column, declared as a table constraint rather than inline.
+            'table-level single-column primary key' => [
+                'CREATE TABLE account (user_id INTEGER, PRIMARY KEY (user_id))',
+                true,
+                1,
+            ],
+            'composite primary key, first position' => [
+                'CREATE TABLE account (user_id INTEGER, tenant TEXT, PRIMARY KEY (user_id, tenant))',
+                true,
+                1,
+            ],
+            // `pk` is a 1-based position, not a flag. Membership is `pk !== 0`,
+            // true at every position; testing `pk === 1` is what would silently
+            // miss a column sitting later in the key.
+            'composite primary key, non-first position' => [
+                'CREATE TABLE account (tenant TEXT, user_id INTEGER, PRIMARY KEY (tenant, user_id))',
+                true,
+                2,
+            ],
+            // WITHOUT ROWID reports notnull = 1, so an authored NOT NULL column
+            // matches on type, nullability and default alike. Only the
+            // primary-key reading can refuse this one.
+            'WITHOUT ROWID primary key matching on every other property' => [
+                'CREATE TABLE account (user_id INTEGER NOT NULL PRIMARY KEY) WITHOUT ROWID',
+                false,
+                1,
+            ],
+        ];
+    }
+
+    /**
+     * The positive control for the rule above. `pk = 0` columns are unaffected,
+     * including in a table whose *other* column is a primary key — the reading
+     * is per-column, not per-table.
+     */
+    #[Test]
+    #[DataProvider('ordinaryColumnDeclarations')]
+    public function an_ordinary_non_primary_key_column_is_still_satisfied(string $ddl, bool $nullable): void
+    {
+        $this->connection->executeStatement($ddl);
+
+        $outcome = $this->execute(
+            $this->plan(new CompositeDiff([
+                new AddColumn('account', 'user_id', new ColumnSpec(type: 'int', nullable: $nullable)),
+            ])),
+            $this->materializerOwning([]),
+        );
+
+        self::assertSame(ApplyMode::AlreadySatisfied, $outcome->mode);
+    }
+
+    /** @return array<string, array{string, bool}> */
+    public static function ordinaryColumnDeclarations(): array
+    {
+        return [
+            'beside a primary-key column' => [
+                'CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id INTEGER)',
+                true,
+            ],
+            'in a table with no primary key at all' => [
+                'CREATE TABLE account (user_id INTEGER)',
+                true,
+            ],
+            'NOT NULL but not a primary key' => [
+                'CREATE TABLE account (eid INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)',
+                false,
+            ],
+        ];
+    }
+
     #[Test]
     public function a_doctrine_spelling_of_the_same_column_is_satisfied_not_refused(): void
     {

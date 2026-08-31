@@ -283,6 +283,37 @@ For each pending v2 node, in order:
 Unrestricted schema synchronization is **not** run ahead of migrations: doing so
 would let it act before a migration's intended order and validation.
 
+**What exactness compares.** The authored vocabulary for a column is
+`ColumnSpec` — type, nullability, default, length — and the compiler renders
+exactly `<type-sql> [NOT NULL] [DEFAULT <literal>]`. A live column carrying
+anything else is not the column the operation declares, and SQLite's
+`column-constraint` and `table-constraint` productions are finite, so "anything
+else" is a closed list rather than an open-ended one. The runtime decides all of
+it: type affinity, nullability and default; **primary-key membership** at any
+position in a composite key; **generated or hidden** columns; **`UNIQUE`
+constraint** membership; foreign-key **source** membership; the effective
+**`COLLATE`**; the applied **`NOT NULL` conflict policy**; and whether any
+**`CHECK`** on the table can read the column, including through generated-column
+indirection. Everything with a catalogue is read from it — `PRAGMA table_xinfo`,
+`index_list` + `index_info`, `foreign_key_list` — and only the last three, which
+have no pragma, are read from the stored definition. Anything the reader cannot
+interpret is a refusal, never an assumption. `already_satisfied` is therefore a
+positive statement about a hand-written table, not merely the absence of a
+detected mismatch.
+
+Divergences fail closed under `[S1-DB110]`, naming what was found. Primary-key
+membership is checked before nullability because SQLite reports an
+`INTEGER PRIMARY KEY` rowid alias as `notnull = 0` while it cannot hold NULL,
+which makes the nullability reading untrustworthy for exactly that column.
+
+Three shapes are deliberately **accepted**, because each is a genuine equivalent:
+an independently created index — `origin = c` in `PRAGMA index_list`, including a
+`UNIQUE` one, since an index is a separate schema object authored by `AddIndex`;
+being the *target* of another table's foreign key; and explicit
+`ON CONFLICT ABORT` or `COLLATE BINARY`, which restate the compiler's own
+defaults. See `docs/specs/infrastructure.md` for the decision table and
+`docs/change-records/FW-2701.md` for the supported grammar and its limitations.
+
 **Backend dependence is the reason this contract exists.** On the framework
 default `sql-blob`, synchronization emits entity-key columns plus `_data` and
 never a per-field column, in either lifecycle — so a v2 `AddColumn` is genuinely

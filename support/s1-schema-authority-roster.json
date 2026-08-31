@@ -1960,6 +1960,34 @@
             "occurrence": 1
         },
         {
+            "path": "packages/cli/tests/Unit/Provider/V2ColumnExactnessProviderBoundaryTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "0460482da927ca90a4f3e69220f1a4c0d3fc6820cc4c8a8211878dad498da0e6",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Provider/V2ColumnExactnessProviderBoundaryTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Provider/V2ColumnExactnessProviderBoundaryTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Provider/V2ColumnExactnessProviderBoundaryTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
             "path": "packages/cli/tests/Unit/Security/DatabaseFieldAccessInventoryScannerTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -5481,6 +5509,216 @@
             "occurrence": 3
         },
         {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6f9ecae904fbfca083f69864b18bcb9c4240a82d7524020c024a09ac5aaa2e51",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8f1d31112e06a1584ad994606c665ffab2efb6a954b2af4318b763fe68214530",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "cbab020fc225f7693ff6c1a520daf761396c864453d195c3fdc7660167bd5aae",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "cbab020fc225f7693ff6c1a520daf761396c864453d195c3fdc7660167bd5aae",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "e42d61d44da60e127a32fc61d4d99dab3879787308f6aca3d46ceb8b61c88bf2",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "e42d61d44da60e127a32fc61d4d99dab3879787308f6aca3d46ceb8b61c88bf2",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "e42d61d44da60e127a32fc61d4d99dab3879787308f6aca3d46ceb8b61c88bf2",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "e42d61d44da60e127a32fc61d4d99dab3879787308f6aca3d46ceb8b61c88bf2",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 9
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 10
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 11
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 12
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 13
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 14
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 15
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 16
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 17
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 18
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/ColumnExactnessContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 19
+        },
+        {
             "path": "packages/foundation/tests/Unit/Migration/Executor/SqliteCollationNonAsciiCorpusTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -6930,6 +7168,62 @@
             "occurrence": 27
         },
         {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 28
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 29
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 30
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 31
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 32
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 33
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 34
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2LifecycleContractTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 35
+        },
+        {
             "path": "packages/foundation/tests/Unit/Migration/Executor/V2PlanExecutorTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -6949,6 +7243,69 @@
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 9
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 10
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/Executor/V2ReplayAndInterruptionTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 11
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/Ledger/ChecksumReplayGuardTest.php",

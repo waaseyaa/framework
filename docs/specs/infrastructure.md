@@ -1168,6 +1168,54 @@ renders `INTEGER`. That single pair is reconciled by an explicit per-logical-typ
 allowlist rather than by equating INTEGER and NUMERIC in general, so a `DECIMAL`
 column still refuses an authored `int`.
 
+Primary-key membership is read from `PRAGMA table_xinfo.pk` and refuses under
+`[S1-DB110]`. A primary key is not expressible in `ColumnSpec` — the compiler
+renders only `<type> [NOT NULL] [DEFAULT <literal>]` — so such a column is not
+the one the operation declares. `pk` is a **1-based position within the key**,
+not a flag, so membership is any non-zero value and a column in a later position
+of a composite key counts. The check runs before the type, nullability and
+default comparisons, because SQLite reports an `INTEGER PRIMARY KEY` rowid alias
+as `notnull = 0` although it cannot hold NULL, which makes the nullability
+reading untrustworthy for exactly that column.
+
+**The column comparison is closed over SQLite's constraint grammar.**
+`column-constraint` and `table-constraint` are finite productions, so the
+properties a live column can carry outside the authored vocabulary are a closed
+list, and each is decided by the source that owns it:
+
+| Property | Source | Refuses when |
+|---|---|---|
+| `PRIMARY KEY` | `PRAGMA table_xinfo.pk` | non-zero (a 1-based position) |
+| generated / hidden | `PRAGMA table_xinfo.hidden` | non-zero |
+| `UNIQUE` constraint | `PRAGMA index_list.origin` = `u` + `index_info` | the column is a member |
+| `REFERENCES` | `PRAGMA foreign_key_list.from` | the column is a **source** |
+| type / nullability / default | `PRAGMA table_xinfo` | compared as described above |
+| `COLLATE` | stored DDL, via `SqliteTableDefinition` | effective collation ≠ `BINARY` |
+| `NOT NULL` conflict policy | stored DDL | the applied policy ≠ `ABORT` |
+| `CHECK` dependence | stored DDL | the expression can read this column |
+
+Reaching the end is therefore a *proof* of equivalence, not an absence of
+findings. `table_xinfo` replaces `table_info` because the latter omits generated
+columns entirely, which made a generated target look missing and deferred the
+failure to a raw SQL error instead of an auditable `[S1-DB110]` refusal.
+
+Three refusals are narrower than a blanket rule, because each has a legitimate
+shape beside it that must still be accepted. An index created by `CREATE INDEX`
+(`origin` = `c`) is a separate schema object with its own authored form,
+`AddIndex`, and never makes a column unauthorable — entity schema synchronization
+emits exactly that for `uuid`, so conflating it with a `UNIQUE` constraint would
+refuse every ordinary entity table. A foreign key refuses only where this column
+is the source; being the referenced target is a property of the other table. And
+explicit `ON CONFLICT ABORT` and explicit `COLLATE BINARY` restate the defaults
+the compiler's own output carries, so they are compared semantically and
+accepted.
+
+`CHECK` is judged by whether its expression **can read** the column, wherever the
+constraint is written, and the reader closes that question transitively through
+generated columns. The supported reference grammar, the one-sided
+over-approximation that makes it sound, the explicit unknown-refuses cases, and
+the stated limitations are recorded in `docs/change-records/FW-2701.md`.
+
 Defaults are compared as **SQL literal expressions**, both sides rendered through
 the compiler's own literal renderer. Comparing an unquoted PHP string against
 SQLite's literal text conflates two representations: it refuses an authored empty
