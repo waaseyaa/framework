@@ -7,6 +7,7 @@ namespace Waaseyaa\EntityStorage\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
@@ -380,6 +381,112 @@ final class EntityRepositoryRevisionTest extends TestCase
 
         $this->assertNull($this->repo->find('1'));
         $this->assertNull($this->repo->loadRevision('1', 1));
+    }
+
+    /**
+     * #2728, acceptance criterion 5 (revision cleanup where applicable). A
+     * PRE_DELETE refusal now fires inside the delete transaction, so the
+     * revision rows deleteAllRevisions() would have removed roll back with
+     * the base row and the mutation-authority tombstone.
+     *
+     * This test builds its own repository over a REAL dispatcher (setUp()'s
+     * recording stub cannot throw) and reads revision state via raw SQL,
+     * never via driver memory: RevisionableStorageDriver keeps an in-process
+     * langcode-pointer map that no database rollback touches.
+     */
+    #[Test]
+    public function refusedDeleteOfARevisionableEntityRestoresEveryRevisionRow(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $entityType = new EntityType(
+            id: 'test_revisionable',
+            label: 'Test',
+            class: TestRevisionableEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
+        );
+        $handler = new SqlSchemaHandler($entityType, $db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+
+        $dispatcher = new EventDispatcher();
+        $buildRepository = static function () use ($entityType, $db, $dispatcher): EntityRepository {
+            $resolver = new SingleConnectionResolver($db);
+
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+                $entityType,
+                new SqlStorageDriver($resolver),
+                $dispatcher,
+                new RevisionableStorageDriver($resolver, $entityType),
+                $db,
+            );
+        };
+
+        $repo = $buildRepository();
+        $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+        $entity = $repo->find('1');
+        $entity->set('title', 'v2');
+        $repo->save($entity);
+
+        $revisionIds = static fn(): array => array_map(
+            static fn(array $row): int => (int) $row['revision_id'],
+            $db->getConnection()->fetchAllAssociative(
+                'SELECT revision_id FROM test_revisionable_revision WHERE entity_id = ? ORDER BY revision_id',
+                ['1'],
+            ),
+        );
+        $authorityRow = static fn(): array|false => $db->getConnection()->fetchAssociative(
+            'SELECT aggregate_version, mutation_tag, lifecycle_state FROM waaseyaa_entity_mutation_authority'
+            . " WHERE entity_type = 'test_revisionable' AND entity_id = '1'",
+        );
+
+        $revisionsBefore = $revisionIds();
+        $this->assertCount(2, $revisionsBefore);
+        $authorityBefore = $authorityRow();
+        $this->assertIsArray($authorityBefore);
+        $this->assertSame('active', $authorityBefore['lifecycle_state']);
+
+        $refuse = static function (): never {
+            throw new \DomainException('refused');
+        };
+        $dispatcher->addListener(EntityEvents::PRE_DELETE->value, $refuse);
+
+        $toDelete = $repo->find('1');
+        $this->assertNotNull($toDelete);
+        try {
+            $repo->delete($toDelete);
+            $this->fail('A refusing PRE_DELETE listener must propagate out of delete().');
+        } catch (\DomainException $e) {
+            $this->assertSame('refused', $e->getMessage());
+        }
+
+        $this->assertSame(
+            1,
+            (int) $db->getConnection()->fetchOne('SELECT COUNT(*) FROM test_revisionable WHERE id = ?', ['1']),
+        );
+        $this->assertSame($revisionsBefore, $revisionIds(), 'Revision rows must roll back with the refused delete.');
+        $this->assertSame($authorityBefore, $authorityRow());
+
+        $dispatcher->removeListener(EntityEvents::PRE_DELETE->value, $refuse);
+
+        // Fresh driver instance: the revisionable driver's in-process langcode
+        // pointer map is not rolled back, so re-read through new state.
+        $freshRepo = $buildRepository();
+        $reloaded = $freshRepo->find('1');
+        $this->assertNotNull($reloaded);
+        $freshRepo->delete($reloaded);
+
+        $this->assertSame([], $revisionIds(), 'An allowed delete still clears every revision row.');
+        $this->assertSame(
+            0,
+            (int) $db->getConnection()->fetchOne('SELECT COUNT(*) FROM test_revisionable WHERE id = ?', ['1']),
+        );
+        $after = $authorityRow();
+        $this->assertIsArray($after);
+        $this->assertSame('tombstone', $after['lifecycle_state']);
     }
 
     private function mutationToken(string $entityId): \Waaseyaa\Entity\Concurrency\EntityMutationToken

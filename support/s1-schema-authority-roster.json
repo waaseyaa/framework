@@ -1589,6 +1589,13 @@
             "occurrence": 3
         },
         {
+            "path": "packages/cli/tests/Integration/RootApplicationV2MigrationRuntimeTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
             "path": "packages/cli/tests/Unit/Command/Audit/PruneCommandTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -1671,6 +1678,34 @@
             "class": "test-only",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 2
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
         },
         {
             "path": "packages/cli/tests/Unit/Handler/FieldAccessPreflightHandlerTest.php",
@@ -1813,6 +1848,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/cli/tests/Unit/Handler/MigrateStatusHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 2
+        },
+        {
             "path": "packages/cli/tests/Unit/Handler/WorkflowsAuditServingProjectionHandlerTest.php",
             "pattern": "schema_method",
             "class": "test-only",
@@ -1825,6 +1867,13 @@
             "class": "test-only",
             "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
             "occurrence": 2
+        },
+        {
+            "path": "packages/cli/tests/Unit/Provider/MigrateServiceProviderTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
         },
         {
             "path": "packages/cli/tests/Unit/Security/DatabaseFieldAccessInventoryScannerTest.php",
@@ -9077,6 +9126,34 @@
             "class": "test-only",
             "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
             "occurrence": 2
+        },
+        {
+            "path": "tests/Integration/Relationship/RelationshipDeleteGuardKernelWiringTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Relationship/RelationshipDeleteGuardKernelWiringTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Integration/Relationship/RelationshipDeleteGuardKernelWiringTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 3
+        },
+        {
+            "path": "tests/Integration/Relationship/RelationshipDeleteGuardKernelWiringTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 4
         },
         {
             "path": "tests/Integration/Relationship/RelationshipPreSaveListenerKernelWiringTest.php",
