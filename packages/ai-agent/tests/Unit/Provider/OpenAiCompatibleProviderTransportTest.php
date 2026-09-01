@@ -80,16 +80,76 @@ final class OpenAiCompatibleProviderTransportTest extends TestCase
         // ends the call — and a non-streaming caller has no callback in which to
         // notice, so it cannot compensate the way a streaming caller might try to.
         $server = $this->startServer(StallingTransportServer::MODE_CHAT_STALL);
+        $timeouts = new ProviderTimeouts(connectSeconds: 1.0, totalSeconds: 3.0);
+
+        // #2716: a wall-clock lower bound cannot tell "the total timeout fired"
+        // apart from "the peer connection died early for an unrelated reason" —
+        // both just look like "returned sometime before the upper bound", and the
+        // latter was intermittently masquerading as the former. cURL's own
+        // failure reason does distinguish them deterministically: classify on
+        // that instead, against the exact option set the provider installs
+        // ({@see ProviderTimeouts::curlOptions()}), before ever going through
+        // {@see OpenAiCompatibleProvider} — so an early teardown fails loudly on
+        // the classification rather than being absorbed by a timing miss.
+        $this->assertPeerEndsOnlyOnTheTotalTimeout($server, $timeouts);
+
         $provider = new OpenAiCompatibleProvider(
             apiKey: 'test-key',
             baseUrl: $server->baseUrl(),
-            timeouts: new ProviderTimeouts(connectSeconds: 1.0, totalSeconds: 3.0),
+            timeouts: $timeouts,
         );
 
         $elapsed = $this->timeFailure(fn(): mixed => $provider->sendMessage(self::request()), $server);
 
-        self::assertGreaterThan(2.5, $elapsed, 'Without a low-speed guard the total timeout is the only bound.');
         self::assertLessThan(20.0, $elapsed);
+    }
+
+    /**
+     * Issue a raw request with the provider's exact timeout wiring and assert
+     * cURL's own classification of why it ended, rather than inferring the
+     * reason from elapsed wall-clock time. `CURLE_OPERATION_TIMEDOUT` alone is
+     * not enough — libcurl reports the same code for a connect-phase timeout —
+     * so the message text is pinned too: only the total bound firing mid-transfer
+     * reports a partial byte count, which is what proves this was a stalled body
+     * held to the total, not a connection that never got past the handshake or
+     * died for some unrelated reason (connection refused, reset, empty reply all
+     * report distinct, unmistakably different cURL errors).
+     */
+    private function assertPeerEndsOnlyOnTheTotalTimeout(
+        StallingTransportServer $server,
+        ProviderTimeouts $timeouts,
+    ): void {
+        $handle = \curl_init($server->baseUrl() . '/chat/completions');
+        if ($handle === false) {
+            self::fail('Failed to initialize cURL for the timeout-classification probe.');
+        }
+
+        \curl_setopt_array($handle, [
+            \CURLOPT_POST => true,
+            \CURLOPT_POSTFIELDS => (string) \json_encode(['probe' => true], \JSON_THROW_ON_ERROR),
+            \CURLOPT_RETURNTRANSFER => true,
+        ] + $timeouts->curlOptions());
+
+        \curl_exec($handle);
+        $errno = \curl_errno($handle);
+        $error = \curl_error($handle);
+
+        self::assertSame(
+            \CURLE_OPERATION_TIMEDOUT,
+            $errno,
+            "Expected the total timeout to end the stalled body; got cURL errno {$errno} ({$error}) "
+                . 'instead — an early teardown, not a stall.',
+        );
+        self::assertStringContainsString(
+            'Operation timed out',
+            $error,
+            'A connect-phase timeout reports a different message than the total bound firing mid-transfer.',
+        );
+        self::assertStringContainsString(
+            'bytes received',
+            $error,
+            'The total bound must fire mid-transfer, proving the peer delivered a partial body and then stalled.',
+        );
     }
 
     #[Test]
