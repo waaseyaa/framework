@@ -87,11 +87,20 @@ final class EmitBeaconController
             return $this->error(422, 'Unprocessable', 'Beacon "order" must be an integer.');
         }
 
-        // Address the target session by its non-secret token; default to the
-        // caller's own session (self-guide). The channel is in the reserved
-        // private namespace, so only that session's connection receives it.
-        $token = $body['session'] ?? null;
-        if (is_string($token) && $token !== '') {
+        // Address the target session by its non-secret token; an OMITTED
+        // "session" member defaults to the caller's own session (self-guide).
+        // A PRESENT member, by contrast, is a request to address some other
+        // session and must be a well-formed non-empty token string — silently
+        // falling back to self-target on a present-but-malformed value (null,
+        // "", a non-string scalar, or an array) would let an intended
+        // remote-target emit land on the caller's own session instead (#2746).
+        // The channel is in the reserved private namespace regardless, so only
+        // the resolved session's connection ever receives it.
+        if (array_key_exists('session', $body)) {
+            $token = $body['session'];
+            if (!is_string($token) || $token === '') {
+                return $this->error(422, 'Unprocessable', 'The "session" member must be a non-empty string token when present.');
+            }
             $channel = SessionChannel::forToken($token);
         } else {
             $sessionId = (string) session_id();
