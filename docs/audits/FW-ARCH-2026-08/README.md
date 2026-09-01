@@ -1,15 +1,23 @@
-# Framework architectural integrity — A0 adoption candidate
+# Framework architectural integrity audit
 
 Stable program: [FW-ARCH-2026-08](../../change-records/FW-ARCH-2026-08.md).
 Tracking: [program #2719](https://github.com/waaseyaa/framework/issues/2719),
-[A0 #2720](https://github.com/waaseyaa/framework/issues/2720).
+[A0–A7 #2720–#2727](https://github.com/waaseyaa/framework/issues/2720).
+
+The frozen A0 census is the denominator. Later evidence is indexed by exact SHA in
+the linked issue threads; it does not rewrite the frozen baseline. The audit's final
+cross-workstream products are:
+
+- [Synthesis and dispositions](synthesis.md)
+- [Remediation dependency plan](remediation.md)
+- [Framework assurance gates](assurance.md)
 
 ## Decision and limits
 
 The census covers the complete repository, not a selected application's dependency
-closure. Adopt this as the audit's navigation and evidence baseline. **A0 remains
-open:** historical source material is missing, independent review is pending, and
-inventory consistency does not prove production correctness.
+closure. It is the audit's navigation and evidence baseline. Inventory consistency
+does not prove production correctness; the assurance matrix records partial and
+unreviewed cells explicitly.
 
 No code is removed, rewritten or declared safe by this candidate. No public API
 classification, dependency, gate, runtime policy or release permission changes.
@@ -58,12 +66,14 @@ catch or normalization expressions are **not defect counts**.
 
 ## Baseline versus adoption branch
 
-The documentation candidate starts at
-`61dabd434df3beec04953a2297f11bc5771384f0`, after the PRE_DELETE transaction fix
-[#2735](https://github.com/waaseyaa/framework/pull/2735). Its fix does not rewrite
-the frozen census or the original failing baseline evidence for #2728. Source
-observations in this report apply to the frozen baseline unless explicitly marked
-as post-baseline. Migration PRs #2706/#2712 are not folded into this source baseline.
+The initial portable-audit documentation was based at
+`61dabd434df3beec04953a2297f11bc5771384f0`; this final synthesis candidate starts
+at `e3ff47a403476f1d643906ac54c546ff58a8c841`. Both are after the PRE_DELETE
+transaction fix [#2735](https://github.com/waaseyaa/framework/pull/2735). That fix
+does not rewrite the frozen census or the original failing baseline evidence for
+#2728. Source observations in this report apply to the frozen baseline unless
+explicitly marked as post-baseline. Migration PRs #2706/#2712 are not folded into
+this source baseline.
 
 Boundary IDs **B01–B08** always mean the eight rows in the authority map. Earlier
 behavioral checkpoint artifacts also used B-prefixed directory names; this report
