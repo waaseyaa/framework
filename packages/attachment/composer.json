@@ -26,6 +26,10 @@
         },
         {
             "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         }
     ],
@@ -41,7 +45,8 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "symfony/event-dispatcher": "^7.0"
+        "symfony/event-dispatcher": "^7.0",
+        "waaseyaa/field": "^0.1.0-alpha.299"
     },
     "autoload": {
         "psr-4": {
