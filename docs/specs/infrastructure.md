@@ -1110,6 +1110,10 @@ hold activation sequence 1. With a single authority nothing collides and the
 degradation is silent, which is the more dangerous shape. Lossiness in the
 rebuild of the caller's *own* table remains, because SQLite alters by
 copy-and-replace; it simply no longer reaches tables the caller did not name.
+That remaining target-table fidelity gap is tracked as **#2805** —
+`addForeignKey()` still drops its own table's composite primary key,
+table-level `UNIQUE` and `CHECK` constraints, and triggers, and a shipped OIDC
+migration still compares whole schemas.
 Any new mutator must follow the single-table seam. Acceptance:
 `DBALSchemaTargetedMutationTest`.
 

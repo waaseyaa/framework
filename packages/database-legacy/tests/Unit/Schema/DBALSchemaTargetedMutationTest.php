@@ -153,6 +153,48 @@ final class DBALSchemaTargetedMutationTest extends TestCase
         self::assertSame($before, $this->tableSql('activation'));
     }
 
+    #[Test]
+    public function add_foreign_key_is_targeted(): void
+    {
+        $before = $this->tableSql('activation');
+        $triggers = $this->triggerCount('activation');
+
+        $this->db->schema()->addField('target', 'authority_id', ['type' => 'varchar', 'length' => 64]);
+        $this->db->schema()->addForeignKey(
+            'target',
+            'fk_target_generation',
+            ['authority_id'],
+            'generation',
+            ['authority_id'],
+        );
+
+        // addForeignKey rebuilds its own table on SQLite, which is the #2804
+        // sibling most likely to reach past it: the constraint it adds names a
+        // second table. The unrelated table must still be untouched.
+        self::assertSame($before, $this->tableSql('activation'));
+        self::assertSame($triggers, $this->triggerCount('activation'));
+    }
+
+    #[Test]
+    public function add_primary_key_refuses_on_sqlite_without_touching_any_table(): void
+    {
+        $before = $this->tableSql('activation');
+        $targetBefore = $this->tableSql('target');
+
+        // SQLite cannot add a primary key to an existing table, so the mutator
+        // refuses. The refusal must be total: no partial whole-schema alter may
+        // have run before it, which is what the unrelated table proves.
+        try {
+            $this->db->schema()->addPrimaryKey('target', ['label']);
+            self::fail('addPrimaryKey must refuse on SQLite.');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('SQLite does not support adding a primary key', $e->getMessage());
+        }
+
+        self::assertSame($before, $this->tableSql('activation'));
+        self::assertSame($targetBefore, $this->tableSql('target'));
+    }
+
     private function insertActivation(string $authority, int $sequence, string $request, int $isGenesis = 0): void
     {
         $this->connection()->executeStatement('INSERT OR IGNORE INTO generation (authority_id) VALUES (?)', [$authority]);
@@ -160,6 +202,14 @@ final class DBALSchemaTargetedMutationTest extends TestCase
         $this->connection()->executeStatement(
             'INSERT INTO activation (authority_id, activation_sequence, activation_request_id, is_genesis) VALUES (?, ?, ?, ?)',
             [$authority, $sequence, $request, $isGenesis],
+        );
+    }
+
+    private function triggerCount(string $table): int
+    {
+        return (int) $this->connection()->fetchOne(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?",
+            [$table],
         );
     }
 

@@ -271,7 +271,10 @@ final class DBALSchema implements ForeignKeySchemaInterface
      * Comparing a single table against its own mutated clone confines the
      * generated SQL to the caller's table. Any lossiness in the rebuild of that
      * table remains, because SQLite alters by copy-and-replace, but it is now
-     * limited to the table the caller asked to change.
+     * limited to the table the caller asked to change. That remaining
+     * target-table fidelity gap is tracked separately as #2805: addForeignKey()
+     * still drops its own table's composite primary key, table-level UNIQUE and
+     * CHECK constraints, and triggers.
      *
      * @param callable(Table): void $mutate
      */
