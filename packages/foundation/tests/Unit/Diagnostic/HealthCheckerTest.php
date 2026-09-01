@@ -11,6 +11,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Storage\PrimaryStorageBackend;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport;
 use Waaseyaa\Foundation\Diagnostic\CleanUrlProbe;
@@ -139,6 +140,43 @@ final class HealthCheckerTest extends TestCase
 
         $this->assertCount(1, $results);
         $this->assertSame('pass', $results[0]->status);
+    }
+
+    #[Test]
+    public function schemaDriftPassesForSqlColumnEntityTypeWithoutDataColumn(): void
+    {
+        // #2682: sql-column entity types deliberately omit `_data`
+        // (SqlSchemaHandler::buildTableSpec() skips it for that backend).
+        // Expected-column derivation must follow the same backend rule the
+        // storage schema handler uses, not a parallel _data-always heuristic.
+        $catalogType = new EntityType(
+            id: 'catalog_item',
+            label: 'Catalog Item',
+            class: \stdClass::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+            primaryStorageBackend: PrimaryStorageBackend::SQL_COLUMN,
+        );
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn(['catalog_item' => $catalogType]);
+
+        // Materialize the table exactly as the sql-column backend does — no
+        // `_data` column.
+        $schemaHandler = new SqlSchemaHandler(
+            $catalogType,
+            $this->database,
+            primaryBackendId: PrimaryStorageBackend::SQL_COLUMN,
+        );
+        $schemaHandler->ensureTable();
+
+        $checker = $this->createCheckerWith($manager);
+        $results = $checker->checkSchemaDrift();
+
+        $this->assertCount(1, $results);
+        $this->assertSame(
+            'pass',
+            $results[0]->status,
+            'sql-column entity types must not be flagged for a missing `_data` column: ' . json_encode($results[0]->context ?? []),
+        );
     }
 
     #[Test]

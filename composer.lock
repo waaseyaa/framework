@@ -4757,8 +4757,7 @@
                 "reference": "b4fd54756aae4a2a9e56ce4278ebe1213d2165e9"
             },
             "require": {
-                "php": ">=8.5",
-                "waaseyaa/foundation": "^0.1.0-alpha.299"
+                "php": ">=8.5"
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0"
