@@ -108,6 +108,15 @@ final class PathAliasTest extends TestCase
     }
 
     #[Test]
+    public function isInCanonicalDomainAcceptsEmptyAndLeadingSlashAliases(): void
+    {
+        $this->assertTrue(PathAlias::isInCanonicalDomain(''));
+        $this->assertTrue(PathAlias::isInCanonicalDomain('/about'));
+        $this->assertFalse(PathAlias::isInCanonicalDomain('about'));
+        $this->assertFalse(PathAlias::isInCanonicalDomain('about-us'));
+    }
+
+    #[Test]
     public function setAliasValidatesLeadingSlash(): void
     {
         $alias = new PathAlias();
