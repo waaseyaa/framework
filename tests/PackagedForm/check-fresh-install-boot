@@ -78,8 +78,9 @@ php -r '
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$consumer/composer.json" "$source_root"
 
-printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/fresh-install.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
-    "$consumer" "$consumer" > "$consumer/.env"
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/fresh-install.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
 
 if ! "$composer_bin" install --working-dir="$consumer" \
         --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
@@ -146,7 +147,6 @@ php -r '
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$legacy_consumer/composer.json" "$old_source_root"
 
-app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
 printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/legacy.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\nWAASEYAA_CONFIG_DIR=%s/config/sync\n' \
     "$app_secret" "$work" "$legacy_consumer" "$legacy_consumer" > "$legacy_consumer/.env"
 
