@@ -86,6 +86,24 @@ final class PathAlias extends ContentEntityBase
     }
 
     /**
+     * Whether an alias is in {@see PathAliasResolver}'s canonical domain: a
+     * non-empty alias begins with a forward slash. An empty alias is
+     * considered valid (unresolvable, but not malformed) — {@see setAlias()}
+     * has always allowed clearing an alias this way.
+     *
+     * Shared by {@see setAlias()} (which throws on a direct-call violation)
+     * and {@see \Waaseyaa\Path\PathAliasUniquenessListener} (the universal
+     * write-boundary check that also covers generic construction and
+     * generic {@see \Waaseyaa\Entity\ContentEntityBase::set()} mutation,
+     * neither of which routes through this setter) so both enforce the same
+     * predicate. See issue #2754.
+     */
+    public static function isInCanonicalDomain(string $alias): bool
+    {
+        return $alias === '' || str_starts_with($alias, '/');
+    }
+
+    /**
      * Get the internal system path (e.g. '/node/42').
      */
     public function getPath(): string
@@ -118,7 +136,7 @@ final class PathAlias extends ContentEntityBase
      */
     public function setAlias(string $alias): static
     {
-        if ($alias !== '' && !str_starts_with($alias, '/')) {
+        if (!self::isInCanonicalDomain($alias)) {
             throw new \InvalidArgumentException(
                 sprintf('The alias "%s" must start with a forward slash.', $alias),
             );
