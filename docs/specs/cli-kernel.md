@@ -76,6 +76,14 @@ The package manifest may cache console command providers or command service meta
 
 Providers should register command services in `register()` and expose them through the console command provider capability. Commands that need project-root state receive it through constructor injection from a kernel-context service.
 
+Entity repositories on the provider bus are always selected through the
+kernel-owned `EntityTypeManagerInterface`; the bus intentionally exposes no
+context-free `EntityRepositoryInterface`. In particular, `ai:purge-runs`
+selects `agent_run` explicitly. The AI aggregate types declare the
+`sql-column` backend used by their migrations and direct retention queries,
+and `waaseyaa/ai-agent` declares its migration directory so both fresh and
+upgraded installations receive the required entity base columns.
+
 Command presentation belongs to this Layer-6 package even when the domain operation belongs lower in the stack. For example, `BearerTokenServiceProvider` owns the `bearer-token:issue|list|rotate|revoke` Symfony commands and depends downward on auth's `BearerTokenStoreInterface`; `AuthServiceProvider` owns the durable credential binding and exposes no Symfony Console types. A lower-layer provider must never construct CLI command objects, including through hidden string FQCNs.
 
 `HealthSchemaServiceProvider` registers `tenancy:repair-translation-peers <entity_type> [--dry-run] [--json]`. `CommunityTranslationPeerRepairHandler` resolves the entity type, delegates to the entity-storage repairer, and renders either a stable JSON report or concise operator output. This command follows ordinary full console boot because it requires entity metadata and a database connection. It is not part of the restricted pre-boot command set. Applying repairs is an explicit operator action and requires the quiesce procedure in `docs/specs/operations-playbooks.md`.

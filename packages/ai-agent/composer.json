@@ -104,6 +104,7 @@
             "dev-develop/v1.1": "0.1.x-dev"
         },
         "waaseyaa": {
+            "migrations": "migrations",
             "policies": [
                 "Waaseyaa\\AI\\Agent\\Access\\AgentRunAccessPolicy"
             ],

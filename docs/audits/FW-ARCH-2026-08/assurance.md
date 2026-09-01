@@ -7,7 +7,7 @@ treated as pass.
 
 | Gate | Required evidence | Current verdict | Owners |
 |---|---|---|---|
-| G1 Canonical composition | Real kernel/provider wiring; sequential compositions; no test-only injection/reset dependency | FAIL | #2729 #2760 #2764 |
+| G1 Canonical composition | Real kernel/provider wiring; sequential compositions; no test-only injection/reset dependency | FAIL | #2729 #2760 #2764 #2771 |
 | G2 Semantic-to-physical invariant | Stable IDs, uniqueness, canonical values and lifecycle flags enforced at persistence boundary | FAIL | #2670 #2753–#2756 #2762 #2766 |
 | G3 Transaction/durable outcome | PRE guards inside transaction; POST/effects only after outer commit; fenced ack/retry | FAIL | #2733 #2734 #2740 #2741 #2743 #2745 #2747 #2750 |
 | G4 Schema lifecycle parity | Fresh/upgrade/replay/rollback/preview/apply share one transition model on supported layouts | FAIL | #1625 #2682 #2730–#2732 #2761 |

@@ -46,6 +46,7 @@ function s1SchemaClass(string $path): string
         'bin/check-s1-configuration-activation' => 'tooling-query',
         'packages/ai-agent/migrations/2026_05_18_000001_create_agent_run.php' => 'coordinator-plan-or-executor',
         'packages/ai-agent/migrations/2026_07_14_000001_add_approval_expires_at.php' => 'coordinator-plan-or-executor',
+        'packages/ai-agent/migrations/2026_09_01_000001_add_entity_base_columns.php' => 'coordinator-plan-or-executor',
         'packages/ai-agent/src/Routing/AgentRouteServiceProvider.php' => 'explicit-exclusion',
         'packages/ai-observability/migrations/2026_04_14_000001_create_trace_span_table.php' => 'coordinator-plan-or-executor',
         'packages/ai-tools/src/Content/MediaAssetStore.php' => 'explicit-exclusion',

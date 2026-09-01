@@ -22,7 +22,7 @@ D0 contract decisions
 D1 canonical internals
   ├─ schema model: #1625 #2682 #2730 #2731 #2732
   ├─ transaction/effects: #2733 #2734
-  ├─ runtime composition: #2729 #2760 #2764
+  ├─ runtime composition: #2729 #2760 #2764 #2771
   └─ physical identity constraints: #2753 #2754 #2755 #2762 #2766
 
 D2 convergence and removal
@@ -42,7 +42,7 @@ D4 retirement
 
 ## Recommended small-PR sequence
 
-1. **Composition truth:** #2729, #2760 and #2764; add sequential kernel/provider
+1. **Composition truth:** #2729, #2760, #2764 and #2771; add sequential kernel/provider
    tests and the logger-wiring architecture gate.
 2. **Transaction truth:** #2733/#2734, then queue/broadcast/billing settlement design
    and implementations (#2740/#2741/#2743/#2747/#2750).

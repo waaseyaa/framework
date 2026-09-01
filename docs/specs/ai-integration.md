@@ -270,6 +270,21 @@ on the allowlist and inert until #2661 and #2662 —
 
 ## Agent Execution
 
+### Agent-run persistence and retention composition
+
+`AgentRun` and `AgentAuditLog` are column-oriented framework entities. Their
+`#[ContentEntityType]` declarations select `sql-column`, matching the package
+migrations and the repositories' direct status/timestamp queries. The
+`waaseyaa/ai-agent` Composer manifest declares its `migrations/` directory;
+an additive migration supplies the mandatory `bundle` and `langcode` entity
+base columns to tables created before that storage contract was explicit.
+
+The operator-facing `ai:purge-runs` command obtains its delete repository by
+resolving the kernel-owned entity type manager and explicitly selecting
+`agent_run`. The production services bus intentionally provides no arbitrary
+context-free `EntityRepositoryInterface`. A purge deletes only terminal runs
+older than the configured threshold; live runs and recent terminal runs remain.
+
 ### AgentInterface
 
 **File:** `packages/ai-agent/src/AgentInterface.php`
