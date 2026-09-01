@@ -752,11 +752,21 @@ final class PackageManifestCompiler
     }
 
     /**
-     * Raw fingerprint input contributed by every installed package that declares an
-     * `install-path` (i.e. a Composer path repository): `packageName\x01composerJsonBytes`
-     * entries, sorted by package name for a deterministic result independent of
-     * `installed.json` ordering, joined with NUL. Packages without `install-path` (ordinary
-     * dist packages) contribute nothing — their metadata already lives inside `installedRaw`.
+     * Raw fingerprint input contributed by every installed **path** package (a package
+     * installed via a Composer path repository — `dist.type` or `source.type` is `"path"`):
+     * `packageName\x01composerJsonBytes` entries, sorted by package name for a deterministic
+     * result independent of `installed.json` ordering, joined with NUL. Ordinary dist packages
+     * contribute nothing — their metadata already lives inside `installedRaw`, and any real
+     * change to their content requires a new install (a new `dist`/`source` reference), which
+     * already changes `installedRaw`'s bytes.
+     *
+     * `install-path` alone is NOT the path-package signal: Composer 2.x stamps `install-path`
+     * on every installed package regardless of origin (dist, source, or path) — verified
+     * against this repo's own `vendor/composer/installed.json`, where all 200/200 installed
+     * packages carry `install-path`, including ordinary Packagist dist deps. Gating on
+     * `install-path` presence alone would read and hash every installed package's
+     * `composer.json` on every `load()` — including the cache-hit path — not just the true
+     * path-repository siblings this fingerprint component exists to cover.
      */
     private function readPathPackageComposerFingerprintInput(): string
     {
@@ -789,6 +799,10 @@ final class PackageManifestCompiler
                 continue;
             }
 
+            if (!$this->isPathInstalledPackage($package)) {
+                continue;
+            }
+
             $installPathValue = $package['install-path'] ?? null;
             if (!is_string($installPathValue) || $installPathValue === '') {
                 continue;
@@ -809,6 +823,25 @@ final class PackageManifestCompiler
         }
 
         return implode("\0", $parts);
+    }
+
+    /**
+     * True when `installed.json` marks this package as installed via a Composer path
+     * repository — `dist.type === 'path'` or `source.type === 'path'`. This is the
+     * authoritative signal; `install-path` presence is not (see the docblock above).
+     *
+     * @param array<string, mixed> $package
+     */
+    private function isPathInstalledPackage(array $package): bool
+    {
+        $distType = $package['dist']['type'] ?? null;
+        if ($distType === 'path') {
+            return true;
+        }
+
+        $sourceType = $package['source']['type'] ?? null;
+
+        return $sourceType === 'path';
     }
 
     private function readFileRaw(string $path): string
