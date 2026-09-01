@@ -113,6 +113,17 @@ final class AuthTokenRepository implements AuthTokenRepositoryInterface
             ->execute();
     }
 
+    public function consumeTokenIfAvailable(int $tokenId): bool
+    {
+        $this->ensureSchema();
+
+        return $this->db->update(self::TABLE)
+            ->fields(['consumed_at' => time()])
+            ->condition('id', $tokenId)
+            ->condition('consumed_at', null, 'IS NULL')
+            ->execute() === 1;
+    }
+
     public function revokeTokensForUser(int|string $userId, ?string $type = null): void
     {
         $this->ensureSchema();

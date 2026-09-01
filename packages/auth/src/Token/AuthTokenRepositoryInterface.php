@@ -41,6 +41,9 @@ interface AuthTokenRepositoryInterface
      */
     public function consumeToken(int $tokenId): void;
 
+    /** Atomically consume an available token; false means it was already consumed or absent. */
+    public function consumeTokenIfAvailable(int $tokenId): bool;
+
     /**
      * Revoke all tokens for a user, optionally filtered by type.
      */

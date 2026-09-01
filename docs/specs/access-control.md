@@ -839,9 +839,25 @@ Layer discipline: Foundation (layer 0) uses string constants for attribute class
 | `POST /api/auth/forgot-password` | `_public: true` | `ForgotPasswordController` |
 | `POST /api/auth/reset-password` | `_public: true` | `ResetPasswordController` |
 | `POST /api/auth/verify-email` | `_public: true` | `VerifyEmailController` |
-| `POST /api/auth/resend-verification` | `_authenticated: true` | `ResendVerificationController` |
+| `POST /api/auth/resend-verification` | `_public: true` | `ResendVerificationController` |
 
-`ResendVerificationController` requires an active authenticated session. `AccessChecker` short-circuits with `unauthenticated` (401) if the `_account` attribute on the request is anonymous. The other seven endpoints are public — no session required. `LoginController` applies its own rate limiting (5 attempts per IP per 60s).
+All eight endpoints are public at the route layer. `ResendVerificationController`
+accepts an email address without granting pending or full authentication, uses
+uniform responses for absent/already-verified accounts, and rate-limits both
+the normalized address and source IP. This keeps verification recovery usable
+after a browser restart without creating an account-existence oracle.
+The bundled public verification page therefore collects the registration
+email explicitly; its in-session banner reuses the current account email.
+Successful password-login and `GET /api/user/me` account payloads carry the
+audited canonical state as the camelCase boolean `emailVerified`.
+
+`AuthenticationEligibilityInterface` is the one session-admission contract.
+The auth-owned implementation requires an active User and, when
+`auth.require_verified_email` is true, the audited canonical
+`email_verified` value. Registration, password login, direct `AuthManager`
+login, pending-2FA promotion, bearer resolution, and existing-session
+resolution all use that same policy before authorization. Policy false retains
+historical active-user behavior; invite registration remains verified.
 
 All auth controllers accept an optional `?LoggerInterface $logger` (defaults to `NullLogger`). DevLog-mode verification/reset URLs and best-effort email failures are logged via this interface rather than `error_log()`.
 
@@ -857,7 +873,7 @@ All auth endpoints apply rate limiting via `RateLimiterInterface` keyed on IP or
 | `POST /api/auth/forgot-password` | 3 per email per 15 min, 10 per IP per hour |
 | `POST /api/auth/reset-password` | 10 per IP per hour |
 | `POST /api/auth/verify-email` | 10 per IP per hour |
-| `POST /api/auth/resend-verification` | 3 per user per hour |
+| `POST /api/auth/resend-verification` | 3 per normalized email per hour, 10 per IP per hour |
 
 Rate limit responses return 429 with a `Retry-After` header.
 

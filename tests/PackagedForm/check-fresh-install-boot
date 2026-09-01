@@ -52,6 +52,15 @@ cp "$source_root/tests/FreshInstallBoot/AuthExtensionConsumerServiceProvider.php
 rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
 mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
 
+# Exercise the secure non-default in the real packaged consumer. The skeleton
+# keeps it false for compatibility; this proof turns it on before boot.
+php -r '
+    $path = $argv[1];
+    $config = require $path;
+    $config["auth"]["require_verified_email"] = true;
+    file_put_contents($path, "<?php\n\nreturn " . var_export($config, true) . ";\n");
+' "$consumer/config/waaseyaa.php"
+
 # Resolve every waaseyaa/* — including the waaseyaa/framework metapackage at the
 # repository root — from the candidate tree rather than Packagist.
 php -r '

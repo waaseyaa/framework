@@ -6,7 +6,6 @@ const { register } = useAuth()
 const { logoUrl, auth } = useAdminConfig()
 
 const registrationMode = auth.registration ?? 'admin'
-const requireVerifiedEmail = auth.requireVerifiedEmail
 const inviteToken = route.query.token as string | undefined
 
 if (registrationMode === 'admin') {
@@ -47,7 +46,7 @@ async function handleSubmit(credentials: {
       inviteToken,
     )
     if (result.success) {
-      await navigateTo(requireVerifiedEmail ? '/verify-email' : '/')
+      await navigateTo(result.verificationRequired ? '/verify-email' : '/')
     } else {
       error.value = result.error ?? 'Registration failed.'
     }

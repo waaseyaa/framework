@@ -22,6 +22,7 @@ use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
 use Waaseyaa\User\Session\NativeSession;
 use Waaseyaa\User\User;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 
 #[CoversClass(SessionMiddleware::class)]
 final class SessionMiddlewareTest extends TestCase
@@ -150,6 +151,64 @@ final class SessionMiddlewareTest extends TestCase
 
         self::assertInstanceOf(AnonymousUser::class, $capturedAccount);
         self::assertSame(['unrelated' => 'preserved'], $request->attributes->get('_session'));
+    }
+
+    #[Test]
+    public function rejects_and_clears_an_existing_unverified_session_when_required(): void
+    {
+        $user = new User(['uid' => 42, 'status' => true, 'email_verified' => false]);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        $request = Request::create('/protected');
+        $request->attributes->set('_session', [
+            'waaseyaa_uid' => 42,
+            'waaseyaa_session_generation' => 0,
+            'unrelated' => 'preserved',
+        ]);
+
+        $captured = null;
+        new SessionMiddleware(
+            $repository,
+            internalFields: $this->internalFields(),
+            authenticationEligibility: AuthenticationEligibilityFixture::policy(requireVerifiedEmail: true),
+        )->process($request, new class($captured) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$captured) {}
+            public function handle(Request $request): Response
+            {
+                $this->captured = $request->attributes->get('_account');
+                return new Response();
+            }
+        });
+
+        self::assertInstanceOf(AnonymousUser::class, $captured);
+        self::assertSame(['unrelated' => 'preserved'], $request->attributes->get('_session'));
+    }
+
+    #[Test]
+    public function rejects_a_pre_resolved_unverified_bearer_user_when_required(): void
+    {
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $request = Request::create('/protected');
+        $request->attributes->set('_account', new User([
+            'uid' => 42,
+            'status' => true,
+            'email_verified' => false,
+        ]));
+
+        $captured = null;
+        new SessionMiddleware(
+            $repository,
+            authenticationEligibility: AuthenticationEligibilityFixture::policy(requireVerifiedEmail: true),
+        )->process($request, new class($captured) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$captured) {}
+            public function handle(Request $request): Response
+            {
+                $this->captured = $request->attributes->get('_account');
+                return new Response();
+            }
+        });
+
+        self::assertInstanceOf(AnonymousUser::class, $captured);
     }
 
     #[Test]

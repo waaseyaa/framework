@@ -11,6 +11,8 @@ use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\User\Authentication\AuthenticationStage;
 use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
@@ -41,6 +43,7 @@ final class VerifyTwoFactorController
         private readonly RateLimiterInterface $rateLimiter,
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly UserInternalFieldReaderInterface $internalFields,
+        private readonly AuthenticationEligibilityInterface $eligibility,
         ?AuthExtensionRegistry $extensions = null,
     ) {
         $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
@@ -50,6 +53,16 @@ final class VerifyTwoFactorController
     {
         [$user, $isPending] = $this->resolveUser($request);
         if ($user === null) {
+            return new JsonResponse([
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '401', 'title' => 'Unauthorized', 'detail' => 'Authentication required.']],
+            ], 401);
+        }
+
+        if ($isPending && !$this->eligibility->allows($user, AuthenticationStage::TwoFactorPromotion)) {
+            unset($_SESSION['waaseyaa_pending_2fa_uid']);
+            AuthenticatedSession::clearIdentity();
+
             return new JsonResponse([
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '401', 'title' => 'Unauthorized', 'detail' => 'Authentication required.']],

@@ -2,7 +2,7 @@
 definePageMeta({ layout: false })
 
 const route = useRoute()
-const { verifyEmail, resendVerification, logout } = useAuth()
+const { currentUser, pendingVerificationEmail, verifyEmail, resendVerification, logout } = useAuth()
 
 const token = computed(() => route.query.token as string | undefined)
 
@@ -19,6 +19,7 @@ let cooldownTimer: ReturnType<typeof setInterval> | null = null
 const resending = ref(false)
 const resendError = ref<string>('')
 const resendSuccess = ref(false)
+const resendEmail = ref(pendingVerificationEmail.value)
 
 function startCooldown() {
   cooldown.value = 60
@@ -36,7 +37,7 @@ async function handleResend() {
   resendSuccess.value = false
   resending.value = true
   try {
-    const result = await resendVerification()
+    const result = await resendVerification(resendEmail.value)
     if (result.ok) {
       resendSuccess.value = true
       startCooldown()
@@ -60,7 +61,8 @@ onMounted(async () => {
     verifying.value = false
     if (result.ok) {
       verified.value = true
-      setTimeout(() => navigateTo('/'), 2000)
+      const target = currentUser.value ? '/' : (result.redirect ?? '/login')
+      setTimeout(() => navigateTo(target), 2000)
     } else {
       verifyError.value = result.error ?? 'Email verification failed.'
     }
@@ -100,6 +102,15 @@ onUnmounted(() => {
         <template v-else>
           <h1 class="verify-heading">Verification failed</h1>
           <p class="verify-error">{{ verifyError }}</p>
+          <label class="verify-email-label" for="verification-email-failed">Email address</label>
+          <input
+            id="verification-email-failed"
+            v-model="resendEmail"
+            class="verify-email-input"
+            type="email"
+            autocomplete="email"
+            required
+          >
           <button
             class="verify-btn"
             :disabled="resending || cooldown > 0"
@@ -128,6 +139,15 @@ onUnmounted(() => {
           We sent a verification link to your email address.
           Click the link to verify your account.
         </p>
+        <label class="verify-email-label" for="verification-email">Email address</label>
+        <input
+          id="verification-email"
+          v-model="resendEmail"
+          class="verify-email-input"
+          type="email"
+          autocomplete="email"
+          required
+        >
         <button
           class="verify-btn"
           :disabled="resending || cooldown > 0"
@@ -216,6 +236,29 @@ onUnmounted(() => {
 
 .verify-hint.success {
   color: #0d4f4f;
+}
+
+.verify-email-label {
+  align-self: flex-start;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.verify-email-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #0f172a;
+  font-size: 0.9375rem;
+}
+
+.verify-email-input:focus {
+  border-color: #0f766e;
+  outline: 2px solid rgb(20 184 166 / 0.2);
+  outline-offset: 1px;
 }
 
 .verify-success {

@@ -21,6 +21,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\User\AuthMailer;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 
 #[CoversClass(RegisterController::class)]
 final class RegisterControllerTest extends TestCase
@@ -29,11 +30,11 @@ final class RegisterControllerTest extends TestCase
     // Helpers
     // ------------------------------------------------------------------
 
-    private function makeConfig(string $registration = 'open'): AuthConfig
+    private function makeConfig(string $registration = 'open', bool $requireVerifiedEmail = false): AuthConfig
     {
         return new AuthConfig(
             registration: $registration,
-            requireVerifiedEmail: false,
+            requireVerifiedEmail: $requireVerifiedEmail,
             mailMissingPolicy: MailMissingPolicy::DevLog,
             tokenSecret: 'test-secret',
             tokenTtls: [],
@@ -106,6 +107,7 @@ final class RegisterControllerTest extends TestCase
             rateLimiter: $rateLimiter ?? new RateLimiter(),
             identityLookup: new UserIdentityLookupFixture(),
             internalFields: new UserInternalFieldReaderFixture(),
+            eligibility: AuthenticationEligibilityFixture::policy($config->requireVerifiedEmail),
         );
     }
 
@@ -297,6 +299,48 @@ final class RegisterControllerTest extends TestCase
         $this->assertSame('alice@example.com', $data['data']['email']);
         $this->assertFalse($data['data']['email_verified']);
         $this->assertSame(0, $_SESSION['waaseyaa_session_generation']);
+    }
+
+    #[Test]
+    public function required_verification_creates_open_user_without_authentication_state(): void
+    {
+        $_SESSION = ['unrelated' => 'preserved'];
+        $controller = $this->makeController(
+            config: $this->makeConfig('open', requireVerifiedEmail: true),
+            entityTypeManager: $this->makeEntityTypeManager($this->makeStorage()),
+        );
+
+        $response = $controller($this->makeRequest([
+            'name' => 'Alice',
+            'email' => 'alice@example.com',
+            'password' => 'password123',
+        ]));
+
+        self::assertSame(201, $response->getStatusCode());
+        self::assertSame(['unrelated' => 'preserved'], $_SESSION);
+        $document = json_decode((string) $response->getContent(), true);
+        self::assertFalse($document['data']['email_verified']);
+        self::assertTrue($document['meta']['verification_required']);
+    }
+
+    #[Test]
+    public function registration_canonicalizes_email_case_for_restart_safe_lookup(): void
+    {
+        $_SESSION = [];
+        $controller = $this->makeController(
+            config: $this->makeConfig('open', requireVerifiedEmail: true),
+            entityTypeManager: $this->makeEntityTypeManager($this->makeStorage()),
+        );
+
+        $response = $controller($this->makeRequest([
+            'name' => 'Mixed Case',
+            'email' => ' Member@Example.Test ',
+            'password' => 'password123',
+        ]));
+
+        self::assertSame(201, $response->getStatusCode());
+        $document = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('member@example.test', $document['data']['email']);
     }
 
     #[Test]

@@ -1,4 +1,10 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-01 - #2757: HttpKernel resolves the neutral
+authentication-eligibility contract and injects it into SessionMiddleware.
+Standalone stacks with no auth policy retain historical behavior only when the
+verified-email setting is absent/false; configured enforcement without its
+canonical binding fails boot. Full request semantics live in
+middleware-pipeline.md. -->
 <!-- Spec reviewed 2026-08-29 - #2700: HttpKernel requires the audited
 user-internal-field reader when constructing SessionMiddleware. Authenticated
 sessions now carry an account session generation; middleware compares it with

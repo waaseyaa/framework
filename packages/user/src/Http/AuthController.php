@@ -44,7 +44,14 @@ final class AuthController
 
         if ($account instanceof User) {
             $identity = $this->internalFields->sessionIdentity($account);
-            $data = ['id' => $account->id(), 'name' => $identity->name, 'email' => $identity->mail, 'roles' => $identity->roles];
+            $verification = $this->internalFields->verification($account);
+            $data = [
+                'id' => $account->id(),
+                'name' => $identity->name,
+                'email' => $identity->mail,
+                'roles' => $identity->roles,
+                'emailVerified' => $verification->emailVerified,
+            ];
         } else {
             $data = ['id' => $account->id(), 'name' => '', 'email' => '', 'roles' => $account->getRoles()];
         }

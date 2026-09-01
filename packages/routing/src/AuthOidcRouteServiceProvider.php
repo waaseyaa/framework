@@ -6,6 +6,8 @@ namespace Waaseyaa\Routing;
 
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
+use Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Controller\DisableTwoFactorController;
 use Waaseyaa\Auth\Controller\EnableTwoFactorController;
@@ -19,6 +21,7 @@ use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\SetupTwoFactorController;
 use Waaseyaa\Auth\Controller\VerifyEmailController;
 use Waaseyaa\Auth\Controller\VerifyTwoFactorController;
+use Waaseyaa\Auth\EmailVerificationTransaction;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
@@ -54,11 +57,14 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $authConfig = $this->resolve(AuthConfig::class);
         $tokenRepo = $this->resolve(AuthTokenRepositoryInterface::class);
         $rateLimiter = $this->resolve(RateLimiterInterface::class);
+        $atomicRateLimiter = $this->resolve(AtomicRateLimiterInterface::class);
         $authMailer = $this->resolve(AuthMailer::class);
         $twoFactor = $this->resolve(TwoFactorService::class);
         $identityLookup = $this->resolve(UserIdentityLookupInterface::class);
         $internalFields = $this->resolve(UserInternalFieldReaderInterface::class);
         $passwords = $this->resolve(LegacyPasswordUpgrade::class);
+        $eligibility = $this->resolve(VerifiedEmailAuthenticationEligibility::class);
+        $verificationTransaction = $this->resolve(EmailVerificationTransaction::class);
         $extensions = $this->resolve(AuthExtensionRegistry::class);
         $logger = $this->resolveOptional(LoggerInterface::class);
         assert($logger === null || $logger instanceof LoggerInterface);
@@ -75,6 +81,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     rateLimiter: $rateLimiter,
                     identityLookup: $identityLookup,
                     internalFields: $internalFields,
+                    eligibility: $eligibility,
                     logger: $logger,
                     extensions: $extensions,
                 ))
@@ -120,6 +127,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                 ->controller(new VerifyEmailController(
                     entityTypeManager: $etm,
                     tokenRepo: $tokenRepo,
+                    verificationTransaction: $verificationTransaction,
                     extensions: $extensions,
                 ))
                 ->allowAll()
@@ -135,11 +143,13 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     entityTypeManager: $etm,
                     tokenRepo: $tokenRepo,
                     authMailer: $authMailer,
-                    rateLimiter: $rateLimiter,
+                    rateLimiter: $atomicRateLimiter,
+                    identityLookup: $identityLookup,
+                    internalFields: $internalFields,
                     logger: $logger,
                     extensions: $extensions,
                 ))
-                ->requireAuthentication()
+                ->allowAll()
                 ->methods('POST')
                 ->build(),
         );
@@ -149,10 +159,11 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
             RouteBuilder::create('/api/auth/login')
                 ->controller(new LoginController(
                     entityTypeManager: $etm,
-                    rateLimiter: $rateLimiter,
+                    rateLimiter: $atomicRateLimiter,
                     twoFactor: $twoFactor,
                     identityLookup: $identityLookup,
                     internalFields: $internalFields,
+                    eligibility: $eligibility,
                     extensions: $extensions,
                     passwords: $passwords,
                 ))
@@ -208,6 +219,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     rateLimiter: $rateLimiter,
                     entityTypeManager: $etm,
                     internalFields: $internalFields,
+                    eligibility: $eligibility,
                     extensions: $extensions,
                 ))
                 ->allowAll()

@@ -9,7 +9,9 @@ use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\AuthManager;
+use Waaseyaa\Auth\Authentication\AuthenticationEligibilityException;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 use Waaseyaa\User\User;
 
 #[CoversClass(AuthManager::class)]
@@ -19,7 +21,7 @@ final class AuthManagerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->auth = new AuthManager(new UserInternalFieldReaderFixture());
+        $this->auth = new AuthManager(new UserInternalFieldReaderFixture(), AuthenticationEligibilityFixture::policy());
     }
 
     public function testAuthenticateReturnsUserOnValidCredentials(): void
@@ -71,6 +73,23 @@ final class AuthManagerTest extends TestCase
         $this->assertSame(0, $_SESSION['waaseyaa_session_generation']);
     }
 
+    public function testLoginRejectsUnverifiedUserBeforeSessionMutationWhenRequired(): void
+    {
+        $_SESSION = ['unrelated' => 'preserved'];
+        $auth = new AuthManager(
+            new UserInternalFieldReaderFixture(),
+            AuthenticationEligibilityFixture::policy(requireVerifiedEmail: true),
+        );
+        $user = $this->createActiveUser('alice@test.com', 'secret123');
+
+        try {
+            $auth->login($user);
+            self::fail('Expected ineligible direct login to be refused.');
+        } catch (AuthenticationEligibilityException) {
+            self::assertSame(['unrelated' => 'preserved'], $_SESSION);
+        }
+    }
+
     public function testLogoutClearsAllSessionData(): void
     {
         $_SESSION = ['waaseyaa_uid' => '123', 'other' => 'data'];
@@ -97,7 +116,7 @@ final class AuthManagerTest extends TestCase
         $originalId = session_id();
         $this->assertNotSame('', $originalId);
 
-        (new AuthManager(new UserInternalFieldReaderFixture()))->logout();
+        (new AuthManager(new UserInternalFieldReaderFixture(), AuthenticationEligibilityFixture::policy()))->logout();
 
         // All session data cleared.
         $this->assertSame([], $_SESSION);

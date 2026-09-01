@@ -1,5 +1,10 @@
 # OCAP Audit Log Substrate
 
+<!-- Spec reviewed 2026-09-01 - #2757: the exact `user.verification`
+CredentialVerification capability now includes `status` with `mail` and
+`email_verified`, allowing one least-privilege snapshot to decide active and
+verified authentication eligibility without reading password material. -->
+
 <!-- Spec reviewed 2026-08-29 - #2700: the existing `user.session-identity` / SessionBootstrap capability now grants `session_generation` alongside name, mail, and roles. Session issuance and middleware validation consume that exact audited value; generic reads remain forbidden. -->
 <!-- Spec reviewed 2026-08-27 - #2544: the `user.credentials` capability issuer now grants `['status', 'pass', 'legacy_pass']`. `legacy_pass` is read under the SAME CredentialVerification reason as `pass` because it is a password equivalent until the first successful login upgrades it away - it must not be reachable through any weaker reason. No new issuer, reason, or actor semantics. -->
 

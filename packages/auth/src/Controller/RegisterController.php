@@ -18,6 +18,8 @@ use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\User\Authentication\AuthenticationStage;
 use Waaseyaa\User\AuthMailer;
 use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
@@ -35,6 +37,7 @@ final class RegisterController
         private readonly RateLimiterInterface $rateLimiter,
         private readonly UserIdentityLookupInterface $identityLookup,
         private readonly UserInternalFieldReaderInterface $internalFields,
+        private readonly AuthenticationEligibilityInterface $eligibility,
         ?LoggerInterface $logger = null,
         ?AuthExtensionRegistry $extensions = null,
     ) {
@@ -60,7 +63,7 @@ final class RegisterController
         // 3. Parse JSON body
         $body = json_decode($request->getContent(), true) ?? [];
         $name = trim((string) ($body['name'] ?? ''));
-        $email = trim((string) ($body['email'] ?? ''));
+        $email = strtolower(trim((string) ($body['email'] ?? '')));
         $password = (string) ($body['password'] ?? '');
         $inviteToken = (string) ($body['invite_token'] ?? '');
 
@@ -185,7 +188,7 @@ final class RegisterController
         }
 
         // 12. Auto-login: regenerate session, set waaseyaa_uid
-        if (!$decision->requiresApproval) {
+        if (!$decision->requiresApproval && $this->eligibility->allows($user, AuthenticationStage::Registration)) {
             if (session_status() === PHP_SESSION_ACTIVE) {
                 session_regenerate_id(true);
             }
@@ -211,6 +214,7 @@ final class RegisterController
             ],
             'meta' => [
                 'approval_required' => $decision->requiresApproval,
+                'verification_required' => $this->config->requireVerifiedEmail && !$identity->emailVerified,
                 'redirect' => $this->extensions->redirect('registration', (string) $user->id())->path,
             ],
         ], 201);

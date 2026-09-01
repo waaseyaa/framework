@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth\Config;
 
+use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 
 /**
@@ -36,7 +37,10 @@ final readonly class AuthConfig
             $registration = 'admin';
         }
 
-        $requireVerifiedEmail = (bool) ($config['require_verified_email'] ?? false);
+        $requireVerifiedEmail = $config['require_verified_email'] ?? false;
+        if (!is_bool($requireVerifiedEmail)) {
+            throw new ConfigException('auth.require_verified_email must be a boolean.');
+        }
 
         $mailMissingPolicy = self::resolveMailPolicy($config['mail_missing_policy'] ?? null, $appEnv);
 

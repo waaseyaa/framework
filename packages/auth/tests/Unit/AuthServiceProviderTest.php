@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\AuthServiceProvider;
+use Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Config\MailMissingPolicy;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
@@ -22,6 +23,12 @@ use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\User\Authentication\AuthenticationStage;
+use Waaseyaa\User\User;
 
 #[CoversClass(AuthServiceProvider::class)]
 final class AuthServiceProviderTest extends TestCase
@@ -316,6 +323,42 @@ final class AuthServiceProviderTest extends TestCase
 
         self::assertInstanceOf(AuthExtensionRegistry::class, $registry);
         self::assertSame([], $registry->owners());
+    }
+
+    #[Test]
+    public function auth_owned_eligibility_cannot_be_shadowed_by_a_kernel_interface_binding(): void
+    {
+        $shadow = AuthenticationEligibilityFixture::policy();
+        $internalFields = new UserInternalFieldReaderFixture();
+        $provider = new AuthServiceProvider();
+        $provider->setKernelContext('', [
+            'environment' => 'testing',
+            'auth' => ['require_verified_email' => true],
+        ], []);
+        $provider->setKernelServices(new class ($shadow, $internalFields) implements KernelServicesInterface {
+            public function __construct(
+                private readonly AuthenticationEligibilityInterface $shadow,
+                private readonly UserInternalFieldReaderInterface $internalFields,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    AuthenticationEligibilityInterface::class => $this->shadow,
+                    UserInternalFieldReaderInterface::class => $this->internalFields,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        $canonical = $provider->resolve(VerifiedEmailAuthenticationEligibility::class);
+        self::assertSame($canonical, $provider->resolve(AuthenticationEligibilityInterface::class));
+        self::assertNotSame($shadow, $canonical);
+        self::assertFalse($canonical->allows(
+            new User(['uid' => 7, 'status' => true, 'mail' => 'member@example.test', 'email_verified' => false]),
+            AuthenticationStage::PasswordLogin,
+        ));
     }
 
     #[Test]

@@ -1363,6 +1363,13 @@
             "occurrence": 2
         },
         {
+            "path": "packages/auth/tests/Unit/Token/AuthTokenRepositoryTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 3
+        },
+        {
             "path": "packages/cache/tests/Unit/Backend/DatabaseBackendTest.php",
             "pattern": "pdo_constructor",
             "class": "test",
@@ -6138,6 +6145,13 @@
         },
         {
             "path": "tests/Integration/Auth/AuthTokenSecretKernelParityTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Auth/VerifiedEmailLifecycleTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",

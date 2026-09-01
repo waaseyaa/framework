@@ -1,5 +1,11 @@
 # API Layer
 
+<!-- Spec reviewed 2026-09-01 - #2757: AuthOidcRouteServiceProvider injects
+the canonical authentication-eligibility policy into registration, login, and
+two-factor promotion, makes verification resend public with an email request
+body, and injects the auth-owned atomic verification transaction. Endpoint
+semantics are specified in access-control.md. -->
+
 <!-- Spec reviewed 2026-08-29 - #2700: AuthOidcRouteServiceProvider injects the
 audited user-internal-field reader into password-reset and two-factor
 verification controllers. Reset atomically advances the account's session

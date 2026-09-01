@@ -13,10 +13,21 @@ namespace Waaseyaa\Auth;
  *
  * @internal
  */
-final class RateLimiter implements RateLimiterInterface
+final class RateLimiter implements AtomicRateLimiterInterface
 {
     /** @var array<string, array{count: int, resetAt: int}> */
     private array $attempts = [];
+
+    public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+    {
+        if ($this->tooManyAttempts($key, $maxAttempts)) {
+            return false;
+        }
+
+        $this->hit($key, $decaySeconds);
+
+        return true;
+    }
 
     /**
      * Record a hit for the given key.

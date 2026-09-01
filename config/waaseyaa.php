@@ -60,6 +60,9 @@ return [
     // Dev-only fallback account for local built-in server workflows.
     // Must remain false outside local development.
     'auth' => [
+        // Set true to require canonical email verification before any User can
+        // acquire or retain an authenticated identity.
+        'require_verified_email' => false,
         'dev_fallback_account' => filter_var(
             getenv('WAASEYAA_DEV_FALLBACK_ACCOUNT') ?: false,
             FILTER_VALIDATE_BOOLEAN,

@@ -1413,6 +1413,12 @@ New keys exposed via `useRuntimeConfig().public`:
 
 ### useAuth Extensions
 
+The account payloads returned by password login and `/api/user/me` include the
+camelCase `emailVerified` boolean. `resendVerification(email?)` sends the
+required email field explicitly: the in-session banner may use the current
+account email, while `/verify-email` collects it so recovery still works after
+browser state and cookies have been cleared.
+
 `packages/admin/app/composables/useAuth.ts` extended with:
 
 ```ts

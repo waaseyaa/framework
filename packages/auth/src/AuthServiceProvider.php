@@ -23,6 +23,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\ProviderCapabilitySource;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
 use Waaseyaa\User\RoleRepository;
 
 final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface, ProvidesApplicationMasterRekeyContributionsInterface
@@ -41,8 +42,15 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
             $this->resolveOptional(\Waaseyaa\Foundation\Log\LoggerInterface::class),
         ));
 
+        $this->singleton(Authentication\VerifiedEmailAuthenticationEligibility::class, fn() => new Authentication\VerifiedEmailAuthenticationEligibility(
+            $this->resolve(Config\AuthConfig::class),
+            $this->resolve(UserInternalFieldReaderInterface::class),
+        ));
+        $this->singleton(AuthenticationEligibilityInterface::class, fn() => $this->resolve(Authentication\VerifiedEmailAuthenticationEligibility::class));
+
         $this->singleton(AuthManager::class, fn() => new AuthManager(
             $this->resolve(UserInternalFieldReaderInterface::class),
+            $this->resolve(AuthenticationEligibilityInterface::class),
             $this->resolve(Password\LegacyPasswordUpgrade::class),
         ));
 
@@ -83,6 +91,11 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
             $repo->ensureSchema();
             return $repo;
         });
+
+        $this->singleton(EmailVerificationTransaction::class, fn() => new EmailVerificationTransaction(
+            $this->resolve(\Waaseyaa\Database\DatabaseInterface::class),
+            $this->resolve(Token\AuthTokenRepositoryInterface::class),
+        ));
 
         // Durable bearer-token lifecycle store (#2177 F3). Consumed by the MCP
         // write tier's default auth and the `bearer-token:*` operator commands.

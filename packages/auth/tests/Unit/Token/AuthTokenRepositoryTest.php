@@ -65,4 +65,17 @@ final class AuthTokenRepositoryTest extends TestCase
 
         self::assertFalse($database->schema()->fieldExists('auth_tokens', 'user_id'));
     }
+
+    #[Test]
+    public function available_token_can_be_consumed_exactly_once(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        AuthSchema::install($database);
+        $repo = new AuthTokenRepository($database, 'abcdefghijklmnopqrstuvwxyz012345');
+        $token = $repo->createToken(7, 'email_verification', 3600);
+        $tokenId = $repo->validateToken($token, 'email_verification')['id'];
+
+        self::assertTrue($repo->consumeTokenIfAvailable($tokenId));
+        self::assertFalse($repo->consumeTokenIfAvailable($tokenId));
+    }
 }

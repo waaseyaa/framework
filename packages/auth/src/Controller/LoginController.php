@@ -13,6 +13,8 @@ use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\User\Authentication\AuthenticationStage;
 use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
@@ -26,6 +28,7 @@ final class LoginController
         private readonly TwoFactorService $twoFactor,
         private readonly UserIdentityLookupInterface $identityLookup,
         private readonly UserInternalFieldReaderInterface $internalFields,
+        private readonly AuthenticationEligibilityInterface $eligibility,
         ?AuthExtensionRegistry $extensions = null,
         private readonly ?LegacyPasswordUpgrade $passwords = null,
     ) {
@@ -89,6 +92,17 @@ final class LoginController
             ], 401);
         }
 
+        if (!$this->eligibility->allows($user, AuthenticationStage::PasswordLogin)) {
+            $this->rateLimiter->hit($rateLimitKey, 60);
+            AuthenticatedSession::clearIdentity();
+            unset($_SESSION['waaseyaa_pending_2fa_uid']);
+
+            return new JsonResponse([
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '401', 'title' => 'Unauthorized', 'detail' => 'Invalid credentials.']],
+            ], 401);
+        }
+
         $this->rateLimiter->clear($rateLimitKey);
 
         if (session_status() !== \PHP_SESSION_ACTIVE) {
@@ -118,6 +132,7 @@ final class LoginController
         }
 
         $identity = $this->internalFields->sessionIdentity($user);
+        $verification = $this->internalFields->verification($user);
         AuthenticatedSession::issue($user, $identity->generation);
         session_regenerate_id(true);
 
@@ -130,6 +145,7 @@ final class LoginController
                 'name' => $identity->name,
                 'email' => $identity->mail,
                 'roles' => $identity->roles,
+                'emailVerified' => $verification->emailVerified,
             ],
             'meta' => ['redirect' => $this->extensions->redirect('login', (string) $user->id())->path],
         ]);
