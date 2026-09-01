@@ -37,4 +37,23 @@ final class UserIdentityLookupFixture implements UserIdentityLookupInterface
             ->range(0, 1)
             ->execute() !== [];
     }
+
+    public function findActiveByMail(EntityRepositoryInterface $repository, string $mail): ?EntityInterface
+    {
+        foreach (['=', 'CASE_INSENSITIVE_EQUALS'] as $operator) {
+            $query = $repository->getQuery()->accessCheck(false);
+            $query = $operator === '='
+                ? $query->condition('mail', $mail)
+                : $query->condition('mail', $mail, $operator);
+            $ids = $query->condition('status', 1)->range(0, $operator === '=' ? 1 : 2)->execute();
+            if ($operator !== '=' && count($ids) !== 1) {
+                return null;
+            }
+            if ($ids !== []) {
+                return $repository->find((string) reset($ids));
+            }
+        }
+
+        return null;
+    }
 }

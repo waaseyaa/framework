@@ -67,10 +67,7 @@ final class ResendVerificationController
             );
         }
         $repository = $this->entityTypeManager->getRepository('user');
-        $candidate = $this->identityLookup->findActiveByLogin($repository, $submittedEmail);
-        if (!$candidate instanceof User && $submittedEmail !== $email) {
-            $candidate = $this->identityLookup->findActiveByLogin($repository, $email);
-        }
+        $candidate = $this->identityLookup->findActiveByMail($repository, $submittedEmail);
         $user = $candidate instanceof User ? $candidate : null;
         if ($user !== null) {
             $verification = $this->internalFields->verification($user);

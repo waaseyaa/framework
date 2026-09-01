@@ -5,6 +5,7 @@ CredentialVerification capability now includes `status` with `mail` and
 `email_verified`, allowing one least-privilege snapshot to decide active and
 verified authentication eligibility without reading password material. -->
 
+<!-- Spec reviewed 2026-09-01 - #2757 recovery correction: the audited User identity boundary exposes a mail-only recovery query distinct from the login namespace, preventing email-shaped usernames from shadowing address ownership. -->
 <!-- Spec reviewed 2026-09-01 - #2757: audited User identity lookup keeps exact username and legacy-email precedence, then uses bounded CASE_INSENSITIVE_EQUALS email fallback; email uniqueness uses the same canonical equality. Ambiguous historical case variants fail closed instead of selecting an arbitrary credential identity. -->
 <!-- Spec reviewed 2026-08-29 - #2700: the existing `user.session-identity` / SessionBootstrap capability now grants `session_generation` alongside name, mail, and roles. Session issuance and middleware validation consume that exact audited value; generic reads remain forbidden. -->
 <!-- Spec reviewed 2026-08-27 - #2544: the `user.credentials` capability issuer now grants `['status', 'pass', 'legacy_pass']`. `legacy_pass` is read under the SAME CredentialVerification reason as `pass` because it is a password equivalent until the first successful login upgrades it away - it must not be reachable through any weaker reason. No new issuer, reason, or actor semantics. -->

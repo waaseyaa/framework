@@ -48,6 +48,29 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
         }
     }
 
+    public function findActiveByMail(EntityRepositoryInterface $repository, string $mail): ?EntityInterface
+    {
+        $boundary = $this->capabilities->openBoundary(bin2hex(random_bytes(16)));
+        $capability = $this->capabilities->issueQueryRead('user.identity-lookup', new CapabilityIssueContext(
+            executionBoundary: $boundary->correlationId,
+            actorSemantics: CapabilityActorSemantics::NoActingContext,
+            actorId: null,
+            tenantId: null,
+            communityId: null,
+            expiresAt: new \DateTimeImmutable('+30 seconds'),
+            classificationGeneration: $this->classificationGeneration,
+            policyGeneration: $this->policyGeneration,
+        ), $boundary);
+        try {
+            $id = $this->execute($repository, $mail, 'mail', $capability, $boundary);
+            $id ??= $this->execute($repository, $mail, 'mail', $capability, $boundary, caseInsensitive: true);
+
+            return $id === null ? null : $repository->find((string) $id);
+        } finally {
+            $this->capabilities->revokeBoundary($boundary);
+        }
+    }
+
     public function mailExists(EntityRepositoryInterface $repository, string $mail): bool
     {
         $boundary = $this->capabilities->openBoundary(bin2hex(random_bytes(16)));

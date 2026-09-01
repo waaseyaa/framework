@@ -284,7 +284,7 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `ProtectedFieldReadPolicyInterface` | interface | Dedicated fail-closed Protected read policy; only explicit Allowed will release a value after activation |
 | `ProtectedReadPolicyProviderInterface` | interface | Additive companion through which a discovered legacy policy exposes its entity and field V2 read policies |
 | `UserInternalFieldReaderInterface` | interface | Narrow reason-specific User credential, session, mail, verification, 2FA, and maintenance read boundary |
-| `UserIdentityLookupInterface` | interface | Closed audited active-login and mail-existence query boundary |
+| `UserIdentityLookupInterface` | interface | Closed audited active-login, mail-only recovery, and mail-existence query boundary |
 | `User*Snapshot` | final readonly classes | Typed exact User internal inputs returned without exposing arbitrary field-name authority |
 | `CapabilityRegistryInterface` | interface | Kernel registry for reviewed, exact value-read and query-read capability declarations and one-boundary handles |
 | `CapabilityExecutionBoundary` | final class | Opaque, non-serializable proof whose registry-owned identity must be live and match at capability issuance and use |

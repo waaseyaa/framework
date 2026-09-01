@@ -1,5 +1,10 @@
 # Access Control
 
+<!-- Spec reviewed 2026-09-01 - #2757 recovery correction: verification resend
+and forgot-password use the dedicated audited findActiveByMail boundary. They
+never resolve the general login namespace, so an email-shaped username cannot
+shadow the User that owns the submitted address. -->
+
 <!-- Spec reviewed 2026-09-01 - #2757 follow-up: an ineligible password attempt
 returns the generic denial without mutating a different authenticated or pending
 identity already in the session. SessionMiddleware remains the authority that

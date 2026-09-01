@@ -12,5 +12,7 @@ interface UserIdentityLookupInterface
 {
     public function findActiveByLogin(EntityRepositoryInterface $repository, string $login): ?EntityInterface;
 
+    public function findActiveByMail(EntityRepositoryInterface $repository, string $mail): ?EntityInterface;
+
     public function mailExists(EntityRepositoryInterface $repository, string $mail): bool;
 }

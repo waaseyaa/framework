@@ -526,7 +526,8 @@ Before activation, framework User consumers converge on two required seams.
 `UserInternalFieldReaderInterface` exposes typed, reason-specific snapshots for
 credential verification, two-factor verification, mail delivery, verification,
 session response identity, and maintenance authorization; it never accepts a
-caller-selected field name. `UserIdentityLookupInterface` owns active login and
+caller-selected field name. `UserIdentityLookupInterface` owns active login,
+mail-only recovery, and
 mail-existence queries. Their audit implementations open one registry boundary,
 issue an exact reviewed capability, reserve before value/query execution,
 finalize the strict ledger outcome, and revoke the boundary in `finally`.

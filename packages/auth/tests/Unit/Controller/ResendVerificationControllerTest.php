@@ -40,7 +40,7 @@ final class ResendVerificationControllerTest extends TestCase
 
         if ($lookup === null) {
             $lookup = $this->createStub(UserIdentityLookupInterface::class);
-            $lookup->method('findActiveByLogin')->willReturn($found);
+            $lookup->method('findActiveByMail')->willReturn($found);
         }
 
         $tokens ??= $this->createStub(AuthTokenRepositoryInterface::class);
@@ -182,12 +182,32 @@ final class ResendVerificationControllerTest extends TestCase
         $user = new User(['uid' => 7, 'status' => true, 'mail' => 'Member@Example.Test', 'email_verified' => false]);
         $lookup = $this->createMock(UserIdentityLookupInterface::class);
         $lookup->expects(self::once())
-            ->method('findActiveByLogin')
+            ->method('findActiveByMail')
             ->with(self::isInstanceOf(EntityRepositoryInterface::class), 'Member@Example.Test')
             ->willReturn($user);
 
         $response = ($this->controller(found: $user, lookup: $lookup))(
             $this->request('Member@Example.Test'),
+        );
+
+        self::assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function email_shaped_username_cannot_shadow_the_mail_owner(): void
+    {
+        $mailOwner = new User(['uid' => 7, 'name' => 'victim', 'status' => true, 'mail' => 'victim@example.test', 'email_verified' => false]);
+        $lookup = $this->createMock(UserIdentityLookupInterface::class);
+        $lookup->expects(self::once())
+            ->method('findActiveByMail')
+            ->with(self::isInstanceOf(EntityRepositoryInterface::class), 'victim@example.test')
+            ->willReturn($mailOwner);
+        $lookup->expects(self::never())->method('findActiveByLogin');
+        $tokens = $this->createMock(AuthTokenRepositoryInterface::class);
+        $tokens->expects(self::once())->method('createToken')->with(7, 'email_verification', 86400)->willReturn('token');
+
+        $response = ($this->controller(tokens: $tokens, lookup: $lookup))(
+            $this->request('victim@example.test'),
         );
 
         self::assertSame(200, $response->getStatusCode());

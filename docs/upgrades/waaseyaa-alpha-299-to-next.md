@@ -35,3 +35,7 @@ storage. Existing mixed-case rows are not rewritten; resend first attempts the
 submitted spelling and identity lookup retains an exact legacy-email match
 before case-insensitive canonical fallback. Registration uniqueness uses that
 same canonical equality, so a case variant cannot create a second account.
+
+Custom `UserIdentityLookupInterface` implementations must add
+`findActiveByMail()`. Recovery controllers use this mail-only method so an
+email-shaped username cannot shadow the account that owns the address.

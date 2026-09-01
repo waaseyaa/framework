@@ -70,7 +70,7 @@ final class ForgotPasswordController
         // 5. Look up user by email (C-22 WP3: canonical repository; loadByKey()
         // has no repository equivalent, so the lookup is a bounded query + find()).
         $repository = $this->entityTypeManager->getRepository('user');
-        $entity = $this->identityLookup->findActiveByLogin($repository, $email);
+        $entity = $this->identityLookup->findActiveByMail($repository, $email);
 
         /** @var \Waaseyaa\User\User|null $user */
         $user = $entity;
