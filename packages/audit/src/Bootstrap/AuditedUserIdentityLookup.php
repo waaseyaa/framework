@@ -40,6 +40,7 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
         try {
             $id = $this->execute($repository, $login, 'name', $capability, $boundary);
             $id ??= $this->execute($repository, $login, 'mail', $capability, $boundary);
+            $id ??= $this->execute($repository, $login, 'mail', $capability, $boundary, caseInsensitive: true);
 
             return $id === null ? null : $repository->find((string) $id);
         } finally {
@@ -66,11 +67,15 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
                 bundles: ['user'],
                 fields: ['mail'],
                 operations: [QueryFieldOperation::Predicate, QueryFieldOperation::Exists],
-                normalizedShape: ['predicates' => [['mail', '=', '?']], 'range' => [0, 1]],
+                normalizedShape: ['predicates' => [['mail', 'CASE_INSENSITIVE_EQUALS', '?']], 'range' => [0, 1]],
             );
             $reservation = $this->reader->reserve($capability, $boundary, $request);
             try {
-                $ids = $repository->getQuery()->accessCheck(false)->condition('mail', $mail)->range(0, 1)->execute();
+                $ids = $repository->getQuery()
+                    ->accessCheck(false)
+                    ->condition('mail', $mail, 'CASE_INSENSITIVE_EQUALS')
+                    ->range(0, 1)
+                    ->execute();
             } catch (\Throwable $exception) {
                 $reservation->failed();
                 throw $exception;
@@ -89,6 +94,7 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
         string $identityField,
         \Waaseyaa\Access\Capability\QueryFieldReadCapability $capability,
         \Waaseyaa\Access\Capability\CapabilityExecutionBoundary $boundary,
+        bool $caseInsensitive = false,
     ): int|string|null {
         $request = QueryFieldReadRequest::fromShape(
             entityTypeId: 'user',
@@ -96,23 +102,34 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
             fields: [$identityField, 'status'],
             operations: [QueryFieldOperation::Predicate, QueryFieldOperation::Exists],
             normalizedShape: [
-                'predicates' => [[$identityField, '=', '?'], ['status', '=', '?']],
-                'range' => [0, 1],
+                'predicates' => [
+                    [$identityField, $caseInsensitive ? 'CASE_INSENSITIVE_EQUALS' : '=', '?'],
+                    ['status', '=', '?'],
+                ],
+                'range' => [0, $caseInsensitive ? 2 : 1],
             ],
         );
         $reservation = $this->reader->reserve($capability, $boundary, $request);
         try {
-            $ids = $repository->getQuery()
-                ->accessCheck(false)
-                ->condition($identityField, $login)
+            $query = $repository->getQuery()->accessCheck(false);
+            $query = $caseInsensitive
+                ? $query->condition($identityField, $login, 'CASE_INSENSITIVE_EQUALS')
+                : $query->condition($identityField, $login);
+            $ids = $query
                 ->condition('status', 1)
-                ->range(0, 1)
+                ->range(0, $caseInsensitive ? 2 : 1)
                 ->execute();
         } catch (\Throwable $exception) {
             $reservation->failed();
             throw $exception;
         }
         $reservation->succeeded();
+
+        if ($caseInsensitive && count($ids) !== 1) {
+            // An upgraded database may contain historical case-variant
+            // duplicates. Never select an arbitrary credential identity.
+            return null;
+        }
 
         $id = reset($ids);
 

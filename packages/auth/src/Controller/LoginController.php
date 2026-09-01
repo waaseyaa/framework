@@ -94,8 +94,6 @@ final class LoginController
 
         if (!$this->eligibility->allows($user, AuthenticationStage::PasswordLogin)) {
             $this->rateLimiter->hit($rateLimitKey, 60);
-            AuthenticatedSession::clearIdentity();
-            unset($_SESSION['waaseyaa_pending_2fa_uid']);
 
             return new JsonResponse([
                 'jsonapi' => ['version' => '1.1'],

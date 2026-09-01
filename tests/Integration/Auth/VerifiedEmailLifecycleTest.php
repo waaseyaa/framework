@@ -99,7 +99,7 @@ final class VerifiedEmailLifecycleTest extends TestCase
         );
         $registration = $register($this->json('/api/auth/register', [
             'name' => 'member',
-            'email' => 'member@example.test',
+            'email' => 'Member@Example.Test',
             'password' => 'correct horse battery staple',
         ]));
         self::assertSame(201, $registration->getStatusCode());
@@ -133,7 +133,7 @@ final class VerifiedEmailLifecycleTest extends TestCase
             $eligibility,
         );
         self::assertSame(200, $login($this->json('/api/auth/login', [
-            'username' => 'member@example.test',
+            'username' => 'Member@Example.Test',
             'password' => 'correct horse battery staple',
         ]))->getStatusCode());
 

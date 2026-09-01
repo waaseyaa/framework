@@ -32,4 +32,6 @@ as active.
 
 New registrations lowercase email addresses before uniqueness checks and
 storage. Existing mixed-case rows are not rewritten; resend first attempts the
-submitted spelling and then the lowercase canonical spelling for compatibility.
+submitted spelling and identity lookup retains an exact legacy-email match
+before case-insensitive canonical fallback. Registration uniqueness uses that
+same canonical equality, so a case variant cannot create a second account.

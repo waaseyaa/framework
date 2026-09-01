@@ -259,7 +259,7 @@ final class LoginControllerTest extends TestCase
     }
 
     #[Test]
-    public function required_verification_uses_generic_denial_and_clears_authentication_state(): void
+    public function required_verification_denial_does_not_mutate_an_existing_identity(): void
     {
         $_SESSION = [
             'waaseyaa_uid' => 99,
@@ -277,7 +277,12 @@ final class LoginControllerTest extends TestCase
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('Invalid credentials.', json_decode((string) $response->getContent(), true)['errors'][0]['detail']);
-        self::assertSame(['unrelated' => 'preserved'], $_SESSION);
+        self::assertSame([
+            'waaseyaa_uid' => 99,
+            'waaseyaa_session_generation' => 0,
+            'waaseyaa_pending_2fa_uid' => 99,
+            'unrelated' => 'preserved',
+        ], $_SESSION);
     }
 
     /** @return array{EntityTypeManager, LegacyPasswordUpgrade} */

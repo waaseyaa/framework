@@ -1,5 +1,12 @@
 # Access Control
 
+<!-- Spec reviewed 2026-09-01 - #2757 follow-up: an ineligible password attempt
+returns the generic denial without mutating a different authenticated or pending
+identity already in the session. SessionMiddleware remains the authority that
+revokes the current account when that current account itself becomes
+ineligible. Email identity comparison preserves exact legacy matches before a
+bounded case-insensitive fallback and fails closed on ambiguous variants. -->
+
 <!-- Spec reviewed 2026-08-27 - #2544 legacy password upgrade: `User::$legacy_pass` is a NEW credential field carrying `pass`'s exact classification - FieldReadLevel::Internal, on every always-internal list, readable only through the audited `user.credentials` capability, and Forbidden on the generic field surface via UserAccessPolicy::CREDENTIAL_FIELDS (same as `pass`). HTTP POST /api/auth/login receives LegacyPasswordUpgrade from AuthOidcRouteServiceProvider. It holds a credential imported from another system pending one-time upgrade. Keeping it separate from `pass` is what makes "a current hash is never downgraded" structural: `pass` only ever holds a current Waaseyaa hash, only `legacy_pass` reaches a legacy verifier, and an account with a current hash never consults its legacy value. `UserCredentialSnapshot` gains `legacyPasswordHash`. Contract: docs/upgrade-notes/legacy-password-upgrade.md. -->
 
 

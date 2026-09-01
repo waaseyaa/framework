@@ -1352,6 +1352,9 @@ final class SqlEntityQuery implements EntityQueryInterface
                 $select = $isExpr
                     ? $select->whereRaw($field . " LIKE ? ESCAPE '\\'", [$pattern])
                     : $select->condition($field, $pattern, 'LIKE');
+            } elseif ($operator === 'CASE_INSENSITIVE_EQUALS') {
+                $value = $this->coerceConditionValue($fieldName, $condition['value'], $bundle);
+                $select = $select->whereRaw('LOWER(' . $field . ') = LOWER(?)', [$value]);
             } else {
                 $value = $this->coerceConditionValue($fieldName, $condition['value'], $bundle);
                 if (!$isExpr) {

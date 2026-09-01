@@ -13,6 +13,13 @@ use Waaseyaa\Access\AccountInterface;
  */
 interface EntityQueryInterface
 {
+    /**
+     * Add a field predicate.
+     *
+     * `CASE_INSENSITIVE_EQUALS` is canonical text equality: SQL-backed
+     * implementations compare `LOWER(field) = LOWER(value)`. It is intended
+     * for bounded internal identity matching, not public filter elevation.
+     */
     public function condition(string $field, mixed $value, string $operator = '='): static;
 
     public function exists(string $field): static;
