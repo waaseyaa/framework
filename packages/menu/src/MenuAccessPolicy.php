@@ -20,6 +20,14 @@ final class MenuAccessPolicy implements AccessPolicyInterface
 
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
+        // #2755: a locked menu (e.g. 'main') is an invariant, not presentation
+        // metadata — refuse deletion for every account, including one holding
+        // 'administer menu'. Checked ahead of the permission grant below so
+        // Forbidden always wins, matching AccessResult::andIf()/orIf() polarity.
+        if ($operation === 'delete' && $entity instanceof Menu && $entity->isLocked()) {
+            return AccessResult::forbidden('Locked menus cannot be deleted.');
+        }
+
         if ($account->hasPermission('administer menu')) {
             return AccessResult::allowed('User has administer menu permission.');
         }

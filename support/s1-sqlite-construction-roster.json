@@ -250,6 +250,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/ai-agent/tests/Unit/Tool/Wayfinding/EmitBeaconAdapterParityTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
             "path": "packages/ai-agent/tests/Unit/Tool/Wayfinding/EmitBeaconToolTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -6725,6 +6732,13 @@
             "occurrence": 1
         },
         {
+            "path": "tests/Integration/PathAliasDomainInvariantTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
             "path": "tests/Integration/Phase11/AuthorizationPipelineTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -6992,6 +7006,13 @@
         },
         {
             "path": "tests/Integration/Phase7/MenuLinkObjectTargetJsonApiTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Phase7/MenuLockedDeleteJsonApiTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",

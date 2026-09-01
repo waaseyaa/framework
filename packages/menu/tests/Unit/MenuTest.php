@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Menu\Tests\Unit;
 
-use Waaseyaa\Menu\Menu;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Menu\Menu;
 
-/**
- * @covers \Waaseyaa\Menu\Menu
- */
+#[CoversClass(Menu::class)]
 final class MenuTest extends TestCase
 {
     public function testEntityTypeId(): void
@@ -65,6 +64,25 @@ final class MenuTest extends TestCase
     {
         $menu = new Menu(['id' => 'main', 'locked' => true]);
 
+        $this->assertTrue($menu->isLocked());
+    }
+
+    /**
+     * #2755: isLocked()/setLocked() must route through the value container
+     * (get()/set()), not a raw property — sealed V2 hydration bypasses the
+     * constructor for entities loaded from storage, so a value tracked only
+     * on a property never set outside the constructor silently resets to its
+     * class default on every reload.
+     */
+    public function testLockedRoundTripsThroughValueContainer(): void
+    {
+        $menu = new Menu(['id' => 'main']);
+
+        $this->assertFalse($menu->get('locked'), "The constructor must materialize 'locked' into the value bag even when absent from \$values.");
+
+        $menu->setLocked(true);
+
+        $this->assertTrue($menu->get('locked'));
         $this->assertTrue($menu->isLocked());
     }
 
