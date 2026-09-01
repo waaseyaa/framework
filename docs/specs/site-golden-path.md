@@ -96,18 +96,23 @@ validator, or compiler.
 The optional section does not change the normalized shape of a manifest that
 omits it. Existing v1 manifests therefore render to the same bytes and retain
 their existing digest. Presence of the section derives the required generator
-generator feature token `site-application-blueprint-v1`. This runtime roster is
-separate from authored `capabilities` and recipe capability references. An
-older closed parser rejects the unknown section, and a newer parser refuses
-dry-run rendering or publication when the installed generator cohort does not
-advertise that exact feature. No cohort may silently ignore a blueprint.
+feature token `site-application-blueprint-v1`. Generator feature tokens are a
+runtime-negotiation roster separate from authored `capabilities` and recipe
+capability references. An older closed parser rejects the unknown section, and
+a newer parser refuses dry-run rendering or publication when the installed
+generator cohort does not advertise that exact feature. No cohort may silently
+ignore a blueprint.
 
 The manifest document remains byte/digest stable when the section is absent,
 but the generated `.waaseyaa/site.schema.json` necessarily changes when the
 optional property is added. An initialized site takes the existing
 changed-managed-bytes upgrade path: rebind
 `framework.observed_lock_sha256` to the reviewed dependency lock and re-run
-`site:init`. This is not the unrecoverable changed-artifact-set case.
+`site:init`. This is not the unrecoverable changed-artifact-set case. Until the
+rebind, strict doctor, generated verification, and the generated architecture
+test are red; today's `SITE010_GENERATED_ARTIFACT_DRIFT` wording classifies the
+mismatch as substitution. #2787 owns the decision and test for distinguishing
+this reviewed schema-upgrade case.
 
 Authored YAML contains the proposal, never mutation authority. The canonical
 blueprint digest covers its fixed schema id, contract version, and complete
@@ -123,7 +128,8 @@ Lifecycle is derived rather than trusted from an authored state field:
 matching approval before publication, `applied` has the canonical approval and
 matching evidence in `.waaseyaa/generated.json`, `rejected` is request-scoped
 unless a higher layer retains its matching rejection, and
-`superseded` has decision or application evidence for different bytes. The
+`superseded` has applied evidence, or higher-layer retained decision evidence
+supplied with the request, for different bytes. The
 initializer extends the existing generated metadata and installs it last in
 the existing transaction; it does not create another generated artifact,
 approval authority, or transaction log. Receipt-aware rendering and strict

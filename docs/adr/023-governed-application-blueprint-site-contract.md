@@ -62,7 +62,7 @@ The section is not an opaque extension bag. Its keys and nested values are
 closed and versioned, and unknown input fails with stable codes and JSON Pointer
 paths rooted at `/application_blueprint`.
 
-### D-2 — capability negotiation is derived and fail-closed
+### D-2 — generator feature negotiation is derived and fail-closed
 
 Presence of `application_blueprint` derives the required generator feature
 token `site-application-blueprint-v1`. The token is not repeated as an authored
@@ -74,17 +74,17 @@ the site's authored `capabilities` declarations and recipe capability
 references. The hyphenated token deliberately satisfies the existing stable-id
 grammar, but it is never inserted into the manifest's `capabilities` list.
 
-The parsed `SiteManifest` exposes its derived required generator capabilities.
+The parsed `SiteManifest` exposes its derived required generator feature tokens.
 Before dry-run rendering or publication, `site:init` compares them with the
-exact capabilities advertised by the installed parser/generator cohort. A
-missing capability is a stable refusal before any artifact is rendered or
+exact feature tokens advertised by the installed parser/generator cohort. A
+missing feature token is a stable refusal before any artifact is rendered or
 written.
 
 An older v1 parser remains safe because its existing closed root shape rejects
 the unknown section. It must never accept a blueprint-bearing manifest and
 silently omit the section. Schema support and generator support are distinct:
 being able to parse the section does not permit a renderer that lacks the
-derived capability to apply it.
+derived feature token to apply it.
 
 ### D-3 — the manifest carries the proposal, not approval authority
 
@@ -150,7 +150,8 @@ receipt, and generated evidence:
   and resulting managed generation;
 - **rejected** — the current request carries a matching rejection receipt and
   no later valid approval; and
-- **superseded** — retained decision or applied evidence names a different
+- **superseded** — applied evidence in `.waaseyaa/generated.json`, or a retained
+  decision supplied as a request input by a higher layer, names a different
   blueprint or manifest digest.
 
 Before apply, `approved` and `rejected` are request-scoped unless a higher layer
@@ -212,7 +213,11 @@ easier consumer implementation are not sufficient.
   the optional property, including on existing blueprint-free sites. That is
   the existing changed-managed-bytes upgrade case: rebind
   `framework.observed_lock_sha256` to the reviewed dependency lock and re-run
-  `site:init`.
+  `site:init`. Until that rebind, `site:doctor --strict`, generated
+  `bin/maintenance/site-verify`, and the generated `SiteContractTest` are red;
+  today's `SITE010_GENERATED_ARTIFACT_DRIFT` wording reports the mismatch as
+  substitution. #2787 must decide and test whether diagnostics distinguish this
+  reviewed schema-upgrade case.
 - A blueprint-bearing manifest remains schema version 1 but requires the
   derived `site-application-blueprint-v1` generator feature token.
 - Older strict parsers refuse the unknown section; newer parsers refuse a
@@ -282,7 +287,8 @@ metadata is provider-specific, non-deterministic, and not mutation authority.
 - Editing any proposal byte invalidates an earlier approval receipt.
 - Editing context outside the proposal invalidates the receipt through the full
   manifest digest.
-- Rejected and superseded proposals cannot apply.
+- A rejection receipt in the current request cannot enter apply, and applied or
+  supplied evidence for different bytes cannot authorize apply.
 - Applied evidence is installed last, matches the managed generation, and is
   re-derived by strict verification.
 - The same valid blueprint and receipt apply idempotently without a model
