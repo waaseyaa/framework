@@ -7,8 +7,17 @@ namespace Waaseyaa\EntityStorage\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DeleteInterface;
+use Waaseyaa\Database\InsertInterface;
+use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\TransactionInterface;
+use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestConfigEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
@@ -333,7 +342,9 @@ final class SqlSchemaHandlerTest extends TestCase
     public function testDeclaredUniqueKeyPromotesBackfillsAndValidatesRuntimeSchema(): void
     {
         $baseType = new EntityType(
-            id: 'unique_entity', label: 'Unique Entity', class: TestStorageEntity::class,
+            id: 'unique_entity',
+            label: 'Unique Entity',
+            class: TestStorageEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid'],
             _fieldDefinitions: ['slug' => new FieldDefinition(name: 'slug', type: 'string')],
         );
@@ -344,7 +355,9 @@ final class SqlSchemaHandlerTest extends TestCase
         ])->execute();
 
         $authoritativeType = new EntityType(
-            id: 'unique_entity', label: 'Unique Entity', class: TestStorageEntity::class,
+            id: 'unique_entity',
+            label: 'Unique Entity',
+            class: TestStorageEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid'],
             _fieldDefinitions: ['slug' => new FieldDefinition(name: 'slug', type: 'string')],
             _storageUniqueKeys: [['name' => 'unique_entity_slug', 'fields' => ['slug']]],
@@ -362,7 +375,9 @@ final class SqlSchemaHandlerTest extends TestCase
     public function testDeclaredUniqueKeyRejectsAnUnknownField(): void
     {
         $type = new EntityType(
-            id: 'invalid_unique_entity', label: 'Invalid Unique Entity', class: TestStorageEntity::class,
+            id: 'invalid_unique_entity',
+            label: 'Invalid Unique Entity',
+            class: TestStorageEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid'],
             _storageUniqueKeys: [['name' => 'invalid_unique', 'fields' => ['missing']]],
         );
@@ -375,7 +390,9 @@ final class SqlSchemaHandlerTest extends TestCase
     public function testDeclaredSchemaTransitionRunsIdempotentlyDuringSchemaSync(): void
     {
         $type = new EntityType(
-            id: 'transition_entity', label: 'Transition Entity', class: TestStorageEntity::class,
+            id: 'transition_entity',
+            label: 'Transition Entity',
+            class: TestStorageEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid'],
             _storageSchemaTransitions: [TestAddSchemaColumnTransition::class],
         );
@@ -389,7 +406,9 @@ final class SqlSchemaHandlerTest extends TestCase
     public function testDeclaredSchemaTransitionMustImplementTheTransitionContract(): void
     {
         $type = new EntityType(
-            id: 'invalid_transition_entity', label: 'Invalid Transition Entity', class: TestStorageEntity::class,
+            id: 'invalid_transition_entity',
+            label: 'Invalid Transition Entity',
+            class: TestStorageEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid'],
             _storageSchemaTransitions: [\stdClass::class],
         );
@@ -397,6 +416,319 @@ final class SqlSchemaHandlerTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('must implement');
         new SqlSchemaHandler($type, $this->database)->ensureTable();
+    }
+
+    // ------------------------------------------------------------------
+    // Declared foreign-key runtime readiness (#2761: production HTTP/kernel
+    // boot must fail closed with [S1-DB106] rather than repair a missing
+    // declared foreign key, mirroring the existing unique-key contract).
+    // ------------------------------------------------------------------
+
+    public function testAssertRuntimeSchemaThrowsWhenDeclaredForeignKeyIsMissing(): void
+    {
+        $this->database->schema()->createTable('fk_ref_entity', [
+            'fields' => ['id' => ['type' => 'serial']],
+            'primary key' => ['id'],
+        ]);
+
+        // Base table materialized WITHOUT the declared foreign key — the
+        // exact shape a coordinated schema-sync run that never reached the
+        // foreign-key step (or a pre-existing install) leaves behind.
+        new SqlSchemaHandler($this->entityType, $this->database)->ensureTable();
+
+        $typeWithFk = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: $this->entityType->getKeys(),
+            _foreignKeys: [[
+                'name' => 'test_entity_fk_ref_fk',
+                'columns' => ['id'],
+                'table' => 'fk_ref_entity',
+                'references' => ['id'],
+            ]],
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('[S1-DB106]');
+        $this->expectExceptionMessageMatches('/foreign key/');
+        new SqlSchemaHandler($typeWithFk, $this->database)->assertRuntimeSchema();
+    }
+
+    public function testAssertRuntimeSchemaPassesWhenDeclaredForeignKeyIsPresent(): void
+    {
+        $this->database->schema()->createTable('fk_ref_entity', [
+            'fields' => ['id' => ['type' => 'serial']],
+            'primary key' => ['id'],
+        ]);
+
+        $typeWithFk = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: $this->entityType->getKeys(),
+            _foreignKeys: [[
+                'name' => 'test_entity_fk_ref_fk',
+                'columns' => ['id'],
+                'table' => 'fk_ref_entity',
+                'references' => ['id'],
+            ]],
+        );
+
+        // Coordinated schema sync: creates the base table AND the declared
+        // foreign key together.
+        $handler = new SqlSchemaHandler($typeWithFk, $this->database);
+        $handler->ensureTable();
+
+        $handler->assertRuntimeSchema();
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertRuntimeSchemaSkipsForeignKeyCheckWhenReferencedTableIsAbsent(): void
+    {
+        $typeWithFk = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: $this->entityType->getKeys(),
+            _foreignKeys: [[
+                'name' => 'test_entity_fk_ref_fk',
+                'columns' => ['id'],
+                'table' => 'never_created_ref_entity',
+                'references' => ['id'],
+            ]],
+        );
+
+        // The referenced table never exists in this test: ensureTable()
+        // additively skips the foreign key (mirrors EntitySchemaSync's
+        // ordering-tolerant retry across registration order), and
+        // assertRuntimeSchema() must not treat that as a readiness failure —
+        // the referenced entity type owns its own table's readiness.
+        $handler = new SqlSchemaHandler($typeWithFk, $this->database);
+        $handler->ensureTable();
+
+        $handler->assertRuntimeSchema();
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertRuntimeSchemaSkipsForeignKeyCheckWhenEntityTypeDoesNotDeclareForeignKeys(): void
+    {
+        // A minimal EntityTypeInterface implementor that does NOT implement
+        // EntityTypeForeignKeyDefinitionInterface — e.g. a bring-your-own
+        // entity type, or one predating #2761's opt-in FK contract.
+        // assertDeclaredForeignKeysReady() must treat "no FK contract" as
+        // "nothing to check", not attempt to inspect declared keys.
+        $type = new class implements EntityTypeInterface {
+            public function id(): string
+            {
+                return 'no_fk_contract_entity';
+            }
+
+            public function getLabel(): string
+            {
+                return 'No FK Contract Entity';
+            }
+
+            public function getClass(): string
+            {
+                return self::class;
+            }
+
+            public function getStorageClass(): string
+            {
+                /** @var class-string<EntityStorageInterface> */
+                return EntityStorageInterface::class;
+            }
+
+            public function getKeys(): array
+            {
+                return ['id' => 'id'];
+            }
+
+            public function isRevisionable(): bool
+            {
+                return false;
+            }
+
+            public function getRevisionDefault(): bool
+            {
+                return false;
+            }
+
+            public function isTranslatable(): bool
+            {
+                return false;
+            }
+
+            public function getBundleEntityType(): ?string
+            {
+                return null;
+            }
+
+            public function getConstraints(): array
+            {
+                return [];
+            }
+
+            /** @return array<string, FieldDefinitionInterface> */
+            public function getFieldDefinitions(): array
+            {
+                return [];
+            }
+
+            public function getPrimaryStorageBackend(): ?string
+            {
+                return null;
+            }
+
+            public function getGroup(): ?string
+            {
+                return null;
+            }
+
+            public function getDescription(): ?string
+            {
+                return null;
+            }
+
+            public function getTenancy(): ?array
+            {
+                return null;
+            }
+        };
+
+        $handler = new SqlSchemaHandler($type, $this->database);
+        $handler->ensureTable();
+
+        // Must not throw even though nothing ever created a foreign key —
+        // the entity type never declared any, so there is nothing to be
+        // ready.
+        $handler->assertRuntimeSchema();
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertRuntimeSchemaSkipsForeignKeyCheckWhenSchemaDriverLacksForeignKeySupport(): void
+    {
+        // Base table materialized normally via the real DBAL-backed schema.
+        new SqlSchemaHandler($this->entityType, $this->database)->ensureTable();
+
+        // Wrap the real database so schema() reports a SchemaInterface that
+        // does NOT implement ForeignKeySchemaInterface — the shape of a
+        // storage backend/driver with no portable FK introspection support.
+        // assertDeclaredForeignKeysReady() must skip the check rather than
+        // fail closed or fatal on a missing method.
+        $database = new class ($this->database) implements DatabaseInterface {
+            public function __construct(private readonly DBALDatabase $inner) {}
+
+            public function select(string $table, string $alias = ''): SelectInterface
+            {
+                return $this->inner->select($table, $alias);
+            }
+
+            public function insert(string $table): InsertInterface
+            {
+                return $this->inner->insert($table);
+            }
+
+            public function update(string $table): UpdateInterface
+            {
+                return $this->inner->update($table);
+            }
+
+            public function delete(string $table): DeleteInterface
+            {
+                return $this->inner->delete($table);
+            }
+
+            public function schema(): SchemaInterface
+            {
+                $inner = $this->inner->schema();
+
+                return new class ($inner) implements SchemaInterface {
+                    public function __construct(private readonly SchemaInterface $inner) {}
+
+                    public function tableExists(string $table): bool
+                    {
+                        return $this->inner->tableExists($table);
+                    }
+
+                    public function fieldExists(string $table, string $field): bool
+                    {
+                        return $this->inner->fieldExists($table, $field);
+                    }
+
+                    public function createTable(string $name, array $spec): void
+                    {
+                        $this->inner->createTable($name, $spec);
+                    }
+
+                    public function dropTable(string $table): void
+                    {
+                        $this->inner->dropTable($table);
+                    }
+
+                    public function addField(string $table, string $field, array $spec): void
+                    {
+                        $this->inner->addField($table, $field, $spec);
+                    }
+
+                    public function dropField(string $table, string $field): void
+                    {
+                        $this->inner->dropField($table, $field);
+                    }
+
+                    public function addIndex(string $table, string $name, array $fields): void
+                    {
+                        $this->inner->addIndex($table, $name, $fields);
+                    }
+
+                    public function dropIndex(string $table, string $name): void
+                    {
+                        $this->inner->dropIndex($table, $name);
+                    }
+
+                    public function addUniqueKey(string $table, string $name, array $fields): void
+                    {
+                        $this->inner->addUniqueKey($table, $name, $fields);
+                    }
+
+                    public function addPrimaryKey(string $table, array $fields): void
+                    {
+                        $this->inner->addPrimaryKey($table, $fields);
+                    }
+
+                    /** @return list<string> */
+                    public function listTableNames(): array
+                    {
+                        return $this->inner->listTableNames();
+                    }
+                };
+            }
+
+            public function transaction(string $name = ''): TransactionInterface
+            {
+                return $this->inner->transaction($name);
+            }
+
+            public function query(string $sql, array $args = []): \Traversable
+            {
+                return $this->inner->query($sql, $args);
+            }
+
+            public function quoteIdentifier(string $identifier): string
+            {
+                return $this->inner->quoteIdentifier($identifier);
+            }
+        };
+
+        $handler = new SqlSchemaHandler($this->entityType, $database);
+
+        // Must not throw even though the entity type declares no foreign
+        // keys of its own here — the point under test is that a schema
+        // driver without ForeignKeySchemaInterface support short-circuits
+        // the check entirely rather than erroring.
+        $handler->assertRuntimeSchema();
+        $this->addToAssertionCount(1);
     }
 
     /**

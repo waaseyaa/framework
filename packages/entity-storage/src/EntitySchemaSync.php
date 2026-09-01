@@ -87,6 +87,76 @@ final class EntitySchemaSync
         $executor->execute(fn() => $this->doSyncAll($definitions, $this->logger));
     }
 
+    /**
+     * Determine which of the given entity types require a schema mutation to
+     * bring their storage in sync — without applying anything.
+     *
+     * Runs the same {@see doSyncAll()} traversal `syncAll()` uses to apply,
+     * once per entity type, inside
+     * {@see CoordinatedEntitySchemaExecutor::requiresMutation()}'s query-only
+     * guard — the mechanism `syncAll()` already uses to decide whether the
+     * whole batch needs the singular mutation coordinator, applied here per
+     * definition instead of per batch. SQLite refuses the first attempted
+     * write under that guard, which proves the traversal is a genuine no-op
+     * when it completes without that refusal. So a table that already exists
+     * but is missing a column or index the current definition declares is
+     * correctly reported as requiring mutation, instead of being silently
+     * folded into "already exists" (#2732). This deliberately reuses the real
+     * materialization path rather than a second, hand-maintained model of
+     * what would change.
+     *
+     * On a non-SQLite connection, or one where a mutation is already in
+     * progress, the underlying planner cannot observe writes safely at all.
+     * Rather than asserting a false no-op — or, as `requiresMutation()`'s own
+     * conservative default would otherwise be presented, a false "will
+     * mutate" — every definition under consideration is reported as
+     * indeterminate: neither confirmed to need a mutation nor confirmed as a
+     * no-op (#2732). Callers that only need to *know whether the singular
+     * mutation coordinator must run* can keep using
+     * {@see CoordinatedEntitySchemaExecutor::requiresMutation()} directly (its
+     * conservative "assume mutation" default is the correct and safe answer
+     * for that question); this method is for callers that *report* the
+     * outcome, where presenting an unknown as "will alter" would be
+     * misleading on supported production platforms.
+     *
+     * @param iterable<EntityTypeInterface> $entityTypes
+     */
+    public function planMutatingEntityTypeIds(iterable $entityTypes): EntityTypeSchemaPlan
+    {
+        $executor = new CoordinatedEntitySchemaExecutor($this->database);
+
+        if (!$executor->canPreviewMutation()) {
+            $indeterminate = [];
+            foreach ($entityTypes as $entityType) {
+                $indeterminate[] = $entityType->id();
+            }
+
+            return new EntityTypeSchemaPlan(mutating: [], indeterminate: $indeterminate);
+        }
+
+        $mutating = [];
+        foreach ($entityTypes as $entityType) {
+            $planningLog = new BufferedPlanLogger();
+            try {
+                $requiresMutation = $executor->requiresMutation(
+                    fn() => $this->doSyncAll([$entityType], $planningLog),
+                );
+            } catch (\Throwable $planningFailure) {
+                $planningLog->replayTo($this->logger);
+
+                throw $planningFailure;
+            }
+
+            if ($requiresMutation) {
+                $mutating[] = $entityType->id();
+            } else {
+                $planningLog->replayTo($this->logger);
+            }
+        }
+
+        return new EntityTypeSchemaPlan(mutating: $mutating, indeterminate: []);
+    }
+
     /** @param iterable<EntityTypeInterface> $entityTypes */
     private function doSyncAll(iterable $entityTypes, ?LoggerInterface $logger): void
     {
