@@ -110,18 +110,31 @@ final class OpenAiCompatibleProviderTransportTest extends TestCase
         // cURL errno/message before it reaches the caller by design (never
         // leak transport detail across the credential boundary), so there is
         // no test-only way to classify the SUT's own connection the way
-        // assertPeerEndsOnlyOnTheTotalTimeout() classifies the probe's.
-        // A generous wall-clock floor is therefore still the only signal
-        // available for *this* connection. It stays far from both ends of the
-        // range the bug report evidenced — the reported early-teardown
-        // failures returned in ~0.366s, and a genuine hold to this 3.0s total
-        // lands within tens of milliseconds of it — so a 1.5s floor keeps
-        // wide margin from scheduling jitter on a loaded box while still
-        // catching a recurrence of the exact defect #2716 reported: an early
-        // teardown of the SUT's own connection silently passing as "the total
-        // fired".
+        // assertPeerEndsOnlyOnTheTotalTimeout() classifies the probe's. A
+        // wall-clock floor is the only signal available for *this*
+        // connection.
+        //
+        // #2716 root cause: that floor was flaky not because of the peer or
+        // the transport, but because {@see timeFailure()} measured it with
+        // `microtime(true)` — the wall clock (CLOCK_REALTIME). On a WSL2 /
+        // Hyper-V guest that clock is periodically stepped *backward* by the
+        // host's time-sync correction (reproduced live: `hrtime(true)`
+        // measured a steady ~3.14s on every run of a 25-run loop against this
+        // exact peer, while `microtime(true)` measured the same calls at
+        // ~1.57–1.70s on 2 of the 25 — a mid-call clock step, not a short
+        // call). That is exactly the reported defect shape: a suspiciously
+        // consistent short "elapsed" with no jitter pattern, because it is a
+        // step of roughly fixed size, not scheduling noise. `timeFailure()`
+        // now measures with `hrtime(true)` (CLOCK_MONOTONIC), which is
+        // immune to wall-clock steps, so this floor is back to being a
+        // trustworthy signal for "was this connection actually held to the
+        // total" rather than "did the host's clock happen to jump during the
+        // measurement window." Restored to the original 2.5s — a wide margin
+        // under the 3.0s total for genuine scheduling jitter on a loaded box,
+        // now that a clock step can no longer manufacture a false reading
+        // under it.
         self::assertGreaterThan(
-            1.5,
+            2.5,
             $elapsed,
             'The real (SUT) connection ended too early to have been held by the total timeout — '
                 . 'an early teardown, not a stall.',
@@ -254,16 +267,26 @@ final class OpenAiCompatibleProviderTransportTest extends TestCase
      * crosses the credential-custody boundary as the fixed taxonomy message, and
      * never carries the endpoint or the cURL detail back to the caller.
      *
+     * #2716 root cause: this used to measure with `microtime(true)`, i.e. the
+     * wall clock (CLOCK_REALTIME). On a WSL2 / Hyper-V guest that clock is
+     * periodically stepped backward by the host's time-sync correction, which
+     * can make a call that was genuinely held for the full total timeout
+     * measure as having returned almost instantly — not a real early
+     * teardown, just a clock step landing inside the measurement window.
+     * `hrtime(true)` reads CLOCK_MONOTONIC, which a wall-clock step cannot
+     * move, so it reports the operation's true duration regardless of when a
+     * time-sync correction lands.
+     *
      * @param \Closure(): mixed $operation
      */
     private function timeFailure(\Closure $operation, StallingTransportServer $server): float
     {
-        $startedAt = microtime(true);
+        $startedAt = \hrtime(true);
 
         try {
             $operation();
         } catch (TransportException $failure) {
-            $elapsed = microtime(true) - $startedAt;
+            $elapsed = (\hrtime(true) - $startedAt) / 1_000_000_000;
 
             self::assertSame('Provider transport unavailable.', $failure->getMessage());
             self::assertStringNotContainsString((string) $server->port, $failure->getMessage());
