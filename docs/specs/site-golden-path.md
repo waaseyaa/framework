@@ -96,27 +96,48 @@ validator, or compiler.
 The optional section does not change the normalized shape of a manifest that
 omits it. Existing v1 manifests therefore render to the same bytes and retain
 their existing digest. Presence of the section derives the required generator
-capability `site.application_blueprint.v1`. An older closed parser rejects the
-unknown section, and a newer parser refuses dry-run rendering or publication
-when the installed generator cohort does not advertise that exact capability.
-No cohort may silently ignore a blueprint.
+generator feature token `site-application-blueprint-v1`. This runtime roster is
+separate from authored `capabilities` and recipe capability references. An
+older closed parser rejects the unknown section, and a newer parser refuses
+dry-run rendering or publication when the installed generator cohort does not
+advertise that exact feature. No cohort may silently ignore a blueprint.
+
+The manifest document remains byte/digest stable when the section is absent,
+but the generated `.waaseyaa/site.schema.json` necessarily changes when the
+optional property is added. An initialized site takes the existing
+changed-managed-bytes upgrade path: rebind
+`framework.observed_lock_sha256` to the reviewed dependency lock and re-run
+`site:init`. This is not the unrecoverable changed-artifact-set case.
 
 Authored YAML contains the proposal, never mutation authority. The canonical
 blueprint digest covers its fixed schema id, contract version, and complete
 payload; the section also participates in the full site-manifest digest. An
-approval or rejection receipt is separate evidence that binds an attributable
-actor and decision to both exact digests. Only a matching approval may enter
-apply. A proposal needs no approval to validate or dry-run.
+approval or rejection receipt is separate request evidence that binds the
+decision and claimed actor identifier to both exact digests. That binding
+prevents transfer after proposal/context drift; actor authenticity is only as
+strong as the higher-layer decision mechanism. Only a matching approval may
+enter apply. A proposal needs no approval to validate or dry-run.
 
 Lifecycle is derived rather than trusted from an authored state field:
-`proposed` has no matching decision, `approved` has a matching approval but no
-published generation, `applied` has matching evidence in
-`.waaseyaa/generated.json`, `rejected` has a matching rejection, and
+`proposed` has no matching decision, `approved` is the request-scoped state of a
+matching approval before publication, `applied` has the canonical approval and
+matching evidence in `.waaseyaa/generated.json`, `rejected` is request-scoped
+unless a higher layer retains its matching rejection, and
 `superseded` has decision or application evidence for different bytes. The
 initializer extends the existing generated metadata and installs it last in
 the existing transaction; it does not create another generated artifact,
-approval authority, or transaction log. Strict verification re-derives this
-state and fails closed on missing or mismatched evidence.
+approval authority, or transaction log. Receipt-aware rendering and strict
+verification are explicit #2787 changes: current generated metadata is a pure
+function of the manifest, while blueprint application makes the canonical
+approval receipt a second input. Blueprint-free output remains byte-identical.
+Strict verification re-derives state and fails closed on missing or mismatched
+evidence.
+
+`waaseyaa.generated` remains version 1. Its optional
+`application_blueprint` evidence member is emitted only for an applied
+blueprint. Older readers reject the extended closed shape; newer readers accept
+both the historical exact v1 shape and the extended shape. The blueprint-free
+metadata bytes remain unchanged.
 
 AI systems are untrusted proposal producers. Provider names, prompts,
 transcripts, confidence, and repair metadata remain outside the contract. A

@@ -19,11 +19,14 @@ own a parallel schema or compiler.
 ## Governing decision
 
 ADR-023 expands `waaseyaa.site` v1 in place with an optional
-`application_blueprint` section. Presence derives the generator capability
-`site.application_blueprint.v1`. Authored YAML contains the proposal only;
-approval binds an attributable actor to the exact blueprint and full manifest
-digests, and applied evidence extends `.waaseyaa/generated.json` inside the
-existing transaction.
+`application_blueprint` section. Presence derives the generator feature token
+`site-application-blueprint-v1`, in a runtime roster separate from authored
+site capabilities. Authored YAML contains the proposal only; approval binds a
+claimed actor and decision to the exact blueprint and full manifest digests,
+with authenticity limited by the higher-layer decision mechanism. Applied
+evidence extends `.waaseyaa/generated.json` inside the existing transaction and
+makes the canonical approval receipt an explicit second input to rendering and
+strict verification.
 
 Separation requires a demonstrated consumer or architecture boundary. Product
 or model-provider convenience is not sufficient.
@@ -87,3 +90,14 @@ review. No package may claim a later work package's acceptance.
   and generated-test acceptance; and
 - provider-portability measurement only after the provider-independent path is
   green.
+
+## Review-candidate identity and evidence
+
+The parent is recorded above. The candidate is the Git commit containing this
+record; a commit cannot embed its own SHA without changing that SHA. Git history
+is the portable identity, and the current GitHub adapter mirrors it in PR #2798.
+
+For work package 01A, run `git diff --check`,
+`php bin/check-changelog-shape`, `bash tools/drift-detector.sh origin/main`, and
+the governed Linux CI/preflight roster. Environment-limited local results do
+not replace exact-head hosted evidence.

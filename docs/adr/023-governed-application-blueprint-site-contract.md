@@ -64,9 +64,15 @@ paths rooted at `/application_blueprint`.
 
 ### D-2 — capability negotiation is derived and fail-closed
 
-Presence of `application_blueprint` derives the required generator capability
-`site.application_blueprint.v1`. The token is not repeated as an authored field
-inside the section; doing so would create two declarations that could drift.
+Presence of `application_blueprint` derives the required generator feature
+token `site-application-blueprint-v1`. The token is not repeated as an authored
+field inside the section; doing so would create two declarations that could
+drift.
+
+Generator feature tokens are a new runtime-negotiation roster, disjoint from
+the site's authored `capabilities` declarations and recipe capability
+references. The hyphenated token deliberately satisfies the existing stable-id
+grammar, but it is never inserted into the manifest's `capabilities` list.
 
 The parsed `SiteManifest` exposes its derived required generator capabilities.
 Before dry-run rendering or publication, `site:init` compares them with the
@@ -104,7 +110,7 @@ edits to `site.yaml`. A receipt contains at least:
 - its receipt schema/version and decision (`approved` or `rejected`);
 - the canonical blueprint digest;
 - the complete proposed site-manifest digest;
-- an attributable actor identifier;
+- a claimed actor identifier;
 - the decision time; and
 - the decision mechanism/authority understood by the invoking application.
 
@@ -115,9 +121,20 @@ manifest context cannot authorize another.
 
 `site-contract` owns the receipt value, canonical shape, and exact-match
 validation without depending on a model provider, forge, database, HTTP
-session, or product. Higher layers own how an actor authenticates and how a
-decision is collected. They may strengthen the mechanism with signatures or a
-durable approval service, but they may not weaken the exact-digest check.
+session, or product. The receipt is an explicit `site:init` request input, not a
+second site file. Framework v1 does not introduce a durable pre-apply receipt
+store; a higher-layer application may retain the receipt under its own reviewed
+authority.
+
+Higher layers also own how an actor authenticates and how a decision is
+collected. Digest matching provides binding and non-transferability across
+proposal/context changes; it does not authenticate the actor. The actor is
+attributable only as strongly as the mechanism that produced the receipt. An
+unsigned repository-local receipt is not a stronger trust anchor than authored
+YAML against a writer who controls the repository, although its digest binding
+still prevents silent reuse after drift. Signatures or a durable approval
+service strengthen authenticity, but no mechanism may weaken the exact-digest
+check.
 
 ### D-5 — lifecycle is resolved from evidence, never trusted from YAML
 
@@ -126,20 +143,32 @@ receipt, and generated evidence:
 
 - **proposed** — the section exists and no valid decision for both current
   digests is present;
-- **approved** — a matching approval receipt is present, but the current
-  manifest has not yet been durably published;
-- **applied** — `.waaseyaa/generated.json` records the matching blueprint and
-  manifest digests, generator capability, and resulting managed generation;
-- **rejected** — the current exact digest has a rejection receipt and no later
-  valid approval; and
+- **approved** — a matching approval receipt is present in the current request,
+  but the current manifest has not yet been durably published;
+- **applied** — `.waaseyaa/generated.json` records the canonical approval
+  receipt, matching blueprint and manifest digests, generator feature token,
+  and resulting managed generation;
+- **rejected** — the current request carries a matching rejection receipt and
+  no later valid approval; and
 - **superseded** — retained decision or applied evidence names a different
   blueprint or manifest digest.
 
-The existing `.waaseyaa/generated.json` gains the immutable-by-generator
-blueprint decision/application evidence. No second generated file or parallel
-transaction log is introduced. The initializer installs this metadata last in
-the existing transaction. Strict verification derives the state again and
+Before apply, `approved` and `rejected` are request-scoped unless a higher layer
+provides its own durable receipt authority. Applying a blueprint copies the
+canonical approval receipt into the existing generator-owned
+`.waaseyaa/generated.json`; no second generated file or parallel transaction
+log is introduced. The initializer installs this metadata last in the existing
+transaction. Strict verification derives the applied/superseded state again and
 rejects mismatched, missing, or success-shaped evidence.
+
+This deliberately changes an existing implementation invariant. Today
+`SiteArtifactRenderer`, `GeneratedSite`, and `SiteDoctorService` treat
+`.waaseyaa/generated.json` as a pure function of `SiteManifest`. #2787 must make
+the canonical approval receipt a second renderer/verification input for a
+blueprint apply. The doctor reads the canonical receipt from generated metadata,
+validates its exact digest bindings, and re-renders the expected metadata using
+that receipt. A blueprint-free render keeps the old manifest-only call and exact
+metadata bytes.
 
 Editing `site.yaml` can create or change a proposal; it cannot manufacture a
 receipt or applied generation. Editing an authored state-like field is
@@ -169,7 +198,7 @@ boundary is demonstrated:
 - confidentiality, retention, signature, or authorization needs conflict with
   the repository-owned site-manifest lifecycle;
 - an independent compatibility cadence cannot be represented through the v1
-  contract version and generator capability negotiation; or
+  contract version and generator feature negotiation; or
 - the actual package graph demonstrates a circular dependency or ownership
   conflict.
 
@@ -178,16 +207,25 @@ easier consumer implementation are not sufficient.
 
 ## Compatibility and migration
 
-- Existing v1 manifests remain valid and byte/digest stable.
+- Existing v1 manifest documents remain valid and byte/digest stable. The
+  generated `.waaseyaa/site.schema.json` bytes will change when its schema gains
+  the optional property, including on existing blueprint-free sites. That is
+  the existing changed-managed-bytes upgrade case: rebind
+  `framework.observed_lock_sha256` to the reviewed dependency lock and re-run
+  `site:init`.
 - A blueprint-bearing manifest remains schema version 1 but requires the
-  derived `site.application_blueprint.v1` generator capability.
+  derived `site-application-blueprint-v1` generator feature token.
 - Older strict parsers refuse the unknown section; newer parsers refuse a
   generator cohort that cannot materialize it.
 - Adding the section to an initialized application is a reviewed manifest
   change. It does not authorize migration of existing entities or data.
 - Blueprint evidence extends `.waaseyaa/generated.json`; it does not add a
   generated path and therefore does not trigger the frozen-artifact-set
-  incompatibility.
+  incompatibility. The `waaseyaa.generated` document remains version 1 with an
+  optional `application_blueprint` evidence member emitted only for an applied
+  blueprint. Older readers fail closed on that unknown member; newer readers
+  accept both the old exact v1 shape and the extended shape. A blueprint-free
+  render retains the old exact metadata bytes.
 - Any future blueprint contract version requires an explicit capability token
   and migration decision. It must not be inferred from model output.
 
@@ -197,8 +235,10 @@ easier consumer implementation are not sufficient.
   inventing lifecycle authority.
 - #2786 must converge field-aware schema introspection on the same canonical
   field/type authority consumed by the validator.
-- #2787 extends the existing initializer transaction and generated metadata;
-  it cannot add a parallel compiler or transaction log.
+- #2787 extends the existing initializer transaction and generated metadata,
+  including receipt-aware renderer/`GeneratedSite`/doctor inputs and compatible
+  reading of both v1 metadata shapes; it cannot add a parallel compiler or
+  transaction log.
 - #2788 compiles roles, permissions, policies, and workflows through existing
   enforcement services and default-deny semantics.
 - #2789 proves the complete path in a packaged fresh application, including
@@ -218,7 +258,9 @@ consumer boundary.
 ### Put `state: approved` in `site.yaml`
 
 Rejected because the proposer can edit the same document. A self-declared state
-does not prove who approved which bytes and creates a success-shaped bypass.
+does not bind a separate decision operation to exact proposal and context bytes.
+The receipt supplies that binding; its actor authenticity still depends on the
+higher-layer decision mechanism described in D-4.
 
 ### Raise the site manifest to v2
 
@@ -234,7 +276,7 @@ metadata is provider-specific, non-deterministic, and not mutation authority.
 ## Acceptance evidence for implementation
 
 - Old v1 fixture rendering and digest golden tests remain byte-identical.
-- An old parser and a capability-missing generator both refuse a
+- An old parser and a feature-missing generator both refuse a
   blueprint-bearing manifest before writes.
 - Blueprint canonicalization is byte-stable across Windows and Linux.
 - Editing any proposal byte invalidates an earlier approval receipt.
