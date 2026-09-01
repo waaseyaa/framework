@@ -101,6 +101,31 @@ final class OpenAiCompatibleProviderTransportTest extends TestCase
 
         $elapsed = $this->timeFailure(fn(): mixed => $provider->sendMessage(self::request()), $server);
 
+        // #2716 review follow-up: the probe above proves the *peer and option
+        // set* are capable of producing "held to the total" — but it runs on
+        // its own fresh connection, before sendMessage() ever dials out, so it
+        // cannot speak to why the real (SUT) connection ended.
+        // TransportException deliberately cannot say either — the wrapping
+        // ProviderCredentialOutcome::capture()/unwrap() strips the original
+        // cURL errno/message before it reaches the caller by design (never
+        // leak transport detail across the credential boundary), so there is
+        // no test-only way to classify the SUT's own connection the way
+        // assertPeerEndsOnlyOnTheTotalTimeout() classifies the probe's.
+        // A generous wall-clock floor is therefore still the only signal
+        // available for *this* connection. It stays far from both ends of the
+        // range the bug report evidenced — the reported early-teardown
+        // failures returned in ~0.366s, and a genuine hold to this 3.0s total
+        // lands within tens of milliseconds of it — so a 1.5s floor keeps
+        // wide margin from scheduling jitter on a loaded box while still
+        // catching a recurrence of the exact defect #2716 reported: an early
+        // teardown of the SUT's own connection silently passing as "the total
+        // fired".
+        self::assertGreaterThan(
+            1.5,
+            $elapsed,
+            'The real (SUT) connection ended too early to have been held by the total timeout — '
+                . 'an early teardown, not a stall.',
+        );
         self::assertLessThan(20.0, $elapsed);
     }
 
@@ -114,6 +139,11 @@ final class OpenAiCompatibleProviderTransportTest extends TestCase
      * held to the total, not a connection that never got past the handshake or
      * died for some unrelated reason (connection refused, reset, empty reply all
      * report distinct, unmistakably different cURL errors).
+     *
+     * This runs against its own connection rather than the SUT's — see the
+     * wall-clock floor on the real call in
+     * {@see withoutALowSpeedGuardAStalledBodyHoldsTheWorkerForTheWholeTotal()}
+     * for why the SUT's own connection cannot be classified this way.
      */
     private function assertPeerEndsOnlyOnTheTotalTimeout(
         StallingTransportServer $server,
