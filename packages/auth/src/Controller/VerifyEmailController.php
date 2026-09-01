@@ -6,6 +6,7 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Auth\EmailVerificationTransaction;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -17,6 +18,7 @@ final class VerifyEmailController
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuthTokenRepositoryInterface $tokenRepo,
+        private readonly EmailVerificationTransaction $verificationTransaction,
         ?AuthExtensionRegistry $extensions = null,
     ) {
         $this->extensions = $extensions ?? AuthExtensionRegistry::defaults();
@@ -47,15 +49,12 @@ final class VerifyEmailController
             return new JsonResponse(['error' => 'user_not_found'], 422);
         }
 
-        // 5. Mark email verified and save
         /** @var \Waaseyaa\User\User $user */
         $user = $entity;
-        $user->setEmailVerified(true);
-        $repository->save($user);
+        if (!$this->verificationTransaction->complete($repository, $user, $tokenData['id'])) {
+            return new JsonResponse(['error' => 'invalid_token'], 422);
+        }
 
-        // 6. Consume token and revoke all email_verification tokens for user
-        $this->tokenRepo->consumeToken($tokenData['id']);
-        $this->tokenRepo->revokeTokensForUser($tokenData['user_id'], 'email_verification');
         $userId = (string) $user->id();
         $this->extensions->dispatch('email_verified', $userId);
 

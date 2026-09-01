@@ -26,7 +26,7 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
             ['user.credentials', CapabilityReason::CredentialVerification, ['status', 'pass', 'legacy_pass']],
             ['user.two-factor', CapabilityReason::CredentialVerification, ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step']],
             ['user.mail-delivery', CapabilityReason::MailDelivery, ['name', 'mail']],
-            ['user.verification', CapabilityReason::CredentialVerification, ['mail', 'email_verified']],
+            ['user.verification', CapabilityReason::CredentialVerification, ['mail', 'email_verified', 'status']],
             ['user.session-identity', CapabilityReason::SessionBootstrap, ['name', 'mail', 'roles', 'session_generation']],
             ['user.maintenance-authorization', CapabilityReason::MaintenanceCli, ['roles', 'permissions']],
         ] as [$issuer, $reason, $fields]) {
@@ -75,6 +75,7 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
         self::assertSame('secret', $reader->twoFactor($user)->secret);
         self::assertSame('member@example.test', $reader->mailDelivery($user)->mail);
         self::assertTrue($reader->verification($user)->emailVerified);
+        self::assertTrue($reader->verification($user)->active);
         self::assertSame(['editor'], $reader->sessionIdentity($user)->roles);
         self::assertSame(4, $reader->sessionIdentity($user)->generation);
         self::assertSame(['editor'], $reader->maintenanceAuthorization($user)->roles);
@@ -84,7 +85,8 @@ final class AuditedUserInternalFieldReaderTest extends TestCase
             ['status', 'pass', 'legacy_pass'],
             ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'],
             ['name', 'mail'],
-            ['mail', 'email_verified'],
+            ['mail', 'email_verified', 'status'],
+            ['mail', 'email_verified', 'status'],
             ['name', 'mail', 'roles', 'session_generation'],
             ['name', 'mail', 'roles', 'session_generation'],
             ['roles', 'permissions'],

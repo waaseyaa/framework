@@ -35,6 +35,7 @@ use App\Provider\AuthExtensionConsumerServiceProvider;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility;
 use Waaseyaa\Auth\Controller\LoginController;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Extension\RegisteredUserReference;
@@ -43,6 +44,7 @@ use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
 use Waaseyaa\User\User;
 
 try {
@@ -123,6 +125,7 @@ try {
         'name' => 'packaged-login',
         'mail' => 'packaged-login@example.test',
         'status' => 1,
+        'email_verified' => true,
         'created' => time(),
     ]);
     $loginUser->setRawPassword('correct horse battery staple');
@@ -136,13 +139,33 @@ try {
     $identityLookup = $resolver->resolve(UserIdentityLookupInterface::class);
     $internalFields = $resolver->resolve(UserInternalFieldReaderInterface::class);
     $passwords = $resolver->resolve(LegacyPasswordUpgrade::class);
+    $eligibility = $resolver->resolve(VerifiedEmailAuthenticationEligibility::class);
     if (!$rateLimiter instanceof RateLimiterInterface || !$twoFactor instanceof TwoFactorService
         || !$identityLookup instanceof UserIdentityLookupInterface
         || !$internalFields instanceof UserInternalFieldReaderInterface
-        || !$passwords instanceof LegacyPasswordUpgrade) {
+        || !$passwords instanceof LegacyPasswordUpgrade
+        || !$eligibility instanceof AuthenticationEligibilityInterface) {
         throw new RuntimeException('Packaged auth dependencies were not resolvable.');
     }
-    $login = new LoginController($entityTypes, $rateLimiter, $twoFactor, $identityLookup, $internalFields, $extensions, $passwords);
+    $login = new LoginController($entityTypes, $rateLimiter, $twoFactor, $identityLookup, $internalFields, $eligibility, $extensions, $passwords);
+
+    $unverified = User::make([
+        'name' => 'packaged-unverified',
+        'mail' => 'packaged-unverified@example.test',
+        'status' => 1,
+        'email_verified' => false,
+        'created' => time(),
+    ]);
+    $unverified->setRawPassword('correct horse battery staple');
+    $repository->save($unverified);
+    $denied = Request::create('/auth/login', 'POST', server: ['REMOTE_ADDR' => '127.0.0.78'], content: json_encode([
+        'username' => 'packaged-unverified',
+        'password' => 'correct horse battery staple',
+    ], JSON_THROW_ON_ERROR));
+    if ($login($denied)->getStatusCode() !== 401 || isset($_SESSION['waaseyaa_uid'])) {
+        throw new RuntimeException('Packaged consumer admitted an unverified user while verification was required.');
+    }
+
     $wrong = Request::create('/auth/login', 'POST', server: ['REMOTE_ADDR' => '127.0.0.77'], content: json_encode([
         'username' => 'packaged-login',
         'password' => 'wrong password',

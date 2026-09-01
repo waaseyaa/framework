@@ -65,6 +65,7 @@ use Waaseyaa\Routing\ParamConverter\EntityParamConverter;
 use Waaseyaa\Routing\Redirector;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
@@ -610,6 +611,18 @@ final class HttpKernel extends AbstractKernel
         if (!$internalFields instanceof UserInternalFieldReaderInterface) {
             throw new \LogicException('The HTTP pipeline requires the audited User internal-field reader.');
         }
+        $authenticationEligibility = $this->getHttpServiceResolver()->resolve(
+            'Waaseyaa\\Auth\\Authentication\\VerifiedEmailAuthenticationEligibility',
+        );
+        if (!$authenticationEligibility instanceof AuthenticationEligibilityInterface) {
+            $configured = is_array($this->config['auth'] ?? null)
+                ? ($this->config['auth']['require_verified_email'] ?? false)
+                : false;
+            if ($configured !== false) {
+                throw new \LogicException('auth.require_verified_email requires the canonical authentication eligibility policy.');
+            }
+            $authenticationEligibility = null;
+        }
 
         $builtIns = [
             // Outermost response policy: it unwinds after every cookie writer
@@ -659,6 +672,7 @@ final class HttpKernel extends AbstractKernel
                 accountContext: $this->accountContext(),
                 statelessPathPrefixes: $this->sessionStatelessPaths(),
                 internalFields: $internalFields,
+                authenticationEligibility: $authenticationEligibility,
             ),
             new CommunityMiddleware($communityContext),
             // Same resolved session.cookie policy as SessionMiddleware, so a

@@ -115,7 +115,7 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
                 ['user.credentials', CapabilityReason::CredentialVerification, ['status', 'pass', 'legacy_pass']],
                 ['user.two-factor', CapabilityReason::CredentialVerification, ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step']],
                 ['user.mail-delivery', CapabilityReason::MailDelivery, ['name', 'mail']],
-                ['user.verification', CapabilityReason::CredentialVerification, ['mail', 'email_verified']],
+                ['user.verification', CapabilityReason::CredentialVerification, ['mail', 'email_verified', 'status']],
                 ['user.session-identity', CapabilityReason::SessionBootstrap, ['name', 'mail', 'roles', 'session_generation']],
                 ['user.maintenance-authorization', CapabilityReason::MaintenanceCli, ['roles', 'permissions']],
             ] as [$issuer, $reason, $fields]) {

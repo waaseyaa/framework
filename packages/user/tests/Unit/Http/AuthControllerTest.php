@@ -23,7 +23,7 @@ final class AuthControllerTest extends TestCase
     #[Test]
     public function meReturnsUserDataForAuthenticatedAccount(): void
     {
-        $user = new User(['uid' => 5, 'name' => 'alice', 'mail' => 'alice@example.com', 'roles' => ['editor']]);
+        $user = new User(['uid' => 5, 'name' => 'alice', 'mail' => 'alice@example.com', 'roles' => ['editor'], 'email_verified' => 1]);
 
         $result = $this->controller()->me($user);
 
@@ -32,6 +32,7 @@ final class AuthControllerTest extends TestCase
         self::assertSame('alice', $result['data']['name']);
         self::assertSame('alice@example.com', $result['data']['email']);
         self::assertSame(['editor'], $result['data']['roles']);
+        self::assertTrue($result['data']['emailVerified']);
     }
 
     #[Test]

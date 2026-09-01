@@ -31,6 +31,11 @@ interface AuthTokenRepositoryInterface
     /**
      * Validate a plain token against the stored hash.
      *
+     * The result describes the token as it was at the moment of the read. It
+     * resolves the token id and its metadata; it does not authorize a
+     * single-use operation. Anything that consumes the token must re-establish
+     * validity atomically through {@see self::consumeTokenIfAvailable()}.
+     *
      * @return array{id: int, user_id: int|string|null, meta: array<string, mixed>|null}|null
      *         Returns token data if valid, null if invalid/expired/consumed.
      */
@@ -40,6 +45,24 @@ interface AuthTokenRepositoryInterface
      * Mark a token as consumed (single-use enforcement).
      */
     public function consumeToken(int $tokenId): void;
+
+    /**
+     * Atomically consume an available token.
+     *
+     * The single conditional write that picks the winner is also the only
+     * authority on the token's validity: it re-checks the token type, the
+     * owning user, the unconsumed state, and expiry against the clock read
+     * for that write. Callers must never treat an earlier validateToken()
+     * result as establishing those facts — anything checked before this
+     * statement can change before it runs.
+     *
+     * False means the token was absent, of another type, owned by another
+     * user, already consumed, or expired.
+     *
+     * @param int|string|null $userId The user the token must be bound to;
+     *                                NULL matches only an unowned (invite) token.
+     */
+    public function consumeTokenIfAvailable(int $tokenId, string $type, int|string|null $userId): bool;
 
     /**
      * Revoke all tokens for a user, optionally filtered by type.

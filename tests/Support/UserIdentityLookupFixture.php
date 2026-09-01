@@ -13,8 +13,15 @@ final class UserIdentityLookupFixture implements UserIdentityLookupInterface
 {
     public function findActiveByLogin(EntityRepositoryInterface $repository, string $login): ?EntityInterface
     {
-        foreach (['name', 'mail'] as $field) {
-            $ids = $repository->getQuery()->accessCheck(false)->condition($field, $login)->condition('status', 1)->range(0, 1)->execute();
+        foreach ([['name', '='], ['mail', '='], ['mail', 'CASE_INSENSITIVE_EQUALS']] as [$field, $operator]) {
+            $query = $repository->getQuery()->accessCheck(false);
+            $query = $operator === '='
+                ? $query->condition($field, $login)
+                : $query->condition($field, $login, $operator);
+            $ids = $query->condition('status', 1)->range(0, $operator === '=' ? 1 : 2)->execute();
+            if ($operator !== '=' && count($ids) !== 1) {
+                return null;
+            }
             if ($ids !== []) {
                 return $repository->find((string) reset($ids));
             }
@@ -24,6 +31,29 @@ final class UserIdentityLookupFixture implements UserIdentityLookupInterface
 
     public function mailExists(EntityRepositoryInterface $repository, string $mail): bool
     {
-        return $repository->getQuery()->accessCheck(false)->condition('mail', $mail)->range(0, 1)->execute() !== [];
+        return $repository->getQuery()
+            ->accessCheck(false)
+            ->condition('mail', $mail, 'CASE_INSENSITIVE_EQUALS')
+            ->range(0, 1)
+            ->execute() !== [];
+    }
+
+    public function findActiveByMail(EntityRepositoryInterface $repository, string $mail): ?EntityInterface
+    {
+        foreach (['=', 'CASE_INSENSITIVE_EQUALS'] as $operator) {
+            $query = $repository->getQuery()->accessCheck(false);
+            $query = $operator === '='
+                ? $query->condition('mail', $mail)
+                : $query->condition('mail', $mail, $operator);
+            $ids = $query->condition('status', 1)->range(0, $operator === '=' ? 1 : 2)->execute();
+            if ($operator !== '=' && count($ids) !== 1) {
+                return null;
+            }
+            if ($ids !== []) {
+                return $repository->find((string) reset($ids));
+            }
+        }
+
+        return null;
     }
 }

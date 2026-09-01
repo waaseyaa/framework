@@ -75,9 +75,13 @@ final readonly class AuditedUserInternalFieldReader implements UserInternalField
 
     public function verification(EntityInterface $user): UserVerificationSnapshot
     {
-        $values = $this->read('user.verification', CapabilityReason::CredentialVerification, $user, ['mail', 'email_verified']);
+        $values = $this->read('user.verification', CapabilityReason::CredentialVerification, $user, ['mail', 'email_verified', 'status']);
 
-        return new UserVerificationSnapshot((string) ($values['mail'] ?? ''), (bool) ($values['email_verified'] ?? false));
+        return new UserVerificationSnapshot(
+            (string) ($values['mail'] ?? ''),
+            (bool) ($values['email_verified'] ?? false),
+            (bool) ($values['status'] ?? false),
+        );
     }
 
     public function sessionIdentity(EntityInterface $user): UserSessionSnapshot

@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth;
 
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Auth\Authentication\AuthenticationEligibilityException;
 use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\User\Authentication\AuthenticationStage;
 use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
 
@@ -16,6 +19,7 @@ final class AuthManager
 {
     public function __construct(
         private readonly UserInternalFieldReaderInterface $internalFields,
+        private readonly AuthenticationEligibilityInterface $eligibility,
         private readonly ?LegacyPasswordUpgrade $passwords = null,
     ) {}
 
@@ -48,6 +52,10 @@ final class AuthManager
      */
     public function login(User $user): void
     {
+        if (!$this->eligibility->allows($user, AuthenticationStage::DirectLogin)) {
+            throw new AuthenticationEligibilityException('The user is not eligible to authenticate.');
+        }
+
         // Prevent session fixation: regenerate ID and destroy old session.
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_regenerate_id(true);

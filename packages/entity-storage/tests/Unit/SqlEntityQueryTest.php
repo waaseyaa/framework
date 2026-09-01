@@ -69,6 +69,16 @@ final class SqlEntityQueryTest extends TestCase
         $this->assertContains(4, $ids);
     }
 
+    public function testCaseInsensitiveEquals(): void
+    {
+        $query = new SqlEntityQuery($this->entityType, $this->database);
+        $ids = $query->accessCheck(false)
+            ->condition('label', 'fIrSt ArTiClE', 'CASE_INSENSITIVE_EQUALS')
+            ->execute();
+
+        $this->assertSame([1], array_values($ids));
+    }
+
     public function testConditionIn(): void
     {
         $query = new SqlEntityQuery($this->entityType, $this->database);

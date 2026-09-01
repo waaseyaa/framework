@@ -16,6 +16,8 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\User\AnonymousUser;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\User\Authentication\AuthenticationStage;
 use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\Session\NativeSession;
 use Waaseyaa\User\Session\SessionCookiePolicy;
@@ -58,6 +60,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         private readonly ?AccountContextInterface $accountContext = null,
         private readonly array $statelessPathPrefixes = [],
         private readonly ?UserInternalFieldReaderInterface $internalFields = null,
+        private readonly ?AuthenticationEligibilityInterface $authenticationEligibility = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -91,6 +94,17 @@ final class SessionMiddleware implements HttpMiddlewareInterface
 
         $existingAccount = $request->attributes->get('_account');
         if ($existingAccount instanceof AccountInterface && $existingAccount->isAuthenticated()) {
+            if (
+                $existingAccount instanceof User
+                && $this->authenticationEligibility !== null
+                && !$this->authenticationEligibility->allows($existingAccount, AuthenticationStage::BearerResolution)
+            ) {
+                $account = new AnonymousUser();
+                $request->attributes->set('_account', $account);
+                $this->accountContext?->set($account);
+                return $next->handle($request);
+            }
+
             // BearerAuthMiddleware (higher priority) already resolved an
             // account — mirror it into the acting-account context too.
             $this->accountContext?->set($existingAccount);
@@ -228,6 +242,15 @@ final class SessionMiddleware implements HttpMiddlewareInterface
             if ($currentGeneration === null || $generation !== $currentGeneration) {
                 $this->clearSessionIdentity($request, $session);
                 $this->logger->info(sprintf('SessionMiddleware: revoked stale session for user %s.', $uid));
+                return new AnonymousUser();
+            }
+
+            if (
+                $this->authenticationEligibility !== null
+                && !$this->authenticationEligibility->allows($user, AuthenticationStage::ExistingSession)
+            ) {
+                $this->clearSessionIdentity($request, $session);
+                $this->logger->info(sprintf('SessionMiddleware: revoked ineligible session for user %s.', $uid));
                 return new AnonymousUser();
             }
 

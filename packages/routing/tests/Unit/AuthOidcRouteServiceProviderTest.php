@@ -10,6 +10,8 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
+use Waaseyaa\Auth\Authentication\VerifiedEmailAuthenticationEligibility;
 use Waaseyaa\Auth\Controller\ForgotPasswordController;
 use Waaseyaa\Auth\Controller\LoginController;
 use Waaseyaa\Auth\Controller\LogoutController;
@@ -18,9 +20,11 @@ use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\ResendVerificationController;
 use Waaseyaa\Auth\Controller\VerifyEmailController;
 use Waaseyaa\Auth\Controller\VerifyTwoFactorController;
+use Waaseyaa\Auth\EmailVerificationTransaction;
 use Waaseyaa\Auth\Extension\AuthExtensionRegistry;
 use Waaseyaa\Auth\Password\LegacyPasswordUpgrade;
 use Waaseyaa\Auth\RateLimiterInterface;
+use Waaseyaa\Auth\RateLimiter;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Auth\TwoFactorManager;
 use Waaseyaa\Auth\TwoFactorService;
@@ -34,6 +38,8 @@ use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\AuthOidcRouteServiceProvider;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\AuthMailer;
+use Waaseyaa\User\Authentication\AuthenticationEligibilityInterface;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 
 #[CoversClass(AuthOidcRouteServiceProvider::class)]
 final class AuthOidcRouteServiceProviderTest extends TestCase
@@ -93,13 +99,17 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
         $services = $this->authRouteServices([
             AuthConfig::class => AuthConfig::fromArray([]),
             AuthTokenRepositoryInterface::class => $this->createStub(AuthTokenRepositoryInterface::class),
-            RateLimiterInterface::class => $this->createStub(RateLimiterInterface::class),
+            RateLimiterInterface::class => new RateLimiter(),
+            AtomicRateLimiterInterface::class => new RateLimiter(),
             AuthMailer::class => $this->createStub(AuthMailer::class),
             TwoFactorService::class => new TwoFactorService(new TwoFactorManager(), $entityTypes, $internalFields),
             UserIdentityLookupInterface::class => $this->createStub(UserIdentityLookupInterface::class),
             UserInternalFieldReaderInterface::class => $internalFields,
             LegacyPasswordUpgrade::class => $upgrade,
             AuthExtensionRegistry::class => AuthExtensionRegistry::defaults(),
+            AuthenticationEligibilityInterface::class => AuthenticationEligibilityFixture::policy(),
+            VerifiedEmailAuthenticationEligibility::class => AuthenticationEligibilityFixture::policy(),
+            EmailVerificationTransaction::class => new \ReflectionClass(EmailVerificationTransaction::class)->newInstanceWithoutConstructor(),
         ]);
 
         $provider = new AuthOidcRouteServiceProvider();
@@ -128,10 +138,14 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
         $internalFields = $this->createStub(UserInternalFieldReaderInterface::class);
         $extensions = AuthExtensionRegistry::defaults();
         $logger = new NullLogger();
+        $shadowEligibility = AuthenticationEligibilityFixture::policy();
+        $canonicalEligibility = AuthenticationEligibilityFixture::policy();
+        $atomicLimiter = new RateLimiter();
         $services = $this->authRouteServices([
             AuthConfig::class => AuthConfig::fromArray([]),
             AuthTokenRepositoryInterface::class => $this->createStub(AuthTokenRepositoryInterface::class),
-            RateLimiterInterface::class => $this->createStub(RateLimiterInterface::class),
+            RateLimiterInterface::class => new RateLimiter(),
+            AtomicRateLimiterInterface::class => $atomicLimiter,
             AuthMailer::class => $this->createStub(AuthMailer::class),
             TwoFactorService::class => new TwoFactorService(new TwoFactorManager(), $entityTypes, $internalFields),
             UserIdentityLookupInterface::class => $this->createStub(UserIdentityLookupInterface::class),
@@ -139,6 +153,9 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
             LegacyPasswordUpgrade::class => new LegacyPasswordUpgrade($this->createStub(EntityTypeManagerInterface::class)),
             AuthExtensionRegistry::class => $extensions,
             LoggerInterface::class => $logger,
+            AuthenticationEligibilityInterface::class => $shadowEligibility,
+            VerifiedEmailAuthenticationEligibility::class => $canonicalEligibility,
+            EmailVerificationTransaction::class => new \ReflectionClass(EmailVerificationTransaction::class)->newInstanceWithoutConstructor(),
         ]);
 
         $provider = new AuthOidcRouteServiceProvider();
@@ -163,6 +180,27 @@ final class AuthOidcRouteServiceProviderTest extends TestCase
                 "The {$routeName} controller must receive the container's composed auth extension registry.",
             );
         }
+
+        foreach ([
+            'api.auth.register' => RegisterController::class,
+            'api.auth.login' => LoginController::class,
+            'api.auth.2fa.verify' => VerifyTwoFactorController::class,
+        ] as $routeName => $controllerClass) {
+            $controller = $router->getRouteCollection()->get($routeName)?->getDefault('_controller');
+            self::assertSame(
+                $canonicalEligibility,
+                new \ReflectionProperty($controllerClass, 'eligibility')->getValue($controller),
+                "The {$routeName} controller must use auth's canonical policy, not a colliding interface binding.",
+            );
+        }
+        self::assertNotSame($shadowEligibility, $canonicalEligibility);
+
+        $resendController = $router->getRouteCollection()->get('api.auth.resend_verification')?->getDefault('_controller');
+        self::assertSame(
+            $atomicLimiter,
+            new \ReflectionProperty(ResendVerificationController::class, 'rateLimiter')->getValue($resendController),
+            'Public resend must receive the atomic admission authority.',
+        );
 
         $resetController = $router->getRouteCollection()->get('api.auth.reset_password')?->getDefault('_controller');
         self::assertInstanceOf(ResetPasswordController::class, $resetController);

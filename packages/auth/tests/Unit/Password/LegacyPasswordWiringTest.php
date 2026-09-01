@@ -21,6 +21,7 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 use Waaseyaa\User\User;
 
 /**
@@ -46,6 +47,7 @@ final class LegacyPasswordWiringTest extends TestCase
         [$entityTypeManager, $user] = $this->seedMigratedUser();
         $manager = new AuthManager(
             new UserInternalFieldReaderFixture(),
+            AuthenticationEligibilityFixture::policy(),
             new LegacyPasswordUpgrade(
                 $entityTypeManager,
                 new LegacyPasswordVerifierChain(new PhpassPasswordVerifier()),
@@ -65,7 +67,7 @@ final class LegacyPasswordWiringTest extends TestCase
     public function auth_manager_without_the_upgrade_keeps_the_native_only_check(): void
     {
         [, $legacyUser] = $this->seedMigratedUser();
-        $manager = new AuthManager(new UserInternalFieldReaderFixture());
+        $manager = new AuthManager(new UserInternalFieldReaderFixture(), AuthenticationEligibilityFixture::policy());
 
         self::assertFalse($manager->authenticate($legacyUser, self::PASSWORD));
 
@@ -78,10 +80,11 @@ final class LegacyPasswordWiringTest extends TestCase
     {
         [$entityTypeManager, $user] = $this->seedMigratedUser(active: false);
 
-        self::assertFalse(new AuthManager(new UserInternalFieldReaderFixture())->authenticate($user, self::PASSWORD));
+        self::assertFalse(new AuthManager(new UserInternalFieldReaderFixture(), AuthenticationEligibilityFixture::policy())->authenticate($user, self::PASSWORD));
         self::assertFalse(
             new AuthManager(
                 new UserInternalFieldReaderFixture(),
+                AuthenticationEligibilityFixture::policy(),
                 new LegacyPasswordUpgrade(
                     $entityTypeManager,
                     new LegacyPasswordVerifierChain(new PhpassPasswordVerifier()),

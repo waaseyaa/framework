@@ -52,6 +52,18 @@ cp "$source_root/tests/FreshInstallBoot/AuthExtensionConsumerServiceProvider.php
 rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
 mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
 
+# Exercise the secure non-default in the real packaged consumer. The skeleton
+# keeps it false for compatibility; this proof turns it on before boot.
+php -r '
+    $path = $argv[1];
+    $source = (string) file_get_contents($path);
+    $needle = "\x27require_verified_email\x27 => false,";
+    if (substr_count($source, $needle) !== 1) {
+        throw new RuntimeException("Packaged proof could not identify the stock verified-email setting.");
+    }
+    file_put_contents($path, str_replace($needle, "\x27require_verified_email\x27 => true,", $source));
+' "$consumer/config/waaseyaa.php"
+
 # Resolve every waaseyaa/* — including the waaseyaa/framework metapackage at the
 # repository root — from the candidate tree rather than Packagist.
 php -r '
@@ -69,8 +81,9 @@ php -r '
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$consumer/composer.json" "$source_root"
 
-printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/fresh-install.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
-    "$consumer" "$consumer" > "$consumer/.env"
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/fresh-install.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
 
 if ! "$composer_bin" install --working-dir="$consumer" \
         --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
@@ -137,7 +150,6 @@ php -r '
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$legacy_consumer/composer.json" "$old_source_root"
 
-app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
 printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/legacy.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\nWAASEYAA_CONFIG_DIR=%s/config/sync\n' \
     "$app_secret" "$work" "$legacy_consumer" "$legacy_consumer" > "$legacy_consumer/.env"
 

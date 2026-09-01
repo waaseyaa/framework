@@ -1,5 +1,38 @@
 # Access Control
 
+<!-- Spec reviewed 2026-09-01 - #2757 recovery correction: verification resend
+and forgot-password use the dedicated audited findActiveByMail boundary. They
+never resolve the general login namespace, so an email-shaped username cannot
+shadow the User that owns the submitted address. -->
+
+<!-- Spec reviewed 2026-09-01 - #2757 follow-up: an ineligible password attempt
+returns the generic denial without mutating a different authenticated or pending
+identity already in the session. SessionMiddleware remains the authority that
+revokes the current account when that current account itself becomes
+ineligible. Login identity comparison preserves exact legacy matches before a
+bounded case-insensitive fallback and fails closed on ambiguous variants; mail
+recovery no longer shares that ladder — see the #2773 review-correction note
+below. -->
+
+<!-- Spec reviewed 2026-09-01 - #2757 review corrections (PR #2773): two
+fail-closed repairs. (1) AuditedUserIdentityLookup::findActiveByMail() runs the
+canonical bounded query as its ONLY probe — one reserved audited read,
+`mail CASE_INSENSITIVE_EQUALS ? AND status = 1` over range(0, 2) — and returns a
+User only when exactly one active row matches. It no longer probes exact
+equality first, so an upgraded database holding active case-variant duplicates
+refuses recovery instead of handing it to whichever row happened to match the
+submitted spelling exactly. findActiveByLogin() keeps its exact-first legacy
+ladder unchanged; the two methods deliberately no longer share it. (2) The
+verification token's atomic consume is the single admission decision:
+consumeTokenIfAvailable(tokenId, type, userId) re-checks token type, owning
+user, unconsumed state, and expiry inside the one conditional UPDATE, from a
+single injected-clock read that both satisfies the `expires_at > :now`
+predicate and stamps `consumed_at`. validateToken() is descriptive only and
+never authorizes a single-use operation, so a token that expires between
+validation and consumption can no longer verify an address.
+EmailVerificationTransaction binds the consume to the identity of the User it
+is about to mutate, so a token can only ever verify its own owner. -->
+
 <!-- Spec reviewed 2026-08-27 - #2544 legacy password upgrade: `User::$legacy_pass` is a NEW credential field carrying `pass`'s exact classification - FieldReadLevel::Internal, on every always-internal list, readable only through the audited `user.credentials` capability, and Forbidden on the generic field surface via UserAccessPolicy::CREDENTIAL_FIELDS (same as `pass`). HTTP POST /api/auth/login receives LegacyPasswordUpgrade from AuthOidcRouteServiceProvider. It holds a credential imported from another system pending one-time upgrade. Keeping it separate from `pass` is what makes "a current hash is never downgraded" structural: `pass` only ever holds a current Waaseyaa hash, only `legacy_pass` reaches a legacy verifier, and an account with a current hash never consults its legacy value. `UserCredentialSnapshot` gains `legacyPasswordHash`. Contract: docs/upgrade-notes/legacy-password-upgrade.md. -->
 
 
@@ -839,9 +872,25 @@ Layer discipline: Foundation (layer 0) uses string constants for attribute class
 | `POST /api/auth/forgot-password` | `_public: true` | `ForgotPasswordController` |
 | `POST /api/auth/reset-password` | `_public: true` | `ResetPasswordController` |
 | `POST /api/auth/verify-email` | `_public: true` | `VerifyEmailController` |
-| `POST /api/auth/resend-verification` | `_authenticated: true` | `ResendVerificationController` |
+| `POST /api/auth/resend-verification` | `_public: true` | `ResendVerificationController` |
 
-`ResendVerificationController` requires an active authenticated session. `AccessChecker` short-circuits with `unauthenticated` (401) if the `_account` attribute on the request is anonymous. The other seven endpoints are public — no session required. `LoginController` applies its own rate limiting (5 attempts per IP per 60s).
+All eight endpoints are public at the route layer. `ResendVerificationController`
+accepts an email address without granting pending or full authentication, uses
+uniform responses for absent/already-verified accounts, and rate-limits both
+the normalized address and source IP. This keeps verification recovery usable
+after a browser restart without creating an account-existence oracle.
+The bundled public verification page therefore collects the registration
+email explicitly; its in-session banner reuses the current account email.
+Successful password-login and `GET /api/user/me` account payloads carry the
+audited canonical state as the camelCase boolean `emailVerified`.
+
+`AuthenticationEligibilityInterface` is the one session-admission contract.
+The auth-owned implementation requires an active User and, when
+`auth.require_verified_email` is true, the audited canonical
+`email_verified` value. Registration, password login, direct `AuthManager`
+login, pending-2FA promotion, bearer resolution, and existing-session
+resolution all use that same policy before authorization. Policy false retains
+historical active-user behavior; invite registration remains verified.
 
 All auth controllers accept an optional `?LoggerInterface $logger` (defaults to `NullLogger`). DevLog-mode verification/reset URLs and best-effort email failures are logged via this interface rather than `error_log()`.
 
@@ -857,7 +906,7 @@ All auth endpoints apply rate limiting via `RateLimiterInterface` keyed on IP or
 | `POST /api/auth/forgot-password` | 3 per email per 15 min, 10 per IP per hour |
 | `POST /api/auth/reset-password` | 10 per IP per hour |
 | `POST /api/auth/verify-email` | 10 per IP per hour |
-| `POST /api/auth/resend-verification` | 3 per user per hour |
+| `POST /api/auth/resend-verification` | 3 per normalized email per hour, 10 per IP per hour |
 
 Rate limit responses return 429 with a `Retry-After` header.
 
@@ -872,6 +921,24 @@ Replaces `PasswordResetTokenRepository` (which used raw PDO). Uses `DatabaseInte
 **Token HMAC key (#2500).** `AuthServiceProvider` resolves the key through `Waaseyaa\Auth\Security\AuthTokenSecret` in `waaseyaa/auth`. A valid explicit `auth.token_secret` / `AUTH_TOKEN_SECRET` remains an independent override after trim. Otherwise the provider derives `ApplicationSecret::PURPOSE_AUTH_TOKEN_HMAC` (`waaseyaa.auth.token-hmac.v1`) from kernel `ApplicationSecret` custody. Raw `config.app_secret` / `WAASEYAA_APP_SECRET` bytes are never used as the HMAC key. Explicit values that are non-string, weaker than 32 characters, or case-insensitive placeholders (`change-me`, `change_me`, `changeme`) fail in every environment, including local — they do not become an ephemeral random key. Missing application-secret custody refuses derivation. Stock skeletons need not set a second secret (#1832): omitting `AUTH_TOKEN_SECRET` derives a stable purpose key from `WAASEYAA_APP_SECRET`. Downstream apps that previously HMAC'd with the raw application master will invalidate outstanding reset, verification, and invite tokens (longest TTL is seven days); plaintext is not retained, so rehashing is impossible. Auth configuration and secret classification use the kernel's canonical environment resolution (`config.environment` → process `APP_ENV` → `production`); they never make a second decision from bare `$_ENV` or the legacy `app_env` alias. Environment-variable parser consolidation is tracked by #2479.
 
 **Schema bootstrap — idempotent and race-safe.** `ensureSchema()` provisions the `auth_tokens` table and is resolved on the **request hot path** (`AuthServiceProvider` registers it during route registration). Under FrankenPHP classic `php-server` (the `composer run dev` runtime) the kernel boots afresh per request across many worker threads, so `ensureSchema()` runs on every request and can run concurrently on a cold DB. It therefore keeps an existence guard *and* tolerates a concurrent create: if `createTable()` throws (the race-loser's "table auth_tokens already exists"), it rethrows only when a fresh re-check shows the table genuinely absent. A bare `CREATE TABLE` behind a non-atomic check is a TOCTOU bug that 500s `/api/broadcast` (alpha.238). The cleanup-backlog (CL-11) tracks moving this provisioning off the request path into `db:init`/`migrate`; see `docs/specs/operations-playbooks.md` "Two runtimes, two launchers" for the per-request-boot invariant.
+
+**Single-use consumption is atomic and self-contained (#2757 review, PR #2773).**
+`validateToken()` describes a token at the moment it is read; it does not
+authorize spending one. `consumeTokenIfAvailable(int $tokenId, string $type,
+int|string|null $userId)` is the only admission decision — one conditional
+`UPDATE` predicated on `id`, `type`, the owning `user_id` (`IS NULL` matches
+only an unowned invite), `consumed_at IS NULL`, and `expires_at > :now`. That
+`:now` is a single read of an injected `EntityClockInterface` (defaulting to
+`UtcEntityClock`, the same pattern as `DatabaseBearerTokenStore`) and is the
+value written to `consumed_at`, so the instant that proved the row live is the
+instant recorded against it: a token can never be stamped consumed after its
+own expiry, and a timestamp the caller read earlier is never accepted — that
+would move the race rather than close it. `expires_at > :now` is deliberately
+the same strict boundary `validateToken()` applies, so the two never disagree
+about a single instant. `EmailVerificationTransaction` binds the consume to
+`$user->id()` — the identity it is about to mark verified — so a token can only
+ever verify its own owner. The non-atomic `consumeToken()` is retained for the
+password-reset and invite flows, which do not yet route through this predicate.
 
 **Token types and default TTLs:**
 

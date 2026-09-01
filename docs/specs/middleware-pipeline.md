@@ -218,9 +218,14 @@ Behavior:
 3. Reads the canonical `AuthenticatedSession` identity keys (`waaseyaa_uid` and `waaseyaa_session_generation`) from `$_SESSION` (or `$request->attributes->get('_session')` for testability). A uid without an integer generation is cleared and fails closed.
 4. Loads the `User` via `EntityRepositoryInterface::find($uid)` and obtains its Internal generation through the audited `user.session-identity` capability.
 5. Accepts the session only when its generation exactly matches the User generation. A mismatch clears both identity keys and resolves to `AnonymousUser`; password reset increments the User value to revoke all older sessions (#2700).
-6. Falls back to `AnonymousUser` if uid is null, user not found, storage throws, or the audited generation dependency is unavailable.
-7. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
-8. Marks non-stateless requests as session-bound for final cache reconciliation,
+6. Applies the injected canonical authentication-eligibility policy to both a
+   loaded PHP-session User and a User pre-resolved by bearer middleware. When
+   verified email is required, an unverified User becomes anonymous before
+   community enrichment or authorization; PHP-session identity keys are also
+   cleared while unrelated session state is preserved (#2757).
+7. Falls back to `AnonymousUser` if uid is null, user not found, storage throws, or the audited generation dependency is unavailable.
+8. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
+9. Marks non-stateless requests as session-bound for final cache reconciliation,
    disables PHP's independent session cache limiter before framework-owned
    session startup, and calls `$next->handle($request)`.
 

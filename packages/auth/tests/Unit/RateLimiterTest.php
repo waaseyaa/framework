@@ -84,4 +84,14 @@ final class RateLimiterTest extends TestCase
 
         $this->assertSame(3, $limiter->remaining('login:alice', 5));
     }
+
+    public function testConsumeRecordsAndDecidesOneAttempt(): void
+    {
+        $limiter = new RateLimiter();
+
+        self::assertTrue($limiter->consume('resend:alice', 2, 60));
+        self::assertTrue($limiter->consume('resend:alice', 2, 60));
+        self::assertFalse($limiter->consume('resend:alice', 2, 60));
+        self::assertSame(2, $limiter->attempts('resend:alice'));
+    }
 }

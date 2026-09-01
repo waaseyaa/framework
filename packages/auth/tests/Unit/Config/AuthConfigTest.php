@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Config\MailMissingPolicy;
+use Waaseyaa\Foundation\Exception\ConfigException;
 
 #[CoversClass(AuthConfig::class)]
 final class AuthConfigTest extends TestCase
@@ -27,6 +28,15 @@ final class AuthConfigTest extends TestCase
         $config = AuthConfig::fromArray([]);
 
         self::assertFalse($config->requireVerifiedEmail);
+    }
+
+    #[Test]
+    public function rejects_ambiguous_verified_email_policy_values(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('auth.require_verified_email must be a boolean.');
+
+        AuthConfig::fromArray(['require_verified_email' => 'false']);
     }
 
     #[Test]

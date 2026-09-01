@@ -21,6 +21,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\Session\AuthenticatedSession;
 use Waaseyaa\User\User;
@@ -65,6 +66,7 @@ final class TwoFactorE2ETest extends TestCase
             $this->rateLimiter,
             $this->entityTypeManager,
             new UserInternalFieldReaderFixture(),
+            AuthenticationEligibilityFixture::policy(),
         );
         $this->disableCtrl = new DisableTwoFactorController($this->service);
         $_SESSION = [];

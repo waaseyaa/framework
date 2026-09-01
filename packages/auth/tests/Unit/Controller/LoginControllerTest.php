@@ -29,6 +29,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Tests\Support\UserIdentityLookupFixture;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Waaseyaa\Tests\Support\AuthenticationEligibilityFixture;
 
 #[CoversClass(LoginController::class)]
 final class LoginControllerTest extends TestCase
@@ -61,6 +62,7 @@ final class LoginControllerTest extends TestCase
             twoFactor: $twoFactor ?? new TwoFactorService(new TwoFactorManager(), $entityTypeManager, new UserInternalFieldReaderFixture()),
             identityLookup: new UserIdentityLookupFixture(),
             internalFields: new UserInternalFieldReaderFixture(),
+            eligibility: AuthenticationEligibilityFixture::policy(),
         );
     }
 
@@ -198,6 +200,8 @@ final class LoginControllerTest extends TestCase
         ]));
 
         self::assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+        $document = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertFalse($document['data']['emailVerified']);
         self::assertArrayHasKey('waaseyaa_uid', $_SESSION);
         self::assertSame(0, $_SESSION['waaseyaa_session_generation']);
         session_write_close();
@@ -240,6 +244,7 @@ final class LoginControllerTest extends TestCase
     private function makeLegacyController(
         EntityTypeManager $entityTypeManager,
         ?LegacyPasswordUpgrade $upgrade,
+        bool $requireVerifiedEmail = false,
     ): LoginController {
         return new LoginController(
             entityTypeManager: $entityTypeManager,
@@ -247,13 +252,41 @@ final class LoginControllerTest extends TestCase
             twoFactor: new TwoFactorService(new TwoFactorManager(), $entityTypeManager, new UserInternalFieldReaderFixture()),
             identityLookup: new UserIdentityLookupFixture(),
             internalFields: new UserInternalFieldReaderFixture(),
+            eligibility: AuthenticationEligibilityFixture::policy($requireVerifiedEmail),
             extensions: null,
             passwords: $upgrade,
         );
     }
 
+    #[Test]
+    public function required_verification_denial_does_not_mutate_an_existing_identity(): void
+    {
+        $_SESSION = [
+            'waaseyaa_uid' => 99,
+            'waaseyaa_session_generation' => 0,
+            'waaseyaa_pending_2fa_uid' => 99,
+            'unrelated' => 'preserved',
+        ];
+        [$entityTypeManager, $upgrade] = $this->migratedRosterController(twoFactor: true);
+        $controller = $this->makeLegacyController($entityTypeManager, $upgrade, requireVerifiedEmail: true);
+
+        $response = $controller($this->makeRequest([
+            'username' => 'migrated.member',
+            'password' => 'the password they already have',
+        ]));
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertSame('Invalid credentials.', json_decode((string) $response->getContent(), true)['errors'][0]['detail']);
+        self::assertSame([
+            'waaseyaa_uid' => 99,
+            'waaseyaa_session_generation' => 0,
+            'waaseyaa_pending_2fa_uid' => 99,
+            'unrelated' => 'preserved',
+        ], $_SESSION);
+    }
+
     /** @return array{EntityTypeManager, LegacyPasswordUpgrade} */
-    private function migratedRosterController(): array
+    private function migratedRosterController(bool $twoFactor = false): array
     {
         $database = DBALDatabase::createSqlite();
         $userType = new EntityType(
@@ -283,6 +316,8 @@ final class LoginControllerTest extends TestCase
             'status' => true,
             'pass' => '',
             'legacy_pass' => self::phpassHash('the password they already have', 'aBcD1234'),
+            'two_factor_secret' => $twoFactor ? 'JBSWY3DPEHPK3PXP' : null,
+            'two_factor_recovery_codes_hash' => $twoFactor ? [] : null,
         ]);
         $user->enforceIsNew();
         $repository->save($user);
