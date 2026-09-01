@@ -1087,6 +1087,32 @@ ALTER statements on capable platforms. SQLite cannot add a primary key to an
 existing table, so that platform retains a clear `\RuntimeException` requiring
 the key to be declared at table creation.
 
+**A targeted mutation emits SQL for its own table only (#2804).** Every mutator
+compares a single table against its own mutated clone —
+`AbstractSchemaManager::introspectTable()` plus `Comparator::compareTables()`,
+then `AbstractPlatform::getAlterTableSQL()` — and never compares schema to
+schema. This is a correctness boundary, not a performance one. Doctrine's
+introspection round-trip is lossy, so a table nobody touched can compare as
+changed against *itself*: a table with a composite primary key and
+single-column foreign keys reads as needing foreign-key indexes its DDL never
+created. A whole-schema `getAlterSchemaSQL()` therefore rebuilt such tables
+through SQLite's copy-and-replace, and the replacement was generated from the
+degraded introspection rather than the real DDL. Only what Doctrine models
+survived: a composite primary key returned as a single
+`INTEGER PRIMARY KEY AUTOINCREMENT` column, and table-level `UNIQUE` and
+`CHECK` constraints and triggers were dropped. Observed on a real database,
+adding one column to `waaseyaa_config_generation_v2` rebuilt the unrelated
+`waaseyaa_config_activation_v2` and `audit_checkpoint_succession_pruned`,
+replacing the authority-scoped `PRIMARY KEY (authority_id,
+activation_sequence)` with a global autoincrement and dropping the
+genesis-guard trigger — so two configuration authorities could no longer each
+hold activation sequence 1. With a single authority nothing collides and the
+degradation is silent, which is the more dangerous shape. Lossiness in the
+rebuild of the caller's *own* table remains, because SQLite alters by
+copy-and-replace; it simply no longer reaches tables the caller did not name.
+Any new mutator must follow the single-table seam. Acceptance:
+`DBALSchemaTargetedMutationTest`.
+
 **Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction in `packages/database-legacy/` for creating/altering tables. It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
 
 ### SchemaRegistryInterface (ingestion payload schemas)
