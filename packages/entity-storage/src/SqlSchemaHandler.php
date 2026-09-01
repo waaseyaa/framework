@@ -161,6 +161,7 @@ final class SqlSchemaHandler
             'waaseyaa schema:sync',
         );
         $this->assertDeclaredUniqueKeysReady();
+        $this->assertDeclaredForeignKeysReady();
 
         if ($this->entityType->isRevisionable()) {
             SchemaRequirement::assertAvailable(
@@ -352,6 +353,41 @@ final class SqlSchemaHandler
                     ->condition($idKey, (string) $row[$idKey])
                     ->execute();
             }
+        }
+    }
+
+    /**
+     * Validate every declared foreign key (#2761) is already present without
+     * issuing any DDL — the production/staging runtime companion to
+     * {@see ensureDeclaredForeignKeys()}, which only coordinated schema sync
+     * is allowed to call. Skips a declared key whose referenced table does
+     * not exist yet: that table's own readiness is the referenced entity
+     * type's concern, and {@see ensureDeclaredForeignKeys()} defers the same
+     * key for the same reason (registration order is not guaranteed —
+     * taxonomy_term is registered before taxonomy_vocabulary).
+     */
+    private function assertDeclaredForeignKeysReady(): void
+    {
+        if (!$this->entityType instanceof EntityTypeForeignKeyDefinitionInterface) {
+            return;
+        }
+        $schema = $this->database->schema();
+        if (!$schema instanceof ForeignKeySchemaInterface) {
+            return;
+        }
+
+        foreach ($this->entityType->getStorageForeignKeys() as $definition) {
+            if (!$schema->tableExists($definition['table'])) {
+                continue;
+            }
+            if ($schema->foreignKeyExists($this->tableName, $definition['name'])) {
+                continue;
+            }
+            throw new \RuntimeException(sprintf(
+                '[S1-DB106] Required runtime schema is unavailable for table "%s"; missing: foreign key %s. Apply migration "waaseyaa schema:sync" through the schema coordinator.',
+                $this->tableName,
+                $definition['name'],
+            ));
         }
     }
 

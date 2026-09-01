@@ -8,17 +8,25 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
-use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
-/** Prevents deletion of vocabulary config rows while term rows reference them. */
+/**
+ * Prevents deletion of vocabulary config rows while term rows reference them.
+ *
+ * This read-based check is the primary enforcement mechanism. The additive
+ * restrictive foreign key ({@see VocabularyReferenceConstraint}) is a
+ * database-level backstop against direct/batch/concurrent deletes that
+ * bypass this policy — it is installed exclusively by coordinated schema
+ * sync (`db:init`, `schema:sync`), never here: this policy runs on ordinary
+ * request traffic (every delete-access check), so it must never perform
+ * schema DDL (#2761).
+ */
 #[PolicyAttribute(entityType: 'taxonomy_vocabulary')]
 final class VocabularyAccessPolicy implements AccessPolicyInterface
 {
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
-        private readonly ?DatabaseInterface $database = null,
     ) {}
 
     public function appliesTo(string $entityTypeId): bool
@@ -30,10 +38,6 @@ final class VocabularyAccessPolicy implements AccessPolicyInterface
     {
         if ($operation !== 'delete') {
             return AccessResult::neutral();
-        }
-
-        if ($this->database !== null) {
-            new VocabularyReferenceConstraint($this->database)->ensure();
         }
 
         $terms = $this->entityTypeManager->getRepository('taxonomy_term')->findBy(

@@ -1,4 +1,19 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-01 - #2761: SqlSchemaHandler::assertRuntimeSchema()
+(the no-DDL contract every getRepository() resolution runs) now also
+validates declared entity-type foreign keys, not only base columns and
+unique keys — a table that exists but is missing a `_foreignKeys`-declared
+constraint fails closed with `[S1-DB106]` rather than silently skipping it.
+ForeignKeySchemaInterface gained a read-only `foreignKeyExists()` companion
+to the existing `addForeignKey()`. This closed the taxonomy vocabulary
+foreign key's gap in the #2478 contract: TaxonomyServiceProvider::boot() and
+VocabularyAccessPolicy::access() both used to call
+VocabularyReferenceConstraint::ensure() (schema DDL) unconditionally —
+production request traffic, not just boot. Coordinated schema sync
+(`db:init`/`schema:sync`) remains the single authoritative path via the
+entity type's existing declared `_foreignKeys`; local/development boot keeps
+the convenience materialization, gated by RuntimePolicy the same way
+AttachmentServiceProvider gates its own. -->
 <!-- Spec reviewed 2026-09-01 - #2757: HttpKernel resolves the neutral
 authentication-eligibility contract and injects it into SessionMiddleware.
 Standalone stacks with no auth policy retain historical behavior only when the
@@ -1453,7 +1468,11 @@ executing plans or updating schema/ledger.
 `#[StorageSchemaTransition]` healers such as attachment-specific columns).
 Production HTTP must not create missing entity-storage tables (#2478): the
 kernel fail-closes with `[S1-DB106]` before provider boot for Framework
-SQL-backed definitions. A valid custom `EntityStorageInterface` is not
+SQL-backed definitions. The same `assertRuntimeSchema()` also validates any
+declared `_foreignKeys` on the entity type, failing closed with
+`[S1-DB106]` if a table exists but a declared foreign key does not (#2761);
+`ensureDeclaredForeignKeys()` remains the coordinated-schema-sync-only path
+that installs it. A valid custom `EntityStorageInterface` is not
 required to own an SQL table (#2482). The kernel repository factory also refuses
 such a definition before schema inspection: its custom backend is available
 through `getStorage()`, while `getRepository()` remains the richer Framework SQL
