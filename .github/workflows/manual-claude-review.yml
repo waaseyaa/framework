@@ -60,6 +60,10 @@ jobs:
           # Comments are attributed to github-actions[bot] and labeled Claude.
           github_token: ${{ github.token }}
           include_fix_links: false
+          # Stays false: this repository is public, so the Actions log is public,
+          # and the action warns that full transcripts can expose credentials
+          # and sensitive tool output. The cost is that a denied tool call is
+          # only ever visible as a permission_denials_count, never by name.
           show_full_output: false
           settings: '{"disableAllHooks":true}'
           prompt: |
@@ -90,7 +94,7 @@ jobs:
             that tests passed or that the code is proven safe. State that no tests were run.
             Do not include an @mention that could trigger another agent.
           claude_args: >-
-            --max-turns 16
+            --max-turns 40
             --permission-mode default
             --setting-sources user
             --strict-mcp-config
