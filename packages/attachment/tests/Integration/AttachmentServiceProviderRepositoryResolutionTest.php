@@ -21,11 +21,31 @@ use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Kernel\EntityTypeManagerFactory;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 /** Production-bus regression coverage for architecture-integrity issue #2760. */
 #[CoversClass(AttachmentServiceProvider::class)]
 final class AttachmentServiceProviderRepositoryResolutionTest extends TestCase
 {
+    #[Test]
+    public function an_invalid_manager_binding_fails_closed(): void
+    {
+        $provider = new AttachmentServiceProvider();
+        $provider->setKernelServices(new readonly class implements KernelServicesInterface {
+            public function get(string $abstract): ?object
+            {
+                return $abstract === \Waaseyaa\Entity\EntityTypeManagerInterface::class
+                    ? new \stdClass()
+                    : null;
+            }
+        });
+        $provider->register();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('invalid entity type manager');
+        $provider->resolve(AttachmentRepository::class);
+    }
+
     #[Test]
     public function provider_bound_repository_resolves_and_persists_through_the_attachment_repository(): void
     {
