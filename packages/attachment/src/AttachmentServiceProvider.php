@@ -15,8 +15,8 @@ use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -57,12 +57,22 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
             $this->resolveLoggerOrNull(),
         ));
 
-        $this->singleton(AttachmentRepository::class, fn() => new AttachmentRepository(
-            $this->resolve(EntityRepositoryInterface::class),
-            $this->resolve(DatabaseInterface::class),
-            $this->resolveLoggerOrNull(),
-            new AttachmentMaintenanceFieldReader(),
-        ));
+        // Repositories are entity-type-specific. The kernel deliberately does
+        // not expose an ambiguous, context-free EntityRepositoryInterface;
+        // select the attachment repository through its canonical manager.
+        $this->singleton(AttachmentRepository::class, function (): AttachmentRepository {
+            $entityTypeManager = $this->resolve(EntityTypeManagerInterface::class);
+            if (!$entityTypeManager instanceof EntityTypeManagerInterface) {
+                throw new \LogicException('Kernel service returned an invalid entity type manager.');
+            }
+
+            return new AttachmentRepository(
+                $entityTypeManager->getRepository('attachment'),
+                $this->resolve(DatabaseInterface::class),
+                $this->resolveLoggerOrNull(),
+                new AttachmentMaintenanceFieldReader(),
+            );
+        });
 
         $this->singleton(AttachmentDownloadMetadataReaderInterface::class, function (): AttachmentDownloadMetadataReaderInterface {
             $capabilities = $this->resolve(CapabilityRegistryInterface::class);

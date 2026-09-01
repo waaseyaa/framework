@@ -140,6 +140,8 @@ new FieldAutoSaveController(
 
 `Attachment` is a Layer-2 content entity linked to a parent entity. `AttachmentRepository` enforces the **at-most-one-active invariant** via a two-UPDATE transaction.
 
+`AttachmentServiceProvider` resolves that specialized wrapper through the kernel-owned `EntityTypeManagerInterface` and explicitly selects `getRepository('attachment')`. The kernel does not publish a context-free `EntityRepositoryInterface` binding because such a binding cannot identify an entity type. This is the same transport-neutral provider-services bus used by CLI and HTTP kernels; direct-constructor tests do not substitute for resolving the advertised singleton through that bus (#2760).
+
 ```php
 // Save three attachments.
 foreach (range(1, 3) as $i) {
