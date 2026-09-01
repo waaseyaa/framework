@@ -88,6 +88,8 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `DeleteInterface` | interface | Fluent DELETE query builder with conditions |
 | `SchemaInterface` | interface | DDL operations: create/alter/drop tables and columns |
 | `TransactionInterface` | interface | Wraps database operations in a named transaction with commit/rollback |
+| `TransactionCompletionInterface` | interface | Defers registered callbacks through nested managed transactions to the outermost commit |
+| `TransactionCompletionException` | final exception | Reports completion-effect failures after the database has committed |
 
 ### plugin
 

@@ -11,10 +11,12 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\ConsistentReadDatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DeleteInterface;
+use Waaseyaa\Database\Exception\TransactionCompletionException;
 use Waaseyaa\Database\InsertInterface;
 use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
 use Waaseyaa\Database\SqliteTopology;
+use Waaseyaa\Database\TransactionCompletionInterface;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
 
@@ -376,5 +378,60 @@ final class DBALDatabaseTest extends TestCase
             $this->db->select('txtest', 't')->fields('t')->execute(),
         );
         $this->assertCount(0, $rows);
+    }
+
+    public function testTransactionalCommitsAndReturnsTheCallbackResult(): void
+    {
+        $this->db->query('CREATE TABLE transactional_commit (name TEXT NOT NULL)');
+
+        $result = $this->db->transactional(function (): string {
+            $this->db->query('INSERT INTO transactional_commit (name) VALUES (?)', ['committed']);
+
+            return 'result';
+        });
+
+        $this->assertSame('result', $result);
+        $this->assertSame('committed', $this->db->getConnection()->fetchOne('SELECT name FROM transactional_commit'));
+    }
+
+    public function testTransactionalRollsBackWhenTheCallbackFails(): void
+    {
+        $this->db->query('CREATE TABLE transactional_rollback (name TEXT NOT NULL)');
+
+        try {
+            $this->db->transactional(function (): never {
+                $this->db->query('INSERT INTO transactional_rollback (name) VALUES (?)', ['rolled back']);
+
+                throw new \RuntimeException('work failed');
+            });
+            $this->fail('Expected the callback failure.');
+        } catch (\RuntimeException $failure) {
+            $this->assertSame('work failed', $failure->getMessage());
+        }
+
+        $this->assertSame(0, $this->db->getConnection()->fetchOne('SELECT COUNT(*) FROM transactional_rollback'));
+    }
+
+    public function testTransactionalSurfacesCompletionFailureAfterTheDatabaseCommit(): void
+    {
+        $this->db->query('CREATE TABLE transactional_completion (name TEXT NOT NULL)');
+
+        try {
+            $this->db->transactional(function (): void {
+                $this->db->query('INSERT INTO transactional_completion (name) VALUES (?)', ['committed']);
+                $nested = $this->db->transaction();
+                $this->assertInstanceOf(TransactionCompletionInterface::class, $nested);
+                $nested->afterCommit(static function (): never {
+                    throw new \RuntimeException('completion failed');
+                });
+                $nested->commit();
+            });
+            $this->fail('Expected the completion failure.');
+        } catch (TransactionCompletionException $failure) {
+            $this->assertCount(1, $failure->failures());
+            $this->assertSame('completion failed', $failure->failures()[0]->getMessage());
+        }
+
+        $this->assertSame('committed', $this->db->getConnection()->fetchOne('SELECT name FROM transactional_completion'));
     }
 }

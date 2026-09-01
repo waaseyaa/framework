@@ -33,7 +33,7 @@ final class DatabaseLease implements LeaseAuthorityInterface
         $startedAtNs = (int) hrtime(true);
 
         try {
-            $result = $this->database->getConnection()->transactional(function () use ($domain, $ttlMs, &$attempt): ?LeaseHandle {
+            $result = $this->database->transactional(function () use ($domain, $ttlMs, &$attempt): ?LeaseHandle {
                 $now = $this->databaseNowMs();
                 $row = $this->leaseRow($domain);
                 if ($row === null) {
@@ -100,7 +100,7 @@ final class DatabaseLease implements LeaseAuthorityInterface
         $startedAtNs = (int) hrtime(true);
 
         try {
-            $result = $this->database->getConnection()->transactional(function () use ($handle, $ttlMs, &$attempt): LeaseHandle {
+            $result = $this->database->transactional(function () use ($handle, $ttlMs, &$attempt): LeaseHandle {
                 $now = $this->databaseNowMs();
                 if ($handle->expiresAtMs <= $now) {
                     throw new LeaseLostException("Lease '{$handle->domain}' has expired.");

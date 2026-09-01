@@ -6,6 +6,10 @@ namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Exception\TransactionCompletionException;
+use Waaseyaa\Database\TransactionCompletionInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Unit of Work with transaction support.
@@ -26,10 +30,15 @@ final class UnitOfWork
 
     private bool $inTransaction = false;
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly EventDispatcherInterface $eventDispatcher,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * Execute a callback within a database transaction.
@@ -49,39 +58,68 @@ final class UnitOfWork
             return $callback();
         }
 
+        $transaction = $this->database->transaction();
+        if (!$transaction instanceof TransactionCompletionInterface) {
+            $transaction->rollBack();
+            throw new \LogicException(sprintf(
+                '%s requires a transaction that implements %s so notifications cannot escape an outer rollback.',
+                self::class,
+                TransactionCompletionInterface::class,
+            ));
+        }
+
         $this->inTransaction = true;
         $this->bufferedEvents = [];
         $this->afterCommit = [];
 
-        $transaction = $this->database->transaction();
-
         try {
             $result = $callback();
-            $transaction->commit();
         } catch (\Throwable $e) {
             $transaction->rollBack();
-            $this->bufferedEvents = [];
-            $this->afterCommit = [];
-            $this->inTransaction = false;
+            $this->reset();
 
             throw $e;
         }
 
-        // Post-commit callbacks and events are deliberately outside the
-        // rollback catch: committed data cannot be reinterpreted as rolled
-        // back if an in-memory successor install or listener fails.
         $eventsToDispatch = $this->bufferedEvents;
         $afterCommit = $this->afterCommit;
-        $this->bufferedEvents = [];
-        $this->afterCommit = [];
-        $this->inTransaction = false;
+        $this->reset();
+        $transaction->afterCommit(function () use ($afterCommit, $eventsToDispatch): void {
+            /** @var \SplQueue<\Throwable> $completionFailures */
+            $completionFailures = new \SplQueue();
+            foreach ($afterCommit as $afterCommitCallback) {
+                $failure = $this->invokeRequiredCompletionCallback($afterCommitCallback);
+                if ($failure !== null) {
+                    $this->reportCompletionFailure('after_commit_callback', $failure);
+                    $completionFailures->enqueue($failure);
+                }
+            }
 
-        foreach ($afterCommit as $afterCommitCallback) {
-            $afterCommitCallback();
-        }
+            foreach ($eventsToDispatch as [$event, $eventName]) {
+                try {
+                    $this->eventDispatcher->dispatch($event, $eventName);
+                } catch (\Throwable $failure) {
+                    $this->reportCompletionFailure('buffered_event', $failure, $event);
+                    $completionFailures->enqueue($failure);
+                }
+            }
 
-        foreach ($eventsToDispatch as [$event, $eventName]) {
-            $this->eventDispatcher->dispatch($event, $eventName);
+            if (!$completionFailures->isEmpty()) {
+                /** @var non-empty-list<\Throwable> $failures */
+                $failures = iterator_to_array($completionFailures, preserve_keys: false);
+                throw new TransactionCompletionException($failures);
+            }
+        });
+
+        try {
+            $transaction->commit();
+        } catch (TransactionCompletionException $failure) {
+            // The database is committed. Never report a fictional rollback or
+            // attempt to roll back a transaction that has already completed.
+            throw $failure;
+        } catch (\Throwable $failure) {
+            $transaction->rollBack();
+            throw $failure;
         }
 
         return $result;
@@ -124,5 +162,64 @@ final class UnitOfWork
             throw new \LogicException('afterCommit() requires an active unit-of-work transaction.');
         }
         $this->afterCommit[] = $callback;
+    }
+
+    private function reset(): void
+    {
+        $this->bufferedEvents = [];
+        $this->afterCommit = [];
+        $this->inTransaction = false;
+    }
+
+    private function invokeRequiredCompletionCallback(\Closure $callback): ?\Throwable
+    {
+        try {
+            $this->callCompletionCallback($callback);
+
+            return null;
+        } catch (\Throwable $failure) {
+            return $failure;
+        }
+    }
+
+    /** @throws \Throwable A consumer callback may fail at runtime. */
+    private function callCompletionCallback(\Closure $callback): void
+    {
+        $callback();
+    }
+
+    private function reportCompletionFailure(
+        string $phase,
+        \Throwable $failure,
+        ?object $event = null,
+    ): void {
+        $context = [
+            'phase' => $phase,
+            'failure_class' => $this->safeClassName($failure),
+        ];
+        if ($event !== null) {
+            $context['event_class'] = $this->safeClassName($event);
+        }
+
+        try {
+            $this->logger->error('entity_storage.post_commit_effect_failed', $context);
+        } catch (\Throwable $loggingFailure) {
+            // Preserve continuation even when a non-conforming logger throws.
+            // The fallback is bounded to class names and contains no event
+            // payload, exception message, path, or credential-bearing context.
+            error_log(sprintf(
+                'entity_storage.post_commit_effect_failed phase=%s failure=%s logger_failure=%s',
+                $phase,
+                $this->safeClassName($failure),
+                $this->safeClassName($loggingFailure),
+            ));
+        }
+    }
+
+    private function safeClassName(object $value): string
+    {
+        $class = $value::class;
+
+        return str_contains($class, '@anonymous') ? 'anonymous' : substr($class, 0, 200);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Migration;
 
 use Doctrine\DBAL\Connection;
+use Waaseyaa\Database\DBALDatabase;
 
 /**
  * The singular transaction boundary for authoritative schema mutation.
@@ -37,7 +38,7 @@ final class SchemaMutationCoordinator
             return $transition();
         }
 
-        return $this->connection->transactional(function () use ($transition): mixed {
+        return new DBALDatabase($this->connection)->transactional(function () use ($transition): mixed {
             $this->repository->acquireSchemaAuthority();
             $this->repository->installOrUpgradeLedger();
 

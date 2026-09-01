@@ -122,6 +122,14 @@ audit writes. A composition that places those writes in another database must
 fail readiness until it supplies an equivalent sink-local guard; transaction
 nesting does not imply cross-database atomicity.
 
+The fence opens that transaction through `DBALDatabase::transactional()`, not
+the raw Doctrine connection. Repository `UnitOfWork` transactions nested inside
+the effect therefore join the same managed completion stack: savepoint release
+does not publish successor tokens or POST/AFTER notifications, an outer rollback
+discards them, and an outer commit drains them at connection depth zero. A raw
+Doctrine transaction that attempts to enclose a repository mutation is refused
+before the nested mutation starts because its completion cannot be observed.
+
 Every effect carries lease domain, global fence, deterministic occurrence ID,
 and effect ID. Entity writes check and advance the accepted resource fence in
 the same transaction as the entity CAS. Equal delivery of the same effect is a

@@ -39,7 +39,7 @@ final readonly class OccurrenceOutboxRepository
             throw new \InvalidArgumentException('Queued scheduler tasks require an occurrence-aware message class.');
         }
 
-        return $this->database->getConnection()->transactional(function () use ($task, $recordOccurrence): ScheduledOccurrence {
+        return $this->database->transactional(function () use ($task, $recordOccurrence): ScheduledOccurrence {
             $occurrence = $recordOccurrence();
             try {
                 $this->database->insert(self::TABLE)->values([
@@ -114,7 +114,7 @@ final readonly class OccurrenceOutboxRepository
     /** @param class-string<\Throwable> $errorClass */
     public function markFailed(string $occurrenceId, string $errorClass, int $maxAttempts): void
     {
-        $this->database->getConnection()->transactional(function () use ($occurrenceId, $errorClass, $maxAttempts): void {
+        $this->database->transactional(function () use ($occurrenceId, $errorClass, $maxAttempts): void {
             $attempts = $this->database->getConnection()->fetchOne(
                 'SELECT attempts FROM ' . self::TABLE . " WHERE occurrence_id = ? AND state = 'pending'",
                 [$occurrenceId],

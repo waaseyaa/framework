@@ -1,5 +1,7 @@
 # Content Publishing v1 — agent-operable editorial CRUD over the entity substrate
 
+<!-- Spec reviewed 2026-09-01 - #2734: repository mutation tokens now advance only after the true outer transaction commits. Multi-step unbound publish and unpublish flows therefore reload the transaction-visible entity after each save before passing its current token to pointer promotion or clearing; publication, idempotency, and projection semantics are otherwise unchanged. -->
+
 <!-- Spec reviewed 2026-08-26 - #2555: publishing idempotency is partitioned by acting principal. ContentPublisher binds the stable authorization principal id into the replay record's storage namespace alongside entity type and bundle, so two authorized publishers sharing a client key and payload execute independently and each receives its own response. Single-principal replay and payload-conflict behaviour are unchanged. See IdempotencyStore "Actor-scoped partitioning". -->
 
 <!-- Spec reviewed 2026-08-26 - #2562: after a live published pointer, `updateDraft()` is a revision-only working-copy save (default-revision discipline; expected-revision claim asserted against the working copy then cleared). Unbound `publish()` pins `published_revision_id` via `EntityRepository::promotePublishedRevision()`, which rewrites the served base row from the selected revision. A pointerless record keeps the existing tip-tracking draft-save behaviour. Storage still does not infer discipline from pointer presence (Playbook H). -->

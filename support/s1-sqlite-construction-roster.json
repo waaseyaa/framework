@@ -2329,6 +2329,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/database-legacy/tests/Unit/DBALTransactionTest.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "test",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
+            "occurrence": 1
+        },
+        {
             "path": "packages/database-legacy/tests/Unit/DatabaseIdentityProviderTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -3397,6 +3404,13 @@
             "pattern": "dbal_factory",
             "class": "serving-entrypoint",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/src/Migration/SchemaMutationCoordinator.php",
+            "pattern": "dbal_wrapper_constructor",
+            "class": "inherited-connection-migration",
+            "match_sha256": "619b7e2f0b5bae6e5b38d33c36223a3b67bebbbf3b4ff837755934881c1e5421",
             "occurrence": 1
         },
         {
@@ -7468,6 +7482,13 @@
         },
         {
             "path": "tests/Integration/Security/ApplicationMasterPurposeRosterRetainedRedTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Integration/Transaction/RepositoryOutermostCompletionTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",

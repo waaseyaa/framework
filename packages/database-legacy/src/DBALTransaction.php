@@ -6,14 +6,17 @@ namespace Waaseyaa\Database;
 
 use Doctrine\DBAL\Connection;
 
-final class DBALTransaction implements TransactionInterface
+final class DBALTransaction implements TransactionCompletionInterface
 {
     private bool $active = true;
 
+    private readonly int $frameId;
+
     public function __construct(
         private readonly Connection $connection,
+        private readonly TransactionCompletionCoordinator $completionCoordinator,
     ) {
-        $this->connection->beginTransaction();
+        $this->frameId = $this->completionCoordinator->begin($this->connection);
     }
 
     public function commit(): void
@@ -24,6 +27,7 @@ final class DBALTransaction implements TransactionInterface
 
         $this->connection->commit();
         $this->active = false;
+        $this->completionCoordinator->committed($this->frameId);
     }
 
     public function rollBack(): void
@@ -34,5 +38,15 @@ final class DBALTransaction implements TransactionInterface
 
         $this->connection->rollBack();
         $this->active = false;
+        $this->completionCoordinator->rolledBack($this->frameId);
+    }
+
+    public function afterCommit(\Closure $callback): void
+    {
+        if (!$this->active) {
+            throw new \RuntimeException('Transaction is no longer active.');
+        }
+
+        $this->completionCoordinator->afterCommit($this->frameId, $callback);
     }
 }

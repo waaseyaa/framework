@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Scheduler\Tests\Unit\Fence;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Scheduler\Fence\DatabaseFenceGuard;
 use Waaseyaa\Scheduler\Fence\StaleFenceException;
 
+#[CoversClass(DatabaseFenceGuard::class)]
 final class DatabaseFenceGuardTest extends TestCase
 {
     private DBALDatabase $database;

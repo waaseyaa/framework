@@ -726,6 +726,7 @@ final class DBALDatabase implements DatabaseInterface
 {
     public function __construct(private readonly Connection $connection);
     public static function createSqlite(string $path = ':memory:'): self;
+    public function transactional(\Closure $callback): mixed;
     public function getConnection(): Connection;   // ONLY on DBALDatabase, NOT on DatabaseInterface
 }
 ```
@@ -739,6 +740,12 @@ enables and verifies WAL for file-backed databases. Effective drift fails with
 stable `S1-DB003`; issuing a PRAGMA without reading it back is not evidence.
 Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
 
+`transactional()` is the concrete managed-callback convenience boundary. It
+uses the same transaction objects returned by `transaction()`; code that owns a
+`DatabaseInterface` may continue to use explicit commit/rollback. Raw Doctrine
+`Connection::transactional()` is an escape hatch for migration-only work and
+must not enclose framework repository mutations.
+
 ### TransactionInterface
 
 File: `packages/database-legacy/src/TransactionInterface.php`
@@ -751,7 +758,21 @@ interface TransactionInterface
 }
 ```
 
-`DBALTransaction` begins the transaction in its constructor. Calling `commit()` or `rollBack()` after the transaction is no longer active throws `\RuntimeException`.
+`TransactionCompletionInterface extends TransactionInterface` adds
+`afterCommit(\Closure): void`. `DBALTransaction` implements it through one
+completion coordinator shared by every `DBALDatabase` wrapper around the same
+Doctrine connection. Nested managed commits merge their callbacks into the
+parent frame; only the physical outer commit drains them, and rollback discards
+the affected frame. Completion callbacks run in registration order. All are
+attempted even when one throws; the committed transaction then reports their
+failures as `TransactionCompletionException` without claiming rollback.
+
+`DBALTransaction` begins the transaction in its constructor. Calling `commit()`
+or `rollBack()` after the transaction is no longer active throws
+`\RuntimeException`. If the connection already has an unmanaged Doctrine
+transaction but the completion coordinator has no matching parent frame,
+construction fails before opening a savepoint. This fail-closed rule prevents a
+savepoint release from being mistaken for the outermost commit.
 
 ## Query Builder
 

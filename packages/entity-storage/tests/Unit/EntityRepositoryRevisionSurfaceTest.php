@@ -8,14 +8,17 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\EntityStorage\Exception\EntityMutationConflictException;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -32,6 +35,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
     private DBALDatabase $db;
     private EntityRepository $repo;
     private EntityType $entityType;
+    private EventDispatcher $dispatcher;
 
     protected function setUp(): void
     {
@@ -61,13 +65,12 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             $storageBoundary->driverSnapshotReader(),
         );
 
-        $dispatcher = $this->createStub(EventDispatcherInterface::class);
-        $dispatcher->method('dispatch')->willReturnArgument(0);
+        $this->dispatcher = new EventDispatcher();
 
         $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
-            $dispatcher,
+            $this->dispatcher,
             $revisionDriver,
             $this->db,
             storageBoundary: $storageBoundary,
@@ -195,6 +198,39 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $this->assertSame('v1', $this->repo->find('1')->label());
         // ...and NO new revision was created (still exactly 3).
         $this->assertCount(3, $this->repo->listRevisions('1'));
+    }
+
+    #[Test]
+    public function setCurrentRevisionEffectsFollowTheOutermostOutcome(): void
+    {
+        $this->createWithEdits('1', 'v1', 'v2');
+        $events = [];
+        $this->dispatcher->addListener(EntityEvents::REVISION_REVERTED->value, static function () use (&$events): void {
+            $events[] = 'legacy';
+        });
+        $this->dispatcher->addListener(RevisionPointerMovedEvent::class, static function () use (&$events): void {
+            $events[] = 'typed';
+        });
+
+        $expected = $this->mutationToken($this->repo, '1');
+        $outer = $this->db->transaction();
+        $rolledBack = $this->repo->setCurrentRevision('1', 1, $expected);
+        self::assertSame($expected->aggregateVersion, $rolledBack->mutationToken()?->aggregateVersion);
+        self::assertSame([], $events);
+        $outer->rollBack();
+
+        self::assertSame('v2', $this->repo->find('1')?->label());
+        self::assertSame($expected->aggregateVersion, $rolledBack->mutationToken()?->aggregateVersion);
+        self::assertSame([], $events);
+
+        $outer = $this->db->transaction();
+        $committed = $this->repo->setCurrentRevision('1', 1, $expected);
+        self::assertSame($expected->aggregateVersion, $committed->mutationToken()?->aggregateVersion);
+        self::assertSame([], $events);
+        $outer->commit();
+
+        self::assertSame($expected->aggregateVersion + 1, $committed->mutationToken()?->aggregateVersion);
+        self::assertSame(['legacy', 'typed'], $events);
     }
 
     #[Test]
