@@ -20,7 +20,7 @@ final class DatabaseFenceGuard implements FenceGuardInterface
             throw new \InvalidArgumentException('A fenced effect requires resource, domain, positive fence, and effect id.');
         }
 
-        return $this->database->getConnection()->transactional(function () use ($resourceKey, $fenceDomain, $fence, $effectId, $effect): bool {
+        return $this->database->transactional(function () use ($resourceKey, $fenceDomain, $fence, $effectId, $effect): bool {
             $row = $this->row($resourceKey, $fenceDomain);
             if ($row === null) {
                 try {

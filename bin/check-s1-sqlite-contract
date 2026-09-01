@@ -70,6 +70,10 @@ function s1SqliteConstructionClass(string $path, string $patternId): string
         'packages/deployer/src/RuntimeState/SqliteArtifactPreparer.php|pdo_constructor' => 'offline-artifact-authority',
         'packages/deployer/src/RuntimeState/SqliteArtifactPreparer.php|sqlite_dsn_token' => 'offline-artifact-authority',
         'packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php|dbal_factory' => 'serving-entrypoint',
+        // #2734: wraps the coordinator's already-injected migration connection
+        // only to use the framework-managed completion boundary. It opens no
+        // connection and retains the caller's migration custody.
+        'packages/foundation/src/Migration/SchemaMutationCoordinator.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
         'packages/frankenphp/src/Binary/Installer.php|pdo_sqlite_token' => 'runtime-capability-configuration',
         'packages/node/migrations/2026_07_06_000001_node_revision_schema.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
         'packages/search/src/SearchServiceProvider.php|dbal_factory' => 'serving-entrypoint',

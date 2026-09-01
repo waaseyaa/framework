@@ -8,6 +8,7 @@ use Doctrine\DBAL\Configuration;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
+use Waaseyaa\Database\Exception\TransactionCompletionException;
 use Waaseyaa\Database\Query\DBALDelete;
 use Waaseyaa\Database\Query\DBALInsert;
 use Waaseyaa\Database\Query\DBALSelect;
@@ -16,9 +17,17 @@ use Waaseyaa\Database\Schema\DBALSchema;
 
 final class DBALDatabase implements ConsistentReadDatabaseInterface, DatabaseIdentityProviderInterface
 {
+    /** @var \WeakMap<Connection, TransactionCompletionCoordinator>|null */
+    private static ?\WeakMap $transactionCompletionCoordinators = null;
+
+    private readonly TransactionCompletionCoordinator $transactionCompletionCoordinator;
+
     public function __construct(
         private readonly Connection $connection,
     ) {
+        self::$transactionCompletionCoordinators ??= new \WeakMap();
+        $this->transactionCompletionCoordinator = self::$transactionCompletionCoordinators[$connection]
+            ??= new TransactionCompletionCoordinator();
         $this->installVirtualTableSchemaAssetsFilter();
     }
 
@@ -170,7 +179,39 @@ final class DBALDatabase implements ConsistentReadDatabaseInterface, DatabaseIde
 
     public function transaction(string $name = ''): TransactionInterface
     {
-        return new DBALTransaction($this->connection);
+        return new DBALTransaction($this->connection, $this->transactionCompletionCoordinator);
+    }
+
+    /**
+     * Execute work inside the framework-managed transaction boundary.
+     *
+     * @template T
+     * @param \Closure(): T $callback
+     * @return T
+     */
+    public function transactional(\Closure $callback): mixed
+    {
+        $transaction = $this->transaction();
+
+        try {
+            $result = $callback();
+        } catch (\Throwable $failure) {
+            $transaction->rollBack();
+            throw $failure;
+        }
+
+        try {
+            $transaction->commit();
+        } catch (TransactionCompletionException $failure) {
+            // The database is already committed; never report or attempt a
+            // fictional rollback for completion work that ran afterward.
+            throw $failure;
+        } catch (\Throwable $failure) {
+            $transaction->rollBack();
+            throw $failure;
+        }
+
+        return $result;
     }
 
     public function consistentReadTransaction(string $name = ''): TransactionInterface

@@ -6,13 +6,17 @@ namespace Waaseyaa\Database\Tests\Unit;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\TransactionIsolationLevel;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALConsistentReadTransaction;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DBALTransaction;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\Exception\TransactionCompletionException;
+use Waaseyaa\Database\TransactionCompletionCoordinator;
+use Waaseyaa\Database\TransactionCompletionInterface;
 
 #[CoversClass(DBALTransaction::class)]
+#[CoversClass(TransactionCompletionCoordinator::class)]
 final class DBALTransactionTest extends TestCase
 {
     private DBALDatabase $db;
@@ -73,6 +77,118 @@ final class DBALTransactionTest extends TestCase
         $this->expectExceptionMessage('Transaction is no longer active.');
 
         $tx->commit();
+    }
+
+    public function testAfterCommitOnCompletedTransactionThrows(): void
+    {
+        $transaction = $this->db->transaction();
+        $transaction->commit();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Transaction is no longer active.');
+        $transaction->afterCommit(static function (): void {});
+    }
+
+    public function testNestedCompletionRunsOnlyAfterManagedOuterCommit(): void
+    {
+        $calls = [];
+        $outer = $this->db->transaction();
+        $inner = $this->db->transaction();
+        self::assertInstanceOf(TransactionCompletionInterface::class, $inner);
+        $inner->afterCommit(function () use (&$calls): void {
+            $calls[] = $this->db->getConnection()->getTransactionNestingLevel();
+        });
+
+        $inner->commit();
+        self::assertSame([], $calls);
+
+        $outer->commit();
+        self::assertSame([0], $calls);
+    }
+
+    public function testManagedOuterRollbackDiscardsNestedCompletion(): void
+    {
+        $called = false;
+        $outer = $this->db->transaction();
+        $inner = $this->db->transaction();
+        self::assertInstanceOf(TransactionCompletionInterface::class, $inner);
+        $inner->afterCommit(static function () use (&$called): void {
+            $called = true;
+        });
+
+        $inner->commit();
+        $outer->rollBack();
+
+        self::assertFalse($called);
+    }
+
+    public function testSeparateDatabaseWrappersShareTheConnectionCompletionStack(): void
+    {
+        $secondWrapper = new DBALDatabase($this->db->getConnection());
+        $called = false;
+        $outer = $this->db->transaction();
+        $inner = $secondWrapper->transaction();
+        self::assertInstanceOf(TransactionCompletionInterface::class, $inner);
+        $inner->afterCommit(static function () use (&$called): void {
+            $called = true;
+        });
+
+        $inner->commit();
+        self::assertFalse($called);
+        $outer->commit();
+        self::assertTrue($called);
+    }
+
+    public function testCompletionFailureDoesNotStarveLaterCallbacks(): void
+    {
+        $called = false;
+        $transaction = $this->db->transaction();
+        self::assertInstanceOf(TransactionCompletionInterface::class, $transaction);
+        $transaction->afterCommit(static function (): never {
+            throw new \RuntimeException('first completion failed');
+        });
+        $transaction->afterCommit(static function () use (&$called): void {
+            $called = true;
+        });
+
+        try {
+            $transaction->commit();
+            self::fail('Completion failures must be reported after all callbacks run.');
+        } catch (TransactionCompletionException $failure) {
+            self::assertCount(1, $failure->failures());
+        }
+
+        self::assertTrue($called);
+        self::assertSame(0, $this->db->getConnection()->getTransactionNestingLevel());
+    }
+
+    public function testFrameworkTransactionRefusesUnmanagedDoctrineParent(): void
+    {
+        $connection = $this->db->getConnection();
+        $connection->beginTransaction();
+
+        try {
+            $this->expectException(\LogicException::class);
+            $this->expectExceptionMessage('Cannot nest a framework transaction inside an unmanaged Doctrine transaction');
+            $this->db->transaction();
+        } finally {
+            $connection->rollBack();
+        }
+    }
+
+    public function testManagedTransactionsMustCompleteInReverseOpenOrder(): void
+    {
+        $outer = $this->db->transaction();
+        $inner = $this->db->transaction();
+
+        try {
+            $outer->commit();
+            self::fail('The outer transaction completed while its inner frame was still open.');
+        } catch (\LogicException $failure) {
+            self::assertSame('Transactions must complete in last-opened, first-closed order.', $failure->getMessage());
+        } finally {
+            $inner->rollBack();
+        }
     }
 
     public function testConsistentReadRestoresIsolationWhenTheIsolationChangeThrows(): void

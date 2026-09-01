@@ -992,7 +992,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         if ($liveRevisionId === null) {
             $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
 
-            return $this->promoteWorkingCopy($entity);
+            return $this->promoteWorkingCopy($this->reload($entity));
         }
 
         $this->assertExpectedRevision($entity, $expectedRevisionId);
@@ -1011,7 +1011,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
         }
         $this->repository->save($entity, true, $this->saveContext($actor));
 
-        return $this->promoteWorkingCopy($entity);
+        return $this->promoteWorkingCopy($this->reload($entity));
     }
 
     private function unpublishUnboundWorkingCopy(
@@ -1032,6 +1032,7 @@ final class ContentPublisher implements AdvisoryAwareContentDraftMutationInterfa
 
         if ($workingRevisionId === $liveRevisionId) {
             $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
+            $entity = $this->reload($entity);
             $token = $entity instanceof EntityBase ? $entity->mutationToken() : null;
             $this->repository->clearPublishedRevision($id, $token);
 

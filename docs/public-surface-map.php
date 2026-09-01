@@ -172,6 +172,8 @@ return [
     'Waaseyaa\Database\SchemaInterface' => 'public',
     'Waaseyaa\Database\ForeignKeySchemaInterface' => 'public',
     'Waaseyaa\Database\TransactionInterface' => 'public',
+    'Waaseyaa\Database\TransactionCompletionInterface' => 'public',
+    'Waaseyaa\Database\Exception\TransactionCompletionException' => 'public',
     'Waaseyaa\Plugin\PluginInspectionInterface' => 'public',
     'Waaseyaa\Plugin\PluginManagerInterface' => 'public',
     'Waaseyaa\Plugin\PluginBase' => 'public',

@@ -99,19 +99,25 @@ transaction is open on, so a guard refusal rolls it back. Pinned by
   in-memory tokens do not.
 
   This is **not** hypothetical and **not** limited to cascading guards. The
-  scheduler's own fence supplies the outer transaction:
-  `DatabaseFenceGuard::execute()` wraps every durable effect in
-  `$connection->transactional(...)`, and `PurgeJob` issues its
+  scheduler's own fence supplied the outer transaction while using Doctrine's
+  raw `$connection->transactional(...)`, and `PurgeJob` issued its
   `$repository->delete()` inside exactly that (`PurgeJob.php:168` via
-  `LeaseExecutionContext::effect()`). `POST_DELETE` therefore fires before the
-  fence transaction resolves, on **baseline and candidate alike**, with no
-  cascading guard involved. #2728 neither causes nor worsens it. Tracked in
-  **#2734**.
-- **`UnitOfWork`'s buffered-dispatch loop still has no per-event isolation**, so a
-  throwing post-commit listener still suppresses every later buffered event. This
-  change removes the only known `PRE_DELETE` trigger, not the mechanism. Tracked
-  in **#2734**; a blanket `catch` there would swallow subscriber errors and is
-  the wrong fix.
+  `LeaseExecutionContext::effect()`). Before #2734, `POST_DELETE` therefore
+  fired before the fence transaction resolved, with no cascading guard
+  involved. #2728 neither caused nor worsened it.
+
+  FW-2734 moves the fence to `DBALDatabase::transactional()` and gives managed
+  nested transactions an outermost-completion stack. Repository effects now
+  wait for the outer commit and disappear on rollback. Any outer boundary that
+  can contain a repository mutation must use `DatabaseInterface::transaction()`
+  or concrete `DBALDatabase::transactional()`; raw Doctrine nesting fails before
+  the repository mutation starts.
+- **`UnitOfWork`'s buffered-dispatch loop previously had no per-event
+  isolation**, so a throwing post-commit listener suppressed every later
+  buffered event. FW-2734 logs each event failure with bounded metadata and
+  continues the drain. Callback and event failures surface only after the
+  complete drain as committed completion failures; committed rows are never
+  described as rolled back.
 
 ---
 

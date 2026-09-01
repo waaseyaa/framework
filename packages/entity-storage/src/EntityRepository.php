@@ -10,6 +10,9 @@ use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\Exception\TransactionCompletionException;
+use Waaseyaa\Database\TransactionCompletionInterface;
+use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityBase;
@@ -652,7 +655,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     public function save(EntityInterface $entity, bool $validate = true, ?SaveContext $context = null): int
     {
         if ($this->mutationAuthority !== null && $this->database !== null) {
-            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
 
             return $unitOfWork->transaction(
                 fn(): int => $this->doSave($entity, $unitOfWork, $validate, $context),
@@ -680,9 +683,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             throw new \LogicException('Atomic publication requires revision storage.');
         }
 
-        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
+        $expectedMutationToken = $entity instanceof EntityBase ? $entity->mutationToken() : null;
 
-        return $unitOfWork->transaction(function () use ($entity, $mutation, $publishRevision, $validate, $publicationFinalizer, $beforeCommit, $unitOfWork): EntityInterface {
+        return $unitOfWork->transaction(function () use ($entity, $mutation, $publishRevision, $validate, $publicationFinalizer, $beforeCommit, $unitOfWork, $expectedMutationToken): EntityInterface {
             $this->doSave(
                 $entity,
                 $unitOfWork,
@@ -721,7 +725,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             $published = $this->doSetPublishedRevision(
                 (string) $entity->id(),
                 $revisionId,
-                expected: null,
+                expected: $expectedMutationToken,
                 unitOfWork: $unitOfWork,
                 claimMutation: false,
             );
@@ -735,7 +739,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
     public function delete(EntityInterface $entity): void
     {
         if ($this->mutationAuthority !== null && $this->database !== null) {
-            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
             $unitOfWork->transaction(function () use ($entity, $unitOfWork): void {
                 $this->doDelete($entity, $unitOfWork);
             });
@@ -756,7 +760,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             throw new \LogicException('saveMany() requires a database connection for transaction support.');
         }
 
-        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
 
         return $unitOfWork->transaction(function () use ($entities, $validate, $unitOfWork): array {
             $results = [];
@@ -778,7 +782,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             throw new \LogicException('deleteMany() requires a database connection for transaction support.');
         }
 
-        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
 
         return $unitOfWork->transaction(function () use ($entities, $unitOfWork): int {
             foreach ($entities as $entity) {
@@ -1674,8 +1678,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             sourceRevisionId: $targetRevisionId,
         );
         $transaction = $this->database?->transaction();
+        $completion = $this->completionFor($transaction);
         try {
-            $this->claimMutationForId($entityId, $expected);
+            $successor = $this->claimMutationForId($entityId, $expected);
             if ($expectedCurrentRevisionId !== null) {
                 $currentRevisionId = $this->revisionDriver->getLatestRevisionId($entityId);
                 if ($currentRevisionId !== $expectedCurrentRevisionId) {
@@ -1723,23 +1728,26 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $this->writeDriverRow($this->entityType->id(), $entityId, $targetRow);
             }
 
-            $transaction?->commit();
+            // Load before releasing this transaction's savepoint, then keep
+            // the caller-visible token on the predecessor until the true outer
+            // commit installs the successor.
+            $entity = $this->loadRevision($entityId, $newRevisionId);
+            $this->deferTokenUntilCommit($entity, $expected, $successor, $completion);
+            $this->dispatchAfterCommit(
+                $this->eventFactory->create($entity),
+                EntityEvents::REVISION_CREATED->value,
+                $completion,
+            );
+            $this->dispatchAfterCommit(
+                $this->eventFactory->create($entity),
+                EntityEvents::REVISION_REVERTED->value,
+                $completion,
+            );
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
         }
-
-        // Load the new entity via loadRevision to include revision metadata.
-        $entity = $this->loadRevision($entityId, $newRevisionId);
-
-        $this->dispatchEvent(
-            $this->eventFactory->create($entity),
-            EntityEvents::REVISION_CREATED->value,
-        );
-        $this->dispatchEvent(
-            $this->eventFactory->create($entity),
-            EntityEvents::REVISION_REVERTED->value,
-        );
+        $this->commitCompletionTransaction($transaction);
 
         return $entity;
     }
@@ -1854,48 +1862,44 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $row['revision_id'] = $revisionId;
 
         $transaction = $this->database?->transaction();
+        $completion = $this->completionFor($transaction);
         try {
-            $this->claimMutationForId($entityId, $expected);
+            $successor = $this->claimMutationForId($entityId, $expected);
             $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
             $this->writeDriverRow($this->entityType->id(), $entityId, $row);
-            $transaction?->commit();
+
+            // Reload the row that was actually made current while the write is
+            // visible, but defer its successor token and notifications through
+            // the connection-level completion boundary.
+            $entity = $this->find($entityId);
+            if ($entity === null) {
+                throw new \UnexpectedValueException(
+                    "Current entity {$this->entityType->id()} '{$entityId}' could not be reloaded after moving its revision pointer.",
+                );
+            }
+            $this->deferTokenUntilCommit($entity, $expected, $successor, $completion);
+            $this->dispatchAfterCommit(
+                $this->eventFactory->create($entity),
+                EntityEvents::REVISION_REVERTED->value,
+                $completion,
+            );
+            $this->dispatchAfterCommit(
+                new RevisionPointerMovedEvent(
+                    entityTypeId: $this->entityType->id(),
+                    entityId: $entityId,
+                    operation: 'revert',
+                    fromRevisionId: $fromRevisionId,
+                    toRevisionId: $revisionId,
+                    actorUid: $actor,
+                ),
+                RevisionPointerMovedEvent::class,
+                $completion,
+            );
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
         }
-
-        // Reload the row that was actually made current. The historical
-        // revision snapshot intentionally retains its frozen status,
-        // publication pointer, and credentials, while the base row above
-        // preserves the live values. Returning or dispatching the snapshot
-        // would expose stale credentials with a fresh mutation token.
-        $entity = $this->find($entityId);
-        if ($entity === null) {
-            throw new \UnexpectedValueException(
-                "Current entity {$this->entityType->id()} '{$entityId}' could not be reloaded after moving its revision pointer.",
-            );
-        }
-
-        $this->dispatchEvent(
-            $this->eventFactory->create($entity),
-            EntityEvents::REVISION_REVERTED->value,
-        );
-
-        // Typed pointer-transition event (FR-006, research D4) — dispatched by
-        // FQCN AFTER the pointer transaction committed (a rolled-back move
-        // throws above and produces no event), alongside — not replacing —
-        // the legacy REVISION_REVERTED dispatch.
-        $this->dispatchEvent(
-            new RevisionPointerMovedEvent(
-                entityTypeId: $this->entityType->id(),
-                entityId: $entityId,
-                operation: 'revert',
-                fromRevisionId: $fromRevisionId,
-                toRevisionId: $revisionId,
-                actorUid: $actor,
-            ),
-            RevisionPointerMovedEvent::class,
-        );
+        $this->commitCompletionTransaction($transaction);
 
         return $entity;
     }
@@ -2029,8 +2033,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $this->revisionDriver->assertEntityMutationAllowed($entityId);
 
         $transaction = $this->database?->transaction();
+        $completion = $this->completionFor($transaction);
         try {
-            $this->claimMutationForId($entityId, $expected);
+            $successor = $this->claimMutationForId($entityId, $expected);
             $entity = $this->find($entityId);
             if ($entity === null) {
                 throw new \InvalidArgumentException("Entity {$entityId} does not exist.");
@@ -2043,21 +2048,21 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             $values['published_revision_id'] = null;
             $values['status'] = 0;
             $this->writeDriverRow($this->entityType->id(), $entityId, $values);
-            $transaction?->commit();
+            $reloaded = $this->find($entityId);
+            if ($reloaded === null) {
+                throw new \LogicException("Failed to reload entity {$entityId} after clearing the published pointer.");
+            }
+            $this->deferTokenUntilCommit($reloaded, $expected, $successor, $completion);
+            $this->dispatchAfterCommit(
+                $this->eventFactory->create($reloaded),
+                EntityEvents::POST_SAVE->value,
+                $completion,
+            );
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
         }
-
-        $reloaded = $this->find($entityId);
-        if ($reloaded === null) {
-            throw new \LogicException("Failed to reload entity {$entityId} after clearing the published pointer.");
-        }
-
-        $this->dispatchEvent(
-            $this->eventFactory->create($reloaded),
-            EntityEvents::POST_SAVE->value,
-        );
+        $this->commitCompletionTransaction($transaction);
 
         return $reloaded;
     }
@@ -2113,9 +2118,11 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $fromRevisionId = null;
 
         $transaction = $unitOfWork === null ? $this->database?->transaction() : null;
+        $completion = $this->completionFor($transaction);
         try {
+            $successor = null;
             if ($claimMutation) {
-                $this->claimMutationForId($entityId, $expected);
+                $successor = $this->claimMutationForId($entityId, $expected);
             }
             $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
             if ($completePromotion) {
@@ -2202,40 +2209,58 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $baseRow = $this->canonicalizeBooleanFieldValues($baseRow, entityId: $entityId);
                 $this->writeDriverRow($this->entityType->id(), $entityId, $baseRow);
             }
-            $transaction?->commit();
-        } catch (\Throwable $e) {
-            $transaction?->rollBack();
-            throw $e;
-        }
 
-        $entity = $this->loadPublishedRevision($entityId);
-        if ($entity === null) {
-            throw new \LogicException(
-                "Failed to load published revision {$revisionId} for entity {$entityId} after publishing.",
-            );
-        }
-
-        $this->dispatchEvent(
-            $this->eventFactory->create($entity),
-            EntityEvents::REVISION_REVERTED->value,
-            $unitOfWork,
-        );
-
-        // Typed pointer-transition event (FR-006, research D4) — by FQCN,
-        // AFTER the pointer transaction committed (a rolled-back move throws
-        // above and produces no event), alongside the legacy dispatch.
-        $this->dispatchEvent(
-            new RevisionPointerMovedEvent(
+            $entity = $this->loadPublishedRevision($entityId);
+            if ($entity === null) {
+                throw new \LogicException(
+                    "Failed to load published revision {$revisionId} for entity {$entityId} after publishing.",
+                );
+            }
+            $legacyEvent = $this->eventFactory->create($entity);
+            $pointerEvent = new RevisionPointerMovedEvent(
                 entityTypeId: $this->entityType->id(),
                 entityId: $entityId,
                 operation: 'publish',
                 fromRevisionId: $fromRevisionId,
                 toRevisionId: $revisionId,
                 actorUid: $actor,
-            ),
-            RevisionPointerMovedEvent::class,
-            $unitOfWork,
-        );
+            );
+            if ($unitOfWork !== null) {
+                if ($expected !== null && $entity instanceof EntityBase) {
+                    $loadedSuccessor = $entity->mutationToken();
+                    $entity->_hydrateMutationToken($expected);
+                    if ($loadedSuccessor !== null) {
+                        $unitOfWork->afterCommit(static fn() => $entity->_hydrateMutationToken($loadedSuccessor));
+                    }
+                }
+                $this->dispatchEvent(
+                    $legacyEvent,
+                    EntityEvents::REVISION_REVERTED->value,
+                    $unitOfWork,
+                );
+                $this->dispatchEvent(
+                    $pointerEvent,
+                    RevisionPointerMovedEvent::class,
+                    $unitOfWork,
+                );
+            } else {
+                $this->deferTokenUntilCommit($entity, $expected, $successor, $completion);
+                $this->dispatchAfterCommit(
+                    $legacyEvent,
+                    EntityEvents::REVISION_REVERTED->value,
+                    $completion,
+                );
+                $this->dispatchAfterCommit(
+                    $pointerEvent,
+                    RevisionPointerMovedEvent::class,
+                    $completion,
+                );
+            }
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
+        $this->commitCompletionTransaction($transaction);
 
         return $entity;
     }
@@ -2289,21 +2314,26 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         );
 
         $transaction = $this->database?->transaction();
+        $completion = $this->completionFor($transaction);
         try {
-            $this->claimMutationForId($entityId, $expected);
+            $successor = $this->claimMutationForId($entityId, $expected);
             $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
             $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
             $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
-            $transaction?->commit();
+            $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
+            if ($entity !== null) {
+                $this->deferTokenUntilCommit($entity, $expected, $successor, $completion);
+                $this->dispatchAfterCommit(
+                    $this->eventFactory->create($entity),
+                    EntityEvents::REVISION_CREATED->value,
+                    $completion,
+                );
+            }
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
         }
-
-        $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
-        if ($entity !== null) {
-            $this->dispatchEvent($this->eventFactory->create($entity), EntityEvents::REVISION_CREATED->value);
-        }
+        $this->commitCompletionTransaction($transaction);
 
         return $revisionId;
     }
@@ -2337,9 +2367,10 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $actor = $this->resolveActor(null);
 
         $transaction = $this->database?->transaction();
+        $completion = $this->completionFor($transaction);
         $created = [];
         try {
-            $this->claimMutationForId($entityId, $expected);
+            $successor = $this->claimMutationForId($entityId, $expected);
             foreach ($byLangcode as $langcode => $values) {
                 // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920):
                 // dispatched BEFORE this langcode's write. A throwing
@@ -2363,18 +2394,22 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
                 $created[$langcode] = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
             }
-            $transaction?->commit();
+            foreach ($created as $langcode => $revisionId) {
+                $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
+                if ($entity !== null) {
+                    $this->deferTokenUntilCommit($entity, $expected, $successor, $completion);
+                    $this->dispatchAfterCommit(
+                        $this->eventFactory->create($entity),
+                        EntityEvents::REVISION_CREATED->value,
+                        $completion,
+                    );
+                }
+            }
         } catch (\Throwable $e) {
             $transaction?->rollBack();
             throw $e;
         }
-
-        foreach ($created as $langcode => $revisionId) {
-            $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
-            if ($entity !== null) {
-                $this->dispatchEvent($this->eventFactory->create($entity), EntityEvents::REVISION_CREATED->value);
-            }
-        }
+        $this->commitCompletionTransaction($transaction);
 
         return $created;
     }
@@ -2511,8 +2546,9 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         $actor = $this->resolveActor(null);
 
         $transaction = $this->database->transaction();
+        $completion = $this->completionFor($transaction);
         try {
-            $this->claimMutationForId($entityId, $expected);
+            $successor = $this->claimMutationForId($entityId, $expected);
 
             // Refuse foreign, ownerless, and conflicting exact peers before an
             // event subscriber can observe the attempted pointer move. The
@@ -2551,16 +2587,20 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 $peerSnapshot,
             );
             $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
-            $transaction->commit();
+            $entity = $this->loadTranslation($entityId, $langcode);
+            if ($entity !== null) {
+                $this->deferTokenUntilCommit($entity, $expected, $successor, $completion);
+                $this->dispatchAfterCommit(
+                    $this->eventFactory->create($entity),
+                    EntityEvents::REVISION_CREATED->value,
+                    $completion,
+                );
+            }
         } catch (\Throwable $e) {
             $transaction->rollBack();
             throw $e;
         }
-
-        $entity = $this->loadTranslation($entityId, $langcode);
-        if ($entity !== null) {
-            $this->dispatchEvent($this->eventFactory->create($entity), EntityEvents::REVISION_CREATED->value);
-        }
+        $this->commitCompletionTransaction($transaction);
 
         return $revisionId;
     }
@@ -3051,7 +3091,7 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
         }
 
         $committed = 0;
-        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher, $this->logger);
         try {
             $unitOfWork->transaction(function () use ($missing, $reason, $unitOfWork, &$committed): void {
                 foreach ($missing as [$tenantId, $entityId]) {
@@ -3328,6 +3368,102 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
             return;
         }
         $entity->_hydrateMutationToken($token);
+    }
+
+    private function completionFor(?TransactionInterface $transaction): ?TransactionCompletionInterface
+    {
+        if ($transaction === null) {
+            return null;
+        }
+        if (!$transaction instanceof TransactionCompletionInterface) {
+            $transaction->rollBack();
+            throw new \LogicException(sprintf(
+                '%s requires a transaction that implements %s so notifications cannot escape an outer rollback.',
+                self::class,
+                TransactionCompletionInterface::class,
+            ));
+        }
+
+        return $transaction;
+    }
+
+    private function commitCompletionTransaction(?TransactionInterface $transaction): void
+    {
+        if ($transaction === null) {
+            return;
+        }
+        try {
+            $transaction->commit();
+        } catch (TransactionCompletionException $failure) {
+            throw $failure;
+        } catch (\Throwable $failure) {
+            $transaction->rollBack();
+            throw $failure;
+        }
+    }
+
+    private function deferTokenUntilCommit(
+        EntityInterface $entity,
+        ?EntityMutationToken $expected,
+        ?EntityMutationToken $successor,
+        ?TransactionCompletionInterface $completion,
+    ): void {
+        if ($successor === null) {
+            return;
+        }
+        if (!$entity instanceof EntityBase) {
+            throw new \LogicException('Persisted entity snapshots must extend EntityBase to carry mutation authority.');
+        }
+        if ($expected !== null) {
+            $entity->_hydrateMutationToken($expected);
+        }
+        if ($completion !== null) {
+            $completion->afterCommit(static fn() => $entity->_hydrateMutationToken($successor));
+
+            return;
+        }
+        $entity->_hydrateMutationToken($successor);
+    }
+
+    private function dispatchAfterCommit(
+        object $event,
+        string $eventName,
+        ?TransactionCompletionInterface $completion,
+    ): void {
+        if ($completion === null) {
+            $this->dispatchEvent($event, $eventName);
+
+            return;
+        }
+        $completion->afterCommit(function () use ($event, $eventName): void {
+            try {
+                $this->dispatchEvent($event, $eventName);
+            } catch (\Throwable $failure) {
+                $failureClass = $this->safeCompletionClassName($failure);
+                $eventClass = $this->safeCompletionClassName($event);
+                try {
+                    $this->logger->error('entity_storage.post_commit_effect_failed', [
+                        'phase' => 'repository_event',
+                        'failure_class' => $failureClass,
+                        'event_class' => $eventClass,
+                    ]);
+                } catch (\Throwable $loggingFailure) {
+                    error_log(sprintf(
+                        'entity_storage.post_commit_effect_failed phase=repository_event failure=%s logger_failure=%s',
+                        $failureClass,
+                        $this->safeCompletionClassName($loggingFailure),
+                    ));
+                }
+                throw $failure;
+            }
+        });
+    }
+
+    private function safeCompletionClassName(object $value): string
+    {
+        $class = $value::class;
+
+        return str_contains($class, '@anonymous') ? 'anonymous' : substr($class, 0, 200);
     }
 
     /** @param array<string, mixed> $values */
