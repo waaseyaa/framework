@@ -12,6 +12,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
 use Waaseyaa\EntityStorage\SchemaSyncReport;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
+use Waaseyaa\Field\FieldDefinition;
 
 #[CoversClass(EntitySchemaSyncRunner::class)]
 #[CoversClass(SchemaSyncReport::class)]
@@ -86,6 +87,81 @@ final class EntitySchemaSyncRunnerTest extends TestCase
 
         $this->assertSame(['gadget'], $report->created);
         $this->assertSame(['widget'], $report->existing);
+    }
+
+    /**
+     * #2732 — the reported repro: an entity type gets a new non-key field
+     * (with an index) registered against an already-materialized table.
+     */
+    #[Test]
+    public function dry_run_reports_a_column_and_index_that_would_be_added_to_an_existing_table(): void
+    {
+        new EntitySchemaSyncRunner($this->database)->run([$this->makeSqlColumnEntityType('report_probe', [])]);
+
+        $evolved = $this->makeSqlColumnEntityType('report_probe', [
+            'facet' => new FieldDefinition(
+                name: 'facet',
+                type: 'string',
+                targetEntityTypeId: 'report_probe',
+                fieldIndexed: true,
+            ),
+        ]);
+
+        $report = new EntitySchemaSyncRunner($this->database)->run([$evolved], dryRun: true);
+
+        $this->assertSame([], $report->created, 'the table already exists; it is not "created"');
+        $this->assertSame(['report_probe'], $report->existing);
+        $this->assertSame(['report_probe'], $report->altered, 'the additive column+index is real work, not a no-op');
+        $this->assertSame([], $report->unchanged());
+        $this->assertTrue($report->changed(), 'a dry run that would add a column must report changed() === true');
+        $this->assertFalse(
+            $this->database->schema()->fieldExists('report_probe', 'facet'),
+            'dry run must not write the column',
+        );
+    }
+
+    #[Test]
+    public function apply_adds_the_column_and_index_and_reports_the_table_as_altered(): void
+    {
+        new EntitySchemaSyncRunner($this->database)->run([$this->makeSqlColumnEntityType('report_probe', [])]);
+
+        $evolved = $this->makeSqlColumnEntityType('report_probe', [
+            'facet' => new FieldDefinition(
+                name: 'facet',
+                type: 'string',
+                targetEntityTypeId: 'report_probe',
+                fieldIndexed: true,
+            ),
+        ]);
+
+        $report = new EntitySchemaSyncRunner($this->database)->run([$evolved]);
+
+        $this->assertSame([], $report->created);
+        $this->assertSame(['report_probe'], $report->existing);
+        $this->assertSame(['report_probe'], $report->altered);
+        $this->assertTrue($report->changed());
+        $this->assertTrue(
+            $this->database->schema()->fieldExists('report_probe', 'facet'),
+            'apply must actually add the column',
+        );
+
+        // A subsequent run against the now-satisfied definition is a true no-op.
+        $noop = new EntitySchemaSyncRunner($this->database)->run([$evolved]);
+        $this->assertSame([], $noop->altered);
+        $this->assertFalse($noop->changed());
+    }
+
+    /** @param array<string, FieldDefinition> $fields */
+    private function makeSqlColumnEntityType(string $id, array $fields): EntityType
+    {
+        return new EntityType(
+            id: $id,
+            label: 'Probe',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+            primaryStorageBackend: 'sql-column',
+            _fieldDefinitions: $fields,
+        );
     }
 
     private function makeEntityType(string $id, string $label): EntityType

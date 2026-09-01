@@ -52,29 +52,54 @@ final class SchemaSyncHandler
             return 0;
         }
 
+        $unchanged = $report->unchanged();
+
+        // A table already existing is not the same as that table needing no
+        // work: `changed()` also covers columns/indexes registered since the
+        // last sync (#2732). Only report "nothing to do" when it genuinely is.
+        if (!$report->changed()) {
+            $io->writeln(sprintf(
+                '%s: all %d registered entity table(s) already exist and are up to date. Nothing to change.',
+                $dryRun ? '--dry-run' : 'Schema in sync',
+                $report->total(),
+            ));
+            return 0;
+        }
+
         if ($dryRun) {
-            if ($report->created === []) {
-                $io->writeln(sprintf('--dry-run: all %d registered entity table(s) already exist. Nothing to create.', $report->total()));
-                return 0;
+            if ($report->created !== []) {
+                $io->writeln(sprintf('--dry-run: would create %d table(s):', count($report->created)));
+                foreach ($report->created as $table) {
+                    $io->writeln(sprintf('  + %s', $table));
+                }
             }
-            $io->writeln(sprintf('--dry-run: would create %d table(s):', count($report->created)));
+            if ($report->altered !== []) {
+                $io->writeln(sprintf('--dry-run: would alter %d existing table(s) (add columns/indexes):', count($report->altered)));
+                foreach ($report->altered as $table) {
+                    $io->writeln(sprintf('  ~ %s', $table));
+                }
+            }
+            if ($unchanged !== []) {
+                $io->writeln(sprintf('%d table(s) already exist and are up to date.', count($unchanged)));
+            }
+            return 0;
+        }
+
+        if ($report->created !== []) {
+            $io->writeln(sprintf('Created %d table(s):', count($report->created)));
             foreach ($report->created as $table) {
                 $io->writeln(sprintf('  + %s', $table));
             }
-            $io->writeln(sprintf('%d table(s) already exist.', count($report->existing)));
-            return 0;
         }
-
-        if ($report->created === []) {
-            $io->writeln(sprintf('Schema in sync: all %d registered entity table(s) already exist.', $report->total()));
-            return 0;
+        if ($report->altered !== []) {
+            $io->writeln(sprintf('Altered %d existing table(s) (added columns/indexes):', count($report->altered)));
+            foreach ($report->altered as $table) {
+                $io->writeln(sprintf('  ~ %s', $table));
+            }
         }
-
-        $io->writeln(sprintf('Created %d table(s):', count($report->created)));
-        foreach ($report->created as $table) {
-            $io->writeln(sprintf('  + %s', $table));
+        if ($unchanged !== []) {
+            $io->writeln(sprintf('%d table(s) already existed and needed no changes.', count($unchanged)));
         }
-        $io->writeln(sprintf('%d table(s) already existed (left untouched).', count($report->existing)));
         $io->writeln('Schema sync complete.');
 
         return 0;

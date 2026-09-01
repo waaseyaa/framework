@@ -1144,6 +1144,43 @@ Default table schema (from `buildTableSpec()`):
 - `_data` -- `text NOT NULL DEFAULT '{}'`
 - Primary key on `{idKey}`, unique index on UUID, index on bundle
 
+`planMutatingEntityTypeIds(iterable $entityTypes): array` -- reports, per entity
+type, whether synchronizing it would require a schema mutation, without
+applying anything. It reuses the exact same read-only traversal `syncAll()`
+already runs for its own no-op detection (one call to the query-only guard per
+entity type instead of once for the whole batch), so a table already present is
+correctly flagged when the current definition adds a column or index the live
+table lacks (#2732) — it is not a second, hand-maintained model of what would
+change. Returns the ids whose traversal was not a no-op. Same non-SQLite
+caveat as `syncAll()`: a connection the guard cannot observe safely is reported
+as requiring mutation rather than asserting a false no-op.
+
+### EntitySchemaSyncRunner and SchemaSyncReport
+
+File: `packages/entity-storage/src/EntitySchemaSyncRunner.php` (`final class
+EntitySchemaSyncRunner`), `packages/entity-storage/src/SchemaSyncReport.php`
+(`final class SchemaSyncReport`)
+
+The reporting wrapper `schema:sync` and `db:init --sync-schema` share.
+`run(iterable $definitions, bool $dryRun = false): SchemaSyncReport`
+classifies every definition's base table by pre-run existence into `created`
+(absent) and `existing` (present), then — for the `existing` set only —
+derives `altered`, the subset whose synchronization adds a column, index, or
+other physical schema to that already-present table, via
+`EntitySchemaSync::planMutatingEntityTypeIds()`. A table existing before the
+run is not the same as that table needing no work: a field (and its index)
+registered since the last sync is additively materialized onto it, and
+`altered` says so instead of folding it into "already exists" (#2732).
+`$dryRun` skips the apply call (`EntitySchemaSync::syncAll()`) but always runs
+the read-only `altered` derivation, so preview and apply describe the same
+model and cannot disagree.
+
+`SchemaSyncReport::changed(): bool` is `true` when `created` **or** `altered`
+is non-empty — a run is a no-op only when nothing was created and nothing on
+an existing table needed a column or index. `unchanged(): array` is `existing`
+minus `altered` — the genuinely untouched subset. `total()` is
+`count(created) + count(existing)` (unchanged by #2732).
+
 ### EntityStorageFactory
 
 File: `packages/entity-storage/src/EntityStorageFactory.php`

@@ -275,6 +275,17 @@ therefore reports the exact already-committed count rather than zero. Operators
 retain the invocation reason with the digest-bound exit/count report as the
 durable upgrade evidence.
 
+`schema:sync [--dry-run]` reports created tables, already-existing tables, and
+— since #2732 — the subset of already-existing tables whose synchronization
+adds a column or index (`altered`, distinct from the genuinely untouched
+`unchanged` subset). Before #2732, a table's pre-run existence alone decided
+the summary, so a field (and its index) registered against an already-created
+table was described as "already exist(s)" / "in sync" even though `--dry-run`
+would apply a real schema change and the real run did. `--dry-run` and the
+applied run derive `altered` from the same read-only traversal (see
+`EntitySchemaSyncRunner`/`SchemaSyncReport` in
+[entity-system.md](entity-system.md)), so the two cannot disagree.
+
 `install:init` is the governed installation phase (#2428) and belongs to the
 restricted pre-boot command set alongside `schema:sync` and `migrate*`.
 `ConsoleKernel::handle()` routes it through `bootForSchemaSync()`, so it never
