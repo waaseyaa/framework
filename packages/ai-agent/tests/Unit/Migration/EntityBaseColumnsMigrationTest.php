@@ -45,6 +45,7 @@ final class EntityBaseColumnsMigrationTest extends TestCase
         $upgrade->up($schema);
 
         foreach (['agent_run', 'agent_audit_log'] as $table) {
+            self::assertTrue($schema->hasColumn($table, '_data'));
             self::assertTrue($schema->hasColumn($table, 'bundle'));
             self::assertTrue($schema->hasColumn($table, 'langcode'));
         }
@@ -60,6 +61,44 @@ final class EntityBaseColumnsMigrationTest extends TestCase
             ['idx_agent_audit_run_occurred_at'],
             $this->nonPrimaryIndexNames($schemaManager->listTableIndexes('agent_audit_log')),
         );
+    }
+
+    #[Test]
+    public function materialized_fresh_tables_receive_the_complete_entity_base_shape(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $schema = new SchemaBuilder($database->getConnection());
+        $connection = $database->getConnection();
+        $connection->executeStatement(<<<'SQL'
+            CREATE TABLE agent_run (
+                id VARCHAR(36) NOT NULL PRIMARY KEY,
+                account_id BIGINT NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                queued_at VARCHAR(35) NOT NULL,
+                started_at VARCHAR(35) DEFAULT NULL
+            )
+            SQL);
+        $connection->executeStatement(<<<'SQL'
+            CREATE TABLE agent_audit_log (
+                id VARCHAR(36) NOT NULL PRIMARY KEY,
+                run_id VARCHAR(36) NOT NULL,
+                occurred_at VARCHAR(35) NOT NULL
+            )
+            SQL);
+
+        $upgrade = require \dirname(__DIR__, 3) . '/migrations/2026_09_01_000001_add_entity_base_columns.php';
+        \assert($upgrade instanceof Migration);
+
+        $upgrade->up($schema);
+        $upgrade->up($schema);
+
+        foreach (['agent_run', 'agent_audit_log'] as $table) {
+            self::assertTrue($schema->hasColumn($table, '_data'));
+            self::assertTrue($schema->hasColumn($table, 'bundle'));
+            self::assertTrue($schema->hasColumn($table, 'langcode'));
+        }
+        self::assertSame("'{}'", $connection->fetchOne("SELECT dflt_value FROM pragma_table_info('agent_run') WHERE name = '_data'"));
+        self::assertSame("'{}'", $connection->fetchOne("SELECT dflt_value FROM pragma_table_info('agent_audit_log') WHERE name = '_data'"));
     }
 
     /**

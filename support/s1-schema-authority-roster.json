@@ -127,6 +127,20 @@
         },
         {
             "path": "packages/ai-agent/tests/Unit/Migration/EntityBaseColumnsMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/ai-agent/tests/Unit/Migration/EntityBaseColumnsMigrationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/ai-agent/tests/Unit/Migration/EntityBaseColumnsMigrationTest.php",
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "42258e5cc060785171e149889a5f9b65d5544ab23dd6f6136426fe74527bcd57",
