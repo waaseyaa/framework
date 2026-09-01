@@ -111,7 +111,8 @@ For multi-bundle entity types with registered bundle-scoped fields, drift detect
 4. Build expected columns from `EntityTypeInterface::getKeys()`:
    - Content entities (has `uuid` key): ID column = `INTEGER` (serial), plus `uuid` = `TEXT`
    - Config entities (no `uuid` key): ID column = `TEXT` (varchar)
-   - Common columns: bundle, label, langcode, `_data` — all `TEXT`
+   - Common columns: bundle, label, langcode — all `TEXT`
+   - `_data` (`TEXT`) is expected **only** when the entity type's resolved primary storage backend is `sql-blob` (the framework default, used when `EntityTypeInterface::getPrimaryStorageBackend()` is unset/empty). A `sql-column` entity type materialises every field as a dedicated column and never gets a `_data` blob — `HealthChecker` mirrors the exact backend resolution `Waaseyaa\EntityStorage\EntitySchemaSync::resolveBackend()` performs (declared backend wins, else `sql-blob`), rather than re-deriving the rule independently, so the expected-schema shape can never drift from what `SqlSchemaHandler::buildTableSpec()` actually materialises (#2682).
 5. Compare actual vs expected: check for missing columns, type mismatches
 6. SQLite type normalization: `varchar` / `varchar(n)` → `TEXT`, `serial` → `INTEGER` (affinity rules)
 

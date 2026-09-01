@@ -40,6 +40,26 @@ final class MenuServiceProviderTest extends TestCase
         $this->assertSame(FieldReadLevel::Public, $definitions['target_entity_id']->getReadLevel());
     }
 
+    /**
+     * #2755: 'locked' must be declared FieldReadLevel::Public on the
+     * registered 'menu' entity type — otherwise an undeclared field on a
+     * registered entity type defaults to Internal, and Menu::isLocked()
+     * (which reads through get()) would throw FieldReadDenied for the
+     * access policy itself, masking the delete-boundary invariant.
+     */
+    #[Test]
+    public function menu_declares_locked_as_a_public_field(): void
+    {
+        $provider = new MenuServiceProvider();
+        $provider->register();
+
+        $menuDefinitions = $provider->getEntityTypes()[0]->getFieldDefinitions();
+
+        $this->assertArrayHasKey('locked', $menuDefinitions);
+        $this->assertSame('boolean', $menuDefinitions['locked']->getType());
+        $this->assertSame(FieldReadLevel::Public, $menuDefinitions['locked']->getReadLevel());
+    }
+
     #[Test]
     public function menu_link_schema_defaults_enabled_to_true(): void
     {

@@ -20,13 +20,6 @@ final class Menu extends ConfigEntityBase
     protected string $description = '';
 
     /**
-     * Whether this menu is locked (cannot be deleted).
-     *
-     * System menus like 'main' are typically locked.
-     */
-    protected bool $locked = false;
-
-    /**
      * @param array<string, mixed> $values Initial entity values.
      * @param array<string, string> $entityKeys Explicit keys when reconstructing via {@see EntityBase::duplicateInstance()}.
      */
@@ -39,8 +32,17 @@ final class Menu extends ConfigEntityBase
             $this->description = (string) $values['description'];
         }
 
-        if (\array_key_exists('locked', $values)) {
-            $this->locked = (bool) $values['locked'];
+        // #2755: materialize the key into $values (not a raw property) before
+        // sealing — sealed V2 hydration (EntityInstantiator::instantiateSealed())
+        // bypasses this constructor entirely for entities loaded from storage,
+        // via ReflectionClass::newInstanceWithoutConstructor(). A value tracked
+        // only on a protected property set here would silently reset to its
+        // class default on every reload, which is exactly how the locked flag
+        // stopped being read at all. isLocked()/setLocked() below go through
+        // the value container (get()/set()) so both fresh and hydrated Menu
+        // objects agree.
+        if (!\array_key_exists('locked', $values)) {
+            $values['locked'] = false;
         }
 
         $entityTypeId = $entityTypeId !== '' ? $entityTypeId : 'menu';
@@ -70,10 +72,12 @@ final class Menu extends ConfigEntityBase
 
     /**
      * Whether this menu is locked (cannot be deleted).
+     *
+     * System menus like 'main' are typically locked.
      */
     public function isLocked(): bool
     {
-        return $this->locked;
+        return (bool) ($this->get('locked') ?? false);
     }
 
     /**
@@ -81,7 +85,6 @@ final class Menu extends ConfigEntityBase
      */
     public function setLocked(bool $locked): static
     {
-        $this->locked = $locked;
         $this->set('locked', $locked);
 
         return $this;
@@ -94,7 +97,7 @@ final class Menu extends ConfigEntityBase
     {
         $config = parent::toConfig();
         $config['description'] = $this->description;
-        $config['locked'] = $this->locked;
+        $config['locked'] = $this->isLocked();
 
         return $config;
     }

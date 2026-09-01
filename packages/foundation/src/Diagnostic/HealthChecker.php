@@ -10,6 +10,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\BundleStorageUniqueKeyRegistryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\Storage\PrimaryStorageBackend;
 use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -596,7 +597,7 @@ final class HealthChecker implements HealthCheckerInterface
 
         // Build expected columns from entity type keys.
         $keys = $type->getKeys();
-        $expectedColumns = $this->buildExpectedColumns($keys);
+        $expectedColumns = $this->buildExpectedColumns($keys, $this->usesDataColumn($type));
 
         // Check for missing expected columns.
         foreach ($expectedColumns as $col => $spec) {
@@ -629,9 +630,10 @@ final class HealthChecker implements HealthCheckerInterface
     }
 
     /**
+     * @param array<string, string> $keys
      * @return array<string, array{expected_type: string, is_pk: bool}>
      */
-    private function buildExpectedColumns(array $keys): array
+    private function buildExpectedColumns(array $keys, bool $includeDataColumn): array
     {
         $columns = [];
         $idKey = $keys['id'] ?? 'id';
@@ -660,10 +662,33 @@ final class HealthChecker implements HealthCheckerInterface
         $langcodeKey = $keys['langcode'] ?? 'langcode';
         $columns[$langcodeKey] = ['expected_type' => 'TEXT', 'is_pk' => false];
 
-        // _data blob.
-        $columns['_data'] = ['expected_type' => 'TEXT', 'is_pk' => false];
+        // _data blob — only expected when the resolved primary storage
+        // backend actually materialises it (see usesDataColumn()).
+        if ($includeDataColumn) {
+            $columns['_data'] = ['expected_type' => 'TEXT', 'is_pk' => false];
+        }
 
         return $columns;
+    }
+
+    /**
+     * Whether `Waaseyaa\EntityStorage\SqlSchemaHandler::buildTableSpec()` would
+     * emit a `_data` JSON blob column for this entity type.
+     *
+     * Mirrors `EntitySchemaSync::resolveBackend()`: an entity type's declared
+     * `primaryStorageBackend` wins; an unset/empty declaration falls back to
+     * the framework default (`sql-blob`). The `sql-column` backend (WP05,
+     * #2157) materialises every field as a dedicated column and deliberately
+     * omits `_data` — see SqlSchemaHandler::buildTableSpec(). This follows
+     * that single rule directly off the entity type rather than maintaining
+     * a second, parallel heuristic here (#2682).
+     */
+    private function usesDataColumn(EntityTypeInterface $type): bool
+    {
+        $declared = $type->getPrimaryStorageBackend();
+        $backend = (\is_string($declared) && $declared !== '') ? $declared : PrimaryStorageBackend::SQL_BLOB;
+
+        return $backend !== PrimaryStorageBackend::SQL_COLUMN;
     }
 
     private function typesCompatible(string $expected, string $actual): bool

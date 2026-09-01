@@ -847,6 +847,279 @@ final class PackageManifestCompilerTest extends TestCase
         $this->assertNotSame($before['_manifest_inputs_fp'], $after['_manifest_inputs_fp']);
     }
 
+    /**
+     * #2778: `hydrateInstalledPackageMetadata()` re-reads a path package's own
+     * composer.json on every compile, but the cache fingerprint previously
+     * covered only root composer.json + installed.json + the two autoload
+     * dumps. A path package editing its own extra.waaseyaa.migrations with
+     * root/installed/autoload byte-identical left the cache permanently stale
+     * — exactly the fresh-install evidence in the issue (waaseyaa/ai-agent
+     * declaring extra.waaseyaa.migrations after the cache was compiled).
+     */
+    #[Test]
+    public function load_recompiles_when_a_path_packages_own_composer_json_declares_new_migrations(): void
+    {
+        mkdir($this->tempDir . '/packages/acme-ext/src', 0o755, true);
+        $pathComposer = $this->tempDir . '/packages/acme-ext/composer.json';
+        file_put_contents(
+            $pathComposer,
+            json_encode([
+                'name' => 'acme/ext',
+                'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                'extra' => ['waaseyaa' => [
+                    'providers' => ['Acme\\Ext\\ExtServiceProvider'],
+                ]],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        file_put_contents($this->tempDir . '/composer.json', '{"name":"test/root"}');
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode([
+                'packages' => [
+                    [
+                        'name' => 'acme/ext',
+                        'type' => 'library',
+                        'install-path' => '../../../packages/acme-ext',
+                        'dist' => ['type' => 'path', 'url' => '../../../packages/acme-ext'],
+                        'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+        $compilerBefore = new PackageManifestCompiler($this->tempDir, $storagePath);
+        $before = $compilerBefore->load();
+
+        $this->assertSame([], $before->migrations, 'Precondition: no migrations declared yet.');
+
+        // Root composer.json, installed.json, and both autoload dumps stay
+        // byte-identical. Only the path package's own composer.json changes
+        // — the exact upgrade shape the issue describes.
+        file_put_contents(
+            $pathComposer,
+            json_encode([
+                'name' => 'acme/ext',
+                'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                'extra' => ['waaseyaa' => [
+                    'providers' => ['Acme\\Ext\\ExtServiceProvider'],
+                    'migrations' => 'migrations',
+                ]],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        $after = (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+
+        $this->assertSame(
+            ['acme/ext' => 'migrations'],
+            $after->migrations,
+            'load() must recompile and expose the new migrations declaration.',
+        );
+    }
+
+    /**
+     * #2778: the fix must not be special-cased to migrations — any
+     * extra.waaseyaa declaration on a path package's own composer.json
+     * (here: permissions) is a manifest input.
+     */
+    #[Test]
+    public function load_recompiles_when_a_path_packages_own_composer_json_declares_new_permissions(): void
+    {
+        mkdir($this->tempDir . '/packages/acme-ext/src', 0o755, true);
+        $pathComposer = $this->tempDir . '/packages/acme-ext/composer.json';
+        file_put_contents(
+            $pathComposer,
+            json_encode([
+                'name' => 'acme/ext',
+                'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                'extra' => ['waaseyaa' => []],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        file_put_contents($this->tempDir . '/composer.json', '{"name":"test/root"}');
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode([
+                'packages' => [
+                    [
+                        'name' => 'acme/ext',
+                        'type' => 'library',
+                        'install-path' => '../../../packages/acme-ext',
+                        'dist' => ['type' => 'path', 'url' => '../../../packages/acme-ext'],
+                        'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+        $before = (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+
+        $this->assertSame([], $before->permissions, 'Precondition: no permissions declared yet.');
+
+        file_put_contents(
+            $pathComposer,
+            json_encode([
+                'name' => 'acme/ext',
+                'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                'extra' => ['waaseyaa' => [
+                    'permissions' => ['acme.ext.manage' => ['title' => 'Manage Acme Ext']],
+                ]],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        $after = (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+
+        $this->assertSame(
+            ['acme.ext.manage' => ['title' => 'Manage Acme Ext']],
+            $after->permissions,
+            'load() must recompile and expose the new permissions declaration.',
+        );
+    }
+
+    /**
+     * #2778: proves the fix does not hash unrelated source trees on every
+     * request — an unchanged path package composer.json (and every other
+     * input) must remain a cache hit, evidenced by an identical fingerprint
+     * and by the on-disk cache file being left untouched by the second load().
+     */
+    #[Test]
+    public function load_reuses_cache_when_a_path_packages_composer_json_is_unchanged(): void
+    {
+        mkdir($this->tempDir . '/packages/acme-ext/src', 0o755, true);
+        file_put_contents(
+            $this->tempDir . '/packages/acme-ext/composer.json',
+            json_encode([
+                'name' => 'acme/ext',
+                'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                'extra' => ['waaseyaa' => [
+                    'providers' => ['Acme\\Ext\\ExtServiceProvider'],
+                ]],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        file_put_contents($this->tempDir . '/composer.json', '{"name":"test/root"}');
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode([
+                'packages' => [
+                    [
+                        'name' => 'acme/ext',
+                        'type' => 'library',
+                        'install-path' => '../../../packages/acme-ext',
+                        'dist' => ['type' => 'path', 'url' => '../../../packages/acme-ext'],
+                        'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->compileAndCache();
+        $cachePath = $storagePath . '/framework/packages.php';
+        $before = require $cachePath;
+        $mtimeBefore = filemtime($cachePath);
+
+        // Nothing changes on disk. A second load() must be a pure cache hit:
+        // same fingerprint, and load() (unlike compileAndCache()) never
+        // rewrites the cache file on a hit.
+        clearstatcache();
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+
+        $after = require $cachePath;
+        $this->assertSame($before['_manifest_inputs_fp'], $after['_manifest_inputs_fp']);
+        $this->assertSame($mtimeBefore, filemtime($cachePath), 'A cache hit must not rewrite the cache file.');
+    }
+
+    /**
+     * #2778 follow-up (PR review): Composer 2.x stamps `install-path` on
+     * every installed package regardless of origin — verified against this
+     * repo's own vendor/composer/installed.json, where all 200/200 packages
+     * (path and ordinary dist alike) carry `install-path`. The reliable
+     * "is this a path package" signal is `dist.type === 'path'` (or
+     * `source.type === 'path'`), not `install-path` presence. Gating on
+     * `install-path` alone makes the #2778 fingerprint component read and
+     * hash every installed package's composer.json on every load() —
+     * including the previously-cheap cache-hit path — not just true path
+     * (monorepo-sibling) packages, directly contradicting the issue's
+     * "without hashing unrelated source trees on every request" criterion.
+     *
+     * This proves an ordinary dist package's own on-disk composer.json is
+     * excluded from the fingerprint even though it carries `install-path`,
+     * exactly like a real Composer-installed dist package would.
+     */
+    #[Test]
+    public function load_ignores_a_dist_installed_packages_composer_json_even_though_install_path_is_present(): void
+    {
+        mkdir($this->tempDir . '/vendor/acme/dist-pkg', 0o755, true);
+        $distPackageComposer = $this->tempDir . '/vendor/acme/dist-pkg/composer.json';
+        file_put_contents(
+            $distPackageComposer,
+            json_encode([
+                'name' => 'acme/dist-pkg',
+                'extra' => ['waaseyaa' => []],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        file_put_contents($this->tempDir . '/composer.json', '{"name":"test/root"}');
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode([
+                'packages' => [
+                    [
+                        'name' => 'acme/dist-pkg',
+                        'type' => 'library',
+                        // Real Composer 2.x sets install-path for a plain
+                        // dist install too (pointing into vendor/), not
+                        // only for path repositories.
+                        'install-path' => '../acme/dist-pkg',
+                        'dist' => ['type' => 'zip', 'url' => 'https://example.test/dist-pkg.zip'],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->compileAndCache();
+        $cachePath = $storagePath . '/framework/packages.php';
+        $before = require $cachePath;
+        $mtimeBefore = filemtime($cachePath);
+
+        // Edit the dist package's own on-disk composer.json — root
+        // composer.json, installed.json, and both autoload dumps stay
+        // byte-identical. A real dist package cannot change like this
+        // without a version bump (which changes installed.json), so this
+        // must remain a cache hit: load() must not treat it as a manifest
+        // input the way a true path package's composer.json is.
+        file_put_contents(
+            $distPackageComposer,
+            json_encode([
+                'name' => 'acme/dist-pkg',
+                'extra' => ['waaseyaa' => ['providers' => ['Acme\\DistPkg\\ServiceProvider']]],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        clearstatcache();
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+        $after = require $cachePath;
+
+        // Fingerprint equality is the load-bearing assertion — filemtime is
+        // second-resolution on some filesystems and can alias a same-second
+        // rewrite, so it is checked only as a secondary signal.
+        $this->assertSame(
+            $before['_manifest_inputs_fp'],
+            $after['_manifest_inputs_fp'],
+            'A dist package composer.json change must not change the fingerprint — only true path packages are a fingerprint input.',
+        );
+        $this->assertSame(
+            [],
+            $after['providers'],
+            'A dist package composer.json change must not be merged into the manifest via a spurious recompile.',
+        );
+        $this->assertSame($mtimeBefore, filemtime($cachePath), 'A cache hit must not rewrite the cache file.');
+    }
+
     #[Test]
     public function load_merges_root_providers_when_cache_incomplete_but_fingerprint_matches(): void
     {
@@ -872,6 +1145,9 @@ final class PackageManifestCompilerTest extends TestCase
                 (string) file_get_contents($this->tempDir . '/composer.json'),
                 (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
                 '',
+                '',
+                // No installed package declares `install-path`, so #2778's
+                // path-package fingerprint input is the empty string.
                 '',
             ]),
         );
@@ -926,6 +1202,9 @@ final class PackageManifestCompilerTest extends TestCase
                 (string) file_get_contents($this->tempDir . '/composer.json'),
                 (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
                 '',
+                '',
+                // No installed package declares `install-path`, so #2778's
+                // path-package fingerprint input is the empty string.
                 '',
             ]),
         );

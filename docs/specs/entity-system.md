@@ -6,6 +6,19 @@
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP asserts Framework SQL-backed entity tables only (S1-DB106). Custom EntityStorageInterface storageClass is not forced to own an SQL table. EntityStorageInterface and EntityQueryInterface are class-level @api. AttachmentSchema::apply() is the strict coordinated transition; local boot ensureTable() is best-effort. -->
 # Entity System
 
+<!-- Spec reviewed 2026-09-01 - #2761: production HTTP must not mutate
+taxonomy's term-to-vocabulary foreign key either (reusing the #2478
+no-request-DDL contract): TaxonomyServiceProvider::boot() and
+VocabularyAccessPolicy::access() both used to call
+VocabularyReferenceConstraint::ensure() unconditionally, so ordinary
+production request traffic — not just provider boot — could ALTER
+taxonomy_term. Coordinated schema sync remains the sole authoritative path
+via the entity type's declared `_foreignKeys`; assertRuntimeSchema() (the
+existing [S1-DB106] no-DDL contract) now also fails closed when a declared
+foreign key is missing. See infrastructure.md for the SqlSchemaHandler
+contract detail. The #2101 note below (taxonomy_term.vid carries an additive
+restrictive foreign key) is unchanged in substance — only WHEN and BY WHOM
+that foreign key is installed changed. -->
 <!-- Spec reviewed 2026-08-30 - #2728: EntityEvents::PRE_DELETE is a GUARD event and now dispatches IMMEDIATELY inside the delete transaction on both delete() and deleteMany() (doDelete() no longer passes $unitOfWork to it), so a refusing pre-delete listener rolls back the base row, its revisions and the mutation-authority tombstone for the whole batch. POST_DELETE is unchanged: still buffered, still dispatched only after a successful commit. deleteMany() interleaving changes from pre1,post1,pre2,post2 to pre1,pre2,post1,post2. The mutation-authority tombstone deliberately stays AHEAD of the guard, mirroring doSave()'s claim() before PRE_SAVE. EntityRepository::__construct() gains the symmetric invariant that a mutation authority requires a database. Supersedes the #1856 header's "deleteMany PRE_DELETE buffering is unchanged" note. -->
 <!-- Spec reviewed 2026-08-27 - #2624: configuration-authority composition
 uses the canonical RuntimePolicy development classifier for active-generation

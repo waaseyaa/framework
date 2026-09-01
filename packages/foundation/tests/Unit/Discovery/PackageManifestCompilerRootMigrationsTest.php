@@ -70,7 +70,9 @@ final class PackageManifestCompilerRootMigrationsTest extends TestCase
 
         $composerBytes = (string) file_get_contents($this->root.'/composer.json');
         $installedBytes = (string) file_get_contents($this->root.'/vendor/composer/installed.json');
-        $fingerprint = hash('xxh128', implode("\0", [$composerBytes, $installedBytes, '', '']));
+        // No installed package declares `install-path`, so #2778's path-package
+        // fingerprint input is the empty string.
+        $fingerprint = hash('xxh128', implode("\0", [$composerBytes, $installedBytes, '', '', '']));
 
         mkdir($this->root.'/storage/framework', 0o755, true);
         $cache = [

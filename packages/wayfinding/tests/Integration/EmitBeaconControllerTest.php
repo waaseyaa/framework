@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Wayfinding\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -99,6 +102,75 @@ final class EmitBeaconControllerTest extends TestCase
 
         self::assertSame(422, $response->getStatusCode());
         self::assertCount(0, $this->storage->poll(0, [SessionChannel::forToken('tokenA')]));
+    }
+
+    /**
+     * Regression for #2746: a *present but malformed* "session" member (null,
+     * empty string, a non-string scalar, or an array) used to fall through the
+     * `is_string($token) && $token !== ''` guard into the omitted-target
+     * branch, which silently self-targets the caller's own session instead of
+     * rejecting the request. Only an *absent* "session" key may self-target;
+     * a present value must be a non-empty string or the request is rejected.
+     *
+     * Runs in a separate process because it pins the process-global
+     * `session_id()` (see {@see SessionTokenControllerTest}) — without an
+     * active session, a malformed token already 422s for the wrong reason
+     * ("No target session"), masking the bug this test guards against.
+     *
+     * @param null|bool|int|float|string|list<mixed> $malformedSession
+     */
+    #[Test]
+    #[DataProvider('malformedSessionValues')]
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function malformed_session_values_are_rejected_instead_of_self_targeting(
+        null|bool|int|float|string|array $malformedSession,
+    ): void {
+        session_id('caller-own-session-id');
+        $selfTargetChannel = SessionChannel::forSessionId('caller-own-session-id');
+
+        $response = $this->emit(
+            account: $this->account(hasCapability: true),
+            body: ['session' => $malformedSession, 'anchor_id' => 'field:widget:title', 'content' => 'x', 'order' => 1],
+        );
+
+        self::assertSame(422, $response->getStatusCode());
+        // The defect: this used to succeed (202) and land on the caller's OWN
+        // session channel — an intended remote-target emit silently self-targeted.
+        self::assertCount(0, $this->storage->poll(0, [$selfTargetChannel]));
+    }
+
+    /**
+     * @return iterable<string, array{0: null|bool|int|float|string|list<mixed>}>
+     */
+    public static function malformedSessionValues(): iterable
+    {
+        yield 'null' => [null];
+        yield 'empty string' => [''];
+        yield 'integer' => [123];
+        yield 'boolean true' => [true];
+        yield 'boolean false' => [false];
+        yield 'float' => [1.5];
+        yield 'array' => [['nested' => 'value']];
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function omitting_session_still_self_targets_the_callers_own_session(): void
+    {
+        session_id('caller-own-session-id');
+        $selfTargetChannel = SessionChannel::forSessionId('caller-own-session-id');
+
+        $response = $this->emit(
+            account: $this->account(hasCapability: true),
+            body: ['anchor_id' => 'field:widget:title', 'content' => 'self-guided tip', 'order' => 1],
+        );
+
+        self::assertSame(202, $response->getStatusCode());
+        $messages = $this->storage->poll(0, [$selfTargetChannel]);
+        self::assertCount(1, $messages);
+        self::assertSame('field:widget:title', $messages[0]['data']['anchor_id']);
     }
 
     #[Test]
