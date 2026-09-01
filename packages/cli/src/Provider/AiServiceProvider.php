@@ -17,7 +17,7 @@ use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\HttpClient\PhpStreamSseClient;
@@ -64,12 +64,22 @@ final class AiServiceProvider extends ServiceProvider implements ProvidesConsole
 
         $this->singleton(
             AiPurgeRunsCommand::class,
-            fn(): AiPurgeRunsCommand => new AiPurgeRunsCommand(
-                runRepository: $this->resolve(AgentRunRepository::class),
-                auditRepository: $this->resolve(AgentAuditLogRepository::class),
-                runEntityRepository: $this->resolve(EntityRepositoryInterface::class),
-                defaultRetentionDays: (int) ($this->config['ai']['run_retention_days'] ?? 30),
-            ),
+            function (): AiPurgeRunsCommand {
+                // Entity repositories are type-specific. The kernel deliberately
+                // exposes the manager rather than an ambiguous context-free
+                // EntityRepositoryInterface, so select the aggregate explicitly.
+                $entityTypeManager = $this->resolve(EntityTypeManagerInterface::class);
+                if (!$entityTypeManager instanceof EntityTypeManagerInterface) {
+                    throw new \LogicException('Kernel service returned an invalid entity type manager.');
+                }
+
+                return new AiPurgeRunsCommand(
+                    runRepository: $this->resolve(AgentRunRepository::class),
+                    auditRepository: $this->resolve(AgentAuditLogRepository::class),
+                    runEntityRepository: $entityTypeManager->getRepository('agent_run'),
+                    defaultRetentionDays: (int) ($this->config['ai']['run_retention_days'] ?? 30),
+                );
+            },
         );
 
         $this->singleton(

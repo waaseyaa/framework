@@ -10,6 +10,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\Storage\PrimaryStorageBackend;
 
 /**
  * One audit-log row per executor event (`agent_audit_log`).
@@ -35,7 +36,7 @@ use Waaseyaa\Entity\FieldReadLevel;
  *
  * @api
  */
-#[ContentEntityType(id: 'agent_audit_log')]
+#[ContentEntityType(id: 'agent_audit_log', storageBackend: PrimaryStorageBackend::SQL_COLUMN)]
 #[ContentEntityKeys(id: 'id', uuid: 'id', label: 'event_type')]
 final class AgentAuditLog extends ContentEntityBase
 {

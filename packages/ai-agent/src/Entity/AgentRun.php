@@ -11,6 +11,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\Storage\PrimaryStorageBackend;
 
 /**
  * The `agent_run` aggregate root — one row per executor invocation.
@@ -47,7 +48,7 @@ use Waaseyaa\Entity\FieldReadLevel;
  *
  * @api
  */
-#[ContentEntityType(id: 'agent_run')]
+#[ContentEntityType(id: 'agent_run', storageBackend: PrimaryStorageBackend::SQL_COLUMN)]
 #[ContentEntityKeys(id: 'id', uuid: 'id', label: 'id')]
 final class AgentRun extends ContentEntityBase
 {

@@ -45,6 +45,7 @@ repository API.
 ### R2 — Production composition differs from the tested composition
 
 Examples: entity type manager wiring #2729, attachment repository resolution #2760,
+AI purge-command repository and migration composition #2771,
 GraphQL process-global schema identity #2764, vector discovery #1606 and the retired
 telemetry shadow path #1860. Tests manually inject collaborators or reset global
 state that production never injects/resets.
