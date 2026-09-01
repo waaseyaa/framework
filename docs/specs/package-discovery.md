@@ -25,7 +25,7 @@ Waaseyaa uses a two-phase discovery system:
 
 Both are unified by `PackageManifestCompiler` into a single cached artifact at `storage/framework/packages.php`.
 
-The cache fingerprint includes `composer.json`, `installed.json`, `autoload_classmap.php`, and `autoload_psr4.php`. Changing autoload optimization therefore invalidates and recompiles the artifact; a cached policy set is also checked against the independent `extra.waaseyaa.policies` inventory before it can boot.
+The cache fingerprint includes `composer.json`, `installed.json`, `autoload_classmap.php`, `autoload_psr4.php`, and — #2778 — the current on-disk `composer.json` of every installed **path** package (any installed package declaring `install-path`, i.e. a Composer path repository). Changing autoload optimization therefore invalidates and recompiles the artifact, and so does a path package editing its own `extra.waaseyaa` declarations even when root/`installed.json`/autoload stay byte-identical; a cached policy set is also checked against the independent `extra.waaseyaa.policies` inventory before it can boot. See "ManifestBootstrapper" in `docs/specs/infrastructure.md` for the fingerprint's full authority and invalidation rule.
 
 ## ServiceProvider Lifecycle
 

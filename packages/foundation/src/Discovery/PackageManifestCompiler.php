@@ -729,6 +729,16 @@ final class PackageManifestCompiler
     /**
      * Fingerprint of composer inputs used for declared providers/permissions and discovery metadata.
      * When this differs from the value stored in the cache, the manifest must be recompiled.
+     *
+     * Covers the same four Composer-generated artifacts `compile()` reads for every installed
+     * package (root `composer.json`, `installed.json`, and both autoload dumps) plus — #2778 —
+     * the current on-disk `composer.json` of every **path**-installed package. `compile()`
+     * (via `hydrateInstalledPackageMetadata()`) re-reads that file on every compile and merges
+     * its `extra.waaseyaa` declarations, so it is an authoritative manifest input in its own
+     * right: a path package can change its own discovery metadata (providers, migrations,
+     * permissions, …) while root/installed.json/autoload stay byte-identical, and that change
+     * must still invalidate the cache. Only packages carrying `install-path` are touched — no
+     * source tree is walked or hashed, just each such package's single `composer.json` file.
      */
     private function computeManifestInputsFingerprint(): string
     {
@@ -736,8 +746,69 @@ final class PackageManifestCompiler
         $installedRaw = $this->readFileRaw($this->basePath . '/vendor/composer/installed.json');
         $classmapRaw = $this->readFileRaw($this->basePath . '/vendor/composer/autoload_classmap.php');
         $psr4Raw = $this->readFileRaw($this->basePath . '/vendor/composer/autoload_psr4.php');
+        $pathPackagesRaw = $this->readPathPackageComposerFingerprintInput();
 
-        return hash('xxh128', implode("\0", [$composerRaw, $installedRaw, $classmapRaw, $psr4Raw]));
+        return hash('xxh128', implode("\0", [$composerRaw, $installedRaw, $classmapRaw, $psr4Raw, $pathPackagesRaw]));
+    }
+
+    /**
+     * Raw fingerprint input contributed by every installed package that declares an
+     * `install-path` (i.e. a Composer path repository): `packageName\x01composerJsonBytes`
+     * entries, sorted by package name for a deterministic result independent of
+     * `installed.json` ordering, joined with NUL. Packages without `install-path` (ordinary
+     * dist packages) contribute nothing — their metadata already lives inside `installedRaw`.
+     */
+    private function readPathPackageComposerFingerprintInput(): string
+    {
+        $installedPath = $this->basePath . '/vendor/composer/installed.json';
+        if (!is_file($installedPath)) {
+            return '';
+        }
+
+        $raw = @file_get_contents($installedPath);
+        if ($raw === false) {
+            return '';
+        }
+
+        try {
+            $installed = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return '';
+        }
+
+        $packages = is_array($installed) ? ($installed['packages'] ?? $installed) : null;
+        if (!is_array($packages)) {
+            return '';
+        }
+
+        $installedMetadataDir = dirname($installedPath);
+        $entries = [];
+
+        foreach ($packages as $package) {
+            if (!is_array($package)) {
+                continue;
+            }
+
+            $installPathValue = $package['install-path'] ?? null;
+            if (!is_string($installPathValue) || $installPathValue === '') {
+                continue;
+            }
+
+            $name = $package['name'] ?? null;
+            $composerPath = $this->resolveInstalledPackageComposerPath($installPathValue, $installedMetadataDir);
+            $composerRaw = $composerPath !== null ? $this->readFileRaw($composerPath) : '';
+
+            $entries[is_string($name) && $name !== '' ? $name : $installPathValue] = $composerRaw;
+        }
+
+        ksort($entries);
+
+        $parts = [];
+        foreach ($entries as $name => $composerRaw) {
+            $parts[] = $name . "\x01" . $composerRaw;
+        }
+
+        return implode("\0", $parts);
     }
 
     private function readFileRaw(string $path): string
