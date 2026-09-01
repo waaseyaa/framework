@@ -4700,7 +4700,28 @@
             "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
             "pattern": "schema_method",
             "class": "test-only",
+            "match_sha256": "42258e5cc060785171e149889a5f9b65d5544ab23dd6f6136426fe74527bcd57",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
             "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "52acbcb76d53965da7b9a618b4423deea4a951e3fb85d47d40a49185f30026a0",
             "occurrence": 1
         },
         {
@@ -4744,6 +4765,20 @@
             "class": "test-only",
             "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
             "occurrence": 6
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "bbbf0266ba00141cc30a0881c8e5a0fe5708a3fc7e7a8f73afdaac10432bac75",
+            "occurrence": 1
         },
         {
             "path": "packages/entity-storage/tests/Unit/TwoAxisLoadSemanticsTest.php",
