@@ -238,6 +238,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/listing/src/ListingResolver.php' => 'Listing projection input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/media/src/Media.php' => 'Media entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
         'packages/media/src/Version/MediaVersion.php' => 'Media-version domain helpers route through the canonical guarded accessor.',
+        'packages/menu/src/Menu.php' => 'Menu::isLocked() reads through the canonical guarded accessor because sealed V2 hydration bypasses the constructor; the field is declared FieldReadLevel::Public so the delete-boundary invariant (#2755) is observable without a caller-specific read grant.',
         'packages/menu/src/MenuLink.php' => 'Menu-link entity input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/messaging/src/MessagingAccessPolicy.php' => 'Messaging policy input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/node/src/Node.php' => 'Node entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
