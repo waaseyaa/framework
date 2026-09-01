@@ -20,6 +20,7 @@ return new class extends Migration {
                 continue;
             }
 
+            $this->addColumnIfMissing($schema, $table, '_data', "TEXT NOT NULL DEFAULT '{}'");
             $this->addColumnIfMissing($schema, $table, 'bundle', "VARCHAR(128) NOT NULL DEFAULT ''");
             $this->addColumnIfMissing($schema, $table, 'langcode', "VARCHAR(12) NOT NULL DEFAULT 'en'");
         }

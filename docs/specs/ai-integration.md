@@ -276,8 +276,9 @@ on the allowlist and inert until #2661 and #2662 —
 `#[ContentEntityType]` declarations select `sql-column`, matching the package
 migrations and the repositories' direct status/timestamp queries. The
 `waaseyaa/ai-agent` Composer manifest declares its `migrations/` directory;
-an additive migration supplies the mandatory `bundle` and `langcode` entity
-base columns to tables created before that storage contract was explicit.
+an additive migration supplies the mandatory `_data`, `bundle`, and `langcode`
+entity base columns to tables created before that storage contract was explicit
+or materialized earlier in the same fresh-install lifecycle.
 
 The operator-facing `ai:purge-runs` command obtains its delete repository by
 resolving the kernel-owned entity type manager and explicitly selecting
