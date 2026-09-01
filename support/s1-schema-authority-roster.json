@@ -2513,6 +2513,97 @@
             "occurrence": 4
         },
         {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "6e2069e5cb237cfee3f368a2dbbf548ca5d999c59ba969f300bba0d1a976794d",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "42258e5cc060785171e149889a5f9b65d5544ab23dd6f6136426fe74527bcd57",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "4559815ed43f4443c424ffd37bd8b4e01744aebcaea0e07c8b1e80767790e763",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "52acbcb76d53965da7b9a618b4423deea4a951e3fb85d47d40a49185f30026a0",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTargetedMutationTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
+        },
+        {
             "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaTest.php",
             "pattern": "schema_method",
             "class": "test-only",
