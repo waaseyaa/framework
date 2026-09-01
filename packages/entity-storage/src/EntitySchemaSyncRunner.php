@@ -23,6 +23,14 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
  * Idempotent: a true no-op run reports an empty `created` and an empty
  * `altered`.
  *
+ * On a platform where the underlying preview mechanism cannot safely
+ * introspect without mutating (anything other than SQLite, or a connection
+ * where a mutation is already active), whether an already-existing table
+ * needs additive work cannot be determined ahead of applying it. Those
+ * entity-type ids are reported in {@see SchemaSyncReport::$indeterminate}
+ * instead of being folded into `altered` — a genuine "not previewable" is
+ * not the same claim as "will be altered" (#2732).
+ *
  * This is the hardened path the `schema:sync` command and `db:init
  * --sync-schema` share, closing the gap where app-defined entity types are
  * registered but never get a table until first lazy access.
@@ -78,14 +86,25 @@ final class EntitySchemaSyncRunner
         // the last sync. Derive that from the actual sync traversal, run
         // read-only, rather than a second hand-maintained model of what would
         // change — the same rule applies whether this is a dry run or an
-        // apply, so the two cannot disagree.
-        $altered = $preExisting === [] ? [] : $sync->planMutatingEntityTypeIds($preExisting);
+        // apply, so the two cannot disagree. When the platform cannot support
+        // that read-only preview (non-SQLite, or a mutation already active),
+        // the affected ids are reported as indeterminate rather than folded
+        // into `altered` — see the class docblock.
+        if ($preExisting === []) {
+            $altered = [];
+            $indeterminate = [];
+        } else {
+            $plan = $sync->planMutatingEntityTypeIds($preExisting);
+            $altered = $plan->mutating;
+            $indeterminate = $plan->indeterminate;
+        }
         sort($altered);
+        sort($indeterminate);
 
         if (!$dryRun && $toSync !== []) {
             $sync->syncAll($toSync);
         }
 
-        return new SchemaSyncReport($created, $existing, $dryRun, $altered);
+        return new SchemaSyncReport($created, $existing, $dryRun, $altered, $indeterminate);
     }
 }

@@ -106,16 +106,33 @@ final class EntitySchemaSync
      * what would change.
      *
      * On a non-SQLite connection, or one where a mutation is already in
-     * progress, the underlying planner cannot observe writes safely and
-     * conservatively reports every definition as requiring mutation rather
-     * than asserting a false no-op.
+     * progress, the underlying planner cannot observe writes safely at all.
+     * Rather than asserting a false no-op — or, as `requiresMutation()`'s own
+     * conservative default would otherwise be presented, a false "will
+     * mutate" — every definition under consideration is reported as
+     * indeterminate: neither confirmed to need a mutation nor confirmed as a
+     * no-op (#2732). Callers that only need to *know whether the singular
+     * mutation coordinator must run* can keep using
+     * {@see CoordinatedEntitySchemaExecutor::requiresMutation()} directly (its
+     * conservative "assume mutation" default is the correct and safe answer
+     * for that question); this method is for callers that *report* the
+     * outcome, where presenting an unknown as "will alter" would be
+     * misleading on supported production platforms.
      *
      * @param iterable<EntityTypeInterface> $entityTypes
-     * @return list<string> ids of the entity types whose synchronization is not a no-op
      */
-    public function planMutatingEntityTypeIds(iterable $entityTypes): array
+    public function planMutatingEntityTypeIds(iterable $entityTypes): EntityTypeSchemaPlan
     {
         $executor = new CoordinatedEntitySchemaExecutor($this->database);
+
+        if (!$executor->canPreviewMutation()) {
+            $indeterminate = [];
+            foreach ($entityTypes as $entityType) {
+                $indeterminate[] = $entityType->id();
+            }
+
+            return new EntityTypeSchemaPlan(mutating: [], indeterminate: $indeterminate);
+        }
 
         $mutating = [];
         foreach ($entityTypes as $entityType) {
@@ -137,7 +154,7 @@ final class EntitySchemaSync
             }
         }
 
-        return $mutating;
+        return new EntityTypeSchemaPlan(mutating: $mutating, indeterminate: []);
     }
 
     /** @param iterable<EntityTypeInterface> $entityTypes */

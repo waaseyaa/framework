@@ -13,11 +13,20 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\SchemaSyncHandler;
 use Waaseyaa\CLI\Provider\HealthSchemaServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DeleteInterface;
+use Waaseyaa\Database\InsertInterface;
+use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\TransactionInterface;
+use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Foundation\Migration\MigrationRepository;
+use Waaseyaa\Foundation\Migration\SchemaMutationCoordinator;
 
 /**
  * Regression coverage for #2732: `schema:sync --dry-run` and the real command
@@ -99,6 +108,130 @@ final class SchemaSyncHandlerTest extends TestCase
         self::assertStringContainsString('Schema in sync', $tester->getStdout());
     }
 
+    /**
+     * #2732 follow-up — the review defect: an existing table on a platform
+     * that cannot preview pending column/index work used to print "would
+     * alter", claiming certainty that does not exist. Forced deterministically
+     * via a plain `DatabaseInterface` wrapper that is not a `DBALDatabase` —
+     * the same "cannot introspect read-only" state a real MySQL/MariaDB/
+     * PostgreSQL connection is in.
+     */
+    #[Test]
+    public function dry_run_reports_pending_work_as_indeterminate_when_the_platform_cannot_preview(): void
+    {
+        $this->runSchemaSync($this->managerWithProbe([]));
+
+        $tester = $this->runSchemaSync(
+            $this->managerWithProbe(['facet' => $this->facetField()]),
+            ['--dry-run'],
+            $this->nonDbalProxy($this->database),
+        );
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $stdout = $tester->getStdout();
+        self::assertStringContainsString(
+            'cannot be previewed on this database platform',
+            $stdout,
+        );
+        self::assertStringContainsString('report_probe', $stdout);
+        self::assertStringNotContainsString(
+            'would alter',
+            $stdout,
+            'an unpreviewable platform must not be reported as a confirmed alteration',
+        );
+        self::assertStringNotContainsString(
+            'Nothing to change',
+            $stdout,
+            'a dry run that cannot rule out pending work must not claim nothing to do',
+        );
+        self::assertFalse(
+            $this->database->schema()->fieldExists('report_probe', 'facet'),
+            'dry run must not write the column',
+        );
+    }
+
+    /**
+     * The mirror case for a real (non-dry-run) apply: forced here via an
+     * already-active {@see SchemaMutationCoordinator} on the connection.
+     * Unlike the non-DBAL wrapper above, this keeps a real {@see DBALDatabase},
+     * so the command genuinely runs — proving the apply still completes and
+     * honestly reports what it could and could not confirm, instead of
+     * claiming the table was "Altered" or the schema was already "in sync".
+     */
+    #[Test]
+    public function apply_still_runs_and_reports_indeterminate_when_a_mutation_is_already_active(): void
+    {
+        $this->runSchemaSync($this->managerWithProbe([]));
+
+        $connection = $this->database->getConnection();
+        $coordinator = new SchemaMutationCoordinator($connection, new MigrationRepository($connection));
+
+        $tester = $coordinator->execute(
+            fn() => $this->runSchemaSync($this->managerWithProbe(['facet' => $this->facetField()])),
+        );
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $stdout = $tester->getStdout();
+        self::assertStringContainsString(
+            'could not be previewed on this database platform',
+            $stdout,
+        );
+        self::assertStringContainsString('report_probe', $stdout);
+        self::assertStringNotContainsString('Altered', $stdout);
+        self::assertStringNotContainsString(
+            'Schema in sync',
+            $stdout,
+            'a run that could not confirm pending work must not claim the schema was already in sync',
+        );
+    }
+
+    private function nonDbalProxy(DatabaseInterface $inner): DatabaseInterface
+    {
+        return new class ($inner) implements DatabaseInterface {
+            public function __construct(private readonly DatabaseInterface $inner) {}
+
+            public function select(string $table, string $alias = ''): SelectInterface
+            {
+                return $this->inner->select($table, $alias);
+            }
+
+            public function insert(string $table): InsertInterface
+            {
+                return $this->inner->insert($table);
+            }
+
+            public function update(string $table): UpdateInterface
+            {
+                return $this->inner->update($table);
+            }
+
+            public function delete(string $table): DeleteInterface
+            {
+                return $this->inner->delete($table);
+            }
+
+            public function schema(): SchemaInterface
+            {
+                return $this->inner->schema();
+            }
+
+            public function transaction(string $name = ''): TransactionInterface
+            {
+                return $this->inner->transaction($name);
+            }
+
+            public function query(string $sql, array $args = []): \Traversable
+            {
+                return $this->inner->query($sql, $args);
+            }
+
+            public function quoteIdentifier(string $identifier): string
+            {
+                return $this->inner->quoteIdentifier($identifier);
+            }
+        };
+    }
+
     private function facetField(): FieldDefinition
     {
         return new FieldDefinition(
@@ -126,9 +259,12 @@ final class SchemaSyncHandlerTest extends TestCase
     }
 
     /** @param list<string> $argv */
-    private function runSchemaSync(EntityTypeManager $manager, array $argv = []): CliTester
-    {
-        $handler = new SchemaSyncHandler($manager, $this->database);
+    private function runSchemaSync(
+        EntityTypeManager $manager,
+        array $argv = [],
+        ?DatabaseInterface $database = null,
+    ): CliTester {
+        $handler = new SchemaSyncHandler($manager, $database ?? $this->database);
 
         $definition = null;
         foreach (new HealthSchemaServiceProvider()->consoleCommands() as $command) {

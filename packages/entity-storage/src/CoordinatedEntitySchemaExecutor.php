@@ -85,6 +85,35 @@ final class CoordinatedEntitySchemaExecutor
         }
     }
 
+    /**
+     * Whether {@see requiresMutation()}'s answer is a genuine read-only
+     * determination rather than the conservative "assume mutation" fallback.
+     *
+     * The query-only trick {@see requiresMutation()} relies on only exists for
+     * SQLite, and only when no mutation is already in flight on this
+     * connection. Off SQLite (MySQL/MariaDB/PostgreSQL in production), or
+     * while a mutation coordinator is already active, `requiresMutation()`
+     * unconditionally returns `true` — that is a safe default for deciding
+     * *whether* to run the singular mutation coordinator, but callers that
+     * want to *report* the outcome (e.g. `schema:sync --dry-run`) must not
+     * present that fallback as a confirmed "this table will be altered": it
+     * is genuinely unknown until the mutation is applied. (#2732)
+     */
+    public function canPreviewMutation(): bool
+    {
+        $database = $this->database;
+        if (!$database instanceof DBALDatabase) {
+            return false;
+        }
+
+        $connection = $database->getConnection();
+        if (SchemaMutationCoordinator::isActive($connection)) {
+            return false;
+        }
+
+        return $connection->getDatabasePlatform() instanceof SQLitePlatform;
+    }
+
     public function isActive(): bool
     {
         $database = $this->database;
