@@ -135,13 +135,42 @@ final class LocalFileRepository implements FileRepositoryInterface
         return $result;
     }
 
+    /**
+     * Derives the sidecar path for a file URI.
+     *
+     * Stream-wrapper URIs such as `public://images/shared.pdf` are not real
+     * hierarchical URLs: `parse_url()` still splits them into a `host`
+     * (`images`) and a `path` (`/shared.pdf`) per RFC 3986 grammar. Using
+     * only `scheme` + `path`, as this method previously did, silently
+     * discards that `host` segment, so `public://images/shared.pdf` and
+     * `public://docs/shared.pdf` — two distinct, documented URIs — collided
+     * on the same `.../shared.pdf.meta.json` sidecar (#2758). Every segment
+     * after `scheme://` is therefore treated as one flat, ordered path and
+     * carried into the sidecar location, preserving full URI identity.
+     *
+     * This changes the on-disk sidecar layout for any URI that has more
+     * than one segment after the scheme (i.e. anything but a bare
+     * `scheme://file` root URI). Existing installs upgrading past this fix
+     * will not find previously-saved metadata for such URIs at their old
+     * (collision-prone) location; there is deliberately no automatic read
+     * fallback to that old path, because a fallback would itself have to
+     * pick a winner among the URIs that used to alias there — precisely the
+     * silent-data-loss failure mode this fix removes. Reconciling
+     * already-collided sidecars from a prior install is a data-migration
+     * concern, not something this pure path-derivation method can safely
+     * infer, and is intentionally left to separate migration tooling.
+     */
     private function resolveMetadataPath(string $uri): string
     {
-        $parsed = parse_url($uri);
-        $scheme = isset($parsed['scheme']) ? $this->sanitizeSegment($parsed['scheme']) : 'public';
-        $path = isset($parsed['path']) ? trim($parsed['path'], '/') : trim($uri, '/');
+        $scheme = 'public';
+        $rest = $uri;
 
-        $segments = array_filter(explode('/', $path), static fn(string $segment): bool => $segment !== '');
+        if (preg_match('#^([A-Za-z][A-Za-z0-9+.-]*)://(.*)$#s', $uri, $matches) === 1) {
+            $scheme = $this->sanitizeSegment($matches[1]);
+            $rest = $matches[2];
+        }
+
+        $segments = array_filter(explode('/', trim($rest, '/')), static fn(string $segment): bool => $segment !== '');
         $safeSegments = array_map([$this, 'sanitizeSegment'], $segments);
 
         $target = implode('/', $safeSegments);

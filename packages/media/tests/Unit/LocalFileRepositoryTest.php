@@ -155,4 +155,67 @@ final class LocalFileRepositoryTest extends TestCase
         $this->assertNotNull($loaded);
         $this->assertSame('passwd', $loaded->filename);
     }
+
+    public function testSaveSanitizedPathTraversalStaysConfinedToRoot(): void
+    {
+        $file = new File(uri: 'public://../../etc/passwd', filename: 'passwd');
+        $this->repository->save($file);
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->rootDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $fileInfo) {
+            $this->assertStringStartsWith(
+                realpath($this->rootDir),
+                realpath($fileInfo->getPathname()),
+                'Sanitized metadata path must stay confined under the repository root.',
+            );
+        }
+    }
+
+    /**
+     * Regression for #2758: distinct URI authorities (the `host` component
+     * `parse_url()` splits off before `path`, e.g. `images` vs `docs` in
+     * `public://images/shared.pdf` and `public://docs/shared.pdf`) must not
+     * be discarded when deriving the sidecar location, or two documented,
+     * distinct file identities silently alias onto the same metadata file.
+     */
+    public function testDistinctAuthoritiesWithSameRelativePathDoNotCollide(): void
+    {
+        $first = new File(uri: 'public://images/shared.pdf', filename: 'images-shared.pdf', ownerId: 1);
+        $second = new File(uri: 'public://docs/shared.pdf', filename: 'docs-shared.pdf', ownerId: 2);
+
+        $this->repository->save($first);
+        $this->repository->save($second);
+
+        $loadedFirst = $this->repository->load('public://images/shared.pdf');
+        $loadedSecond = $this->repository->load('public://docs/shared.pdf');
+
+        $this->assertNotNull($loadedFirst);
+        $this->assertNotNull($loadedSecond);
+        $this->assertSame('images-shared.pdf', $loadedFirst->filename);
+        $this->assertSame('docs-shared.pdf', $loadedSecond->filename);
+        $this->assertSame(1, $loadedFirst->ownerId);
+        $this->assertSame(2, $loadedSecond->ownerId);
+
+        // Deleting one must not remove the other's metadata.
+        $this->assertTrue($this->repository->delete('public://images/shared.pdf'));
+        $this->assertNull($this->repository->load('public://images/shared.pdf'));
+        $this->assertNotNull($this->repository->load('public://docs/shared.pdf'));
+    }
+
+    public function testUploadProducedRootUriRoundTrips(): void
+    {
+        // Real uploads mint root-level URIs (`public://<sanitizedName>`),
+        // no nested authority segment — the positive control alongside the
+        // documented nested-path form covered elsewhere in this class.
+        $file = new File(uri: 'public://ab12cd34ef56.pdf', filename: 'ab12cd34ef56.pdf', ownerId: 5);
+        $this->repository->save($file);
+
+        $loaded = $this->repository->load('public://ab12cd34ef56.pdf');
+
+        $this->assertNotNull($loaded);
+        $this->assertSame('public://ab12cd34ef56.pdf', $loaded->uri);
+        $this->assertSame(5, $loaded->ownerId);
+    }
 }
