@@ -218,4 +218,136 @@ final class LocalFileRepositoryTest extends TestCase
         $this->assertSame('public://ab12cd34ef56.pdf', $loaded->uri);
         $this->assertSame(5, $loaded->ownerId);
     }
+
+    public function testSaveReplacesSidecarViaRenameNotInPlaceTruncation(): void
+    {
+        // #2758 follow-up: an in-place file_put_contents() truncates and
+        // rewrites the same inode, so a concurrent load() opening the
+        // sidecar mid-write can observe a partial/corrupt JSON body.
+        // Writing to a temp file and rename()-ing it into place instead
+        // swaps the directory entry to a *new* inode atomically -- a
+        // concurrent reader always sees either the fully old file or the
+        // fully new one, never a partial one. Prove the swap actually
+        // happens by observing the inode change across an update save(),
+        // and that no temp artifact survives.
+        $metadataPath = $this->rootDir . '/public/atomic/first.txt.meta.json';
+
+        $this->repository->save(new File(uri: 'public://atomic/first.txt', filename: 'first.txt', ownerId: 1));
+        $this->assertFileExists($metadataPath);
+        $originalInode = fileinode($metadataPath);
+        $this->assertNotFalse($originalInode);
+
+        $this->repository->save(new File(uri: 'public://atomic/first.txt', filename: 'first-renamed.txt', ownerId: 1));
+        clearstatcache(true, $metadataPath);
+        $updatedInode = fileinode($metadataPath);
+
+        $this->assertNotSame(
+            $originalInode,
+            $updatedInode,
+            'save() must replace the sidecar via rename(), not truncate it in place.',
+        );
+
+        $tempArtifacts = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->rootDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $fileInfo) {
+            if ($fileInfo->isFile() && $fileInfo->getPathname() !== $metadataPath) {
+                $tempArtifacts[] = $fileInfo->getPathname();
+            }
+        }
+
+        $this->assertSame([], $tempArtifacts, 'No temp sidecar artifacts must remain after save().');
+
+        $loaded = $this->repository->load('public://atomic/first.txt');
+        $this->assertNotNull($loaded);
+        $this->assertSame('first-renamed.txt', $loaded->filename);
+    }
+
+    /**
+     * Regression for #2758's migration/reconciliation acceptance criterion:
+     * a sidecar left behind at the pre-fix collision-prone location (scheme
+     * + path only, `host` discarded) must be detected and relocated to the
+     * location its own recorded `uri` resolves to under the current layout,
+     * so previously-saved metadata does not become silently unreachable
+     * after upgrading.
+     */
+    public function testReconcileLegacySidecarsRelocatesToCurrentLayout(): void
+    {
+        // Simulate a sidecar written by the pre-#2758 algorithm for
+        // `public://images/shared.pdf`: it derived scheme "public" + path
+        // "shared.pdf" only, discarding the "images" host/authority segment.
+        $legacyPath = $this->rootDir . '/public/shared.pdf.meta.json';
+        mkdir(dirname($legacyPath), 0o755, true);
+        file_put_contents($legacyPath, json_encode([
+            'uri' => 'public://images/shared.pdf',
+            'filename' => 'shared.pdf',
+            'mimeType' => 'application/pdf',
+            'size' => 42,
+            'status' => 'permanent',
+            'ownerId' => 3,
+            'createdTime' => null,
+            'originalName' => null,
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertNull($this->repository->load('public://images/shared.pdf'), 'Not yet reachable at the current layout.');
+
+        $report = $this->repository->reconcileLegacySidecars();
+
+        $this->assertCount(1, $report);
+        $this->assertSame('relocated', $report[0]['action']);
+        $this->assertSame('public://images/shared.pdf', $report[0]['uri']);
+        $this->assertFileDoesNotExist($legacyPath);
+
+        $loaded = $this->repository->load('public://images/shared.pdf');
+        $this->assertNotNull($loaded);
+        $this->assertSame('shared.pdf', $loaded->filename);
+        $this->assertSame(3, $loaded->ownerId);
+    }
+
+    /**
+     * A legacy-location sidecar must never silently overwrite metadata that
+     * already lives at the current-layout location for the same URI — the
+     * issue's acceptance criterion explicitly forbids picking a winner. The
+     * reconciliation report must surface the conflict instead.
+     */
+    public function testReconcileLegacySidecarsReportsConflictWithoutOverwriting(): void
+    {
+        $current = new File(uri: 'public://images/shared.pdf', filename: 'current.pdf', ownerId: 9);
+        $this->repository->save($current);
+
+        $legacyPath = $this->rootDir . '/public/shared.pdf.meta.json';
+        if (!is_dir(dirname($legacyPath))) {
+            mkdir(dirname($legacyPath), 0o755, true);
+        }
+        file_put_contents($legacyPath, json_encode([
+            'uri' => 'public://images/shared.pdf',
+            'filename' => 'stale.pdf',
+            'mimeType' => 'application/pdf',
+            'size' => 1,
+            'status' => 'permanent',
+            'ownerId' => 1,
+            'createdTime' => null,
+            'originalName' => null,
+        ], JSON_THROW_ON_ERROR));
+
+        $report = $this->repository->reconcileLegacySidecars();
+
+        $this->assertCount(1, $report);
+        $this->assertSame('conflict', $report[0]['action']);
+        $this->assertFileExists($legacyPath, 'Conflicting legacy sidecar must be left in place for operator review.');
+
+        $loaded = $this->repository->load('public://images/shared.pdf');
+        $this->assertNotNull($loaded);
+        $this->assertSame('current.pdf', $loaded->filename, 'Existing current-layout metadata must not be overwritten.');
+    }
+
+    public function testReconcileLegacySidecarsIsIdempotentWhenAlreadyCurrent(): void
+    {
+        $this->repository->save(new File(uri: 'public://images/shared.pdf', filename: 'shared.pdf', ownerId: 4));
+
+        $report = $this->repository->reconcileLegacySidecars();
+
+        $this->assertSame([], $report);
+    }
 }
