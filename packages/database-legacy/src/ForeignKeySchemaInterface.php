@@ -16,4 +16,11 @@ interface ForeignKeySchemaInterface extends SchemaInterface
         array $referencedColumns,
         array $options = [],
     ): void;
+
+    /**
+     * Read-only introspection: does a foreign key with this name already
+     * exist on the table? No DDL — safe to call from a production runtime
+     * readiness assertion (#2761).
+     */
+    public function foreignKeyExists(string $table, string $name): bool;
 }

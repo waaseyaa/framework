@@ -399,6 +399,99 @@ final class SqlSchemaHandlerTest extends TestCase
         new SqlSchemaHandler($type, $this->database)->ensureTable();
     }
 
+    // ------------------------------------------------------------------
+    // Declared foreign-key runtime readiness (#2761: production HTTP/kernel
+    // boot must fail closed with [S1-DB106] rather than repair a missing
+    // declared foreign key, mirroring the existing unique-key contract).
+    // ------------------------------------------------------------------
+
+    public function testAssertRuntimeSchemaThrowsWhenDeclaredForeignKeyIsMissing(): void
+    {
+        $this->database->schema()->createTable('fk_ref_entity', [
+            'fields' => ['id' => ['type' => 'serial']],
+            'primary key' => ['id'],
+        ]);
+
+        // Base table materialized WITHOUT the declared foreign key — the
+        // exact shape a coordinated schema-sync run that never reached the
+        // foreign-key step (or a pre-existing install) leaves behind.
+        new SqlSchemaHandler($this->entityType, $this->database)->ensureTable();
+
+        $typeWithFk = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: $this->entityType->getKeys(),
+            _foreignKeys: [[
+                'name' => 'test_entity_fk_ref_fk',
+                'columns' => ['id'],
+                'table' => 'fk_ref_entity',
+                'references' => ['id'],
+            ]],
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('[S1-DB106]');
+        $this->expectExceptionMessageMatches('/foreign key/');
+        new SqlSchemaHandler($typeWithFk, $this->database)->assertRuntimeSchema();
+    }
+
+    public function testAssertRuntimeSchemaPassesWhenDeclaredForeignKeyIsPresent(): void
+    {
+        $this->database->schema()->createTable('fk_ref_entity', [
+            'fields' => ['id' => ['type' => 'serial']],
+            'primary key' => ['id'],
+        ]);
+
+        $typeWithFk = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: $this->entityType->getKeys(),
+            _foreignKeys: [[
+                'name' => 'test_entity_fk_ref_fk',
+                'columns' => ['id'],
+                'table' => 'fk_ref_entity',
+                'references' => ['id'],
+            ]],
+        );
+
+        // Coordinated schema sync: creates the base table AND the declared
+        // foreign key together.
+        $handler = new SqlSchemaHandler($typeWithFk, $this->database);
+        $handler->ensureTable();
+
+        $handler->assertRuntimeSchema();
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertRuntimeSchemaSkipsForeignKeyCheckWhenReferencedTableIsAbsent(): void
+    {
+        $typeWithFk = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: $this->entityType->getKeys(),
+            _foreignKeys: [[
+                'name' => 'test_entity_fk_ref_fk',
+                'columns' => ['id'],
+                'table' => 'never_created_ref_entity',
+                'references' => ['id'],
+            ]],
+        );
+
+        // The referenced table never exists in this test: ensureTable()
+        // additively skips the foreign key (mirrors EntitySchemaSync's
+        // ordering-tolerant retry across registration order), and
+        // assertRuntimeSchema() must not treat that as a readiness failure —
+        // the referenced entity type owns its own table's readiness.
+        $handler = new SqlSchemaHandler($typeWithFk, $this->database);
+        $handler->ensureTable();
+
+        $handler->assertRuntimeSchema();
+        $this->addToAssertionCount(1);
+    }
+
     /**
      * @return array<string, mixed>
      */

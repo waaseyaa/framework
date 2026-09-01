@@ -53,4 +53,22 @@ final class VocabularyAccessPolicyTest extends TestCase
 
         self::assertTrue($result->isNeutral());
     }
+
+    /**
+     * #2761: `access()` used to call `VocabularyReferenceConstraint::ensure()`
+     * (schema DDL) on every delete-access check whenever a database was
+     * wired — i.e. on ordinary production request traffic, not just at
+     * kernel boot. The foreign key is now installed exclusively by
+     * coordinated schema sync (db:init / schema:sync); this access policy no
+     * longer accepts a database at all, so it structurally cannot reach any
+     * DDL surface.
+     */
+    #[Test]
+    public function constructorNoLongerAcceptsADatabaseDdlSeam(): void
+    {
+        $parameters = new \ReflectionMethod(VocabularyAccessPolicy::class, '__construct')->getParameters();
+
+        self::assertCount(1, $parameters, 'VocabularyAccessPolicy must only depend on the entity type manager.');
+        self::assertSame('entityTypeManager', $parameters[0]->getName());
+    }
 }

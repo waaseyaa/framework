@@ -11,6 +11,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+use Waaseyaa\Foundation\Kernel\RuntimePolicy;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class TaxonomyServiceProvider extends ServiceProvider
@@ -90,21 +91,47 @@ final class TaxonomyServiceProvider extends ServiceProvider
         ));
     }
 
+    /**
+     * Wires TWO independent cross-cutting concerns:
+     *
+     *   - {@see TermHierarchyGuard} onto `EntityEvents::PRE_SAVE` — needs the
+     *     dispatcher and entity type manager both.
+     *   - {@see VocabularyReferenceConstraint::ensure()} — the vocabulary
+     *     foreign key. Local/development boot may still materialize it for
+     *     convenience; production and staging HTTP/kernel and
+     *     retained-worker boot must not (#2761, reusing #2478's
+     *     no-request-DDL contract — see AttachmentServiceProvider for the
+     *     same pattern). Coordinated schema sync (`db:init`, `schema:sync`)
+     *     is the single authoritative path: it applies the identical
+     *     declared foreign key via SqlSchemaHandler's generic
+     *     `ensureDeclaredForeignKeys()`, fed by the `_foreignKeys` entity-type
+     *     declaration in {@see register()} above. Missing production shape
+     *     fails closed with `[S1-DB106]` from `assertRuntimeSchema()` at
+     *     `getRepository('taxonomy_term')` resolution — no silent skip.
+     *
+     * These are independent of each other: neither needs the other's
+     * dependency to be present.
+     */
     public function boot(): void
     {
         $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
         $entityTypeManager = $this->resolveOptional(EntityTypeManager::class);
-        if (!$dispatcher instanceof EventDispatcherInterface || !$entityTypeManager instanceof EntityTypeManagerInterface) {
-            return;
+        if ($dispatcher instanceof EventDispatcherInterface && $entityTypeManager instanceof EntityTypeManagerInterface) {
+            $dispatcher->addListener(
+                EntityEvents::PRE_SAVE->value,
+                new TermHierarchyGuard($entityTypeManager),
+            );
         }
 
-        $dispatcher->addListener(
-            EntityEvents::PRE_SAVE->value,
-            new TermHierarchyGuard($entityTypeManager),
-        );
         $database = $this->resolveOptional(DatabaseInterface::class);
-        if ($database instanceof DatabaseInterface) {
+        if ($database instanceof DatabaseInterface && $this->allowsConvenientSchemaMaterialization()) {
             new VocabularyReferenceConstraint($database)->ensure();
         }
+    }
+
+    /** Production and staging HTTP/worker boot must not CREATE or ALTER the vocabulary foreign key (#2761). */
+    private function allowsConvenientSchemaMaterialization(): bool
+    {
+        return RuntimePolicy::resolve($this->config)->isDevelopment();
     }
 }

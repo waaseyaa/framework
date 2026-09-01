@@ -2450,6 +2450,20 @@
             "occurrence": 1
         },
         {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaForeignKeyPlatformTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaForeignKeyPlatformTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 2
+        },
+        {
             "path": "packages/database-legacy/tests/Unit/Schema/DBALSchemaReservedWordColumnTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -4716,6 +4730,20 @@
             "class": "test-only",
             "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
             "occurrence": 4
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/SqlSchemaHandlerTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 6
         },
         {
             "path": "packages/entity-storage/tests/Unit/TwoAxisLoadSemanticsTest.php",
@@ -9714,6 +9742,20 @@
             "class": "coordinator-plan-or-executor",
             "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
             "occurrence": 1
+        },
+        {
+            "path": "packages/taxonomy/tests/Unit/TaxonomyServiceProviderSchemaBootTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/taxonomy/tests/Unit/TaxonomyServiceProviderSchemaBootTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 2
         },
         {
             "path": "packages/taxonomy/tests/Unit/TermHierarchyGuardTest.php",
