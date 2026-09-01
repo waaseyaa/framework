@@ -51,7 +51,7 @@ final class VerifyEmailController
 
         /** @var \Waaseyaa\User\User $user */
         $user = $entity;
-        if (!$this->verificationTransaction->complete($repository, $user, $tokenData['id'], $tokenData['user_id'])) {
+        if (!$this->verificationTransaction->complete($repository, $user, $tokenData['id'])) {
             return new JsonResponse(['error' => 'invalid_token'], 422);
         }
 

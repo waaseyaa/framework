@@ -125,7 +125,12 @@ final class VerifyEmailControllerTest extends TestCase
 
         $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
         $tokenRepo->method('validateToken')->willReturn($tokenData);
-        $tokenRepo->expects(self::once())->method('consumeTokenIfAvailable')->with(5)->willReturn(true);
+        // The consume carries the token type and the identity of the User this
+        // request is about to mark verified, not just the token id.
+        $tokenRepo->expects(self::once())
+            ->method('consumeTokenIfAvailable')
+            ->with(5, 'email_verification', 42)
+            ->willReturn(true);
         $tokenRepo->expects(self::once())->method('revokeTokensForUser')->with(42, 'email_verification');
 
         $user = new \Waaseyaa\User\User(['uid' => 42, 'name' => 'Test', 'mail' => 'test@example.com']);
@@ -179,7 +184,10 @@ final class VerifyEmailControllerTest extends TestCase
     {
         $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
         $tokenRepo->method('validateToken')->willReturn(['id' => 5, 'user_id' => 42, 'meta' => null]);
-        $tokenRepo->expects(self::once())->method('consumeTokenIfAvailable')->with(5)->willReturn(false);
+        $tokenRepo->expects(self::once())
+            ->method('consumeTokenIfAvailable')
+            ->with(5, 'email_verification', 42)
+            ->willReturn(false);
         $tokenRepo->expects(self::never())->method('revokeTokensForUser');
 
         $user = new \Waaseyaa\User\User(['uid' => 42, 'mail' => 'test@example.com']);

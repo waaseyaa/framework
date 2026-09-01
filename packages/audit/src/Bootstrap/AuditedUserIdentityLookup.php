@@ -48,6 +48,16 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
         }
     }
 
+    /**
+     * Resolve the single active User that owns a recovery mail address.
+     *
+     * Recovery is not the login namespace, so this never probes an exact
+     * spelling first. The canonical bounded query is the only probe: an
+     * upgraded database holding active case-variant duplicates fails closed
+     * instead of handing recovery to whichever row happened to match the
+     * submitted spelling exactly. `findActiveByLogin()` keeps its exact-first
+     * legacy compatibility deliberately; that ladder is not shared here.
+     */
     public function findActiveByMail(EntityRepositoryInterface $repository, string $mail): ?EntityInterface
     {
         $boundary = $this->capabilities->openBoundary(bin2hex(random_bytes(16)));
@@ -62,8 +72,7 @@ final readonly class AuditedUserIdentityLookup implements UserIdentityLookupInte
             policyGeneration: $this->policyGeneration,
         ), $boundary);
         try {
-            $id = $this->execute($repository, $mail, 'mail', $capability, $boundary);
-            $id ??= $this->execute($repository, $mail, 'mail', $capability, $boundary, caseInsensitive: true);
+            $id = $this->execute($repository, $mail, 'mail', $capability, $boundary, caseInsensitive: true);
 
             return $id === null ? null : $repository->find((string) $id);
         } finally {
