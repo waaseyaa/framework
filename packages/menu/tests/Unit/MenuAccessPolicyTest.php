@@ -11,6 +11,7 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Menu\Menu;
 use Waaseyaa\Menu\MenuAccessPolicy;
 
 #[CoversClass(MenuAccessPolicy::class)]
@@ -102,6 +103,55 @@ final class MenuAccessPolicyTest extends TestCase
 
         $noPerm = $this->makeAccount([]);
         $this->assertFalse($this->policy->createAccess('menu', 'default', $noPerm)->isAllowed());
+    }
+
+    /**
+     * #2755: a locked menu ('main', etc.) must refuse deletion for every
+     * account, including one holding 'administer menu' — the permission that
+     * previously short-circuited access() before the flag was ever consulted.
+     */
+    #[Test]
+    public function locked_menu_delete_is_forbidden_even_for_administer_menu(): void
+    {
+        $locked = new Menu(['id' => 'main', 'label' => 'Main', 'locked' => true]);
+        $account = $this->makeAccount(['administer menu']);
+
+        $result = $this->policy->access($locked, 'delete', $account);
+
+        $this->assertTrue($result->isForbidden());
+        $this->assertFalse($result->isAllowed());
+    }
+
+    #[Test]
+    public function unlocked_menu_delete_is_allowed_for_administer_menu(): void
+    {
+        $unlocked = new Menu(['id' => 'footer', 'label' => 'Footer', 'locked' => false]);
+        $account = $this->makeAccount(['administer menu']);
+
+        $result = $this->policy->access($unlocked, 'delete', $account);
+
+        $this->assertTrue($result->isAllowed());
+    }
+
+    #[Test]
+    public function locked_menu_non_delete_operations_are_unaffected(): void
+    {
+        $locked = new Menu(['id' => 'main', 'label' => 'Main', 'locked' => true]);
+        $account = $this->makeAccount(['administer menu']);
+
+        $this->assertTrue($this->policy->access($locked, 'view', $account)->isAllowed());
+        $this->assertTrue($this->policy->access($locked, 'update', $account)->isAllowed());
+    }
+
+    #[Test]
+    public function locked_menu_link_delete_is_unaffected(): void
+    {
+        // The locked flag lives on Menu, not MenuLink — a menu_link entity
+        // must never be forbidden by this check.
+        $entity = $this->makeEntity('menu_link');
+        $account = $this->makeAccount(['administer menu']);
+
+        $this->assertTrue($this->policy->access($entity, 'delete', $account)->isAllowed());
     }
 
     // -----------------------------------------------------------------------
