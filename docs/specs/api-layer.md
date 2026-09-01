@@ -385,6 +385,17 @@ resolve the same stored alias and entity; query strings remain request metadata
 and do not participate in the alias key. This is lookup equivalence, not a new
 redirect policy.
 
+`PathAliasResolver::resolve()` only ever matches a non-empty alias beginning
+with `/` — that leading slash is the resolver's canonical domain. Because
+`PathAlias::setAlias()` is a convenience setter that neither generic entity
+construction (JSON:API POST) nor generic `set()` mutation (JSON:API PATCH)
+calls, `PathAliasUniquenessListener` — the universal `BeforeSaveEvent` write
+boundary every save reaches, regardless of the path an entity was built or
+mutated through — also enforces the leading-slash invariant on the canonical
+form, before its uniqueness check, and aborts the save (leaving prior database
+state unchanged) otherwise. A successfully persisted alias is therefore always
+reachable through the resolver (#2754).
+
 ## Core Value Objects
 
 ### JsonApiDocument

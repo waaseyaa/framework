@@ -43,6 +43,24 @@ final class PathAliasUniquenessListener
         $normalizedAlias = PathAlias::normalizeAlias($entity->getAlias());
         $langcode = $entity->getLanguage();
 
+        // Universal write-boundary domain check (#2754): PathAlias::setAlias()
+        // is a convenience setter, and neither generic entity construction
+        // (JSON:API POST — values are assigned straight into entity storage,
+        // see PathAlias::__construct()) nor generic set() mutation (JSON:API
+        // PATCH) calls it, so the leading-slash invariant was previously
+        // unenforced on those paths. This listener is the one chokepoint
+        // every save reaches (validate: true or false, create or update), so
+        // it is where the invariant must be enforced to guarantee a
+        // successful write never creates a row PathAliasResolver::resolve()
+        // can't reach. Checked on the CANONICAL form so the resolver's
+        // domain and the persisted form agree exactly.
+        if (!PathAlias::isInCanonicalDomain($normalizedAlias)) {
+            throw new AbortOperationException(sprintf(
+                'The alias "%s" must start with a forward slash.',
+                $normalizedAlias,
+            ));
+        }
+
         // BeforeSaveEvent is dispatched by EntityRepository::doSave() BEFORE it
         // reads $entity->toArray() for the write, so rewriting the alias here is
         // what actually persists. This makes the listener the single universal
