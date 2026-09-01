@@ -1,4 +1,19 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-01 - #2761: SqlSchemaHandler::assertRuntimeSchema()
+(the no-DDL contract every getRepository() resolution runs) now also
+validates declared entity-type foreign keys, not only base columns and
+unique keys — a table that exists but is missing a `_foreignKeys`-declared
+constraint fails closed with `[S1-DB106]` rather than silently skipping it.
+ForeignKeySchemaInterface gained a read-only `foreignKeyExists()` companion
+to the existing `addForeignKey()`. This closed the taxonomy vocabulary
+foreign key's gap in the #2478 contract: TaxonomyServiceProvider::boot() and
+VocabularyAccessPolicy::access() both used to call
+VocabularyReferenceConstraint::ensure() (schema DDL) unconditionally —
+production request traffic, not just boot. Coordinated schema sync
+(`db:init`/`schema:sync`) remains the single authoritative path via the
+entity type's existing declared `_foreignKeys`; local/development boot keeps
+the convenience materialization, gated by RuntimePolicy the same way
+AttachmentServiceProvider gates its own. -->
 <!-- Spec reviewed 2026-09-01 - #2757: HttpKernel resolves the neutral
 authentication-eligibility contract and injects it into SessionMiddleware.
 Standalone stacks with no auth policy retain historical behavior only when the
@@ -1453,7 +1468,11 @@ executing plans or updating schema/ledger.
 `#[StorageSchemaTransition]` healers such as attachment-specific columns).
 Production HTTP must not create missing entity-storage tables (#2478): the
 kernel fail-closes with `[S1-DB106]` before provider boot for Framework
-SQL-backed definitions. A valid custom `EntityStorageInterface` is not
+SQL-backed definitions. The same `assertRuntimeSchema()` also validates any
+declared `_foreignKeys` on the entity type, failing closed with
+`[S1-DB106]` if a table exists but a declared foreign key does not (#2761);
+`ensureDeclaredForeignKeys()` remains the coordinated-schema-sync-only path
+that installs it. A valid custom `EntityStorageInterface` is not
 required to own an SQL table (#2482). The kernel repository factory also refuses
 such a definition before schema inspection: its custom backend is available
 through `getStorage()`, while `getRepository()` remains the richer Framework SQL
@@ -2629,7 +2648,7 @@ public function boot(string $projectRoot): PackageManifest
 
 Instantiates `PackageManifestCompiler` with `storagePath: $projectRoot . '/storage'` and calls `load()` (cache-first, compile on miss).
 
-`storage/framework/packages.php` includes metadata key `_manifest_inputs_fp`: an `xxh128` digest of the raw contents of the project `composer.json` and `vendor/composer/installed.json`. When present and not equal to a freshly computed digest, `load()` discards the cache and recompiles (covers new/removed Composer packages and copied stale caches). After loading a cached manifest, `assertProvidersExist()` validates that all declared provider classes can be autoloaded. If any are missing, the manifest auto-recovers by logging a warning and recompiling from disk, no manual `optimize:manifest` needed. `StaleManifestException` is still thrown by `assertProvidersExist()` but is caught internally by `load()` as a recompile trigger. If the recompiled manifest still contains missing providers (e.g., stale `composer.json` declarations), `load()` logs an error with actionable remediation guidance, stamps the missing provider list into the cache via `_known_missing_providers`, and returns the manifest without rethrowing. On subsequent requests, `validateCachedProviders()` compares the current missing set against the stamped known-missing set: if they match, recompilation is skipped (only an error is logged). If `composer.json` changes (fingerprint mismatch), the stamp is naturally cleared by a fresh compile. This prevents repeated full-compile cost on every request when a provider is permanently misconfigured (#9). If the stamp cannot be persisted (missing cache file, write failure), `stampKnownMissing()` logs a warning so operators can diagnose why recompilation continues.
+`storage/framework/packages.php` includes metadata key `_manifest_inputs_fp`: an `xxh128` digest computed by `computeManifestInputsFingerprint()` over the raw bytes of, in order, the project `composer.json`, `vendor/composer/installed.json`, `vendor/composer/autoload_classmap.php`, `vendor/composer/autoload_psr4.php`, and — #2778 — a fifth component built from the current on-disk `composer.json` of every installed **path** package (`installed.json` marks `dist.type === 'path'` or `source.type === 'path'`), sorted by package name for determinism. This fifth component is the manifest-cache authority for path-package discovery metadata: `compile()` (via `hydrateInstalledPackageMetadata()`) re-reads each such package's own `composer.json` on every compile and merges its `extra.waaseyaa` declarations, so that file is as authoritative a manifest input as `installed.json` itself — a path package can change its own providers/migrations/permissions/etc. while root `composer.json`, `installed.json`, and both autoload dumps stay byte-identical, and only hashing this fifth component catches it. Only the single `composer.json` file of each path package is read — no source tree is walked or hashed, keeping recompute-per-request bounded to N small file reads for N *true* path packages, not a fresh classmap of unrelated code. The `dist`/`source` type check — not `install-path` presence — is what keeps that N small: Composer 2.x stamps `install-path` on every installed package regardless of origin (dist, source, or path), so gating on it alone would read and hash every installed dependency's `composer.json` on every `load()`, including the cache-hit path (caught in PR review on #2790, verified against this repo's own `vendor/composer/installed.json` where all 200 installed packages carry `install-path`). Packages that are not path-installed (ordinary dist installs from Packagist) contribute nothing to this component; their metadata is already fully captured by `installedRaw`, consistent with the issue's observation that a normal dist-package upgrade already changes `installed.json` (a dist package cannot change content without a new `dist`/`source` reference). When the computed digest is present and does not equal the cached one, `load()` discards the cache and recompiles (covers new/removed/edited Composer packages — dist or path — and copied stale caches). After loading a cached manifest, `assertProvidersExist()` validates that all declared provider classes can be autoloaded. If any are missing, the manifest auto-recovers by logging a warning and recompiling from disk, no manual `optimize:manifest` needed. `StaleManifestException` is still thrown by `assertProvidersExist()` but is caught internally by `load()` as a recompile trigger. If the recompiled manifest still contains missing providers (e.g., stale `composer.json` declarations), `load()` logs an error with actionable remediation guidance, stamps the missing provider list into the cache via `_known_missing_providers`, and returns the manifest without rethrowing. On subsequent requests, `validateCachedProviders()` compares the current missing set against the stamped known-missing set: if they match, recompilation is skipped (only an error is logged). If `composer.json` changes (fingerprint mismatch), the stamp is naturally cleared by a fresh compile. This prevents repeated full-compile cost on every request when a provider is permanently misconfigured (#9). If the stamp cannot be persisted (missing cache file, write failure), `stampKnownMissing()` logs a warning so operators can diagnose why recompilation continues.
 
 The compiled manifest now also carries `packageDeclarations`, derived from package-local `composer.json` metadata and merged installed-package metadata. This is the post-M10 baseline used to normalize provider ownership and to verify that declared provider classes still exist before the manifest is trusted.
 

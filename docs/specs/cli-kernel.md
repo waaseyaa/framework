@@ -275,6 +275,39 @@ therefore reports the exact already-committed count rather than zero. Operators
 retain the invocation reason with the digest-bound exit/count report as the
 durable upgrade evidence.
 
+`schema:sync [--dry-run]` reports created tables, already-existing tables, and
+— since #2732 — the subset of already-existing tables whose synchronization
+adds a column or index (`altered`, distinct from the genuinely untouched
+`unchanged` subset). Before #2732, a table's pre-run existence alone decided
+the summary, so a field (and its index) registered against an already-created
+table was described as "already exist(s)" / "in sync" even though `--dry-run`
+would apply a real schema change and the real run did. `--dry-run` and the
+applied run derive `altered` from the same read-only traversal (see
+`EntitySchemaSyncRunner`/`SchemaSyncReport` in
+[entity-system.md](entity-system.md)), so the two cannot disagree.
+
+That read-only traversal only exists for a SQLite connection with no mutation
+already active — a real MySQL/MariaDB/PostgreSQL connection (or one already
+mid-migration) has no equivalent read-only preview. The #2732 fix's first cut
+folded that "cannot determine" state into `altered` too, via
+`CoordinatedEntitySchemaExecutor::requiresMutation()`'s conservative
+"assume mutation" default — meaning `schema:sync` printed "Altered N existing
+table(s)" / "would alter" on **every** run on those platforms, even when
+nothing changed. A review pass (#2732 follow-up) caught this before it
+shipped: a separate `indeterminate` subset now carries ids whose status could
+not be determined at all, distinct from both `altered` and `unchanged`.
+`SchemaSyncReport::changed()` never returns `true` from indeterminacy alone.
+On `--dry-run`, `schema:sync` prints `N existing table(s); pending
+column/index work cannot be previewed on this database platform — apply to
+find out.` On a real (non-dry-run) run the sync still executes against those
+tables — it cannot skip the mutation coordinator just because it cannot
+preview — and the command instead prints `Synced N existing table(s); pending
+column/index work could not be previewed on this database platform before
+applying.` SQLite behaviour (the common local/CI case) is unchanged: the
+`indeterminate` subset stays empty there. See `EntityTypeSchemaPlan` and
+`CoordinatedEntitySchemaExecutor::canPreviewMutation()` in
+[entity-system.md](entity-system.md).
+
 `install:init` is the governed installation phase (#2428) and belongs to the
 restricted pre-boot command set alongside `schema:sync` and `migrate*`.
 `ConsoleKernel::handle()` routes it through `bootForSchemaSync()`, so it never

@@ -6,6 +6,19 @@
 <!-- Spec reviewed 2026-08-21 - #2478/#2482: production HTTP asserts Framework SQL-backed entity tables only (S1-DB106). Custom EntityStorageInterface storageClass is not forced to own an SQL table. EntityStorageInterface and EntityQueryInterface are class-level @api. AttachmentSchema::apply() is the strict coordinated transition; local boot ensureTable() is best-effort. -->
 # Entity System
 
+<!-- Spec reviewed 2026-09-01 - #2761: production HTTP must not mutate
+taxonomy's term-to-vocabulary foreign key either (reusing the #2478
+no-request-DDL contract): TaxonomyServiceProvider::boot() and
+VocabularyAccessPolicy::access() both used to call
+VocabularyReferenceConstraint::ensure() unconditionally, so ordinary
+production request traffic — not just provider boot — could ALTER
+taxonomy_term. Coordinated schema sync remains the sole authoritative path
+via the entity type's declared `_foreignKeys`; assertRuntimeSchema() (the
+existing [S1-DB106] no-DDL contract) now also fails closed when a declared
+foreign key is missing. See infrastructure.md for the SqlSchemaHandler
+contract detail. The #2101 note below (taxonomy_term.vid carries an additive
+restrictive foreign key) is unchanged in substance — only WHEN and BY WHOM
+that foreign key is installed changed. -->
 <!-- Spec reviewed 2026-08-30 - #2728: EntityEvents::PRE_DELETE is a GUARD event and now dispatches IMMEDIATELY inside the delete transaction on both delete() and deleteMany() (doDelete() no longer passes $unitOfWork to it), so a refusing pre-delete listener rolls back the base row, its revisions and the mutation-authority tombstone for the whole batch. POST_DELETE is unchanged: still buffered, still dispatched only after a successful commit. deleteMany() interleaving changes from pre1,post1,pre2,post2 to pre1,pre2,post1,post2. The mutation-authority tombstone deliberately stays AHEAD of the guard, mirroring doSave()'s claim() before PRE_SAVE. EntityRepository::__construct() gains the symmetric invariant that a mutation authority requires a database. Supersedes the #1856 header's "deleteMany PRE_DELETE buffering is unchanged" note. -->
 <!-- Spec reviewed 2026-08-27 - #2624: configuration-authority composition
 uses the canonical RuntimePolicy development classifier for active-generation
@@ -1143,6 +1156,71 @@ Default table schema (from `buildTableSpec()`):
 - `{langcodeKey}` -- `varchar(12) NOT NULL DEFAULT 'en'`
 - `_data` -- `text NOT NULL DEFAULT '{}'`
 - Primary key on `{idKey}`, unique index on UUID, index on bundle
+
+`planMutatingEntityTypeIds(iterable $entityTypes): EntityTypeSchemaPlan` --
+reports, per entity type, whether synchronizing it would require a schema
+mutation, without applying anything. It reuses the exact same read-only
+traversal `syncAll()` already runs for its own no-op detection (one call to
+the query-only guard per entity type instead of once for the whole batch), so
+a table already present is correctly flagged when the current definition adds
+a column or index the live table lacks (#2732) — it is not a second,
+hand-maintained model of what would change.
+
+`EntityTypeSchemaPlan` (`packages/entity-storage/src/EntityTypeSchemaPlan.php`,
+`@api`) splits the input into `mutating` (ids the traversal proved need a
+mutation) and `indeterminate` (ids it could not determine either way). An id
+never appears in both, and one whose traversal completed and found no
+mutation needed appears in neither. Determination requires
+`CoordinatedEntitySchemaExecutor::canPreviewMutation()` to hold — a
+`DBALDatabase` connection on SQLite with no mutation already active on it. Off
+SQLite (MySQL/MariaDB/PostgreSQL in production), or on a connection where a
+mutation coordinator is already active, that read-only introspection has no
+equivalent, so every id under consideration is reported `indeterminate`
+instead: the earlier behaviour of `requiresMutation()`'s conservative
+"assume mutation" default leaking into a report as "will be altered" was the
+#2732 review defect (falsely calling every pre-existing table changed on
+production databases). Callers that only need to decide whether the singular
+mutation coordinator must run keep using
+`CoordinatedEntitySchemaExecutor::requiresMutation()` directly — its
+conservative default is the correct and safe answer for that question; it is
+only wrong to *report* as a confirmed alteration.
+
+### EntitySchemaSyncRunner and SchemaSyncReport
+
+File: `packages/entity-storage/src/EntitySchemaSyncRunner.php` (`final class
+EntitySchemaSyncRunner`), `packages/entity-storage/src/SchemaSyncReport.php`
+(`final class SchemaSyncReport`)
+
+The reporting wrapper `schema:sync` and `db:init --sync-schema` share.
+`run(iterable $definitions, bool $dryRun = false): SchemaSyncReport`
+classifies every definition's base table by pre-run existence into `created`
+(absent) and `existing` (present), then — for the `existing` set only —
+derives `altered` and `indeterminate` from the `EntityTypeSchemaPlan` returned
+by `EntitySchemaSync::planMutatingEntityTypeIds()`: `altered` is the subset
+confirmed to gain a column, index, or other physical schema on that
+already-present table; `indeterminate` is the subset whose status could not be
+determined at all (non-SQLite platform, or a mutation already active on the
+connection). A table existing before the run is not the same as that table
+needing no work: a field (and its index) registered since the last sync is
+additively materialized onto it, and `altered` says so instead of folding it
+into "already exists" (#2732) — and a table `schema:sync` genuinely cannot
+preview is not folded into `altered` either (#2732 review follow-up): claiming
+certainty about pending work on MySQL/MariaDB/PostgreSQL that the underlying
+mechanism cannot actually provide was itself misleading and shipped as a
+defect during review. `$dryRun` skips the apply call
+(`EntitySchemaSync::syncAll()`) but always runs the read-only plan derivation
+(altered/indeterminate), so preview and apply describe the same model and
+cannot disagree — including on an indeterminate platform, where the apply run
+genuinely executes the sync (it cannot skip the mutation coordinator just
+because it cannot preview) while the report still cannot claim more than "ran,
+could not confirm the outcome per table" for that subset.
+
+`SchemaSyncReport::changed(): bool` is `true` when `created` **or** `altered`
+is non-empty — indeterminacy alone never makes `changed()` true; an unresolved
+"cannot be determined" must not present as a confirmed change. `unchanged():
+array` is `existing` minus `altered` minus `indeterminate` — the genuinely
+untouched subset; an indeterminate id is not a confirmed no-op either.
+`total()` is `count(created) + count(existing)` (unchanged by #2732).
 
 ### EntityStorageFactory
 
