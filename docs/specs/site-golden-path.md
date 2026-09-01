@@ -1,6 +1,6 @@
 # Fresh-site golden path
 
-<!-- Spec reviewed 2026-08-13 - Initial design for #2343. -->
+<!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
 
 ## Purpose
 
@@ -82,6 +82,46 @@ publication paths.
 
 Manifest migration is explicit and produces a reviewable diff. Runtime boot
 never silently rewrites it.
+
+### Governed application blueprints
+
+`waaseyaa.site` v1 may contain one optional, closed
+`application_blueprint` section (ADR-023). It describes a model-independent
+application proposal: entities and fields, relationships, permissions and
+roles, policies, workflows, fixtures, and generated behavioural checks. The
+exact vocabulary and semantic constraints are owned by the Layer 0
+`waaseyaa/site-contract` package; a product may not substitute a private DTO,
+validator, or compiler.
+
+The optional section does not change the normalized shape of a manifest that
+omits it. Existing v1 manifests therefore render to the same bytes and retain
+their existing digest. Presence of the section derives the required generator
+capability `site.application_blueprint.v1`. An older closed parser rejects the
+unknown section, and a newer parser refuses dry-run rendering or publication
+when the installed generator cohort does not advertise that exact capability.
+No cohort may silently ignore a blueprint.
+
+Authored YAML contains the proposal, never mutation authority. The canonical
+blueprint digest covers its fixed schema id, contract version, and complete
+payload; the section also participates in the full site-manifest digest. An
+approval or rejection receipt is separate evidence that binds an attributable
+actor and decision to both exact digests. Only a matching approval may enter
+apply. A proposal needs no approval to validate or dry-run.
+
+Lifecycle is derived rather than trusted from an authored state field:
+`proposed` has no matching decision, `approved` has a matching approval but no
+published generation, `applied` has matching evidence in
+`.waaseyaa/generated.json`, `rejected` has a matching rejection, and
+`superseded` has decision or application evidence for different bytes. The
+initializer extends the existing generated metadata and installs it last in
+the existing transaction; it does not create another generated artifact,
+approval authority, or transaction log. Strict verification re-derives this
+state and fails closed on missing or mismatched evidence.
+
+AI systems are untrusted proposal producers. Provider names, prompts,
+transcripts, confidence, and repair metadata remain outside the contract. A
+human-authored proposal and an AI-proposed one pass through the same parser,
+validator, exact-digest decision boundary, initializer, and verifier.
 
 ## Initialization
 
