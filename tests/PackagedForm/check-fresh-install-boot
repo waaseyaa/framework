@@ -56,9 +56,12 @@ mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/conf
 # keeps it false for compatibility; this proof turns it on before boot.
 php -r '
     $path = $argv[1];
-    $config = require $path;
-    $config["auth"]["require_verified_email"] = true;
-    file_put_contents($path, "<?php\n\nreturn " . var_export($config, true) . ";\n");
+    $source = (string) file_get_contents($path);
+    $needle = "\x27require_verified_email\x27 => false,";
+    if (substr_count($source, $needle) !== 1) {
+        throw new RuntimeException("Packaged proof could not identify the stock verified-email setting.");
+    }
+    file_put_contents($path, str_replace($needle, "\x27require_verified_email\x27 => true,", $source));
 ' "$consumer/config/waaseyaa.php"
 
 # Resolve every waaseyaa/* — including the waaseyaa/framework metapackage at the
