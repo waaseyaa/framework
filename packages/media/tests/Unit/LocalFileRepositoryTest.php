@@ -350,4 +350,234 @@ final class LocalFileRepositoryTest extends TestCase
 
         $this->assertSame([], $report);
     }
+
+    /**
+     * reconcileLegacySidecars() must not attempt to walk a root directory
+     * that does not exist (yet) -- for example a fresh install that has
+     * never called save() -- and instead report nothing to do.
+     */
+    public function testReconcileLegacySidecarsReturnsEmptyArrayWhenRootDirectoryIsMissing(): void
+    {
+        (new Filesystem())->remove($this->rootDir);
+        $this->assertDirectoryDoesNotExist($this->rootDir);
+
+        $report = $this->repository->reconcileLegacySidecars();
+
+        $this->assertSame([], $report);
+    }
+
+    /**
+     * A sidecar whose JSON payload cannot be decoded at all must be reported
+     * as `unreadable` rather than crashing the whole reconciliation pass --
+     * one corrupt file left over from a previous failure must not block
+     * relocating every other legacy sidecar.
+     */
+    public function testReconcileLegacySidecarsMarksCorruptJsonPayloadAsUnreadable(): void
+    {
+        $legacyPath = $this->rootDir . '/corrupt.meta.json';
+        file_put_contents($legacyPath, '{not valid json');
+
+        $report = $this->repository->reconcileLegacySidecars();
+
+        $this->assertCount(1, $report);
+        $this->assertSame('unreadable', $report[0]['action']);
+        $this->assertSame('', $report[0]['uri']);
+        $this->assertSame($legacyPath, $report[0]['from']);
+        $this->assertSame('', $report[0]['to']);
+        $this->assertFileExists($legacyPath, 'An unreadable legacy sidecar must be left in place, not deleted.');
+    }
+
+    /**
+     * A syntactically valid sidecar that never recorded a `uri` at all gives
+     * reconciliation nothing to resolve a target path from -- it must be
+     * reported as `unreadable`, not crash on a missing array key.
+     */
+    public function testReconcileLegacySidecarsMarksMissingUriKeyAsUnreadable(): void
+    {
+        $legacyPath = $this->rootDir . '/no-uri.meta.json';
+        file_put_contents($legacyPath, json_encode([
+            'filename' => 'orphaned.txt',
+            'mimeType' => 'text/plain',
+        ], JSON_THROW_ON_ERROR));
+
+        $report = $this->repository->reconcileLegacySidecars();
+
+        $this->assertCount(1, $report);
+        $this->assertSame('unreadable', $report[0]['action']);
+        $this->assertFileExists($legacyPath);
+    }
+
+    /**
+     * An empty-string `uri` is present but not a usable identity -- treated
+     * the same as a missing key, not resolved to the repository's root URI.
+     */
+    public function testReconcileLegacySidecarsMarksEmptyUriAsUnreadable(): void
+    {
+        $legacyPath = $this->rootDir . '/empty-uri.meta.json';
+        file_put_contents($legacyPath, json_encode([
+            'uri' => '',
+            'filename' => 'orphaned.txt',
+        ], JSON_THROW_ON_ERROR));
+
+        $report = $this->repository->reconcileLegacySidecars();
+
+        $this->assertCount(1, $report);
+        $this->assertSame('unreadable', $report[0]['action']);
+    }
+
+    /**
+     * A legacy sidecar that exists but cannot be *read* (permission denied,
+     * as opposed to malformed content) must also be reported as
+     * `unreadable`, not raise a warning that aborts the whole pass.
+     */
+    public function testReconcileLegacySidecarsMarksUnreadableFileAsUnreadable(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            // Root bypasses file permission bits entirely, so chmod 0000
+            // would not actually block the read in this environment; there
+            // is no way to fault-inject this branch without dropping
+            // privileges, which this test suite does not do.
+            return;
+        }
+
+        $legacyPath = $this->rootDir . '/unreadable.meta.json';
+        file_put_contents($legacyPath, json_encode(['uri' => 'public://unreadable.txt'], JSON_THROW_ON_ERROR));
+        chmod($legacyPath, 0o000);
+
+        // Expect (and swallow) the native E_WARNING file_get_contents() raises
+        // for the permission-denied read -- that's the exact condition under
+        // test, not an unexpected failure; PHPUnit would otherwise convert it
+        // into a test warning and fail the run (phpunit.xml.dist sets
+        // failOnWarning="true").
+        set_error_handler(static fn(): bool => true, E_WARNING);
+
+        try {
+            $report = $this->repository->reconcileLegacySidecars();
+
+            $this->assertCount(1, $report);
+            $this->assertSame('unreadable', $report[0]['action']);
+        } finally {
+            restore_error_handler();
+            chmod($legacyPath, 0o644);
+        }
+    }
+
+    /**
+     * When the target directory a relocated sidecar needs cannot be created
+     * (for example a permission-denied parent), reconciliation must fail
+     * loudly rather than silently drop the sidecar.
+     */
+    public function testReconcileLegacySidecarsThrowsWhenTargetDirectoryCannotBeCreated(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            // Root bypasses directory permission bits, so a read-only parent
+            // would not actually block mkdir() here; not fault-injectable
+            // without dropping privileges.
+            return;
+        }
+
+        $legacyPath = $this->rootDir . '/legacy-mkdir.meta.json';
+        file_put_contents($legacyPath, json_encode([
+            'uri' => 'public://blocked/nested/file.txt',
+            'filename' => 'file.txt',
+        ], JSON_THROW_ON_ERROR));
+
+        // Pre-create the "public" scheme directory so it can be stripped of
+        // write permission: the target path needs a brand-new "blocked"
+        // subdirectory created inside it, which a read-only parent forbids.
+        $schemeDirectory = $this->rootDir . '/public';
+        mkdir($schemeDirectory, 0o755, true);
+        chmod($schemeDirectory, 0o500);
+
+        // Swallow the native E_WARNING mkdir() raises for the permission
+        // denial -- see the comment on the sibling unreadable-file test above.
+        set_error_handler(static fn(): bool => true, E_WARNING);
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessageMatches('/Unable to create file metadata directory/');
+
+            $this->repository->reconcileLegacySidecars();
+        } finally {
+            restore_error_handler();
+            chmod($schemeDirectory, 0o755);
+        }
+    }
+
+    /**
+     * When the relocation target directory already exists but rename() into
+     * it fails (for example permission-denied), reconciliation must fail
+     * loudly rather than silently drop the sidecar.
+     */
+    public function testReconcileLegacySidecarsThrowsWhenRenameIntoTargetDirectoryFails(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            // Root bypasses directory permission bits, so a read-only target
+            // directory would not actually block rename() here; not
+            // fault-injectable without dropping privileges.
+            return;
+        }
+
+        $legacyPath = $this->rootDir . '/legacy-rename.meta.json';
+        file_put_contents($legacyPath, json_encode([
+            'uri' => 'public://renametarget/file.txt',
+            'filename' => 'file.txt',
+        ], JSON_THROW_ON_ERROR));
+
+        // Pre-create the target directory (so the mkdir() branch is skipped
+        // entirely) and strip its write permission so rename() into it fails.
+        $targetDirectory = $this->rootDir . '/public/renametarget';
+        mkdir($targetDirectory, 0o755, true);
+        chmod($targetDirectory, 0o500);
+
+        // Swallow the native E_WARNING rename() raises for the permission
+        // denial -- see the comment on the sibling unreadable-file test above.
+        set_error_handler(static fn(): bool => true, E_WARNING);
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessageMatches('/Unable to relocate file metadata/');
+
+            $this->repository->reconcileLegacySidecars();
+        } finally {
+            restore_error_handler();
+            chmod($targetDirectory, 0o755);
+        }
+    }
+
+    /**
+     * writeAtomically()'s final rename() can fail for reasons other than
+     * permissions -- for example the destination path already existing as a
+     * directory. The failure must propagate as a RuntimeException and must
+     * not leave the temp file behind (the catch/unlink cleanup path).
+     */
+    public function testSaveThrowsWhenSidecarPathIsBlockedByExistingDirectory(): void
+    {
+        $file = new File(uri: 'public://blocked-dir/target.txt', filename: 'target.txt');
+
+        // Pre-create the sidecar's exact resolved path as a directory.
+        // save() still creates the parent chain normally, but
+        // writeAtomically()'s rename() of the temp file onto $path fails
+        // because $path is an existing directory, not a plain file --
+        // deterministic regardless of filesystem permissions or user.
+        $metadataDirectory = $this->rootDir . '/public/blocked-dir';
+        $metadataPath = $metadataDirectory . '/target.txt.meta.json';
+        mkdir($metadataPath, 0o755, true);
+
+        // Swallow the native E_WARNING rename() raises when the destination
+        // is an existing directory -- see the comment on the sibling
+        // unreadable-file test above.
+        set_error_handler(static fn(): bool => true, E_WARNING);
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessageMatches('/Unable to move file metadata into place/');
+
+            $this->repository->save($file);
+        } finally {
+            restore_error_handler();
+            $leftovers = glob($metadataDirectory . '/.meta-*') ?: [];
+            $this->assertSame([], $leftovers, 'writeAtomically() must clean up its temp file on rename failure.');
+        }
+    }
 }
