@@ -25,9 +25,9 @@ use Waaseyaa\GraphQL\GraphQlExecutionContext;
  *
  * Filter/sort/pagination reuses the same QueryApplier as JSON:API.
  *
- * R12 (audit A10, SECURITY): the built Schema is cached across requests (see
- * $schemaCache) and MUST hold no per-request/account-bound state. The
- * query/mutation resolver closures below therefore read the per-request
+ * R12 (audit A10, SECURITY): a built Schema may be reused by requests sharing
+ * the same kernel composition and MUST hold no per-request/account-bound state.
+ * The query/mutation resolver closures below therefore read the per-request
  * EntityResolver from the GraphQL execution context (the resolver's 3rd
  * argument, a {@see GraphQlExecutionContext} constructed fresh per request
  * by {@see \Waaseyaa\GraphQL\GraphQlEndpoint::handle()}), never from a
@@ -44,8 +44,17 @@ final class SchemaFactory
     /** @var array<string, array{args?: array<string, mixed>, resolve?: callable}> */
     private array $mutationOverrides = [];
 
-    /** @var array<string, Schema> Static per-process cache keyed by entity type ID hash. */
-    private static array $schemaCache = [];
+    /**
+     * Schema cache scoped to the manager object that owns one kernel composition.
+     *
+     * A process-global hash of type IDs allowed a later kernel to receive the
+     * first kernel's Schema object (and the first manager captured by its lazy
+     * field thunks). WeakMap makes composition ownership explicit and releases
+     * an entry when that composition is no longer reachable.
+     *
+     * @var \WeakMap<EntityTypeManagerInterface, array<string, Schema>>|null
+     */
+    private static ?\WeakMap $schemaCache = null;
 
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -68,26 +77,31 @@ final class SchemaFactory
     }
 
     /**
-     * Reset the static schema cache.
+     * Reset every composition's schema cache.
      *
      * Useful in testing or when entity type definitions change at runtime.
      */
     public static function resetCache(): void
     {
-        self::$schemaCache = [];
+        self::$schemaCache = null;
     }
 
     public function build(): Schema
     {
         $definitions = $this->entityTypeManager->getDefinitions();
-        $typeIds = array_map(fn($def) => $def->id(), $definitions);
-        sort($typeIds);
-        $overrideKeys = array_keys($this->mutationOverrides);
-        sort($overrideKeys);
-        $cacheKey = hash('xxh128', implode(',', $typeIds) . '|' . implode(',', $overrideKeys));
+        $bundlesByType = [];
+        foreach ($definitions as $entityType) {
+            $bundlesByType[$entityType->id()] = $this->bundlesFor($entityType);
+        }
 
-        if (isset(self::$schemaCache[$cacheKey])) {
-            return self::$schemaCache[$cacheKey];
+        $cacheKey = $this->compositionCacheKey($definitions, $bundlesByType);
+        $managerCache = self::$schemaCache !== null
+            && isset(self::$schemaCache[$this->entityTypeManager])
+            ? self::$schemaCache[$this->entityTypeManager]
+            : [];
+
+        if (isset($managerCache[$cacheKey])) {
+            return $managerCache[$cacheKey];
         }
 
         $registry = new TypeRegistry();
@@ -111,7 +125,7 @@ final class SchemaFactory
         // config entities (the registered content types).
         $bundleTypes = [];
         foreach ($definitions as $entityType) {
-            foreach ($this->bundlesFor($entityType) as $bundle) {
+            foreach ($bundlesByType[$entityType->id()] as $bundle) {
                 $bundleTypes[] = $entityTypeBuilder->buildObjectType($entityType, $bundle);
             }
         }
@@ -210,9 +224,102 @@ final class SchemaFactory
         }
 
         $schema = new Schema($config);
-        self::$schemaCache[$cacheKey] = $schema;
+        $managerCache[$cacheKey] = $schema;
+        self::$schemaCache ??= new \WeakMap();
+        self::$schemaCache[$this->entityTypeManager] = $managerCache;
 
         return $schema;
+    }
+
+    /**
+     * Hash every input that changes the emitted schema inside one composition.
+     *
+     * Manager identity is the outer WeakMap key. This structural key handles
+     * supported in-composition registration/field changes, while normalized
+     * override contents prevent a same-named resolver replacement from reusing
+     * a Schema that still contains the old callable.
+     *
+     * @param array<string, EntityTypeInterface> $definitions
+     * @param array<string, list<string>> $bundlesByType
+     */
+    private function compositionCacheKey(array $definitions, array $bundlesByType): string
+    {
+        ksort($definitions);
+        $shape = [];
+
+        foreach ($definitions as $entityType) {
+            $typeId = $entityType->id();
+            $bundleFields = [];
+            foreach ($bundlesByType[$typeId] as $bundle) {
+                $bundleFields[$bundle] = $this->fieldShape(
+                    $this->entityTypeManager->resolveFieldDefinitions($typeId, $bundle),
+                );
+            }
+
+            $shape[$typeId] = [
+                'label' => $entityType->getLabel(),
+                'keys' => $entityType->getKeys(),
+                'fields' => $this->fieldShape(
+                    $this->entityTypeManager->resolveFieldDefinitions($typeId),
+                ),
+                'bundles' => $bundleFields,
+            ];
+        }
+
+        $overrideIdentity = $this->normaliseCacheValue($this->mutationOverrides);
+
+        return hash('xxh128', serialize([$shape, $overrideIdentity]));
+    }
+
+    /**
+     * @param array<string, \Waaseyaa\Field\FieldDefinitionInterface> $definitions
+     * @return array<string, array<string, mixed>>
+     */
+    private function fieldShape(array $definitions): array
+    {
+        ksort($definitions);
+        $shape = [];
+
+        foreach ($definitions as $name => $definition) {
+            $shape[$name] = [
+                'type' => $definition->getType(),
+                'multiple' => $definition->isMultiple(),
+                'required' => $definition->isRequired(),
+                'readOnly' => $definition->isReadOnly(),
+                'settings' => $this->normaliseCacheValue($definition->getSettings()),
+            ];
+        }
+
+        return $shape;
+    }
+
+    private function normaliseCacheValue(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            if (!array_is_list($value)) {
+                ksort($value);
+            }
+
+            foreach ($value as $key => $item) {
+                $value[$key] = $this->normaliseCacheValue($item);
+            }
+
+            return $value;
+        }
+
+        if ($value instanceof \UnitEnum) {
+            return $value::class . '::' . $value->name;
+        }
+
+        if (is_object($value)) {
+            return $value::class . '#' . spl_object_id($value);
+        }
+
+        if (is_resource($value)) {
+            return get_resource_type($value) . '#' . get_resource_id($value);
+        }
+
+        return $value;
     }
 
     /**

@@ -19,7 +19,7 @@ use Waaseyaa\GraphQL\GraphQlExecutionContext;
  * (node → taxonomy → node) resolve correctly via TypeRegistry.
  *
  * R12 (audit A10, SECURITY): like SchemaFactory, the ObjectTypes built here
- * are cached inside a schema that is itself cached across requests. The
+ * may be cached inside a schema shared by one kernel composition. The
  * entity-reference field resolver therefore reads the per-request
  * ReferenceLoader from the GraphQL execution context, never from a captured
  * constructor property -- see SchemaFactory's class doc for why.

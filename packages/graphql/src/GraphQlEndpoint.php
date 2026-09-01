@@ -143,7 +143,8 @@ final class GraphQlEndpoint
         // collaborators (entityResolver, referenceLoader) travel as the
         // GraphQL execution contextValue below, NOT as SchemaFactory
         // constructor args. SchemaFactory::build() may return a Schema
-        // CACHED from an earlier request/account, so anything captured by
+        // CACHED from an earlier request/account in the same composition, so
+        // anything captured by
         // its resolver closures would leak across requests under
         // worker-mode process reuse. See GraphQlExecutionContext.
         $executionContext = new GraphQlExecutionContext($entityResolver, $referenceLoader);

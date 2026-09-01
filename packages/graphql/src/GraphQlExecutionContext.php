@@ -10,8 +10,8 @@ use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
 /**
  * Per-request GraphQL execution context.
  *
- * R12 (audit A10, SECURITY): SchemaFactory caches the built Schema across
- * requests (a deliberate worker-mode optimization, see SchemaFactory
+ * R12 (audit A10, SECURITY): SchemaFactory may cache the built Schema across
+ * requests sharing one kernel composition (see SchemaFactory
  * $schemaCache). For that cache to be safe, the Schema itself must be pure
  * structure -- its resolver closures must never capture per-request,
  * account-bound collaborators. This holder carries the two collaborators
