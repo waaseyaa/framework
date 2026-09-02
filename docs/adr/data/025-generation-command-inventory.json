@@ -100,7 +100,7 @@
       "mutates_composer_json": true,
       "output": "two PHP files (src/Entity/{Name}.php, src/Provider/{Name}ServiceProvider.php) + direct composer.json read-modify-write",
       "disposition": "merge",
-      "why": "CRITICAL/exemplar case. writeFile() at lines 100-101 writes two files with its own is_dir()||mkdir() guard (no transaction, no journal). registerProvider() at lines 278-309 decodes composer.json, appends to extra.waaseyaa.providers in memory, and writes it back with no lock, no collision check against a concurrent editor, and no rollback if the two prior file writes already landed and this step fails. This is the entrypoint ADR D-8 forbids after migration and D-5 gives a typed registration-effect design for."
+      "why": "CRITICAL/exemplar case. writeFile() at lines 100-101 writes two files with its own is_dir()||mkdir() guard (no transaction, no journal). registerProvider() at lines 280-313 decodes composer.json, appends to extra.waaseyaa.providers in memory, and writes it back with no lock, no collision check against a concurrent editor, and no rollback if the two prior file writes already landed and this step fails. This is the entrypoint ADR D-8 forbids after migration and D-5 gives a typed registration-effect design for."
     },
     {
       "command": "make:public",
@@ -120,7 +120,7 @@
       "mutates_composer_json": false,
       "output": "one PHP file (migrations/{Ymd_His}_{name}.php)",
       "disposition": "merge",
-      "why": "Own mkdir()/file_put_contents() at lines 62-78 and 161-170 (base path and --add-translations path), no transaction/journal. Timestamp is chosen with date('Ymd_His') at call time -- D-5 requires the compiled plan to freeze this value once per compilation so dry-run and apply agree on the filename."
+      "why": "Own mkdir()/file_put_contents() at lines 74/78 and 167/170 (base path and --add-translations path), no transaction/journal. Timestamp is chosen with date('Ymd_His') at call time -- D-5 requires the compiled plan to freeze this value once per compilation so dry-run and apply agree on the filename."
     },
     {
       "command": "make:storage-migration",

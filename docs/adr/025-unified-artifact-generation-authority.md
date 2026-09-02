@@ -282,7 +282,7 @@ Its shape, matching #2846's own acceptance-criteria vocabulary verbatim:
   `site-contract`, Layer 0) — `{fqcn: string, group?: string}`. This is the
   typed replacement for `MakeContentTypeHandler::registerProvider()`'s
   direct `json_decode`/mutate/`json_encode` of `composer.json`
-  (`packages/cli/src/Handler/MakeContentTypeHandler.php` lines 278–309).
+  (`packages/cli/src/Handler/MakeContentTypeHandler.php` lines 280–313).
   `composer.json` cannot become a wholly generator-owned `GeneratedArtifact`
   the way `public/index.php` can — a real application's `composer.json` has
   hundreds of unrelated, user-owned keys — so it is not modeled as file
