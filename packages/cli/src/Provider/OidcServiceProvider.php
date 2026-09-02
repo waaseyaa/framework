@@ -10,8 +10,12 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Command\Oidc\EmergencyRevokeSigningKeyCommand;
 use Waaseyaa\CLI\Command\Oidc\MigrateSecretsCommand;
 use Waaseyaa\CLI\Command\Oidc\SigningKeyLifecycleCommand;
+use Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageGate;
+use Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresOptionalPackagesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Oidc\Key\SigningKeyRepository;
 
 /**
  * Registers OIDC CLI commands.
@@ -20,17 +24,41 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  * can be autoloaded at runtime without a composer.json dep from cli → oidc
  * (both are L6; cross-L6 deps go through the monorepo root).
  *
+ * `waaseyaa/oidc` is only suggested by this package. When it is absent the
+ * provider yields no commands, so a `--no-dev` consumer without the OIDC
+ * runtime sees zero `oidc:*` commands instead of commands whose handlers
+ * cannot resolve (the OIDC sibling of #2826, #2828).
+ *
  * @api
  */
-final class OidcServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
+final class OidcServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface, RequiresOptionalPackagesInterface
 {
+    public static function optionalPackageRequirements(): iterable
+    {
+        yield new OptionalPackageRequirement(
+            package: 'waaseyaa/oidc',
+            sentinelClass: SigningKeyRepository::class,
+            purpose: 'the oidc:init-signing-key, oidc:stage-signing-key, oidc:record-signing-key-propagation, '
+                . 'oidc:activate-signing-key, oidc:cleanup-signing-keys, oidc:emergency-revoke-signing-key '
+                . 'and oidc:migrate-secrets operator commands',
+        );
+    }
+
     public function register(): void
     {
+        if (!OptionalPackageGate::satisfied($this)) {
+            return;
+        }
+
         // Handlers are resolved from the container at dispatch time.
     }
 
     public function consoleCommands(): iterable
     {
+        if (!OptionalPackageGate::satisfied($this)) {
+            return;
+        }
+
         yield new HandlerCommand(
             name: 'oidc:init-signing-key',
             description: 'Explicitly initialize an empty OIDC signing-key lifecycle.',

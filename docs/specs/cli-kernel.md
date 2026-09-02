@@ -1,5 +1,13 @@
 # CLI Console
 
+<!-- Spec reviewed 2026-09-02 - #2828: the OIDC sibling of #2826. `OidcServiceProvider`
+now implements `RequiresOptionalPackagesInterface` and gates `register()` and
+`consoleCommands()` on `waaseyaa/oidc` (sentinel `SigningKeyRepository`), so a
+`--no-dev` consumer without the OIDC package lists zero `oidc:*` commands
+instead of commands whose handlers cannot resolve. See the `ai:*` paragraph
+below for the shared contract; `tests/PackagedForm/check-cli-oidc-commands-optional`
+proves the absent and present consumers from installed bytes. -->
+
 <!-- Spec reviewed 2026-09-02 - #2810: `waaseyaa:version` / `bin/waaseyaa-version` provenance now binds Composer path installs that sit OUTSIDE the application root — the sibling-checkout topology (`../waaseyaa`, `../waaseyaa/packages/*`) used for local-main consumer development. This SUPERSEDES the 2026-07-14 R24 (#2020) note below, which recorded that lockfile dist paths outside the project root are rejected; that note is retained for history. The replacement safety contract is narrower than "inside the project root", not broader: candidates come only from `composer.lock` path-dist entries, a target must exist and be a directory, the reporter walks up from the resolved target to the nearest `.git` ancestor, and Git runs exactly once per discovered checkout root as `git -C <root> rev-parse HEAD` — never against an arbitrary path. The one-checkout invariant is enforced on the checkout ROOT, not the HEAD: two clones at the same SHA are reported as `multiple distinct Git checkout roots` with each root and HEAD named, and no single monorepo HEAD/root is published. Drift messages name the actual HEAD, the golden SHA, and the checkout; a target that is missing, outside any checkout, or unreadable by Git is reported by name and fails strict mode even when other path installs resolved. Human and `--json` output gain `pathMonorepoRoot` / per-package `checkoutRoot`. Command names, options, and exit-code semantics are unchanged. Canonical contract: version-provenance.md "Path-install topologies and the resolution contract". Acceptance: ComposerProvenanceReporterTest. -->
 
 <!-- Spec reviewed 2026-08-27 - Framework #2621: migration dry-run and verify
@@ -96,6 +104,14 @@ the `AgentRunRepository` binding (#2826). Core lifecycle commands never depend
 on the optional package. `ConsoleApplicationFactory` applies the same gate
 before enumerating any provider's commands, so a provider cannot advertise a
 command whose handler cannot resolve.
+
+The seven `oidc:*` commands are gated the same way (#2828, the OIDC sibling of
+#2826): `waaseyaa/cli` only suggests `waaseyaa/oidc`, so `OidcServiceProvider`
+implements `RequiresOptionalPackagesInterface` with `SigningKeyRepository` as
+the sentinel and registers zero commands while that package is absent. A
+`--no-dev` consumer without OIDC lists no `oidc:*` command and refuses
+`oidc:init-signing-key` as unknown rather than failing on the signing-key
+repository binding.
 
 Command presentation belongs to this Layer-6 package even when the domain operation belongs lower in the stack. For example, `BearerTokenServiceProvider` owns the `bearer-token:issue|list|rotate|revoke` Symfony commands and depends downward on auth's `BearerTokenStoreInterface`; `AuthServiceProvider` owns the durable credential binding and exposes no Symfony Console types. A lower-layer provider must never construct CLI command objects, including through hidden string FQCNs.
 

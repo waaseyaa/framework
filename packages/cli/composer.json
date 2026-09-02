@@ -138,6 +138,10 @@
         },
         {
             "type": "path",
+            "url": "../oidc"
+        },
+        {
+            "type": "path",
             "url": "../relationship"
         },
         {
@@ -190,6 +194,7 @@
         "waaseyaa/ai-agent": "^0.1.0-alpha.300",
         "waaseyaa/ai-tools": "^0.1.0-alpha.300",
         "waaseyaa/node": "^0.1.0-alpha.300",
+        "waaseyaa/oidc": "^0.1.0-alpha.300",
         "waaseyaa/relationship": "^0.1.0-alpha.300",
         "waaseyaa/testing": "^0.1.0-alpha.300"
     },
