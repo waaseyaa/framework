@@ -169,7 +169,7 @@ final class PackageManifestCompiler
             $ref = new \ReflectionClass($class);
 
             foreach ($ref->getAttributes(self::FIELD_TYPE_ATTRIBUTE) as $attr) {
-                $fieldTypes = self::admitFieldType($fieldTypes, (string) $attr->newInstance()->id, $class);
+                $fieldTypes = self::admitFieldType($fieldTypes, $attr->newInstance()->id, $class);
             }
 
             foreach ($ref->getAttributes(self::FORMATTER_ATTRIBUTE) as $attr) {
@@ -256,7 +256,7 @@ final class PackageManifestCompiler
                 $policies[$class] = $instance->entityTypes;
             }
             foreach ($ref->getAttributes(self::FIELD_TYPE_ATTRIBUTE) as $attr) {
-                $fieldTypes = self::admitFieldType($fieldTypes, (string) $attr->newInstance()->id, $class);
+                $fieldTypes = self::admitFieldType($fieldTypes, $attr->newInstance()->id, $class);
             }
         }
 
