@@ -1,6 +1,12 @@
 <!-- Spec reviewed 2026-09-02 - #2786 phase 2A: manifest-discovered field types may declare a transport-neutral FieldValueKind for wire adapters; discovery remains exact id-to-class and does not activate unrelated extension surfaces. -->
 # Package Discovery
 
+<!-- Spec reviewed 2026-09-02 - #2828: "Optional package contributions" gains a
+second adopter, `OidcServiceProvider` (gated on `waaseyaa/oidc`, sentinel
+`SigningKeyRepository`), and its packaged-form proof. No contract change --
+`RequiresOptionalPackagesInterface`, `OptionalPackageRequirement`, and
+`OptionalPackageGate` are unchanged from #2826. -->
+
 <!-- Spec reviewed 2026-08-15 - S1-FW-CFG-04 application-master rekey composition: installed providers may contribute active rekey owners through the new ProvidesApplicationMasterRekeyContributionsInterface capability; on full runtime boot the kernel collects contributions after every provider registers and before any provider boots, requires the kernel's exact database authority, unique adapter IDs, and exactly one active owner per purpose, then freezes the purpose registry deterministically. Custody runtime and coordinator semantics live in infrastructure.md. -->
 
 <!-- Spec reviewed 2026-08-09 - #2314 external extension policies: an installed package explicitly participating through extra.waaseyaa receives policy-only discovery for its production namespaces, preserving exact fail-closed inventory parity without activating unrelated external attribute surfaces. -->
@@ -652,10 +658,14 @@ consumer-side filter stands in for the absent package, and a command that
 would fail at first use is never advertised. The first adopter is
 `Waaseyaa\CLI\Provider\AiServiceProvider`, which gates the `ai:*` operator
 commands on `waaseyaa/ai-agent` with `AgentRunRepository` as the sentinel.
+`Waaseyaa\CLI\Provider\OidcServiceProvider` (#2828) adopts the same contract
+for the seven `oidc:*` operator commands, gated on `waaseyaa/oidc` with
+`SigningKeyRepository` as the sentinel.
 `packages/cli/tests/Unit/Provider/OptionalPackageImportDeclarationTest.php`
 enforces that a cli provider importing a namespace outside cli's runtime
 `require` closure declares that package through this contract, and
-`tests/PackagedForm/check-cli-ai-commands-optional` proves the absent and
+`tests/PackagedForm/check-cli-ai-commands-optional` /
+`tests/PackagedForm/check-cli-oidc-commands-optional` prove the absent and
 present consumers from installed bytes.
 
 ## File Reference

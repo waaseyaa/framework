@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+
+# Optional oidc:* command proof (#2828, the OIDC sibling of #2826).
+#
+# Builds two disposable production consumers from the EXACT candidate tree
+# using path repositories -- no Packagist, no tag -- both installed with
+# `--no-dev`:
+#
+#   absent   waaseyaa/core + waaseyaa/cli            (no waaseyaa/oidc)
+#   present  waaseyaa/core + waaseyaa/cli + oidc
+#
+# and proves, from the installed bytes, that the console runtime, `list`,
+# `help`, and invocation agree with package metadata:
+#
+#   absent   boots, installs, lists zero `oidc:*` commands, keeps the core
+#            lifecycle commands, and refuses `oidc:init-signing-key` as an
+#            unknown command rather than failing inside a handler;
+#   present  lists all seven `oidc:*` commands, invokes each through its
+#            documented `--help` path, and reaches the confirmation guard on
+#            a mutation command (proving handler resolution, not a crash on
+#            an absent binding) without mutating any signing-key state.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-cli-oidc-optional.XXXXXX")"
+source_root="$work/source"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+mkdir -p "$source_root"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+
+# build_consumer <dir> <with-oidc: 0|1>
+build_consumer() {
+    local consumer="$1"
+    local with_oidc="$2"
+    mkdir -p "$consumer"
+    cp -R "$source_root/skeleton/." "$consumer/"
+    rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+    mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+    php -r '
+        $path = $argv[1];
+        $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $composer["repositories"] = [
+            ["type" => "path", "url" => $argv[2] . "/packages/*"],
+            ["type" => "path", "url" => $argv[2]],
+        ];
+        unset($composer["require"]["waaseyaa/framework"]);
+        $composer["require"]["waaseyaa/core"] = "*";
+        $composer["require"]["waaseyaa/cli"] = "*";
+        if ($argv[3] === "1") {
+            $composer["require"]["waaseyaa/oidc"] = "*";
+        }
+        $composer["minimum-stability"] = "dev";
+        $composer["prefer-stable"] = true;
+        unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+        file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    ' "$consumer/composer.json" "$source_root" "$with_oidc"
+
+    printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/consumer.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+        "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
+
+    if ! "$composer_bin" install --working-dir="$consumer" --no-dev \
+            --no-interaction --no-progress --prefer-dist --no-scripts >"$consumer.composer.out" 2>&1; then
+        tail -100 "$consumer.composer.out" >&2
+        echo "composer install --no-dev failed for $consumer" >&2
+        exit 1
+    fi
+
+    if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$consumer.install.out" 2>&1; then
+        cat "$consumer.install.out" >&2
+        echo "install:init failed for $consumer" >&2
+        exit 1
+    fi
+    grep -Fq 'Installation is complete.' "$consumer.install.out"
+}
+
+list_commands() {
+    ( cd "$1" && php vendor/bin/waaseyaa list --raw 2>/dev/null ) | awk '{print $1}' | grep -v '^$' | sort -u
+}
+
+# ---------------------------------------------------------------- absent
+absent="$work/absent"
+build_consumer "$absent" 0
+
+if [[ -e "$absent/vendor/waaseyaa/oidc" ]]; then
+    echo 'The absent consumer unexpectedly installed waaseyaa/oidc.' >&2
+    exit 1
+fi
+list_commands "$absent" > "$work/absent.commands"
+if grep -Eq '^oidc:' "$work/absent.commands"; then
+    grep -E '^oidc:' "$work/absent.commands" >&2
+    echo 'A consumer without waaseyaa/oidc must advertise zero oidc:* commands.' >&2
+    exit 1
+fi
+for core_command in install:init health:check schedule:run queue:work; do
+    if ! grep -Fxq "$core_command" "$work/absent.commands"; then
+        echo "Core lifecycle command '$core_command' is missing from the absent consumer." >&2
+        exit 1
+    fi
+done
+if ( cd "$absent" && php vendor/bin/waaseyaa oidc:init-signing-key --confirm ) >"$work/absent.init.out" 2>&1; then
+    cat "$work/absent.init.out" >&2
+    echo 'oidc:init-signing-key must not be invocable without waaseyaa/oidc.' >&2
+    exit 1
+fi
+# Symfony refuses either the command ("is not defined") or, when the provider
+# contributed nothing at all, the whole namespace ("no commands defined in the
+# \"oidc\" namespace"). Both prove the refusal happened before any handler ran.
+if ! grep -Eq 'is not defined|no commands defined in the "oidc" namespace' "$work/absent.init.out"; then
+    cat "$work/absent.init.out" >&2
+    echo 'oidc:init-signing-key must be refused as an unknown command, not fail inside a handler.' >&2
+    exit 1
+fi
+if grep -Fq 'SigningKeyRepository' "$work/absent.init.out"; then
+    cat "$work/absent.init.out" >&2
+    echo 'The absent consumer still reached the oidc signing-key repository binding.' >&2
+    exit 1
+fi
+if grep -Fq 'Waaseyaa\CLI\Provider\OidcServiceProvider' "$absent/storage/framework/packages.php" \
+    && php -r '$m = require $argv[1]; exit(in_array("Waaseyaa\\CLI\\Provider\\OidcServiceProvider", $m["console_command_providers"], true) ? 0 : 1);' "$absent/storage/framework/packages.php"; then
+    echo 'Discovery still advertises OidcServiceProvider as a console-command provider without oidc.' >&2
+    exit 1
+fi
+
+# --------------------------------------------------------------- present
+present="$work/present"
+build_consumer "$present" 1
+
+if [[ ! -e "$present/vendor/waaseyaa/oidc" ]]; then
+    echo 'The present consumer did not install waaseyaa/oidc.' >&2
+    exit 1
+fi
+list_commands "$present" > "$work/present.commands"
+for oidc_command in oidc:init-signing-key oidc:stage-signing-key oidc:record-signing-key-propagation \
+    oidc:activate-signing-key oidc:cleanup-signing-keys oidc:emergency-revoke-signing-key oidc:migrate-secrets; do
+    if ! grep -Fxq "$oidc_command" "$work/present.commands"; then
+        cat "$work/present.commands" >&2
+        echo "'$oidc_command' is missing from the consumer that installs waaseyaa/oidc." >&2
+        exit 1
+    fi
+    if ! ( cd "$present" && php vendor/bin/waaseyaa "$oidc_command" --help ) >"$work/present.$oidc_command.help.out" 2>&1; then
+        cat "$work/present.$oidc_command.help.out" >&2
+        echo "'$oidc_command --help' failed on the present consumer." >&2
+        exit 1
+    fi
+done
+if ! php -r '$m = require $argv[1]; exit(in_array("Waaseyaa\\CLI\\Provider\\OidcServiceProvider", $m["console_command_providers"], true) ? 0 : 1);' "$present/storage/framework/packages.php"; then
+    echo 'Discovery must advertise OidcServiceProvider as a console-command provider when oidc is installed.' >&2
+    exit 1
+fi
+# A mutation command invoked without --confirm must resolve its handler (the
+# signing-key repository binding) and refuse on the confirmation guard, never
+# on an unresolved dependency -- and it must not mutate any signing-key state.
+if ( cd "$present" && php vendor/bin/waaseyaa oidc:init-signing-key ) >"$work/present.init.out" 2>&1; then
+    cat "$work/present.init.out" >&2
+    echo 'oidc:init-signing-key without --confirm must be refused, not succeed.' >&2
+    exit 1
+fi
+if ! grep -Fq 'requires --confirm' "$work/present.init.out"; then
+    cat "$work/present.init.out" >&2
+    echo 'oidc:init-signing-key without --confirm must reach the confirmation guard, not fail earlier.' >&2
+    exit 1
+fi
+
+printf 'Optional oidc:* command proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"
