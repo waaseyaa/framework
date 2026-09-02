@@ -20,6 +20,8 @@ final readonly class ProvenanceReport
         public ?string $pathMonorepoHead,
         public array $driftMessages,
         private string $projectRoot = '',
+        /** Git checkout root that owns every path install when exactly one HEAD was resolved. */
+        public ?string $pathMonorepoRoot = null,
     ) {}
 
     public function projectRootDisplay(): string
@@ -52,6 +54,7 @@ final readonly class ProvenanceReport
             'projectRoot' => $this->projectRoot,
             'goldenSha' => $this->goldenSha,
             'pathMonorepoHead' => $this->pathMonorepoHead,
+            'pathMonorepoRoot' => $this->pathMonorepoRoot,
             'uniqueConstraintPatterns' => $this->uniqueConstraints,
             'constraints' => $this->constraints,
             'packages' => array_map(static fn(InstalledWaaseyaaPackage $p) => $p->toArray(), $this->packages),

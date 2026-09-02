@@ -35,9 +35,50 @@ CI should set one of these and run `bin/waaseyaa-version` (or `php bin/waaseyaa 
 See `bin/waaseyaa-version` (app) and console command `waaseyaa:version`. They report:
 
 - Resolved `waaseyaa/*` versions from `composer.lock`
-- Monorepo Git `HEAD` when dependencies use `path`
+- Monorepo Git `HEAD` (and the checkout root it was read from) when dependencies use `path`
 - Comparison to golden SHA when configured
 - A short drift summary
+
+### Path-install topologies and the resolution contract
+
+`ComposerProvenanceReporter` (`packages/cli/src/Provenance/`) binds every
+`waaseyaa/*` path install to a Git `HEAD` as follows:
+
+1. **Candidates come only from `composer.lock`.** Each lock entry whose
+   `dist.type` is `path` contributes its `dist.url` — the same declaration
+   Composer already trusts to symlink code into `vendor/`. Nothing else on the
+   filesystem is ever probed.
+2. **Targets are resolved literally.** A relative URL is anchored at the
+   application root; an absolute URL is used as declared. The target must exist
+   and be a directory. Symlinks are resolved so a symlinked install binds to the
+   checkout that owns the code. Targets **may sit outside the application root**
+   — that is the supported sibling topology below (#2810).
+3. **The checkout root is discovered deliberately.** From the resolved target
+   the reporter walks up to the nearest directory containing a `.git` entry
+   (a directory for a clone, a file for a linked worktree). Git is executed
+   exactly once per discovered checkout root, as `git -C <root> rev-parse HEAD`,
+   and never against an arbitrary path.
+4. **Every path install must bind.** A target that does not exist, is not
+   inside a Git checkout, or whose checkout Git cannot read is reported by name
+   in the drift summary, and strict mode fails — even when other path installs
+   resolved. An unbound install is unproven provenance, not a warning.
+
+Supported layouts:
+
+| Topology | Example `dist.url` | Reported checkout |
+|---|---|---|
+| In-project (app root is the checkout, or packages vendored inside it) | `packages/foundation` | the application root |
+| Sibling monorepo checkout (local-main development) | `../waaseyaa`, `../waaseyaa/packages/*` | the sibling checkout, e.g. `/home/dev/waaseyaa` |
+
+All path installs are expected to resolve to **one** checkout root with one
+`HEAD`. The reporter keys its bookkeeping by checkout root, not by `HEAD`: two
+clones that happen to sit at the same commit are still two checkouts and are
+reported as drift (`multiple distinct Git checkout roots under path installs`,
+naming each root and its `HEAD`). A single root has exactly one `HEAD`, so this
+also covers the distinct-`HEAD` case. The reporter compares `HEAD`
+only — it does not inspect the working tree, so a dirty checkout at the golden
+SHA passes. Consumers that need a clean-tree guarantee should assert
+`git -C <checkout> status --porcelain` is empty alongside this gate.
 
 Options:
 

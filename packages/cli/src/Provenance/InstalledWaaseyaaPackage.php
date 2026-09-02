@@ -14,6 +14,8 @@ final readonly class InstalledWaaseyaaPackage
         public ?string $distReference,
         public ?string $resolvedPath,
         public ?string $gitHead,
+        /** Git checkout root the path target belongs to; null when not a path install or unresolved. */
+        public ?string $checkoutRoot = null,
     ) {}
 
     /**
@@ -29,6 +31,7 @@ final readonly class InstalledWaaseyaaPackage
             'distReference' => $this->distReference,
             'resolvedPath' => $this->resolvedPath,
             'gitHead' => $this->gitHead,
+            'checkoutRoot' => $this->checkoutRoot,
         ];
     }
 }
