@@ -99,10 +99,24 @@ final class AnthropicProviderTransportTest extends TestCase
         // call, and the caller's own budget cannot help — it only runs when a
         // chunk arrives, and no further chunk ever arrives.
         $server = $this->startServer(StallingTransportServer::MODE_STALL);
+        $timeouts = new ProviderTimeouts(connectSeconds: 1.0, totalSeconds: 3.0);
+
+        // #2716 (ported from OpenAiCompatibleProviderTransportTest, a28220d95 /
+        // #2795): a wall-clock lower bound cannot tell "the total timeout
+        // fired" apart from "the peer connection died early for an unrelated
+        // reason" — both just look like "returned sometime before the upper
+        // bound". cURL's own failure reason does distinguish them
+        // deterministically: classify on that instead, against the exact
+        // option set the provider installs ({@see ProviderTimeouts::curlOptions()}),
+        // before ever going through {@see AnthropicProvider} — so an early
+        // teardown fails loudly on the classification rather than being
+        // absorbed by a timing miss.
+        $this->assertPeerEndsOnlyOnTheTotalTimeout($server, $timeouts);
+
         $provider = new AnthropicProvider(
             apiKey: 'test-key',
             baseUrl: $server->baseUrl(),
-            streamTimeouts: new ProviderTimeouts(connectSeconds: 1.0, totalSeconds: 3.0),
+            streamTimeouts: $timeouts,
         );
 
         $callbackRuns = 0;
@@ -116,8 +130,93 @@ final class AnthropicProviderTransportTest extends TestCase
         );
 
         self::assertSame(1, $callbackRuns, 'The stream must stall after exactly one delta.');
-        self::assertGreaterThan(2.5, $elapsed, 'Without a low-speed guard the total timeout is the only bound.');
+
+        // #2716 review follow-up: the probe above proves the *peer and option
+        // set* are capable of producing "held to the total" — but it runs on
+        // its own fresh connection, before streamMessage() ever dials out, so
+        // it cannot speak to why the real (SUT) connection ended.
+        // TransportException deliberately cannot say either — the wrapping
+        // ProviderCredentialOutcome::capture()/unwrap() strips the original
+        // cURL errno/message before it reaches the caller by design (never
+        // leak transport detail across the credential boundary), so there is
+        // no test-only way to classify the SUT's own connection the way
+        // assertPeerEndsOnlyOnTheTotalTimeout() classifies the probe's. A
+        // wall-clock floor is the only signal available for *this*
+        // connection.
+        //
+        // #2827 root cause (ported from #2716/a28220d95): that floor was
+        // flaky not because of the peer or the transport, but because
+        // {@see timeFailure()} measured it with `microtime(true)` — the wall
+        // clock (CLOCK_REALTIME). On a WSL2 / Hyper-V guest that clock is
+        // periodically stepped backward by the host's time-sync correction,
+        // which can make a call that was genuinely held for the full total
+        // timeout measure as having returned almost instantly. `timeFailure()`
+        // now measures with `hrtime(true)` (CLOCK_MONOTONIC), which a
+        // wall-clock step cannot move, so this floor is back to being a
+        // trustworthy signal. Restored to the original 2.5s — a wide margin
+        // under the 3.0s total for genuine scheduling jitter on a loaded box,
+        // now that a clock step can no longer manufacture a false reading
+        // under it.
+        self::assertGreaterThan(
+            2.5,
+            $elapsed,
+            'The real (SUT) connection ended too early to have been held by the total timeout — '
+                . 'an early teardown, not a stall.',
+        );
         self::assertLessThan(20.0, $elapsed);
+    }
+
+    /**
+     * Issue a raw request with the provider's exact timeout wiring and assert
+     * cURL's own classification of why it ended, rather than inferring the
+     * reason from elapsed wall-clock time. `CURLE_OPERATION_TIMEDOUT` alone is
+     * not enough — libcurl reports the same code for a connect-phase timeout —
+     * so the message text is pinned too: only the total bound firing mid-transfer
+     * reports a partial byte count, which is what proves this was a stalled
+     * stream held to the total, not a connection that never got past the
+     * handshake or died for some unrelated reason (connection refused, reset,
+     * empty reply all report distinct, unmistakably different cURL errors).
+     *
+     * This runs against its own connection rather than the SUT's — see the
+     * wall-clock floor on the real call in
+     * {@see withoutALowSpeedGuardAStalledStreamHoldsTheWorkerForTheWholeTotal()}
+     * for why the SUT's own connection cannot be classified this way.
+     */
+    private function assertPeerEndsOnlyOnTheTotalTimeout(
+        StallingTransportServer $server,
+        ProviderTimeouts $timeouts,
+    ): void {
+        $handle = \curl_init($server->baseUrl() . '/v1/messages');
+        if ($handle === false) {
+            self::fail('Failed to initialize cURL for the timeout-classification probe.');
+        }
+
+        \curl_setopt_array($handle, [
+            \CURLOPT_POST => true,
+            \CURLOPT_POSTFIELDS => (string) \json_encode(['probe' => true], \JSON_THROW_ON_ERROR),
+            \CURLOPT_RETURNTRANSFER => true,
+        ] + $timeouts->curlOptions());
+
+        \curl_exec($handle);
+        $errno = \curl_errno($handle);
+        $error = \curl_error($handle);
+
+        self::assertSame(
+            \CURLE_OPERATION_TIMEDOUT,
+            $errno,
+            "Expected the total timeout to end the stalled stream; got cURL errno {$errno} ({$error}) "
+                . 'instead — an early teardown, not a stall.',
+        );
+        self::assertStringContainsString(
+            'Operation timed out',
+            $error,
+            'A connect-phase timeout reports a different message than the total bound firing mid-transfer.',
+        );
+        self::assertStringContainsString(
+            'bytes received',
+            $error,
+            'The total bound must fire mid-transfer, proving the peer delivered a partial stream and then stalled.',
+        );
     }
 
     #[Test]
@@ -211,16 +310,26 @@ final class AnthropicProviderTransportTest extends TestCase
      * crosses the credential-custody boundary as the fixed taxonomy message, and
      * never carries the endpoint back to the caller.
      *
+     * #2827 (ported from #2716/a28220d95): this used to measure with
+     * `microtime(true)`, i.e. the wall clock (CLOCK_REALTIME). On a WSL2 /
+     * Hyper-V guest that clock is periodically stepped backward by the host's
+     * time-sync correction, which can make a call that was genuinely held for
+     * the full total timeout measure as having returned almost instantly — not
+     * a real early teardown, just a clock step landing inside the measurement
+     * window. `hrtime(true)` reads CLOCK_MONOTONIC, which a wall-clock step
+     * cannot move, so it reports the operation's true duration regardless of
+     * when a time-sync correction lands.
+     *
      * @param \Closure(): mixed $operation
      */
     private function timeFailure(\Closure $operation, StallingTransportServer $server): float
     {
-        $startedAt = microtime(true);
+        $startedAt = \hrtime(true);
 
         try {
             $operation();
         } catch (TransportException $failure) {
-            $elapsed = microtime(true) - $startedAt;
+            $elapsed = (\hrtime(true) - $startedAt) / 1_000_000_000;
 
             self::assertSame('Provider transport unavailable.', $failure->getMessage());
             self::assertStringNotContainsString((string) $server->port, $failure->getMessage());
