@@ -3043,6 +3043,27 @@ database only when it is empty. A populated retired table fails before the
 candidate is created. This provides an explicit removal path without turning
 unknown-table rejection into implicit data deletion.
 
+**Runtime schema compatibility is structural, not textual.** Before a
+`Preserve`, `AppendOnly`, or `IdentityMerge` table's rows are copied, the
+serving and artifact schemas must agree. `SqliteSchemaSignature` decides that
+from what SQLite reports (`table_xinfo`, `foreign_key_list`, `index_list`,
+`index_xinfo`) plus a canonical token stream of the DDL for the semantics the
+pragmas do not expose: CHECK expressions, generated-column expressions and
+storage, per-column collation, ON CONFLICT clauses, AUTOINCREMENT, WITHOUT
+ROWID, STRICT, the rowid alias, foreign-key deferrability, index expressions
+and partial predicates, and triggers. Declared column types reduce to their
+affinity except in STRICT tables. The `sqlite_master.sql` bytes themselves are
+never compared: two databases whose runtime tables were created by different
+code paths (a migration versus an earlier lazy creator, or a DBAL schema
+builder versus raw SQL) differ in line breaks, identifier quoting, `CLOB`
+versus `TEXT`, an explicit `DEFAULT NULL`, or an inline versus table-level
+primary key while being the same schema, and a serving database that predates
+a migration keeps its original creator's text because the migration's
+`hasTable` guard makes it a no-op. A rejection names the first differing
+structural part (`Incompatible runtime schema for auth_tokens
+(columns.1.not_null)`). Constraint names, comments, and column type spelling
+beyond affinity are the only DDL facts deliberately not compared.
+
 ## Implementation gotchas
 
 - **Backward-compatible cache evolution**: When adding new properties to cached manifests/configs, make them optional in deserialization (use `$data['key'] ?? []`) to avoid breaking old cached files.

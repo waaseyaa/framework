@@ -510,6 +510,67 @@ final class SqliteArtifactPreparerTest extends TestCase
         );
     }
 
+    #[Test]
+    public function runtime_tables_created_by_different_code_paths_with_the_same_schema_are_compatible(): void
+    {
+        // The serving database predates the migrations that create these
+        // tables today: one-line DDL, DBAL type names, explicit DEFAULT NULL,
+        // a table-level primary key. The artifact carries the migration text.
+        $current = $this->database('current.sqlite', [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY)',
+            'CREATE TABLE _broadcast_log (id INTEGER PRIMARY KEY AUTOINCREMENT,channel TEXT NOT NULL,event TEXT NOT NULL,data TEXT NOT NULL DEFAULT \'{}\',created_at REAL NOT NULL)',
+            'CREATE TABLE auth_tokens (id TEXT PRIMARY KEY NOT NULL, user_id CLOB DEFAULT NULL, token_hash CLOB NOT NULL, consumed_at INTEGER DEFAULT NULL)',
+            'CREATE TABLE rate_limits (bucket_key CLOB NOT NULL, hits INTEGER NOT NULL, reset_at INTEGER NOT NULL, PRIMARY KEY (bucket_key))',
+        ], [
+            "INSERT INTO _broadcast_log (channel, event, data, created_at) VALUES ('site', 'published', '{\"nid\":1}', 1.5)",
+            "INSERT INTO auth_tokens VALUES ('live', NULL, 'hash', NULL)",
+            "INSERT INTO rate_limits VALUES ('ip:1', 3, 99)",
+        ]);
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE user (uid INTEGER PRIMARY KEY)',
+            "CREATE TABLE _broadcast_log (\n                    id INTEGER PRIMARY KEY AUTOINCREMENT,\n                    channel TEXT NOT NULL,\n                    event TEXT NOT NULL,\n                    data TEXT NOT NULL DEFAULT '{}',\n                    created_at REAL NOT NULL\n                )",
+            'CREATE TABLE auth_tokens (id TEXT PRIMARY KEY NOT NULL, user_id TEXT, token_hash TEXT NOT NULL, consumed_at INTEGER)',
+            'CREATE TABLE rate_limits (bucket_key TEXT PRIMARY KEY NOT NULL, hits INTEGER NOT NULL, reset_at INTEGER NOT NULL)',
+        ]);
+        $candidate = $this->directory . '/candidate.sqlite';
+
+        $report = new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $candidate,
+            [],
+        );
+
+        $pdo = $this->open($candidate);
+        self::assertSame([[1, 'site', 'published', '{"nid":1}', 1.5]], $pdo->query('SELECT * FROM _broadcast_log')->fetchAll(\PDO::FETCH_NUM));
+        self::assertSame([['live', null, 'hash', null]], $pdo->query('SELECT * FROM auth_tokens')->fetchAll(\PDO::FETCH_NUM));
+        self::assertSame([['ip:1', 3, 99]], $pdo->query('SELECT * FROM rate_limits')->fetchAll(\PDO::FETCH_NUM));
+        self::assertSame(1, $report->tables['_broadcast_log']->afterRows);
+        // The candidate keeps the artifact's DDL; only the rows travel.
+        self::assertStringContainsString("\n", (string) $pdo->query("SELECT sql FROM sqlite_master WHERE name = '_broadcast_log'")->fetchColumn());
+    }
+
+    #[Test]
+    public function an_incompatible_runtime_schema_names_its_first_differing_part(): void
+    {
+        $current = $this->database('current.sqlite', [
+            'CREATE TABLE auth_tokens (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL)',
+        ]);
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE auth_tokens (id TEXT PRIMARY KEY, user_id INTEGER)',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Incompatible runtime schema for auth_tokens (columns.1.not_null)');
+
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            [],
+        );
+    }
+
     /** @param list<string> $schema @param list<string> $rows */
     private function database(string $name, array $schema, array $rows = []): string
     {
