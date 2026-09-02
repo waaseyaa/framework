@@ -42,7 +42,9 @@ final class FieldTypeDiscoveryTest extends TestCase
         $definitions = $this->fieldTypeManager->getDefinitions();
 
         $expectedTypes = [
+            'bool',
             'string',
+            'int',
             'integer',
             'boolean',
             'float',
@@ -59,6 +61,10 @@ final class FieldTypeDiscoveryTest extends TestCase
             'list',
             'json',
             'enum',
+            'list_string',
+            'map',
+            'timestamp',
+            'uri',
         ];
 
         foreach ($expectedTypes as $type) {
@@ -70,9 +76,9 @@ final class FieldTypeDiscoveryTest extends TestCase
         }
 
         $this->assertCount(
-            17,
+            23,
             $definitions,
-            'All 17 built-in field types should be discovered',
+            'All 17 canonical and 6 compatibility field types should be discovered',
         );
     }
 
