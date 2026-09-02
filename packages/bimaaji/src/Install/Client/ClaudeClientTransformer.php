@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Bimaaji\Install\Client;
 
+use Waaseyaa\Bimaaji\Install\ClientCapabilities;
+use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
@@ -44,14 +46,6 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  */
 final class ClaudeClientTransformer implements ClientTransformerInterface
 {
-    /**
-     * Prefix applied to every installed skill directory, so a consumer can
-     * tell framework-installed skills from their own at a glance and the
-     * command names (`/waaseyaa-entity-system`) do not collide with a
-     * project skill of the same bare name.
-     */
-    private const string DIRECTORY_PREFIX = 'waaseyaa-';
-
     public function clientId(): string
     {
         return 'claude';
@@ -59,41 +53,59 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
 
     public function targetFiles(array $skills): array
     {
+        $capabilities = $this->capabilities();
         $files = [];
 
         foreach ($skills as $skill) {
             $files[] = new TargetFile(
-                path: sprintf('.claude/skills/%s%s/SKILL.md', self::DIRECTORY_PREFIX, $skill->id),
-                content: $this->renderSkillFile($skill),
+                path: $capabilities->skillFilePath($skill->id),
+                content: $this->renderSkillFile($skill, $capabilities),
                 sourceSkill: $skill->id,
             );
         }
 
         $files[] = new TargetFile(
-            path: '.claude/CLAUDE-WAASEYAA.md',
-            content: $this->renderIndex($skills),
+            path: $capabilities->guidancePath,
+            content: $this->renderIndex($skills, $capabilities),
             sourceSkill: null,
         );
 
         return $files;
     }
 
-    private function renderSkillFile(ParsedSkill $skill): string
+    /**
+     * This client's registered capabilities. See the
+     * {@see AbstractSingleFileClientTransformer::capabilities()} docblock
+     * for why a missing entry is a `\LogicException`, not a soft failure.
+     */
+    private function capabilities(): ClientCapabilities
+    {
+        $capabilities = ClientCapabilityRegistry::default()->for($this->clientId());
+        if ($capabilities === null) {
+            throw new \LogicException(sprintf(
+                'No registered ClientCapabilityRegistry entry for client "%s".',
+                $this->clientId(),
+            ));
+        }
+
+        return $capabilities;
+    }
+
+    private function renderSkillFile(ParsedSkill $skill, ClientCapabilities $capabilities): string
     {
         // `name` must match the directory so the listing label and the
         // command a user types agree; `description` is what Claude reads to
         // decide whether to load the skill.
         return sprintf(
-            "---\nname: %s%s\ndescription: %s\n---\n\n%s",
-            self::DIRECTORY_PREFIX,
-            $skill->id,
+            "---\nname: %s\ndescription: %s\n---\n\n%s",
+            $capabilities->skillDirectoryName($skill->id),
             $this->escapeYamlScalar($skill->description),
             ManagedRegion::wrap($skill->body),
         );
     }
 
     /** @param list<ParsedSkill> $skills */
-    private function renderIndex(array $skills): string
+    private function renderIndex(array $skills, ClientCapabilities $capabilities): string
     {
         $lines = [
             '# Waaseyaa framework — Claude Code guidelines',
@@ -110,9 +122,8 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
         } else {
             foreach ($skills as $skill) {
                 $lines[] = sprintf(
-                    '- `/%s%s` — **%s** — %s',
-                    self::DIRECTORY_PREFIX,
-                    $skill->id,
+                    '- `/%s` — **%s** — %s',
+                    $capabilities->skillDirectoryName($skill->id),
                     $skill->name,
                     $skill->description,
                 );

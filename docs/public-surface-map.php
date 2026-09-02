@@ -816,6 +816,11 @@ return [
     // consumer (or a future bimaaji:doctor) can branch on missing-vs-corrupt
     // without string-matching the diagnostic.
     'Waaseyaa\Bimaaji\Install\SkillResourceFailure' => 'public',
+    // #2660 Part A: how a client wants the canonical skill set delivered
+    // (SingleConsolidatedFile vs PerSkillFile) — read from
+    // ClientCapabilityRegistry and matched against by any future
+    // capability-diagnostic consumer.
+    'Waaseyaa\Bimaaji\Install\SkillDeliveryMode' => 'public',
 
     // Layer 6: Interfaces — public
     'Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface' => 'public',

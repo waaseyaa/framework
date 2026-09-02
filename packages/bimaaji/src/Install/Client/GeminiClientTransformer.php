@@ -18,9 +18,4 @@ final class GeminiClientTransformer extends AbstractSingleFileClientTransformer
     {
         return 'gemini';
     }
-
-    protected function targetPath(): string
-    {
-        return 'GEMINI.md';
-    }
 }

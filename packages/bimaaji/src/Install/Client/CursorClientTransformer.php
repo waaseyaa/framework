@@ -18,9 +18,4 @@ final class CursorClientTransformer extends AbstractSingleFileClientTransformer
     {
         return 'cursor';
     }
-
-    protected function targetPath(): string
-    {
-        return '.cursorrules';
-    }
 }

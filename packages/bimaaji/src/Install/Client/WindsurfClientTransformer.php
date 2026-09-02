@@ -18,9 +18,4 @@ final class WindsurfClientTransformer extends AbstractSingleFileClientTransforme
     {
         return 'windsurf';
     }
-
-    protected function targetPath(): string
-    {
-        return '.windsurfrules';
-    }
 }

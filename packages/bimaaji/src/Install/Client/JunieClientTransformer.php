@@ -19,9 +19,4 @@ final class JunieClientTransformer extends AbstractSingleFileClientTransformer
     {
         return 'junie';
     }
-
-    protected function targetPath(): string
-    {
-        return '.junie/guidelines.md';
-    }
 }

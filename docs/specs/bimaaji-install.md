@@ -293,6 +293,49 @@ public function targetFiles(array $skills): array;
 `ParsedSkill` and `TargetFile` DTOs accompany the interface. See
 `packages/bimaaji/src/Install/` after M5 WP02 lands.
 
+## Client capability model and skill inventory (#2660 Part A)
+
+Two seams introduced by #2660 Part A sit underneath the transformer
+contract without changing it. Both are **behaviour-preserving**: the
+per-client `targetFiles()` output described throughout this document did
+not change a single byte when they were introduced —
+`packages/bimaaji/tests/Unit/Install/TransformerOutputRegressionTest.php`
+diffs every client's output against a golden snapshot captured from the
+pre-refactor implementation to prove it.
+
+**`Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry`** (with
+`ClientCapabilities` and the `SkillDeliveryMode` enum) is the single,
+data-driven description of what each client accepts — single consolidated
+file vs per-skill files (`SkillDeliveryMode::SingleConsolidatedFile` /
+`PerSkillFile`), whether a per-skill file must open with YAML frontmatter
+at byte 0, and the client's guidance/skill-directory path(s). Before this
+registry, that mapping was encoded as PHP control flow spread across seven
+transformer classes: an abstract single-file base with one `targetPath()`
+override per subclass, plus a Claude transformer duplicating the same
+shape with its own `DIRECTORY_PREFIX` constant. `AbstractSingleFileClientTransformer`
+and `ClaudeClientTransformer` now read `ClientCapabilityRegistry::default()->for($this->clientId())`
+instead. `ClientCapabilityRegistry::default()` mirrors the **currently
+shipped** convention in the "Supported clients" table above — it is not an
+aspirational target, and it intentionally does not encode the `.agents/skills/`-style
+Codex layout, an unsupported-capability diagnostic, or a guidance/skill-body
+split for single-file clients. Those three remain maintainer-owned open
+questions; see
+[docs/adr/025-client-guidance-and-skill-conventions.md](../adr/025-client-guidance-and-skill-conventions.md)
+for the options, tradeoffs, and recommendation on each, and #2660 for
+tracking.
+
+**`Waaseyaa\Bimaaji\Install\SkillInventory`** is a typed collection over
+`SkillSetParser::parse()`'s result (`fromParser()` calls `parse()` exactly
+once, same as before). It does not reimplement or duplicate skill
+discovery — `SkillSetParser` remains the one globber of
+`resources/skills/<id>/SKILL.md` — it adds `all()` / `ids()` / `find()` /
+`count()` so a caller needing those does not each re-derive them from a raw
+`list<ParsedSkill>`. `BimaajiInstallCommand::execute()` now builds one via
+`SkillInventory::fromParser($this->skillSetParser)->all()` before handing
+the same `list<ParsedSkill>` to every transformer, exactly as before.
+`SkillInventory` is **not** a hash or version authority — #2664 owns the
+single generated-state hash/version engine.
+
 ## Flag semantics
 
 | Flag | Mode | Default | Behavior |
