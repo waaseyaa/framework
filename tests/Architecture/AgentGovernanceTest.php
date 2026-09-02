@@ -104,9 +104,9 @@ final class AgentGovernanceTest extends TestCase
             'agent-contract.md must not imply the trailer is a fallback for every unchanged spec.',
         );
         self::assertStringContainsString(
-            'no trailer is required or accepted',
+            'not accepted as a spec acknowledgement',
             $contract,
-            'agent-contract.md must state that a change set affecting no specs takes no spec-reviewed trailer.',
+            'agent-contract.md must state that an unaffected-spec trailer is not accepted as a spec acknowledgement (warned and discarded, not rejected).',
         );
         self::assertStringContainsString(
             'spec-reviewed: docs/specs/<name>.md - <reason>',
@@ -127,9 +127,9 @@ final class AgentGovernanceTest extends TestCase
             'CLAUDE.md must document the exact accepted spec-reviewed grammar.',
         );
         self::assertStringContainsString(
-            'no trailer is required or accepted',
+            'not accepted as a spec acknowledgement',
             $claude,
-            'CLAUDE.md must state that a change set affecting no specs takes no spec-reviewed trailer.',
+            'CLAUDE.md must state that an unaffected-spec trailer is not accepted as a spec acknowledgement (warned and discarded, not rejected).',
         );
     }
 
