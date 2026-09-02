@@ -7,6 +7,7 @@ namespace Waaseyaa\Bimaaji\Tests\Unit\Install;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
 use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
 
@@ -139,6 +140,29 @@ final class ClaudeClientTransformerTest extends TestCase
         $files = (new ClaudeClientTransformer())->targetFiles([]);
         self::assertCount(1, $files, 'Empty skill set still emits the index file.');
         self::assertStringContainsString('_No skills installed._', $files[0]->content);
+    }
+
+    #[Test]
+    public function everyTargetPathIsDerivedFromTheRegisteredCapabilitiesNotAHardcodedConstant(): void // #2660 Part A
+    {
+        // Locks the capability-registry seam this transformer now reads
+        // instead of its own (removed) DIRECTORY_PREFIX constant: every
+        // path targetFiles() produces must be reproducible purely from
+        // ClientCapabilityRegistry::default()->for('claude'), given the
+        // same skill ids.
+        $capabilities = ClientCapabilityRegistry::default()->for('claude');
+        self::assertNotNull($capabilities, 'The "claude" client must be registered.');
+
+        $files = (new ClaudeClientTransformer())->targetFiles(InstallSkillFixtures::all());
+
+        $skillTargets = array_values(array_filter($files, static fn($file): bool => $file->sourceSkill !== null));
+        self::assertCount(3, $skillTargets);
+        foreach ($skillTargets as $file) {
+            self::assertSame($capabilities->skillFilePath((string) $file->sourceSkill), $file->path);
+        }
+
+        $index = $this->findByPath($files, $capabilities->guidancePath);
+        self::assertNotNull($index, 'The index file must be written at the registry-declared guidancePath.');
     }
 
     /**
