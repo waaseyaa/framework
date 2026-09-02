@@ -112,7 +112,7 @@ final class FieldTypeManagerTest extends TestCase
         $columns = $this->manager->getColumns('boolean');
 
         $this->assertSame([
-            'value' => ['type' => 'int', 'size' => 'tiny'],
+            'value' => ['type' => 'boolean'],
         ], $columns);
     }
 

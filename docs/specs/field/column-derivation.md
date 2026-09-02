@@ -18,6 +18,7 @@ Notable explicit projections are:
 |---|---|---|
 | `link`, `file`, `image` | `uri` (`varchar`) | Entity surfaces carry the URI string. |
 | `entity_reference` | bounded `varchar` | Entity values may be UUID/config identifiers, not only integer PKs. |
+| `boolean` | `boolean` | Preserve the production entity-storage contract; the dormant legacy item descriptor's `int`/`tiny` shape was never authoritative for these tables. |
 | `decimal` | `text` | Preserve lossless decimal text; never coerce through binary float. |
 | `classification_label` | `classification_label` (`varchar`, indexed) | Provenance columns remain lifecycle-managed physical state. |
 

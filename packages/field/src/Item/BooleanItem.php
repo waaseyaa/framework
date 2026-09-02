@@ -27,7 +27,10 @@ final class BooleanItem extends AbstractFieldType implements \Waaseyaa\Field\Fie
     public static function schema(): array
     {
         return [
-            'value' => ['type' => 'int', 'size' => 'tiny'],
+            // Preserve the production SqlSchemaHandler/ColumnSpecMap contract.
+            // The former Field API descriptor used int/tiny, but it was not the
+            // entity-storage authority before #2786.
+            'value' => ['type' => 'boolean'],
         ];
     }
 

@@ -143,8 +143,7 @@ final class FieldTypeDiscoveryTest extends TestCase
     {
         $schema = BooleanItem::schema();
         $this->assertArrayHasKey('value', $schema);
-        $this->assertSame('int', $schema['value']['type']);
-        $this->assertSame('tiny', $schema['value']['size']);
+        $this->assertSame('boolean', $schema['value']['type']);
     }
 
     public function testFloatItemSchema(): void
