@@ -34,10 +34,45 @@ describe('Select', () => {
       },
     })
     expect(wrapper.findAll('option').map(option => option.text())).toEqual([
-      '-- Select --',
       'Active',
       'Blocked',
     ])
+    expect(wrapper.get('select').attributes('multiple')).toBeDefined()
+  })
+
+  it('emits selected array values and preserves item integer types', async () => {
+    const wrapper = await mountSuspended(Select, {
+      props: {
+        modelValue: [1],
+        label: 'Ratings',
+        schema: {
+          type: 'array',
+          items: { type: 'integer', enum: [1, 9] },
+          'x-enum-labels': { '1': 'One', '9': 'Nine' },
+        },
+      },
+    })
+
+    await wrapper.get('select').setValue(['1', '9'])
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([[1, 9]])
+    expect(wrapper.findAll('option')[0]?.text()).toBe('One')
+    expect(wrapper.findAll('option')[1]?.text()).toBe('Nine')
+  })
+
+  it('emits an empty array when all multi-value options are cleared', async () => {
+    const wrapper = await mountSuspended(Select, {
+      props: {
+        modelValue: ['active'],
+        label: 'Status',
+        schema: {
+          type: 'array',
+          items: { type: 'string', enum: ['active', 'blocked'] },
+        },
+      },
+    })
+
+    await wrapper.get('select').setValue([])
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([[]])
   })
 
   it('emits update:modelValue on selection change', async () => {
