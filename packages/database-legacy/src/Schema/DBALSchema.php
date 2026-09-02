@@ -9,6 +9,7 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\Schema;
+use Doctrine\DBAL\Schema\Table;
 use Waaseyaa\Database\ForeignKeySchemaInterface;
 
 /**
@@ -152,20 +153,12 @@ final class DBALSchema implements ForeignKeySchemaInterface
             throw new \RuntimeException("Field \"{$field}\" already exists in table \"{$table}\".");
         }
 
-        $currentSchema = $this->sm->introspectSchema();
-        $newSchema = clone $currentSchema;
-
-        $tableObj = $newSchema->getTable($table);
         $type = $this->mapFieldType($spec['type']);
         $options = $this->mapFieldOptions($spec, [], $field);
-        $tableObj->addColumn($field, $type, $options);
 
-        $diff = $this->sm->createComparator()
-            ->compareSchemas($currentSchema, $newSchema);
-        $queries = $this->platform->getAlterSchemaSQL($diff);
-        foreach ($queries as $sql) {
-            $this->connection->executeStatement($sql);
-        }
+        $this->alterTableOnly($table, static function (Table $tableObj) use ($field, $type, $options): void {
+            $tableObj->addColumn($field, $type, $options);
+        });
     }
 
     public function dropField(string $table, string $field): void
@@ -178,18 +171,9 @@ final class DBALSchema implements ForeignKeySchemaInterface
             throw new \RuntimeException("Field \"{$field}\" does not exist in table \"{$table}\".");
         }
 
-        $currentSchema = $this->sm->introspectSchema();
-        $newSchema = clone $currentSchema;
-
-        $tableObj = $newSchema->getTable($table);
-        $tableObj->dropColumn($field);
-
-        $diff = $this->sm->createComparator()
-            ->compareSchemas($currentSchema, $newSchema);
-        $queries = $this->platform->getAlterSchemaSQL($diff);
-        foreach ($queries as $sql) {
-            $this->connection->executeStatement($sql);
-        }
+        $this->alterTableOnly($table, static function (Table $tableObj) use ($field): void {
+            $tableObj->dropColumn($field);
+        });
     }
 
     public function addIndex(string $table, string $name, array $fields): void
@@ -198,35 +182,17 @@ final class DBALSchema implements ForeignKeySchemaInterface
             throw new \InvalidArgumentException('Index fields must not be empty.');
         }
 
-        $currentSchema = $this->sm->introspectSchema();
-        $newSchema = clone $currentSchema;
-
-        $tableObj = $newSchema->getTable($table);
         /** @var non-empty-array<int, string> $fields */
-        $tableObj->addIndex($fields, $name);
-
-        $diff = $this->sm->createComparator()
-            ->compareSchemas($currentSchema, $newSchema);
-        $queries = $this->platform->getAlterSchemaSQL($diff);
-        foreach ($queries as $sql) {
-            $this->connection->executeStatement($sql);
-        }
+        $this->alterTableOnly($table, static function (Table $tableObj) use ($fields, $name): void {
+            $tableObj->addIndex($fields, $name);
+        });
     }
 
     public function dropIndex(string $table, string $name): void
     {
-        $currentSchema = $this->sm->introspectSchema();
-        $newSchema = clone $currentSchema;
-
-        $tableObj = $newSchema->getTable($table);
-        $tableObj->dropIndex($name);
-
-        $diff = $this->sm->createComparator()
-            ->compareSchemas($currentSchema, $newSchema);
-        $queries = $this->platform->getAlterSchemaSQL($diff);
-        foreach ($queries as $sql) {
-            $this->connection->executeStatement($sql);
-        }
+        $this->alterTableOnly($table, static function (Table $tableObj) use ($name): void {
+            $tableObj->dropIndex($name);
+        });
     }
 
     public function addUniqueKey(string $table, string $name, array $fields): void
@@ -235,19 +201,10 @@ final class DBALSchema implements ForeignKeySchemaInterface
             throw new \InvalidArgumentException('Unique key fields must not be empty.');
         }
 
-        $currentSchema = $this->sm->introspectSchema();
-        $newSchema = clone $currentSchema;
-
-        $tableObj = $newSchema->getTable($table);
         /** @var non-empty-array<int, string> $fields */
-        $tableObj->addUniqueIndex($fields, $name);
-
-        $diff = $this->sm->createComparator()
-            ->compareSchemas($currentSchema, $newSchema);
-        $queries = $this->platform->getAlterSchemaSQL($diff);
-        foreach ($queries as $sql) {
-            $this->connection->executeStatement($sql);
-        }
+        $this->alterTableOnly($table, static function (Table $tableObj) use ($fields, $name): void {
+            $tableObj->addUniqueIndex($fields, $name);
+        });
     }
 
     public function addPrimaryKey(string $table, array $fields): void
@@ -262,15 +219,9 @@ final class DBALSchema implements ForeignKeySchemaInterface
             );
         }
 
-        $currentSchema = $this->sm->introspectSchema();
-        $newSchema = clone $currentSchema;
-        $newSchema->getTable($table)->setPrimaryKey($fields);
-
-        $diff = $this->sm->createComparator()
-            ->compareSchemas($currentSchema, $newSchema);
-        foreach ($this->platform->getAlterSchemaSQL($diff) as $sql) {
-            $this->connection->executeStatement($sql);
-        }
+        $this->alterTableOnly($table, static function (Table $tableObj) use ($fields): void {
+            $tableObj->setPrimaryKey($fields);
+        });
     }
 
     public function foreignKeyExists(string $table, string $name): bool
@@ -296,18 +247,45 @@ final class DBALSchema implements ForeignKeySchemaInterface
             return;
         }
 
-        $currentSchema = $this->sm->introspectSchema();
-        $newSchema = clone $currentSchema;
-        $newSchema->getTable($table)->addForeignKeyConstraint(
+        $this->alterTableOnly($table, static function (Table $tableObj) use (
             $referencedTable,
             $columns,
             $referencedColumns,
             $options,
             $name,
-        );
+        ): void {
+            $tableObj->addForeignKeyConstraint($referencedTable, $columns, $referencedColumns, $options, $name);
+        });
+    }
 
-        $diff = $this->sm->createComparator()->compareSchemas($currentSchema, $newSchema);
-        foreach ($this->platform->getAlterSchemaSQL($diff) as $sql) {
+    /**
+     * Apply a mutation to one table and emit SQL for that table only (#2804).
+     *
+     * The mutators previously introspected the whole schema and compared it
+     * schema-to-schema. Doctrine's introspection round-trip is lossy, so tables
+     * that were never touched could compare as changed against themselves and be
+     * rebuilt from the degraded introspection — losing composite primary keys to
+     * `INTEGER PRIMARY KEY AUTOINCREMENT`, and dropping table-level UNIQUE and
+     * CHECK constraints and triggers that Doctrine does not model.
+     *
+     * Comparing a single table against its own mutated clone confines the
+     * generated SQL to the caller's table. Any lossiness in the rebuild of that
+     * table remains, because SQLite alters by copy-and-replace, but it is now
+     * limited to the table the caller asked to change. That remaining
+     * target-table fidelity gap is tracked separately as #2805: addForeignKey()
+     * still drops its own table's composite primary key, table-level UNIQUE and
+     * CHECK constraints, and triggers.
+     *
+     * @param callable(Table): void $mutate
+     */
+    private function alterTableOnly(string $table, callable $mutate): void
+    {
+        $currentTable = $this->sm->introspectTable($table);
+        $newTable = clone $currentTable;
+        $mutate($newTable);
+
+        $diff = $this->sm->createComparator()->compareTables($currentTable, $newTable);
+        foreach ($this->platform->getAlterTableSQL($diff) as $sql) {
             $this->connection->executeStatement($sql);
         }
     }

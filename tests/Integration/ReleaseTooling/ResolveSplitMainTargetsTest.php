@@ -261,6 +261,26 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_complete_sheguiandah_framework_main_cohort(): void
+    {
+        $names = [
+            'access', 'admin-surface', 'ai-tools', 'ai-vector', 'api', 'attachment',
+            'audit', 'auth', 'bimaaji', 'cli', 'database-legacy', 'entity',
+            'entity-storage', 'foundation', 'geo', 'graphql', 'mcp', 'media',
+            'menu', 'node', 'note', 'path', 'publishing', 'relationship', 'routing',
+            'scheduler', 'search', 'site-contract', 'taxonomy', 'user', 'workflows',
+        ];
+        [$exit, $stdout, $stderr] = $this->runScript(implode(',', $names));
+
+        self::assertSame(0, $exit, $stderr);
+        self::assertSame('', $stderr);
+        self::assertSame(['include' => array_map(
+            static fn(string $name): array => ['local' => 'packages/' . $name, 'remote' => $name],
+            $names,
+        )], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function newly_reviewed_cohort_targets_resolve_individually_and_refuse_paths(): void
     {
         foreach (['auth', 'user', 'ai-tools', 'mcp', 'relationship'] as $name) {

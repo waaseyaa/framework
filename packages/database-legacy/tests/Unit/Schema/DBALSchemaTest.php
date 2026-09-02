@@ -228,7 +228,10 @@ final class DBALSchemaTest extends TestCase
         $schema->createTable('test')->addColumn('id', 'integer');
 
         $manager = $this->createStub(AbstractSchemaManager::class);
-        $manager->method('introspectSchema')->willReturn($schema);
+        // #2804: the mutators compare a single table against its own mutated
+        // clone, so the introspection seam is introspectTable(), not
+        // introspectSchema(). The asserted behaviour is unchanged.
+        $manager->method('introspectTable')->willReturn($schema->getTable('test'));
         $manager->method('createComparator')->willReturn(new Comparator($platform));
 
         $connection = $this->createMock(Connection::class);
