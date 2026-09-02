@@ -116,6 +116,40 @@ final class FieldDefinitionRegistryInvariantTest extends TestCase
     }
 
     #[Test]
+    public function registerCoreFields_rejects_entity_reference_without_target_metadata(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $field = new FieldDefinition(
+            name: 'related',
+            type: 'entity_reference',
+            targetEntityTypeId: 'sample_entity',
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('requires target entity type metadata');
+        $this->expectExceptionMessage('target_entity_type_id, targetEntityTypeId, target_type');
+
+        $registry->registerCoreFields('sample_entity', ['related' => $field]);
+    }
+
+    #[Test]
+    public function registerCoreFields_accepts_all_entity_reference_target_aliases(): void
+    {
+        foreach (['target_entity_type_id', 'targetEntityTypeId', 'target_type'] as $alias) {
+            $registry = new FieldDefinitionRegistry();
+            $field = new FieldDefinition(
+                name: 'related',
+                type: 'entity_reference',
+                settings: [$alias => 'target_entity'],
+                targetEntityTypeId: 'sample_entity',
+            );
+
+            $registry->registerCoreFields('sample_entity', ['related' => $field]);
+            self::assertSame($field, $registry->coreFieldsFor('sample_entity')['related']);
+        }
+    }
+
+    #[Test]
     public function registrationRejectsATypeOutsideThePluginAuthority(): void
     {
         $registry = new FieldDefinitionRegistry();

@@ -10,6 +10,7 @@ use GraphQL\Type\Definition\Type;
 use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Field\Item\EntityReferenceItem;
 use Waaseyaa\GraphQL\GraphQlExecutionContext;
 
 /**
@@ -173,12 +174,28 @@ final class EntityTypeBuilder
 
             $fieldType = $def->getType();
             $isMultiple = $def->isMultiple();
-            $targetEntityTypeId = (string) ($def->getSetting('target_entity_type_id')
-                ?? $def->getSetting('targetEntityTypeId')
-                ?? $def->getSetting('target_type')
-                ?? '');
 
-            if ($this->fieldTypeMapper->isEntityReference($fieldType) && $targetEntityTypeId !== '') {
+            if ($this->fieldTypeMapper->isEntityReference($fieldType)) {
+                try {
+                    $targetEntityTypeId = EntityReferenceItem::targetEntityTypeIdFor($def);
+                } catch (\InvalidArgumentException $e) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'GraphQL entity-reference field "%s" on entity type "%s" has invalid target metadata: %s',
+                        $fieldName,
+                        $entityType->id(),
+                        $e->getMessage(),
+                    ), previous: $e);
+                }
+
+                if ($targetEntityTypeId === null) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'GraphQL entity-reference field "%s" on entity type "%s" requires target entity type metadata in one of: %s.',
+                        $fieldName,
+                        $entityType->id(),
+                        implode(', ', EntityReferenceItem::TARGET_ENTITY_TYPE_SETTING_KEYS),
+                    ));
+                }
+
                 $fields[$fieldName] = $this->buildEntityReferenceOutputField(
                     $fieldName,
                     $targetEntityTypeId,

@@ -8,14 +8,14 @@ use GraphQL\GraphQL;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Access\AccessResult;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\GraphQL\Schema\SchemaFactory;
 use Waaseyaa\GraphQL\Tests\Fixtures\AttributeFirstEntities\ArticleSchemaFixture;
 use Waaseyaa\GraphQL\Tests\Fixtures\AttributeFirstEntities\LogEntrySchemaFixture;
 use Waaseyaa\GraphQL\Tests\Fixtures\AttributeFirstEntities\PageSchemaFixture;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 require_once __DIR__ . '/../Fixtures/AttributeFirstEntities/ArticleSchemaFixture.php';
 require_once __DIR__ . '/../Fixtures/AttributeFirstEntities/LogEntrySchemaFixture.php';
@@ -34,6 +34,30 @@ final class SchemaFactoryTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
 
         $this->entityTypeManager->registerCoreEntityType(EntityType::fromClass(ArticleSchemaFixture::class));
+    }
+
+    #[Test]
+    public function untargeted_entity_reference_fails_closed_with_actionable_diagnostic(): void
+    {
+        $this->entityTypeManager->registerCoreEntityType(new EntityType(
+            id: 'broken_article',
+            label: 'Broken Article',
+            class: ArticleSchemaFixture::class,
+            keys: ['id' => 'id'],
+            _fieldDefinitions: [
+                'related' => new FieldDefinition(
+                    name: 'related',
+                    type: 'entity_reference',
+                ),
+            ],
+        ));
+
+        $schema = new SchemaFactory($this->entityTypeManager)->build();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('GraphQL entity-reference field "related" on entity type "broken_article"');
+        $this->expectExceptionMessage('target_entity_type_id, targetEntityTypeId, target_type');
+        $schema->getType('BrokenArticle');
     }
 
     #[Test]
