@@ -333,6 +333,51 @@ describe('SchemaForm loading and error states', () => {
 })
 
 describe('SchemaForm submit — create mode (no entityId)', () => {
+  it('round-trips multi-value enum selections as typed arrays', async () => {
+    let createPayload: Record<string, any> | null = null
+    const multiEnumSchema = {
+      ...bundledNodeDiscoverySchema,
+      'x-entity-type': 'node_multi_enum',
+      properties: {
+        topics: {
+          type: 'array',
+          items: { type: 'integer', enum: [1, 9] },
+          'x-widget': 'select',
+          'x-label': 'Topics',
+          'x-enum-labels': { '1': 'One', '9': 'Nine' },
+        },
+      },
+      required: ['topics'],
+    }
+    registerEndpoint('/admin/_surface/node_multi_enum/action/schema', {
+      method: 'POST',
+      handler: () => ({ ok: true, data: multiEnumSchema }),
+    })
+    registerEndpoint('/admin/_surface/node_multi_enum/action/create', {
+      method: 'POST',
+      handler: async (event) => {
+        createPayload = await readBody<Record<string, any>>(event)
+        return {
+          ok: true,
+          data: { type: 'node_multi_enum', id: '1', attributes: createPayload.attributes },
+        }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, { props: { entityType: 'node_multi_enum' } })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.loading').exists()).toBe(false))
+
+    const select = wrapper.get('select')
+    expect(select.attributes('multiple')).toBeDefined()
+    await select.setValue(['1', '9'])
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(createPayload).toEqual({ attributes: { topics: [1, 9] } })
+  })
+
   it('opens directly in a requested bundle without duplicating its widgets in the host shell', async () => {
     const schemaPayloads: Array<Record<string, unknown>> = []
     registerEndpoint('/admin/_surface/node_prefilled_bundle/action/schema', {

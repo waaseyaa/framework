@@ -4,7 +4,7 @@ export interface SchemaProperty {
   format?: string
   readOnly?: boolean
   default?: any
-  enum?: string[]
+  enum?: Array<string | number>
   items?: SchemaProperty
   minimum?: number
   maximum?: number

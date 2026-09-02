@@ -69,7 +69,7 @@ const bundleOptions = computed<string[] | null>(() => {
   if (!key) return null
   const property = schema.value?.properties?.[key]
   const values = property?.enum
-  return values && values.length > 0 ? values : null
+  return values && values.length > 0 ? values.map(String) : null
 })
 
 const hasDeclaredList = computed(() => Boolean(
