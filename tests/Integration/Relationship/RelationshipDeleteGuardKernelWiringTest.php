@@ -56,12 +56,13 @@ final class RelationshipDeleteGuardKernelWiringTest extends TestCase
         $this->manager = new EntityTypeManagerFactory()->build(
             database: $this->database,
             dispatcher: $this->dispatcher,
-            fieldRegistry: new FieldDefinitionRegistry(),
+            fieldRegistry: $fieldRegistry = new FieldDefinitionRegistry(),
             logger: new NullLogger(),
             accessHandlerResolver: static fn() => null,
             communityScoreResolver: static fn($definition) => null,
             accountContextAttacher: static function (object $repository): void {},
             fieldReadScope: new AccountFieldReadScope(),
+            fieldTypes: $fieldRegistry->fieldTypeManager(),
         );
 
         $provider = new RelationshipServiceProvider();

@@ -23,7 +23,23 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
 
     public function __construct(?FieldTypeManagerInterface $fieldTypes = null)
     {
+        // Isolated construction: a registry built outside a kernel (unit tests,
+        // bare bootstraps) admits against the built-in roster. The kernel always
+        // passes its boot-scoped manager (AbstractKernel::bootEntityTypeManager()),
+        // and FieldServiceProvider adopts that same instance from the bus.
         $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
+    }
+
+    /**
+     * The field-type registry every definition here was admitted against.
+     *
+     * Schema consumers that receive this registry (the kernel-services bus,
+     * `EntitySchemaSync`) project columns and JSON Schema through the same
+     * authority, so "admitted" and "materializable" can never diverge.
+     */
+    public function fieldTypeManager(): FieldTypeManagerInterface
+    {
+        return $this->fieldTypes;
     }
 
     /** @var array<string, array<string, EntityReadLayoutGeneration>> */

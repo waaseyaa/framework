@@ -10,6 +10,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 
 /**
  * Read path for sql-column translatable entity types (WP05 / FR-028..FR-031).
@@ -25,10 +26,16 @@ use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
  */
 final class SqlColumnTranslationHydrator
 {
+    /**
+     * @param FieldTypeManagerInterface|null $fieldTypes The boot-scoped field-type registry
+     *        (#2786 B1), threaded into the translation handler that partitions the
+     *        translatable columns; null only for registry-less bare construction.
+     */
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly EntityTypeInterface $entityType,
         private readonly EntityInstantiator $instantiator,
+        private readonly ?FieldTypeManagerInterface $fieldTypes = null,
     ) {}
 
     /**
@@ -58,7 +65,7 @@ final class SqlColumnTranslationHydrator
         $idKey = $keys['id'] ?? 'id';
         $langcodeKey = $keys['langcode'] ?? 'langcode';
 
-        $translationHandler = new TranslationSchemaHandler($this->database);
+        $translationHandler = new TranslationSchemaHandler($this->database, fieldTypes: $this->fieldTypes);
         $translationTable = $translationHandler->translationTableName($tableName);
 
         $translatableFields = $translationHandler->partitionTranslatableFields($this->entityType);

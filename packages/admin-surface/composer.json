@@ -76,13 +76,14 @@
     "require": {
         "php": ">=8.5",
         "symfony/http-foundation": "^7.0",
-        "waaseyaa/entity": "^0.1.0-alpha.300",
         "waaseyaa/access": "^0.1.0-alpha.300",
-        "waaseyaa/routing": "^0.1.0-alpha.300",
-        "waaseyaa/foundation": "^0.1.0-alpha.300",
-        "waaseyaa/page-builder": "^0.1.0-alpha.300",
         "waaseyaa/api": "^0.1.0-alpha.300",
         "waaseyaa/audit": "^0.1.0-alpha.300",
+        "waaseyaa/entity": "^0.1.0-alpha.300",
+        "waaseyaa/field": "^0.1.0-alpha.300",
+        "waaseyaa/foundation": "^0.1.0-alpha.300",
+        "waaseyaa/page-builder": "^0.1.0-alpha.300",
+        "waaseyaa/routing": "^0.1.0-alpha.300",
         "waaseyaa/workflows": "^0.1.0-alpha.300"
     },
     "require-dev": {
@@ -90,7 +91,6 @@
         "waaseyaa/config": "^0.1.0-alpha.300",
         "waaseyaa/database-legacy": "^0.1.0-alpha.300",
         "waaseyaa/entity-storage": "^0.1.0-alpha.300",
-        "waaseyaa/field": "^0.1.0-alpha.300",
         "waaseyaa/node": "^0.1.0-alpha.300",
         "waaseyaa/note": "^0.1.0-alpha.300",
         "waaseyaa/taxonomy": "^0.1.0-alpha.300",

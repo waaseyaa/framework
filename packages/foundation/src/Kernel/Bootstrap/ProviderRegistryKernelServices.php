@@ -17,6 +17,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
@@ -133,6 +136,28 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
                 // optional bus semantics instead of leaking the manager exception.
                 return null;
             }
+        }
+        if ($abstract === FieldTypeManagerInterface::class || $abstract === FieldTypeManager::class) {
+            // #2786 B1: the boot-scoped field-type registry is exactly the one
+            // the kernel's canonical field registry admits with, so providers
+            // resolving it see every downstream plugin the manifest admitted.
+            // Like FieldDefinitionRegistryInterface above, this kernel-owned
+            // case precedes sibling-provider bindings; a bare/unit-constructed
+            // manager without that registry resolves null.
+            try {
+                $registry = $this->entityTypeManager->getFieldRegistry();
+            } catch (\RuntimeException) {
+                return null;
+            }
+            if (!$registry instanceof FieldDefinitionRegistry) {
+                return null;
+            }
+            $fieldTypes = $registry->fieldTypeManager();
+            if ($abstract === FieldTypeManager::class && !$fieldTypes instanceof FieldTypeManager) {
+                return null;
+            }
+
+            return $fieldTypes;
         }
         if ($abstract === DatabaseInterface::class) {
             return $this->database;

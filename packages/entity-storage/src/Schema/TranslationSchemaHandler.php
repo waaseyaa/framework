@@ -75,6 +75,9 @@ final class TranslationSchemaHandler
         ?FieldTypeManagerInterface $fieldTypes = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        // Isolated construction: a handler built without a registry (unit
+        // tests) projects against the built-in roster; SqlSchemaHandler,
+        // EntitySchemaSync, and the translation hydrator thread the boot-scoped one.
         $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 

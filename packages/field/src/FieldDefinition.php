@@ -106,8 +106,10 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, FieldR
 
     public function toJsonSchema(): array
     {
-        // Manager-less construction still resolves through the live core
-        // registry; it never falls back to a second hardcoded type table.
+        // Isolated construction: a definition built outside any registry still
+        // resolves through the live built-in plugin roster; it never falls back
+        // to a second hardcoded type table. Kernel-wired consumers project
+        // schemas through FieldSchemaAuthority over the boot-scoped registry.
         $schema = ($this->fieldTypeManager ?? FieldTypeManager::default())->jsonSchemaFor($this);
 
         if ($this->isMultiple()) {

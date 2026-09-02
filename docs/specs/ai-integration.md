@@ -116,9 +116,12 @@ public function __construct(
 ```
 
 Both optional collaborators default to the shared Layer-1 authorities: the
-`FieldTypeManager::default()` plugin registry and a `FieldVisibilityPolicy`
+the built-ins-only `FieldTypeManager::default()` registry and a `FieldVisibilityPolicy`
 with framework-only internal fields. A kernel-bound caller injects the
-container's instances so application-declared internal fields are honoured.
+boot-scoped `FieldSchemaAuthority` so manifest-discovered downstream field
+types are projected, and injects the container's visibility policy so
+application-declared internal fields are honoured. No first-party provider
+constructs this generator; bare construction remains explicitly isolated.
 
 ### Key Methods
 

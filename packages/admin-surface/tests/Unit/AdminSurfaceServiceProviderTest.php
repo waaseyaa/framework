@@ -34,6 +34,9 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldSchemaAuthority;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Node\NodeAccessPolicy;
@@ -232,7 +235,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $internalFieldVisibility = new InternalFieldVisibilityPolicy();
         $provider->setKernelServices(new class ($registry, $accessHandler, $internalFieldVisibility) implements KernelServicesInterface {
             public function __construct(
-                private readonly FieldDefinitionRegistryInterface $registry,
+                private readonly FieldDefinitionRegistry $registry,
                 private readonly EntityAccessHandler $accessHandler,
                 private readonly InternalFieldVisibilityPolicy $internalFieldVisibility,
             ) {}
@@ -243,6 +246,9 @@ final class AdminSurfaceServiceProviderTest extends TestCase
                     FieldDefinitionRegistryInterface::class => $this->registry,
                     EntityAccessHandler::class => $this->accessHandler,
                     InternalFieldVisibilityPolicy::class => $this->internalFieldVisibility,
+                    // Production mirror: the field schema authority over the
+                    // registry's own field-type manager (#2786 B1).
+                    FieldSchemaAuthority::class => new FieldSchemaAuthority($this->registry->fieldTypeManager()),
                     default => null,
                 };
             }
@@ -948,7 +954,13 @@ final class AdminSurfaceServiceProviderTest extends TestCase
 
             public function get(string $abstract): ?object
             {
-                return $abstract === AdminSurfaceHostFactoryInterface::class ? $this->factory : null;
+                return match ($abstract) {
+                    AdminSurfaceHostFactoryInterface::class => $this->factory,
+                    // Production mirror: the kernel-services bus always serves
+                    // the boot-scoped field-type registry (#2786 B1).
+                    FieldTypeManagerInterface::class => new FieldTypeManager(),
+                    default => null,
+                };
             }
         });
 

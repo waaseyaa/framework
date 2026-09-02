@@ -59,6 +59,9 @@ final class SqlColumnSchemaBuilder
         ?FieldTypeManagerInterface $fieldTypes = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        // Isolated construction: a builder constructed without a registry
+        // (unit tests) projects against the built-in roster; SqlSchemaHandler
+        // and the translation schema handler thread the boot-scoped one.
         $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 

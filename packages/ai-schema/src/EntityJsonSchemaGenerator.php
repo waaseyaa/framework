@@ -31,6 +31,10 @@ final class EntityJsonSchemaGenerator
         ?FieldSchemaAuthority $fieldSchemas = null,
         ?FieldVisibilityPolicy $fieldVisibility = null,
     ) {
+        // Isolated construction: no first-party provider composes this
+        // generator; a caller wiring it into a kernel passes the
+        // FieldSchemaAuthority resolved from the kernel-services bus so
+        // downstream plugins admitted at boot are projected.
         $this->fieldSchemas = $fieldSchemas ?? new FieldSchemaAuthority(FieldTypeManager::default());
         $this->fieldVisibility = $fieldVisibility ?? new FieldVisibilityPolicy();
     }
