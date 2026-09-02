@@ -885,14 +885,22 @@ The M1 *attribute-first entity definition* mission shipped the canonical surface
 
 Two specific PHP property types map to fallbacks in M1 because the matching field-type plugins haven't been implemented yet. When the proper plugins ship, entities can update their `#[Field]` attributes from the fallback to the canonical type without any other code changes.
 
-**`timestamp` field type missing.** Properties intended to store Unix-epoch timestamps (`User.created`, `UserBlock.created_at`, `Node.created`, `Node.changed`, the engagement and messaging timestamp fields, etc.) currently use:
+**Canonical timestamps remain integer subtypes.** Properties intended to store
+Unix-epoch timestamps (`User.created`, `UserBlock.created_at`, `Node.created`,
+`Node.changed`, the engagement and messaging timestamp fields, etc.) use:
 
 ```php
 #[Field(type: 'integer', settings: ['subtype' => 'timestamp'])]
 public int $created;
 ```
 
-A future `field-type-timestamp-plugin` mission will ship the proper plugin so the canonical declaration becomes `#[Field(type: 'timestamp')] public int $created;`.
+This remains the canonical first-party declaration. Its entity/API schema is an
+ISO-8601 date-time string and JSON:API serializes integer, `DateTimeInterface`,
+zero, and null values through the timestamp projection; storage remains an
+integer. The registered `timestamp` plugin is a non-blueprint compatibility
+type for historical downstream definitions: it retains their Unix input domain,
+text storage, ISO JSON:API projection, and GraphQL `String` contract. It is not
+an alias for `datetime`, and first-party declarations must not migrate to it.
 
 **Closed: `enum` field type missing.** Resolved by mission [`field-type-enum-plugin-01KQ6SJG`](../../kitty-specs/field-type-enum-plugin-01KQ6SJG/). Backed-enum properties now resolve to the dedicated `'enum'` field-type plugin (`packages/field/src/Item/EnumItem.php`), which owns validation against the declared cases and emits JSON Schema with explicit `enum: [...]`. The canonical declaration is:
 
