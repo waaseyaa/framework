@@ -62,6 +62,7 @@ final class AttachmentServiceProviderRepositoryResolutionTest extends TestCase
             communityScoreResolver: static fn() => null,
             accountContextAttacher: static function (): void {},
             fieldReadScope: new AccountFieldReadScope(),
+            fieldTypes: $fieldRegistry->fieldTypeManager(),
         );
 
         $provider = new AttachmentServiceProvider();

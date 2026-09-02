@@ -73,6 +73,7 @@ final class AiServiceProviderResolutionTest extends TestCase
             communityScoreResolver: static fn() => null,
             accountContextAttacher: static function (): void {},
             fieldReadScope: new AccountFieldReadScope(),
+            fieldTypes: $fieldRegistry->fieldTypeManager(),
         );
 
         $entityProvider = new AiAgentEntityServiceProvider();

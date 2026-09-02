@@ -275,6 +275,12 @@ abstract class AbstractKernel
 
     protected function bootEntityTypeManager(): void
     {
+        if (!isset($this->manifest)) {
+            throw new \LogicException(
+                'Cannot boot the entity-type manager before the package manifest is compiled.',
+            );
+        }
+
         // Resolved eagerly: a manifest plugin that is missing, not a field type,
         // or claims an admitted id refuses boot here with the classes named.
         $fieldTypes = FieldTypeManager::fromManifest($this->manifest->fieldTypes);

@@ -783,6 +783,7 @@ final class Mission1257KernelPathTest extends TestCase
 
             public function publicBootEntityTypeManager(): void
             {
+                $this->compileManifest();
                 $this->bootEntityTypeManager();
             }
 

@@ -128,6 +128,7 @@ final class ValidationOverheadTest extends TestCase
             public function publicBoot(): void
             {
                 $this->bootDatabase();
+                $this->compileManifest();
                 $this->bootEntityTypeManager();
             }
 
