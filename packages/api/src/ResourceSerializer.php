@@ -306,16 +306,18 @@ final class ResourceSerializer
     private function castAttributes(array $attributes, array $fieldDefinitions, bool $losslessHtml = false): array
     {
         foreach ($attributes as $name => $value) {
-            $type = isset($fieldDefinitions[$name]) ? $fieldDefinitions[$name]->getType() : null;
+            $definition = $fieldDefinitions[$name] ?? null;
+            $type = $definition?->getType();
 
             if ($type !== null && RichTextSanitizer::isHtmlFieldType($type)) {
                 $attributes[$name] = $losslessHtml ? $value : $this->richTextSanitizer->sanitizeValue($value);
                 continue;
             }
 
-            $attributes[$name] = match ($type) {
-                'boolean' => (bool) $value,
-                'timestamp', 'datetime' => $this->formatTimestamp($value),
+            $attributes[$name] = match (true) {
+                $definition !== null && $type === 'integer' && $definition->getSetting('subtype') === 'timestamp' => $this->formatTimestamp($value),
+                $type === 'boolean' => (bool) $value,
+                $type === 'timestamp' || $type === 'datetime' => $this->formatTimestamp($value),
                 default => $value,
             };
         }

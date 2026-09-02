@@ -231,7 +231,7 @@ final class SchemaController
 
         return match ($type) {
             'boolean' => false,
-            'integer', 'list_integer' => 0,
+            'integer' => 0,
             default => '',
         };
     }

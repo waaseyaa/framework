@@ -68,7 +68,7 @@ final class EntityDiffFactoryTest extends TestCase
                 'article' => [
                     self::field('summary', 'string'),
                     self::field('body', 'text'),
-                    self::field('reading_time', 'int'),
+                    self::field('reading_time', 'integer'),
                 ],
             ],
             new SchemaSnapshot(),

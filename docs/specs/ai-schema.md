@@ -1,6 +1,6 @@
 # ai-schema
 
-<!-- Spec reviewed 2026-09-01 - #2786: EntityJsonSchemaGenerator is a principal-bound adapter over the lower-layer FieldSchemaAuthority. It enumerates effective fields, emits a closed schema, and cannot run without an entity subject, access handler, and account. The package still has no runtime consumer. -->
+<!-- Spec reviewed 2026-09-02 - #2786: EntityJsonSchemaGenerator is a principal-bound adapter over the lower-layer FieldSchemaAuthority. It enumerates effective fields, applies the shared internal-field metadata floor, emits a closed schema, and cannot run without an entity subject, access handler, and account. The package still has no runtime consumer. -->
 
 **Layer:** 5 — AI
 **Status:** alpha
@@ -38,7 +38,8 @@ generate(
 
 `generate()` resolves the registry- and bundle-aware effective field set via
 `EntityTypeManagerInterface::resolveFieldDefinitions()`, requires explicit
-entity `view` access, removes fields explicitly forbidden for `view`, and then
+entity `view` access, removes credential/framework/application internal fields
+through `FieldVisibilityPolicy`, removes fields explicitly forbidden for `view`, and then
 delegates all structural emission to `FieldSchemaAuthority`. A subject whose
 entity type differs from the requested type is rejected.
 

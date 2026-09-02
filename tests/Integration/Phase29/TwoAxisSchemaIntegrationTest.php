@@ -73,7 +73,7 @@ final class TwoAxisSchemaIntegrationTest extends TestCase
         $builder->buildTwoAxis($teaching, 'sql-column', [
             new FieldDefinition(name: 'title', type: 'string', translatable: true),
             new FieldDefinition(name: 'body', type: 'text', translatable: true),
-            new FieldDefinition(name: 'author_id', type: 'int'),
+            new FieldDefinition(name: 'author_id', type: 'integer'),
         ]);
 
         // Coexistence: both single-axis and two-axis tables exist.
@@ -98,7 +98,7 @@ final class TwoAxisSchemaIntegrationTest extends TestCase
         $builder->buildTwoAxis($teaching, 'sql-column', [
             new FieldDefinition(name: 'title', type: 'string', translatable: true),
             new FieldDefinition(name: 'body', type: 'text', translatable: true),
-            new FieldDefinition(name: 'author_id', type: 'int'),
+            new FieldDefinition(name: 'author_id', type: 'integer'),
         ]);
 
         $connection = $db->getConnection();

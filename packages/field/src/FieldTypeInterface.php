@@ -11,7 +11,7 @@ use Waaseyaa\Plugin\PluginInspectionInterface;
  */
 interface FieldTypeInterface extends PluginInspectionInterface
 {
-    /** @return array<string, array{type: string, description?: string}> */
+    /** @return array<string, array<string, mixed>> */
     public static function schema(): array;
 
     /** @return array<string, mixed> */
@@ -43,7 +43,15 @@ interface FieldTypeInterface extends PluginInspectionInterface
      * definition. Default implementation on AbstractFieldType delegates to the
      * static schema() method so existing field types are unaffected.
      *
-     * @return array<string, array{type: string, description?: string}>
+     * @return array<string, array<string, mixed>>
      */
     public static function schemaFor(FieldDefinitionInterface $def): array;
+
+    /**
+     * Canonical single-column schema used when an entity backend stores the
+     * exposed field value directly under the field name.
+     *
+     * @return array<string, mixed>
+     */
+    public static function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array;
 }

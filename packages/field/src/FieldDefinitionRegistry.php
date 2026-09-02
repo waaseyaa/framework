@@ -19,6 +19,13 @@ use Waaseyaa\Entity\Field\FieldReadLayoutGenerationSourceInterface;
  */
 final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface, BundleStorageUniqueKeyRegistryInterface, FieldReadLayoutGenerationSourceInterface
 {
+    private readonly FieldTypeManagerInterface $fieldTypes;
+
+    public function __construct(?FieldTypeManagerInterface $fieldTypes = null)
+    {
+        $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
+    }
+
     /** @var array<string, array<string, EntityReadLayoutGeneration>> */
     private array $fieldReadLayoutGenerations = [];
 
@@ -54,6 +61,7 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
                     $entityTypeId,
                 ));
             }
+            $this->assertAdmissible($field, $entityTypeId);
             $byName[$field->getName()] = $field;
         }
         $this->coreFields[$entityTypeId] = $byName;
@@ -166,6 +174,8 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
                 ));
             }
 
+            $this->assertAdmissible($field, $entityTypeId, $bundle);
+
             $name = $field->getName();
             if (isset($byName[$name])) {
                 throw new \InvalidArgumentException(\sprintf(
@@ -210,6 +220,27 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
         $generation = $this->fieldReadLayoutGeneration($entityTypeId, $bundle);
         $generation->advance();
         $generation->replaceSemanticFingerprintProvider($this->semanticFingerprintProvider($entityTypeId, $bundle));
+    }
+
+    private function assertAdmissible(
+        FieldDefinitionInterface $field,
+        string $entityTypeId,
+        ?string $bundle = null,
+    ): void {
+        try {
+            $this->fieldTypes->entityValueJsonSchemaFor($field);
+            if ($field->getStored() === FieldStorage::Column) {
+                $this->fieldTypes->entityStorageColumnSchemaFor($field);
+            }
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException(sprintf(
+                'Field "%s" on entity type "%s"%s is not admitted by the field-type registry: %s',
+                $field->getName(),
+                $entityTypeId,
+                $bundle === null ? '' : sprintf(' bundle "%s"', $bundle),
+                $e->getMessage(),
+            ), previous: $e);
+        }
     }
 
     public function fieldReadLayoutGeneration(string $entityTypeId, string $bundle): EntityReadLayoutGeneration

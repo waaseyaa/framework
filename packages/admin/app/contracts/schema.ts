@@ -5,6 +5,7 @@ export interface SchemaProperty {
   readOnly?: boolean
   default?: any
   enum?: string[]
+  items?: SchemaProperty
   minimum?: number
   maximum?: number
   maxLength?: number

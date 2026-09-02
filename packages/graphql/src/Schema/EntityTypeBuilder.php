@@ -175,6 +175,7 @@ final class EntityTypeBuilder
             $isMultiple = $def->isMultiple();
             $targetEntityTypeId = (string) ($def->getSetting('target_entity_type_id')
                 ?? $def->getSetting('targetEntityTypeId')
+                ?? $def->getSetting('target_type')
                 ?? '');
 
             if ($this->fieldTypeMapper->isEntityReference($fieldType) && $targetEntityTypeId !== '') {

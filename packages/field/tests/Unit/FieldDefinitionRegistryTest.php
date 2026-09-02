@@ -418,6 +418,7 @@ final class FieldDefinitionRegistryTest extends TestCase
     {
         $custom = $this->createStub(\Waaseyaa\Field\FieldDefinitionInterface::class);
         $custom->method('getName')->willReturn('meeting_date');
+        $custom->method('getType')->willReturn('date');
         $custom->method('getTargetEntityTypeId')->willReturn('media');
         $custom->method('getTargetBundle')->willReturn('minutes');
         $custom->method('getStored')->willReturn(\Waaseyaa\Field\FieldStorage::Data);

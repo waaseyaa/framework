@@ -42,7 +42,7 @@ final class NodeServiceProvider extends ServiceProvider
                 'new_revision' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
                 'display_submitted' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
                 'status' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
-                'dependencies' => ['type' => 'map', 'read' => FieldReadLevel::Public],
+                'dependencies' => ['type' => 'json', 'read' => FieldReadLevel::Public],
             ],
         ));
     }

@@ -22,6 +22,8 @@ use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldStorage;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -40,6 +42,8 @@ final class SqlSchemaHandler
     private readonly string $tableName;
 
     private readonly LoggerInterface $logger;
+
+    private readonly FieldTypeManagerInterface $fieldTypes;
 
     /**
      * @param \Closure|null $bundleEnumerator fn(EntityTypeInterface): iterable<string>
@@ -68,9 +72,11 @@ final class SqlSchemaHandler
         ?LoggerInterface $logger = null,
         private readonly string $primaryBackendId = ReservedBackendIds::SQL_BLOB,
         private readonly array $entityLevelFields = [],
+        ?FieldTypeManagerInterface $fieldTypes = null,
     ) {
         $this->tableName = $this->entityType->id();
         $this->logger = $logger ?? new NullLogger();
+        $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 
     /**
@@ -100,7 +106,7 @@ final class SqlSchemaHandler
             ) {
                 // sql-column path (WP05): SqlColumnSchemaBuilder adds per-field columns
                 // to the base spec and emits indexes for indexed() fields.
-                $builder = new SqlColumnSchemaBuilder($this->database, $this->logger);
+                $builder = new SqlColumnSchemaBuilder($this->database, $this->logger, $this->fieldTypes);
                 $builder->buildTable(
                     $this->entityType,
                     $this->tableName,
@@ -122,7 +128,7 @@ final class SqlSchemaHandler
             && $this->entityLevelFields !== []
         ) {
             // Table already exists: additively add any new field columns.
-            $builder = new SqlColumnSchemaBuilder($this->database, $this->logger);
+            $builder = new SqlColumnSchemaBuilder($this->database, $this->logger, $this->fieldTypes);
             foreach ($this->entityLevelFields as $field) {
                 $builder->addFieldColumn($this->tableName, $field);
             }
@@ -174,7 +180,7 @@ final class SqlSchemaHandler
 
         if ($this->entityType->isTranslatable()) {
             if ($this->primaryBackendId === ReservedBackendIds::SQL_COLUMN) {
-                $translationHandler = new TranslationSchemaHandler($this->database);
+                $translationHandler = new TranslationSchemaHandler($this->database, fieldTypes: $this->fieldTypes);
                 $translationFields = [
                     'entity_id',
                     'langcode',
@@ -1419,18 +1425,18 @@ final class SqlSchemaHandler
     }
 
     /**
-     * Maps a FieldDefinition's type to a Waaseyaa column spec.
-     *
-     * Unknown types fall back to `text` and emit a {@see LoggerInterface::warning()}
-     * so operators see typos or missing mappings at schema-build time. Settings keys
-     * `length`, `not_null`, and `default` are honored when present; otherwise they
-     * default to nullable with no default.
+     * Resolves a FieldDefinition through the field-type plugin's canonical
+     * entity-storage projection. Unknown or ambiguous projections fail closed.
+     * Settings keys `length`, `not_null`, and `default` decorate that projection.
      *
      * @return array<string, mixed>
      */
     private function deriveColumnSpec(FieldDefinitionInterface $field): array
     {
-        return self::buildColumnSpecArray($field, $this->logger, $this->tableName);
+        return self::completeColumnSpec(
+            $this->fieldTypes->entityStorageColumnSchemaFor($field),
+            $field,
+        );
     }
 
     /**
@@ -1438,15 +1444,18 @@ final class SqlSchemaHandler
      * {@see Schema\EntityDiffFactory}.
      *
      * Returns the canonical foundation {@see \Waaseyaa\Foundation\Schema\Diff\ColumnSpec}
-     * value type for a given field — same mapping table as
+     * value type for a given field — same plugin-owned projection as
      * {@see deriveColumnSpec()}, but in the algebraic shape the
-     * SchemaDiff layer consumes. This is the single source of truth
-     * for field-type → column derivation; per WP07 risk note, no
-     * duplicate mapping lives in the factory.
+     * SchemaDiff layer consumes. No duplicate type mapping lives in the factory.
      */
-    public static function deriveDiffColumnSpec(FieldDefinitionInterface $field): \Waaseyaa\Foundation\Schema\Diff\ColumnSpec
-    {
-        $array = self::buildColumnSpecArray($field, null, null);
+    public static function deriveDiffColumnSpec(
+        FieldDefinitionInterface $field,
+        ?FieldTypeManagerInterface $fieldTypes = null,
+    ): \Waaseyaa\Foundation\Schema\Diff\ColumnSpec {
+        $array = self::completeColumnSpec(
+            ($fieldTypes ?? FieldTypeManager::default())->entityStorageColumnSchemaFor($field),
+            $field,
+        );
 
         return new \Waaseyaa\Foundation\Schema\Diff\ColumnSpec(
             type: (string) $array['type'],
@@ -1561,58 +1570,13 @@ final class SqlSchemaHandler
         return 'unknown';
     }
 
-    /**
-     * Shared private static — single owner of the field-type → spec
-     * mapping table. Both {@see deriveColumnSpec()} (per-instance,
-     * with logger context) and {@see deriveDiffColumnSpec()} (static,
-     * for the SchemaDiff factory) call this.
-     *
-     * @return array<string, mixed>
-     */
-    private static function buildColumnSpecArray(
-        FieldDefinitionInterface $field,
-        ?LoggerInterface $logger,
-        ?string $tableName,
-    ): array {
+    /** @param array<string, mixed> $spec @return array<string, mixed> */
+    private static function completeColumnSpec(array $spec, FieldDefinitionInterface $field): array
+    {
         $settings = $field->getSettings();
-        $typeKey = strtolower($field->getType());
 
-        $spec = match ($typeKey) {
-            'string' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 255)],
-            'text' => ['type' => 'text'],
-            'text_long' => ['type' => 'text'],
-            // A JSON-encoded structured value (e.g. a decoded block tree) is a
-            // TEXT column; the field type carries the JSON Schema separately.
-            'json' => ['type' => 'text'],
-            'uri' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 2048)],
-            'email' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 255)],
-            // ISO-8601 datetime / Y-m-d date are stored as fixed-width strings,
-            // matching the DateTimeItem / DateItem field-type schemas.
-            'datetime' => ['type' => 'varchar', 'length' => 32],
-            'date' => ['type' => 'varchar', 'length' => 10],
-            // Waaseyaa cross-entity references are stored as the destination
-            // entity's UUID string (the framework's reference handle; see the
-            // migration as-built notes), not an integer id. The column must hold
-            // a UUID, so varchar — this stays correct on column-strict backends
-            // (MySQL/PostgreSQL for the production deploy), not only on SQLite's
-            // dynamic typing.
-            'entity_reference' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 255)],
-            'integer', 'int' => ['type' => 'int'],
-            'boolean', 'bool' => ['type' => 'boolean'],
-            'float', 'decimal', 'numeric', 'number' => ['type' => 'float'],
-            default => null,
-        };
-
-        if ($spec === null) {
-            $logger?->warning(
-                'SqlSchemaHandler::deriveColumnSpec: unknown field type; using text column. Prefer an explicit match arm.',
-                [
-                    'entity_type' => $tableName,
-                    'field' => $field->getName(),
-                    'field_type' => $field->getType(),
-                ],
-            );
-            $spec = ['type' => 'text'];
+        if (($spec['type'] ?? null) === 'varchar' && isset($settings['length'])) {
+            $spec['length'] = (int) $settings['length'];
         }
 
         $spec['not null'] = (bool) ($settings['not_null'] ?? false);

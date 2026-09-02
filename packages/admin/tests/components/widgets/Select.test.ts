@@ -21,6 +21,25 @@ describe('Select', () => {
     expect(options[2].text()).toBe('Blocked')
   })
 
+  it('reads enum values from array items for multi-value fields', async () => {
+    const wrapper = await mountSuspended(Select, {
+      props: {
+        modelValue: '',
+        label: 'Status',
+        schema: {
+          type: 'array',
+          items: { type: 'string', enum: ['active', 'blocked'] },
+          'x-enum-labels': { active: 'Active', blocked: 'Blocked' },
+        },
+      },
+    })
+    expect(wrapper.findAll('option').map(option => option.text())).toEqual([
+      '-- Select --',
+      'Active',
+      'Blocked',
+    ])
+  })
+
   it('emits update:modelValue on selection change', async () => {
     const wrapper = await mountSuspended(Select, {
       props: { modelValue: '', label: 'Status', schema },

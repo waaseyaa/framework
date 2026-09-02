@@ -115,7 +115,7 @@ abstract class TwoAxisStorageContract extends TestCase
         $fields = [
             new FieldDefinition(name: 'title', type: 'string', translatable: true),
             new FieldDefinition(name: 'body', type: 'text', translatable: true),
-            new FieldDefinition(name: 'author_id', type: 'int'),
+            new FieldDefinition(name: 'author_id', type: 'integer'),
         ];
 
         $builder->buildTwoAxis($type, $this->primaryBackendId(), $fields);
@@ -150,8 +150,8 @@ abstract class TwoAxisStorageContract extends TestCase
 
         $fields = [
             new FieldDefinition(name: 'title', type: 'string', translatable: true),
-            new FieldDefinition(name: 'author_id', type: 'int'),
-            new FieldDefinition(name: 'priority', type: 'int'),
+            new FieldDefinition(name: 'author_id', type: 'integer'),
+            new FieldDefinition(name: 'priority', type: 'integer'),
         ];
 
         $builder->buildTwoAxis($type, $this->primaryBackendId(), $fields);
@@ -182,7 +182,7 @@ abstract class TwoAxisStorageContract extends TestCase
         $fields = [
             new FieldDefinition(name: 'title', type: 'string', translatable: true),
             new FieldDefinition(name: 'body', type: 'text', translatable: true),
-            new FieldDefinition(name: 'author_id', type: 'int'),
+            new FieldDefinition(name: 'author_id', type: 'integer'),
         ];
 
         $builder->buildTwoAxis($type, $this->primaryBackendId(), $fields);

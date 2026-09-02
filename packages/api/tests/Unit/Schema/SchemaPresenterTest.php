@@ -68,6 +68,22 @@ final class SchemaPresenterTest extends TestCase
     }
 
     #[Test]
+    public function revisionKeyIsReadOnlyAndHidden(): void
+    {
+        $keys = TestEntity::definitionKeys();
+        $keys['revision'] = 'revision_id';
+        $schema = $this->presenter->present($this->createEntityType(
+            translatable: false,
+            revisionable: true,
+            keys: $keys,
+        ));
+
+        self::assertSame('integer', $schema['properties']['revision_id']['type']);
+        self::assertTrue($schema['properties']['revision_id']['readOnly']);
+        self::assertSame('hidden', $schema['properties']['revision_id']['x-widget']);
+    }
+
+    #[Test]
     public function presentIncludesLangcodeForTranslatable(): void
     {
         $entityType = $this->createEntityType(translatable: true, keys: [

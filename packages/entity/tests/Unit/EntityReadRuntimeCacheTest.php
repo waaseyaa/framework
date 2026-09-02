@@ -19,6 +19,7 @@ use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Field\FieldReadDefinitionInterface;
+use Waaseyaa\Field\FieldStorage;
 
 final class EntityReadRuntimeCacheTest extends TestCase
 {
@@ -116,8 +117,10 @@ final class EntityReadRuntimeCacheTest extends TestCase
         foreach ([1, 2] as $id) {
             $definition = $this->createStub(FieldDefinitionInterface::class);
             $definition->method('getName')->willReturn('name');
+            $definition->method('getType')->willReturn('string');
             $definition->method('getTargetEntityTypeId')->willReturn('custom_template_cache_entity');
             $definition->method('getTargetBundle')->willReturn(null);
+            $definition->method('getStored')->willReturn(FieldStorage::Column);
             $definition->method('getSetting')->willReturnCallback(
                 static fn(string $setting): mixed => $setting === 'internal' ? false : null,
             );
@@ -287,8 +290,10 @@ final class EntityReadRuntimeCacheTest extends TestCase
             FieldReadDefinitionInterface::class,
         ]);
         $definition->method('getName')->willReturn('name');
+        $definition->method('getType')->willReturn('string');
         $definition->method('getTargetEntityTypeId')->willReturn('cache_entity');
         $definition->method('getTargetBundle')->willReturn(null);
+        $definition->method('getStored')->willReturn(FieldStorage::Column);
         $definition->method('getReadLevel')->willReturnCallback(static function () use (&$level): FieldReadLevel {
             return $level;
         });
@@ -337,8 +342,10 @@ final class EntityReadRuntimeCacheTest extends TestCase
     {
         $definition = $this->createStub(FieldDefinitionInterface::class);
         $definition->method('getName')->willReturn('name');
+        $definition->method('getType')->willReturn('string');
         $definition->method('getTargetEntityTypeId')->willReturn('cache_entity');
         $definition->method('getTargetBundle')->willReturn(null);
+        $definition->method('getStored')->willReturn(FieldStorage::Column);
         $definition->method('getSetting')->willReturnCallback(
             static fn(string $setting): mixed => $setting === 'internal' ? false : null,
         );

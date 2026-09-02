@@ -108,7 +108,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, FieldR
     {
         // Manager-less construction still resolves through the live core
         // registry; it never falls back to a second hardcoded type table.
-        $schema = ($this->fieldTypeManager ?? new FieldTypeManager())->jsonSchemaFor($this);
+        $schema = ($this->fieldTypeManager ?? FieldTypeManager::default())->jsonSchemaFor($this);
 
         if ($this->isMultiple()) {
             return [

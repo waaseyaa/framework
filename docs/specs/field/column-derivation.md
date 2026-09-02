@@ -1,26 +1,33 @@
 # Field type → column spec (`deriveColumnSpec`)
 
-This document is the review-facing map for **`Waaseyaa\EntityStorage\SqlSchemaHandler::deriveColumnSpec()`** (`packages/entity-storage/src/SqlSchemaHandler.php`). It describes the **Waaseyaa column spec** shape (`type`, optional `length`, `not null`, `default`) produced from `FieldDefinition::getType()` and `getSettings()`.
+This document describes **`Waaseyaa\EntityStorage\SqlSchemaHandler::deriveColumnSpec()`** (`packages/entity-storage/src/SqlSchemaHandler.php`). The method no longer owns a type map. It normalizes a `FieldDefinition`, asks the registered field-type plugin for its canonical direct entity-column projection, and then layers definition-level `length`, `not_null`, and `default` settings onto that result.
 
 Downstream, **`Waaseyaa\Database\Schema\DBALSchema::mapFieldType()`** (`packages/database-legacy/src/Schema/DBALSchema.php`) translates those Waaseyaa `type` strings into Doctrine DBAL abstract types for DDL. Vendor-specific SQL (e.g. MySQL `LONGTEXT`, `INT UNSIGNED`) is **not** spelled in `deriveColumnSpec()`; it emerges from the active DBAL platform when SQL is generated.
 
-## Mapping table (canonical)
+## Canonical mapping authority
 
-| `FieldDefinition::getType()` (case-insensitive) | Waaseyaa spec from `deriveColumnSpec()` | Notes |
-|-----------------------------------------------|------------------------------------------|--------|
-| `string` | `varchar` + `length` default 255 (from settings or default) | |
-| `text` | `text` | |
-| `text_long` | `text` | Same abstract type as `text`; platform may render long text differently. |
-| `uri` | `varchar` + `length` default **2048** (overridable via settings `length`) | Bounded URI storage. |
-| `entity_reference` | `int` | Assumes integer PK on the target entity; string/config IDs need a follow-up arm if introduced. |
-| `integer` / `int` | `int` | |
-| `boolean` / `bool` | `boolean` | |
-| `float` / `decimal` / `numeric` / `number` | `float` | |
-| *(unknown)* | `text` + **`LoggerInterface::warning()`** | Log context includes `entity_type`, `field`, `field_type`. |
+`FieldTypeManagerInterface::entityStorageColumnSchemaFor()` is the only
+field-type-to-column authority. A simple one-column plugin inherits the
+projection from `AbstractFieldType`: choose `value`, then a column matching the
+field name, then the sole declared column. A genuinely multi-column plugin must
+override the seam and choose its direct entity value explicitly.
+
+Notable explicit projections are:
+
+| Plugin | Direct entity column | Reason |
+|---|---|---|
+| `link`, `file`, `image` | `uri` (`varchar`) | Entity surfaces carry the URI string. |
+| `entity_reference` | bounded `varchar` | Entity values may be UUID/config identifiers, not only integer PKs. |
+| `decimal` | `text` | Preserve lossless decimal text; never coerce through binary float. |
+| `classification_label` | `classification_label` (`varchar`, indexed) | Provenance columns remain lifecycle-managed physical state. |
+
+Unknown plugin ids raise `UnknownFieldTypeException`. An ambiguous multi-column
+plugin without an explicit projection raises `LogicException`. Neither case
+logs and falls back to `text`; DDL is refused.
 
 ## `FieldStorage` interaction
 
-`FieldStorage::Data` vs `FieldStorage::Column` is decided **before** `deriveColumnSpec()` runs: fields marked **`Data`** are not materialized as bundle columns, so **no column spec** is built for them on that path. See `docs/specs/bundle-scoped-storage.md` and `FieldStorage` in `packages/field/src/FieldStorage.php`.
+`FieldStorage::Data` vs `FieldStorage::Column` is decided **before** `deriveColumnSpec()` runs: fields marked **`Data`** are not materialized as bundle columns, so **no column spec** is built for them on that path. Registry admission nevertheless validates their entity-value schema; column-stored definitions validate both projections. See `docs/specs/bundle-scoped-storage.md` and `FieldStorage` in `packages/field/src/FieldStorage.php`.
 
 ## Foreign keys
 

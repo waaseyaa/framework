@@ -65,7 +65,7 @@ final class FieldStorageDataDiffTest extends TestCase
             [
                 new FieldDefinition(name: 'title', type: 'string'),
                 new FieldDefinition(name: 'audit_blob', type: 'text', stored: FieldStorage::Data),
-                new FieldDefinition(name: 'flag_count', type: 'int'),
+                new FieldDefinition(name: 'flag_count', type: 'integer'),
             ],
             [],
             new SchemaSnapshot(),

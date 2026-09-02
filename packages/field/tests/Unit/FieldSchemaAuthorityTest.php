@@ -139,7 +139,7 @@ final class FieldSchemaAuthorityTest extends TestCase
     public function decimalEntityValuesPreserveTheLosslessStorageString(): void
     {
         self::assertSame(
-            ['type' => 'string', 'pattern' => '^-?\\d+\\.\\d+$'],
+            ['type' => 'string', 'pattern' => '^-?\\d+(?:\\.\\d+)?$'],
             array_intersect_key(
                 $this->authority->fieldSchema(new FieldDefinition(name: 'price', type: 'decimal')),
                 ['type' => true, 'pattern' => true],

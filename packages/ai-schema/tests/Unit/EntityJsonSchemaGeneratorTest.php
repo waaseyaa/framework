@@ -97,6 +97,34 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
         self::assertStringNotContainsString('classified metadata', json_encode($schema, JSON_THROW_ON_ERROR));
     }
 
+    #[Test]
+    public function itOmitsStructurallyInternalFieldsBeforeAccessProjection(): void
+    {
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getDefinition')->willReturn(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        ));
+        $manager->method('resolveFieldDefinitions')->willReturn([
+            'public' => new FieldDefinition(name: 'public', type: 'string'),
+            'password' => new FieldDefinition(name: 'password', type: 'string'),
+            'token' => new FieldDefinition(name: 'token', type: 'string', settings: ['internal' => true]),
+        ]);
+
+        $schema = new EntityJsonSchemaGenerator($manager)->generate(
+            'article',
+            $this->entity(),
+            $this->handler(),
+            $this->createStub(AuthorizationPrincipalInterface::class),
+        );
+
+        self::assertArrayHasKey('public', $schema['properties']);
+        self::assertArrayNotHasKey('password', $schema['properties']);
+        self::assertArrayNotHasKey('token', $schema['properties']);
+    }
+
     private function entity(): EntityInterface
     {
         $entity = $this->createStub(EntityInterface::class);

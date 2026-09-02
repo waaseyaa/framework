@@ -67,4 +67,23 @@ abstract class AbstractFieldType extends PluginBase implements FieldTypeInterfac
     {
         return static::schema();
     }
+
+    public static function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array
+    {
+        $columns = static::schemaFor($def);
+        if (isset($columns['value'])) {
+            return $columns['value'];
+        }
+        if (isset($columns[$def->getName()])) {
+            return $columns[$def->getName()];
+        }
+        if (count($columns) === 1) {
+            return reset($columns);
+        }
+
+        throw new \LogicException(sprintf(
+            'Field type "%s" exposes multiple item columns and must declare its entity storage column explicitly.',
+            $def->getType(),
+        ));
+    }
 }

@@ -52,7 +52,7 @@ final class FieldServiceProvider extends ServiceProvider
     {
         $this->singleton(
             FieldDefinitionRegistryInterface::class,
-            fn() => new FieldDefinitionRegistry(),
+            fn() => new FieldDefinitionRegistry($this->resolve(FieldTypeManagerInterface::class)),
         );
 
         $this->singleton(
@@ -60,9 +60,13 @@ final class FieldServiceProvider extends ServiceProvider
             fn() => $this->resolve(FieldDefinitionRegistryInterface::class),
         );
 
+        // The container binding and the static default are the same registry
+        // instance, so manager-less construction sites (FieldDefinition,
+        // SchemaPresenter, storage schema builders) and container-resolved
+        // consumers share one plugin authority.
         $this->singleton(
             FieldTypeManager::class,
-            fn() => new FieldTypeManager(),
+            fn() => FieldTypeManager::default(),
         );
         $this->singleton(
             FieldTypeManagerInterface::class,

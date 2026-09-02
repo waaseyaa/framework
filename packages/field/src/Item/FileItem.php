@@ -19,6 +19,11 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class FileItem extends AbstractFieldType
 {
+    public static function entityStorageColumnSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return static::schema()['uri'];
+    }
+
     public static function supportsBlueprint(): bool
     {
         return false;

@@ -48,7 +48,7 @@ final class BundleSubtableDiffTest extends TestCase
                 'team' => [
                     new FieldDefinition(name: 'name', type: 'string'),
                     new FieldDefinition(name: 'mascot', type: 'string'),
-                    new FieldDefinition(name: 'member_count', type: 'int'),
+                    new FieldDefinition(name: 'member_count', type: 'integer'),
                 ],
             ],
             new SchemaSnapshot(),
@@ -99,8 +99,8 @@ final class BundleSubtableDiffTest extends TestCase
                 'team' => [
                     new FieldDefinition(name: 'name', type: 'string'),
                     new FieldDefinition(name: 'mascot', type: 'string'),
-                    new FieldDefinition(name: 'member_count', type: 'int'),
-                    new FieldDefinition(name: 'founded_at', type: 'int'),
+                    new FieldDefinition(name: 'member_count', type: 'integer'),
+                    new FieldDefinition(name: 'founded_at', type: 'integer'),
                 ],
             ],
             $snapshot,

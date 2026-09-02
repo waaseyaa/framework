@@ -51,7 +51,7 @@ final class SchemaPresenter
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
         ?FieldSchemaAuthority $fieldSchemas = null,
     ) {
-        $this->fieldSchemas = $fieldSchemas ?? new FieldSchemaAuthority(new FieldTypeManager());
+        $this->fieldSchemas = $fieldSchemas ?? new FieldSchemaAuthority(FieldTypeManager::default());
     }
 
     /**
@@ -282,6 +282,15 @@ final class SchemaPresenter
                 'type' => 'string',
                 'format' => 'uuid',
                 'description' => 'The universally unique identifier.',
+                'readOnly' => true,
+                'x-widget' => 'hidden',
+            ];
+        }
+
+        if (isset($keys['revision'])) {
+            $properties[$keys['revision']] = [
+                'type' => 'integer',
+                'description' => 'The current revision identifier.',
                 'readOnly' => true,
                 'x-widget' => 'hidden',
             ];

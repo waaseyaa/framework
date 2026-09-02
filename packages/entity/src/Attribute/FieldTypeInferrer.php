@@ -28,7 +28,6 @@ final class FieldTypeInferrer
     public const VALID_TYPE_IDS = [
         'boolean',
         'classification_label',
-        'computed',
         'date',
         'datetime',
         'decimal',
@@ -44,6 +43,7 @@ final class FieldTypeInferrer
         'list',
         'string',
         'text',
+        'text_long',
     ];
 
     /**
@@ -175,7 +175,7 @@ final class FieldTypeInferrer
      * @var list<list<string>>
      */
     private const COMPATIBILITY_GROUPS = [
-        ['string', 'text', 'email', 'link', 'classification_label'],
+        ['string', 'text', 'text_long', 'email', 'link', 'classification_label'],
         ['integer', 'list'],
         ['float', 'decimal'],
         ['datetime', 'date'],
