@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use Waaseyaa\Bimaaji\Install\ParsedSkill;
 use Waaseyaa\Bimaaji\Install\SkillInventory;
 use Waaseyaa\Bimaaji\Install\SkillResourceException;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
@@ -67,6 +68,75 @@ final class SkillInventoryTest extends TestCase
         $inventory = SkillInventory::fromSkills(InstallSkillFixtures::all());
 
         self::assertNull($inventory->find('does-not-exist'));
+    }
+
+    #[Test]
+    public function fromSkillsSortsByIdSoTheInventoryIsCanonicalRegardlessOfInputOrder(): void // #2660 Part A repair
+    {
+        // fromSkills() documented "sorted by id" but only ever restated the
+        // caller's order, so two inventories over the same skill set could
+        // disagree on `all()`/`ids()` purely by construction order. Sorting
+        // here is what makes the documented promise true for every caller,
+        // not only for the one that happens to come from SkillSetParser.
+        $shuffled = [
+            InstallSkillFixtures::gamma(),
+            InstallSkillFixtures::alpha(),
+            InstallSkillFixtures::beta(),
+        ];
+
+        $inventory = SkillInventory::fromSkills($shuffled);
+
+        self::assertSame(['skill-alpha', 'skill-beta', 'skill-gamma'], $inventory->ids());
+        self::assertEquals(InstallSkillFixtures::all(), $inventory->all());
+    }
+
+    #[Test]
+    public function twoInventoriesOverTheSameSkillSetAreEqualWhateverTheInputOrder(): void // #2660 Part A repair
+    {
+        self::assertEquals(
+            SkillInventory::fromSkills(InstallSkillFixtures::all()),
+            SkillInventory::fromSkills([
+                InstallSkillFixtures::beta(),
+                InstallSkillFixtures::gamma(),
+                InstallSkillFixtures::alpha(),
+            ]),
+        );
+    }
+
+    #[Test]
+    public function duplicateIdsAreRejectedRatherThanSilentlyResolvedByFind(): void // #2660 Part A repair
+    {
+        // Sorting alone cannot canonicalize two entries claiming one id:
+        // find() would still pick one silently and ids() would still repeat
+        // it. Fail closed at construction, naming the id.
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/duplicate skill id "skill-alpha"/');
+
+        SkillInventory::fromSkills([
+            InstallSkillFixtures::alpha(),
+            InstallSkillFixtures::beta(),
+            InstallSkillFixtures::alpha(),
+        ]);
+    }
+
+    #[Test]
+    public function aDuplicateIdIsRejectedEvenWhenTheTwoEntriesDifferInEveryOtherField(): void // #2660 Part A repair
+    {
+        // The dangerous case: not a copy of the same skill, but two DIFFERENT
+        // bodies competing for one id — exactly what find() used to resolve
+        // by position.
+        $this->expectException(\InvalidArgumentException::class);
+
+        SkillInventory::fromSkills([
+            InstallSkillFixtures::alpha(),
+            new ParsedSkill(
+                id: 'skill-alpha',
+                name: 'Impostor',
+                description: 'A different skill claiming the same id.',
+                frontmatter: [],
+                body: 'Different body.',
+            ),
+        ]);
     }
 
     #[Test]

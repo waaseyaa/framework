@@ -32,7 +32,7 @@ use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
  * test re-runs every transformer through the CURRENT implementation and
  * diffs against that snapshot. A mismatch here means the capability-registry
  * seam changed shipped output, which #2660 Part A explicitly forbids — see
- * `docs/decisions/2660-client-conventions.md` for what a deliberate output
+ * `docs/adr/026-client-guidance-and-skill-conventions.md` for what a deliberate output
  * change requires (a maintainer decision on the gated open questions, not a
  * regenerated golden file).
  */

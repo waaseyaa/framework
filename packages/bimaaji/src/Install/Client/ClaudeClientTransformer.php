@@ -38,6 +38,14 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  * marker, survive. A skill directory may also hold supporting files the user
  * added; the installer never removes those.
  *
+ * That frontmatter block is emitted **because
+ * {@see ClientCapabilities::$requiresFrontmatterAtByteZero} says so**, not
+ * because this class hardcodes it. Path, prefix and frontmatter all come from
+ * the one registry entry, so the registry cannot describe a client whose
+ * shipped bytes disagree with it. Injecting capabilities via the constructor
+ * is a test seam for exactly that proof; production always resolves the
+ * registered entry.
+ *
  * Upstream convention: <https://code.claude.com/docs/en/skills> §"Where skills
  * live" (`Project | .claude/skills/<skill-name>/SKILL.md`) and §"How a skill
  * gets its command name" (verified 2026-08-29).
@@ -46,6 +54,14 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  */
 final class ClaudeClientTransformer implements ClientTransformerInterface
 {
+    /**
+     * @param ClientCapabilities|null $capabilities Overrides the registered
+     *     entry. Null — the production path — resolves
+     *     {@see ClientCapabilityRegistry::default()}. A non-null value must
+     *     declare this client id; anything else is a programming error.
+     */
+    public function __construct(private readonly ?ClientCapabilities $capabilities = null) {}
+
     public function clientId(): string
     {
         return 'claude';
@@ -53,7 +69,7 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
 
     public function targetFiles(array $skills): array
     {
-        $capabilities = $this->capabilities();
+        $capabilities = $this->resolveCapabilities();
         $files = [];
 
         foreach ($skills as $skill) {
@@ -74,12 +90,27 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
     }
 
     /**
-     * This client's registered capabilities. See the
+     * The capabilities this render reads — the injected override, else this
+     * client's registered entry. See the
      * {@see AbstractSingleFileClientTransformer::capabilities()} docblock
-     * for why a missing entry is a `\LogicException`, not a soft failure.
+     * for why a missing entry is a `\LogicException`, not a soft failure;
+     * an override for a *different* client is the same class of error, and
+     * is rejected rather than quietly used to render Claude's output.
      */
-    private function capabilities(): ClientCapabilities
+    private function resolveCapabilities(): ClientCapabilities
     {
+        if ($this->capabilities !== null) {
+            if ($this->capabilities->clientId !== $this->clientId()) {
+                throw new \LogicException(sprintf(
+                    'ClaudeClientTransformer was given capabilities that declare client "%s", not "%s".',
+                    $this->capabilities->clientId,
+                    $this->clientId(),
+                ));
+            }
+
+            return $this->capabilities;
+        }
+
         $capabilities = ClientCapabilityRegistry::default()->for($this->clientId());
         if ($capabilities === null) {
             throw new \LogicException(sprintf(
@@ -93,6 +124,15 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
 
     private function renderSkillFile(ParsedSkill $skill, ClientCapabilities $capabilities): string
     {
+        $body = ManagedRegion::wrap($skill->body);
+
+        // Frontmatter is a discovery requirement of the client, so the
+        // capability decides — not this method. A per-skill client that does
+        // not require it gets the managed body alone.
+        if (!$capabilities->requiresFrontmatterAtByteZero) {
+            return $body;
+        }
+
         // `name` must match the directory so the listing label and the
         // command a user types agree; `description` is what Claude reads to
         // decide whether to load the skill.
@@ -100,7 +140,7 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
             "---\nname: %s\ndescription: %s\n---\n\n%s",
             $capabilities->skillDirectoryName($skill->id),
             $this->escapeYamlScalar($skill->description),
-            ManagedRegion::wrap($skill->body),
+            $body,
         );
     }
 
