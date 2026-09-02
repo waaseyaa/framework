@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+# Downstream custom field admission proof (#2786 / #2809).
+#
+# Builds two disposable consumers from the exact candidate tree and installs a
+# real external package carrying #[FieldType] plus an attributed entity:
+#   dev  Composer's normal development install
+#   prod Composer --no-dev --optimize-autoloader install
+# Both consumers then boot through install:init and exercise the manifest,
+# boot-scoped field manager, entity field registry, API schema, and GraphQL.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-custom-field-admission.XXXXXX")"
+source_root="$work/source"
+fixture="$source_root/tests/PackagedForm/fixtures/custom-field-package"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+mkdir -p "$source_root"
+"$root/bin/git" -C "$root" archive --format=tar HEAD     | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+# During local recovery this worktree may contain the uncommitted candidate
+# patch. Overlay tracked working-tree edits for a faithful local proof; CI runs
+# against a clean candidate archive and therefore has no overlay.
+if ! "$root/bin/git" -C "$root" diff --quiet HEAD --; then
+    "$root/bin/git" -C "$root" diff --binary HEAD -- | git -C "$source_root" apply --whitespace=nowarn
+fi
+
+# The fixture is part of the candidate once committed. Keep local recovery
+# runs useful while it is still untracked in this worktree.
+if [[ ! -d "$fixture" ]]; then
+    mkdir -p "$(dirname "$fixture")"
+    cp -R "$root/tests/PackagedForm/fixtures/custom-field-package" "$fixture"
+fi
+if [[ ! -f "$source_root/tests/PackagedForm/fixtures/custom-field-probe.php" ]]; then
+    mkdir -p "$source_root/tests/PackagedForm/fixtures"
+    cp "$root/tests/PackagedForm/fixtures/custom-field-probe.php" "$source_root/tests/PackagedForm/fixtures/custom-field-probe.php"
+fi
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+
+build_consumer() {
+    local mode="$1"
+    local consumer="$work/$mode"
+    mkdir -p "$consumer"
+    cp -R "$source_root/skeleton/." "$consumer/"
+    cp -R "$fixture" "$consumer/custom-field-package"
+    rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+    mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+    php -r '
+        $path = $argv[1];
+        $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $composer["repositories"] = [
+            ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+            ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+            ["type" => "path", "url" => $argv[3], "options" => ["symlink" => false]],
+        ];
+        $composer["require"]["waaseyaa/framework"] = "*";
+        $composer["require"]["fixture/custom-field"] = "*";
+        $composer["minimum-stability"] = "dev";
+        $composer["prefer-stable"] = true;
+        unset($composer["extra"]["merge-plugin"], $composer["scripts"]);
+        if ($argv[4] === "prod") {
+            unset($composer["require-dev"]);
+        }
+        file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    ' "$consumer/composer.json" "$source_root" "$consumer/custom-field-package" "$mode"
+
+    printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/consumer.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n'         "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
+
+    local install_args=(--working-dir="$consumer" --no-interaction --no-progress --prefer-dist --no-scripts)
+    if [[ "$mode" == "prod" ]]; then
+        install_args+=(--no-dev --optimize-autoloader)
+    fi
+    if ! "$composer_bin" install "${install_args[@]}" >"$work/$mode-composer.out" 2>&1; then
+        tail -100 "$work/$mode-composer.out" >&2
+        echo "Composer install failed for $mode consumer." >&2
+        exit 1
+    fi
+    if [[ "$mode" == "prod" ]] && ! php -r '$map = require $argv[1]; exit(isset($map["Fixture\\CustomField\\CustomMoneyFieldType"]) ? 0 : 1);' "$consumer/vendor/composer/autoload_classmap.php"; then
+        echo 'The optimized production consumer did not compile the downstream field-type classmap.' >&2
+        exit 1
+    fi
+
+    if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/$mode-install.out" 2>&1; then
+        cat "$work/$mode-install.out" >&2
+        echo "install:init failed for $mode consumer." >&2
+        exit 1
+    fi
+    grep -Fq 'Installation is complete.' "$work/$mode-install.out"
+
+    cp "$source_root/tests/PackagedForm/fixtures/custom-field-probe.php" "$consumer/custom-field-probe.php"
+    if ! php "$consumer/custom-field-probe.php" >"$work/$mode-probe.out" 2>&1; then
+        cat "$work/$mode-probe.out" >&2
+        echo "Packaged custom field probe failed for $mode consumer." >&2
+        exit 1
+    fi
+    grep -Fq 'packaged custom field admission OK' "$work/$mode-probe.out"
+    printf '%s consumer passed.\n' "$mode"
+}
+
+build_consumer dev
+build_consumer prod
+
+printf 'Packaged custom field admission proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"

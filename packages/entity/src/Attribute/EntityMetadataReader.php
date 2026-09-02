@@ -128,7 +128,7 @@ final class EntityMetadataReader
                 }
 
                 $field = $attributes[0]->newInstance();
-                $inferred = FieldTypeInferrer::infer($property, $field);
+                $inferred = FieldTypeInferrer::inferForRegisteredType($property, $field);
 
                 $definition = new FieldDefinition(
                     name: $property->getName(),
