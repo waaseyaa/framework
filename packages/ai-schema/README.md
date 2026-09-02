@@ -2,12 +2,14 @@
 
 **Layer 5 — AI**
 
-JSON Schema generation for AI integrations, with a sketched capability-registry contract for future tool input/output schema declaration.
+Principal-bound JSON Schema adaptation for AI integrations.
 
-Derives standards-compliant JSON Schema (draft 2020-12) from Waaseyaa entity type definitions. Used by the AI agent and pipeline layers to enforce typed contracts with language models.
+Adapts the Layer-1 field schema authority into closed draft-2020-12 entity
+schemas after explicit entity and field access checks. The package has no
+current runtime consumer; AI tools own their own input/output schemas.
 
 Key classes: `EntityJsonSchemaGenerator`.
 
 ## Spec
 
-See [`docs/specs/ai-schema.md`](../../docs/specs/ai-schema.md) for the full surface documentation and capability-registry contract sketch.
+See [`docs/specs/ai-schema.md`](../../docs/specs/ai-schema.md) for the full surface documentation.

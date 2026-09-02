@@ -19,6 +19,11 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class LinkItem extends AbstractFieldType
 {
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string', 'format' => 'uri'];
+    }
+
     public static function schema(): array
     {
         return [

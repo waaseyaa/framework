@@ -7,41 +7,34 @@ namespace Waaseyaa\GraphQL\Schema;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
-use Waaseyaa\Foundation\Log\LoggerInterface;
-use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Field\Exception\UnknownFieldTypeException;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 
 /**
  * Maps Waaseyaa field types to GraphQL scalar/object types.
  *
- * Mirrors the mapping in FieldDefinition::toJsonSchema().
+ * This is a GraphQL wire-type adapter, not JSON Schema authority. It accepts
+ * only ids present in the field-type registry and fails closed otherwise.
  */
 final class FieldTypeMapper
 {
-    private readonly LoggerInterface $logger;
     private ?ObjectType $textType = null;
     private ?InputObjectType $textInputType = null;
     private ?InputObjectType $entityReferenceInputType = null;
 
-    public function __construct(?LoggerInterface $logger = null)
-    {
-        $this->logger = $logger ?? new NullLogger();
-    }
+    public function __construct(private readonly FieldTypeManagerInterface $fieldTypes = new FieldTypeManager()) {}
 
     public function toOutputType(string $fieldType, bool $isMultiple): Type
     {
-        $known = true;
+        $this->assertRegistered($fieldType);
         $type = match ($fieldType) {
-            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string', 'json' => Type::string(),
+            'string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'text_long', 'decimal' => Type::string(),
             'integer' => Type::int(),
             'boolean' => Type::boolean(),
-            'float', 'decimal' => Type::float(),
-            'text', 'text_long' => $this->getTextType(),
-            default => (function () use ($fieldType, &$known): Type {
-                $known = false;
-                $this->logger->warning(sprintf('GraphQL: unknown field type "%s", falling back to String', $fieldType));
-
-                return Type::string();
-            })(),
+            'float' => Type::float(),
+            'text' => $this->getTextType(),
+            default => throw new \DomainException(sprintf('GraphQL has no output adapter for registered field type "%s".', $fieldType)),
         };
 
         return $isMultiple ? Type::listOf(Type::nonNull($type)) : $type;
@@ -49,14 +42,15 @@ final class FieldTypeMapper
 
     public function toInputType(string $fieldType, bool $isMultiple): Type
     {
+        $this->assertRegistered($fieldType);
         $type = match ($fieldType) {
-            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string', 'json' => Type::string(),
+            'string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'text_long', 'decimal' => Type::string(),
             'integer' => Type::int(),
             'boolean' => Type::boolean(),
-            'float', 'decimal' => Type::float(),
-            'text', 'text_long' => $this->getTextInputType(),
+            'float' => Type::float(),
+            'text' => $this->getTextInputType(),
             'entity_reference' => $this->getEntityReferenceInputType(),
-            default => Type::string(),
+            default => throw new \DomainException(sprintf('GraphQL has no input adapter for registered field type "%s".', $fieldType)),
         };
 
         return $isMultiple ? Type::listOf(Type::nonNull($type)) : $type;
@@ -65,6 +59,13 @@ final class FieldTypeMapper
     public function isEntityReference(string $fieldType): bool
     {
         return $fieldType === 'entity_reference';
+    }
+
+    private function assertRegistered(string $fieldType): void
+    {
+        if (!$this->fieldTypes->hasDefinition($fieldType)) {
+            throw UnknownFieldTypeException::for($fieldType);
+        }
     }
 
     private function getTextType(): ObjectType

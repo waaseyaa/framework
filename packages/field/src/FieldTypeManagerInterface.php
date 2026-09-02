@@ -15,4 +15,16 @@ interface FieldTypeManagerInterface extends PluginManagerInterface
 
     /** @return array<string, array{type: string, description?: string}> */
     public function getColumns(string $fieldType): array;
+
+    /** @return array<string, mixed> */
+    public function jsonSchemaFor(FieldDefinitionInterface $def): array;
+
+    /** @return array<string, mixed> */
+    public function entityValueJsonSchemaFor(FieldDefinitionInterface $def): array;
+
+    /** @return array<string, array{type: string, description?: string}> */
+    public function schemaFor(FieldDefinitionInterface $def): array;
+
+    /** @return list<string> */
+    public function blueprintFieldTypeIds(): array;
 }

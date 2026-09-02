@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Tests\Unit\Schema;
 
-use Waaseyaa\Api\Schema\SchemaPresenter;
-use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Entity\EntityType;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\EntityType;
 
 #[CoversClass(SchemaPresenter::class)]
 final class SchemaPresenterTest extends TestCase
@@ -135,13 +135,22 @@ final class SchemaPresenterTest extends TestCase
             public function registerCoreFields(string $entityTypeId, array $fields): void {}
             public function mergeCoreFields(string $entityTypeId, array $fields): void {}
             public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
-            public function coreFieldsFor(string $entityTypeId): array { return []; }
-            public function bundleFieldsFor(string $entityTypeId, string $bundle): array { return []; }
+            public function coreFieldsFor(string $entityTypeId): array
+            {
+                return [];
+            }
+            public function bundleFieldsFor(string $entityTypeId, string $bundle): array
+            {
+                return [];
+            }
             public function bundleNamesFor(string $entityTypeId): array
             {
                 return ['announcement', 'article', 'page'];
             }
-            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array { return []; }
+            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
+            {
+                return [];
+            }
         };
 
         $presenter = new SchemaPresenter($registry);
@@ -172,10 +181,22 @@ final class SchemaPresenterTest extends TestCase
             public function registerCoreFields(string $entityTypeId, array $fields): void {}
             public function mergeCoreFields(string $entityTypeId, array $fields): void {}
             public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
-            public function coreFieldsFor(string $entityTypeId): array { return []; }
-            public function bundleFieldsFor(string $entityTypeId, string $bundle): array { return []; }
-            public function bundleNamesFor(string $entityTypeId): array { return []; }
-            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array { return []; }
+            public function coreFieldsFor(string $entityTypeId): array
+            {
+                return [];
+            }
+            public function bundleFieldsFor(string $entityTypeId, string $bundle): array
+            {
+                return [];
+            }
+            public function bundleNamesFor(string $entityTypeId): array
+            {
+                return [];
+            }
+            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
+            {
+                return [];
+            }
         };
 
         $presenter = new SchemaPresenter($registry);
@@ -252,7 +273,7 @@ final class SchemaPresenterTest extends TestCase
 
         $fieldDefinitions = [
             'color' => [
-                'type' => 'list_string',
+                'type' => 'list',
                 'label' => 'Color',
                 'settings' => [
                     'allowed_values' => [
@@ -297,6 +318,25 @@ final class SchemaPresenterTest extends TestCase
 
         self::assertSame(-1, $schema['properties']['attachment']['x-cardinality']);
         self::assertSame(1, $schema['properties']['author']['x-cardinality']);
+    }
+
+    #[Test]
+    public function present_places_multiple_value_constraints_on_items(): void
+    {
+        $schema = $this->presenter->present($this->createEntityType(), [
+            'colors' => [
+                'type' => 'list',
+                'cardinality' => -1,
+                'settings' => ['allowed_values' => ['red' => 'Red', 'blue' => 'Blue']],
+            ],
+        ]);
+
+        self::assertSame(['red', 'blue'], $schema['properties']['colors']['items']['enum']);
+        self::assertArrayNotHasKey('enum', $schema['properties']['colors']);
+        self::assertSame(
+            ['red' => 'Red', 'blue' => 'Blue'],
+            $schema['properties']['colors']['x-enum-labels'],
+        );
     }
 
     #[Test]
@@ -374,7 +414,7 @@ final class SchemaPresenterTest extends TestCase
                 'settings' => ['min' => 3],
             ],
             'recorded_at' => [
-                'type' => 'timestamp',
+                'type' => 'datetime',
                 'label' => 'Recorded at',
             ],
         ]);

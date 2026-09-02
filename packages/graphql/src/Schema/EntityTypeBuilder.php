@@ -193,7 +193,22 @@ final class EntityTypeBuilder
                 // per-resolve); only the stateless sanitizer instance is
                 // captured into the closure (see class doc on why that is
                 // safe to share across the cached, cross-request schema).
-                if (RichTextSanitizer::isHtmlFieldType($fieldType)) {
+                if ($fieldType === 'json') {
+                    $fields[$fieldName] = [
+                        'type' => $graphqlType,
+                        'resolve' => static function (array $data) use ($fieldName): ?string {
+                            $value = $data[$fieldName] ?? null;
+                            if ($value === null || is_string($value)) {
+                                return $value;
+                            }
+
+                            return json_encode(
+                                $value,
+                                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+                            );
+                        },
+                    ];
+                } elseif (RichTextSanitizer::isHtmlFieldType($fieldType)) {
                     $richTextSanitizer = $this->richTextSanitizer;
                     $fields[$fieldName] = [
                         'type' => $graphqlType,

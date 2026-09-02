@@ -19,6 +19,11 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class DecimalItem extends AbstractFieldType
 {
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return static::jsonSchema();
+    }
+
     public static function schema(): array
     {
         return [

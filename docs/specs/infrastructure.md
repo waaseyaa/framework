@@ -9,6 +9,12 @@ before enumerating commands. The enduring contract text lives in
 package-discovery.md, "Optional package contributions"; the first adopter is
 cli's AiServiceProvider (cli-kernel.md). No kernel boot order, provider
 registration, or capability-registry validation semantics changed. -->
+
+<!-- Spec reviewed 2026-09-01 - #2786: HttpKernel resolves the provider-bound
+FieldSchemaAuthority through its existing HttpKernelServiceResolver and passes
+it into SchemaRouter/SchemaPresenter. This is composition wiring only: no new
+route, configuration, lifecycle, or kernel-owned service contract is added;
+the optional fallback preserves bare/unit construction. -->
 <!-- Spec reviewed 2026-09-01 - #2761: SqlSchemaHandler::assertRuntimeSchema()
 (the no-DDL contract every getRepository() resolution runs) now also
 validates declared entity-type foreign keys, not only base columns and

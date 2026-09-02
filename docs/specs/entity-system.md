@@ -256,6 +256,30 @@ File: `packages/entity/src/EntityValues.php`
 ### Admin JSON Schema vs `$casts`
 
 `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`) builds widgets from **EntityType field definitions**, not from entity class `$casts`. A VO field may still serialize correctly over JSON:API via `EntityValues` when `$casts` is set on the entity class; **admin form schema** for structured VOs may require explicit field definition work (e.g. object / JSON widget) in a follow-up — not inferred automatically from `$casts` (#1184).
+
+### Canonical field schema authority
+
+`FieldSchemaAuthority` and `FieldTypeManagerInterface` are the Layer-1
+structural introspection authority (#2786). The manager discovers real
+`#[FieldType]` plugins by default; unknown ids throw
+`UnknownFieldTypeException` and never degrade to `string`. Each plugin owns its
+field-item projection (`jsonSchemaFor`) and its explicitly distinct entity
+authoring projection (`entityValueJsonSchemaFor`). The latter feeds closed
+entity schemas with field type, cardinality, required/read-only state,
+translation/revision flags, and safe value constraints. Multi-value fields
+apply those constraints to each value through `items`, never to the array
+container. The `json` entity-value projection permits every native JSON type,
+matching the decoded values returned by both SQL storage backends. `decimal`
+remains a patterned string so SQLite and GraphQL preserve its lossless-text
+storage contract rather than coercing it through a binary float.
+
+Entity field enumeration remains owned by
+`EntityTypeManagerInterface::resolveFieldDefinitions()`. The schema authority
+accepts that effective set; it does not rediscover base or bundle fields.
+Authorization-aware adapters must bind an explicit principal and subject before
+exposing the result. Blueprint admission is also registry metadata via
+`blueprintFieldTypeIds()`; the Layer-0 site-contract enum is a closed mirror
+proven equal at the root architecture boundary.
 - Direct mutation of `$values` from outside the entity class is unsupported; subclasses that override `get`/`set` must preserve cast semantics or document exceptions.
 
 ### Rules for `toArray()`

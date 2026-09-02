@@ -10,8 +10,8 @@ use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldTypeManager;
 
 /**
- * Locks down bit-identical output of FieldDefinition::toJsonSchema() for every
- * field-type id that existed before the WP01 delegation refactor.
+ * Proves FieldDefinition::toJsonSchema() resolves through the registered
+ * field-type plugin authority for every original field type.
  *
  * The pre-refactor implementation was a hardcoded match in
  * FieldDefinition::toJsonSchema(); that mapping is now reachable via two
@@ -40,10 +40,10 @@ final class FieldDefinitionJsonSchemaRegressionTest extends TestCase
     /**
      * @return array<string, array{0: string, 1: array<string, mixed>}>
      */
-    public static function legacySchemaProvider(): array
+    public static function canonicalSchemaProvider(): array
     {
         return [
-            'string' => ['string', ['type' => 'string']],
+            'string' => ['string', ['type' => 'string', 'maxLength' => 255]],
             'integer' => ['integer', ['type' => 'integer']],
             'boolean' => ['boolean', ['type' => 'boolean']],
             'float' => ['float', ['type' => 'number']],
@@ -65,8 +65,8 @@ final class FieldDefinitionJsonSchemaRegressionTest extends TestCase
     }
 
     /** @param array<string, mixed> $expected */
-    #[DataProvider('legacySchemaProvider')]
-    public function testManagerlessFallbackEmitsLegacySchema(string $type, array $expected): void
+    #[DataProvider('canonicalSchemaProvider')]
+    public function testManagerlessConstructionUsesTheCanonicalRegistry(string $type, array $expected): void
     {
         $def = new FieldDefinition(name: 'f', type: $type);
 
@@ -74,8 +74,8 @@ final class FieldDefinitionJsonSchemaRegressionTest extends TestCase
     }
 
     /** @param array<string, mixed> $expected */
-    #[DataProvider('legacySchemaProvider')]
-    public function testManagerDelegationEmitsLegacySchema(string $type, array $expected): void
+    #[DataProvider('canonicalSchemaProvider')]
+    public function testManagerDelegationEmitsCanonicalSchema(string $type, array $expected): void
     {
         $def = new FieldDefinition(
             name: 'f',
@@ -86,11 +86,11 @@ final class FieldDefinitionJsonSchemaRegressionTest extends TestCase
         $this->assertSame($expected, $def->toJsonSchema());
     }
 
-    public function testUnknownTypeFallsBackToString(): void
+    public function testUnknownTypeFailsClosed(): void
     {
+        $this->expectException(\Waaseyaa\Field\Exception\UnknownFieldTypeException::class);
         $def = new FieldDefinition(name: 'f', type: 'unknown_type');
-
-        $this->assertSame(['type' => 'string'], $def->toJsonSchema());
+        $def->toJsonSchema();
     }
 
     public function testMultipleCardinalityWrapsLegacySchemaInArray(): void
@@ -103,7 +103,7 @@ final class FieldDefinitionJsonSchemaRegressionTest extends TestCase
         );
 
         $this->assertSame(
-            ['type' => 'array', 'items' => ['type' => 'string']],
+            ['type' => 'array', 'items' => ['type' => 'string', 'maxLength' => 255]],
             $def->toJsonSchema(),
         );
     }

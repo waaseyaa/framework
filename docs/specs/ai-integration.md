@@ -101,35 +101,30 @@ and an executable contract test.
 **File:** `packages/ai-schema/src/EntityJsonSchemaGenerator.php`
 **Class:** `Waaseyaa\AI\Schema\EntityJsonSchemaGenerator`
 
-Generates JSON Schema (draft 2020-12) from registered entity types. Takes an `EntityTypeManagerInterface` and inspects entity type definitions to produce a schema array.
+Adapts the lower-layer `FieldSchemaAuthority` to JSON Schema draft 2020-12.
+The utility enumerates the effective field set and requires an explicit entity
+subject, access handler, and immutable principal before it can expose schema.
 
 ### Constructor
 
 ```php
 public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
+    ?FieldSchemaAuthority $fieldSchemas = null,
 )
 ```
 
 ### Key Methods
 
-- `generate(string $entityTypeId): array` -- Produces a single JSON Schema for one entity type.
-- `generateAll(): array` -- Returns schemas for all registered entity types, keyed by entity type ID.
+- `generate(string $entityTypeId, EntityInterface $entity, EntityAccessHandler $accessHandler, AuthorizationPrincipalInterface $account): array` -- Produces one principal-bound schema after entity and field access checks.
 
 ### Schema Shape
 
-The generated schema maps entity keys to JSON Schema properties:
-
-| Entity Key | JSON Schema Type | Required |
-|------------|-----------------|----------|
-| id | `['integer', 'string']` | Yes |
-| uuid | `string` (format: uuid) | Yes |
-| label | `string` | Yes |
-| bundle | `string` | Yes |
-| langcode | `string` | No |
-| revision | `integer` (only if revisionable) | No |
-
-The output always includes `'$schema' => 'https://json-schema.org/draft/2020-12/schema'` and sets `'additionalProperties' => true` to allow non-key fields.
+The generated schema includes entity keys plus every effective field visible to
+the principal. Field plugins own the value shapes; cardinality, required state,
+read-only state, and translation/revision metadata are explicit. The result is
+closed with `additionalProperties: false`, and unknown field types fail closed.
+There is no unscoped `generateAll()` catalogue.
 
 ## Agent Tool System
 

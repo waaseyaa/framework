@@ -13,6 +13,7 @@ use Waaseyaa\Field\Item\FloatItem;
 use Waaseyaa\Field\Item\IntegerItem;
 use Waaseyaa\Field\Item\StringItem;
 use Waaseyaa\Field\Item\TextItem;
+use Waaseyaa\Field\Item\TextLongItem;
 
 /**
  * Field type system integration tests.
@@ -46,6 +47,7 @@ final class FieldTypeDiscoveryTest extends TestCase
             'boolean',
             'float',
             'text',
+            'text_long',
             'entity_reference',
             'datetime',
             'date',
@@ -68,9 +70,9 @@ final class FieldTypeDiscoveryTest extends TestCase
         }
 
         $this->assertCount(
-            16,
+            17,
             $definitions,
-            'All 16 built-in field types should be discovered',
+            'All 17 built-in field types should be discovered',
         );
     }
 
@@ -82,6 +84,7 @@ final class FieldTypeDiscoveryTest extends TestCase
             'boolean' => BooleanItem::class,
             'float' => FloatItem::class,
             'text' => TextItem::class,
+            'text_long' => TextLongItem::class,
             'entity_reference' => EntityReferenceItem::class,
         ];
 
@@ -103,6 +106,7 @@ final class FieldTypeDiscoveryTest extends TestCase
             'boolean' => 'Boolean',
             'float' => 'Float',
             'text' => 'Text',
+            'text_long' => 'Long text',
             'entity_reference' => 'Entity Reference',
         ];
 
@@ -225,7 +229,7 @@ final class FieldTypeDiscoveryTest extends TestCase
     public function testFieldDefinitionToJsonSchemaMatchesStringType(): void
     {
         $fieldDef = new FieldDefinition(name: 'title', type: 'string');
-        $this->assertSame(['type' => 'string'], $fieldDef->toJsonSchema());
+        $this->assertSame(['type' => 'string', 'maxLength' => 255], $fieldDef->toJsonSchema());
     }
 
     public function testFieldDefinitionToJsonSchemaMatchesIntegerType(): void
@@ -282,7 +286,7 @@ final class FieldTypeDiscoveryTest extends TestCase
 
         $schema = $fieldDef->toJsonSchema();
         $this->assertSame('array', $schema['type']);
-        $this->assertSame(['type' => 'string'], $schema['items']);
+        $this->assertSame(['type' => 'string', 'maxLength' => 255], $schema['items']);
     }
 
     // ---- FieldTypeManager getColumns ----

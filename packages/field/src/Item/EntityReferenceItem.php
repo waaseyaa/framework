@@ -19,6 +19,16 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class EntityReferenceItem extends AbstractFieldType
 {
+    public static function supportsBlueprint(): bool
+    {
+        return false;
+    }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string'];
+    }
+
     public static function schema(): array
     {
         return [
