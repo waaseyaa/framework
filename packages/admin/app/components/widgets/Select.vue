@@ -18,7 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const options = computed(() => {
-  const enumValues = props.schema?.enum ?? []
+  const enumValues = props.schema?.items?.enum ?? props.schema?.enum ?? []
   const labels = props.schema?.['x-enum-labels'] ?? {}
   return enumValues.map((val: string) => ({
     value: val,

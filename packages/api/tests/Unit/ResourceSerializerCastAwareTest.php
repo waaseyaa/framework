@@ -85,6 +85,36 @@ final class ResourceSerializerCastAwareTest extends TestCase
     }
 
     #[Test]
+    public function serializeFormatsIntegerTimestampSubtypeAsDateTimeString(): void
+    {
+        $manager = new EntityTypeManager(new EventDispatcher());
+        $manager->registerEntityType(EntityTypeFactory::create(
+            'cast_article',
+            ['published_at' => new FieldDefinition(
+                name: 'published_at',
+                type: 'integer',
+                settings: ['subtype' => 'timestamp'],
+            )],
+            keys: TestEntity::definitionKeys(),
+            class: CastAwareSerializeTestEntity::class,
+            label: 'Cast article',
+        ));
+
+        $entity = new CastAwareSerializeTestEntity([
+            'id' => 1,
+            'uuid' => 'uuid-cast-integer-timestamp',
+            'title' => 'T',
+            'type' => 'blog',
+            'published_at' => 1_709_510_400,
+        ], 'cast_article');
+
+        $resource = (new ResourceSerializer($manager))->serialize($entity);
+
+        self::assertIsString($resource->attributes['published_at']);
+        self::assertStringContainsString('2024-03-04', $resource->attributes['published_at']);
+    }
+
+    #[Test]
     public function serializeOmitsAnAccessorDeniedProtectedFieldInsteadOfThrowing(): void
     {
         $registry = new FieldDefinitionRegistry();

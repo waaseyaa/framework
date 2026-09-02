@@ -115,6 +115,28 @@ final class ClassificationLabelFieldType extends AbstractFieldType
         return static::jsonSchema();
     }
 
+    /**
+     * The entity-facing value is the resolved label identifier. The inheritance
+     * provenance columns remain a storage concern and are not part of the field
+     * value exposed through API, admin, AI, or GraphQL schema surfaces.
+     */
+    public static function entityValueJsonSchemaFor(FieldDefinitionInterface $def): array
+    {
+        return ['type' => ['string', 'null']];
+    }
+
+    /**
+     * Entity table storage keeps the scalar label identifier in the primary
+     * classification column; the lifecycle subscriber owns the provenance
+     * columns declared by schemaFor().
+     *
+     * @return array<string, mixed>
+     */
+    public static function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array
+    {
+        return static::schemaFor($def)['classification_label'];
+    }
+
     // ---------------------------------------------------------------------------
     // Default value
     // ---------------------------------------------------------------------------

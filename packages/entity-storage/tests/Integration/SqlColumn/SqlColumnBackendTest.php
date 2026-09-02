@@ -115,7 +115,7 @@ final class SqlColumnBackendTest extends TestCase
     {
         $fields = [
             new FieldDefinition(name: 'slug', type: 'string')->indexed(),
-            new FieldDefinition(name: 'score', type: 'int'),
+            new FieldDefinition(name: 'score', type: 'integer'),
         ];
         $builder = new SqlColumnSchemaBuilder($this->db);
         $builder->buildTable($this->entityType, $this->tableName, $fields, $this->makeBaseSpec());
@@ -150,14 +150,14 @@ final class SqlColumnBackendTest extends TestCase
         $entity = new TestEntity(['id' => 1]);
 
         $backend->write($entity, new FieldDefinition(name: 'title_field', type: 'string'), 'Hello World');
-        $backend->write($entity, new FieldDefinition(name: 'count', type: 'int'), 42);
-        $backend->write($entity, new FieldDefinition(name: 'active', type: 'bool'), true);
+        $backend->write($entity, new FieldDefinition(name: 'count', type: 'integer'), 42);
+        $backend->write($entity, new FieldDefinition(name: 'active', type: 'boolean'), true);
         $backend->write($entity, new FieldDefinition(name: 'created_at', type: 'datetime'), '2026-05-11T12:00:00Z');
         $backend->write($entity, new FieldDefinition(name: 'metadata', type: 'json'), ['key' => 'value', 'n' => 7]);
 
         $title = $backend->read($entity, new FieldDefinition(name: 'title_field', type: 'string'));
-        $count = $backend->read($entity, new FieldDefinition(name: 'count', type: 'int'));
-        $active = $backend->read($entity, new FieldDefinition(name: 'active', type: 'bool'));
+        $count = $backend->read($entity, new FieldDefinition(name: 'count', type: 'integer'));
+        $active = $backend->read($entity, new FieldDefinition(name: 'active', type: 'boolean'));
         $created = $backend->read($entity, new FieldDefinition(name: 'created_at', type: 'datetime'));
         $meta = $backend->read($entity, new FieldDefinition(name: 'metadata', type: 'json'));
 
@@ -217,7 +217,7 @@ final class SqlColumnBackendTest extends TestCase
         $backend = $this->makeBackend();
         $query = new class implements EntityQuery {};
 
-        foreach (['string', 'int', 'bool', 'datetime', 'json', 'uuid', 'text', 'float', 'decimal'] as $type) {
+        foreach (['string', 'integer', 'boolean', 'datetime', 'json', 'text', 'float', 'decimal'] as $type) {
             $field = new FieldDefinition(name: 'f', type: $type);
             self::assertTrue(
                 $backend->supportsQuery($field, $query),
@@ -319,8 +319,8 @@ final class SqlColumnBackendTest extends TestCase
     {
         return [
             new FieldDefinition(name: 'title_field', type: 'string'),
-            new FieldDefinition(name: 'count', type: 'int'),
-            new FieldDefinition(name: 'active', type: 'bool'),
+            new FieldDefinition(name: 'count', type: 'integer'),
+            new FieldDefinition(name: 'active', type: 'boolean'),
             new FieldDefinition(name: 'created_at', type: 'datetime'),
             new FieldDefinition(name: 'metadata', type: 'json'),
         ];

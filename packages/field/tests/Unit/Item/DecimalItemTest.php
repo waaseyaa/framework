@@ -22,9 +22,15 @@ class DecimalItemTest extends TestCase
     public function testJsonSchema(): void
     {
         $this->assertSame(
-            ['type' => 'string', 'pattern' => '^-?\\d+\\.\\d+$'],
+            ['type' => 'string', 'pattern' => '^-?\\d+(?:\\.\\d+)?$'],
             DecimalItem::jsonSchema(),
         );
+    }
+
+    public function testEntityStorageUsesLosslessText(): void
+    {
+        $definition = new \Waaseyaa\Field\FieldDefinition(name: 'amount', type: 'decimal');
+        $this->assertSame(['type' => 'text'], DecimalItem::entityStorageColumnSchemaFor($definition));
     }
 
     public function testDefaultSettings(): void

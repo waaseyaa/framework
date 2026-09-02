@@ -94,6 +94,10 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         return new GenericAdminSurfaceHost(
             entityTypeManager: $entityTypeManager,
             accessHandler: $this->discoverAccessHandler(),
+            // SchemaPresenter composes its field-schema authority over the
+            // shared FieldTypeManager::default() registry — the same instance
+            // FieldServiceProvider binds — so this Layer-6 provider needs no
+            // direct waaseyaa/field import to converge on it.
             schemaPresenter: new SchemaPresenter(
                 $fieldDefinitionRegistry instanceof FieldDefinitionRegistryInterface
                     ? $fieldDefinitionRegistry

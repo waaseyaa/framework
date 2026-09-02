@@ -23,13 +23,18 @@ final class FieldTypeMapper
     private ?InputObjectType $textInputType = null;
     private ?InputObjectType $entityReferenceInputType = null;
 
-    public function __construct(private readonly FieldTypeManagerInterface $fieldTypes = new FieldTypeManager()) {}
+    public function __construct(?FieldTypeManagerInterface $fieldTypes = null)
+    {
+        $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
+    }
+
+    private readonly FieldTypeManagerInterface $fieldTypes;
 
     public function toOutputType(string $fieldType, bool $isMultiple): Type
     {
         $this->assertRegistered($fieldType);
         $type = match ($fieldType) {
-            'string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'text_long', 'decimal' => Type::string(),
+            'string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'text_long', 'decimal', 'classification_label' => Type::string(),
             'integer' => Type::int(),
             'boolean' => Type::boolean(),
             'float' => Type::float(),
@@ -44,7 +49,7 @@ final class FieldTypeMapper
     {
         $this->assertRegistered($fieldType);
         $type = match ($fieldType) {
-            'string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'text_long', 'decimal' => Type::string(),
+            'string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'text_long', 'decimal', 'classification_label' => Type::string(),
             'integer' => Type::int(),
             'boolean' => Type::boolean(),
             'float' => Type::float(),

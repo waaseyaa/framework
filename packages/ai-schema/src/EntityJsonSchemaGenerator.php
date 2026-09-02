@@ -10,6 +10,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Field\FieldSchemaAuthority;
 use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldVisibilityPolicy;
 
 /**
  * Generates JSON Schema (draft 2020-12) for entity types.
@@ -23,11 +24,15 @@ final class EntityJsonSchemaGenerator
 {
     private readonly FieldSchemaAuthority $fieldSchemas;
 
+    private readonly FieldVisibilityPolicy $fieldVisibility;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         ?FieldSchemaAuthority $fieldSchemas = null,
+        ?FieldVisibilityPolicy $fieldVisibility = null,
     ) {
-        $this->fieldSchemas = $fieldSchemas ?? new FieldSchemaAuthority(new FieldTypeManager());
+        $this->fieldSchemas = $fieldSchemas ?? new FieldSchemaAuthority(FieldTypeManager::default());
+        $this->fieldVisibility = $fieldVisibility ?? new FieldVisibilityPolicy();
     }
 
     /**
@@ -49,8 +54,9 @@ final class EntityJsonSchemaGenerator
         }
         $entityType = $this->entityTypeManager->getDefinition($entityTypeId);
         $fields = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId, $entity->bundle());
-        foreach ($fields as $name => $_definition) {
-            if ($accessHandler->checkFieldAccess($entity, $name, 'view', $account)->isForbidden()) {
+        foreach ($fields as $name => $definition) {
+            if ($this->fieldVisibility->isInternal($entityTypeId, $name, $definition)
+                || $accessHandler->checkFieldAccess($entity, $name, 'view', $account)->isForbidden()) {
                 unset($fields[$name]);
             }
         }

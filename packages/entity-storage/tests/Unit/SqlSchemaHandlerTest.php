@@ -251,7 +251,7 @@ final class SqlSchemaHandlerTest extends TestCase
         $this->assertFalse($db->schema()->fieldExists('note', 'published_revision_id'));
     }
 
-    public function testDeriveColumnSpecMapsTextLongUriAndEntityReference(): void
+    public function testDeriveColumnSpecUsesRegisteredPluginAuthority(): void
     {
         $handler = new SqlSchemaHandler($this->entityType, $this->database);
         $m = new ReflectionMethod(SqlSchemaHandler::class, 'deriveColumnSpec');
@@ -259,12 +259,12 @@ final class SqlSchemaHandlerTest extends TestCase
         $textLong = new FieldDefinition(name: 'description', type: 'text_long');
         self::assertSame('text', $this->invokeDeriveColumnSpec($m, $handler, $textLong)['type']);
 
-        $uri = new FieldDefinition(name: 'url', type: 'uri');
+        $uri = new FieldDefinition(name: 'url', type: 'link');
         $uriSpec = $this->invokeDeriveColumnSpec($m, $handler, $uri);
         self::assertSame('varchar', $uriSpec['type']);
         self::assertSame(2048, $uriSpec['length']);
 
-        $uriCustom = new FieldDefinition(name: 'booking_url', type: 'uri', settings: ['length' => 512]);
+        $uriCustom = new FieldDefinition(name: 'booking_url', type: 'link', settings: ['length' => 512]);
         self::assertSame(512, $this->invokeDeriveColumnSpec($m, $handler, $uriCustom)['length']);
 
         // Waaseyaa cross-entity references are the destination entity's UUID
@@ -274,22 +274,13 @@ final class SqlSchemaHandlerTest extends TestCase
         self::assertSame('varchar', $this->invokeDeriveColumnSpec($m, $handler, $ref)['type']);
     }
 
-    public function testDeriveColumnSpecLogsWarningForUnknownType(): void
+    public function testDeriveColumnSpecRejectsUnknownType(): void
     {
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects(self::once())->method('warning')->with(
-            self::stringContains('unknown field type'),
-            self::callback(static function (array $context): bool {
-                return ($context['field_type'] ?? '') === 'not_a_real_field_type'
-                    && ($context['field'] ?? '') === 'weird';
-            }),
-        );
-
-        $handler = new SqlSchemaHandler($this->entityType, $this->database, null, null, $logger);
+        $handler = new SqlSchemaHandler($this->entityType, $this->database);
         $m = new ReflectionMethod(SqlSchemaHandler::class, 'deriveColumnSpec');
         $field = new FieldDefinition(name: 'weird', type: 'not_a_real_field_type');
-        $spec = $this->invokeDeriveColumnSpec($m, $handler, $field);
-        self::assertSame('text', $spec['type']);
+        $this->expectException(\Waaseyaa\Field\Exception\UnknownFieldTypeException::class);
+        $this->invokeDeriveColumnSpec($m, $handler, $field);
     }
 
     public function testSeedRevisionsCreatesRevision1ForExistingRows(): void
