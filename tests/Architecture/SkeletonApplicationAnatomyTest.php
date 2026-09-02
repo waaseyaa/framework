@@ -51,16 +51,24 @@ final class SkeletonApplicationAnatomyTest extends TestCase
 
         foreach ([
             'src/Provider/AppServiceProvider.php',
-            'src/Access',
-            'src/Entity',
             'templates',
             'config/waaseyaa.php',
             'config/entity-types.php',
             'config/services.php',
             'tests/Unit',
-            'tests/Integration',
         ] as $skeletonPath) {
             self::assertFileExists($this->root . '/skeleton/' . $skeletonPath, $skeletonPath);
+        }
+
+        // #2438 / ADR-024: the skeleton ships minimal and bootable, with no
+        // placeholder directories. `src/Access/`, `src/Entity/`, and
+        // `tests/Integration/` are documented (asserted above, as guide text)
+        // but not pre-scaffolded — each is created only when a generator or a
+        // hand-written file first writes into it. Their absence here is the
+        // decision, not a gap: `packages/testing/tests/Unit/SkeletonLayoutTest.php`
+        // guards against a `.gitkeep` placeholder reappearing in any of them.
+        foreach (['src/Access', 'src/Entity', 'tests/Integration'] as $onDemandPath) {
+            self::assertDirectoryDoesNotExist($this->root . '/skeleton/' . $onDemandPath, $onDemandPath);
         }
 
         foreach ([

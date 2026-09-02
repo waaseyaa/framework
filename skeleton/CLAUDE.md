@@ -9,6 +9,11 @@ A Waaseyaa application built on the [Waaseyaa framework](https://github.com/waas
 
 ## Architecture
 
+The skeleton ships only `src/Provider/` and `src/Http/` (#2438). The
+directories below are conventional locations, not pre-scaffolded ones — each
+appears the moment a generator or a hand-written file lands in that role (see
+`docs/application-anatomy.md` for exactly which generator owns which one):
+
 ```
 src/
 ├── Access/        Authorization policies

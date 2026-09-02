@@ -33,6 +33,38 @@ final class SkeletonLayoutTest extends TestCase
     }
 
     /**
+     * #2438 / ADR-024: the skeleton ships minimal and bootable, with no
+     * placeholder directories. `.gitkeep` was the only mechanism ever used to
+     * scaffold an empty directory into `skeleton/`, so a `.gitkeep` reappearing
+     * anywhere under it is exactly the regression this guards: an optional
+     * architectural area must appear only when a deterministic generator
+     * writes a real file into it, never as a pre-scaffolded empty directory.
+     */
+    #[Test]
+    public function skeletonShipsNoPlaceholderGitkeepFiles(): void
+    {
+        $repoRoot = dirname(__DIR__, 4);
+        $skeletonRoot = $repoRoot . '/skeleton';
+
+        $found = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($skeletonRoot, \FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if ($file->getFilename() === '.gitkeep') {
+                $found[] = substr((string) $file->getPathname(), strlen($repoRoot) + 1);
+            }
+        }
+
+        self::assertSame(
+            [],
+            $found,
+            'skeleton/ must ship no placeholder .gitkeep files (#2438, ADR-024); '
+            . 'an optional area is created only when a generator writes a real file into it.',
+        );
+    }
+
+    /**
      * Guard: `composer run dev` routes to the discoverable `waaseyaa dev`
      * command (provided by the optional waaseyaa/frankenphp package) via
      * Composer's OWN PHP (`@php`), so it works identically in Git Bash,

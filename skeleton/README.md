@@ -64,16 +64,19 @@ bin/
 └── site-verify          POSIX shell adapter for the same entry
 
 src/
-├── Access/        Authorization policies
-├── Controller/    HTTP controllers (thin orchestration)
-├── Domain/        Domain logic grouped by bounded context
-├── Entity/        ORM entities (pure data models)
-├── Ingestion/     Inbound data pipelines (files, email, APIs)
-├── Provider/      Service providers (bootstrapping, DI, routing)
-├── Search/        Search providers, autocomplete, indexing
-├── Seed/          Seeders for dev/local bootstrap
-└── Support/       Cross-cutting utilities (ValueObjects, helpers)
+├── Http/           Front-controller support (BootFailureResponder)
+└── Provider/       Service providers (bootstrapping, DI, routing)
 ```
+
+The skeleton ships only what a fresh application needs to boot (#2438): no
+empty placeholder directories. `src/Access/`, `src/Controller/`, `src/Domain/`,
+`src/Entity/`, `src/Ingestion/`, `src/Search/`, `src/Seed/`, `src/Support/`,
+`tests/Integration/`, and `migrations/` are not scaffolded up front — each
+appears the moment something writes a real file into it, whether that is a
+generator (`make:content-type` creates `src/Entity/` and `src/Provider/`
+together; `make:migration` creates `migrations/`) or your own first file in
+that role. See [Application anatomy](docs/application-anatomy.md) for the full
+ownership map and the path each area is created on.
 
 ### Domain Rules
 

@@ -5,12 +5,17 @@
          colors="true"
          cacheDirectory=".phpunit.cache"
 >
+    <!--
+        No "Integration" testsuite: tests/Integration/ is not part of the
+        minimal skeleton (#2438) — it is not scaffolded empty, and PHPUnit
+        13 refuses to boot at all when a declared testsuite directory does
+        not exist. When you add your first boundary test, create
+        tests/Integration/ and add the testsuite entry back yourself; see
+        docs/application-anatomy.md.
+    -->
     <testsuites>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
-        </testsuite>
-        <testsuite name="Integration">
-            <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>
 
