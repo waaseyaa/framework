@@ -65,26 +65,26 @@
         "php": ">=8.5",
         "symfony/messenger": "^7.0",
         "symfony/uid": "^7.0",
-        "waaseyaa/access": "^0.1.0-alpha.299",
-        "waaseyaa/ai-observability": "^0.1.0-alpha.299",
-        "waaseyaa/ai-tools": "^0.1.0-alpha.299",
-        "waaseyaa/api": "^0.1.0-alpha.299",
-        "waaseyaa/bimaaji": "^0.1.0-alpha.299",
-        "waaseyaa/audit": "^0.1.0-alpha.299",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.299",
-        "waaseyaa/entity": "^0.1.0-alpha.299",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.299",
-        "waaseyaa/foundation": "^0.1.0-alpha.299",
-        "waaseyaa/http-client": "^0.1.0-alpha.299",
-        "waaseyaa/config": "^0.1.0-alpha.299",
-        "waaseyaa/routing": "^0.1.0-alpha.299"
+        "waaseyaa/access": "^0.1.0-alpha.300",
+        "waaseyaa/ai-observability": "^0.1.0-alpha.300",
+        "waaseyaa/ai-tools": "^0.1.0-alpha.300",
+        "waaseyaa/api": "^0.1.0-alpha.300",
+        "waaseyaa/bimaaji": "^0.1.0-alpha.300",
+        "waaseyaa/audit": "^0.1.0-alpha.300",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.300",
+        "waaseyaa/entity": "^0.1.0-alpha.300",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.300",
+        "waaseyaa/foundation": "^0.1.0-alpha.300",
+        "waaseyaa/http-client": "^0.1.0-alpha.300",
+        "waaseyaa/config": "^0.1.0-alpha.300",
+        "waaseyaa/routing": "^0.1.0-alpha.300"
     },
     "suggest": {
         "waaseyaa/wayfinding": "Provides optional trail tools for AI agents"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/wayfinding": "^0.1.0-alpha.299"
+        "waaseyaa/wayfinding": "^0.1.0-alpha.300"
     },
     "autoload": {
         "psr-4": {

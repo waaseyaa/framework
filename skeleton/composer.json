@@ -8,7 +8,7 @@
         "ext-pdo_sqlite": "*",
         "ext-sqlite3": "*",
         "symfony/dotenv": "^8.0",
-        "waaseyaa/framework": "^0.1.0-alpha.299"
+        "waaseyaa/framework": "^0.1.0-alpha.300"
     },
     "autoload": {
         "psr-4": {
@@ -22,7 +22,7 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/ai-development": "^0.1.0-alpha.299",
+        "waaseyaa/ai-development": "^0.1.0-alpha.300",
         "wikimedia/composer-merge-plugin": "^2.1"
     },
     "config": {

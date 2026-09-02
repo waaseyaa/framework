@@ -1,6 +1,6 @@
 {
     "schema_version": 1,
-    "composer_lock_sha256": "705b9981207572adc60aca980614f9a15eae29a139e2e15cd7d8664b090502e1",
+    "composer_lock_sha256": "278cddf06d2bd101a2a1243813bbdf446fc91af82ff47ceac7b2e10cac136d67",
     "dependencies": [
         {
             "name": "doctrine/dbal",

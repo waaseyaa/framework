@@ -25,9 +25,9 @@
         "ext-xmlreader": "*",
         "ext-zip": "*",
         "php": "^8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.299",
-        "waaseyaa/field": "^0.1.0-alpha.299",
-        "waaseyaa/foundation": "^0.1.0-alpha.299"
+        "waaseyaa/entity": "^0.1.0-alpha.300",
+        "waaseyaa/field": "^0.1.0-alpha.300",
+        "waaseyaa/foundation": "^0.1.0-alpha.300"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0"

@@ -7,6 +7,1998 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.300] - 2026-09-02
+
+### Added
+
+- **Added — the release cut now proves the candidate survives *packaging*, not
+  just booting (#2649).** `ci/split-artifact-acceptance` seals the exact commit
+  into a local Composer **artifact** repository and runs
+  `composer create-project` against it, so a consumer's entire `waaseyaa/*`
+  graph arrives as extracted archive bytes with no path repository, no VCS
+  repository, and no symlink back into the checkout. Because ci.yml must be
+  green on the exact commit before `release-cut.yml` mints the release-identity
+  token, the gate blocks tag creation without creating a tag, publishing
+  anything, or contacting a registry for any `waaseyaa/*` name.
+
+  **Why the two proofs either side of it were not enough.**
+  `ci/fresh-install-boot` (#2426) runs pre-tag but resolves every `waaseyaa/*`
+  through path repositories, so its consumer's `vendor/waaseyaa` is symlinked
+  into the source tree and `git archive`, `export-ignore`, and the split
+  boundary are never exercised at all. `Skeleton Smoke (Packaged-form CI)` does
+  install genuinely published bytes — but only after the tag exists, and a
+  post-publication proof cannot block a publication. This gate occupies the gap:
+  distributable artifacts, before the tag.
+
+  **The seal is `git archive`, not a directory copy.** Each member is produced
+  by `git archive --format=zip` — the root framework dist from `HEAD`, the
+  skeleton from `HEAD:skeleton`, and every split package from
+  `HEAD:packages/<dir>` — which is the tree the split mirror publishes and the
+  bytes git would export. The single mutation is the `version` key an artifact
+  repository reads where Packagist would read a tag; `repositories`,
+  `require-dev`, and everything else stay exactly as exported, so byte
+  comparison stays honest. The repository is declared `only: ["waaseyaa/*"]` and
+  therefore **canonical** for those names: Composer never consults Packagist for
+  a `waaseyaa/*` package, so a published release cannot silently satisfy a
+  requirement the candidate was supposed to.
+
+  **Four surfaces are live.** *Composition* — the installed `waaseyaa/*` set
+  equals the sealed transitive closure of `waaseyaa/framework` exactly (a
+  package silently added or dropped is a failure, not a shrug), every member
+  carries the sealed candidate version, and every member's recorded dist is a
+  zip inside the local artifact directory. *Exported files* — every installed
+  package tree is byte-identical to the archive it came from, the skeleton's
+  pinned exported paths survive `create-project`, and the #2543 admin-surface
+  manifests are exercised as a **pinned fixture**: `dist.manifest.json` and
+  `dist.markers.json` must reach the installed package, and the consumer
+  procedure documented in `packages/admin-surface/contract/README.md` — recompute
+  `identityDigest`, then recompute `published.treeDigest` over the installed
+  `dist/` — must succeed against those bytes. They are consumed, never
+  regenerated. *Bootstrap* — the artifact-installed consumer completes
+  `install:init` and then boots through ordinary runtime with a day-one entity
+  round-trip. *`--no-dev` exclusion* — a second consumer installed with
+  `--no-dev` carries no development dependency, registers no test namespace,
+  retains the complete runtime closure, and still boots; that last assertion is
+  the `waaseyaa/graphql` alpha.106 → alpha.107 outage class, where a class under
+  `src/` extending a dev-only symbol took a consumer's kernel down at manifest
+  compilation.
+
+  **Two surfaces #2649 names are reserved, and say so.** The development
+  metapackage `waaseyaa/ai-development` is #2655, and **#2655 depends on this
+  issue** — requiring it here would make the pair circular and neither could
+  land. stdio initialization is #2659, gated behind #2657's design, which is not
+  accepted. Rather than narrow the acceptance in silence, both are recorded in
+  `tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json` with
+  their blocking issue and the exact hook a future change adds, and the harness
+  prints them as `RESERVED` on every run. The metapackage entry **fails closed**:
+  the seal enumerates `packages/*/composer.json`, so `waaseyaa/ai-development` is
+  sealed the day it exists, and composition then refuses to pass until the entry
+  is flipped to live.
+
+  **The harness proves it can fail, on every run.** After the four live surfaces
+  pass, eleven seeded negative controls re-run each assertion against
+  deliberately corrupted overlays — a #2543 manifest deleted, an exported byte
+  drifted, an admin dist file tampered with, a required package dropped from
+  `installed.json`, a foreign version, a dist resolved outside the artifact
+  repository, the reserved metapackage appearing, a symlink planted into the
+  source checkout, a dev package retained under `--no-dev`, the dev flag left
+  true — and the run fails if any survives. The overlays are surgical copies, so
+  the whole proof costs seconds rather than another install.
+
+  `tests/Architecture/SplitArtifactAcceptanceGateTest.php` is the fast
+  repo-state half. It binds the surface roster to the harness, keeps the
+  negative-control set intact, and pins the two properties a passing run cannot
+  demonstrate about itself: that the gate creates no tag and contacts no
+  registry, and that post-tag Skeleton Smoke **remains alert-only** — it watches
+  registry propagation, which this gate structurally cannot see, and it runs
+  after the tag it would have to gate, so making it blocking would be a lie.
+
+  The long half is a hosted consumer lane, like `ci/fresh-install-boot` and
+  `ci/bimaaji-skill-resources`, so it is deliberately **not** in
+  `tools/preflight-gates.json`: it needs network access for third-party
+  dependencies and minutes of Composer work, and the pre-push hook is for fast
+  repo-state gates (`docs/specs/governed-gates.md` §1). Run it directly with
+  `bash tests/PackagedForm/check-split-artifact-acceptance`; it seals `HEAD` and
+  refuses a dirty worktree unless `--allow-dirty` is passed, which CI never does.
+  Composer 2.9 or newer is required — 2.8.x cannot download a local artifact
+  dist on PHP 8.5, and the harness says so rather than surfacing a bare
+  `TypeError`.
+
+- **The two 2026-08-29 audits are now in the repository, reconciled against the
+  code as it stands rather than as it stood.** `docs/audits/2026-08-29-skeleton-audit.md`
+  and `docs/audits/2026-08-29-boost-parity-agent-surface.md` were written, acted
+  on, and never committed, so the evidence behind twelve merged pull requests
+  lived only in a session transcript. Both are committed with their original
+  findings byte-preserved and a dated status block appended to every one:
+  `FIXED` with the merge that closed it, `STILL OPEN` with the issue that owns
+  it, or `SUPERSEDED`. Fixed since: the skeleton's `.env` secrets no longer reach
+  the Docker build context and three CI assertions prove it (#2647); the
+  unrendered-Twig `HomeController` is gone and SSR owns `/` (#2651);
+  `bimaaji:install` resolves eleven canonical Agent Skills from
+  `packages/bimaaji/resources/skills/` anchored on `__DIR__` instead of a
+  monorepo-only project root, behind the required `ci/bimaaji-skill-resources`
+  check (#2656); the `bin/dev` the skeleton README documented and never shipped
+  is gone, with `composer run dev` recorded as the real launcher (#2644); the
+  skeleton `CLAUDE.md` placeholder note and its non-existent `feature-dev` route
+  are gone (#2656); and the `docs/specs/bimaaji.md` M5 deferral that contradicted
+  a fully implemented `src/Install/` is corrected (#2656). Three findings were
+  re-judged rather than accepted at face value. Skeleton **S1** is *narrowed, not
+  closed*: `.ci/site-verify.php` now exits 3 with the two commands that fix it and
+  the shell adapter is a wrapper, so the failure names its own remedy — but
+  nothing runs `site:init` for the developer, so a first push before
+  initialization is still red, and the residue belongs to #2664/#2665. Skeleton
+  **S6** was right that the README advertised a file that did not exist, and the
+  supported command was always `composer run dev` routing to
+  `Waaseyaa\FrankenPHP\Command\DevCommand`. Skeleton **S8** was **wrong when
+  written** and is marked as such: the anatomy document already said `migrations/`
+  is created on first `make:migration` three days before the audit, and behaviour
+  agrees in both directions — `MakeMigrationHandler` creates the directory and
+  `MigrationLoader::loadFromDirectory()` returns an empty set when it is absent.
+  Still open and now attributed: metapackage reach (#2655), the registry bridge
+  (#2657), `LocalOperatorPrincipal` (#2658), stdio (#2659), guidance ownership
+  (#2660), the spec corpus and cited FTS search (#2661/#2662), project-local MCP
+  descriptors (#2663), and the root distribution allowlist and three-surface
+  exclusion policy (#2650/#2648) — plus unfiled residue in the skeleton's
+  merge-plugin recipe documentation, an unchecked `file_get_contents` in
+  `post-create-setup.php`, a `phpunit.xml.dist` with no `failOn*` flags, an
+  orphaned `mcp/node_modules` ignore rule, and an empty `packages/telescope/`
+  that both the layer table and ADR-020 describe as populated. **S10's stated
+  consequence was wrong and is corrected**: the unchecked read is real, but
+  `strict_types=1` at `:3` means the `str_replace()` at `:17` receives `false`
+  and throws `TypeError` before `file_put_contents()` at `:24` ever runs —
+  confirmed by execution on PHP 8.5.8, exit 255 — so the script aborts
+  `create-project` loudly rather than silently writing an empty `.env`. Seven
+  findings discovered during the follow-up work and never in the original pass
+  are folded in with the same treatment: the skeleton production image had never
+  built at all (#2673, fixed); the Dependabot rebuild's privileged `publish` job
+  ran an **unpinned** PHP — present, but too old to parse the PHP 8.4+ `new
+  Foo()->bar()` syntax at `bin/admin-dist-acceptance:73` — and the three-job
+  split keeps both the pinned interpreter and the third-party action that
+  installs it outside a `contents: write` job under `pull_request_target` (#2704,
+  fixed); the FPM-versus-FrankenPHP container topology (#2702); shared root
+  `AGENTS.md` multi-writer ownership (#2686); the Windows file-symlink
+  target-guard evidence gap (#2693); the `spec-reviewed:` trailer that the
+  contract describes and the drift detector refuses (#2675); and the bot-authored
+  rebuild's check lifecycle (#2707). That last one was **wrong in two successive
+  formulations and both are recorded**: a `GITHUB_TOKEN`-authored commit does not
+  make `pull_request` checks unreportable, and the runs are not skipped — they
+  sit at `action_required` awaiting approval and succeed once approved, evidenced
+  by run 33287914400 (`Admin SPA`, `event=pull_request`, `success`, head
+  `2a05e10d1`). `admin.yml` and `changelog-discipline.yml` do re-run;
+  `surface-parity.yml` correctly does not, because its path filters match neither
+  an admin dependency bump nor the `packages/admin-surface/dist/**` rebuild; and
+  `spec-drift` is not a required context at all. What survives is narrower and
+  real — the `gh workflow run ci.yml` workaround reproduces every required
+  context name but leaves `ci/coverage`'s changed-lines base empty, so a required
+  gate reports green having measured less. Documentation only; no source,
+  workflow, test, or manifest changes.
+
+- **ADR-022 records the trust boundary for the forthcoming local AI-development
+  plane, before any of it is built.** A CLI process runs under SAPI `cli`, which
+  is not in `HttpKernel::DEV_FALLBACK_SAPIS` (`['cli-server', 'frankenphp']`), so
+  a stdio MCP server starts with no acting account — and because
+  `AbstractAgentTool::requireCapability()` checks `hasPermission()` and returns a
+  `forbidden` envelope on a miss, every tool call would come back refused. The
+  obvious shortcut is `DevAdminAccount`, whose own SAPI guard does allow `cli`,
+  and which returns `PHP_INT_MAX` for its id, `true` for every permission,
+  `['administrator']` for its roles, and the constant `'dev-admin'` for its claims
+  generation. The ADR refuses that shortcut and settles the alternative:
+  `waaseyaa/ai-development` is a `require-dev` Composer metapackage that owns no
+  code, is absent after `composer install --no-dev`, takes `waaseyaa/testing` as a
+  direct dependency, and must not require `waaseyaa/mcp` — because
+  `McpRouteProvider` registers `/mcp/write` unconditionally, so pulling that
+  package in to obtain a transport would add an HTTP route to every application
+  that installed a development tool. The acting identity is a never-persisted
+  `LocalOperatorPrincipal` modelled on the existing
+  `Waaseyaa\Migration\Account\MigrationSystemAccount`, homed in
+  `waaseyaa/ai-agent` rather than `waaseyaa/ai-tools` because the latter is a
+  production `require` of both the root manifest and `packages/full`, so siting
+  it there would have shipped the design's most security-sensitive class into
+  every production `full` install by a route `--no-dev` does not touch. The ADR
+  is explicit that packaging is the weaker control and the runtime refusal is the
+  real one, so the refusal must be proven by test rather than inferred from where
+  the file sits. The principal itself is a fixed string sentinel id
+  rather than an integer, a strict membership test for `hasPermission()`, no
+  `administrator` role, `tenantId()` and `communityId()` unbound, and a
+  `claimsGeneration()` digested over the granted capabilities and the active read
+  policy so a widened grant cannot be served from a cache entry computed under the
+  narrower one. Six refusal boundaries are normative — HTTP authentication, token
+  validation, persistent account resolution, entity ownership and attribution,
+  serialization, and non-development runtimes — each required to fail loudly
+  rather than silently downgrade to anonymous; the ownership row is grounded in
+  `EntityRepository::resolveActor()`, which casts the ambient account id to `int`,
+  turning a string sentinel into uid `0`. Audit correlation goes through the
+  existing strict reserve-before-side-effect ledger under a dedicated surface
+  constant with `actorUid` explicitly `null`, and a `NullStrictAuditLedger` does
+  not satisfy that requirement — the plane must refuse to construct or dispatch
+  when the resolved ledger is absent or is the record-nothing one, mirroring the
+  refusal `McpEndpoint` already makes on the grounds that such a surface looks
+  audited and records nothing. No record, log line, or error
+  envelope may carry the OS username, home directory, hostname, or absolute
+  project path. The default profile is an explicit allowlist of tool IDs rather
+  than a capability grant, with capability checks layered underneath it, because
+  `requireCapability()` evaluates a capability string and consults no roster — so
+  granting `bimaaji.read` would silently admit any future tool carrying that
+  capability. An executable exact-membership gate, modelled on the existing S1
+  recorded-roster gates, makes adding such a tool fail CI until the roster is
+  deliberately updated. The allowlist opens with three structural introspection
+  tools, two of which answer today:
+  `bimaaji_search_specs` returns nothing until #2661 and #2662 ship a lifecycle-
+  labelled documentation corpus, because `resolveSpecsDirectory()` returns `null`
+  unless configured and `docs/specs/` ships in no package. The graph provider reads
+  `EntityTypeManager::getDefinitions()` and touches no storage — while content and
+  entity values, relationships, vectors, user-bearing logs, and every mutation
+  stay opt-in behind a fail-closed read-side sovereignty evaluation that does not
+  exist yet, because `SovereigntyGuardrails` takes a `MutationRequest` and has no
+  read-side equivalent. Package-name availability was checked on 2026-08-29:
+  GitHub had no repository at the target split path and Packagist returned 404.
+  Documentation only; no runtime behaviour changes, and no route, package, or
+  class is introduced by this change.
+
+- **Added — `waaseyaa/ai-development`, the `require-dev` metapackage that
+  assembles the local AI-development plane (#2655).** ADR-022 D-1 and D-2 decide
+  its shape and this registers it through every release gate. It declares
+  `"type": "metapackage"` and owns no `src/`, no resources, and no service
+  provider — which is also how it earns the layer-check exemption without
+  editing a hardcoded list, since `bin/check-package-layers` skips any manifest
+  whose type is `metapackage` before its `$metapackages` map is consulted. It
+  requires exactly two packages: `waaseyaa/ai-agent`, which holds the three
+  read-only Bimaaji introspection tools the default profile admits and the
+  never-persisted `LocalOperatorPrincipal` (#2658); and `waaseyaa/testing`,
+  whose entire meaningful surface is already `@api` consumer surface and which
+  carries no HTTP surface and no production runtime cost.
+
+  **`waaseyaa/mcp` is deliberately not a dependency.** Its own route provider
+  states that the authenticated write tier `/mcp/write` is *always* registered,
+  so requiring it to obtain a transport would add an HTTP route to every
+  application that installed a development tool. The local plane's transport is
+  the stdio server of #2659, reached through the transport-neutral contracts
+  of #2657; neither exists yet, and neither is depended on here.
+
+  **The skeleton installs it under `require-dev` only.** A dev consumer gets the
+  plane; `composer install --no-dev` removes it and everything it pulls. That is
+  not an aspiration in a README — `ci/split-artifact-acceptance` (#2649) now
+  asserts it against packaged bytes. The reserved `development-metapackage`
+  member in `tests/PackagedForm/fixtures/split-artifact-acceptance-surfaces.json`
+  fired its fail-closed hatch exactly as designed the moment
+  `packages/ai-development` existed, and is now **live**: the seal derives the
+  development closure from the skeleton's own `require-dev` rather than from a
+  hardcoded name, composition asserts the installed set equals the framework
+  closure *plus* that plane and nothing else, the plane's members must be
+  recorded as development dependencies in the consumer's own `installed.json`,
+  the plane must not reach `waaseyaa/mcp`, and `--no-dev` exclusion asserts every
+  development-only member is gone. Three seeded negative controls join the
+  harness's existing ten, so all of that is observed failing on every run.
+
+  **The closure invariant is now executable, and it has been observed failing.**
+  ADR-022 D-3.0 homes `LocalOperatorPrincipal` in `waaseyaa/ai-agent` precisely
+  because that package is `require-dev` in the root manifest and `suggest`-only
+  in `packages/full` — a property that survived on review attention alone. D-10
+  records the obligation and leaves the host open; it is discharged as **CP009**
+  in `bin/check-composer-policy`. On every run the gate computes the transitive
+  `waaseyaa/*` **runtime** require closure of `composer.json`,
+  `packages/core`, `packages/cms`, and `packages/full`, and fails if
+  `waaseyaa/ai-development` or `waaseyaa/ai-agent` appears in one — naming the
+  edge chain that caused it, not merely the consequence — or if
+  `waaseyaa/ai-development` appears in any first-party `require` block rather
+  than `require-dev`. A manifest that declares an internal graph at all must
+  reach `waaseyaa/foundation` through it, because a truncated walk would
+  satisfy "the home package is not in it" trivially; a manifest with no
+  `waaseyaa/*` require is skipped rather than failed, since this script accepts
+  a `ROOT_DIR` override and foreign roots of exactly that shape are real.
+
+  **Why `check-composer-policy` and not `check-package-layers`.** The invariant
+  is a manifest *closure* property, not a layer property: an edge from
+  `waaseyaa/full` to `waaseyaa/ai-agent` breaks no layer rule at all, because
+  `check-package-layers` skips any manifest whose type is `metapackage` before
+  it evaluates a single edge — and three of the four production roots are
+  metapackages. The rule would have had to defeat its host's own central skip. `check-composer-policy` already reads the root manifest and every
+  `packages/*` manifest, and already owns a rule of exactly this shape — CP004,
+  which keeps `waaseyaa/core`'s runtime surface install-safe. CP009 is that
+  shape generalized from one require block to a closure.
+
+  **The gate cannot trip on the graph it exists to separate.** The traversal
+  follows `require` only, and only from the four production roots.
+  `packages/ai-development/composer.json` is never a traversal root and is never
+  reached from one, so its own require of `waaseyaa/ai-agent` is invisible to
+  CP009 — which is the whole point: adding the development plane must not make
+  the containment gate fail against itself.
+
+  **A closure gate never observed failing proves nothing**, so
+  `tests/Architecture/DevelopmentPlaneClosureGateTest.php` plants real dependency
+  edges into a disposable fixture root on every run and asserts CP009 goes red
+  for each: a direct require of the home package from the root manifest; a
+  *transitive* one, where nobody touches a production root and a
+  production-present library simply grows one dependency — the exact "looks like
+  adding a require, not like relocating a security-sensitive class into
+  production" shape D-10 names; a production metapackage requiring the
+  development plane; the plane promoted out of the skeleton's `require-dev`; and
+  a chain severed one hop below `packages/cms`, which reaches foundation only
+  transitively, so the anchor binds the *walk* rather than a direct require the
+  root happens to declare. A green control runs first; a further test widens the
+  development metapackage's own graph and asserts the gate stays green; and a
+  paired restraint asserts a root with no internal requires is not mistaken for
+  a broken walk.
+
+  `tests/Architecture/LocalOperatorContainmentTest.php` (#2658) is deliberately
+  not duplicated: it answers "is the shipped tree contained today?", in process,
+  against the live manifests. CP009 and its seeded controls answer "would we
+  find out if it stopped being?", in the gate every contributor already runs.
+
+  **Two release lanes had never seen a metapackage a consumer actually
+  installs, and both said so.** `waaseyaa/core`, `cms` and `full` are sealed
+  and resolvable but deliberately absent from the framework closure, so until
+  now no `type: metapackage` had ever entered an *installed* set. #2649's
+  composition surface required every installed member to have come from a zip
+  inside the local artifact repository — correct for a code-bearing package,
+  and wrong for a metapackage, which Composer resolves and never downloads.
+  Artifact ORIGIN is now asserted for every member exactly as before (the
+  recorded dist must still be a zip inside the artifact repository, so nothing
+  can be satisfied from a registry); what Composer must have *done* with it is
+  keyed on package **type**, never on name — a name-keyed exemption would
+  silently admit the next metapackage and would keep passing if
+  `waaseyaa/ai-development` ever stopped being one. The metapackage branch is
+  an assertion rather than a skip: no installation-source, a null install-path,
+  and no vendor directory. Three seeded controls hold it: a code-bearing
+  package with no installation-source still fails, the relaxation stops
+  applying the moment the package is reclassified as a library, and a
+  metapackage that reports an installation fails too. `exported-files` grew the
+  same way, comparing bytes for the newly-installed development members instead
+  of leaving the installed set larger than the byte proof.
+
+  **The skeleton's first reference to a not-yet-published package needed a
+  narrow, self-removing exception.** `ci/skeleton-create-project`'s ordinary
+  lane proves the committed skeleton floor resolves from the **already
+  published** release line — and a package created by this change cannot be on
+  Packagist until the release cut that first splits it, so the lane could not
+  resolve `waaseyaa/ai-development` by construction. Weakening the lane for
+  every name would have traded a one-cycle problem for a permanent hole, so the
+  exception is data: `support/skeleton-unpublished-packages.json` names the
+  package, its issue, its reason and its removal condition, and the job adds a
+  path repository scoped with `only` to exactly that name. Every other
+  first-party name still resolves from Packagist — confirmed locally, where
+  `waaseyaa/ai-agent`, `waaseyaa/testing` and `waaseyaa/ai-observability` all
+  install from published zips while the metapackage alone comes from the
+  checkout. `tests/Architecture/SkeletonUnpublishedPackagesTest.php` keeps the
+  roster bound to the skeleton manifest and to the workflow and refuses an
+  entry without an issue, a reason and a removal condition; a live CI step then
+  asks Packagist whether each listed package is still unpublished and **fails
+  once it is not**, which is what forces the entry back out. An empty roster is
+  the intended steady state, and the loop is written for it.
+
+  **An unreachable split target can no longer reach the tag.** A release pushes
+  every `remote:` target in the `split.yml` matrix, and a release tag is
+  immutable — recovery is forward-only. `bin/check-release-require-parity`
+  probed only the packages some first-party manifest `require`s, which is
+  structurally incapable of seeing a package that nothing requires; ADR-022
+  D-1.2 and D-1.3 make `waaseyaa/ai-development` exactly that. The release-cut
+  preflight would therefore have passed, minted the release-identity token, cut
+  the immutable tag, and only then failed when the matrix leg could not push to
+  a repository that does not exist. New rule **RR002** fixes the input rather
+  than the symptom: the split matrix is the authoritative roster of what a
+  release pushes, so the matrix is what gets probed, and any declared target
+  that is unreachable fails the gate before anything irreversible happens.
+  The regression is deterministic rather than dependent on the live state of
+  any repository. A new `REPO_REMOTE_TEMPLATE` seam lets a fixture point the
+  existence probe at `file://` bare repositories, so `git ls-remote` stays the
+  real mechanism while the fixture decides which targets exist: a declared
+  target with no repository fails, provisioning it passes, and an **empty**
+  repository counts as provisioned because a freshly created split target has
+  no refs yet. The same fixture run against the previous script passes, which
+  is the hole stated as evidence rather than as a claim. Writing that proof
+  against a genuinely absent repository would have been fragile and is already
+  false — `waaseyaa/ai-development` has since been created, and the live gate
+  is green.
+  `tests/Architecture/SplitTargetReachabilityGateTest.php` carries all of that
+  offline, and additionally pins where the roster comes from, that the gate
+  precedes minting and tagging, and that it stays independent of the
+  consumer-lane roster below — the two answer different questions (*can we
+  publish it?* versus *can a consumer resolve it before it is published?*) and
+  retire on different events, so collapsing them would tie the release gate's
+  correctness to a consumer-lane workaround.
+
+  **The same blindness, one layer down, and then the class rather than the
+  instance.** RR002's roster was read out of the workflow by substring
+  scanning, and substring scanning was bypassed three times: single-quote-only
+  matching dropped `remote: "x"` and bare `remote: x`; line classification
+  counted a `remote:` inside a trailing comment as a real target; and a
+  flow-style `include:` leg was invisible to a scanner keyed on list-item
+  lines. RR000's blind-pass guard caught none of them — it fires only when the
+  roster is entirely empty, so the parseable rows kept it satisfied while the
+  dropped one disappeared. A guard against total parse failure is powerless
+  against a partial one, and partial is the shape that occurs when someone
+  edits a single row. Each widening fixed the reported input and left the class
+  open, because a substring scanner cannot distinguish YAML structure from text
+  that resembles it. The matrix is therefore parsed as **YAML**, and the parser
+  is a declared dependency of all four lanes that run the gate — the pre-tag
+  step in `release-cut.yml`, `split.yml`'s `verify-require-parity`, and the two
+  PHP lanes whose architecture suite executes the script. Without it the gate
+  **fails closed** (RR005) rather than falling back, because a fallback would
+  restore every bypass at exactly the moment nobody is watching. Structure it
+  cannot represent exactly is still refused with RR004's diagnoses: no matrix,
+  more than one, a non-mapping matrix, a non-list axis, no entries, or an entry
+  naming no target.
+  **`include` and `exclude` are refused rather than resolved.** Both transform
+  which legs a release pushes — `include` appends or extends depending on
+  whether its keys match an existing combination — so resolving them means
+  reimplementing GitHub's expansion semantics, and an approximation is a second
+  source of divergence between what the gate believes ships and what ships. The
+  refusal is total and cannot be subtly wrong; this repository's matrix needs
+  neither key.
+  The symmetry is worth recording, because it is the same mistake three times:
+  RR001's roster could not see a package no manifest requires, and RR002's
+  could not see a target whose YAML the scanner did not recognise. Both are
+  *the input is structurally incapable of representing the thing being gated*.
+  Every regression is offline and deterministic, and each bypass is proven in
+  both directions against the previous parser: the commented-out target it
+  invented (failing a matrix whose real targets all exist), and the
+  `include` leg it dropped while the ordinary entry survived to keep the roster
+  looking healthy.
+
+  **The bootstrap-window path repository names its own version instead of
+  letting Composer guess one.** `support/skeleton-unpublished-packages.json`
+  narrows `ci/skeleton-create-project`'s ordinary lane by exactly one package
+  for the one release cycle in which `waaseyaa/ai-development` cannot exist on
+  Packagist. A path repository, however, carries no version of its own, so
+  Composer infers one from the checkout's Git state — and on a pull request
+  `actions/checkout` lands on a **detached merge commit with no branch ref**,
+  where the inference yields `dev-<sha>`. That has no `extra.branch-alias`
+  entry, so it cannot satisfy the skeleton's governed `^0.1.0-alpha.299` floor,
+  and the lane failed every Composer attempt with `found
+  waaseyaa/ai-development[dev-<sha>] but it does not match the constraint`. The
+  release lane never saw it, because `SOURCE_SKELETON=true` runs `git checkout
+  -B main` first and the branch alias then applies.
+
+  Each rostered entry is therefore rendered by
+  `bin/skeleton-unpublished-repositories` into a complete repository object that
+  pins the package, via `options.versions`, to the version the checkout already
+  claims to be — the tracked `VERSION` that `bin/sync-internal-versions` writes
+  into the skeleton constraint in the same commit. Nothing is faked: no tag is
+  invented, no floor is lowered, no baseline moves, and every other name in the
+  graph still resolves from the published release line because `only` is
+  retained. The renderer is fail-closed on the inputs the pin depends on — a
+  malformed or wrongly versioned roster, a rostered path that is not the
+  package's own directory, a package the skeleton does not require, a floor that
+  has drifted from `VERSION`, and an absent `VERSION` even when a semver tag
+  would resolve, since the shared library's tag fallback is the wrong claim
+  here. An empty roster stays a silent no-op, which is the steady state.
+
+  `tests/Architecture/SkeletonUnpublishedPathRepositoryTest.php` proves this by
+  resolution rather than by inspection: it builds a detached checkout with no
+  branch ref, runs the renderer, and runs the real Composer resolver over the
+  emitted configuration — with the pre-repair repository shape, on the identical
+  fixture, as the negative control. Its fixture cleanup uses
+  `Filesystem::remove()` rather than a hand-rolled recursive remover, following
+  the criterion in #2491 and the allowlist in
+  `tests/Architecture/RecursiveRemoverContractTest.php` — no exemption is added.
+  **The Windows lane never shared this defect** and is untouched:
+  `tests/ReferenceConsumer/prepare.php` already localizes every package at
+  `dev-main`, which the manifests' own `branch-alias` maps to `0.1.x-dev`.
+
+  **The fresh-skeleton discovery expectation names the plane instead of
+  counting it.** `ci/skeleton-create-project`'s classmap-free discovery step
+  installs the skeleton *with* dev dependencies, so the plane's attribute
+  surface legitimately joins the compiled manifest: `policies` 18 → 19 and
+  `agent_tools` 11 → 16. `tools/policy-discovery-smoke.php` held those as one
+  flat set of totals, which a bump would have silently absorbed. The expectation
+  is now the **production floor — unchanged at 18/11/6/17/4 — plus a named
+  development-plane contribution**: the one policy
+  `Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy`, and the five unconditional
+  Bimaaji tools `bimaaji_introspect_graph`, `bimaaji_introspect_section`,
+  `bimaaji_search_specs`, `bimaaji_generate_patch`, and
+  `bimaaji_propose_mutation`. `waaseyaa/testing`, the plane's other member,
+  contributes no discovered symbol of any kind, and formatters, middleware, and
+  schedule entries are untouched.
+
+  The half a count could never express is the **absence** assertion. ai-agent's
+  five other tools declare `requiresPackage: 'waaseyaa/wayfinding'`, and ai-agent
+  depends on `waaseyaa/wayfinding` through `require-dev`/`suggest` only, so
+  installing the development plane must not drag an optional domain in with it.
+  The gate now fails if any `wayfinding_*` tool is discovered — a containment
+  claim the previous totals-only shape could not make, since the plane could
+  have acquired an optional domain and the numbers would still have been
+  whatever was last written down. Validated against a real consumer built the
+  way the CI step builds one, and the naming is load-bearing rather than
+  decorative: renaming one plane tool leaves the total at 16 and still fails,
+  naming the tool that went missing.
+
+  **The optional-domain install shapes are now actually production installs.**
+  `tools/optional-domain-install-shapes.sh` builds a `minimal` and a `full`
+  consumer and asserts that a domain appears only where it was asked for by
+  name. `minimal` is the control, and it was installing dev dependencies — so
+  once the skeleton's `require-dev` named the plane, `minimal` acquired
+  `waaseyaa/ai-agent` without anyone opting in, along with its `agent_run` and
+  `agent_audit_log` definitions, its catalog entries, its discovery namespace,
+  and `POST /api/ai/agent/run`. Nothing was wrong with those assertions; the
+  fixture had stopped installing the shape it claimed to install.
+
+  Both shapes therefore install with `--no-dev`. Every existing
+  presence/absence assertion is preserved verbatim and no package is removed by
+  hand, which matters — hand-removal would have proved that a consumer who
+  deletes a package does not get it, rather than that a production install never
+  had it. `full` is unaffected in kind: its seven optional domains are added to
+  `require`, not `require-dev`. The developer install remains covered, and only
+  covered, by the discovery step above, so the two steps now cover the two
+  install shapes that exist instead of both covering one.
+
+  The plane's absence is also asserted explicitly and **unconditionally** in
+  both shapes, for `waaseyaa/ai-development` and `waaseyaa/testing` — the
+  latter because `packages/ai-development` is its only first-party runtime
+  requirer, so its presence would mean the plane arrived. `waaseyaa/ai-agent`
+  is deliberately left out of that list: `full` opts into it by name, so the
+  existing shape-keyed assertion already covers it correctly. Both shapes boot
+  a real kernel and pass; reverting `--no-dev` reproduces the hosted failure
+  exactly and adds the two new named failures on top, so the assertion has
+  teeth rather than being satisfied by construction. The production container
+  needed no change: `skeleton/Dockerfile` already installs with `--no-dev`, and
+  `skeleton/.dockerignore` excludes `vendor`, so the later `COPY . /app` cannot
+  put a developer tree back over the production one.
+
+  **Release wiring.** A `packages/ai-development` entry joins the `split.yml`
+  mirror matrix beside `cms`/`core`/`full`; `MetapackageSmokeTest` gains an
+  autoloadability case per member; `bin/sync-internal-versions` already sweeps
+  `packages/*` and `skeleton/composer.json`, so the `^0.1.0-alpha.299` literals
+  advance at the next release cut. The package exports no symbols, so
+  `docs/public-surface-map.php` is unchanged by design — a metapackage has no
+  contract shapes to track.
+
+  **Scope.** This registers a name and its dependency graph. It ships no code,
+  no service provider, no CLI command, no transport, and no registry bridge, and
+  it registers, enables, or reconfigures no HTTP route: `/mcp` and `/mcp/write`
+  are untouched. It is required by no production manifest, and consumers opt in
+  by name with `composer require --dev waaseyaa/ai-development`.
+
+- **Tool dispatch no longer costs an HTTP route.** ADR-022 D-9.3 required the
+  contracts a local stdio plane consumes to carry no HTTP dependency, and the
+  only dispatch path the framework had — `Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge`
+  — lived in `waaseyaa/mcp`, whose `McpRouteProvider` registers `/mcp/write`
+  unconditionally the moment the package is installed. The behaviour never
+  needed HTTP; only its address did. It now lives in `waaseyaa/ai-tools` as
+  `Waaseyaa\AI\Tools\Dispatch\AgentToolDispatcher` behind the new
+  `ToolDispatcherInterface`, and the bridge is a thin façade over it.
+  **Nothing on the wire changed**: the same input- and output-schema
+  enforcement, the same sanitized `INTERNAL_ERROR` envelope, the same
+  name-ordered `tools/list`, the same audit-stage classification, and the same
+  `mcp.tool_execution_failed` / `mcp.tool_output_schema_violation` log keys —
+  the dispatcher takes a log prefix and the façade passes `mcp`, deliberately
+  not `agent_tool`, which is already a tool's *own* catch and would have
+  collapsed "the tool handled it" into "the tool escaped and was sanitized".
+  `Waaseyaa\Mcp\CapabilityScopedToolRegistry` delegates to a shared
+  `Waaseyaa\AI\Tools\Registry\CapabilityScopedToolRegistry` on the same
+  reasoning (ADR-022 Q-3): duplicating a visibility predicate leaves two filters
+  to keep in agreement, which is the worse failure mode for a control that
+  decides what a caller can see. All 410 `waaseyaa/mcp` tests pass unchanged,
+  including the two that reflect into the tier registry's private
+  `$blockedToolNames` to prove the write tier's structural block on generic
+  entity mutations.
+  **The contracts land in a production-present package, and this says so.**
+  `waaseyaa/ai-tools` is a production `require` of both the root manifest and
+  `packages/full`, so these classes ship to production installs. What contains
+  that is not packaging but inertness: they add no service provider, no route,
+  no attribute, and no discovery convention — a production install gains
+  classes it never constructs. Every alternative was worse. `foundation` is
+  Layer 0 and cannot name the Layer 5 `AgentTool` without a PL005 upward import.
+  `ai-agent` would have forced `waaseyaa/mcp` (Layer 6) to require it, putting
+  `LocalOperatorPrincipal` into the autoload of every application that installs
+  the HTTP MCP package — the exact hazard ADR-022 D-3.0a warns about. A new
+  package would have meant editing manifests and `split.yml` while #2655 owns
+  those files. `ai-tools` needs no manifest edit at all: `mcp` and `ai-agent`
+  already require it, so both adapters consume one implementation with no new
+  dependency edge in either direction.
+  **`AuditedToolDispatcher` makes a no-op ledger a construction error.** ADR-022
+  D-5.A: `NullStrictAuditLedger` implements `StrictAuditLedgerInterface` and
+  records nothing, so "dispatch is recorded through the strict ledger" is
+  otherwise satisfiable by a no-op. Construction refuses an absent ledger and
+  refuses that one, mirroring `McpEndpoint:130-146` on its stated grounds — a
+  surface that LOOKS durably audited and records nothing is worse than one that
+  admits it is unaudited, because an operator reading an empty ledger cannot
+  tell them apart. D-5.B is the wrapper around dispatch: the reservation is
+  durable *before* the tool runs and finalized after, a reservation failure
+  refuses the call unexecuted with a correlation id and no exception detail, a
+  finalize failure is logged at critical and never rethrown (the side effect has
+  already happened), and a terminal refusal uses single-shot `record()` rather
+  than minting a dangling reservation — which is the documented crash signature
+  and must not be forged. Schema violations are validated *before* the
+  reservation, so a caller cannot write two durable rows per garbage payload.
+  `safeArguments` is the tool's own `argumentsForAudit()` projection; a tool
+  that throws while redacting falls back to structural metadata, never to raw
+  arguments.
+  **An unrecordable request is refused, never quietly answered.** Review caught
+  a defect in the class whose whole purpose it defeated, and it is worth stating
+  plainly rather than folding into the feature description. `dispatch('')` is
+  reachable from caller input — the MCP `tools/call` envelope check asserts only
+  that `name` is a string — and it lands on the unknown-tool path.
+  `StrictAuditReservation` rejects an empty `operation`, the terminal-record
+  path returned `void` and swallowed every failure, and the caller therefore
+  received an ordinary `TOOL_NOT_FOUND` against a ledger holding nothing. Two
+  things were wrong. The class fed a value object a value it would not accept:
+  `auditOperation()` now makes "every reservation this class builds carries a
+  non-empty, bounded operation" a **total** invariant rather than a patch over
+  the one input someone found — a blank name becomes the fixed operation
+  `tool_name_unusable`, an overlong one is truncated to 200 characters, and in
+  both cases the raw name and its true length survive in `metadata`, because the
+  name is evidence and must reach the record even when it cannot be the field a
+  value object polices. And the swallow hid the consequence: `recordTerminal()`
+  now reports durability, and a terminal refusal the ledger will not accept
+  returns the same `AUDIT_TRAIL_UNAVAILABLE` envelope as a failed reservation.
+  The earlier rationale — that a refusal performs no side effect, so failing
+  closed would trade a missing log line for a denial of service — does not
+  survive contact with the reservation path: when the ledger is down every
+  *executable* call is already refused with that envelope, so refusing terminal
+  records adds no outage that is not already happening. It only stops this class
+  reporting a complete trail it does not have. The reservation catch widened
+  from the ledger's own exception type to `\Throwable` for the same reason: the
+  reservation is *constructed* inside it, and a value-object rejection would
+  otherwise escape `dispatch()` and break `ToolDispatcherInterface`'s contract
+  that a caller-caused failure never throws. Breadth was never the problem —
+  silence was. `finalizeQuietly()` keeps its swallow, deliberately and now
+  explicitly: there the ledger already holds the reservation, the failure is
+  visible as a dangling record rather than an absence, and the tool has already
+  run, so converting it into a refusal would report a committed action as
+  rejected.
+  **The audit surface stays the transport's to name, and the bridge stays the
+  one that refuses a collision.** D-5.C already assigned the constant and the
+  per-request correlation id to #2659, so both are constructor arguments — but
+  a surface of `mcp` or anything prefixed `mcp.` is refused, because
+  `McpEndpoint::auditSurface()` writes `mcp.public` and `mcp.write` and a ledger
+  in which a local developer session is spelled the same as a network caller
+  cannot answer the question that field exists to answer.
+  **Every refusal has been observed failing.** Twelve seeded controls delete or
+  invert one guarantee each in `AuditedToolDispatcher` — the null-ledger
+  refusal, an absent ledger silently substituted with the record-nothing one,
+  the HTTP-surface collision refusal, executing before reserving, recording raw
+  arguments, admitting a call whose reservation failed, and turning a terminal
+  refusal into a reservation, reverting the operation projection, re-swallowing
+  a terminal record failure on each of the two terminal paths, narrowing the
+  reservation catch, and dropping the operation bound — and each was confirmed
+  to turn its guarding test red, with the source restored byte-for-byte
+  afterwards. The mutator exits non-zero if a mutation fails to apply, so a
+  control cannot pass vacuously.
+  **`/mcp` and `/mcp/write` are untouched, and the local plane still registers
+  neither.** `tests/Architecture/LocalPlaneNoMcpRouteTest.php` runs every
+  service provider the local plane installs against a real `WaaseyaaRouter` and
+  asserts no `/mcp` path and no `mcp.`-named route, with the paired control
+  adding `McpServiceProvider` to the same sweep and asserting `/mcp`,
+  `/mcp/write`, and `/.well-known/mcp.json` do appear. It also walks the plane's
+  transitive `require` closure and fails if it reaches `waaseyaa/mcp`, with a
+  control proving the walker finds the package when it is genuinely reachable.
+  Both were confirmed red against real seeds: adding `waaseyaa/mcp` to
+  `packages/ai-agent/composer.json`, and adding `McpServiceProvider` to that
+  package's provider roster. The assertion is scoped to the MCP surface rather
+  than claiming zero routes of any kind — `AgentRouteServiceProvider` registers
+  four `/api/ai/agent/…` routes and always has, and that is the pre-existing
+  agent API, not something this change introduces.
+  **Transport neutrality is proven at runtime, not asserted from imports.**
+  Inside the suite every HTTP class is already loadable, so a static claim would
+  be a statement about source text dressed up as a runtime observation — the
+  circularity #2658's R-6 proof hit under `cli`. The proof therefore spawns a
+  PHP process with **no Composer autoloader**: a hand-rolled PSR-4 map over
+  `ai-tools`, `access`, and `foundation`, plus a tripwire recording any class
+  requested outside them. A complete dispatch — capability scope, id allowlist,
+  schema validation, reserve, execute, finalize — runs to success with HTTP
+  absent from the process, and two seeded controls deliberately touch
+  `Symfony\Component\HttpFoundation\Request` and
+  `Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge` to prove the tripwire fires. A
+  token-based static scan complements it, skipping comments so the classes can
+  document the HTTP package they were extracted from without flagging the prose
+  as a dependency.
+  **Scope.** This ships contracts, not a server. There is no stdio transport
+  (#2659), no `waaseyaa/ai-development` package (#2655), and no change to
+  `/mcp`, `/mcp/write`, their auth strategies, their defaults, or their route
+  registration. `McpEndpoint` keeps its own inline audit path rather than
+  adopting the new decorator, because that path interleaves the once-only
+  approval `consume()` between `reserve()` and execution — a sequencing the
+  generic decorator does not model, and one not worth re-deriving for no
+  behavioural gain.
+
+- **The local AI-development plane now has an acting identity, and it refuses to
+  exist anywhere else.** ADR-022 settled the trust boundary; this implements
+  D-3, D-4, D-5.D, D-6, D-7, and the fail-closed half of D-8.
+  `Waaseyaa\AI\Agent\LocalOperator\LocalOperatorPrincipal` is a never-persisted
+  `AuthorizationPrincipalInterface` modelled on the existing
+  `Waaseyaa\Migration\Account\MigrationSystemAccount`: no `users` row, no
+  session record, no token record, no OAuth client. `id()` returns the fixed
+  string sentinel `local-operator:stdio` — a string because a string cannot
+  collide with an auto-increment uid, cannot be confused with `AnonymousUser`'s
+  `0`, and cannot be confused with `DevAdminAccount`'s `PHP_INT_MAX`; a fixed
+  literal because the sentinel must carry no OS username, home directory,
+  hostname, or absolute project path. `hasPermission()` is a strict membership
+  test against an injected capability list with no prefix, pattern, or wildcard
+  matching — the exact opposite of `DevAdminAccount`, which returns `true` for
+  every string — and `getRoles()` returns `['local_operator']`, never
+  `administrator`. Tenant and community are unbound.
+  **It lives in `waaseyaa/ai-agent`, not `waaseyaa/ai-tools`, and a gate now
+  says so.** `waaseyaa/ai-tools` is a production `require` of both the root
+  manifest and `packages/full`, so homing the design's most security-sensitive
+  class there would have shipped it into every production `full` install by a
+  route `composer install --no-dev` does not touch. `waaseyaa/ai-agent` is
+  `require-dev` in the root manifest and `suggest`-only in `packages/full`,
+  already holds the three Bimaaji tools the default profile needs, and sits at
+  the same layer, so the choice costs nothing in layer terms.
+  `tests/Architecture/LocalOperatorContainmentTest.php` computes the transitive
+  `waaseyaa/*` require closure of `waaseyaa/framework`, `core`, `cms`, and
+  `full` and fails if any of them reaches the home package, with a paired
+  control asserting the same traversal does reach `waaseyaa/ai-tools`, so an
+  empty closure cannot pass as a green result.
+  **Packaging is the weaker control, and the runtime refusal is proven rather
+  than assumed.** ADR-022 D-3.0a is explicit that a design depending on the
+  class being *absent* rather than on its *refusing to exist* is one dependency
+  edit away from being wrong, so the principal is constructible only through
+  `LocalOperatorTransportAttestation`, which refuses on three independent
+  grounds: a SAPI other than `cli` (narrower than
+  `DevAdminAccount::ALLOWED_SAPIS`, which admits `cli-server` and `frankenphp`
+  as well, and narrower than `HttpKernel::DEV_FALLBACK_SAPIS`), a runtime that
+  is not an explicitly configured development environment
+  (`RuntimePolicy::isExplicitDevelopment()`, which never inherits the mutable
+  process environment, so an unconfigured runtime is production-like and
+  refused), and any transport identity other than the local stdio server's.
+  `tests/Integration/LocalOperator/LocalOperatorTrustBoundaryTest.php` spawns a
+  real PHP process with a production-shaped kernel config and the most
+  permissive development-shaped process environment available —
+  `APP_ENV=local`, `APP_DEBUG=true`, `WAASEYAA_DEV_FALLBACK_ACCOUNT=true` —
+  loads the class through the ordinary autoloader to prove it *is* reachable,
+  and asserts construction is refused anyway.
+  **The SAPI test seam narrows only; it can never widen.** The attestation
+  accepts an overridable SAPI so a test can prove the refusal for a SAPI its own
+  process cannot run under, and the first implementation resolved it as
+  `$sapi ?? PHP_SAPI`. That is a seam that mints authority rather than one that
+  tests refusals: under a real `cli-server` process, passing the string `'cli'`
+  constructed a principal successfully. `PHP_SAPI` is now consulted
+  unconditionally and first, and the argument is consulted second and only to
+  ADD a refusal. No in-process test can catch that regression — the suite runs
+  under `cli`, where both resolutions behave identically — so
+  `LocalOperatorHttpSapiRefusalTest` starts PHP's own built-in server under SAPI
+  `cli-server`, issues an HTTP request with every other gate deliberately
+  satisfied, and asserts refusal. Restoring the old resolution makes that test
+  construct a principal over HTTP, which is exactly what it exists to prevent;
+  it doubles as the end-to-end form of R-1.
+  **The out-of-process proofs are portable, and a Windows lane runs them.** They
+  originally built a `NAME=value command` prefix and called `exec()` — POSIX
+  shell syntax that `cmd.exe` parses as a program named `APP_ENV=local`, so on
+  native Windows the probe never reached PHP and the R-6 proof would have failed
+  for the wrong reason or passed vacuously. Child processes now go through
+  `proc_open()` with an argv array and an explicit environment map merged over
+  the parent's, and the new `ci/local-operator-windows` job executes the unit
+  and integration boundary proofs on `windows-2025`. The roster-gate sandbox
+  stays off that lane deliberately: it builds fixtures with `symlink()`, which
+  needs Developer Mode on Windows, and the gate it exercises runs on Linux.
+  **Every refusal is loud.** `LocalOperatorRefusal` carries the ADR-022 row it
+  discharges, so a caller can assert *which* boundary refused. HTTP
+  authentication and token validation (R-1, R-2) are structural: the SAPI gate
+  means no request-borne header, cookie, parameter, bearer token, API key, JWT,
+  or OAuth access token can produce the object, and an architecture test fails
+  if any production source outside the principal's own directory so much as
+  names the class or its sentinel. Persistent account resolution (R-3) is
+  proven against a real SQLite user table, including SQLite's type affinity,
+  which would otherwise coerce the TEXT sentinel against an INTEGER uid column
+  and resolve it to `0`. Ownership and attribution (R-4) get an executable
+  refusal rather than a docblock warning: `LocalOperatorAccountContextGuard`
+  wraps an `AccountContextInterface` and refuses the principal on **both**
+  `set()` and `current()`, because `EntityRepository::resolveActor()` casts the
+  ambient account's `id()` to `int` and `(int) 'local-operator:stdio'` is `0` —
+  the `AnonymousUser` id, which is exactly the silent downgrade to anonymous
+  that ADR-022 D-6 forbids. Guarding only the write left two live paths to a
+  prohibited read: wrapping a context that already held the principal, and
+  mutation of the inner context through a second reference taken before the
+  wrap. `current()` is also the side `resolveActor()` actually consumes, so it
+  was the unguarded half that produced the attribution.
+  Serialization (R-5) throws from `__serialize()`, `__unserialize()`,
+  `__set_state()`, and `jsonSerialize()`, closing the queue-envelope,
+  session-payload, cache-body, and generated-PHP-cache routes out of the
+  process.
+  **`claimsGeneration()` is a digest, not a constant.** `DevAdminAccount`
+  returns the fixed `'dev-admin'`, and `claimsGeneration()` is a cache and
+  authorization dimension consumed by `ProtectedCacheDimensions`,
+  `SqlEntityQuery`, `ContentSearchController`, and the queue envelope. The
+  dangerous direction is **narrowing**: an operator revokes a capability, or
+  tightens the read-side sovereignty policy, and a constant generation keeps
+  serving entries computed while the principal still held the broader authority
+  — data the now-narrower principal must not see. (The reverse, a widened grant
+  reading an entry built under the narrower one, is merely an undergrant.) The
+  digest covers the granted capability list, the admitted tool-ID allowlist,
+  the active `SovereigntyProfile`, and any tenant/community binding, with an
+  unresolved read policy digesting to its own distinct token, so "no policy
+  resolved" and "profile local" are not the same authority.
+  **The default catalogue is an explicit tool-ID allowlist, not a capability
+  grant, and a new gate keeps it that way.**
+  `AbstractAgentTool::requireCapability()` matches a capability string and
+  consults no tool roster, so granting `bimaaji.read` is an open set: any class
+  added later carrying that capability would join the default the moment it is
+  discovered, with no ADR edit and no operator signal. `LocalOperatorToolProfile`
+  therefore admits exactly three tool IDs — `bimaaji_introspect_graph`,
+  `bimaaji_introspect_section`, and `bimaaji_search_specs` — by exact string
+  match, with the capability check still enforced underneath, so allowlisting a
+  tool never grants its capability. `bimaaji_search_specs` stays listed although
+  it returns nothing until #2661 and #2662 ship a lifecycle-labelled corpus and
+  a cited search, because its membership is already reviewed and re-adding it
+  later would read to the gate as a deliberate widening. Content and entity
+  values, relationships, vectors, user-bearing diagnostics, and every mutation
+  stay off, and granting any of them is refused outright while the fail-closed
+  read-side sovereignty evaluation of D-8 does not exist —
+  `SovereigntyGuardrails` takes a `MutationRequest` and cannot express a read
+  decision, and the fallback to `SovereigntyProfile::Local` is a default for
+  structural introspection, not consent to ship content values off the machine.
+  **`bin/check-local-operator-tool-profile` is the executable membership gate,
+  and it has been observed failing.** Following the shape of the S1
+  recorded-roster verifiers, it scans every `#[AsAgentTool]` and every literal
+  `new AgentTool(...)` under `packages/*/src` — the attribute-only scan would
+  have missed `content.search`, which `AiToolsServiceProvider` registers
+  programmatically — classifies each as `default-profile`,
+  `capability-admissible`, `withheld`, or `dynamic-registration`, and diffs the
+  result against `support/local-operator-tool-profile-roster.json`. The
+  `capability-admissible` class is the one that matters: a tool whose capability
+  the default grants but whose id is not on the allowlist. That set is empty
+  today, and the gate is what stops it growing by merge. Two cross-checks are
+  computed from `DEFAULT_TOOL_IDS` rather than from the roster, so a reflexive
+  `--write-roster` cannot silence a rename or a removal. Detection is a token
+  walk and the file prefilter is the bare identifier `AgentTool`, a strict
+  superset of what the walk can match: a prefilter of `'AgentTool('` made
+  `new AgentTool (` — one space, valid PHP, lints clean — invisible, and the
+  gate reported green with an unrostered `bimaaji.read` tool present. Both
+  spacings now carry seeded regression controls, because this gate's entire
+  value rests on its scan being complete.
+  `tests/Architecture/LocalOperatorToolProfileGateTest.php` seeds each of those
+  changes into a disposable copy of the tree and asserts the gate goes red, with
+  a green control first — a membership gate never observed failing proves
+  nothing. The gate joins `composer verify`, `tools/preflight-gates.json`, and
+  the `ci/verify-gates` job.
+  **Scope.** This ships the principal, the catalogue, and the gate. It ships no
+  transport, no registry bridge, and no dispatch path: the strict-ledger refusal
+  and the reserve/finalize wrapper around dispatch belong to #2657, and the
+  stdio `surface` constant and per-request correlation id belong to #2659. The
+  principal contributes its own half of the audit contract — `actorUid` is
+  `null` rather than a coerced `0`, and the sentinel plus the current claims
+  generation travel in `metadata` — and nothing more. No HTTP route is
+  registered, added, enabled, or reconfigured; `/mcp` and `/mcp/write` are
+  untouched, as are `DevAdminAccount`, `AnonymousUser`, and the `HttpKernel`
+  dev-fallback gates.
+
+- **Added - manual cross-provider review setup (#2714):** maintainers can request Claude feedback on Codex-authored changes with an explicit PR comment, while requesting Codex separately for Claude-authored changes. Automatic reviews and API-key billing are not enabled by this workflow.
+
+- Published the FW-ARCH-2026-08 architecture-integrity synthesis, remediation dependency
+  plan, and framework assurance-gate matrix. This is an audit/planning artifact and does
+  not certify remediation, release, or deployment readiness.
+
+- **Added — portable framework audit baseline (#2720):** inventory all packages and tracked paths, distinguish source reachability from behavioral evidence, and record authority boundaries and historical reconciliation gaps without changing runtime contracts.
+
+- **ADR-023 fixes the authority and lifecycle for governed application
+  blueprints before implementation (#2784).** `waaseyaa.site` v1 will expand in
+  place with one optional, closed `application_blueprint` section; existing v1
+  manifests that omit it remain byte- and digest-identical. Presence derives a
+  fail-closed `site-application-blueprint-v1` generator feature token, separate
+  from authored site capabilities, so neither an older parser nor an incomplete
+  generator cohort may silently ignore the proposal. Authored YAML carries
+  proposal bytes only. Approval or rejection is separate request evidence
+  binding a claimed actor and decision to both the exact canonical blueprint
+  digest and complete proposed manifest digest; actor authenticity remains the
+  higher-layer decision mechanism's concern. Applied evidence copies the
+  canonical approval receipt into the existing `.waaseyaa/generated.json`
+  transaction and explicitly makes it a second renderer/verification input
+  rather than adding a parallel compiler, ledger, or generated artifact.
+  Lifecycle is consequently derived as proposed, approved, applied, rejected,
+  or superseded;
+  editing a state-like field cannot manufacture authority because no such
+  authored authority exists. AI providers remain untrusted proposal producers
+  and products such as Waaseyaa Studio must consume this Framework contract
+  without a private schema or materializer. The durable multi-PR plan is
+  `FW-SITE-BLUEPRINT-01`; implementation remains owned by #2785–#2789.
+
+- **Added — `waaseyaa.site` v1 gains an optional, closed `application_blueprint`
+  section describing a model-independent application proposal (#2785,
+  ADR-023).** The section declares content entities and their scalar fields
+  (13 blueprint field types — every `#[FieldType(id: ...)]` under
+  `packages/field/src/Item/` except `entity_reference`, `file`, and `image`),
+  entity keys and revision/translation flags, entity-reference relationships,
+  a permission catalogue and roles, default-deny policies (`permission`,
+  `ownership`, or `workflow_state` conditions — no expression, script,
+  callable, or regex is accepted anywhere), workflows with permission-gated
+  transitions and single-workflow entity bindings, seed fixtures, and
+  generated behavioural checks. Every id is the existing stable-id grammar,
+  every collection is closed (`additionalProperties: false`), and every
+  cross-reference resolves or the manifest fails closed with a stable
+  `SITE04x` code and a JSON Pointer path rooted at `/application_blueprint`
+  (`SITE040`–`SITE047`; see `docs/specs/site-golden-path.md` §"Governed
+  application blueprints" for the full table).
+
+  **Byte-stable when absent.** A v1 manifest without the section normalizes,
+  renders, and digests exactly as before — `SiteManifestParserTest`'s
+  existing fixture digest is pinned and asserted unchanged
+  (`ff461fce0baea77dafbe5c57b582f73ba34e13ae26b2c1936737eeb93e753e1c`). The
+  generated `resources/site.schema.json` bytes do change, because the schema
+  itself gains the optional property; that is the existing reviewed
+  changed-managed-bytes upgrade path, not a byte-stability break.
+
+  **Two identities, one section.** Presence of `application_blueprint`
+  derives the required generator feature token
+  `site-application-blueprint-v1` (`SiteManifest::$requiredGeneratorFeatures`)
+  — a runtime-negotiation roster disjoint from authored `capabilities`, never
+  itself authored. The blueprint also carries its own digest
+  (`ApplicationBlueprint::$digest`, sha256 over `{schema:
+  waaseyaa.application_blueprint, contract_version, payload}`) in addition to
+  participating in the full site-manifest digest: editing a blueprint value
+  changes both; editing manifest context outside the section (e.g.
+  `application.name`) changes only the manifest digest.
+
+  **Proposal, never authority.** Authored YAML carries the current proposal
+  only — no `state`/`approved`/`applied`/`approval`/`decision`/`receipt`/
+  `lifecycle` key exists anywhere in the closed vocabulary, so any attempt to
+  author one fails as `SITE001_UNKNOWN_KEY` (ADR-023 D-3, "put `state:
+  approved` in `site.yaml`" rejected alternative).
+  `Blueprint\BlueprintDecisionReceipt::fromArray()` types a separate,
+  explicit approval/rejection receipt binding an actor and decision time to
+  both exact digests (`SITE050_DECISION_RECEIPT_INVALID` on a malformed
+  receipt); `Blueprint\BlueprintLifecycleResolver::resolve()` derives
+  `proposed`/`approved`/`rejected` from the manifest and an optional
+  request-scoped receipt — never trusted from YAML. `applied`/`superseded`
+  additionally require `.waaseyaa/generated.json` evidence and are #2787's
+  extension, not this issue's.
+
+  **Structural parsing and semantic validation are two classes.**
+  `Blueprint\ApplicationBlueprintParser` types shape, grammar, and
+  per-collection id uniqueness (mirroring `SqlManifestParser`'s existing
+  reject-unknown/require/type order via a new shared `ManifestShapeReader`
+  trait extracted from it); `Blueprint\ApplicationBlueprintValidator` resolves
+  every cross-collection reference and business rule (workflow bindings,
+  field/entity-key prerequisites, ownership, wildcard permissions, condition
+  kinds) once the whole section is typed. `SiteManifestParser::parse()` runs
+  both immediately after structural parsing and before constructing
+  `SiteManifest`.
+
+  A fixture corpus (`packages/site-contract/tests/Fixtures/Blueprint/`) packages
+  every collection/condition/check kind in `complete.yaml`, a one-entity
+  `minimal.yaml`, and 16 focused invalid fixtures (one per `SITE04x` code plus
+  representative structural/uniqueness failures), each proven CRLF-stable and
+  round-trip stable through `render() -> parse()`.
+
+  Out of scope (tracked separately): `site:init` feature negotiation and
+  refusal wiring, renderer/`GeneratedSite`/doctor changes, materialization of
+  entities/roles/workflows into the runtime access/workflow engines, media
+  field types, and any model-provider code (#2786–#2789).
+
+### Changed
+
+- **A fresh project now has one documented lifecycle, and it works on Windows
+  (#2644).** `composer create-project` left a new project several steps short of
+  a working site, and the steps were not written down consistently: the skeleton
+  README said `site:init` then verify with no database step at all,
+  `docs/specs/cli-kernel.md` said `install:init` first, and CI proved a third
+  order. Only one of them produces a valid installation, because `install:init`
+  is the sole materialization command that also activates the CFG-02
+  configuration generation — a site built with `db:init` plus `migrate` passes
+  verification while being unable to write configuration. The canonical
+  lifecycle is now create, `site:init`, `install:init`, `composer site-verify`,
+  serve, and the reference-consumer gate proves it end to end from a clean
+  create-project, including that a repeated `install:init` reports the
+  already-active generation instead of minting a second one. `db:init` is a
+  database-administration command and has left the lifecycle.
+
+  Verification is now portable and honest about the pre-init state.
+  `composer site-verify` ran `.ci/site-verify`, a POSIX `sh` script Composer
+  cannot execute on native Windows at all, and it exec'd a command that
+  `site:init` has not yet generated — so the documented verification step died
+  with `exec: not found` and exit 127, naming nothing that would fix it. The new
+  `.ci/site-verify.php` is the single implementation, invoked through Composer's
+  own PHP; it loads no autoloader and boots no kernel, exits 3 naming `site:init`
+  and `install:init` when there is no site contract, and otherwise delegates to
+  the generated command. The shell adapter and the shipped consumer workflow both
+  route to it, so the instruction cannot differ between invocation paths. Two
+  adjacent portability defects went with it: `post-create-project-cmd` invoked
+  bare `php` rather than Composer's own binary, and the post-create banner told a
+  brand-new project to run `composer run dev` before it had a contract, a schema,
+  or a configuration generation.
+
+  Verification also stopped creating the database it was diagnosing. `site:doctor`
+  was not in any pre-boot command set, so it fell through to ordinary CLI boot,
+  and `AbstractKernel::boot()` opens the database before every
+  restricted-discovery guard — so verifying an uninitialized project produced a
+  zero-table `storage/waaseyaa.sqlite` and its `-wal`/`-shm` sidecars, then
+  misreported the missing site contract as an inactive configuration generation.
+  It now runs through the same boot-free seam as `db:init` and touches nothing.
+  The empty file such a boot leaves behind is no longer a dead end either:
+  `db:init` classified any pre-existing database by whether it had a
+  `waaseyaa_migrations` table and refused everything else with "Move the file
+  aside", so an operator who ran any command before `db:init` was told to move
+  aside a file the framework itself had created. A table-less database is now
+  adopted and migrated; a file holding any table is still refused, and its
+  message now says why.
+
+  `site:init` could not complete on a native Windows host at all. It fsyncs each
+  governed write and its parent directory, and fsyncing a directory requires
+  opening it as a stream — POSIX-only — so the first governed write aborted with
+  "Unable to sync directory". Three further constructs in the same transaction
+  were POSIX-only and would each have surfaced only after the previous was fixed:
+  a path-containment test that assumed forward slashes, a permission-bit
+  comparison that made regeneration non-idempotent, and a hard-link count that is
+  not a portable signal on NTFS. `SiteHostPlatform` now names those capabilities
+  and is injected, so the non-POSIX branch is exercised by the ordinary suite on a
+  Linux runner and both hosts are proven to publish a byte-identical artifact set.
+  Nothing is weakened on POSIX: the journal, the lock, and the write-then-rename
+  ordering are unchanged, so the transaction stays atomic and recoverable across
+  process death; only host-crash durability is POSIX-only.
+
+  A new `ci/skeleton-create-project-windows` job proves all of it on a native
+  Windows runner — the repository's first. It is a development-host proof, a
+  claim `bin/check-portable-paths` already made and nothing had ever exercised;
+  it makes no serving claim, and the S1 support contract's serving runtime
+  remains ubuntu-24.04.
+
+  **Upgrading an existing site:** one generated file's bytes changed, so the
+  first strict doctor run after upgrading reports
+  `SITE010_GENERATED_ARTIFACT_DRIFT`. It clears the same way as the
+  `SITE011_COMPOSER_LOCK_DRIFT` an upgrade already produces — rebind
+  `framework.observed_lock_sha256` and re-run `site:init`. See
+  `docs/upgrade-notes/site-generated-verification-portability.md`.
+
+- **`EntityRepositoryInterface` now accepts entity identity as `int|string`, a
+  no-shim break for anyone implementing it (#2674).** The interface declared
+  `string` on twelve identity-accepting methods — `find()`, `exists()`,
+  `loadRevision()`, `rollback()`, `listRevisions()`, `setCurrentRevision()`,
+  `loadPublishedRevision()`, `setPublishedRevision()`, `loadWorkingCopy()`,
+  `saveTranslation()`, `loadTranslation()` and `listTranslationRevisions()` —
+  while the framework's own producers emit `int|string`: `EntityInterface::id()`
+  is `int|string|null` and `EntityQueryInterface::execute()` returns
+  `array<int|string>`. The contract refused its own output. All twelve now accept
+  `int|string` and reduce it once, at the repository boundary, to the `string`
+  domain the storage driver addresses rows in — the rule `findMany()` has always
+  applied inline.
+
+  There is no deprecation window, because PHP offers no mechanism for one. An
+  implementation that still declares `string` against the widened interface is a
+  fatal error at class load, not a notice: `Declaration of
+  YourRepository::find(string $id, ...) must be compatible with
+  Waaseyaa\Entity\Repository\EntityRepositoryInterface::find(string|int $id, ...)`.
+  It fires when the class is autoloaded, so a repository that is merely
+  registered and never called still stops the kernel.
+
+  Callers are unaffected in every direction: passing a `string` keeps working, and
+  existing `$repository->find((string) $id)` callsites stay valid. Implementors
+  change parameter types only — bodies need no change unless they index storage by
+  string, in which case `$id = (string) $id;` as the first statement restores the
+  previous behaviour. `docs/upgrades/waaseyaa-alpha-X-to-Y.md` carries the
+  copy-pasteable recipe, and the two shipped stubs in `packages/entity/testing/`
+  are worked examples.
+
+### Removed
+
+- **Removed — the dead `Waaseyaa\Geo\GeoServiceProvider` and the `waaseyaa/geo` → `waaseyaa/foundation` dependency it existed only to justify (#2752):** `register()` was empty and the class was never wired into `extra.waaseyaa.providers`, so no manifest-discovered provider roster and no production code path ever constructed it. It was `waaseyaa/geo`'s only reason to depend on `waaseyaa/foundation` and carry its path repository; the package is now a dependency-free pure utility (`GeoDistance` only). This is not a tracked public-surface removal — the stability charter's parity gate tracks contract shapes (interfaces, abstract classes, traits, enums) and `GeoServiceProvider` was a concrete `final` class, never listed in `docs/public-surface-map.php` — but anyone who directly referenced or manually registered the class should drop that reference.
+
+### Fixed
+
+- **The MCP endpoint specification no longer defers current capability to two
+  closed issues.** Live prose stated that exhaustive `resources/list` pagination
+  "waits for the purpose-bound AEAD sealing primitive tracked in #2220" and that
+  the Registry `server.json` console adapter "is tracked by #2207"; both issues
+  closed as completed on 2026-08-16, so the spec understated what is buildable
+  and pointed readers at issues they could not act on. Neither prerequisite is
+  discharged the same way, and the spec now says which is which: #2207 landed
+  `ProvidesConsoleCommandsInterface`, detected by `PackageManifestCompiler` via
+  a string constant precisely so a provider can contribute commands without
+  importing the Layer 6 CLI package — the layer obstacle is gone, and what
+  remains is that nothing exposes `McpRegistryManifest` at all (#2638). #2220
+  landed the `Foundation\Security\ApplicationMaster*` XChaCha20-Poly1305
+  primitive, but its envelope carries no expiry claim and enforces none, while
+  the acceptance criteria of #2220 called for expiry semantics suitable for
+  short-lived cursors — so a cursor must register its own purpose and enforce its own
+  expiry, and the prerequisite for pagination (#2636) is partially rather than
+  fully discharged. Documentation only; no behaviour changes.
+
+- **The `waaseyaa/oidc` README no longer tells integrators the issuer is
+  scaffold-only.** The status line described the package as of alpha.188,
+  before the completion mission landed, so a downstream architecture audit read
+  it and classified generic OIDC support as unavailable. Current `main` ships
+  discovery, JWKS, authorization code with mandatory PKCE `S256`, token and
+  refresh with rotation and a replay cascade, userinfo gated through
+  `FieldAccessPolicyInterface`, RFC 7009 revocation, a CSRF-checked consent
+  screen, the `oidc_client` registry with JSON:API and Admin SPA screens, the
+  staged signing-key lifecycle with seven `oidc:*` commands, encrypted custody
+  for keys and opaque tokens, and eight migrations. The README now carries a
+  capability matrix naming the class behind each row, alongside what is
+  genuinely absent: RP-initiated logout (`end_session` appears nowhere in
+  `packages/oidc/src` or `packages/routing/src`, and is not advertised in
+  discovery), RFC 7662 introspection, dynamic registration, and every grant
+  other than `authorization_code` and `refresh_token`. It also separates three
+  surfaces that were being collapsed into one readiness question: this
+  implemented issuer package, the separate `biindigen-waaseyaa` application
+  whose README is still scaffold-only and which has had no push since its
+  2026-04-17 creation, and the missing consumer half — `GenericOidcProvider`
+  and JIT `User` projection do not exist, and
+  `packages/oauth-provider/src/Provider/` holds only `GoogleOAuthProvider` and
+  `GitHubOAuthProvider`. Two further corrections: ADR-006 is flagged as stale
+  where it names `GenericOidcProvider`, an `end_session` controller, and a
+  `league/oauth2-server` wrapper that no `packages/oidc/src` file imports; and
+  the distribution note now states that the package is split-published and sits
+  in the root manifest's `require-dev` rather than the `replace` block ADR-006
+  §7 called for, so a `--no-dev` framework install does not pull it in. The
+  secrets-at-rest section separates the two envelope formats rather than
+  presenting one: a keyring-backed runtime seals application-master envelopes
+  (`waaseyaa.application-master.envelope.v1`, XChaCha20-Poly1305 IETF, bound to
+  an exact purpose, record identity and schema version), while a runtime with
+  no bound keyring writes the older `secretbox.hkdf-v1:` format keyed from
+  `WAASEYAA_APP_SECRET`, readable alongside a keyring only when
+  `oidc.accept_legacy_application_secret_material` is set. The package binds no
+  keyring itself and resolves it optionally, so neither format is described as
+  universal. The `oidc:migrate-secrets` section is rewritten from
+  `LegacyOidcSecretMigrator`: it does not only encrypt plaintext, it opens and
+  reseals `secretbox.hkdf-v1:` rows under the selected custody, re-versions
+  application-master envelopes and token lookup indexes that are not at the
+  active master version, skips rows already current, and applies every update
+  under a compare-and-set condition that aborts on concurrent modification. Two
+  binding-level claims are corrected: issuer signing resolves
+  `KeyMaterialProviderInterface` to the database-backed
+  `RealKeyMaterialProvider` unconditionally, so there is no configuration
+  switch pointing production signing at PEM files; and `lcobucci/jwt` is
+  declared but unused, because `IdTokenMinter` assembles, signs and verifies
+  the ID token itself with `openssl_verify()` and imports no `Lcobucci` type.
+  The status section states explicitly that package and kernel tests pin
+  behaviour and are not certification or deployment evidence. Documentation
+  only; no protocol behaviour changes.
+
+- **An auto-assigned entity id now survives a reload from the in-memory storage
+  driver (#2646).** `InMemoryStorageDriver::write()` computed an auto-increment
+  id for an empty-id write and returned it, but stored the value bag unchanged,
+  so the id existed only as the store's array key. Every row read back omitted
+  the id key, and `EntityRepository` hydrates entity identity from row values
+  alone — so a re-read entity had a null id, reported `isNew()` as true, and the
+  next save inserted a second row and returned `SAVED_NEW` instead of updating
+  in place and returning `SAVED_UPDATED`. Under a database-backed composition
+  the same id-less row failed harder, raising "Persisted entity row has no
+  canonical id." on hydration.
+
+  The driver now stamps the effective id into the persisted row, matching
+  `SqlStorageDriver`, whose insert lets the database populate a real id column
+  that every read returns. Because a driver is handed only an entity-type id per
+  call and cannot know whether the key is `id`, `nid` or `uid`,
+  `InMemoryStorageDriver` takes an `idKey` constructor default and a
+  `declareIdKey()` declaration that `V2EntityRepositoryFactory::create()`
+  populates from the entity type's own keys, so the composition used by tests is
+  correct for any id key. Explicit-id writes keep their caller-supplied value,
+  and a write whose value bag omits the id key records it once that key has been
+  declared -- never on a guessed key, since an explicit-id write already
+  round-tripped correctly and a wrong guess would add an undeclared column to a
+  row that was fine. The shared driver
+  contract test pins auto-assigned-id round-tripping for every
+  `EntityStorageDriverInterface` implementation, and the requirement is now
+  stated in the SPI and in the entity-system specification instead of being
+  enforced only by accident of SQL schema.
+
+- **Secrets generated into a skeleton application's `.env` no longer reach a
+  Docker image.** `skeleton/bin/post-create-setup.php` writes `.env` during
+  `composer create-project` with a `WAASEYAA_JWT_SECRET` (hex of 32 random
+  bytes) and a `WAASEYAA_APP_SECRET` (`base64:` plus 32 random bytes).
+  `skeleton/.dockerignore` excluded `.git`, `vendor`, `tests`, `*.md` and a few
+  editor directories but not `.env`, and the `production` stage of
+  `skeleton/Dockerfile` runs `COPY . /app`. Both generated secrets therefore
+  entered the build context, the final image filesystem, and a saved image
+  layer — and a layer keeps what it added, so removing the file in a later
+  build does not clear it from a tag already published. `.dockerignore` now
+  excludes `.env`, `.env.*`, `**/.env` and `**/.env.*`, then re-admits the
+  placeholder template with `!.env.example` and `!**/.env.example`; the
+  negations are last because in `.dockerignore` the last matching pattern wins
+  and `.env.*` also matches `.env.example`. The finding is scoped precisely:
+  this is disclosure of secret material inside a distributable artifact, not an
+  authentication bypass. The same `.env` also carries `APP_ENV=local`,
+  `APP_DEBUG=true` and `WAASEYAA_DEV_FALLBACK_ACCOUNT=true`, and none of the
+  three took effect in the image —
+  `Waaseyaa\Foundation\Kernel\EnvLoader::load()` mirrors process environment
+  into `$_ENV` before Symfony Dotenv runs, so the Dockerfile's
+  `ENV APP_ENV=production` and `ENV APP_DEBUG=false` win, and
+  `HttpKernel::shouldUseDevFallbackAccount()` is separately gated. The
+  exclusion is proven against a real daemon rather than against the text of
+  `.dockerignore`: `bin/check-skeleton-docker-secret-exclusion` copies the
+  skeleton, runs the real `post-create-setup.php` so the sentinels are the
+  generator's own output, seeds five further dotenv shapes (`.env.local`,
+  `.env.production`, `.env.local.php`, `config/.env`, `config/.env.staging`),
+  then builds an image and inspects all three surfaces the outcome names — the
+  build-context inventory the daemon actually received, the flattened image
+  filesystem from `docker export`, and every blob inside `docker save`, scanned
+  raw and gzip-decoded. It also asserts `.env.example` survived, so the
+  intentional negation cannot silently regress, and rejects a Dockerfile that
+  could reach outside the context (a remote `ADD`, or a `COPY`/`ADD` naming a
+  dotenv source), because the argument that the context bounds every layer
+  depends on that. A positive control runs first: the identical inspections
+  against a context with `.dockerignore` removed, which must observe the leak
+  on all three surfaces, so a pass cannot mean the harness stopped looking. The
+  gate is dependency-free — no `vendor/autoload.php`, and `proc_open()` with
+  file descriptors rather than pipes — because `ci/skeleton-create-project`,
+  the hosted lane that has a Docker daemon, never installs this repository's
+  own vendor tree. It probes with `FROM scratch` and `COPY . /context` rather
+  than the shipped `Dockerfile`: `.dockerignore` is applied to the context
+  before any instruction runs, so the inventory is the hard upper bound on what
+  any context `COPY` can place in a layer, and copying the whole context is
+  strictly more inclusive than `COPY . /app`. That also keeps the proof free of
+  a base image, a network and Composer resolution, so it finishes in seconds.
+  `tests/Architecture/SkeletonDockerSecretExclusionTest.php` binds the gate to
+  the suite: two of its three tests never skip — they assert the CI wiring
+  exists and that hosted CI never passes `--allow-missing-docker` — and only
+  the execution test skips, on the single observable predicate that
+  `docker info` did not answer, classified in `tools/phpunit-skip-policy.json`.
+  The runner is platform-correct rather than POSIX-only: the null device in the
+  `proc_open()` descriptor spec is derived from `PHP_OS_FAMILY` (`NUL` on
+  Windows, `/dev/null` elsewhere), because a hard-coded `/dev/null` makes
+  `proc_open()` return `false` on native Windows, and a `false` return is
+  indistinguishable from a missing binary -- so a working Docker install was
+  reported as absent, which is precisely the verdict that makes a run eligible
+  for the `--allow-missing-docker` skip path. `run()` now also separates
+  "the process never started" from "the process ran and exited non-zero", and a
+  launcher self-check round-trips the PHP binary before anything may conclude
+  anything about Docker; a launcher fault is a loud harness error that
+  `--allow-missing-docker` does not rescue. `classifyDocker()` carries that
+  distinction through to the second probe rather than dropping it one call site
+  later: by the time `docker info` runs, the launcher is known-good *and* the
+  same binary has already launched, so an `info` that fails to start cannot be
+  an unavailable daemon -- an absent daemon still lets the CLI start, it just
+  answers with an error -- and it is classified as an unskippable harness fault.
+  Only a probe that actually ran and exited non-zero is a daemon verdict. Three further tests cover the runner
+  with no Docker at all, including one that reproduces the Windows path on any
+  host by forcing the foreign null device and asserting the gate reports a
+  broken launcher rather than a missing daemon, and one that injects the exact
+  interleaving where the launcher works, `docker --version` succeeds, and
+  `docker info` fails to start -- asserting exit 2 rather than the skippable
+  exit 3.
+  Consumers get a tested upgrade path in
+  `docs/upgrade-notes/skeleton-docker-env-exclusion.md`: the exact
+  `.dockerignore` lines to append, a copy-pasteable `FROM scratch` probe for
+  confirming the build context, a `docker save` recipe for auditing images
+  already built or published, and rotation guidance that separates the two
+  secrets — `WAASEYAA_JWT_SECRET` invalidates outstanding tokens when rotated,
+  while `WAASEYAA_APP_SECRET` is the kernel master secret whose persisted
+  envelopes and keyed lookup values need the existing `application-secret-hkdf`
+  and `oidc-secrets-at-rest` migrations. Both the fresh-project and the upgrade
+  paths were exercised end to end against a real daemon. Related to the
+  broader #2479 audit, which this does not wait on.
+
+- **A generated application's homepage now renders through Twig instead of
+  being served as raw template source (#2651).** The skeleton's
+  `AppServiceProvider::routes()` bound `/` to `App\Controller\HomeController`,
+  which read `templates/home.html.twig` with `file_get_contents()` and returned
+  those bytes under `Content-Type: text/html`. Because that route registers
+  before the framework's own `public.home` route and both sit at the default
+  priority, the application route won the tie-break and the SSR render pipeline
+  never saw `/`. The defect was invisible only because the shipped
+  `home.html.twig` happens to contain zero Twig tags: the first `{{ … }}` an app
+  author added was delivered to the browser verbatim. Booting the production
+  kernel against a freshly created project with `{{ 6 * 7 }}` in the homepage
+  template returned the literal string `{{ 6 * 7 }}`; it now returns `42`.
+
+  Beyond the unrendered expression, the shadowing route bypassed everything the
+  SSR path owns for `/`: theme-chain template resolution, the `ssr.cache_max_age`
+  response headers, language negotiation and prefix stripping, and the
+  `404`/`403`/`500` Twig error pages. `page.html.twig` and `404.html.twig` each
+  contain a Twig expression and were reachable only through the SSR path, so the
+  application shipped two different homepage-rendering contracts depending on
+  which file a developer edited.
+
+  The homepage route and `HomeController` are both removed; `src/Controller/`
+  remains as scaffolding for application controllers. `/` is now claimed by the
+  framework's `public.home` route, which dispatches `render.page` and resolves
+  `home.html.twig` through the real Twig environment. Template overrides are
+  unaffected — the theme chain still puts the application's `templates/`
+  directory ahead of `packages/ssr/templates/`, so editing
+  `templates/home.html.twig` remains the supported way to replace the homepage.
+  The application-owned `waaseyaa.clean_url_probe` route is deliberately
+  untouched: `waaseyaa-audit-site` and the operator clean-URL diagnostic depend
+  on it.
+
+  Existing applications that added their own homepage controller are unaffected;
+  this only changes what a newly generated skeleton ships. An application that
+  wants to keep an explicit controller on `/` should give the route
+  `->priority(1)` or higher so it outranks the SSR catch-all deterministically,
+  and should render through Twig rather than reading the template as bytes.
+
+- **Fixed — `bimaaji:install` now works from a real packaged consumer (#2656).**
+  The canonical Agent Skills moved from the framework monorepo root
+  (`skills/waaseyaa/`) into the component package that owns the installer:
+  `packages/bimaaji/resources/skills/<id>/SKILL.md`.
+
+  `BimaajiServiceProvider::resolveSkillsDirectory()` used to fall back to
+  `<projectRoot>/skills/waaseyaa`, a path that exists only in this repository —
+  a consumer requires `waaseyaa/core`/`cms`/`full`, never gets a project-root
+  `skills/` directory, and `bin/waaseyaa bimaaji:install` therefore printed
+  `no skills discovered` and exited 1 for exactly the projects the command was
+  written for. Default resolution now begins at the installed package and is
+  anchored on the running class file
+  (`Waaseyaa\Bimaaji\Install\PackagedSkillResources`), so one path is correct
+  both in the checkout (`packages/bimaaji/resources/skills`) and in a
+  consumer's vendor tree (`vendor/waaseyaa/bimaaji/resources/skills`). The
+  monorepo-root directory is deleted rather than mirrored: a single canonical
+  copy needs no build-time sync step and no freshness gate to keep honest.
+  `bimaaji.skills_directory` still overrides for an application with its own
+  skill set; the `<projectRoot>` guess is gone.
+
+  **Installation is marker-bounded, not just idempotent.** Every generated file
+  frames its payload between `<!-- waaseyaa:bimaaji:install BEGIN -->` and
+  `<!-- waaseyaa:bimaaji:install END -->`
+  (`Waaseyaa\Bimaaji\Install\ManagedRegion`). When a target already carries a
+  well-ordered marker pair, a re-run replaces only the text between the markers
+  and carries every byte outside them through verbatim, so a consumer's own
+  notes above and below the framework block survive a framework upgrade — and
+  that refresh needs neither `--force` nor a confirmation, because it cannot
+  touch hand-authored content. A file with no markers (or an ambiguous
+  duplicated pair) is still treated as wholly hand-authored and keeps the
+  original overwrite contract; the non-interactive error now tells the operator
+  that adding the marker pair converts future runs into region refreshes. The
+  Claude transformer gained markers too, opening after the YAML frontmatter
+  because Claude Code requires frontmatter at byte 0 — the skill body refreshes
+  every run while the consumer's `name`/`description` edits are preserved. The
+  sha1 idempotency compare runs against the spliced payload, so an unchanged
+  region still reports `unchanged`.
+
+  **The installed output is the layout each client actually reads.** The Claude
+  transformer emitted a flat `.claude/skills/waaseyaa-<id>.md`. A Claude Code
+  project skill is a *directory* — `.claude/skills/<skill-name>/SKILL.md`, with
+  the command name coming from the directory — so a flat `.md` there is not a
+  documented layout and is never discovered. The install reported "12 written"
+  while producing nothing Claude could load; the very files being packaged were
+  already directory-shaped and were being flattened on the way in. Output is now
+  `.claude/skills/waaseyaa-<id>/SKILL.md`. The Codex transformer wrote
+  `.codex/AGENTS.md`, which is not a Codex discovery location at all — it
+  conflated the project scope with the personal `~/.codex/AGENTS.md` under
+  `$CODEX_HOME` — and now writes the repository-root `AGENTS.md` that Codex
+  actually reads. Both target paths, and the other five, were re-verified
+  against first-party vendor documentation and their citations re-dated.
+  `.github/copilot-instructions.md` and `GEMINI.md` are confirmed current;
+  `.cursorrules`, `.windsurfrules` and `.junie/guidelines.md` are documented by
+  their vendors as legacy-but-still-read and are left unchanged pending a
+  follow-up, because each needs its own decision rather than a path swap.
+
+  **Retired skills no longer stay active forever.** Installation visited only
+  the current target set, so a skill removed or renamed upstream left its
+  generated file on disk and the client kept discovering withdrawn guidance; a
+  consumer upgrading across releases accumulated the union of every skill set
+  they had ever installed. `bimaaji:install` now records what it generated in
+  `.waaseyaa/bimaaji-install.json` — per client, the exact relative path plus
+  the sha1 of the bytes left on disk — and prunes targets the current set no
+  longer produces. Ownership is **recorded, never inferred**: a `waaseyaa-*`
+  filename is a guess, and the marker-bounded splice establishes that a
+  generated file can carry hand-authored content, so a path the manifest does
+  not claim is never touched. A retired target whose bytes still match the
+  record is deleted, and its directory removed only if that leaves it empty, so
+  supporting files a consumer added survive. One whose bytes differ but which
+  still carries the marker pair is *neutralised* rather than deleted — the
+  managed region becomes a retirement notice and every byte outside it is
+  preserved. One with no marker pair is left completely alone and the ownership
+  claim released. `--dry-run` reports every prune and performs none, and does
+  not rewrite the manifest.
+
+  **Containment now covers every path the command touches.** Two escapes closed.
+  `writeManifest()` built `.waaseyaa/bimaaji-install.json` and wrote it
+  directly, bypassing the containment boundary every other write already used,
+  so a symlinked or junctioned `.waaseyaa` redirected that write outside the
+  project root. And the boundary itself resolved only the nearest *existing
+  ancestor* of the target's directory — it never resolved the target path — so
+  a symlink at a target path redirected reads, writes and the pruner's
+  neutralisation rewrite to an arbitrary filesystem location. Both now go
+  through one `resolvePathInSandbox()` with three guards: textual (absolute
+  paths and `..`), ancestor (nearest existing ancestor must `realpath()` inside
+  the project root), and target (the path must not be a link, and if it exists
+  must `realpath()` inside the project root). Target links are rejected
+  outright rather than resolved-and-allowed: the installer never creates one,
+  so a link at a target path is never a file it generated, and following one
+  would open a time-of-check / time-of-use window. `is_link()` does not report a
+  Windows directory junction, which is why the target guard resolves the target
+  as well. Regression coverage plants a file outside the project root and
+  asserts its bytes are unchanged after the run, for the write, prune and
+  neutralisation paths and for a redirected `.waaseyaa`. The `realpath()`
+  resolution is a platform claim, so it is also executed on Windows:
+  `bin/check-bimaaji-junction-containment.ps1`, a step in
+  `ci/skeleton-create-project-windows`, redirects `.waaseyaa` and
+  `.claude/skills` through directory junctions and requires a non-zero exit,
+  nothing written at the external location, and an unchanged external sentinel.
+  Junctions rather than symbolic links because a Windows symlink normally needs
+  a privilege a CI runner does not have, and a junction is the reparse-point
+  shape the guard must catch; two positive controls fail the gate if the
+  junction is not actually redirecting.
+
+  **A manifest that cannot be persisted is a non-zero exit.** It used to be
+  logged and then ignored, so the command could report success after generating
+  files whose ownership was never recorded — and ownership is precisely what
+  makes a later prune safe.
+  **Missing and corrupt skill resources fail with different, actionable
+  diagnostics.** `SkillSetParser::parse()` used to return an empty list for a
+  missing directory and silently skip a document it could not parse, which
+  collapsed both cases into one monorepo-shaped message naming
+  `skills/waaseyaa/<id>/SKILL.md`. It now raises `SkillResourceException`
+  carrying a `SkillResourceFailure` of `Missing` (directory absent, unreadable,
+  or holding no `<id>/SKILL.md` — remedied by
+  `composer reinstall waaseyaa/bimaaji`, or by correcting a
+  `bimaaji.skills_directory` override, whichever actually produced the path) or
+  `Corrupt` (a `SKILL.md` with unterminated YAML frontmatter, unreadable bytes,
+  or an empty document — the message names the offending file and the parse
+  failure). Every message names the resolved absolute directory rather than a
+  repository-relative path.
+
+  **A packaged-form proof binds all of it.**
+  `tests/PackagedForm/check-bimaaji-skill-resources` (CI job
+  `ci/bimaaji-skill-resources`) builds a disposable consumer from the exact
+  candidate tree, installs the packages as copies rather than symlinks so
+  `vendor/waaseyaa/bimaaji` holds real installed bytes, asserts the consumer
+  has no project-root `skills/` directory, and drives `bimaaji:install` with no
+  seeded fixtures — everything it writes must come from the installed package.
+  It asserts the exact installed directory structure rather than mere
+  presence — the flat-file defect passed a presence check — then proves the
+  second run is a no-op, that a hand-edited preamble and postscript survive a
+  refresh that does change the managed region, that a skill withdrawn upstream
+  is pruned and its directory removed, that a retired target the consumer has
+  edited is neutralised with its supporting assets intact, that a look-alike
+  file the manifest does not claim is untouched, and that deleting or
+  corrupting the installed resources produces the matching diagnostic.
+  `packages/bimaaji/tests/Architecture/PackagedSkillResourcesTest.php` is the
+  fast repo-state half: it parses every shipped document, rejects one with no
+  name, no description, an empty body, or a non-kebab-case id, and fails if a
+  monorepo-root `skills/` directory reappears.
+
+  **Stale placeholder documentation removed.** `skeleton/CLAUDE.md` no longer
+  claims the `waaseyaa:*` skills "will not function until the skills are
+  built", and no longer routes `src/Provider/**` to a `feature-dev` skill that
+  does not exist. Its orchestration table names the skill files
+  `bimaaji:install` actually writes (`.claude/skills/waaseyaa-<id>/SKILL.md`) and shows
+  the command that installs them. `docs/specs/bimaaji.md` listed M5
+  (`bimaaji-install-command-01KS5W0S`) under "Deferred (post-M3)" while
+  `packages/bimaaji/src/Install/` was fully implemented; that section now
+  reflects the shipped surface.
+
+  **Upgrading.** `SkillSetParser::parse()` is `@api` and now throws
+  `SkillResourceException` where it previously returned `[]`, and the Claude and
+  Codex output paths moved. Files generated before the ownership manifest
+  existed carry no record, and the installer will not delete what it cannot
+  prove it wrote, so the stale flat `.claude/skills/waaseyaa-*.md` and
+  `.codex/AGENTS.md` need one manual removal. See
+  `docs/upgrade-notes/bimaaji-skill-resources.md`.
+
+- **The skeleton's production Docker image builds, and CI proves it against
+  the built image rather than the Dockerfile text (#2673).** `skeleton/Dockerfile`
+  had never been built by anything in this repository, and it did not build.
+  Its `base` stage ran `apk add --no-cache sqlite-libs icu-libs &&
+  docker-php-ext-install intl opcache pdo_sqlite`, which fails on the first
+  extension: `docker-php-ext-install` shells out to `phpize`/`configure`, and
+  `icu-libs` carries only the ICU shared objects, so the build stopped at
+  `configure: error: Package requirements (icu-uc >= 57.1 icu-io icu-i18n)
+  were not met` — no headers (`icu-dev`), no toolchain (`$PHPIZE_DEPS`). Two
+  further defects sat behind that one, invisible because nothing ever reached
+  them. `php:8.5-fpm-alpine` already links Zend OPcache and `pdo_sqlite`
+  statically into the binary, so `docker-php-ext-install opcache` is not a
+  no-op there but a hard failure — a static extension produces no shared module
+  and the install step dies on `cp: can't stat 'modules/*'`. And once the base
+  stage was repaired, the `deps` stage's `composer install --no-dev` refused
+  the lock file outright, because `waaseyaa/structured-import` requires
+  `ext-zip` and the image had no `zip`.
+
+  The `base` stage now installs `icu-libs`, `libzip` and `sqlite-libs` as
+  explicit packages, then `$PHPIZE_DEPS`, `icu-dev` and `libzip-dev` under a
+  `.build-deps` virtual package, compiles the two extensions the base image
+  genuinely lacks (`intl` and `zip`), and runs `apk del .build-deps` **inside
+  the same `RUN`**. Both halves of that are load-bearing. Deleting in a later
+  `RUN` leaves every build-only byte committed in the earlier layer: the final
+  filesystem looks clean to `docker run` and to `apk info` while `docker save`
+  still carries the whole toolchain where anyone who can pull the image can
+  read it. That claim is evidenced at package level rather than by matching
+  file paths, because a path denylist can only assert what it enumerates.
+  Every saved layer carries apk's own database as it stood when that layer was
+  committed, so a package named in some layer and absent from the final image
+  was installed and later removed — and its files ship in the layer that added
+  them. Built with the delete split into its own `RUN`, the identical stage
+  reports **34** such packages: not only `gcc`, `make` and `autoconf` but the
+  transitive closure no denylist would have listed — `binutils`, `musl-dev`,
+  `libstdc++-dev`, `isl26`, `mpfr4`, `perl`, `icu-dev`, `libzip-dev` — plus the
+  `.build-deps` virtual package itself. The shipped stage reports **0**: 46
+  packages in the final image and the same 46 across all six layer databases.
+  A widened path denylist covering the binaries and headers `$PHPIZE_DEPS`,
+  `icu-dev` and `libzip-dev` actually install runs alongside as corroboration
+  — 242 distinct build-only paths in the split-`RUN` control, 0 among the
+  21 406 saved-layer entries of the shipped image — but it is explicitly the
+  second check, not the argument. Installing the runtime libraries
+  explicitly and first is the other half: `icu-dev` and `libzip-dev` pull
+  `icu-libs` and `libzip` as dependencies, and had they only arrived that way
+  `apk del .build-deps` would have taken them out again, leaving an `intl.so`
+  that cannot resolve its libraries.
+
+  The stage closes with `php -m` assertions for `intl`, `zip`, `pdo_sqlite` and
+  `Zend OPcache` plus a live `Collator` comparison, executed inside the image
+  being built. They are there because the OPcache defect is a property of the
+  *base image*, not of this file: if a future `php:8.5-fpm-alpine` stops
+  bundling either static extension, the build now fails loudly instead of
+  shipping a silently degraded runtime.
+
+  `ci/skeleton-create-project` is where this is proven, because that lane
+  already has a Docker daemon and already produces a real `composer
+  create-project` consumer — the acceptance requires a fresh split-shaped
+  project, not a hand-assembled context. That project is now retained in
+  `RUNNER_TEMP` (per-job, discarded by the runner) instead of being deleted by
+  the step that made it, and a new step builds the **production** stage from
+  it — not `base`, not `deps` — then reads three things out of the resulting
+  image: that the four extensions load under `php -m` and `Collator` actually
+  works, that `/app/.env` is absent while `/app/.env.example` survives, and
+  that no package recorded in a layer is missing from the final image. The
+  layer reads are not redundant with the `docker run` checks; they are the only
+  ones that can see a build dependency deleted in a later layer. Run against a
+  consumer whose only difference is the split `RUN`, the step exits 1 and names
+  all 34 packages, so the failing direction is proven rather than assumed.
+
+  One release shape genuinely cannot build this image: release-cut consumers
+  resolve `waaseyaa/*` from host path repositories under `GITHUB_WORKSPACE`,
+  which do not exist inside the build container. That skip is enforced rather
+  than trusted, because a documented assumption is the same shape of gap that
+  let this Dockerfile stay broken. The step compares `skeleton/Dockerfile` at
+  HEAD against the same path at HEAD's **first parent** — on both shapes that
+  set `SOURCE_SKELETON`, a `release-cut/*` head and the `chore: release …` push
+  to `main`, that parent is the `main` commit the cut was taken from, which an
+  ordinary run of this step already built; it is also the only prior revision
+  the job's checkout is guaranteed to hold, which is why the job now checks out
+  at `fetch-depth: 2` and why the parent is preferred over a release-cut source
+  ref or a PR base that are never fetched here. Identity is the blob object id,
+  so whitespace and line endings count. Identical skips with a notice; changed
+  fails; a parent or blob that cannot be resolved fails rather than skipping,
+  since an unverifiable skip is precisely the assumption being replaced. All
+  three directions were exercised against the step extracted verbatim from the
+  workflow.
+
+  The #2647 sentinel gate is deliberately left as it is. It probes with `FROM
+  scratch` and `COPY . /context`, which copies strictly more than the real
+  `COPY . /app`, so it remains the tighter upper bound on what any context copy
+  can place in a layer; pointing it at the production image instead would make
+  it slower, network- and Packagist-dependent, and would couple the secret
+  proof to the build's health. The new step covers the shipped artefact
+  directly instead, so both surfaces are now evidenced. Consumers get
+  `docs/upgrade-notes/skeleton-production-image-build.md`: the exact replacement
+  `RUN` block, the two ways to get it subtly wrong, and a `docker save` recipe
+  for confirming their own images carry no toolchain.
+
+- **An entity ID from `EntityQueryInterface::execute()` now loads without a cast,
+  and a string-keyed ID is no longer coerced (#2674).** `SqlEntityQuery::execute()`
+  returns integer IDs for integer identity columns, but
+  `EntityRepositoryInterface::find()`, `exists()` and `loadWorkingCopy()` accepted
+  only `string`, so the canonical
+  `$repository->find(reset($repository->getQuery()->accessCheck(false)->execute()))`
+  raised a `TypeError`. So did `$repository->find($entity->id())`, because
+  hydration reports a numeric identity as an int. Both now work.
+
+  Two output-side coercions also re-interpreted stored identities numerically on
+  a bare `is_numeric()` test, which corrupted machine-name-keyed entity types —
+  the shape `node_type` and `taxonomy_vocabulary` use. A vocabulary keyed `'007'`
+  or `'1e3'` was returned from `execute()` as `7` and `1000`, addressing no row,
+  and could not be loaded at all: `find('007')` raised
+  `UnexpectedValueException: Persisted entity … '7' has no aggregate mutation
+  authority`, even when passed the correct key. A stored value is now reported as
+  an int only when the cast round-trips exactly, so `'007'` addresses row `'007'`
+  while integer-keyed types are unchanged.
+
+- **Fixed — `schema:check` no longer falsely requires `_data` on sql-column entity types (#2682):** `HealthChecker::detectTableDrift()` built its expected-column list by unconditionally including `_data`, so a freshly materialized `PrimaryStorageBackend::SQL_COLUMN` entity type — whose `SqlSchemaHandler::buildTableSpec()` deliberately omits the blob column — always failed `schema:check` with a bogus "missing `_data`" drift entry. `HealthChecker` now resolves the primary storage backend off the entity type the same way `EntitySchemaSync::resolveBackend()` does (declared backend wins, else `sql-blob`) and only expects `_data` when that backend actually materialises it, so the diagnostic follows the storage schema handler's own rule instead of a parallel heuristic.
+
+- **Auth HTTP routes now honor application composition (#2694):** the routing provider injects the application-composed extension registry into registration, password recovery, verification, login, logout, and two-factor verification controllers, restoring consumer policies, presentation hooks, and lifecycle events on real requests. Development verification and recovery URLs now reach the configured runtime logger instead of being silently discarded.
+
+- **Root applications can now declare V2 schema migrations through
+  `extra.waaseyaa.migrations` (#2695).** Waaseyaa retains and validates the root
+  declaration under its Composer package name, resolves root-relative legacy
+  paths without double-loading the automatic `/migrations` fallback, discovers
+  optimized-classmap `MigrationInterfaceV2` implementations, and carries that
+  catalogue consistently through dry-run, apply, status, verify, `db:init`, and
+  `install:init`. Declared canonical root `/migrations` paths retain historical
+  `app:*` ledger IDs, preventing replay on upgrade. Stock runtime compositions
+  honor environment-specific checksum refusal/warnings and configured logging.
+
+- Fixed the SQLite collation reader refusing a collation name written as a
+  string literal (`COLLATE 'NOCASE'`). SQLite accepts a string wherever an
+  identifier is expected and resolves it normally, so a legitimately
+  case-insensitive column was reported unresolvable and the migration runtime
+  refused an index that was in fact equivalent. The clause argument now admits
+  every spelling SQLite does — bare, double-quoted, backtick-quoted, bracketed
+  and single-quoted. Unknown still fails closed and is never collapsed to
+  `BINARY`.
+
+- Fixed fresh-install semantics for V2 entity evolution. A V2 plan targeting a
+  registered entity base table now materializes that table through the canonical
+  entity-schema materializer inside the migration transaction, applies operations
+  the live schema still needs, records an auditable `already_satisfied` outcome
+  when the schema exactly satisfies them, and fails closed on an incompatible or
+  unowned table. One immutable catalogue now upgrades an existing site and
+  initializes a fresh one with identical `checksum` and `diff_hash` evidence.
+
+- **The Dependabot admin-dist rebuild now verifies the bundle in a clean,
+  unprivileged job under a pinned interpreter, so admin dependency bumps stop
+  dying on a stale `dist` (#2704).** `.github/workflows/dependabot-admin-dist.yml`
+  split an unprivileged `build` job (`contents: read`, pinning
+  `shivammathur/setup-php` at 8.5) from a privileged `publish` job
+  (`contents: write` + `actions: write`, which commits the rebuilt bundle and
+  dispatches CI). `publish` sets up no PHP — that is the point of the split —
+  yet it ran `php bin/admin-dist-acceptance verify`, so it executed the
+  runner's **default** interpreter. `bin/admin-dist-acceptance:73` is
+  `new AdminDistWorkspaceGuard()->assertAcceptable(...)`, the PHP 8.4+ "new
+  without parentheses" form, which is a parse error on anything older
+  (`syntax error, unexpected token "->"`, exit 255). The job died at validation
+  and never reached "Commit rebuilt dist to the Dependabot branch", so the
+  stale `packages/admin-surface/dist` survived every admin bump and each such
+  PR failed the same fixed set of checks downstream of it —
+  `ci/verify-gates` (`composer check-admin-dist-fresh`), the
+  `AdminDistContentTest::shipped_bundle_build_identity_is_internally_consistent`
+  shard, and the unit/coverage/random-order jobs carrying that test. `main`
+  stayed green throughout, because nothing on the main CI path runs that script
+  on a bare runner, so the breakage could sit indefinitely. It was observed
+  simultaneously on four unrelated bumps: #2688, #2689, #2690 and #2691.
+  The fix is **not** to add `setup-php` to `publish`: that would run a
+  third-party action inside a boundary holding `contents: write` and
+  `actions: write`, and the build/publish separation is the security property
+  the workflow exists to keep. Nor is it enough to move the call into `build`.
+  `bin/build-admin-dist` installs with `npm ci --ignore-scripts`, so
+  install-time lifecycle hooks are not the exposure — but it then runs
+  `npm run generate`, where the bundler imports and executes dependency modules
+  in-process to produce the SPA. Dependency code therefore executes in
+  `build`'s workspace, which makes everything on that disk afterwards —
+  `bin/admin-dist-acceptance` and the verifier classes it loads included —
+  potentially attacker-controlled, and a verifier the attacker can rewrite
+  proves nothing.
+  So an **independent** acceptance gate now runs in a third job. This adds
+  independence rather than relocating the only check: `bin/build-admin-dist`
+  already ends by running `bin/check-admin-dist-fresh` and
+  `bin/admin-dist-acceptance verify` against the tree it just produced, and
+  `build` still does exactly that. The problem was never that `build` fails to
+  check — it is that its check shares a disk with the bundler, so the result is
+  a useful early failure but not evidence that can stand on its own. `build`
+  (`contents: read`) keeps generating, checking internally, and uploading; a
+  new `validate` job (`contents: read`) re-runs the same acceptance check where
+  the outcome does not depend on that workspace; and `publish` (unchanged
+  permissions) `needs: [build, validate]`, so a failed verification can never
+  reach a write. `validate` realises the trusted-verifier / untrusted-data
+  separation concretely: it checks out
+  `github.event.pull_request.head.sha` — pinned for **identity, not trust**.
+  The pin does not make that revision trustworthy; it makes it unambiguous and
+  reproducible, keeping all three jobs on one commit so the bundle is judged
+  against the source contract of the revision it claims to describe. Without
+  it the default ref for `pull_request_target` is the base branch, which would
+  judge the bundle against a different revision's `dist.markers.json` — an
+  identity bug, not a privilege one. It also sets `persist-credentials: false`,
+  sets up PHP 8.5 and runs
+  `composer install --no-interaction --prefer-dist --no-progress --no-scripts
+  --no-plugins` (a Composer bootstrap is unavoidable because
+  `bin/admin-dist-acceptance` requires `vendor/autoload.php`, and the flags
+  match `build`'s because Composer scripts and plugins execute code) **before**
+  the artifact is downloaded, so the trusted toolchain is complete while the
+  only bytes on disk are git's; it runs no `npm`, `node` or `setup-node` at
+  all; and it then treats the artifact strictly as data — confined, read and
+  hashed, never executed. `AdminDistAcceptanceVerifier` performs no `include`,
+  `eval` or `unserialize`: it hashes files and `json_decode`s two of them.
+  The #2524 guarantee that "the acceptance manifest must describe the bytes
+  that just landed, not the bytes some other tree produced" is preserved rather
+  than relaxed. The verifier reads
+  `packages/admin-surface/{dist,dist.signature,dist.manifest.json}` under the
+  project root, so `validate` places the downloaded bytes at exactly those
+  paths in its throwaway workspace — overwriting the committed dist there only,
+  and nothing in that job commits or pushes. The manifest and the tree it
+  describes travel together in one artifact and land side by side, and
+  `dist.markers.json` — the source-contract assertions being re-checked — is
+  **not** in the artifact, so the claims come from the pinned checkout even
+  though the bundle they are checked against does not.
+  Both consumers confine the artifact before copying it: the
+  `dist dist.manifest.json dist.signature` entry-name allowlist, a recursive
+  non-regular-filesystem-entry rejection (which is what stops `cp -a`
+  following a symlink out of the tree), and the `^[0-9a-f]{64}$` signature
+  check all run ahead of the copy, so an artifact carrying extra or unexpected
+  entries cannot write outside those three paths.
+  Artifact identity between the jobs is now demonstrated rather than assumed.
+  This strengthens a binding; it does not close a hole. Downloading by name
+  within a single run already resolves to that run's artifact, and that was
+  never broken. What is added is a check that does not depend on
+  artifact-resolution semantics at all, and that a test can assert: `validate`
+  publishes a job output — a path-relative, `LC_ALL=C`-pinned SHA-256 over
+  every file in the artifact — and `publish` re-derives it identically and
+  refuses to copy anything whose digest differs, or whose expected digest is
+  absent. The comparison travels out-of-band from the artifact itself, covers
+  every byte rather than just the signature file, and fails closed.
+  `publish` now also carries the Dependabot actor and same-repository condition
+  itself, rather than holding the write token under `pull_request_target` while
+  relying entirely on `build`'s `if` reaching it through `needs`. That
+  **narrows** the gating and does not replace it: a job `if` is evaluated in
+  addition to the implicit `success()` over `needs`, so both `build` and
+  `validate` must still have succeeded — an implicit requirement that survives
+  only while the expression contains no status function, which is why
+  `always()`, `failure()` and `cancelled()` are excluded there and asserted
+  against. Today the condition is redundant by construction, which is the
+  point: it should not depend on another job's `if` surviving an edit to
+  `needs`. `publish` keeps every shell-level check it had, plus its commit and
+  CI dispatch; it simply no longer invokes PHP, and its `permissions` are
+  untouched. The committed result is still independently re-derived on a clean
+  runner by `ci/verify-gates` (`composer check-admin-dist-manifest`) against
+  the pushed head.
+  `tests/Architecture/AdminDistWorkflowInterpreterBoundaryTest.php` parses the
+  workflow and holds the whole shape: the three-job graph with each job's
+  permissions and `needs`, the write-capable job's own actor condition and its
+  freedom from status functions, the pinned head-sha checkout in all three, the
+  PHP 8.5 pin and the absence of any JS toolchain in the verifying job, the
+  checkout-then-install-then-download ordering, the `--no-scripts
+  --no-plugins` bootstrap, the absence of a second acceptance step bolted onto
+  `build`, the upload path set matching what the verifier reads, the digest
+  binding on both sides, the confinement checks preceding both copies,
+  confinement and placement preceding verification, verification being
+  unskippable and its exit status unswallowed, and the write-capable job
+  invoking neither `php` nor `composer` nor any action beyond checkout and
+  download-artifact. Sixteen separate regressions were each reintroduced and
+  confirmed to turn the suite red. It also records the companion audit:
+  `.github/workflows/admin-dist.yml` is **unaffected** — it triggers on `push`
+  to `main`, so its input is already-merged code rather than an untrusted PR
+  head, and its single `build-and-publish` job pins
+  `shivammathur/setup-php` at 8.5 itself, so it never had the #2704 bug; a test
+  holds that pin in place, and extending the split to it is deliberately out of
+  scope. The four blocked PRs are intentionally left alone: hand-rebuilding
+  each one clears the symptom and leaves the automation broken for the next
+  bump, so they get re-triggered once this lands.
+
+- **Fixed a live column falsely satisfying an ordinary authored `AddColumn`.**
+  The v2 migration runtime decided "already satisfied" by comparing declared-type
+  affinity, nullability and default alone. Everything else a SQLite column can
+  carry was invisible to it, so a `PRIMARY KEY`, `UNIQUE`, `REFERENCES`, `CHECK`
+  or `COLLATE NOCASE` column — none of which is expressible in `ColumnSpec`, and
+  none of which the compiler can render, since it emits only
+  `<type> [NOT NULL] [DEFAULT <literal>]` — was reported equivalent and the
+  evolution was silently skipped. A generated column was worse than invisible:
+  absent from `PRAGMA table_info` entirely, it looked *missing*, so the operation
+  was applied and SQLite refused it with a raw error instead of an auditable
+  refusal. The comparison now decides the whole question. SQLite's
+  `column-constraint` and `table-constraint` productions are finite, so the
+  properties outside the authored vocabulary are a closed list, and each is read
+  from the catalogue that owns it: primary-key membership, generated/hidden
+  columns, type, nullability and default from `PRAGMA table_xinfo`; `UNIQUE`
+  constraint membership from `PRAGMA index_list` (`origin = u`) and `index_info`;
+  foreign-key **source** membership from `PRAGMA foreign_key_list`. The three
+  with no pragma — the effective `COLLATE`, the `NOT NULL` conflict policy, and
+  whether any `CHECK` on the table can read this column — are read from the
+  stored definition through the existing token-preserving reader, which reports
+  anything it cannot interpret as a refusal rather than assuming the benign
+  reading. Because the production list is closed, reaching the end is now a proof
+  of equivalence rather than an absence of findings. Refusals go through the
+  existing fail-closed `[S1-DB110]` path, naming what was found; a refused node
+  leaves no ledger row and rolls back any earlier operation in the same plan,
+  with pre-existing data intact. This narrows acceptance and widens none:
+  `checksum` and `diff_hash` still hash authored intent alone and are unchanged
+  in both lifecycles, `--dry-run` still writes nothing, and `AddIndex`
+  composition is untouched. Deliberately still accepted, because each is a real
+  equivalent rather than an oversight: an independently created index, including
+  a `UNIQUE` one — an index is a separate schema object with its own authored
+  form, and entity schema synchronization emits exactly that for `uuid` columns;
+  being the *target* of another table's foreign key, which is a property of that
+  other table; explicit `ON CONFLICT ABORT` and explicit `COLLATE BINARY`, which
+  restate the defaults the compiler's own output carries; and any ordinary column
+  sitting beside constraints that do not reach it. `CHECK` is judged by whether
+  its expression can read the column, not by where it is written, so a constraint
+  attached to a neighbouring column still refuses and one confined to other
+  columns still passes — including through generated-column indirection, where
+  `CHECK (derived > 0)` over `derived AS (value + 1)` reaches `value`. The
+  matching detail matters in two places SQLite makes subtle: `pk` is a 1-based
+  position, so a column late in a composite key counts, and an
+  `INTEGER PRIMARY KEY` reports `notnull = 0` although it cannot hold NULL, which
+  is why primary-key membership is read before nullability; and a `NOT NULL`
+  conflict policy is attributed to the clause SQLite actually applies — the last
+  `NOT NULL`, defaulting to `ABORT` when it names none — because `ROLLBACK`
+  discards the migration's own transaction and `FAIL` keeps the rows a failing
+  statement wrote, while a conflict clause on a bare `NULL` constraint is inert.
+  See `docs/change-records/FW-2701.md` for the supported grammar, the proof
+  argument, and the stated limitations.
+
+- **Pre-delete guards now actually prevent deletion.** `EntityRepository` treated
+  `EntityEvents::PRE_DELETE` as a buffered notification: `doDelete()` handed it to
+  the `UnitOfWork`, which dispatches buffered events *after* `commit()` and
+  deliberately outside the rollback catch. A refusing guard therefore threw back
+  to the caller once the base row, its revision rows and the tombstoned
+  mutation-authority record were already durably gone. Correcting the premise the
+  previous documentation asserted in five places: this was never batch-only.
+  `delete()` opens its own `UnitOfWork` whenever a mutation authority and database
+  are wired — which is every repository `EntityTypeManagerFactory` builds — so
+  `RelationshipDeleteGuardListener`, the only production `PRE_DELETE` subscriber,
+  was ineffective on the single *and* the batch path in every DBAL-backed
+  composition. The fix aligns delete with the save path exactly: `PRE_DELETE` is a
+  **guard** event and dispatches immediately, inside the open delete transaction,
+  so a refusal rolls back the row, its revisions and the authority tombstone — for
+  the whole batch when the refusal lands on the second entity of a `deleteMany()`.
+  `POST_DELETE` is untouched: still a **notification**, still buffered, still
+  dispatched only after a successful commit and discarded on rollback, so audit,
+  cache/SSR invalidation, search de-indexing and embedding cleanup keep their
+  post-commit guarantee. `UnitOfWork` is not modified at all. A second, silent
+  half of the same defect closes with it: because the buffered-dispatch loop has
+  no per-event isolation, a throwing buffered `PRE_DELETE` also suppressed that
+  entity's `POST_DELETE`, so those listeners never observed deletes that *had*
+  committed. `EntityRepository::__construct()` gains the symmetric invariant that
+  a repository carrying the mutation authority also requires the database that
+  authority writes through, which makes the untransacted delete fallback provably
+  tombstone-free. **Compatibility:** no public signature changed, but event timing
+  is observable — a throwing `PRE_DELETE` subscriber now prevents the delete, a
+  subscriber's writes on the framework connection now roll back with a refusal,
+  `deleteMany()` interleaving changes from `pre1, post1, pre2, post2` to
+  `pre1, pre2, post1, post2`, and a guard in a batch observes entities already
+  removed for earlier batch members. Full impact list, the deliberate
+  tombstone-before-guard ordering decision, and the documented cascading-guard
+  hazard: `docs/upgrade-notes/pre-delete-event-timing.md`.
+
+- **Fixed — `schema:sync` preview and report reflect real work on existing tables, without misreporting on non-SQLite platforms (#2732):** `--dry-run` and the applied-run summary previously classified a table only by whether it existed before the run, so a field (and its index) registered since the last sync was silently folded into "already exist(s)" / "in sync" even though synchronizing it adds a column and/or index to that table. `EntitySchemaSyncRunner`/`SchemaSyncReport` now derive a new `altered` set — entity types whose already-existing table gains schema — from the real synchronization traversal run read-only (SQLite `query_only`, the same mechanism the writer-first coordinator already uses), so preview and apply cannot disagree and no second, hand-maintained model of "what would change" was introduced; `SchemaSyncReport::changed()` is true when a table was created **or** altered. That read-only preview only exists for a SQLite connection with no mutation already active, so a review pass caught that the first cut of this fix folded the conservative "assume mutation" default `CoordinatedEntitySchemaExecutor::requiresMutation()` returns for every other connection state (MySQL, MariaDB, PostgreSQL, or a connection already mid-migration) straight into `altered` — meaning `schema:sync` printed "Altered N existing table(s)" / "would alter" on **every** run on those platforms, even when nothing had changed. `EntitySchemaSync::planMutatingEntityTypeIds()` now returns an `EntityTypeSchemaPlan` that separates confirmed `mutating` ids from `indeterminate` ones, gated by the new `CoordinatedEntitySchemaExecutor::canPreviewMutation()`; `SchemaSyncReport` gains a matching `indeterminate` list that neither `changed()` nor `unchanged()` ever treats as a confirmed answer. `schema:sync --dry-run` now prints `N existing table(s); pending column/index work cannot be previewed on this database platform — apply to find out.` on those platforms; a real (non-dry-run) run still executes the sync against those tables — it cannot skip the mutation coordinator just because it cannot preview — and instead prints `Synced N existing table(s); pending column/index work could not be previewed on this database platform before applying.` SQLite behaviour is unchanged.
+
+- **Fixed — repository effects now follow the outermost database outcome (#2734):** entity successor tokens and POST/AFTER notifications nested inside another framework transaction wait for its outermost commit and are discarded on rollback; one failing notification is logged without starving later events, then surfaces as a committed completion failure.
+
+- **Fixed — development publication of `ai-development` (#2738):** add the exact metapackage mapping to the reviewed split-main allowlist so its initially empty mirror can be populated through the existing guarded workflow. Unknown targets, path-shaped inputs, and mixed valid/invalid selections still fail closed; dispatcher, CI, SHA, release-overlap, and lease checks are unchanged.
+
+- **Fixed — Claudriel development-cohort publication (#2742):** add reviewed auth, user, ai-tools, mcp, and relationship targets to split-main so the full affected nine-package cohort can be published together. Invalid and path-shaped selections still fail closed; publication authorization, CI, SHA and lease checks are unchanged.
+
+- **`EmitBeaconController` no longer silently self-targets a malformed
+  `session` value (#2746).** A *present but malformed* HTTP `session` member
+  (`null`, `""`, a non-string scalar, or an array) fell through the same guard
+  as an *omitted* one and delivered the beacon to the presenter's own session
+  instead of rejecting the request — an intended remote-target emit could
+  therefore land against the wrong session. The controller now distinguishes
+  an absent `session` key (still self-targets, unchanged) from a present one
+  (now must be a non-empty string token or the request is rejected with
+  `422`); the MCP `wayfinding_emit_beacon` tool already required an explicit
+  token and is unchanged. A cross-adapter test matrix covers the shared
+  validation outcomes (capability, anchor, content, order) for both adapters.
+  Storage-failure semantics of `BroadcastStorage::pushRetained()` are
+  unchanged and deferred to #2747.
+
+- **Fixed — path aliases can no longer persist outside the resolver's canonical domain (#2754):**
+  the leading-slash invariant previously lived only in `PathAlias::setAlias()`,
+  a convenience setter that neither generic entity construction (the JSON:API
+  POST shape) nor generic `set()` mutation (the JSON:API PATCH shape) calls,
+  so a validated save could persist an alias `PathAliasResolver::resolve()`
+  would always reject. `PathAliasUniquenessListener` — the universal
+  `BeforeSaveEvent` write boundary every save reaches — now rejects a
+  non-empty alias without a leading `/` on its canonical (NFC, trailing-slash
+  trimmed) form before the uniqueness check runs, leaving prior database
+  state unchanged on refusal.
+
+- **Fixed — locked menus can no longer be deleted (#2755):** `Menu::$locked`
+  was documented as the invariant that system menus "cannot be deleted," but
+  `MenuAccessPolicy` granted every operation to `administer menu` before ever
+  consulting the flag, so a locked and unlocked menu received the same
+  allowed delete decision. `MenuAccessPolicy::access()` now refuses `delete`
+  on a locked menu for every account, including one holding
+  `administer menu`, ahead of the permission grant. `Menu::isLocked()` also
+  now reads through the guarded value-container accessor instead of a raw
+  property that sealed hydration never populated on reload from storage —
+  without that fix the flag silently reset to `false` on every entity loaded
+  from the database, masking the invariant even after the policy fix. The
+  `menu` entity type declares the field `FieldReadLevel::Public` so the read
+  is observable without a caller-specific grant.
+
+- **Fixed — LocalFileRepository sidecar aliasing (#2758):** `resolveMetadataPath()` derived a file's JSON metadata sidecar from only the `scheme` and `path` components of `parse_url()`, silently dropping the `host` component that stream-wrapper URIs like `public://images/shared.pdf` parse into (`host: images`, `path: /shared.pdf`). Distinct, documented URIs sharing a trailing path segment under different directories — e.g. `public://images/shared.pdf` and `public://docs/shared.pdf` — collided onto the same sidecar file: saving the second silently overwrote the first's metadata, and deleting either removed metadata for both. The sidecar path is now derived from every segment after `scheme://` as one flat, ordered path, so no two distinct supported URIs can alias. Traversal confinement under the repository root is unchanged and covered by tests. This changes the on-disk sidecar layout for any URI with more than one segment after the scheme; there is deliberately no automatic read fallback to the old (collision-prone) location on upgrade, since a fallback would itself have to silently pick a winner among URIs that used to alias there. `LocalFileRepository::reconcileLegacySidecars()` is the migration/reconciliation procedure: an operator runs it once after upgrading to relocate previously-saved sidecars to their current-layout location, automatically for unambiguous cases and reported (never silently resolved) when a genuine conflict exists. `save()` also now writes the sidecar via write-to-temp-then-rename instead of an in-place truncating write, so a concurrent `load()` can no longer observe a partially written sidecar.
+
+- **The provider-bound attachment repository is now resolvable.**
+  `AttachmentServiceProvider` previously requested an ambiguous
+  `EntityRepositoryInterface` that the kernel intentionally does not bind, so
+  resolving its advertised `AttachmentRepository` singleton always threw. The
+  provider now resolves the kernel-owned entity type manager and selects the
+  `attachment` repository explicitly. A real production-services-bus test
+  resolves the singleton and proves a save/read round trip through it.
+
+- **Fixed — production/staging boot and request handling no longer mutate
+  taxonomy schema (#2761):** `TaxonomyServiceProvider::boot()` and
+  `VocabularyAccessPolicy::access()` both called
+  `VocabularyReferenceConstraint::ensure()` unconditionally, so a production
+  request whose deployment lagged its schema preflight would ALTER
+  `taxonomy_term` to add the missing vocabulary foreign key under request
+  traffic — the exact class of defect #2478 closed. The foreign key is now
+  installed exclusively by coordinated schema sync (`db:init`,
+  `schema:sync`, already the sole authoritative path via the entity type's
+  declared `_foreignKeys`); local/development boot keeps the convenience
+  materialization, gated the same way `AttachmentServiceProvider` gates its
+  own schema convenience, and cannot be selected by a blank/invalid explicit
+  `environment` config even when the process `APP_ENV` says otherwise.
+  `SqlSchemaHandler::assertRuntimeSchema()` — already the no-DDL contract
+  every `getRepository()` resolution runs — now also asserts declared
+  foreign keys are present, so a missing production shape fails closed with
+  `[S1-DB106]` before request handling instead of silently skipping the
+  constraint. Term hierarchy guarding and the restrictive FK semantics are
+  unchanged.
+
+- **GraphQL schema caching is now owned by one kernel composition.** The
+  process-global `SchemaFactory` cache previously keyed schemas by entity-type IDs
+  and mutation-override names only. Two sequential kernels declaring the same ID
+  with different fields therefore shared the first kernel's `Schema`, and changing
+  a resolver behind an existing override name kept executing the old resolver.
+  The cache is now a `WeakMap` keyed by the exact `EntityTypeManagerInterface`
+  instance, with a structural key covering emitted base/bundle field shapes and
+  the actual override contents. Schemas can still be reused inside one composition,
+  while a later composition cannot retain the earlier manager or schema. No public
+  signature changes. `SchemaFactory::resetCache()` remains available for tests and
+  explicit runtime invalidation.
+
+- The provider-bound `ai:purge-runs` command now selects the `agent_run`
+  repository through the kernel entity type manager. The AI aggregate package
+  also declares its migrations and its column-oriented storage contract, with an
+  upgrade migration for the framework entity base columns required by existing
+  tables.
+
+- Fixed fresh installations that materialized the AI SQL-column entity tables
+  before package migrations: the additive migration now ensures the complete
+  `_data`, `bundle`, and `langcode` base shape idempotently.
+
+- **Fixed — package manifest cache no longer goes stale when a path package's
+  own discovery metadata changes (#2778):** `PackageManifestCompiler`'s cache
+  fingerprint covered only root `composer.json`, `installed.json`, and the two
+  autoload dumps, so a Composer path package (e.g. a monorepo package or a
+  local dev override) editing its own `extra.waaseyaa` declarations —
+  providers, migrations, permissions, and the like — while those four inputs
+  stayed byte-identical left `storage/framework/packages.php` silently stale
+  indefinitely, with no compiler-side signal and no required operator step to
+  trigger recompilation. The fingerprint now also covers the current on-disk
+  `composer.json` of every installed path package, so `load()` recompiles as
+  soon as one changes; unrelated inputs unchanged remain a cache hit, and no
+  source tree is hashed beyond each path package's own `composer.json`.
+
+- **Fixed — the no-MCP-route proof for the local AI-development plane now
+  derives its package roster from `packages/ai-development/composer.json`
+  instead of a hand-maintained constant (#2781):** `LocalPlaneNoMcpRouteTest`
+  seeded its provider sweep and require-closure check from a private
+  `LOCAL_PLANE_PACKAGES` array (`['ai-agent', 'ai-tools', 'testing']`) that had
+  no structural link to the metapackage it was meant to describe — a future
+  dependency edit to `waaseyaa/ai-development` could add or remove a package
+  from the real closure while the test kept sweeping the old list and stayed
+  green. The roster is now computed by walking the transitive first-party
+  `require` closure of `packages/ai-development/composer.json` itself, every
+  provider that closure reaches participates in the sweep, and a seeded
+  composer.json-mutation fixture proves a newly reachable `waaseyaa/mcp`
+  dependency is caught. One provider in the wider closure
+  (`Waaseyaa\Routing\AuthOidcRouteServiceProvider`) cannot register its routes
+  without a full application container, independent of this change; it is
+  swept by a literal `/mcp` / `mcp.`-prefixed source-text scan instead of
+  execution, with its own seeded control proving the scan is not vacuous. Test
+  and CI-gate change only; no runtime behaviour changes.
+
+- **A targeted schema mutation no longer rebuilds unrelated tables.**
+  `DBALSchema`'s seven mutators introspected the whole schema and compared it
+  schema-to-schema, but Doctrine's introspection round-trip is lossy: a table
+  with a composite primary key and single-column foreign keys compares as
+  changed against itself, because it reads as needing foreign-key indexes its
+  DDL never created. SQLite then rebuilt those tables by copy-and-replace,
+  generating the replacement from the degraded introspection, so a composite
+  primary key came back as a single `INTEGER PRIMARY KEY AUTOINCREMENT` column
+  and table-level `UNIQUE` and `CHECK` constraints and triggers were dropped.
+  Adding one column to `waaseyaa_config_generation_v2` was enough to rebuild
+  `waaseyaa_config_activation_v2` and `audit_checkpoint_succession_pruned`,
+  replacing the authority-scoped activation key with a global autoincrement and
+  dropping the genesis-guard trigger — after which two configuration
+  authorities could no longer each hold activation sequence 1, and with a
+  single authority the schema degraded with nothing failing. Each mutator now
+  compares one table against its own mutated clone and emits
+  `getAlterTableSQL()` for that table alone.
+
+- **Fixed — `waaseyaa-version` resolves provenance for sibling Composer path repositories (#2810):** an application whose `composer.lock` declares path installs pointing at a sibling Waaseyaa monorepo checkout (`../waaseyaa`, `../waaseyaa/packages/*`) now reports that checkout's Git `HEAD` and compares it with `WAASEYAA_GOLDEN_SHA` / `.waaseyaa-golden-sha` in strict mode. Previously any path target outside the application root was silently rejected and strict mode failed with a misleading "git missing or not a checkout" message.
+
+  Candidates still come only from lock path-dist entries; the reporter walks up from each resolved target to its `.git` checkout root and runs Git only there, once per checkout. Drift messages now name the actual `HEAD`, the expected golden SHA, and the checkout involved. The one-checkout invariant is enforced on the checkout root rather than the `HEAD`, so two clones at the same commit are reported as `multiple distinct Git checkout roots` with each root and `HEAD` named. A path install whose target is missing, not inside a Git checkout, or unreadable by Git is now reported by name and fails strict mode even when other path installs resolved. The human report and `--json` output gain a `pathMonorepoRoot` / per-package `checkoutRoot` value.
+
+- **`SqliteArtifactPreparer` compares runtime table schemas structurally, not
+  by DDL spelling (#2812).** Before copying a `Preserve`, `AppendOnly`, or
+  `IdentityMerge` table's rows into the candidate, the preparer hashed the raw
+  `sqlite_master.sql` of the table and its indexes. Two databases whose runtime
+  tables were created by different code paths carry the same schema with
+  different text: a migration versus the lazy creator that predated it, or a
+  DBAL schema builder versus raw SQL. Line breaks, identifier quoting, `CLOB`
+  versus `TEXT`, an explicit `DEFAULT NULL`, and an inline versus table-level
+  primary key were all reported as `Incompatible runtime schema`, and a serving
+  database that predated a migration kept its original creator's text because
+  the migration's `hasTable` guard made it a no-op. A staging handoff onto a
+  database built on an earlier cohort failed on `_broadcast_log` with 44 more
+  cosmetic differences queued behind it.
+
+  `SqliteSchemaSignature` now describes a table from what SQLite reports
+  (`table_xinfo`, `foreign_key_list`, `index_list`, `index_xinfo`) plus a
+  canonical token stream of the DDL for the semantics the pragmas do not
+  expose: CHECK expressions, generated-column expressions and storage,
+  per-column collation, ON CONFLICT clauses, AUTOINCREMENT, WITHOUT ROWID,
+  STRICT, the rowid alias, foreign-key deferrability in its three states,
+  index expressions and partial predicates, and triggers. Declared types
+  reduce to affinity except in STRICT tables. A double-quoted token is treated
+  as an identifier only where SQLite admits nothing else; inside an
+  expression, a DEFAULT, a trigger body, or an index item SQLite resolved to
+  an expression it stays verbatim, so `"A"` and `"a"` never collapse.
+  Foreign-key state is matched on parent, columns, and both referential
+  actions. A rejection now names the first differing structural part, for
+  example `Incompatible runtime schema for auth_tokens (columns.1.not_null)`.
+
+- **Fixed — `ai:*` commands are no longer registered without `waaseyaa/ai-agent` (#2826):** a production consumer that installs `waaseyaa/cli` without the suggested `waaseyaa/ai-agent` package previously listed `ai:run`, `ai:purge-runs` and `ai:reap-stalled-runs` and failed inside their handlers. `AiServiceProvider` now declares the package through the new `RequiresOptionalPackagesInterface`, so package discovery, `list`/`help`, and invocation agree: zero `ai:*` commands without the package, all three with it. Core lifecycle commands are unaffected, and `waaseyaa/cli` still does not require `waaseyaa/ai-agent`.
+
+  The contract is reusable by any provider whose contribution depends on a `suggest`-only package: declare an `OptionalPackageRequirement` with a sentinel class the optional package autoloads, and the kernel treats the provider as contributing nothing while the package is absent. Consumers never filter commands or bind stubs.
+
+### Security
+
+- Password resets now revoke every previously issued password-authenticated session. Sessions are bound to an audited per-user generation, and legacy or stale sessions fail closed on their next request.
+
+- Email recovery lookups now resolve only through the canonical case-insensitive query and refuse to act when an upgraded database still holds more than one active address variant, instead of silently choosing the row whose spelling matched exactly. Email-verification tokens are spent by a single atomic write that re-checks the token type, the owning user, and expiry at the instant of that write, so a token that expires after it was validated can no longer verify an address, and a token can only ever verify its own owner.
+
+- Enforced `auth.require_verified_email` across registration, password and direct login, two-factor promotion, bearer authentication, and existing sessions; added a rate-limited, non-enumerating pre-auth verification resend flow.
 ## [0.1.0-alpha.299] - 2026-08-29
 
 ### Added
