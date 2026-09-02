@@ -23,8 +23,13 @@ use Waaseyaa\Field\Attribute\FieldType;
     category: 'general',
     defaultCardinality: 1,
 )]
-final class TextLongItem extends AbstractFieldType
+final class TextLongItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::FormattedText;
+    }
+
     public static function schema(): array
     {
         return ['value' => ['type' => 'text']];

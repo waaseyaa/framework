@@ -34,8 +34,13 @@ use Waaseyaa\Field\FieldDefinitionInterface;
     category: 'classification',
     defaultCardinality: 1,
 )]
-final class ClassificationLabelFieldType extends AbstractFieldType
+final class ClassificationLabelFieldType extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::String;
+    }
+
     public static function supportsBlueprint(): bool
     {
         return false;
