@@ -10,6 +10,7 @@ use Waaseyaa\Foundation\Discovery\PolicyManifestMismatchException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Tests\Unit\Discovery\Fixture\DiscoverableExtServiceProvider;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -983,9 +984,92 @@ final class PackageManifestCompilerTest extends TestCase
      * request — an unchanged path package composer.json (and every other
      * input) must remain a cache hit, evidenced by an identical fingerprint
      * and by the on-disk cache file being left untouched by the second load().
+     *
+     * #2829: the declared provider must be genuinely discoverable, otherwise
+     * load() legitimately recompiles to stamp the known-missing roster and the
+     * proof measures a rewrite, not a hit. A rewrite is detected by bytes: a
+     * trailing sentinel the compiler never emits survives a hit and vanishes
+     * on regeneration. Never by inode identity (filesystems reuse inode numbers
+     * across an atomic replacement) and never by one-second mtime resolution.
      */
     #[Test]
     public function load_reuses_cache_when_a_path_packages_composer_json_is_unchanged(): void
+    {
+        $this->writePathPackageFixture(DiscoverableExtServiceProvider::class);
+
+        $storagePath = $this->tempDir . '/storage';
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->compileAndCache();
+        $cachePath = $storagePath . '/framework/packages.php';
+        $before = require $cachePath;
+        $this->assertContains(DiscoverableExtServiceProvider::class, $before['providers'], 'Precondition: the fixture provider is discovered.');
+        $this->assertArrayNotHasKey('_known_missing_providers', $before, 'Precondition: nothing is missing, so nothing is stamped.');
+
+        // Any rewrite regenerates the file from the manifest, so a trailing
+        // comment sentinel that the compiler would never emit is a
+        // deterministic oracle: it survives a hit and vanishes on a rewrite.
+        $bytesBefore = $this->appendCacheSentinel($cachePath);
+
+        // Nothing changes on disk. A second load() must be a pure cache hit:
+        // same fingerprint, and load() (unlike compileAndCache()) never
+        // rewrites the cache file on a hit.
+        clearstatcache();
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+        clearstatcache();
+
+        $after = require $cachePath;
+        $this->assertSame($before['_manifest_inputs_fp'], $after['_manifest_inputs_fp']);
+        $this->assertSame($bytesBefore, file_get_contents($cachePath), 'A cache hit must leave the cache bytes, sentinel included, untouched.');
+        $this->assertStringEndsWith(self::CACHE_SENTINEL, (string) file_get_contents($cachePath));
+    }
+
+    /**
+     * #2829 negative control for the proof above: with a declared provider the
+     * autoloader cannot resolve, load() is not a cache hit. It recompiles to
+     * stamp the known-missing roster, which the sentinel oracle must detect as
+     * a rewrite. This pins that the detection is real, not vacuous.
+     */
+    #[Test]
+    public function load_recompiles_and_stamps_when_a_declared_provider_is_undiscoverable(): void
+    {
+        $this->writePathPackageFixture('Acme\\Ext\\UndiscoverableServiceProvider');
+
+        $storagePath = $this->tempDir . '/storage';
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->compileAndCache();
+        $cachePath = $storagePath . '/framework/packages.php';
+        $before = require $cachePath;
+        $this->assertArrayNotHasKey('_known_missing_providers', $before, 'compileAndCache() alone does not stamp the roster.');
+        $bytesBefore = $this->appendCacheSentinel($cachePath);
+
+        clearstatcache();
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+        clearstatcache();
+
+        $bytesAfter = (string) file_get_contents($cachePath);
+        $after = require $cachePath;
+        $this->assertSame($before['_manifest_inputs_fp'], $after['_manifest_inputs_fp'], 'The inputs did not change; only the roster did.');
+        $this->assertNotSame($bytesBefore, $bytesAfter, 'The recompile regenerates the cache file.');
+        $this->assertStringNotContainsString(self::CACHE_SENTINEL, $bytesAfter, 'A regenerated cache carries no trace of the sentinel.');
+        $this->assertSame(['Acme\\Ext\\UndiscoverableServiceProvider'], $after['_known_missing_providers']);
+    }
+
+    /** Valid PHP the compiler never emits: appended after the closing `;` of the returned array. */
+    private const string CACHE_SENTINEL = "// #2829 cache-hit sentinel: a rewrite regenerates this file and drops this line\n";
+
+    /**
+     * Append the sentinel and return the exact bytes the cache now holds. The
+     * file stays loadable: `require` still returns the manifest array.
+     */
+    private function appendCacheSentinel(string $cachePath): string
+    {
+        $this->assertNotFalse(file_put_contents($cachePath, self::CACHE_SENTINEL, FILE_APPEND));
+        $bytes = (string) file_get_contents($cachePath);
+        $this->assertStringEndsWith(self::CACHE_SENTINEL, $bytes);
+        $this->assertIsArray(require $cachePath, 'The sentinel must keep the cache file valid PHP.');
+
+        return $bytes;
+    }
+
+    private function writePathPackageFixture(string $providerClass): void
     {
         mkdir($this->tempDir . '/packages/acme-ext/src', 0o755, true);
         file_put_contents(
@@ -994,7 +1078,7 @@ final class PackageManifestCompilerTest extends TestCase
                 'name' => 'acme/ext',
                 'autoload' => ['psr-4' => ['Acme\\Ext\\' => 'src/']],
                 'extra' => ['waaseyaa' => [
-                    'providers' => ['Acme\\Ext\\ExtServiceProvider'],
+                    'providers' => [$providerClass],
                 ]],
             ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
         );
@@ -1014,22 +1098,6 @@ final class PackageManifestCompilerTest extends TestCase
                 ],
             ], JSON_THROW_ON_ERROR),
         );
-
-        $storagePath = $this->tempDir . '/storage';
-        (new PackageManifestCompiler($this->tempDir, $storagePath))->compileAndCache();
-        $cachePath = $storagePath . '/framework/packages.php';
-        $before = require $cachePath;
-        $mtimeBefore = filemtime($cachePath);
-
-        // Nothing changes on disk. A second load() must be a pure cache hit:
-        // same fingerprint, and load() (unlike compileAndCache()) never
-        // rewrites the cache file on a hit.
-        clearstatcache();
-        (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
-
-        $after = require $cachePath;
-        $this->assertSame($before['_manifest_inputs_fp'], $after['_manifest_inputs_fp']);
-        $this->assertSame($mtimeBefore, filemtime($cachePath), 'A cache hit must not rewrite the cache file.');
     }
 
     /**
