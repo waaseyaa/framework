@@ -10,8 +10,12 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\Controller\BroadcastStorage;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\Router\SchemaRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 #[CoversClass(SchemaRouter::class)]
 final class SchemaRouterTest extends TestCase
@@ -59,5 +63,25 @@ final class SchemaRouterTest extends TestCase
         $response = $router->handle($request);
         self::assertSame(200, $response->getStatusCode());
         self::assertStringContainsString('application/vnd.api+json', $response->headers->get('Content-Type'));
+    }
+
+    #[Test]
+    public function handle_schema_controller_returns_not_found_for_unknown_entity_type(): void
+    {
+        $router = $this->createRouter();
+        $request = Request::create('/api/schema/missing');
+        $request->attributes->set('_controller', 'Waaseyaa\Api\Controller\SchemaController');
+        $request->attributes->set('entity_type', 'missing');
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_authorization_principal', $account);
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_broadcast_storage', new BroadcastStorage($database));
+
+        $response = $router->handle($request);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertStringContainsString('Unknown entity type: missing.', (string) $response->getContent());
     }
 }
