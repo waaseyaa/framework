@@ -15,4 +15,12 @@ Provides three content entities (`Reaction`, `Comment`, `Follow`) with their own
 
 Create access is authenticated-only; delete is owner-or-admin.
 
+### Field declarations
+
+`Comment.body` is declared with the registered `text_long` field-type plugin
+(not `text` + `settings.subtype`). The `text_long` id is what the rich-text
+sanitizer, the GraphQL `String` adapter, and the TEXT storage projection key
+on, and field registration fails closed for spellings the plugin registry
+cannot project (#2786).
+
 Key classes: `Reaction`, `Comment`, `Follow`, `EngagementAccessPolicy`, `EngagementServiceProvider`.

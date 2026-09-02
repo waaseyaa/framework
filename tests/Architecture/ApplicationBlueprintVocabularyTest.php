@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\Attribute\FieldTypeInferrer;
 use Waaseyaa\Entity\Storage\PrimaryStorageBackend;
 use Waaseyaa\Field\FieldSchemaAuthority;
 use Waaseyaa\Field\FieldTypeManager;
@@ -34,6 +35,18 @@ final class ApplicationBlueprintVocabularyTest extends TestCase
 
         $authority = new FieldSchemaAuthority(new FieldTypeManager());
         self::assertSame($authority->blueprintFieldTypeIds(), $blueprintValues);
+    }
+
+    #[Test]
+    public function attributeFieldTypesEqualTheLiveRegistryAdmissionAuthority(): void
+    {
+        $attributeValues = FieldTypeInferrer::VALID_TYPE_IDS;
+        sort($attributeValues, SORT_STRING);
+
+        $registryValues = array_keys(new FieldTypeManager()->getDefinitions());
+        sort($registryValues, SORT_STRING);
+
+        self::assertSame($registryValues, $attributeValues);
     }
 
     #[Test]

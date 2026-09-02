@@ -30,7 +30,7 @@ final class FieldTypeMapperTest extends TestCase
     #[Test]
     public function stringTypesMApToGraphQlString(): void
     {
-        foreach (['string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image'] as $fieldType) {
+        foreach (['string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'classification_label'] as $fieldType) {
             $type = $this->mapper->toOutputType($fieldType, false);
             self::assertSame(Type::string(), $type, "Field type '{$fieldType}' should map to String");
         }
@@ -122,7 +122,7 @@ final class FieldTypeMapperTest extends TestCase
     #[Test]
     public function inputStringTypesMApCorrectly(): void
     {
-        foreach (['string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image'] as $fieldType) {
+        foreach (['string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'classification_label'] as $fieldType) {
             $type = $this->mapper->toInputType($fieldType, false);
             self::assertSame(Type::string(), $type, "Input field type '{$fieldType}' should map to String");
         }
@@ -184,10 +184,9 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function registeredTypeWithoutAnInputAdapterFailsClosed(): void
+    public function classificationLabelInputMapsToString(): void
     {
-        $this->expectException(\DomainException::class);
-        $this->mapper->toInputType('classification_label', false);
+        self::assertSame(Type::string(), $this->mapper->toInputType('classification_label', false));
     }
 
     // ── isEntityReference ────────────────────────────────────────

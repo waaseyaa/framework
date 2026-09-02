@@ -19,6 +19,11 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class EntityReferenceItem extends AbstractFieldType
 {
+    public static function entityStorageColumnSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'varchar', 'length' => (int) ($def->getSetting('length') ?? 255)];
+    }
+
     public static function supportsBlueprint(): bool
     {
         return false;

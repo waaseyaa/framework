@@ -60,8 +60,13 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
   if (fieldSchema.format === 'date-time' && typeof value === 'string') {
     try { return new Date(value).toLocaleString() } catch { return String(value) }
   }
-  if (Array.isArray(value)) return value.join(', ')
-  if (fieldSchema.enum && fieldSchema['x-enum-labels']) {
+  const enumValues = fieldSchema.items?.enum ?? fieldSchema.enum
+  if (Array.isArray(value)) {
+    return enumValues && fieldSchema['x-enum-labels']
+      ? value.map(item => fieldSchema['x-enum-labels'][String(item)] ?? String(item)).join(', ')
+      : value.join(', ')
+  }
+  if (enumValues && fieldSchema['x-enum-labels']) {
     return fieldSchema['x-enum-labels'][String(value)] ?? String(value)
   }
   return String(value)

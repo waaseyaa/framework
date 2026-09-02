@@ -140,7 +140,7 @@ final class RevisionTableBuilderTwoAxisTest extends TestCase
             'sql-column',
             [
                 new FieldDefinition(name: 'title', type: 'string', translatable: true),
-                new FieldDefinition(name: 'author_id', type: 'int'),
+                new FieldDefinition(name: 'author_id', type: 'integer'),
             ],
         );
 
@@ -216,7 +216,7 @@ final class RevisionTableBuilderTwoAxisTest extends TestCase
         (new RevisionTableBuilder($db))->buildTwoAxis(
             $this->makeTwoAxisType('teaching'),
             'sql-column',
-            [new FieldDefinition(name: 'author_id', type: 'int')],
+            [new FieldDefinition(name: 'author_id', type: 'integer')],
         );
 
         $cols = $this->columnsOf($db, 'teaching__revision');

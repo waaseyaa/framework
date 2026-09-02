@@ -15,14 +15,20 @@ use Waaseyaa\Plugin\Discovery\AttributeDiscovery;
  */
 final class FieldTypeManager extends DefaultPluginManager implements FieldTypeManagerInterface
 {
+    private static ?self $default = null;
+
+    public static function default(): self
+    {
+        return self::$default ??= new self();
+    }
     /**
-     * @param string[] $directories Directories to scan for field type plugins.
+     * @param string[]|null $directories Directories to scan for field type plugins.
      */
     public function __construct(
-        array $directories = [],
+        ?array $directories = null,
         ?CacheBackendInterface $cache = null,
     ) {
-        if ($directories === []) {
+        if ($directories === null) {
             $directories = [__DIR__];
         }
 
@@ -91,7 +97,7 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
      * Resolve the storage column shape for a field definition by delegating
      * to the field type plugin's schemaFor() seam.
      *
-     * @return array<string, array{type: string, description?: string}>
+     * @return array<string, array<string, mixed>>
      */
     public function schemaFor(FieldDefinitionInterface $def): array
     {
@@ -102,6 +108,16 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
         }
 
         return $class::schemaFor($def);
+    }
+
+    public function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array
+    {
+        $class = $this->resolveItemClass($def->getType());
+        if ($class === null) {
+            throw UnknownFieldTypeException::for($def->getType());
+        }
+
+        return $class::entityStorageColumnSchemaFor($def);
     }
 
     /**

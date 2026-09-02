@@ -19,6 +19,11 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class DecimalItem extends AbstractFieldType
 {
+    public static function entityStorageColumnSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'text'];
+    }
+
     public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
     {
         return static::jsonSchema();
@@ -33,7 +38,7 @@ final class DecimalItem extends AbstractFieldType
 
     public static function jsonSchema(): array
     {
-        return ['type' => 'string', 'pattern' => '^-?\\d+\\.\\d+$'];
+        return ['type' => 'string', 'pattern' => '^-?\\d+(?:\\.\\d+)?$'];
     }
 
     public static function defaultSettings(): array

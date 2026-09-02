@@ -111,8 +111,14 @@ subject, access handler, and immutable principal before it can expose schema.
 public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     ?FieldSchemaAuthority $fieldSchemas = null,
+    ?FieldVisibilityPolicy $fieldVisibility = null,
 )
 ```
+
+Both optional collaborators default to the shared Layer-1 authorities: the
+`FieldTypeManager::default()` plugin registry and a `FieldVisibilityPolicy`
+with framework-only internal fields. A kernel-bound caller injects the
+container's instances so application-declared internal fields are honoured.
 
 ### Key Methods
 
@@ -121,7 +127,13 @@ public function __construct(
 ### Schema Shape
 
 The generated schema includes entity keys plus every effective field visible to
-the principal. Field plugins own the value shapes; cardinality, required state,
+the principal. Before the per-field access check runs, the shared Layer-1
+`FieldVisibilityPolicy` floor removes credential names (`pass`, `legacy_pass`,
+`password`, `password_hash`), framework-internal fields, application-declared
+internal fields, and any definition carrying `settings.internal`; the same
+floor backs the API package's `InternalFieldVisibilityPolicy`, so REST and AI
+introspection cannot disagree about which fields are structurally internal.
+Field plugins own the value shapes; cardinality, required state,
 read-only state, and translation/revision metadata are explicit. The result is
 closed with `additionalProperties: false`, and unknown field types fail closed.
 There is no unscoped `generateAll()` catalogue.

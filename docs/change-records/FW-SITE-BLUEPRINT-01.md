@@ -121,6 +121,15 @@ JSON Schema authority. `site-contract` stays at Layer 0: its enum remains
 closed, while a root composition test proves exact equality with the live
 plugin registry's blueprint-admission roster.
 
+Implementation review demonstrated that schema generation alone was not a
+complete authority boundary: live field declarations and SQL schema builders
+could still enter through independent type vocabularies. Work package 01C now
+also makes field registration the common admission gate and makes entity,
+translation, revision, and SQL-column schema derivation consume plugin-owned
+storage projections. Unknown and ambiguous types fail before DDL. API, AI,
+GraphQL, and Admin remain decorators/adapters over those projections, including
+the shared internal-field visibility floor and nested enum cardinality shape.
+
 Candidate evidence must cover registered plugin shapes, field-item versus
 entity-value projection, cardinality and revision/translation metadata,
 effective-field enumeration through the real schema controller, exact

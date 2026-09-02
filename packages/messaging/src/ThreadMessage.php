@@ -19,7 +19,7 @@ final class ThreadMessage extends ContentEntityBase
     #[Field(label: 'Sender ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $sender_id = 0;
 
-    #[Field(type: 'text', label: 'Body', settings: ['weight' => 2, 'subtype' => 'text_long'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'text_long', label: 'Body', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $body = '';
 
     #[Field(type: 'boolean', label: 'Status', default: true, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

@@ -54,6 +54,12 @@ final class FieldTypeManagerTest extends TestCase
         $this->assertArrayHasKey('entity_reference', $definitions);
     }
 
+    #[Test]
+    public function explicitEmptyDiscoveryDirectoriesRemainEmpty(): void
+    {
+        self::assertSame([], (new FieldTypeManager(directories: []))->getDefinitions());
+    }
+
     public function testGetDefinition(): void
     {
         $definition = $this->manager->getDefinition('string');
@@ -184,6 +190,26 @@ final class FieldTypeManagerTest extends TestCase
         self::assertSame(['type' => 'string'], $manager->entityValueJsonSchemaFor(
             new FieldDefinition(name: 'body', type: 'text_long'),
         ));
+    }
+
+    #[Test]
+    public function classificationLabelSeparatesScalarEntityValueFromMultiColumnStorage(): void
+    {
+        $manager = new FieldTypeManager();
+        $definition = new FieldDefinition(name: 'classification_label', type: 'classification_label');
+
+        self::assertSame(
+            ['type' => ['string', 'null']],
+            $manager->entityValueJsonSchemaFor($definition),
+        );
+        self::assertSame(
+            [
+                'type' => 'varchar',
+                'description' => 'Classification label_id reference; indexed',
+                'index' => true,
+            ],
+            $manager->entityStorageColumnSchemaFor($definition),
+        );
     }
 
     #[Test]
