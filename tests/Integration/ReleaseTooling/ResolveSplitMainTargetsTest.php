@@ -298,6 +298,26 @@ final class ResolveSplitMainTargetsTest extends TestCase
         }
     }
 
+    #[Test]
+    public function resolves_deployer_for_between_release_consumer_verification(): void
+    {
+        [$exit, $stdout, $stderr] = $this->runScript('deployer');
+
+        self::assertSame(0, $exit, $stderr);
+        self::assertSame('', $stderr);
+        self::assertSame(
+            ['include' => [['local' => 'packages/deployer', 'remote' => 'deployer']]],
+            json_decode($stdout, true, flags: JSON_THROW_ON_ERROR),
+        );
+
+        foreach (['packages/deployer', '../deployer', 'deployer,not-a-package'] as $invalid) {
+            [$exit, $stdout, $stderr] = $this->runScript($invalid);
+            self::assertSame(2, $exit);
+            self::assertSame('', $stdout, 'Invalid selections must not emit a partial cohort.');
+            self::assertStringContainsString('not allowlisted', $stderr);
+        }
+    }
+
     /** @return array{int, string, string} */
     private function runScript(string $selection): array
     {

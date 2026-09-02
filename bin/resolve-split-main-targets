@@ -24,6 +24,7 @@ $allowlist = [
     'relationship' => ['local' => 'packages/relationship', 'remote' => 'relationship'],
     'foundation' => ['local' => 'packages/foundation', 'remote' => 'foundation'],
     'database-legacy' => ['local' => 'packages/database-legacy', 'remote' => 'database-legacy'],
+    'deployer' => ['local' => 'packages/deployer', 'remote' => 'deployer'],
     'config' => ['local' => 'packages/config', 'remote' => 'config'],
     'cli' => ['local' => 'packages/cli', 'remote' => 'cli'],
     'site-contract' => ['local' => 'packages/site-contract', 'remote' => 'site-contract'],
