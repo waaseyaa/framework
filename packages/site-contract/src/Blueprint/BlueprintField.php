@@ -32,7 +32,9 @@ final readonly class BlueprintField
             'indexed' => $this->indexed,
         ];
         if ($this->values !== null) {
-            $result['values'] = $this->values;
+            $values = $this->values;
+            sort($values, SORT_STRING);
+            $result['values'] = $values;
         }
 
         return $result;

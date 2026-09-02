@@ -190,7 +190,17 @@ anywhere is `SITE045`, never a silent grammar failure).
 - **`fixtures`** — `id`, `entity`, `values` (closed to the entity's declared
   fields plus its relationship `from.field`s; a relationship value is a
   fixture id — or list, per cardinality — of the relationship's `to.entity`),
-  optional `workflow_state` (only when the entity is bound).
+  optional `workflow_state` (only when the entity is bound). A value's shape
+  and type are checked against its field/relationship declaration: cardinality
+  `1` requires a scalar (`SITE010` for a list), cardinality other than `1`
+  requires a list of scalars; the scalar's PHP type must match the field type
+  (string/text/email/link/date/datetime/json/list → string; integer → int;
+  float/decimal → int or float; boolean → bool; enum → a string that is one of
+  the field's declared `values`, `SITE042` otherwise); `null` is accepted only
+  when the field/relationship is not `required` (`SITE011` otherwise); a
+  `required` field or relationship absent from `values` entirely is `SITE011`
+  at that field's pointer.
+
 - **`checks`** (`BlueprintCheckKind`, `kind`-dispatched): `role_permission`
   (`role`, `permission`, `expect: granted|denied`); `workflow_transition`
   (`role`, `workflow`, `transition`, `expect: allowed|denied`);
@@ -211,6 +221,14 @@ with defaults are always emitted (`required: false`, `cardinality: 1`,
 restrict`); optional keys with no default (`keys.owner`, `fixtures[].workflow_state`,
 non-enum `values`, …) are omitted, never emitted as `null`. `fixtures[].values`
 data (scalar lists, not structural collections) keeps authored order.
+
+Canonical (sorted-by-id) order is applied ONLY when producing the normalized
+section, its canonical JSON, and its digest — the typed `ApplicationBlueprint`
+and its nested value objects otherwise preserve AUTHORED order (YAML list
+order, exactly as parsed). `ApplicationBlueprintValidator`'s JSON Pointer
+paths therefore always name the offending entry's authored position, never a
+canonicalized one — reordering an authored document never changes which index
+an error is reported at, and never changes the digest either.
 
 **Digest formula.** `ApplicationBlueprint::$digest` is `sha256` over the
 canonical JSON of `{schema: "waaseyaa.application_blueprint",

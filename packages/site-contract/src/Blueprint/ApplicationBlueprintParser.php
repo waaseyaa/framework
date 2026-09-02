@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SiteContract\Blueprint;
 
-use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\SiteContract\ManifestShapeReader;
 
 /**
@@ -50,19 +49,14 @@ final class ApplicationBlueprintParser
         $fixtures = $this->fixtures($root['fixtures'], $entities, $relationships, $path . '/fixtures', $source);
         $checks = $this->checks($root['checks'], $path . '/checks', $source);
 
-        $normalized = [
-            'contract_version' => $contractVersion,
-            'entities' => array_map(static fn(BlueprintEntity $entity): array => $entity->toArray(), array_values($entities)),
-            'relationships' => array_map(static fn(BlueprintRelationship $relationship): array => $relationship->toArray(), array_values($relationships)),
-            'permissions' => array_map(static fn(BlueprintPermission $permission): array => $permission->toArray(), array_values($permissions)),
-            'roles' => array_map(static fn(BlueprintRole $role): array => $role->toArray(), array_values($roles)),
-            'policies' => array_map(static fn(BlueprintPolicy $policy): array => $policy->toArray(), array_values($policies)),
-            'workflows' => array_map(static fn(BlueprintWorkflow $workflow): array => $workflow->toArray(), array_values($workflows)),
-            'fixtures' => array_map(static fn(BlueprintFixture $fixture): array => $fixture->toArray(), array_values($fixtures)),
-            'checks' => array_map(static fn(BlueprintCheck $check): array => $check->toArray(), array_values($checks)),
-        ];
-        $canonicalJson = CanonicalJson::encode($normalized);
-
+        // Every collection above is built in AUTHORED order (insertion order,
+        // exactly as encountered in the YAML list) so that
+        // ApplicationBlueprintValidator's incrementing-index JSON Pointers
+        // name the authored position of an offending entry. Canonical
+        // (sorted-by-id) order and the resulting canonicalJson/digest are
+        // computed once, inside ApplicationBlueprint's own constructor, from
+        // ApplicationBlueprint::toArray() — the single source of normalized
+        // output, never duplicated here.
         return new ApplicationBlueprint(
             $contractVersion,
             $entities,
@@ -73,8 +67,6 @@ final class ApplicationBlueprintParser
             $workflows,
             $fixtures,
             $checks,
-            $canonicalJson,
-            ApplicationBlueprint::computeDigest($normalized),
         );
     }
 
@@ -107,8 +99,6 @@ final class ApplicationBlueprintParser
 
             $result[$id] = new BlueprintEntity($id, $label, $storage, $revisionable, $translatable, $keys, $fields);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -160,13 +150,11 @@ final class ApplicationBlueprintParser
             $revisionable = array_key_exists('revisionable', $row) ? $this->boolean($row['revisionable'], $itemPath . '/revisionable', $source) : false;
             $indexed = array_key_exists('indexed', $row) ? $this->boolean($row['indexed'], $itemPath . '/indexed', $source) : false;
             $values = array_key_exists('values', $row)
-                ? $this->sortedUnique($this->stringList($row['values'], $itemPath . '/values', $source, false))
+                ? $this->stringList($row['values'], $itemPath . '/values', $source, false)
                 : null;
 
             $result[$id] = new BlueprintField($id, $type, $required, $cardinality, $translatable, $revisionable, $indexed, $values);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -205,8 +193,6 @@ final class ApplicationBlueprintParser
 
             $result[$id] = new BlueprintRelationship($id, $fromEntity, $fromField, $toEntity, $cardinality, $required, $onDelete);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -224,8 +210,6 @@ final class ApplicationBlueprintParser
 
             $result[$id] = new BlueprintPermission($id, $title);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -240,12 +224,10 @@ final class ApplicationBlueprintParser
             $id = $this->id($row['id'], $itemPath . '/id', $source);
             $this->assertUniqueId($result, $id, $itemPath . '/id', $source);
             $label = $this->string($row['label'], $itemPath . '/label', $source);
-            $permissions = $this->sortedUnique($this->permissionIdList($row['permissions'], $itemPath . '/permissions', $source));
+            $permissions = $this->permissionIdList($row['permissions'], $itemPath . '/permissions', $source);
 
             $result[$id] = new BlueprintRole($id, $label, $permissions);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -269,8 +251,6 @@ final class ApplicationBlueprintParser
 
             $result[$id] = new BlueprintPolicy($id, $entity, $operation, $condition);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -291,7 +271,7 @@ final class ApplicationBlueprintParser
             })(),
             BlueprintConditionKind::WorkflowState => (function () use ($value, $path, $source, $kind): BlueprintPolicyCondition {
                 $row = $this->shape($value, ['kind', 'permission', 'states'], ['kind', 'permission', 'states'], $path, $source);
-                $states = $this->sortedUnique($this->idList($row['states'], $path . '/states', $source, false));
+                $states = $this->idList($row['states'], $path . '/states', $source, false);
 
                 return new BlueprintPolicyCondition($kind, $this->permissionId($row['permission'], $path . '/permission', $source), $states);
             })(),
@@ -322,8 +302,6 @@ final class ApplicationBlueprintParser
 
             $result[$id] = new BlueprintWorkflow($id, $label, $initialState, $states, $transitions, $bindings);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -342,8 +320,6 @@ final class ApplicationBlueprintParser
 
             $result[$id] = new BlueprintWorkflowState($id, $label, $published);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -358,14 +334,12 @@ final class ApplicationBlueprintParser
             $id = $this->id($row['id'], $itemPath . '/id', $source);
             $this->assertUniqueId($result, $id, $itemPath . '/id', $source);
             $label = $this->string($row['label'], $itemPath . '/label', $source);
-            $from = $this->sortedUnique($this->idList($row['from'], $itemPath . '/from', $source, false));
+            $from = $this->idList($row['from'], $itemPath . '/from', $source, false);
             $to = $this->id($row['to'], $itemPath . '/to', $source);
             $permission = $this->permissionId($row['permission'], $itemPath . '/permission', $source);
 
             $result[$id] = new BlueprintWorkflowTransition($id, $label, $from, $to, $permission);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -379,7 +353,6 @@ final class ApplicationBlueprintParser
             $row = $this->shape($item, ['entity'], ['entity'], $itemPath, $source);
             $result[] = new BlueprintWorkflowBinding($this->id($row['entity'], $itemPath . '/entity', $source));
         }
-        usort($result, static fn(BlueprintWorkflowBinding $a, BlueprintWorkflowBinding $b): int => $a->entity <=> $b->entity);
 
         return $result;
     }
@@ -406,8 +379,6 @@ final class ApplicationBlueprintParser
 
             $result[$id] = new BlueprintFixture($id, $entity, $values, $workflowState);
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -478,8 +449,6 @@ final class ApplicationBlueprintParser
                 BlueprintCheckKind::FixturePresent => $this->fixturePresentCheck($item, $itemPath, $source, $id),
             };
         }
-        ksort($result, SORT_STRING);
-
         return $result;
     }
 
@@ -593,16 +562,5 @@ final class ApplicationBlueprintParser
         }
 
         return $string;
-    }
-
-    /**
-     * @param list<string> $values
-     * @return list<string>
-     */
-    private function sortedUnique(array $values): array
-    {
-        sort($values, SORT_STRING);
-
-        return $values;
     }
 }

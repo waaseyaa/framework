@@ -19,10 +19,13 @@ final readonly class BlueprintWorkflowTransition
     /** @return array<string, mixed> */
     public function toArray(): array
     {
+        $from = $this->from;
+        sort($from, SORT_STRING);
+
         return [
             'id' => $this->id,
             'label' => $this->label,
-            'from' => $this->from,
+            'from' => $from,
             'to' => $this->to,
             'permission' => $this->permission,
         ];

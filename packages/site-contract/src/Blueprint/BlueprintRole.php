@@ -17,6 +17,9 @@ final readonly class BlueprintRole
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return ['id' => $this->id, 'label' => $this->label, 'permissions' => $this->permissions];
+        $permissions = $this->permissions;
+        sort($permissions, SORT_STRING);
+
+        return ['id' => $this->id, 'label' => $this->label, 'permissions' => $permissions];
     }
 }

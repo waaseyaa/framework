@@ -91,6 +91,8 @@ final class BlueprintDecisionReceiptTest extends TestCase
         yield 'malformed blueprint digest' => [['blueprint_digest' => 'not-a-digest'], 'SITE014_INVALID_VALUE', '/blueprint_digest'];
         yield 'malformed decided_at' => [['decided_at' => '2026-09-01 12:00:00'], 'SITE050_DECISION_RECEIPT_INVALID', '/decided_at'];
         yield 'empty actor' => [['actor' => ''], 'SITE012_EMPTY_VALUE', '/actor'];
+        yield 'mechanism is not a string' => [['mechanism' => null], 'SITE010_INVALID_TYPE', '/mechanism'];
+        yield 'empty mechanism' => [['mechanism' => ''], 'SITE012_EMPTY_VALUE', '/mechanism'];
     }
 
     public function test_resolver_returns_proposed_without_a_receipt(): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\SiteContract\Tests\Unit\Blueprint;
 
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /**
@@ -94,6 +95,158 @@ final class ApplicationBlueprintDigestTest extends TestCase
 
         self::assertSame($manifest->digest, $reparsed->digest);
         self::assertSame($manifest->applicationBlueprint->digest, $reparsed->applicationBlueprint->digest);
+    }
+
+    public function test_authored_order_does_not_affect_canonical_digest(): void
+    {
+        $sorted = new SiteManifestParser()->parse($this->sortedAuthoringManifest());
+        $reordered = new SiteManifestParser()->parse($this->reorderedAuthoringManifest());
+
+        self::assertSame($sorted->canonicalJson, $reordered->canonicalJson, 'Reordering authored entities/fields/roles must not change canonical JSON.');
+        self::assertSame($sorted->digest, $reordered->digest, 'Reordering authored entities/fields/roles must not change the manifest digest.');
+        self::assertSame(
+            $sorted->applicationBlueprint->digest,
+            $reordered->applicationBlueprint->digest,
+            'Reordering authored entities/fields/roles must not change the blueprint digest.',
+        );
+    }
+
+    public function test_authored_order_is_preserved_for_validator_error_pointers(): void
+    {
+        // The "person" entity is authored FIRST but sorts second by id ("article" < "person").
+        // A validator error about it must name its AUTHORED position (0), not its canonical
+        // sorted position (1) -- this is the exact defect this test guards against.
+        $yaml = $this->fixture('invalid/entity-order-preserves-authored-index.yaml');
+
+        try {
+            new SiteManifestParser()->parse($yaml, 'test');
+            self::fail('Expected manifest validation to fail.');
+        } catch (SiteManifestValidationException $exception) {
+            self::assertSame('SITE041_BLUEPRINT_UNKNOWN_CONTENT_TYPE', $exception->violations[0]->code);
+            self::assertSame('/application_blueprint/entities/0/id', $exception->violations[0]->path);
+        }
+    }
+
+    private function sortedAuthoringManifest(): string
+    {
+        return <<<'YAML'
+            schema: waaseyaa.site
+            version: 1
+            generator_version: 1
+            application:
+              name: Ordering Test Application
+              id: ordering-test
+              canonical_origin:
+                config_key: APP_ORIGIN
+            framework:
+              revision_policy: exact-lock
+              observed_lock_sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            content_types:
+              - id: alpha
+                canonical_route: /alpha/{slug}
+              - id: beta
+                canonical_route: /beta/{slug}
+            capabilities:
+              - id: payments
+                state: not_needed
+                reason: Payments are outside this application.
+            personal_data_stores: []
+            recipes: []
+            verification:
+              command: bin/maintenance/site-verify
+            application_blueprint:
+              contract_version: 1
+              entities:
+                - id: alpha
+                  label: Alpha
+                  storage: sql-blob
+                  revisionable: false
+                  translatable: false
+                  keys: { id: id, uuid: uuid, label: a_field }
+                  fields:
+                    - { id: a_field, type: string }
+                    - { id: b_field, type: string }
+                - id: beta
+                  label: Beta
+                  storage: sql-blob
+                  revisionable: false
+                  translatable: false
+                  keys: { id: id, uuid: uuid, label: name }
+                  fields:
+                    - { id: name, type: string }
+              relationships: []
+              permissions:
+                - { id: perm a, title: Permission A }
+                - { id: perm b, title: Permission B }
+              roles:
+                - { id: role_a, label: Role A, permissions: [perm a, perm b] }
+                - { id: role_b, label: Role B, permissions: [perm a] }
+              policies: []
+              workflows: []
+              fixtures: []
+              checks: []
+            YAML;
+    }
+
+    private function reorderedAuthoringManifest(): string
+    {
+        return <<<'YAML'
+            schema: waaseyaa.site
+            version: 1
+            generator_version: 1
+            application:
+              name: Ordering Test Application
+              id: ordering-test
+              canonical_origin:
+                config_key: APP_ORIGIN
+            framework:
+              revision_policy: exact-lock
+              observed_lock_sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            content_types:
+              - id: alpha
+                canonical_route: /alpha/{slug}
+              - id: beta
+                canonical_route: /beta/{slug}
+            capabilities:
+              - id: payments
+                state: not_needed
+                reason: Payments are outside this application.
+            personal_data_stores: []
+            recipes: []
+            verification:
+              command: bin/maintenance/site-verify
+            application_blueprint:
+              contract_version: 1
+              entities:
+                - id: beta
+                  label: Beta
+                  storage: sql-blob
+                  revisionable: false
+                  translatable: false
+                  keys: { id: id, uuid: uuid, label: name }
+                  fields:
+                    - { id: name, type: string }
+                - id: alpha
+                  label: Alpha
+                  storage: sql-blob
+                  revisionable: false
+                  translatable: false
+                  keys: { id: id, uuid: uuid, label: a_field }
+                  fields:
+                    - { id: b_field, type: string }
+                    - { id: a_field, type: string }
+              relationships: []
+              permissions:
+                - { id: perm b, title: Permission B }
+                - { id: perm a, title: Permission A }
+              roles:
+                - { id: role_b, label: Role B, permissions: [perm a] }
+                - { id: role_a, label: Role A, permissions: [perm b, perm a] }
+              policies: []
+              workflows: []
+              fixtures: []
+              checks: []
+            YAML;
     }
 
     private function fixture(string $relative): string

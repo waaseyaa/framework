@@ -202,6 +202,16 @@ final class ApplicationBlueprintSchema
                     'required' => ['entity'],
                     'properties' => ['entity' => $blueprintId],
                 ],
+                // `values` is intentionally loose here: JSON Schema cannot express
+                // "this key's allowed shape depends on a sibling entity's field/
+                // relationship declarations elsewhere in the document" (a
+                // cross-reference, not a static shape). The full rule —
+                // cardinality-shape (scalar vs. list), scalar-type-by-field-type,
+                // enum-membership, and required/null handling — is enforced only
+                // by ApplicationBlueprintValidator::checkFixtures() (design §1,
+                // §"Governed application blueprints" in site-golden-path.md).
+                // This schema fragment is documentation-grade, never a second
+                // validation authority.
                 'blueprintFixture' => [
                     'type' => 'object',
                     'additionalProperties' => false,

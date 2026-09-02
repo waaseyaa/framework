@@ -85,11 +85,35 @@ final class ApplicationBlueprintValidator
         }
 
         $relationshipIndex = 0;
+        $seenFromFields = [];
         foreach ($blueprint->relationships as $relationship) {
+            $relationshipPath = self::ROOT . "/relationships/{$relationshipIndex}/from/field";
             $entity = $blueprint->entities[$relationship->fromEntity] ?? null;
             if ($entity !== null && array_key_exists($relationship->fromField, $entity->fields)) {
-                $this->fail($source, 'SITE020_DUPLICATE_ID', self::ROOT . "/relationships/{$relationshipIndex}/from/field", 'A relationship field id must not collide with a declared entity field.');
+                $this->fail($source, 'SITE020_DUPLICATE_ID', $relationshipPath, 'A relationship field id must not collide with a declared entity field.');
             }
+            // `owner` is deliberately excluded: a relationship field is exactly
+            // what `keys.owner` is required to name (§1), so that collision is
+            // the expected shape, not a namespace violation. id/uuid/revision/
+            // langcode/default_langcode are still reserved column names a
+            // relationship-created field must not shadow.
+            if ($entity !== null) {
+                $reservedForRelationship = array_filter([
+                    $entity->keys->id,
+                    $entity->keys->uuid,
+                    $entity->keys->revision,
+                    $entity->keys->langcode,
+                    $entity->keys->defaultLangcode,
+                ], static fn(?string $value): bool => $value !== null);
+                if (in_array($relationship->fromField, $reservedForRelationship, true)) {
+                    $this->fail($source, 'SITE020_DUPLICATE_ID', $relationshipPath, 'A relationship field id must not collide with an entity key.');
+                }
+            }
+            $fromFieldKey = $relationship->fromEntity . '/' . $relationship->fromField;
+            if (isset($seenFromFields[$fromFieldKey])) {
+                $this->fail($source, 'SITE020_DUPLICATE_ID', $relationshipPath, 'A relationship field id must be unique among that entity\'s relationship fields.');
+            }
+            $seenFromFields[$fromFieldKey] = true;
             ++$relationshipIndex;
         }
     }
@@ -306,17 +330,25 @@ final class ApplicationBlueprintValidator
             foreach ($fixture->values as $fieldId => $fieldValue) {
                 $valuePath = $path . '/values/' . $this->pointer($fieldId);
                 $relationship = $relationshipsByField[$fieldId] ?? null;
-                if ($relationship === null && !array_key_exists($fieldId, $entity->fields)) {
+                $field = $entity->fields[$fieldId] ?? null;
+                if ($relationship === null && $field === null) {
                     $this->fail($source, 'SITE042_BLUEPRINT_UNRESOLVED_REFERENCE', $valuePath, 'A fixture value must name a declared field or relationship.');
                 }
-                if ($relationship !== null) {
-                    $targets = is_array($fieldValue) ? $fieldValue : [$fieldValue];
-                    foreach ($targets as $target) {
-                        $targetFixture = is_string($target) ? ($blueprint->fixtures[$target] ?? null) : null;
-                        if ($targetFixture === null || $targetFixture->entity !== $relationship->toEntity) {
-                            $this->fail($source, 'SITE042_BLUEPRINT_UNRESOLVED_REFERENCE', $valuePath, 'A relationship fixture value must reference a fixture of the target entity.');
-                        }
-                    }
+                if ($field !== null) {
+                    $this->checkFixtureFieldEntry($fieldValue, $field, $valuePath, $source);
+                } else {
+                    $this->checkFixtureRelationshipEntry($blueprint, $fieldValue, $relationship, $valuePath, $source);
+                }
+            }
+
+            foreach ($entity->fields as $fieldId => $field) {
+                if ($field->required && !array_key_exists($fieldId, $fixture->values)) {
+                    $this->fail($source, 'SITE011_REQUIRED_KEY', $path . '/values/' . $this->pointer($fieldId), 'A required field must have a fixture value.');
+                }
+            }
+            foreach ($relationshipsByField as $fieldId => $relationship) {
+                if ($relationship->required && !array_key_exists($fieldId, $fixture->values)) {
+                    $this->fail($source, 'SITE011_REQUIRED_KEY', $path . '/values/' . $this->pointer($fieldId), 'A required relationship must have a fixture value.');
                 }
             }
 
@@ -335,6 +367,117 @@ final class ApplicationBlueprintValidator
                 }
             }
             ++$index;
+        }
+    }
+
+    /**
+     * Shape-by-cardinality (design §1: "scalar fields ... cardinality != 1 ->
+     * list of scalars"), then per-scalar type checking against the field's
+     * declared `BlueprintFieldType`.
+     */
+    private function checkFixtureFieldEntry(mixed $fieldValue, BlueprintField $field, string $path, string $source): void
+    {
+        if ($fieldValue === null) {
+            if ($field->required) {
+                $this->fail($source, 'SITE011_REQUIRED_KEY', $path, 'A required field value must not be null.');
+            }
+
+            return;
+        }
+        if ($field->cardinality === 1) {
+            if (is_array($fieldValue)) {
+                $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a scalar value for a single-cardinality field.');
+            }
+            $this->checkFixtureScalar($fieldValue, $field, $path, $source);
+
+            return;
+        }
+        if (!is_array($fieldValue) || !array_is_list($fieldValue)) {
+            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a list of scalar values for a multi-cardinality field.');
+        }
+        foreach ($fieldValue as $itemIndex => $item) {
+            $itemPath = $path . '/' . $itemIndex;
+            if ($item === null) {
+                if ($field->required) {
+                    $this->fail($source, 'SITE011_REQUIRED_KEY', $itemPath, 'A required field value must not be null.');
+                }
+
+                continue;
+            }
+            $this->checkFixtureScalar($item, $field, $itemPath, $source);
+        }
+    }
+
+    /**
+     * The scalar-type-by-field-type table (design §1): string/text/email/
+     * link/date/datetime/json/list -> string; integer -> int; float/decimal
+     * -> int|float; boolean -> bool; enum -> string that is one of the
+     * field's declared values.
+     */
+    private function checkFixtureScalar(mixed $value, BlueprintField $field, string $path, string $source): void
+    {
+        if ($field->type === BlueprintFieldType::Enum) {
+            if (!is_string($value)) {
+                $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a string enum value.');
+            }
+            if (!in_array($value, $field->values ?? [], true)) {
+                $this->fail($source, 'SITE042_BLUEPRINT_UNRESOLVED_REFERENCE', $path, "An enum fixture value must be one of the field's declared values.");
+            }
+
+            return;
+        }
+
+        $matches = match ($field->type) {
+            BlueprintFieldType::String, BlueprintFieldType::Text, BlueprintFieldType::Email,
+            BlueprintFieldType::Link, BlueprintFieldType::Date, BlueprintFieldType::DateTime,
+            BlueprintFieldType::Json, BlueprintFieldType::ListSelect => is_string($value),
+            BlueprintFieldType::Integer => is_int($value),
+            BlueprintFieldType::Float, BlueprintFieldType::Decimal => is_int($value) || is_float($value),
+            BlueprintFieldType::Boolean => is_bool($value),
+        };
+        if (!$matches) {
+            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Fixture value does not match the declared field type.');
+        }
+    }
+
+    /**
+     * Shape-by-cardinality for a relationship value: cardinality 1 -> a
+     * single fixture id string; != 1 -> a list of fixture id strings. The
+     * existing target-entity resolution stays per-target.
+     */
+    private function checkFixtureRelationshipEntry(ApplicationBlueprint $blueprint, mixed $fieldValue, BlueprintRelationship $relationship, string $path, string $source): void
+    {
+        if ($fieldValue === null) {
+            if ($relationship->required) {
+                $this->fail($source, 'SITE011_REQUIRED_KEY', $path, 'A required relationship value must not be null.');
+            }
+
+            return;
+        }
+        if ($relationship->cardinality === 1) {
+            if (is_array($fieldValue)) {
+                $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a single fixture id for a single-cardinality relationship.');
+            }
+            $this->checkFixtureRelationshipTarget($blueprint, $fieldValue, $relationship, $path, $source);
+
+            return;
+        }
+        if (!is_array($fieldValue) || !array_is_list($fieldValue)) {
+            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a list of fixture ids for a multi-cardinality relationship.');
+        }
+        foreach ($fieldValue as $itemIndex => $item) {
+            $this->checkFixtureRelationshipTarget($blueprint, $item, $relationship, $path . '/' . $itemIndex, $source);
+        }
+    }
+
+    private function checkFixtureRelationshipTarget(ApplicationBlueprint $blueprint, mixed $target, BlueprintRelationship $relationship, string $path, string $source): void
+    {
+        if (!is_string($target)) {
+            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a fixture id string.');
+        }
+        $targetFixture = $blueprint->fixtures[$target] ?? null;
+        if ($targetFixture === null || $targetFixture->entity !== $relationship->toEntity) {
+            $this->fail($source, 'SITE042_BLUEPRINT_UNRESOLVED_REFERENCE', $path, 'A relationship fixture value must reference a fixture of the target entity.');
         }
     }
 

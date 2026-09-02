@@ -31,9 +31,21 @@ final readonly class BlueprintWorkflow
             'id' => $this->id,
             'label' => $this->label,
             'initial_state' => $this->initialState,
-            'states' => array_map(static fn(BlueprintWorkflowState $state): array => $state->toArray(), array_values($this->states)),
-            'transitions' => array_map(static fn(BlueprintWorkflowTransition $transition): array => $transition->toArray(), array_values($this->transitions)),
+            'states' => array_map(static fn(BlueprintWorkflowState $state): array => $state->toArray(), array_values(self::sortedById($this->states))),
+            'transitions' => array_map(static fn(BlueprintWorkflowTransition $transition): array => $transition->toArray(), array_values(self::sortedById($this->transitions))),
             'bindings' => array_map(static fn(BlueprintWorkflowBinding $binding): array => $binding->toArray(), $bindings),
         ];
+    }
+
+    /**
+     * @template T
+     * @param array<string, T> $items
+     * @return array<string, T>
+     */
+    private static function sortedById(array $items): array
+    {
+        ksort($items, SORT_STRING);
+
+        return $items;
     }
 }

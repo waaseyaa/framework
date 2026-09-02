@@ -22,7 +22,9 @@ final readonly class BlueprintPolicyCondition
             $result['permission'] = $this->permission;
         }
         if ($this->states !== null) {
-            $result['states'] = $this->states;
+            $states = $this->states;
+            sort($states, SORT_STRING);
+            $result['states'] = $states;
         }
 
         return $result;

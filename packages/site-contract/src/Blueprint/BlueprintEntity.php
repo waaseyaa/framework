@@ -28,7 +28,19 @@ final readonly class BlueprintEntity
             'revisionable' => $this->revisionable,
             'translatable' => $this->translatable,
             'keys' => $this->keys->toArray(),
-            'fields' => array_map(static fn(BlueprintField $field): array => $field->toArray(), array_values($this->fields)),
+            'fields' => array_map(static fn(BlueprintField $field): array => $field->toArray(), array_values(self::sortedById($this->fields))),
         ];
+    }
+
+    /**
+     * @template T
+     * @param array<string, T> $items
+     * @return array<string, T>
+     */
+    private static function sortedById(array $items): array
+    {
+        ksort($items, SORT_STRING);
+
+        return $items;
     }
 }
