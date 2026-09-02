@@ -123,6 +123,26 @@ the sentinel and registers zero commands while that package is absent. A
 `oidc:init-signing-key` as unknown rather than failing on the signing-key
 repository binding.
 
+`mcp:serve` (ADR-022 D-9.2, #2659 — the local stdio MCP transport) is gated
+the same third way: `McpStdioServiceProvider` implements
+`RequiresOptionalPackagesInterface` with `LocalOperatorPrincipal` as the
+sentinel for `waaseyaa/ai-agent`, which `waaseyaa/cli` only suggests (never
+requires — CP009 requires that package stay out of every production require
+closure, since it homes the local-plane's identity primitive). A `--no-dev`
+consumer without the local AI-development plane lists no `mcp:serve` command.
+Unlike `ai:*` and `oidc:*`, `mcp:serve`'s OWN dispatch dependencies
+(`Waaseyaa\AI\Tools\Dispatch\*`, `ToolRegistryInterface`) come from
+`waaseyaa/ai-tools`, which `waaseyaa/cli` DOES require directly and
+unconditionally — that package is already production-present in
+`waaseyaa/framework` and `waaseyaa/full`, so gating it here would add a
+conditional around something that is never actually absent. Once started, the
+command takes over stdin/stdout for JSON-RPC (`Waaseyaa\CLI\Mcp\Stdio\StdioMcpServer`)
+and never uses `SymfonyCommandIO::write()`/`writeln()` — only `error()`, so
+every diagnostic including a refused `LocalOperatorPrincipal` attestation
+lands on stderr, never interleaved with a protocol frame on stdout. Full
+transport contract: `docs/specs/ai-integration.md` "Local stdio MCP transport
+(`mcp:serve`, ADR-022 D-9.2, #2659)".
+
 Command presentation belongs to this Layer-6 package even when the domain operation belongs lower in the stack. For example, `BearerTokenServiceProvider` owns the `bearer-token:issue|list|rotate|revoke` Symfony commands and depends downward on auth's `BearerTokenStoreInterface`; `AuthServiceProvider` owns the durable credential binding and exposes no Symfony Console types. A lower-layer provider must never construct CLI command objects, including through hidden string FQCNs.
 
 `HealthSchemaServiceProvider` registers `tenancy:repair-translation-peers <entity_type> [--dry-run] [--json]`. `CommunityTranslationPeerRepairHandler` resolves the entity type, delegates to the entity-storage repairer, and renders either a stable JSON report or concise operator output. This command follows ordinary full console boot because it requires entity metadata and a database connection. It is not part of the restricted pre-boot command set. Applying repairs is an explicit operator action and requires the quiesce procedure in `docs/specs/operations-playbooks.md`.
