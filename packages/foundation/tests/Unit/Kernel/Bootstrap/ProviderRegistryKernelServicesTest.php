@@ -9,9 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface as PsrEventDispatcherInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractsEventDispatcherInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
@@ -22,10 +22,11 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Field\Tests\Fixtures\ExtensionFieldTypeFixture;
-use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
-use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
+use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
@@ -46,6 +47,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
         ?CommunityContextInterface $communityContext = null,
         ?SecretResolverRegistry $secretResolverRegistry = null,
+        ?\Closure $healthCheckerAccessor = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -60,7 +62,49 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             fieldReadScope: $fieldReadScope,
             communityContext: $communityContext,
             secretResolverRegistry: $secretResolverRegistry,
+            healthCheckerAccessor: $healthCheckerAccessor,
         );
+    }
+
+    /**
+     * #2820: the health checker is kernel-composed, so a provider binding that
+     * depends on it (cli's HealthReportHandler) can only obtain it through
+     * this bus. The accessor is lazy and read at resolution time.
+     */
+    #[Test]
+    public function kernel_owned_health_checker_is_served_through_its_lazy_accessor(): void
+    {
+        $checker = $this->createStub(HealthCheckerInterface::class);
+        $reads = 0;
+        $services = $this->services(
+            DBALDatabase::createSqlite(),
+            healthCheckerAccessor: static function () use ($checker, &$reads): HealthCheckerInterface {
+                $reads++;
+
+                return $checker;
+            },
+        );
+
+        self::assertSame(0, $reads, 'The accessor must not run at construction.');
+        self::assertSame($checker, $services->get(HealthCheckerInterface::class));
+        self::assertSame(1, $reads);
+    }
+
+    #[Test]
+    public function health_checker_is_unresolvable_without_a_kernel_accessor(): void
+    {
+        // A sibling provider binding the abstract must not stand in for the
+        // kernel-owned checker: the hardcoded case shadows the fallthrough.
+        $sibling = new class extends ServiceProvider {
+            public function register(): void
+            {
+                $this->singleton(HealthCheckerInterface::class, static fn(): \stdClass => new \stdClass());
+            }
+        };
+        $sibling->register();
+        $services = $this->services(DBALDatabase::createSqlite(), providers: [$sibling]);
+
+        self::assertNull($services->get(HealthCheckerInterface::class));
     }
 
     #[Test]

@@ -212,6 +212,22 @@ Sections:
 - `--json` — output as structured JSON
 - `--output <file>` — write JSON report to file (requires `--json`)
 
+**Wiring (#2820).** `HealthSchemaServiceProvider` binds `HealthReportHandler`
+as a singleton; the project root comes from the framework composition contract
+(`ServiceProvider::$projectRoot`) and the checker from the kernel-services bus,
+which serves the kernel-owned `HealthCheckerInterface` through
+`AbstractKernel::healthChecker()` (see `docs/specs/infrastructure.md`,
+"Kernel services bus"). No application-local container binding or handler
+subclass is required. Two proofs pin this, because the command shipped broken in
+every consumer application while the monorepo stayed green: the in-tree wiring
+test `tests/Integration/OperatorDiagnostics/HealthReportCommandWiringTest.php`
+composes the handler over the real bus and executes both output modes on a real
+console application, and the hosted lane `ci/cli-health-report`
+(`tests/PackagedForm/check-cli-health-report`) runs `health:report`,
+`health:report --json`, and `health:report --json --output` from installed bytes
+in a disposable `--no-dev` `waaseyaa/core` + `waaseyaa/cli` consumer that
+carries no application source at all.
+
 ## HealthCheckResult Value Object
 
 ```php

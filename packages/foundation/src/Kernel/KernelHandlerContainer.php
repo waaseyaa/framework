@@ -50,6 +50,17 @@ final class KernelHandlerContainer implements ContainerInterface
         }
 
         // 2. Provider bindings (EntityTypeManager, DatabaseInterface, …).
+        //
+        // A provider factory for $id that itself fails to resolve one of ITS
+        // dependencies surfaces as "No binding registered for <dependency>",
+        // which is indistinguishable by prefix from "$id is unbound here".
+        // Falling through is kept (a sibling may still bind $id), but the
+        // first such failure is remembered so that, if auto-wiring then
+        // fails too, the error names the dependency that actually broke
+        // instead of the constructor parameter reflection tripped over
+        // (#2820: "unresolvable parameter $projectRoot" hid the real
+        // "No binding registered for HealthCheckerInterface").
+        $dependencyFailure = null;
         foreach ($this->providers as $provider) {
             try {
                 $instance = $provider->resolve($id);
@@ -67,18 +78,19 @@ final class KernelHandlerContainer implements ContainerInterface
                 if (!str_starts_with($e->getMessage(), 'No binding registered for ')) {
                     throw $e;
                 }
+                if ($e->getMessage() !== sprintf('No binding registered for %s.', $id)) {
+                    $dependencyFailure ??= $e;
+                }
                 // try next
             }
         }
 
         // 3. Reflection-based auto-wiring for concrete handler classes.
         if (!class_exists($id)) {
-            throw new class ($id) extends \RuntimeException implements NotFoundExceptionInterface {
-                public function __construct(string $id)
-                {
-                    parent::__construct(sprintf('No binding for "%s" in KernelHandlerContainer.', $id));
-                }
-            };
+            throw self::notFound(
+                sprintf('No binding for "%s" in KernelHandlerContainer.', $id),
+                $dependencyFailure,
+            );
         }
 
         $ref = new \ReflectionClass($id);
@@ -99,12 +111,10 @@ final class KernelHandlerContainer implements ContainerInterface
             } elseif ($param->isOptional()) {
                 $args[] = $param->getDefaultValue();
             } else {
-                throw new class ($id, $param->getName()) extends \RuntimeException implements NotFoundExceptionInterface {
-                    public function __construct(string $id, string $param)
-                    {
-                        parent::__construct(sprintf('Cannot auto-wire "%s": unresolvable parameter "$%s".', $id, $param));
-                    }
-                };
+                throw self::notFound(
+                    sprintf('Cannot auto-wire "%s": unresolvable parameter "$%s".', $id, $param->getName()),
+                    $dependencyFailure,
+                );
             }
         }
 
@@ -112,6 +122,30 @@ final class KernelHandlerContainer implements ContainerInterface
         $this->cache[$id] = $instance;
 
         return $instance;
+    }
+
+    /**
+     * Build the container's NotFound exception. When a provider DID bind the
+     * id but its factory failed on a dependency, that failure is chained as
+     * the previous exception and named in the message, so the operator sees
+     * the binding that broke rather than only the auto-wiring that could not
+     * stand in for it.
+     */
+    private static function notFound(string $message, ?\RuntimeException $dependencyFailure): NotFoundExceptionInterface&\RuntimeException
+    {
+        if ($dependencyFailure !== null) {
+            $message .= sprintf(
+                ' A provider binding exists but its factory failed first: %s',
+                $dependencyFailure->getMessage(),
+            );
+        }
+
+        return new class ($message, $dependencyFailure) extends \RuntimeException implements NotFoundExceptionInterface {
+            public function __construct(string $message, ?\Throwable $previous)
+            {
+                parent::__construct($message, 0, $previous);
+            }
+        };
     }
 
     public function has(string $id): bool

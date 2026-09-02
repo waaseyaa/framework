@@ -62,6 +62,16 @@ final class ProviderRegistry
         ?RequestContext $requestContext = null,
         ?CommunityContextInterface $communityContext = null,
         ?SecretResolverRegistry $secretResolverRegistry = null,
+        /**
+         * Lazy accessor for the kernel-owned health checker (#2820), exposed
+         * to providers via the kernel-services bus so a provider can bind a
+         * handler that depends on it. Lazy because the checker reads the boot
+         * diagnostic report, which reflects the entity types registered by
+         * the time a command resolves it.
+         *
+         * @var (\Closure(): \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface)|null
+         */
+        ?\Closure $healthCheckerAccessor = null,
     ): array {
         $this->providers = [];
 
@@ -79,6 +89,7 @@ final class ProviderRegistry
             requestContext: $requestContext,
             communityContext: $communityContext,
             secretResolverRegistry: $secretResolverRegistry,
+            healthCheckerAccessor: $healthCheckerAccessor,
         );
 
         foreach ($manifest->providers as $providerClass) {

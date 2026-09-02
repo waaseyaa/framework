@@ -103,6 +103,7 @@ abstract class AbstractKernel
     private readonly RedactorProcessor $sinkSanitizer;
     private readonly bool $rebuildLoggerFromConfig;
     private ?SecretResolverRegistry $secretResolverRegistry = null;
+    private ?\Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface $healthChecker = null;
     protected MigrationLoader $migrationLoader;
     protected MigrationRepository $migrationRepository;
 
@@ -494,6 +495,11 @@ abstract class AbstractKernel
             requestContext: $this->requestContextForProviders(),
             communityContext: $this->communityContext,
             secretResolverRegistry: $this->secretResolverRegistry(),
+            // #2820: the health checker is kernel-composed (it reads the boot
+            // diagnostic report), so a provider binding that depends on it —
+            // cli's HealthReportHandler — can only resolve it through this
+            // bus. Lazy: it is first read at command dispatch, after boot.
+            healthCheckerAccessor: fn(): \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface => $this->healthChecker(),
         );
     }
 
@@ -1246,12 +1252,6 @@ abstract class AbstractKernel
     public function buildHandlerContainer(): \Psr\Container\ContainerInterface
     {
         $providers   = $this->providers;
-        $projectRoot = $this->projectRoot;
-        $diagnosticsConfig = $this->config['diagnostics'] ?? [];
-        $cleanUrlProbeUrl = is_array($diagnosticsConfig)
-            ? ($diagnosticsConfig['clean_url_probe_url'] ?? '')
-            : '';
-        $cleanUrlProbeUrl = is_string($cleanUrlProbeUrl) ? trim($cleanUrlProbeUrl) : '';
 
         // Explicit kernel-owned bindings: maps abstract id → factory closure.
         // These cover types that are not bound by any service provider but are
@@ -1274,20 +1274,48 @@ abstract class AbstractKernel
                 static fn(\Psr\Container\ContainerInterface $c) => $kernel->accountContext(),
             \Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $kernel->getBootReport(),
+            // The same instance the kernel-services bus hands providers
+            // (#2820), so `health:check` (auto-wired here) and `health:report`
+            // (bound by HealthSchemaServiceProvider) share one checker.
             \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface::class =>
-                static fn(\Psr\Container\ContainerInterface $c) => new \Waaseyaa\Foundation\Diagnostic\HealthChecker(
-                    bootReport: $c->get(\Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport::class),
-                    database: $c->get(\Waaseyaa\Database\DatabaseInterface::class),
-                    entityTypeManager: $c->get(\Waaseyaa\Entity\EntityTypeManagerInterface::class),
-                    projectRoot: $projectRoot,
-                    logger: $c->get(\Waaseyaa\Foundation\Log\LoggerInterface::class),
-                    cleanUrlProbe: $cleanUrlProbeUrl === ''
-                        ? null
-                        : new \Waaseyaa\Foundation\Diagnostic\CleanUrlProbe($cleanUrlProbeUrl),
-                ),
+                static fn(\Psr\Container\ContainerInterface $c) => $kernel->healthChecker(),
         ];
 
         return new KernelHandlerContainer($providers, $kernelBindings);
+    }
+
+    /**
+     * The kernel-owned diagnostic health checker, composed once from the
+     * boot diagnostic report, the kernel database, entity-type manager, and
+     * logger, plus the optional `diagnostics.clean_url_probe_url` probe.
+     *
+     * Served both as a handler-container kernel binding (reflection-wired
+     * handlers such as `health:check`) and through the kernel-services bus
+     * (provider-bound handlers such as `health:report`, #2820). Must be read
+     * after boot: the report reflects the entity types registered by then.
+     */
+    public function healthChecker(): \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface
+    {
+        if ($this->healthChecker !== null) {
+            return $this->healthChecker;
+        }
+
+        $diagnosticsConfig = $this->config['diagnostics'] ?? [];
+        $cleanUrlProbeUrl = is_array($diagnosticsConfig)
+            ? ($diagnosticsConfig['clean_url_probe_url'] ?? '')
+            : '';
+        $cleanUrlProbeUrl = is_string($cleanUrlProbeUrl) ? trim($cleanUrlProbeUrl) : '';
+
+        return $this->healthChecker = new \Waaseyaa\Foundation\Diagnostic\HealthChecker(
+            bootReport: $this->getBootReport(),
+            database: $this->database,
+            entityTypeManager: $this->entityTypeManager,
+            projectRoot: $this->projectRoot,
+            logger: $this->logger,
+            cleanUrlProbe: $cleanUrlProbeUrl === ''
+                ? null
+                : new \Waaseyaa\Foundation\Diagnostic\CleanUrlProbe($cleanUrlProbeUrl),
+        );
     }
 
     /**
