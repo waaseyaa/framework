@@ -93,6 +93,46 @@ final class AgentGovernanceTest extends TestCase
         self::assertStringNotContainsString('7-Layer Architecture', $contents);
     }
 
+    #[Test]
+    public function spec_reviewed_trailer_guidance_matches_the_drift_detector(): void
+    {
+        $contract = $this->read('docs/governance/agent-contract.md');
+
+        self::assertStringNotContainsString(
+            'otherwise use the supported `spec-reviewed:` commit',
+            $contract,
+            'agent-contract.md must not imply the trailer is a fallback for every unchanged spec.',
+        );
+        self::assertStringContainsString(
+            'no trailer is required or accepted',
+            $contract,
+            'agent-contract.md must state that a change set affecting no specs takes no spec-reviewed trailer.',
+        );
+        self::assertStringContainsString(
+            'spec-reviewed: docs/specs/<name>.md - <reason>',
+            $contract,
+            'agent-contract.md must document the exact accepted spec-reviewed grammar.',
+        );
+
+        $claude = $this->read('CLAUDE.md');
+
+        self::assertStringNotContainsString(
+            'After design review, carry a `spec-reviewed:` trailer on the commit (lowercase',
+            $claude,
+            'CLAUDE.md must not imply a spec-reviewed trailer is always available.',
+        );
+        self::assertStringContainsString(
+            'spec-reviewed: docs/specs/<name>.md - <reason>',
+            $claude,
+            'CLAUDE.md must document the exact accepted spec-reviewed grammar.',
+        );
+        self::assertStringContainsString(
+            'no trailer is required or accepted',
+            $claude,
+            'CLAUDE.md must state that a change set affecting no specs takes no spec-reviewed trailer.',
+        );
+    }
+
     private function read(string $path): string
     {
         $contents = file_get_contents($this->root . '/' . $path);

@@ -201,7 +201,10 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 
 - Add a validated `changes/unreleased/<issue>.<slice>.<type>.md` fragment; the
   governed release cut alone compiles root `CHANGELOG.md`.
-- After design review, carry a `spec-reviewed:` trailer on the commit (lowercase — the drift detector parses that exact key).
+- After design review, if the change affects a spec you intentionally leave
+  unchanged, carry a `spec-reviewed: docs/specs/<name>.md - <reason>` trailer
+  on the commit (lowercase — the drift detector parses that exact key). If no
+  spec is affected, no trailer is required or accepted.
 - Never `git stash`. Commit to a branch instead.
 - `composer test` must pass before any commit.
 - Open PRs via `gh`; require CI green on the exact pushed head before merge.
