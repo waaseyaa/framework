@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Wayfinding;
 
+use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldSchemaAuthority;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogEntry;
 use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
@@ -50,8 +53,12 @@ final class WayfindingServiceProvider extends ServiceProvider implements Provide
         // EmitBeaconController (emit-time anchor validation, FR-005) so both
         // endpoints reuse this singleton's memoized catalog() instead of
         // rebuilding it per request.
+        // The catalog derives field anchors through the kernel's boot-scoped
+        // field-type registry (#2786 B1): a downstream plugin admitted at boot
+        // yields anchors instead of aborting the catalog as an unknown type.
         $this->singleton(AnchorRegistry::class, fn(): AnchorRegistry => new AnchorRegistry(
             $this->resolve(EntityTypeManager::class),
+            new SchemaPresenter(fieldSchemas: $this->fieldSchemaAuthority()),
         ));
 
         // Phase 4: the saved-trail entity is versioned + translatable (en + fr)
@@ -64,6 +71,31 @@ final class WayfindingServiceProvider extends ServiceProvider implements Provide
             translatable: true,
             group: 'content',
         ));
+    }
+
+    /**
+     * The field schema authority composed over the kernel's boot-scoped
+     * field-type registry: FieldServiceProvider's binding when it registered,
+     * else one composed here over the registry the kernel-services bus serves.
+     * Narrowing silently to the built-in roster would refuse every downstream
+     * plugin the kernel admitted, so a provider composed without either refuses.
+     */
+    private function fieldSchemaAuthority(): FieldSchemaAuthority
+    {
+        $authority = $this->resolveOptional(FieldSchemaAuthority::class);
+        if ($authority instanceof FieldSchemaAuthority) {
+            return $authority;
+        }
+
+        $fieldTypes = $this->resolveOptional(FieldTypeManagerInterface::class);
+        if ($fieldTypes instanceof FieldTypeManagerInterface) {
+            return new FieldSchemaAuthority($fieldTypes);
+        }
+
+        throw new \LogicException(
+            'The Wayfinding anchor registry requires the kernel\'s field schema authority; '
+            . 'neither FieldSchemaAuthority nor FieldTypeManagerInterface is resolvable from the kernel-services bus.',
+        );
     }
 
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void

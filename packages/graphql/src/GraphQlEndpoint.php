@@ -14,6 +14,7 @@ use GraphQL\Validator\Rules\DisableIntrospection;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
@@ -33,13 +34,18 @@ final class GraphQlEndpoint
     private array $mutationOverrides = [];
     private readonly LoggerInterface $logger;
 
-    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+    /**
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
+     * @param FieldTypeManagerInterface|null $fieldTypes The kernel's boot-scoped field-type
+     *        registry (#2786 B1), threaded into SchemaFactory; null only for bare construction.
+     */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly AccountInterface $account,
         private readonly int $maxDepth = 3,
         ?LoggerInterface $logger = null,
+        private readonly ?FieldTypeManagerInterface $fieldTypes = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -151,6 +157,7 @@ final class GraphQlEndpoint
 
         $schemaFactory = new SchemaFactory(
             entityTypeManager: $this->entityTypeManager,
+            fieldTypes: $this->fieldTypes,
         );
 
         if ($this->mutationOverrides !== []) {

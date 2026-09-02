@@ -260,8 +260,13 @@ File: `packages/entity/src/EntityValues.php`
 ### Canonical field schema authority
 
 `FieldSchemaAuthority` and `FieldTypeManagerInterface` are the Layer-1
-structural introspection authority (#2786). The manager discovers real
-`#[FieldType]` plugins by default; unknown ids throw
+structural introspection authority (#2786). Each kernel owns one boot-scoped
+manager populated from the compiled package manifest: the built-in
+`#[FieldType]` plugins plus plugins contributed by participating downstream
+packages. The same instance is threaded through field admission, runtime DDL,
+JSON schema, Admin, GraphQL, and blueprint consumers. Bare construction outside
+a kernel uses the built-ins-only `FieldTypeManager::default()` registry.
+Unknown ids throw
 `UnknownFieldTypeException` and never degrade to `string`. Each plugin owns its
 field-item projection (`jsonSchemaFor`) and its explicitly distinct entity
 authoring projection (`entityValueJsonSchemaFor`). The latter feeds closed
@@ -272,6 +277,12 @@ container. The `json` entity-value projection permits every native JSON type,
 matching the decoded values returned by both SQL storage backends. `decimal`
 remains a patterned string so SQLite and GraphQL preserve its lossless-text
 storage contract rather than coercing it through a binary float.
+
+Manifest admission currently covers structural JSON-schema and storage
+projection. GraphQL remains an explicit adapter roster: a registered downstream
+id without a wire adapter is refused. The required follow-up is a
+transport-neutral field-owned value-kind contract, not a GraphQL dependency in
+this Layer-1 package and not an unknown-id string fallback.
 
 Entity field enumeration remains owned by
 `EntityTypeManagerInterface::resolveFieldDefinitions()`. The schema authority
@@ -2159,11 +2170,17 @@ Contains `FieldItemInterface[]` items. Supports `__get($name)` to access first i
 File: `packages/field/src/FieldTypeManager.php`
 Class: `final class FieldTypeManager extends DefaultPluginManager implements FieldTypeManagerInterface`
 
-Constructor: `(?array $directories = null, ?CacheBackendInterface $cache = null)`.
+Constructor: `(?array $directories = null, ?CacheBackendInterface $cache = null, array $extensionClasses = [])`.
 `null` discovers the built-in plugins; an explicit empty list discovers none.
-`FieldTypeManager::default()` supplies the shared built-in authority.
+`FieldTypeManager::default()` supplies the process-static built-in authority
+only for isolated construction. `fromManifest(array $fieldTypes)` creates a
+boot-scoped manager from exact manifest `id => class` pairs and eagerly refuses
+missing, malformed, mismatched, or duplicate plugins.
 
-Uses `AttributeDiscovery` with `FieldType::class` attribute. Plugin discovery scans directories for `#[FieldType(...)]` attributes.
+Uses `FieldTypeDiscovery`, which combines `AttributeDiscovery` over the built-in
+directory with exact downstream classes recorded under the manifest's
+`field_types` inventory. Every class must be concrete, implement
+`FieldTypeInterface`, and carry a `#[FieldType]` id equal to its manifest key.
 
 Additional methods:
 - `getDefaultSettings(string $fieldType): array`

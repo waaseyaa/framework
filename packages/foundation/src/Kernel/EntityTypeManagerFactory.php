@@ -25,6 +25,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Validation\DatabaseValidationReadLedger;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 
@@ -51,6 +52,9 @@ final class EntityTypeManagerFactory
      * @param callable(): ?\Waaseyaa\Access\EntityAccessHandler                $accessHandlerResolver   Lazy resolver; accessHandler is set after this factory runs.
      * @param callable(EntityTypeInterface): ?\Waaseyaa\EntityStorage\Tenancy\CommunityScope $communityScoreResolver Per-type community-scope resolver.
      * @param callable(object): void                                            $accountContextAttacher  Forward seam (WP01).
+     * @param FieldTypeManagerInterface                                         $fieldTypes              The kernel's boot-scoped field-type
+     *        registry (#2786 B1): every runtime SqlSchemaHandler the repository factory builds projects
+     *        columns through it, so a downstream plugin the field registry admitted is materializable.
      */
     public function build(
         DatabaseInterface $database,
@@ -61,6 +65,7 @@ final class EntityTypeManagerFactory
         callable $communityScoreResolver,
         callable $accountContextAttacher,
         AccountFieldReadScopeInterface $fieldReadScope,
+        FieldTypeManagerInterface $fieldTypes,
     ): EntityTypeManager {
         // Issue #1643: save-time entity validation is ON by default for every
         // kernel-built repository. One shared stateless EntityValidator is
@@ -83,7 +88,7 @@ final class EntityTypeManagerFactory
             // it remains a "bring your own EntityStorageInterface" extension seam
             // for entity types that explicitly declare a storageClass.
             null,
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope, $fieldTypes): EntityRepositoryInterface {
                 if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
                     throw new \RuntimeException(\sprintf(
                         'Entity type "%s" declares custom storage "%s"; getRepository() only supports Framework SQL storage. Use getStorage() for the declared backend.',
@@ -92,7 +97,7 @@ final class EntityTypeManagerFactory
                     ));
                 }
 
-                $schemaHandler = $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger);
+                $schemaHandler = $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger, $fieldTypes);
                 $schemaHandler->assertRuntimeSchema();
 
                 $keys = $definition->getKeys();
@@ -175,12 +180,13 @@ final class EntityTypeManagerFactory
         EntityTypeManager $manager,
         FieldDefinitionRegistryInterface $fieldRegistry,
         LoggerInterface $logger,
+        FieldTypeManagerInterface $fieldTypes,
     ): void {
         foreach ($manager->getDefinitions() as $definition) {
             if (!$this->usesFrameworkSqlRuntimeSchema($definition)) {
                 continue;
             }
-            $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger)->assertRuntimeSchema();
+            $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger, $fieldTypes)->assertRuntimeSchema();
         }
     }
 
@@ -213,6 +219,7 @@ final class EntityTypeManagerFactory
         DatabaseInterface $database,
         FieldDefinitionRegistryInterface $fieldRegistry,
         LoggerInterface $logger,
+        FieldTypeManagerInterface $fieldTypes,
     ): SqlSchemaHandler {
         $backend = $definition->getPrimaryStorageBackend();
         $backend = (\is_string($backend) && $backend !== '')
@@ -238,6 +245,7 @@ final class EntityTypeManagerFactory
             logger: $logger,
             primaryBackendId: $backend,
             entityLevelFields: $entityLevelFields,
+            fieldTypes: $fieldTypes,
         );
     }
 }

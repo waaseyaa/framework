@@ -76,6 +76,10 @@ final class SqlSchemaHandler
     ) {
         $this->tableName = $this->entityType->id();
         $this->logger = $logger ?? new NullLogger();
+        // Isolated construction: a handler built without the kernel's registry
+        // (unit tests) projects against the built-in roster. Kernel wiring —
+        // EntityTypeManagerFactory and EntitySchemaSync — always passes the
+        // boot-scoped registry so admitted downstream plugins are materializable.
         $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 
@@ -1452,6 +1456,9 @@ final class SqlSchemaHandler
         FieldDefinitionInterface $field,
         ?FieldTypeManagerInterface $fieldTypes = null,
     ): \Waaseyaa\Foundation\Schema\Diff\ColumnSpec {
+        // Isolated construction: EntityDiffFactory's default deriver has no
+        // registry to derive from; pass the boot-scoped registry explicitly
+        // when a kernel-wired diff producer lands.
         $array = self::completeColumnSpec(
             ($fieldTypes ?? FieldTypeManager::default())->entityStorageColumnSchemaFor($field),
             $field,

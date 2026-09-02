@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-09-02 - #2786 B1: AdminSurfaceServiceProvider now composes SchemaPresenter with the kernel's boot-scoped FieldSchemaAuthority, so manifest-discovered downstream field types retain their plugin-owned schema in generic Admin forms. Missing kernel authority refuses provider composition rather than narrowing to the built-ins-only registry. -->
+
 <!-- Spec reviewed 2026-09-02 - #2786: schema widgets consume the canonical entity-value shape. Array-valued enums read options and labels from `items.enum`, while scalar enums retain top-level `enum`; the committed Admin distribution is rebuilt through the canonical two-build acceptance operation. -->
 
 <!-- Spec reviewed 2026-08-27 - #2544: `GenericAdminSurfaceHost::ALWAYS_INTERNAL_FIELDS` gains `legacy_pass`, so the imported-credential field is rejected as an admin-surface filter/sort field exactly like `pass` - the same one-bit oracle R13 WP1 closed. -->

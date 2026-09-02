@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Discovery;
 
 use Waaseyaa\Foundation\Attribute\AsEntityType;
-use Waaseyaa\Foundation\Attribute\AsFieldType;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -14,6 +13,14 @@ final class PackageManifestCompiler
 {
     private const POLICY_ATTRIBUTE = 'Waaseyaa\\Access\\Gate\\PolicyAttribute';
     private const FORMATTER_ATTRIBUTE = 'Waaseyaa\\SSR\\Attribute\\AsFormatter';
+
+    /**
+     * @internal String FQN avoids upward layer import (Foundation/L0 must not import from Field/L1).
+     * This is the attribute field-type plugins actually carry; the `field_types` inventory it
+     * populates is what `FieldTypeManager::fromManifest()` admits at kernel boot (#2786 B1).
+     * The Foundation-owned `AsFieldType` marker is deprecated and no longer read.
+     */
+    private const FIELD_TYPE_ATTRIBUTE = 'Waaseyaa\\Field\\Attribute\\FieldType';
 
     /** @internal String FQN avoids upward layer import (Foundation/L0 must not import from AI Tools/L5). */
     private const AGENT_TOOL_ATTRIBUTE = 'Waaseyaa\\AI\\Tools\\Attribute\\AsAgentTool';
@@ -161,9 +168,8 @@ final class PackageManifestCompiler
         foreach ($this->scanClasses() as $class) {
             $ref = new \ReflectionClass($class);
 
-            foreach ($ref->getAttributes(AsFieldType::class) as $attr) {
-                $instance = $attr->newInstance();
-                $fieldTypes[$instance->id] = $class;
+            foreach ($ref->getAttributes(self::FIELD_TYPE_ATTRIBUTE) as $attr) {
+                $fieldTypes = self::admitFieldType($fieldTypes, (string) $attr->newInstance()->id, $class);
             }
 
             foreach ($ref->getAttributes(self::FORMATTER_ATTRIBUTE) as $attr) {
@@ -238,14 +244,19 @@ final class PackageManifestCompiler
         // Installed extensions explicitly opt into Waaseyaa through their
         // extra.waaseyaa manifest, but may use a vendor namespace outside both
         // Waaseyaa\\ and the root application's autoload prefixes. Scan those
-        // namespaces for policies only: feeding them through scanClasses()
-        // would silently widen every attribute-discovery contract (entity
-        // types, middleware, formatters, agent tools, and schedules).
-        foreach ($this->scanExternalExtensionPolicyClasses($packages) as $class) {
+        // namespaces for the two documented extension contracts only —
+        // access policies (#2314) and field-type plugins (#2786) — never
+        // through scanClasses(), which would silently widen every other
+        // attribute-discovery surface (entity types, middleware, formatters,
+        // agent tools, and schedules).
+        foreach ($this->scanExternalExtensionClasses($packages) as $class) {
             $ref = new \ReflectionClass($class);
             foreach ($ref->getAttributes(self::POLICY_ATTRIBUTE) as $attr) {
                 $instance = $attr->newInstance();
                 $policies[$class] = $instance->entityTypes;
+            }
+            foreach ($ref->getAttributes(self::FIELD_TYPE_ATTRIBUTE) as $attr) {
+                $fieldTypes = self::admitFieldType($fieldTypes, (string) $attr->newInstance()->id, $class);
             }
         }
 
@@ -282,6 +293,27 @@ final class PackageManifestCompiler
             agentDefinitions: $agentDefinitions,
             scheduleEntries: $scheduleEntries,
         );
+    }
+
+    /**
+     * Record one `#[FieldType]` plugin in the `field_types` inventory.
+     *
+     * The inventory is keyed by id, so a second class claiming an admitted id
+     * is a boot-integrity failure rather than a silent overwrite; the same
+     * class seen twice (classmap and PSR-4 union) is one plugin.
+     *
+     * @param array<string, string> $fieldTypes
+     * @return array<string, string>
+     */
+    private static function admitFieldType(array $fieldTypes, string $fieldType, string $class): array
+    {
+        $registered = $fieldTypes[$fieldType] ?? null;
+        if ($registered !== null && $registered !== $class) {
+            throw new FieldTypeManifestCollisionException($fieldType, $registered, $class);
+        }
+        $fieldTypes[$fieldType] = $class;
+
+        return $fieldTypes;
     }
 
     /**
@@ -1194,19 +1226,21 @@ final class PackageManifestCompiler
     }
 
     /**
-     * Discover access policies owned by installed extensions whose production
-     * namespace is outside the framework/root application scan boundary.
+     * Discover the extension contracts owned by installed extensions whose
+     * production namespace is outside the framework/root application scan
+     * boundary: access policies (#2314) and field-type plugins (#2786).
      *
      * Presence of an array-shaped extra.waaseyaa block is the explicit trust
-     * signal. Only PolicyAttribute is admitted from these namespaces so this
-     * path cannot activate unrelated discovery surfaces as a side effect.
+     * signal. Only PolicyAttribute and the field-type plugin attribute are
+     * admitted from these namespaces so this path cannot activate unrelated
+     * discovery surfaces as a side effect.
      *
      * @param array<int, array<string, mixed>> $packages
      * @return list<class-string>
      */
-    private function scanExternalExtensionPolicyClasses(array $packages): array
+    private function scanExternalExtensionClasses(array $packages): array
     {
-        $sources = $this->externalExtensionPolicySources($packages);
+        $sources = $this->externalExtensionSources($packages);
         if ($sources === []) {
             return [];
         }
@@ -1260,7 +1294,7 @@ final class PackageManifestCompiler
             }
         }
 
-        return $this->filterPolicyClasses(array_values(array_unique($candidates)));
+        return $this->filterExternalExtensionClasses(array_values(array_unique($candidates)));
     }
 
     /**
@@ -1271,7 +1305,7 @@ final class PackageManifestCompiler
      * @param array<int, array<string, mixed>> $packages
      * @return array<string, list<string>> Namespace prefix => source directories
      */
-    private function externalExtensionPolicySources(array $packages): array
+    private function externalExtensionSources(array $packages): array
     {
         $ordinaryPrefixes = $this->discoveryScanPrefixes();
         $installedMetadataDir = $this->basePath . '/vendor/composer';
@@ -1339,7 +1373,7 @@ final class PackageManifestCompiler
      * @param list<string> $candidates
      * @return list<class-string>
      */
-    private function filterPolicyClasses(array $candidates): array
+    private function filterExternalExtensionClasses(array $candidates): array
     {
         $classes = [];
         foreach ($candidates as $class) {
@@ -1348,7 +1382,9 @@ final class PackageManifestCompiler
                 if ($ref->isAbstract() || $ref->isInterface() || $ref->isTrait()) {
                     continue;
                 }
-                if ($ref->getAttributes(self::POLICY_ATTRIBUTE) !== []) {
+                if ($ref->getAttributes(self::POLICY_ATTRIBUTE) !== []
+                    || $ref->getAttributes(self::FIELD_TYPE_ATTRIBUTE) !== []
+                ) {
                     $classes[] = $class;
                 }
             } catch (\Throwable) {
@@ -1381,7 +1417,7 @@ final class PackageManifestCompiler
                     continue;
                 }
 
-                $hasDiscoveryAttribute = !empty($ref->getAttributes(AsFieldType::class))
+                $hasDiscoveryAttribute = !empty($ref->getAttributes(self::FIELD_TYPE_ATTRIBUTE))
                     || !empty($ref->getAttributes(AsMiddleware::class))
                     || !empty($ref->getAttributes(AsEntityType::class))
                     || $ref->getAttributes(self::CONTENT_ENTITY_TYPE_ATTRIBUTE) !== []

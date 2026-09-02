@@ -20,6 +20,7 @@ use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\EntityStorage\Testing\EntityMutationAuthoritySchema;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\EntityTypeManagerFactory;
@@ -59,6 +60,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             communityScoreResolver: static fn($def) => null,
             accountContextAttacher: static function (object $repo): void {},
             fieldReadScope: $this->fieldReadScope,
+            fieldTypes: $this->fieldRegistry->fieldTypeManager(),
         );
 
         $this->assertInstanceOf(EntityTypeManager::class, $manager);
@@ -78,6 +80,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             communityScoreResolver: static fn($def) => null,
             accountContextAttacher: static function (object $repo): void {},
             fieldReadScope: $this->fieldReadScope,
+            fieldTypes: $this->fieldRegistry->fieldTypeManager(),
         );
 
         // The manager exposes the field registry it was given.
@@ -101,6 +104,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
                 $attached[] = $repo;
             },
             fieldReadScope: $this->fieldReadScope,
+            fieldTypes: $this->fieldRegistry->fieldTypeManager(),
         );
 
         // Register and retrieve a repository to trigger the factory closure.
@@ -137,6 +141,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             },
             accountContextAttacher: static function (object $repo): void {},
             fieldReadScope: $this->fieldReadScope,
+            fieldTypes: $this->fieldRegistry->fieldTypeManager(),
         );
 
         $manager->registerEntityType(new \Waaseyaa\Entity\EntityType(
@@ -168,6 +173,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             communityScoreResolver: static fn() => $scope,
             accountContextAttacher: static function (object $repo): void {},
             fieldReadScope: $this->fieldReadScope,
+            fieldTypes: $this->fieldRegistry->fieldTypeManager(),
         );
         $manager->registerEntityType(new EntityType(
             id: 'kernel_scoped_revisionable',
@@ -220,6 +226,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
                 $manager,
                 $this->fieldRegistry,
                 $this->logger,
+                $this->fieldRegistry->fieldTypeManager(),
             );
             self::fail('SQL-backed definitions must fail closed without a table.');
         } catch (\RuntimeException $exception) {
@@ -245,6 +252,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             $manager,
             $this->fieldRegistry,
             $this->logger,
+            $this->fieldRegistry->fieldTypeManager(),
         );
 
         self::assertFalse($this->database->schema()->tableExists('custom_remote'));
@@ -291,6 +299,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             $manager,
             $this->fieldRegistry,
             $this->logger,
+            $this->fieldRegistry->fieldTypeManager(),
         );
     }
 
@@ -305,6 +314,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             communityScoreResolver: static fn() => null,
             accountContextAttacher: static function (object $repo): void {},
             fieldReadScope: $this->fieldReadScope,
+            fieldTypes: $this->fieldRegistry->fieldTypeManager(),
         );
     }
 }

@@ -1155,6 +1155,22 @@ Format mappings: `email->email`, `uri->uri`, `date->date`, `timestamp->date-time
 
 ### SchemaController
 
+Kernel-wired schema presentation uses `FieldSchemaAuthority` over the one
+boot-scoped, manifest-fed `FieldTypeManager`. `HttpKernel` passes that authority
+to `SchemaRouter`; Admin Surface and Wayfinding resolve the same authority from
+the kernel-services bus. GraphQL receives the same manager through
+`GraphQlServiceProvider` → `GraphQlRouter` → `GraphQlEndpoint` →
+`SchemaFactory`, so admission and wire adaptation consult one registry. Bare
+constructors retain the built-ins-only default solely for isolated use.
+
+**Known #2786 recovery blocker:** registry admission does not itself define a
+GraphQL wire type. `FieldTypeMapper` still has an explicit first-party adapter
+roster and refuses a registered downstream id with `DomainException`. A custom
+field type is therefore not GraphQL-usable until the field-owned contract gains
+a transport-neutral scalar/value-kind seam (or another explicit generic policy)
+that GraphQL can adapt without making Layer 1 depend on GraphQL. Do not weaken
+this to an unknown-id `String` fallback.
+
 ```php
 // packages/api/src/Controller/SchemaController.php
 final class SchemaController

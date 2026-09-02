@@ -11,6 +11,8 @@ use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Exception\UnmaterializableIndexException;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 
 /**
@@ -43,12 +45,26 @@ final class EntitySchemaSync
      *   forwarded to SqlSchemaHandler for bundle discovery (defaults to the
      *   field registry's bundleNamesFor() when null and a registry is set).
      */
+    /**
+     * The field-type registry used to project every column this sync emits.
+     *
+     * Derived from the field registry that admitted the fields (the kernel's
+     * boot-scoped registry, #2786 B1) unless the caller passes one explicitly;
+     * null only for registry-less bare construction, where the handlers fall
+     * back to the built-in roster.
+     */
+    private readonly ?FieldTypeManagerInterface $fieldTypes;
+
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
         private readonly ?\Closure $bundleEnumerator = null,
         private readonly ?LoggerInterface $logger = null,
-    ) {}
+        ?FieldTypeManagerInterface $fieldTypes = null,
+    ) {
+        $this->fieldTypes = $fieldTypes
+            ?? ($fieldRegistry instanceof FieldDefinitionRegistry ? $fieldRegistry->fieldTypeManager() : null);
+    }
 
     /**
      * @param iterable<EntityTypeInterface> $entityTypes
@@ -190,6 +206,7 @@ final class EntitySchemaSync
                 logger: $logger,
                 primaryBackendId: $backend,
                 entityLevelFields: $entityLevelFields,
+                fieldTypes: $this->fieldTypes,
             );
             $handler->ensureTable();
             $handlers[] = $handler;
@@ -202,7 +219,7 @@ final class EntitySchemaSync
             // legacy `<table>_translations` shape via SqlSchemaHandler.
             if ($entityType->isTranslatable()) {
                 if ($backend === ReservedBackendIds::SQL_COLUMN) {
-                    $translationHandler = new TranslationSchemaHandler($this->database);
+                    $translationHandler = new TranslationSchemaHandler($this->database, fieldTypes: $this->fieldTypes);
                     $translationHandler->sync($entityType);
                 } elseif ($backend !== ReservedBackendIds::SQL_BLOB) {
                     $handler->ensureTranslationTable();

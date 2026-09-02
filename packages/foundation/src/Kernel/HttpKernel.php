@@ -755,10 +755,14 @@ final class HttpKernel extends AbstractKernel
         $internalFieldVisibility = $resolvedInternalFieldVisibility instanceof InternalFieldVisibilityPolicy
             ? $resolvedInternalFieldVisibility
             : null;
+        // The field provider's binding already wraps the kernel's boot-scoped
+        // registry (served on the kernel-services bus); when no provider binds
+        // an authority, compose one over that same registry rather than
+        // letting SchemaRouter fall back to the built-ins-only default.
         $resolvedFieldSchemaAuthority = $this->getHttpServiceResolver()->resolve(FieldSchemaAuthority::class);
         $fieldSchemaAuthority = $resolvedFieldSchemaAuthority instanceof FieldSchemaAuthority
             ? $resolvedFieldSchemaAuthority
-            : null;
+            : new FieldSchemaAuthority($this->getFieldTypeManager());
         $foundationRouters = [
             new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler, $exposurePolicy, $internalFieldVisibility),
             new HttpRouter\JsonApiRouter(

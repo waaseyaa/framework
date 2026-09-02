@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
 use Waaseyaa\Foundation\Http\Router\WaaseyaaContext;
@@ -24,6 +25,7 @@ final class GraphQlRouter implements DomainRouterInterface
         private readonly EntityTypeManager $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly array $mutationOverrides = [],
+        private readonly ?FieldTypeManagerInterface $fieldTypes = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -39,6 +41,7 @@ final class GraphQlRouter implements DomainRouterInterface
             entityTypeManager: $this->entityTypeManager,
             accessHandler: $this->accessHandler,
             account: $ctx->principal,
+            fieldTypes: $this->fieldTypes,
         );
 
         if ($this->mutationOverrides !== []) {

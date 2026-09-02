@@ -25,6 +25,9 @@ final class FieldTypeMapper
 
     public function __construct(?FieldTypeManagerInterface $fieldTypes = null)
     {
+        // Isolated construction: a mapper built without a registry (unit tests)
+        // adapts the built-in roster; SchemaFactory threads the boot-scoped
+        // registry it receives from GraphQlEndpoint / GraphQlRouter.
         $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 

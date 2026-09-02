@@ -21,7 +21,7 @@ Specification for how Waaseyaa packages are discovered, registered, booted, and 
 Waaseyaa uses a two-phase discovery system:
 
 1. **Coarse-grained**: Composer `extra.waaseyaa` in each package's `composer.json` declares providers, commands, routes, migrations, and permissions.
-2. **Fine-grained**: PHP 8 attributes on classes (`#[AsFieldType]`, `#[Listener]`, `#[AsMiddleware]`, `PolicyAttribute`) are scanned at compile time from the union of Composer's autoload classmap and all eligible PSR-4 directories. PSR-4 is never conditional on the classmap being empty: an ordinary non-optimized install has a valid partial classmap.
+2. **Fine-grained**: PHP 8 attributes on classes (`#[FieldType]`, `#[Listener]`, `#[AsMiddleware]`, `PolicyAttribute`) are scanned at compile time from the union of Composer's autoload classmap and all eligible PSR-4 directories. `FieldType` is the Layer-1 plugin attribute (`Waaseyaa\Field\Attribute\FieldType`); the old Foundation `AsFieldType` marker is deprecated and ignored. PSR-4 is never conditional on the classmap being empty: an ordinary non-optimized install has a valid partial classmap.
 
 Both are unified by `PackageManifestCompiler` into a single cached artifact at `storage/framework/packages.php`.
 
@@ -321,7 +321,7 @@ The compiler uses a classmap-first approach with PSR-4 fallback:
 
 The PSR-4 path is protected by try-catch for corrupt map files.
 
-**External extension policies (#2314):** An installed package explicitly participates by carrying an array-shaped `extra.waaseyaa` block. Its production PSR-4 namespaces may live outside both `Waaseyaa\` and the root application's namespaces. The compiler scans those extension namespaces through the classmap and PSR-4 union for `PolicyAttribute` only, then applies the same complete declared-policy parity check used for framework packages. This policy-specific path does not activate the extension's entity types, middleware, formatters, agent tools, agent definitions, or schedule entries; each of those surfaces requires its own documented extension contract.
+**External extension policies and field types (#2314, #2786):** An installed package explicitly participates by carrying an array-shaped `extra.waaseyaa` block. Its production PSR-4 namespaces may live outside both `Waaseyaa\` and the root application's namespaces. The compiler scans those extension namespaces through the classmap and PSR-4 union for `PolicyAttribute` and `Waaseyaa\Field\Attribute\FieldType` only. Field types are recorded as exact `id => class` pairs; duplicate ids fail manifest compilation naming both classes, and the boot-scoped field manager revalidates that the class's live attribute still declares the cached id. This narrow path does not activate the extension's entity types, middleware, formatters, agent tools, agent definitions, or schedule entries; each of those surfaces requires its own documented extension contract.
 
 **Single-scan memoization (WP7 audit remediation):** `scanClasses()` is memoized per `PackageManifestCompiler` instance (`private ?array $scannedClasses`). Without memoization, `compile()` ran the full classmap/PSR-4 scan and per-class `ReflectionClass` construction TWICE — once directly for the attribute-scan loop, once indirectly via `scanScheduleEntryClasses()` for the schedule-entries pass, since `filterDiscoveryClasses()` already admits `ScheduleEntriesInterface` implementors into the same discovery-class set the attribute loop iterates. `scanScheduleEntryClasses()` remains a separate logical pass over that shared set (a deliberate decision, not an oversight) — with `scanClasses()` memoized, it is a cheap in-memory `foreach`/`class_implements()` filter, not a second reflective scan. Compiler instances are created fresh per boot (one instance per request/CLI invocation), so the memo has no cross-request staleness window: it lives exactly as long as the one compile it serves.
 
@@ -333,7 +333,7 @@ The compiler scans `Waaseyaa\` and root-application classes from the classmap/PS
 
 | Attribute | What it discovers | How |
 |-----------|------------------|-----|
-| `AsFieldType` | Field type plugins | `$instance->id` => class name |
+| `Waaseyaa\Field\Attribute\FieldType` | Field type plugins | Exact `$instance->id` => class name; duplicate ids fail compilation |
 | `Listener` | Event listeners | Reads `__invoke()` parameter type to determine event class; `$instance->priority` for ordering |
 | `AsMiddleware` | Middleware | `$instance->pipeline` (http/event/job) + `$instance->priority` |
 | `ContentEntityType` | Content entity types | Compiled to `attributeEntityTypes`, hydrated through `EntityType::fromClass()` when auto-registration is enabled |
@@ -409,7 +409,7 @@ optimize:manifest -> optimize:config
 All discovery attributes live in `packages/foundation/src/Attribute/` and `packages/foundation/src/Event/Attribute/`:
 
 ```php
-// packages/foundation/src/Attribute/AsFieldType.php
+// packages/foundation/src/Attribute/AsFieldType.php (deprecated; ignored)
 #[\Attribute(\Attribute::TARGET_CLASS)]
 final class AsFieldType
 {
@@ -467,13 +467,13 @@ class WaaseyaaPlugin
 }
 ```
 
-`AttributeDiscovery` scans directories for classes with a given attribute (configurable per plugin type), extracts `PluginDefinition` objects, and caches them via `DefaultPluginManager`.
+`AttributeDiscovery` scans directories for classes with a given attribute (configurable per plugin type), extracts `PluginDefinition` objects, and caches them via `DefaultPluginManager`. Field types wrap it with `FieldTypeDiscovery`: built-ins are directory-discovered, while downstream classes arrive from the compiled manifest as exact `id => class` pairs.
 
 ```php
 // Discovery setup
 $discovery = new AttributeDiscovery(
     directories: ['/path/to/packages/field/src/Plugin'],
-    attributeClass: AsFieldType::class,
+    attributeClass: \Waaseyaa\Field\Attribute\FieldType::class,
 );
 $manager = new DefaultPluginManager($discovery, cache: $cacheBackend);
 $definitions = $manager->getDefinitions();

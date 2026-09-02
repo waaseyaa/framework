@@ -24,6 +24,8 @@ use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Field\FieldSchemaAuthority;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -94,14 +96,14 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         return new GenericAdminSurfaceHost(
             entityTypeManager: $entityTypeManager,
             accessHandler: $this->discoverAccessHandler(),
-            // SchemaPresenter composes its field-schema authority over the
-            // shared FieldTypeManager::default() registry — the same instance
-            // FieldServiceProvider binds — so this Layer-6 provider needs no
-            // direct waaseyaa/field import to converge on it.
+            // The presenter projects field schemas through the kernel's
+            // boot-scoped field-type registry (#2786 B1), so a downstream
+            // plugin admitted at boot renders in the admin form.
             schemaPresenter: new SchemaPresenter(
                 $fieldDefinitionRegistry instanceof FieldDefinitionRegistryInterface
                     ? $fieldDefinitionRegistry
                     : null,
+                fieldSchemas: $this->fieldSchemaAuthority(),
             ),
             internalFieldVisibility: $internalFieldVisibility instanceof InternalFieldVisibilityPolicy
                 ? $internalFieldVisibility
@@ -122,6 +124,33 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             capabilityAllowlist: self::defaultCapabilityAllowlist(
                 mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
             ),
+        );
+    }
+
+    /**
+     * The field schema authority composed over the kernel's boot-scoped
+     * field-type registry: FieldServiceProvider's binding when it registered,
+     * else one composed here over the registry the kernel-services bus serves.
+     *
+     * A provider composed without either has no registry to present against;
+     * narrowing silently to the built-in roster would refuse every downstream
+     * plugin the kernel admitted, so refuse loudly instead.
+     */
+    private function fieldSchemaAuthority(): FieldSchemaAuthority
+    {
+        $authority = $this->resolveOptional(FieldSchemaAuthority::class);
+        if ($authority instanceof FieldSchemaAuthority) {
+            return $authority;
+        }
+
+        $fieldTypes = $this->resolveOptional(FieldTypeManagerInterface::class);
+        if ($fieldTypes instanceof FieldTypeManagerInterface) {
+            return new FieldSchemaAuthority($fieldTypes);
+        }
+
+        throw new \LogicException(
+            'The generic admin surface host requires the kernel\'s field schema authority; '
+            . 'neither FieldSchemaAuthority nor FieldTypeManagerInterface is resolvable from the kernel-services bus.',
         );
     }
 

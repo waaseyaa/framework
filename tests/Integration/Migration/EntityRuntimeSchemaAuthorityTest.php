@@ -62,6 +62,7 @@ final class EntityRuntimeSchemaAuthorityTest extends TestCase
             communityScoreResolver: static fn() => null,
             accountContextAttacher: static function (object $repository): void {},
             fieldReadScope: new AccountFieldReadScope(),
+            fieldTypes: $fieldRegistry->fieldTypeManager(),
         );
         $manager->registerEntityType($this->entityType());
 

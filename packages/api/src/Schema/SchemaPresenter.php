@@ -51,6 +51,10 @@ final class SchemaPresenter
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
         ?FieldSchemaAuthority $fieldSchemas = null,
     ) {
+        // Isolated construction: a presenter built without a kernel (unit tests,
+        // consumer scripts) presents the built-in roster. Kernel wiring —
+        // SchemaRouter, AdminSurfaceServiceProvider, WayfindingServiceProvider —
+        // passes the FieldSchemaAuthority composed over the boot-scoped registry.
         $this->fieldSchemas = $fieldSchemas ?? new FieldSchemaAuthority(FieldTypeManager::default());
     }
 

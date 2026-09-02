@@ -102,6 +102,9 @@ final class RevisionTableBuilder
         private readonly DBALDatabase $database,
         ?FieldTypeManagerInterface $fieldTypes = null,
     ) {
+        // Isolated construction: a builder constructed without a registry
+        // (unit tests) projects against the built-in roster; the translation
+        // schema handler threads the boot-scoped one.
         $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 
