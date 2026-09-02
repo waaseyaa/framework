@@ -15,7 +15,7 @@ class BooleanItemTest extends TestCase
     public function testSchema(): void
     {
         $this->assertSame(
-            ['value' => ['type' => 'int', 'size' => 'tiny']],
+            ['value' => ['type' => 'boolean']],
             BooleanItem::schema(),
         );
     }

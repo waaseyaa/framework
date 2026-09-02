@@ -17,12 +17,20 @@ use Waaseyaa\Field\Attribute\FieldType;
 /**
  * @api
  */
-final class BooleanItem extends AbstractFieldType
+final class BooleanItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::Boolean;
+    }
+
     public static function schema(): array
     {
         return [
-            'value' => ['type' => 'int', 'size' => 'tiny'],
+            // Preserve the production SqlSchemaHandler/ColumnSpecMap contract.
+            // The former Field API descriptor used int/tiny, but it was not the
+            // entity-storage authority before #2786.
+            'value' => ['type' => 'boolean'],
         ];
     }
 

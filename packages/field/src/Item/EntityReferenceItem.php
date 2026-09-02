@@ -17,8 +17,30 @@ use Waaseyaa\Field\Attribute\FieldType;
 /**
  * @api
  */
-final class EntityReferenceItem extends AbstractFieldType
+final class EntityReferenceItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::EntityReference;
+    }
+
+    public static function entityStorageColumnSchemaFor(
+        \Waaseyaa\Field\FieldDefinitionInterface $def,
+        ?\Waaseyaa\Field\FieldStorageSchemaContext $context = null,
+    ): array {
+        return ['type' => 'varchar', 'length' => (int) ($def->getSetting('length') ?? 255)];
+    }
+
+    public static function supportsBlueprint(): bool
+    {
+        return false;
+    }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string'];
+    }
+
     public static function schema(): array
     {
         return [

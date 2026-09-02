@@ -1,3 +1,5 @@
+<!-- Spec reviewed 2026-09-02 - #2786 phase 2A: FieldValueKind is the field-owned, transport-neutral presentation seam. GraphQL adapts declared kinds without a Layer-1 GraphQL dependency; absent declarations fail closed. Attribute-first explicit custom-type admission uses the boot-scoped FieldTypeManager at registry admission; direct FieldTypeInferrer calls retain the closed scalar roster and PHPStan contract. -->
+<!-- Spec reviewed 2026-09-02 - #2786 contract edge: boot-time attribute inference defers only ids outside FieldTypeInferrer::VALID_TYPE_IDS to the boot-scoped registry; known ids still enforce inferred-PHP-type compatibility before admission. -->
 <!-- Spec reviewed 2026-08-27 - #2544: `RevisionRestoreChangedFields::CREDENTIAL_KEYS` gains `legacy_pass`, so an imported credential pending upgrade is never restored by a revision rollback - same treatment as `pass`. -->
 <!-- Spec reviewed 2026-08-26 - #2562: EntityRepository::promotePublishedRevision() is the complete-promotion entry point used by ContentPublisher. It dispatches the same BeforeRevisionPointerMoveEvent as setPublishedRevision(), then applies default-revision semantics so the served base row is rewritten from the target revision. setPublishedRevision() remains pointer-only unless a subscriber sets the event flag. Storage still does not infer discipline from published_revision_id (Playbook H). -->
 <!-- Spec reviewed 2026-08-26 - #2562 review: EntityRepository::clearPublishedRevision() drops the published pointer and unpublished the served row without a BeforeRevisionPointerMoveEvent. loadRevision() hydrates revision `_data` without the live subtable overlay when the revision is not the base pointer. shouldCreateRevision() duck-checks isNewRevision() so trait-only ContentEntityBase types honor setNewRevision(true). Waaseyaa\Entity\RevisionId is the shared revision-id extractor. -->
@@ -256,6 +258,63 @@ File: `packages/entity/src/EntityValues.php`
 ### Admin JSON Schema vs `$casts`
 
 `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`) builds widgets from **EntityType field definitions**, not from entity class `$casts`. A VO field may still serialize correctly over JSON:API via `EntityValues` when `$casts` is set on the entity class; **admin form schema** for structured VOs may require explicit field definition work (e.g. object / JSON widget) in a follow-up — not inferred automatically from `$casts` (#1184).
+
+### Canonical field schema authority
+
+`FieldSchemaAuthority` and `FieldTypeManagerInterface` are the Layer-1
+structural introspection authority (#2786). Each kernel owns one boot-scoped
+manager populated from the compiled package manifest: the built-in
+`#[FieldType]` plugins plus plugins contributed by participating downstream
+packages. The same instance is threaded through field admission, runtime DDL,
+JSON schema, Admin, GraphQL, and blueprint consumers. Bare construction outside
+a kernel uses the built-ins-only `FieldTypeManager::default()` registry.
+Unknown ids throw
+`UnknownFieldTypeException` and never degrade to `string`. Each plugin owns its
+field-item projection (`jsonSchemaFor`) and its explicitly distinct entity
+authoring projection (`entityValueJsonSchemaFor`). The latter feeds closed
+entity schemas with field type, cardinality, required/read-only state,
+translation/revision flags, and safe value constraints. Multi-value fields
+apply those constraints to each value through `items`, never to the array
+container. The `json` entity-value projection permits every native JSON type,
+matching the decoded values returned by both SQL storage backends. `decimal`
+remains a patterned string so SQLite and GraphQL preserve its lossless-text
+storage contract rather than coercing it through a binary float.
+
+Each field-type plugin may also declare a transport-neutral `FieldValueKind`.
+GraphQL maps that semantic kind to its native scalar or structured type, so a
+manifest-discovered downstream plugin can cross the GraphQL boundary without
+depending on the Layer-6 GraphQL package. All first-party plugins declare their
+historical wire shape explicitly through the optional
+`FieldValueKindProviderInterface`. A registered plugin that omits the
+capability is refused instead of being guessed from JSON Schema or silently
+treated as a string; existing direct `FieldTypeInterface` implementors remain
+source-compatible.
+
+Attribute-first entity metadata resolves explicit `#[Field(type: ...)]` values
+through a named internal path during boot. It does not consult the
+built-ins-only `FieldTypeInferrer::VALID_TYPE_IDS` roster at that stage. The
+resulting definition must still pass the shared `FieldDefinitionRegistry`
+admission boundary, which uses the kernel's boot-scoped `FieldTypeManager`
+composed from the compiled package manifest. An unknown downstream id therefore
+fails closed with entity and field context. Direct `FieldTypeInferrer::infer()`
+callers retain strict static validation and pure scalar inference; the runtime
+seam is not an arbitrary caller-controlled bypass and keeps PHPStan's closed
+static vocabulary sound.
+
+Entity field enumeration remains owned by
+`EntityTypeManagerInterface::resolveFieldDefinitions()`. The schema authority
+accepts that effective set; it does not rediscover base or bundle fields.
+Authorization-aware adapters must bind an explicit principal and subject before
+exposing the result. Blueprint admission is also registry metadata via
+`blueprintFieldTypeIds()`; the Layer-0 site-contract enum is a closed mirror
+proven equal at the root architecture boundary.
+
+Field definition registration is the shared admission boundary. Core and
+bundle fields must resolve both an entity-value schema and, for
+`FieldStorage::Column`, a canonical entity-storage column shape before they can
+enter the registry. Attribute inference, runtime registration, and downstream
+schema consumers therefore converge on the same boot-scoped plugin authority;
+there is no second type map and no unknown-type fallback.
 - Direct mutation of `$values` from outside the entity class is unsupported; subclasses that override `get`/`set` must preserve cast semantics or document exceptions.
 
 ### Rules for `toArray()`
@@ -827,14 +886,22 @@ The M1 *attribute-first entity definition* mission shipped the canonical surface
 
 Two specific PHP property types map to fallbacks in M1 because the matching field-type plugins haven't been implemented yet. When the proper plugins ship, entities can update their `#[Field]` attributes from the fallback to the canonical type without any other code changes.
 
-**`timestamp` field type missing.** Properties intended to store Unix-epoch timestamps (`User.created`, `UserBlock.created_at`, `Node.created`, `Node.changed`, the engagement and messaging timestamp fields, etc.) currently use:
+**Canonical timestamps remain integer subtypes.** Properties intended to store
+Unix-epoch timestamps (`User.created`, `UserBlock.created_at`, `Node.created`,
+`Node.changed`, the engagement and messaging timestamp fields, etc.) use:
 
 ```php
 #[Field(type: 'integer', settings: ['subtype' => 'timestamp'])]
 public int $created;
 ```
 
-A future `field-type-timestamp-plugin` mission will ship the proper plugin so the canonical declaration becomes `#[Field(type: 'timestamp')] public int $created;`.
+This remains the canonical first-party declaration. Its entity/API schema is an
+ISO-8601 date-time string and JSON:API serializes integer, `DateTimeInterface`,
+zero, and null values through the timestamp projection; storage remains an
+integer. The registered `timestamp` plugin is a non-blueprint compatibility
+type for historical downstream definitions: it retains their Unix input domain,
+text storage, ISO JSON:API projection, and GraphQL `String` contract. It is not
+an alias for `datetime`, and first-party declarations must not migrate to it.
 
 **Closed: `enum` field type missing.** Resolved by mission [`field-type-enum-plugin-01KQ6SJG`](../../kitty-specs/field-type-enum-plugin-01KQ6SJG/). Backed-enum properties now resolve to the dedicated `'enum'` field-type plugin (`packages/field/src/Item/EnumItem.php`), which owns validation against the declared cases and emits JSON Schema with explicit `enum: [...]`. The canonical declaration is:
 
@@ -845,7 +912,10 @@ public CourseStatus $status;
 
 `FieldTypeInferrer` emits `type: 'enum'` automatically for backed-enum-typed properties, so most callers can omit `type:` and `settings:` entirely. The transitional `'string' + settings.enum_class` bridge in `FieldDefinitionConstraintBuilder` has been removed; the setting is honored only on `'enum'`-typed fields. The `enumClass` (camelCase) settings alias has also been removed in favor of `enum_class` (snake_case).
 
-*Documented follow-ups carried forward from this mission:* (1) the per-definition `FieldTypeInterface::jsonSchemaFor()` path is currently exercised only by tests — no production `FieldDefinition` construction site threads the `FieldTypeManager` yet, because doing so requires converting `EntityMetadataReader`'s static API to instance-based and updating its caller sites; (2) `FieldDefinition::legacyJsonSchema()` lacks an explicit `'enum'` arm and falls through to `['type' => 'string']`, which is unreached today but will need attention once production wiring lands. A follow-up mission ("plumb `FieldTypeManager` into `EntityMetadataReader` and add the `'enum'` arm to `legacyJsonSchema`") is recommended.
+**Closed in #2786:** production `FieldDefinition::toJsonSchema()`, registry
+admission, entity schema presentation, and storage schema derivation now all
+resolve the registered plugin through `FieldTypeManager`. The former legacy
+mapping/fallback path is removed.
 
 ### 3. `#[Field]` attribute gaps surfaced by M1
 
@@ -1095,7 +1165,7 @@ empty strings do.
 File: `packages/entity-storage/src/SqlSchemaHandler.php`
 Class: `final class SqlSchemaHandler`
 
-Constructor: `(EntityTypeInterface $entityType, DatabaseInterface $database, ?FieldDefinitionRegistryInterface $fieldRegistry = null, ?\Closure $bundleEnumerator = null, ?LoggerInterface $logger = null)` — the optional logger receives `warning` events when `deriveColumnSpec()` encounters an unknown field type (see below); callers that omit it get `NullLogger`.
+Constructor: `(EntityTypeInterface $entityType, DatabaseInterface $database, ?FieldDefinitionRegistryInterface $fieldRegistry = null, ?\Closure $bundleEnumerator = null, ?LoggerInterface $logger = null, string $primaryBackendId = 'sql-blob', array $entityLevelFields = [], ?FieldTypeManagerInterface $fieldTypes = null)`. Omitting the manager uses the canonical default plugin registry.
 
 Key methods:
 - `ensureTable(): void` -- creates entity table if it does not exist
@@ -1105,7 +1175,12 @@ Key methods:
 - `getTableName(): string` -- returns entity type id
 - `getTranslationTableName(): string` -- returns `{type}_translations`
 
-**Field type → SQL column.** `deriveColumnSpec(string $fieldType, array $fieldDef): array` maps field-definition type strings to column shapes consumed by the schema layer (`type`, optional `length`, etc.), including explicit handling for `text_long`, `uri`, and `entity_reference`. Unknown types log at `warning` and fall back to `text`. Full mapping table, URI length default, `FieldStorage::Data` note, and vendor nuance: [`field/column-derivation.md`](./field/column-derivation.md).
+**Field type → SQL column.** `deriveColumnSpec(string $fieldType, array $fieldDef): array` normalizes the definition and delegates to
+`FieldTypeManagerInterface::entityStorageColumnSchemaFor()`. Plugin schema is
+the sole mapping authority; definition-level `length`, `not_null`, and `default`
+decorate that result. Unknown types and ambiguous multi-column projections fail
+closed before DDL. The same seam is used by SQL-column, translation, and revision
+schema builders.
 
 ### EntitySchemaTableMaterializer (#2701)
 
@@ -2072,7 +2147,9 @@ public function __construct(
 )
 ```
 
-`toJsonSchema()` maps types: `string` -> `{'type': 'string'}`, `integer` -> `{'type': 'integer'}`, `boolean` -> `{'type': 'boolean'}`, `float` -> `{'type': 'number'}`, `text` -> object with `value`/`format`, `entity_reference` -> object with `target_id`/`target_type`. Wraps in `{'type': 'array', 'items': ...}` when `isMultiple()`.
+`toJsonSchema()` delegates to the registered field-type plugin's
+per-definition schema and wraps it in `{'type': 'array', 'items': ...}` when
+`isMultiple()`. Unknown types fail closed.
 
 **Storage hint.** `FieldStorage` (`packages/field/src/FieldStorage.php`, backed enum: `Column`, `Data`) tells the schema and storage layers where the field's canonical value lives:
 
@@ -2117,13 +2194,26 @@ Contains `FieldItemInterface[]` items. Supports `__get($name)` to access first i
 File: `packages/field/src/FieldTypeManager.php`
 Class: `final class FieldTypeManager extends DefaultPluginManager implements FieldTypeManagerInterface`
 
-Constructor: `(array $directories = [], ?CacheBackendInterface $cache = null)`
+Constructor: `(?array $directories = null, ?CacheBackendInterface $cache = null, array $extensionClasses = [])`.
+`null` discovers the built-in plugins; an explicit empty list discovers none.
+`FieldTypeManager::default()` supplies the process-static built-in authority
+only for isolated construction. `fromManifest(array $fieldTypes)` creates a
+boot-scoped manager from exact manifest `id => class` pairs and eagerly refuses
+missing, malformed, mismatched, or duplicate plugins.
 
-Uses `AttributeDiscovery` with `FieldType::class` attribute. Plugin discovery scans directories for `#[FieldType(...)]` attributes.
+Uses `FieldTypeDiscovery`, which combines `AttributeDiscovery` over the built-in
+directory with exact downstream classes recorded under the manifest's
+`field_types` inventory. Every class must be concrete, implement
+`FieldTypeInterface`, and carry a `#[FieldType]` id equal to its manifest key.
 
 Additional methods:
 - `getDefaultSettings(string $fieldType): array`
 - `getColumns(string $fieldType): array` -- returns `schema()` from the field type class
+- `jsonSchemaFor(FieldDefinitionInterface): array` -- field-item schema
+- `entityValueJsonSchemaFor(FieldDefinitionInterface): array` -- authoring/API value schema
+- `schemaFor(FieldDefinitionInterface): array` -- complete physical plugin schema
+- `entityStorageColumnSchemaFor(FieldDefinitionInterface): array` -- canonical direct entity column
+- `blueprintFieldTypeIds(): list<string>` -- sorted plugin-owned admission roster
 
 ### FieldType Attribute
 
@@ -2553,7 +2643,7 @@ type-mapping table.
 - **In-memory test storage** lives at `Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage`. Use it for unit tests; use `DBALDatabase::createSqlite()` for integration tests that exercise SQL behavior.
 - **`EntityTypeManager` constructor signature**: `(EventDispatcherInterface, ?\Closure $storageFactory = null)`. The factory receives `EntityTypeInterface $definition`.
 - **Entity types without a `uuid` key are config entities**: `SqlEntityStorage::save()` requires explicit non-empty string IDs for entities whose `EntityType` keys lack `'uuid' => 'uuid'`. Content entities with auto-increment IDs must include the `uuid` key even if they don't use UUIDs.
-- **`entity_reference` field definitions need `target_entity_type_id`**: `EntityTypeBuilder` looks for `target_entity_type_id` or `targetEntityTypeId`, not `target`. Wrong key causes silent fallback to String type with no reference resolution.
+- **`entity_reference` field definitions need a target**: `EntityTypeBuilder` accepts `target_entity_type_id`, `targetEntityTypeId`, and the legacy `target_type` alias. A missing target fails closed instead of silently becoming a scalar.
 - **`EntityBase` lifecycle hooks**: `preSave(bool $isNew)`, `postSave(bool $isNew)`, `preDelete()`, `postDelete()` are no-op by default. Override in subclasses. Order: `preSave()` → PRE_SAVE event → persist → POST_SAVE event → `postSave()`.
 - **`EntityRepository` auto-validation**: An `EntityValidator` is injected by default into every kernel-built repository (alpha.204, #1643) — `save()` validates against the merged three-layer constraint map (`EntityTypeValidationConstraints::forEntityType()`) and throws `EntityValidationException` before any storage write. Pass `validate: false` to bypass for migrations/bulk imports (`saveMany()` also respects this), or set `WAASEYAA_ENTITY_VALIDATION=0|false|off` to disable the kernel wiring globally at boot.
 - **`save()`/`delete()` and `saveMany()`/`deleteMany()` use UnitOfWork when mutation authority is active**: Batch operations wrap all writes in a single transaction. Buffering is by event ROLE, not by batch-ness: GUARD events (`PRE_SAVE`, `BeforeSaveEvent`, `PRE_DELETE`) dispatch immediately inside the transaction so a refusal rolls the work back; NOTIFICATION events (`POST_SAVE`, `POST_DELETE`, `REVISION_CREATED`, `AfterSaveEvent`) and successor-token installs follow the outermost managed commit and are discarded on rollback. Requires `$database` to be non-null and its transaction object to implement `TransactionCompletionInterface` (throws `LogicException` before mutation otherwise).

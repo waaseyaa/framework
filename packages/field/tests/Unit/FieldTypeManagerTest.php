@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Field\Exception\UnknownFieldTypeException;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Field\Item\BooleanItem;
@@ -18,7 +22,8 @@ use Waaseyaa\Plugin\PluginManagerInterface;
 /**
  * @covers \Waaseyaa\Field\FieldTypeManager
  */
-class FieldTypeManagerTest extends TestCase
+#[CoversClass(FieldTypeManager::class)]
+final class FieldTypeManagerTest extends TestCase
 {
     private FieldTypeManager $manager;
 
@@ -47,6 +52,12 @@ class FieldTypeManagerTest extends TestCase
         $this->assertArrayHasKey('float', $definitions);
         $this->assertArrayHasKey('text', $definitions);
         $this->assertArrayHasKey('entity_reference', $definitions);
+    }
+
+    #[Test]
+    public function explicitEmptyDiscoveryDirectoriesRemainEmpty(): void
+    {
+        self::assertSame([], (new FieldTypeManager(directories: []))->getDefinitions());
     }
 
     public function testGetDefinition(): void
@@ -101,7 +112,7 @@ class FieldTypeManagerTest extends TestCase
         $columns = $this->manager->getColumns('boolean');
 
         $this->assertSame([
-            'value' => ['type' => 'int', 'size' => 'tiny'],
+            'value' => ['type' => 'boolean'],
         ], $columns);
     }
 
@@ -168,5 +179,72 @@ class FieldTypeManagerTest extends TestCase
         foreach ($expectedClasses as $id => $class) {
             $this->assertSame($class, $definitions[$id]->class, "Class mismatch for '$id'");
         }
+    }
+
+    #[Test]
+    public function defaultDiscoveryIncludesTheLiveLongTextPlugin(): void
+    {
+        $manager = new FieldTypeManager();
+
+        self::assertTrue($manager->hasDefinition('text_long'));
+        self::assertSame(['type' => 'string'], $manager->entityValueJsonSchemaFor(
+            new FieldDefinition(name: 'body', type: 'text_long'),
+        ));
+    }
+
+    #[Test]
+    public function classificationLabelSeparatesScalarEntityValueFromMultiColumnStorage(): void
+    {
+        $manager = new FieldTypeManager();
+        $definition = new FieldDefinition(name: 'classification_label', type: 'classification_label');
+
+        self::assertSame(
+            ['type' => ['string', 'null']],
+            $manager->entityValueJsonSchemaFor($definition),
+        );
+        self::assertSame(
+            [
+                'type' => 'varchar',
+                'description' => 'Classification label_id reference; indexed',
+                'index' => true,
+            ],
+            $manager->entityStorageColumnSchemaFor($definition),
+        );
+    }
+
+    #[Test]
+    public function fieldItemSchemaFailsClosedForUnknownTypes(): void
+    {
+        $this->expectException(UnknownFieldTypeException::class);
+        $this->manager->jsonSchemaFor(new FieldDefinition(name: 'mystery', type: 'not_registered'));
+    }
+
+    #[Test]
+    public function entityValueSchemaFailsClosedForUnknownTypes(): void
+    {
+        $this->expectException(UnknownFieldTypeException::class);
+        $this->manager->entityValueJsonSchemaFor(new FieldDefinition(name: 'mystery', type: 'not_registered'));
+    }
+
+    #[Test]
+    public function storageSchemaFailsClosedForUnknownTypes(): void
+    {
+        $this->expectException(UnknownFieldTypeException::class);
+        $this->manager->schemaFor(new FieldDefinition(name: 'mystery', type: 'not_registered'));
+    }
+
+    #[Test]
+    public function blueprintAdmissionIsSortedAndExcludesRelationshipMediaAndLongText(): void
+    {
+        $ids = $this->manager->blueprintFieldTypeIds();
+        $sorted = $ids;
+        sort($sorted, SORT_STRING);
+
+        self::assertSame($sorted, $ids);
+        self::assertContains('string', $ids);
+        self::assertNotContains('entity_reference', $ids);
+        self::assertNotContains('file', $ids);
+        self::assertNotContains('image', $ids);
+        self::assertNotContains('text_long', $ids);
     }
 }

@@ -24,6 +24,7 @@ use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
+use Waaseyaa\Field\FieldSchemaAuthority;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Community\CommunityMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
@@ -754,6 +755,14 @@ final class HttpKernel extends AbstractKernel
         $internalFieldVisibility = $resolvedInternalFieldVisibility instanceof InternalFieldVisibilityPolicy
             ? $resolvedInternalFieldVisibility
             : null;
+        // The field provider's binding already wraps the kernel's boot-scoped
+        // registry (served on the kernel-services bus); when no provider binds
+        // an authority, compose one over that same registry rather than
+        // letting SchemaRouter fall back to the built-ins-only default.
+        $resolvedFieldSchemaAuthority = $this->getHttpServiceResolver()->resolve(FieldSchemaAuthority::class);
+        $fieldSchemaAuthority = $resolvedFieldSchemaAuthority instanceof FieldSchemaAuthority
+            ? $resolvedFieldSchemaAuthority
+            : new FieldSchemaAuthority($this->getFieldTypeManager());
         $foundationRouters = [
             new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler, $exposurePolicy, $internalFieldVisibility),
             new HttpRouter\JsonApiRouter(
@@ -763,7 +772,13 @@ final class HttpKernel extends AbstractKernel
                 internalFieldVisibility: $internalFieldVisibility,
             ),
             new HttpRouter\EntityTypeLifecycleRouter($this->entityTypeManager, $this->lifecycleManager),
-            new HttpRouter\SchemaRouter($this->entityTypeManager, $this->accessHandler, $this->fieldRegistry, $exposurePolicy),
+            new HttpRouter\SchemaRouter(
+                $this->entityTypeManager,
+                $this->accessHandler,
+                $this->fieldRegistry,
+                $exposurePolicy,
+                $fieldSchemaAuthority,
+            ),
             new HttpRouter\WorkflowDefinitionsApiRouter(),
             new HttpRouter\SearchRouter(
                 $this->config,

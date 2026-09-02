@@ -12,6 +12,9 @@ use Waaseyaa\EntityStorage\Backend\SqlColumnSchemaBuilder;
 use Waaseyaa\EntityStorage\CoordinatedEntitySchemaExecutor;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
+use Waaseyaa\Field\FieldStorageSchemaContext;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -65,11 +68,18 @@ final class TranslationSchemaHandler
 
     private readonly LoggerInterface $logger;
 
+    private readonly FieldTypeManagerInterface $fieldTypes;
+
     public function __construct(
         private readonly DatabaseInterface $database,
         ?LoggerInterface $logger = null,
+        ?FieldTypeManagerInterface $fieldTypes = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        // Isolated construction: a handler built without a registry (unit
+        // tests) projects against the built-in roster; SqlSchemaHandler,
+        // EntitySchemaSync, and the translation hydrator thread the boot-scoped one.
+        $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 
     /**
@@ -115,7 +125,7 @@ final class TranslationSchemaHandler
         // Comparator would emit no DDL when the desired and current shapes
         // already match).
         if ($this->database instanceof DBALDatabase) {
-            $builder = new SqlColumnSchemaBuilder($this->database, $this->logger);
+            $builder = new SqlColumnSchemaBuilder($this->database, $this->logger, $this->fieldTypes);
             foreach ($translatableFields as $field) {
                 if ($field instanceof FieldDefinition) {
                     $builder->addFieldColumn($translationTable, $field);
@@ -189,7 +199,7 @@ final class TranslationSchemaHandler
                 static fn($f): bool => $f instanceof FieldDefinition,
             ));
 
-        $builder = new RevisionTableBuilder($this->database);
+        $builder = new RevisionTableBuilder($this->database, $this->fieldTypes);
         $builder->buildTwoAxis($entityType, $backend, $effectiveFields);
     }
 
@@ -419,10 +429,9 @@ final class TranslationSchemaHandler
     {
         $settings = $field->getSettings();
 
-        $abstractType = ColumnSpecMap::abstractTypeFor($field->getType());
-        $spec = ['type' => $abstractType];
-        if ($abstractType === 'varchar') {
-            $spec['length'] = (int) ($settings['length'] ?? 255);
+        $spec = $this->fieldTypes->entityStorageColumnSchemaFor($field, FieldStorageSchemaContext::ColumnSpecMap);
+        if (($spec['type'] ?? null) === 'varchar' && isset($settings['length'])) {
+            $spec['length'] = (int) $settings['length'];
         }
 
         $spec['not null'] = (bool) ($settings['not_null'] ?? false);

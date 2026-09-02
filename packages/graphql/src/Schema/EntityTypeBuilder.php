@@ -175,6 +175,7 @@ final class EntityTypeBuilder
             $isMultiple = $def->isMultiple();
             $targetEntityTypeId = (string) ($def->getSetting('target_entity_type_id')
                 ?? $def->getSetting('targetEntityTypeId')
+                ?? $def->getSetting('target_type')
                 ?? '');
 
             if ($this->fieldTypeMapper->isEntityReference($fieldType) && $targetEntityTypeId !== '') {
@@ -193,13 +194,49 @@ final class EntityTypeBuilder
                 // per-resolve); only the stateless sanitizer instance is
                 // captured into the closure (see class doc on why that is
                 // safe to share across the cached, cross-request schema).
-                if (RichTextSanitizer::isHtmlFieldType($fieldType)) {
+                if ($fieldType === 'json') {
+                    $fields[$fieldName] = [
+                        'type' => $graphqlType,
+                        'resolve' => static function (array $data) use ($fieldName): ?string {
+                            $value = $data[$fieldName] ?? null;
+                            if ($value === null || is_string($value)) {
+                                return $value;
+                            }
+
+                            return json_encode(
+                                $value,
+                                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+                            );
+                        },
+                    ];
+                } elseif (RichTextSanitizer::isHtmlFieldType($fieldType)) {
                     $richTextSanitizer = $this->richTextSanitizer;
                     $fields[$fieldName] = [
                         'type' => $graphqlType,
-                        'resolve' => static fn(array $data) => $richTextSanitizer->sanitizeValue(
-                            $data[$fieldName] ?? null,
-                        ),
+                        'resolve' => static function (array $data) use ($richTextSanitizer, $fieldName, $isMultiple): mixed {
+                            $sanitized = $richTextSanitizer->sanitizeValue($data[$fieldName] ?? null);
+                            if ($sanitized === null) {
+                                return null;
+                            }
+
+                            $asTextValue = static fn(mixed $value): array => is_array($value)
+                                && array_key_exists('value', $value)
+                                ? $value
+                                : ['value' => $value, 'format' => null];
+
+                            if (!$isMultiple) {
+                                return $asTextValue($sanitized);
+                            }
+
+                            // A single formatted-text value is an associative
+                            // TextValue map. Treat it as one item rather than
+                            // expanding its value/format keys as list entries.
+                            $values = is_array($sanitized) && array_is_list($sanitized)
+                                ? $sanitized
+                                : [$sanitized];
+
+                            return array_map($asTextValue, $values);
+                        },
                     ];
                 } else {
                     $fields[$fieldName] = [

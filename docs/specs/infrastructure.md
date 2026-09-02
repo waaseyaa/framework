@@ -9,6 +9,12 @@ before enumerating commands. The enduring contract text lives in
 package-discovery.md, "Optional package contributions"; the first adopter is
 cli's AiServiceProvider (cli-kernel.md). No kernel boot order, provider
 registration, or capability-registry validation semantics changed. -->
+
+<!-- Spec reviewed 2026-09-01 - #2786: HttpKernel resolves the provider-bound
+FieldSchemaAuthority through its existing HttpKernelServiceResolver and passes
+it into SchemaRouter/SchemaPresenter. This is composition wiring only: no new
+route, configuration, lifecycle, or kernel-owned service contract is added;
+the optional fallback preserves bare/unit construction. -->
 <!-- Spec reviewed 2026-09-01 - #2761: SqlSchemaHandler::assertRuntimeSchema()
 (the no-DDL contract every getRepository() resolution runs) now also
 validates declared entity-type foreign keys, not only base columns and
@@ -400,6 +406,7 @@ public function get(string $abstract): ?object;
 |----------|-------------|
 | `Waaseyaa\Entity\EntityTypeManager` | The kernel’s entity-type manager |
 | `Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface` | The exact canonical registry already owned by the kernel's concrete `EntityTypeManager`; `null` for a bare/unit-constructed manager with no registry (#2047) |
+| `Waaseyaa\Field\FieldTypeManagerInterface` / concrete `FieldTypeManager` | The exact boot-scoped manager owned by the canonical field registry: built-ins plus manifest-discovered downstream plugins. `null` for a bare manager with no concrete field registry (#2786). |
 | `Waaseyaa\Database\DatabaseInterface` | The kernel’s `DBALDatabase` |
 | `Symfony\Contracts\EventDispatcher\EventDispatcherInterface` | The kernel’s event dispatcher |
 | `Psr\EventDispatcher\EventDispatcherInterface` | The same event dispatcher instance (G-025 / #1940) |
@@ -414,7 +421,17 @@ The provider list is read through a closure accessor so resolution sees the live
 
 **Resolution order in `ServiceProvider::resolve()`.** Local bindings (`singleton`/`bind`) win first; only when the abstract is unbound locally does the provider delegate to `KernelServicesInterface::get()`; if that returns `null`, the provider throws `RuntimeException("No binding registered for {$abstract}.")`.
 
-**Hardcoded bus cases shadow sibling-provider bindings.** Inside `ProviderRegistryKernelServices::get()`, every abstract in the table above (including `GateInterface`, G-014, and `FieldDefinitionRegistryInterface`, #2047) is checked and returned BEFORE the fallthrough loop over sibling providers' `getBindings()` ever runs — the loop is only reached for abstracts none of the named cases matched. A host provider that binds one of these abstracts intending it to be resolvable by sibling providers through the bus is shadowed: every bus consumer still gets the kernel-owned service. In particular, the existing duplicate `FieldServiceProvider` registry binding is shadowed for sibling consumers; removing or reconciling that duplicate is a documented follow-up and is not required for #2047 because the real kernel path proves the canonical manager registry is authoritative. This does not affect resolution *within* the host provider itself — `ServiceProvider::resolve()`'s local-bindings-first rule (previous paragraph) still means a provider resolving an abstract it bound locally gets its own binding, never the bus. The shadowing only applies to *other* providers resolving that abstract through `KernelServicesInterface::get()`.
+**Hardcoded bus cases shadow sibling-provider bindings.** Inside `ProviderRegistryKernelServices::get()`, every abstract in the table above (including `GateInterface`, G-014, `FieldDefinitionRegistryInterface`, and the two field-type-manager keys) is checked and returned BEFORE the fallthrough loop over sibling providers' `getBindings()` ever runs — the loop is only reached for abstracts none of the named cases matched. A host provider that binds one of these abstracts intending it to be resolvable by sibling providers through the bus is shadowed: every bus consumer still gets the kernel-owned service. `FieldServiceProvider` deliberately adopts the bus manager for its own interface/concrete bindings, so local and sibling consumers converge on the same instance rather than forking the field-type authority. This does not affect resolution *within* other host providers — `ServiceProvider::resolve()`'s local-bindings-first rule (previous paragraph) still means a provider resolving an abstract it bound locally gets its own binding, never the bus. The shadowing only applies to *other* providers resolving that abstract through `KernelServicesInterface::get()`.
+
+**Field-type boot order (#2786).** `AbstractKernel` compiles or loads the package
+manifest before building the entity-type manager. It creates one
+`FieldTypeManager` from the manifest's exact `field_types` inventory, gives that
+instance to `FieldDefinitionRegistry` and every kernel-created runtime schema
+handler, and only then registers providers. HTTP schema routing and provider
+adapters (GraphQL, Admin Surface, and Wayfinding) receive the same instance
+through the bus. A manifest plugin that is missing, malformed, duplicated, or
+whose live attribute id differs from its cached key refuses boot before entity
+definitions are admitted.
 
 **Propagation through `mergeChildProvider()`.** When a stack provider merges a child via `mergeChildProvider()`, the child receives the same `KernelServicesInterface` instance so `resolve()` keeps working inside the child’s `register()`.
 

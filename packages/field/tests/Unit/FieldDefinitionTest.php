@@ -166,7 +166,7 @@ class FieldDefinitionTest extends TestCase
     {
         $definition = new FieldDefinition(name: 'title', type: 'string');
 
-        $this->assertSame(['type' => 'string'], $definition->toJsonSchema());
+        $this->assertSame(['type' => 'string', 'maxLength' => 255], $definition->toJsonSchema());
     }
 
     public function testToJsonSchemaInteger(): void
@@ -220,11 +220,11 @@ class FieldDefinitionTest extends TestCase
         $this->assertSame($expected, $definition->toJsonSchema());
     }
 
-    public function testToJsonSchemaUnknownTypeDefaultsToString(): void
+    public function testToJsonSchemaUnknownTypeFailsClosed(): void
     {
+        $this->expectException(\Waaseyaa\Field\Exception\UnknownFieldTypeException::class);
         $definition = new FieldDefinition(name: 'custom', type: 'custom_type');
-
-        $this->assertSame(['type' => 'string'], $definition->toJsonSchema());
+        $definition->toJsonSchema();
     }
 
     public function testToJsonSchemaMultipleCardinalityWrapsInArray(): void
@@ -237,7 +237,7 @@ class FieldDefinitionTest extends TestCase
 
         $expected = [
             'type' => 'array',
-            'items' => ['type' => 'string'],
+            'items' => ['type' => 'string', 'maxLength' => 255],
         ];
 
         $this->assertSame($expected, $definition->toJsonSchema());

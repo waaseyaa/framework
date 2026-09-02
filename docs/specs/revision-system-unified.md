@@ -1,5 +1,6 @@
 # Revision system (unified, with an optional translation axis)
 
+<!-- Spec reviewed 2026-09-02 - #2786: NodeServiceProvider declares the `node_type` config entity's `dependencies` field with the registered `json` field-type plugin instead of the unregistered `map` id. Field registration is now the shared admission gate and fails closed for ids the plugin registry cannot project, so `map` would refuse kernel boot. Revision/default-revision behaviour documented here is unchanged; `node_type` is not revisionable. -->
 <!-- Spec reviewed 2026-08-26 - #2562: ContentPublisher is a second production arming site for default-revision discipline (draft saves after a live published pointer). `EntityRepository::promotePublishedRevision()` applies complete-promotion semantics without a workflows subscriber so unbound publish can rewrite the served base row. Storage still does not infer discipline from pointer presence (Playbook H). -->
 <!-- Spec reviewed 2026-08-26 - #2562 review: `clearPublishedRevision()` drops the published pointer and materializes unpublished status on the served base row without copying a diverged working copy. `loadRevision()` skips the live bundle-subtable overlay when the requested revision is not the base `revision_id`. `shouldCreateRevision()` honors `isNewRevision()` on trait-only ContentEntityBase types. -->
 

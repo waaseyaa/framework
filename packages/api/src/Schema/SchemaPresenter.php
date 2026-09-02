@@ -13,7 +13,9 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
+use Waaseyaa\Field\FieldSchemaAuthority;
 use Waaseyaa\Field\FieldStorage;
+use Waaseyaa\Field\FieldTypeManager;
 
 /**
  * Converts EntityType definitions (and optional FieldDefinitions) to JSON Schema
@@ -35,6 +37,8 @@ use Waaseyaa\Field\FieldStorage;
  */
 final class SchemaPresenter
 {
+    private readonly FieldSchemaAuthority $fieldSchemas;
+
     /**
      * @param FieldDefinitionRegistryInterface|null $fieldDefinitionRegistry
      *   When provided, the bundle property in the rendered schema gains an
@@ -45,7 +49,14 @@ final class SchemaPresenter
     public function __construct(
         private readonly ?FieldDefinitionRegistryInterface $fieldDefinitionRegistry = null,
         private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
-    ) {}
+        ?FieldSchemaAuthority $fieldSchemas = null,
+    ) {
+        // Isolated construction: a presenter built without a kernel (unit tests,
+        // consumer scripts) presents the built-in roster. Kernel wiring —
+        // SchemaRouter, AdminSurfaceServiceProvider, WayfindingServiceProvider —
+        // passes the FieldSchemaAuthority composed over the boot-scoped registry.
+        $this->fieldSchemas = $fieldSchemas ?? new FieldSchemaAuthority(FieldTypeManager::default());
+    }
 
     /**
      * Return the structurally registered bundles for an entity type.
@@ -74,6 +85,14 @@ final class SchemaPresenter
      * @var array<string, string>
      */
     private const WIDGET_MAP = [
+        // Legacy ids remain readable for one compatibility window. Their
+        // plugins own structural/API projections; these entries preserve the
+        // base Admin metadata without making them blueprint vocabulary.
+        'int' => 'text',
+        'bool' => 'text',
+        'uri' => 'url',
+        'timestamp' => 'datetime',
+        'list_string' => 'select',
         'string' => 'text',
         'text' => 'textarea',
         'text_long' => 'richtext',
@@ -82,57 +101,15 @@ final class SchemaPresenter
         'float' => 'number',
         'decimal' => 'number',
         'email' => 'email',
-        'uri' => 'url',
+        'link' => 'url',
         'date' => 'date',
-        'timestamp' => 'datetime',
         'datetime' => 'datetime',
         'entity_reference' => 'entity_autocomplete',
-        'list_string' => 'select',
-        'list_integer' => 'select',
-        'list_float' => 'select',
+        'list' => 'select',
+        'enum' => 'select',
+        'json' => 'textarea',
         'image' => 'image',
         'file' => 'file',
-        'password' => 'password',
-    ];
-
-    /**
-     * JSON Schema type mappings from field types.
-     *
-     * @var array<string, string>
-     */
-    private const TYPE_MAP = [
-        'string' => 'string',
-        'text' => 'string',
-        'text_long' => 'string',
-        'boolean' => 'boolean',
-        'integer' => 'integer',
-        'float' => 'number',
-        'decimal' => 'number',
-        'email' => 'string',
-        'uri' => 'string',
-        'date' => 'string',
-        'timestamp' => 'string',
-        'datetime' => 'string',
-        'entity_reference' => 'string',
-        'list_string' => 'string',
-        'list_integer' => 'integer',
-        'list_float' => 'number',
-        'image' => 'string',
-        'file' => 'string',
-        'password' => 'string',
-    ];
-
-    /**
-     * JSON Schema format mappings for specific field types.
-     *
-     * @var array<string, string>
-     */
-    private const FORMAT_MAP = [
-        'email' => 'email',
-        'uri' => 'uri',
-        'date' => 'date',
-        'timestamp' => 'date-time',
-        'datetime' => 'date-time',
     ];
 
     /**
@@ -158,49 +135,34 @@ final class SchemaPresenter
         if (($accessHandler === null) !== ($account === null)) {
             throw PartialAccessContextException::forSerializer(__METHOD__);
         }
+        if ($accessHandler !== null && $entity === null) {
+            throw PartialAccessContextException::forSerializer(__METHOD__);
+        }
 
         $keys = $entityType->getKeys();
 
-        $schema = [
-            '$schema' => 'https://json-schema.org/draft-07/schema#',
-            'title' => $entityType->getLabel(),
-            'description' => sprintf('Schema for %s entities.', $entityType->getLabel()),
-            'type' => 'object',
-            'x-entity-type' => $entityType->id(),
-            'x-translatable' => $entityType->isTranslatable(),
-            'x-revisionable' => $entityType->isRevisionable(),
-            // The property name that holds the bundle value (e.g. 'type' for
-            // nodes). Null when the entity type has no bundle key. Admin SPA
-            // reads this to render a bundle filter / selector — see #1413.
-            'x-bundle-key' => $keys['bundle'] ?? null,
-        ];
-
-        $properties = [];
-        $required = [];
-
-        // Add system properties from entity keys.
-        $systemProperties = $this->buildSystemProperties($keys, $entityType);
-        foreach ($systemProperties as $name => $prop) {
-            $properties[$name] = $prop;
+        $definitions = [];
+        foreach ($fieldDefinitions as $fieldName => $definitionRaw) {
+            $definitions[$fieldName] = $this->normalizeFieldDefinition($fieldName, $definitionRaw, $entityType->id());
         }
 
-        // Add field definitions if provided.
-        if ($fieldDefinitions !== []) {
-            foreach ($fieldDefinitions as $fieldName => $definitionRaw) {
-                // Skip system keys — they are already handled.
-                if (in_array($fieldName, array_values($keys), true)) {
-                    continue;
-                }
-                $definition = $this->normalizeFieldDefinition($fieldName, $definitionRaw, $entityType->id());
+        $schema = $this->fieldSchemas->entitySchema($entityType, $definitions);
+        // The admin endpoint retains its historical dialect marker. The
+        // structural keywords emitted by FieldSchemaAuthority are valid in
+        // both drafts.
+        $schema['$schema'] = 'https://json-schema.org/draft-07/schema#';
+        $properties = $schema['properties'];
+        $required = $schema['required'] ?? [];
 
-                $fieldType = $definition->getType();
-                $fieldSchema = $this->buildFieldSchema($fieldName, $fieldType, $definition);
-                $properties[$fieldName] = $fieldSchema;
-
-                if ($definition->isRequired()) {
-                    $required[] = $fieldName;
-                }
+        // Decorate the canonical system/field shapes with admin-only hints.
+        foreach ($this->buildSystemProperties($keys, $entityType) as $name => $prop) {
+            $properties[$name] = array_replace($properties[$name] ?? [], $prop);
+        }
+        foreach ($definitions as $fieldName => $definition) {
+            if (in_array($fieldName, array_values($keys), true)) {
+                continue;
             }
+            $properties[$fieldName] = $this->buildFieldSchema($fieldName, $definition->getType(), $definition);
         }
 
         // Apply field access control if context is available.
@@ -235,6 +197,8 @@ final class SchemaPresenter
 
         if ($required !== []) {
             $schema['required'] = $required;
+        } else {
+            unset($schema['required']);
         }
 
         return $schema;
@@ -335,6 +299,15 @@ final class SchemaPresenter
             ];
         }
 
+        if (isset($keys['revision'])) {
+            $properties[$keys['revision']] = [
+                'type' => 'integer',
+                'description' => 'The current revision identifier.',
+                'readOnly' => true,
+                'x-widget' => 'hidden',
+            ];
+        }
+
         if (isset($keys['label'])) {
             $properties[$keys['label']] = [
                 'type' => 'string',
@@ -396,20 +369,11 @@ final class SchemaPresenter
     {
         $isIntegerTimestamp = in_array($fieldType, ['integer', 'int'], true)
             && $definition->getSetting('subtype') === 'timestamp';
-        $schema = [
-            'type' => $isIntegerTimestamp ? 'string' : (self::TYPE_MAP[$fieldType] ?? 'string'),
-            // Preserve the canonical FieldDefinition cardinality so generic
-            // widgets can distinguish scalar and multi-value authoring.
-            'x-cardinality' => $definition->getCardinality(),
-        ];
+        $isLongText = $fieldType === 'text_long'
+            || ($fieldType === 'text' && $definition->getSetting('subtype') === 'text_long');
+        $schema = $this->fieldSchemas->fieldSchema($definition);
 
         // Add format if applicable.
-        if ($isIntegerTimestamp) {
-            $schema['format'] = 'date-time';
-        } elseif (isset(self::FORMAT_MAP[$fieldType])) {
-            $schema['format'] = self::FORMAT_MAP[$fieldType];
-        }
-
         // Add description.
         $description = $definition->getDescription();
         if ($description !== '') {
@@ -418,7 +382,7 @@ final class SchemaPresenter
 
         // Widget hint.
         $schema['x-widget'] = $definition->getSetting('widget')
-            ?? ($isIntegerTimestamp ? 'datetime' : (self::WIDGET_MAP[$fieldType] ?? 'text'));
+            ?? ($isIntegerTimestamp || $isLongText ? ($isIntegerTimestamp ? 'datetime' : 'richtext') : (self::WIDGET_MAP[$fieldType] ?? 'text'));
 
         $sourceField = $definition->getSetting('source_field');
         if (is_string($sourceField) && $sourceField !== '') {
@@ -455,13 +419,7 @@ final class SchemaPresenter
 
             // Handle allowed_values for list/select fields.
             if (isset($settings['allowed_values'])) {
-                $schema['enum'] = array_keys($settings['allowed_values']);
                 $schema['x-enum-labels'] = $settings['allowed_values'];
-            }
-
-            // Handle max_length for string fields.
-            if (isset($settings['max_length'])) {
-                $schema['maxLength'] = $settings['max_length'];
             }
 
             // Date-only bounds are presentation hints: draft-07's numeric
@@ -472,13 +430,6 @@ final class SchemaPresenter
                 }
                 if (isset($settings['max'])) {
                     $schema['x-max'] = $settings['max'];
-                }
-            } else {
-                if (isset($settings['min'])) {
-                    $schema['minimum'] = $settings['min'];
-                }
-                if (isset($settings['max'])) {
-                    $schema['maximum'] = $settings['max'];
                 }
             }
 

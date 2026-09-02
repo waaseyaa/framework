@@ -101,35 +101,45 @@ and an executable contract test.
 **File:** `packages/ai-schema/src/EntityJsonSchemaGenerator.php`
 **Class:** `Waaseyaa\AI\Schema\EntityJsonSchemaGenerator`
 
-Generates JSON Schema (draft 2020-12) from registered entity types. Takes an `EntityTypeManagerInterface` and inspects entity type definitions to produce a schema array.
+Adapts the lower-layer `FieldSchemaAuthority` to JSON Schema draft 2020-12.
+The utility enumerates the effective field set and requires an explicit entity
+subject, access handler, and immutable principal before it can expose schema.
 
 ### Constructor
 
 ```php
 public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
+    ?FieldSchemaAuthority $fieldSchemas = null,
+    ?FieldVisibilityPolicy $fieldVisibility = null,
 )
 ```
 
+Both optional collaborators default to the shared Layer-1 authorities: the
+the built-ins-only `FieldTypeManager::default()` registry and a `FieldVisibilityPolicy`
+with framework-only internal fields. A kernel-bound caller injects the
+boot-scoped `FieldSchemaAuthority` so manifest-discovered downstream field
+types are projected, and injects the container's visibility policy so
+application-declared internal fields are honoured. No first-party provider
+constructs this generator; bare construction remains explicitly isolated.
+
 ### Key Methods
 
-- `generate(string $entityTypeId): array` -- Produces a single JSON Schema for one entity type.
-- `generateAll(): array` -- Returns schemas for all registered entity types, keyed by entity type ID.
+- `generate(string $entityTypeId, EntityInterface $entity, EntityAccessHandler $accessHandler, AuthorizationPrincipalInterface $account): array` -- Produces one principal-bound schema after entity and field access checks.
 
 ### Schema Shape
 
-The generated schema maps entity keys to JSON Schema properties:
-
-| Entity Key | JSON Schema Type | Required |
-|------------|-----------------|----------|
-| id | `['integer', 'string']` | Yes |
-| uuid | `string` (format: uuid) | Yes |
-| label | `string` | Yes |
-| bundle | `string` | Yes |
-| langcode | `string` | No |
-| revision | `integer` (only if revisionable) | No |
-
-The output always includes `'$schema' => 'https://json-schema.org/draft/2020-12/schema'` and sets `'additionalProperties' => true` to allow non-key fields.
+The generated schema includes entity keys plus every effective field visible to
+the principal. Before the per-field access check runs, the shared Layer-1
+`FieldVisibilityPolicy` floor removes credential names (`pass`, `legacy_pass`,
+`password`, `password_hash`), framework-internal fields, application-declared
+internal fields, and any definition carrying `settings.internal`; the same
+floor backs the API package's `InternalFieldVisibilityPolicy`, so REST and AI
+introspection cannot disagree about which fields are structurally internal.
+Field plugins own the value shapes; cardinality, required state,
+read-only state, and translation/revision metadata are explicit. The result is
+closed with `additionalProperties: false`, and unknown field types fail closed.
+There is no unscoped `generateAll()` catalogue.
 
 ## Agent Tool System
 

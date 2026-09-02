@@ -7,41 +7,45 @@ namespace Waaseyaa\GraphQL\Schema;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
-use Waaseyaa\Foundation\Log\LoggerInterface;
-use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
+use Waaseyaa\Field\FieldValueKind;
+use Waaseyaa\Field\FieldValueKindResolverInterface;
 
 /**
  * Maps Waaseyaa field types to GraphQL scalar/object types.
  *
- * Mirrors the mapping in FieldDefinition::toJsonSchema().
+ * This is a GraphQL wire-type adapter, not JSON Schema authority. It accepts
+ * only ids present in the field-type registry and fails closed otherwise.
  */
 final class FieldTypeMapper
 {
-    private readonly LoggerInterface $logger;
     private ?ObjectType $textType = null;
     private ?InputObjectType $textInputType = null;
     private ?InputObjectType $entityReferenceInputType = null;
 
-    public function __construct(?LoggerInterface $logger = null)
+    public function __construct(?FieldTypeManagerInterface $fieldTypes = null)
     {
-        $this->logger = $logger ?? new NullLogger();
+        // Isolated construction: a mapper built without a registry (unit tests)
+        // adapts the built-in roster; SchemaFactory threads the boot-scoped
+        // registry it receives from GraphQlEndpoint / GraphQlRouter.
+        $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
+
+    private readonly FieldTypeManagerInterface $fieldTypes;
 
     public function toOutputType(string $fieldType, bool $isMultiple): Type
     {
-        $known = true;
-        $type = match ($fieldType) {
-            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string', 'json' => Type::string(),
-            'integer' => Type::int(),
-            'boolean' => Type::boolean(),
-            'float', 'decimal' => Type::float(),
-            'text', 'text_long' => $this->getTextType(),
-            default => (function () use ($fieldType, &$known): Type {
-                $known = false;
-                $this->logger->warning(sprintf('GraphQL: unknown field type "%s", falling back to String', $fieldType));
-
-                return Type::string();
-            })(),
+        $type = match ($this->valueKind($fieldType)) {
+            FieldValueKind::String => Type::string(),
+            FieldValueKind::Integer => Type::int(),
+            FieldValueKind::Boolean => Type::boolean(),
+            FieldValueKind::Float => Type::float(),
+            FieldValueKind::FormattedText => $this->getTextType(),
+            FieldValueKind::EntityReference => throw new \DomainException(sprintf(
+                'GraphQL entity-reference output for registered field type "%s" requires target metadata.',
+                $fieldType,
+            )),
         };
 
         return $isMultiple ? Type::listOf(Type::nonNull($type)) : $type;
@@ -49,14 +53,13 @@ final class FieldTypeMapper
 
     public function toInputType(string $fieldType, bool $isMultiple): Type
     {
-        $type = match ($fieldType) {
-            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string', 'json' => Type::string(),
-            'integer' => Type::int(),
-            'boolean' => Type::boolean(),
-            'float', 'decimal' => Type::float(),
-            'text', 'text_long' => $this->getTextInputType(),
-            'entity_reference' => $this->getEntityReferenceInputType(),
-            default => Type::string(),
+        $type = match ($this->valueKind($fieldType)) {
+            FieldValueKind::String => Type::string(),
+            FieldValueKind::Integer => Type::int(),
+            FieldValueKind::Boolean => Type::boolean(),
+            FieldValueKind::Float => Type::float(),
+            FieldValueKind::FormattedText => $this->getTextInputType(),
+            FieldValueKind::EntityReference => $this->getEntityReferenceInputType(),
         };
 
         return $isMultiple ? Type::listOf(Type::nonNull($type)) : $type;
@@ -64,7 +67,19 @@ final class FieldTypeMapper
 
     public function isEntityReference(string $fieldType): bool
     {
-        return $fieldType === 'entity_reference';
+        return $this->valueKind($fieldType) === FieldValueKind::EntityReference;
+    }
+
+    private function valueKind(string $fieldType): FieldValueKind
+    {
+        if (!$this->fieldTypes instanceof FieldValueKindResolverInterface) {
+            throw new \DomainException(sprintf(
+                'The field-type registry cannot resolve a transport-neutral value kind for "%s".',
+                $fieldType,
+            ));
+        }
+
+        return $this->fieldTypes->valueKind($fieldType);
     }
 
     private function getTextType(): ObjectType

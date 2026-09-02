@@ -11,6 +11,7 @@ use GraphQL\Type\Schema;
 use GraphQL\Type\SchemaConfig;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\GraphQL\GraphQlExecutionContext;
 
 /**
@@ -56,8 +57,14 @@ final class SchemaFactory
      */
     private static ?\WeakMap $schemaCache = null;
 
+    /**
+     * @param FieldTypeManagerInterface|null $fieldTypes The kernel's boot-scoped field-type
+     *        registry (#2786 B1); the wire-type mapper adapts exactly the ids it admits.
+     *        Null only for registry-less bare construction (unit tests).
+     */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly ?FieldTypeManagerInterface $fieldTypes = null,
     ) {}
 
     /**
@@ -105,7 +112,7 @@ final class SchemaFactory
         }
 
         $registry = new TypeRegistry();
-        $fieldTypeMapper = new FieldTypeMapper();
+        $fieldTypeMapper = new FieldTypeMapper($this->fieldTypes);
         $entityTypeBuilder = new EntityTypeBuilder(
             registry: $registry,
             fieldTypeMapper: $fieldTypeMapper,

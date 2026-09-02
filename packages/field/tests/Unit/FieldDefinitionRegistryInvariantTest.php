@@ -114,4 +114,34 @@ final class FieldDefinitionRegistryInvariantTest extends TestCase
         self::assertArrayHasKey('good_field', $registered);
         self::assertSame('sample_entity', $registered['good_field']->getTargetEntityTypeId());
     }
+
+    #[Test]
+    public function registrationRejectsATypeOutsideThePluginAuthority(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $field = new FieldDefinition(
+            name: 'legacy_uuid',
+            type: 'uuid',
+            targetEntityTypeId: 'sample_entity',
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('not admitted by the field-type registry');
+        $registry->registerCoreFields('sample_entity', ['legacy_map' => $field]);
+    }
+
+    #[Test]
+    public function registrationRejectsAnEnumWithoutItsRequiredContract(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $field = new FieldDefinition(
+            name: 'state',
+            type: 'enum',
+            targetEntityTypeId: 'sample_entity',
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('not admitted by the field-type registry');
+        $registry->registerCoreFields('sample_entity', ['state' => $field]);
+    }
 }

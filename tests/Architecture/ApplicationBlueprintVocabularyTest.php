@@ -7,7 +7,10 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\Attribute\FieldTypeInferrer;
 use Waaseyaa\Entity\Storage\PrimaryStorageBackend;
+use Waaseyaa\Field\FieldSchemaAuthority;
+use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\SiteContract\Blueprint\BlueprintFieldType;
 use Waaseyaa\SiteContract\Blueprint\BlueprintStorage;
 
@@ -25,40 +28,25 @@ use Waaseyaa\SiteContract\Blueprint\BlueprintStorage;
 final class ApplicationBlueprintVocabularyTest extends TestCase
 {
     #[Test]
-    public function blueprintFieldTypesAreASubsetOfTheLiveFieldTypeRegistryExcludingReferenceAndMedia(): void
+    public function blueprintFieldTypesEqualTheLiveRegistryAdmissionAuthority(): void
     {
-        $root = dirname(__DIR__, 2);
-        $discovered = [];
-        foreach (glob($root . '/packages/field/src/Item/*.php') as $file) {
-            $contents = (string) file_get_contents($file);
-            if (preg_match_all('/#\[FieldType\(\s*id:\s*\'([a-z_]+)\'/', $contents, $matches) > 0) {
-                foreach ($matches[1] as $id) {
-                    $discovered[$id] = true;
-                }
-            }
-        }
-
-        self::assertNotEmpty($discovered, 'Expected to discover at least one #[FieldType(id: ...)] attribute.');
-        self::assertArrayHasKey('entity_reference', $discovered, 'entity_reference must exist in the live registry to prove the exclusion is deliberate.');
-        self::assertArrayHasKey('file', $discovered);
-        self::assertArrayHasKey('image', $discovered);
-
         $blueprintValues = array_map(static fn(BlueprintFieldType $case): string => $case->value, BlueprintFieldType::cases());
+        sort($blueprintValues, SORT_STRING);
 
-        foreach ($blueprintValues as $value) {
-            self::assertArrayHasKey($value, $discovered, "BlueprintFieldType::{$value} must exist in the live field-type registry.");
-        }
+        $authority = new FieldSchemaAuthority(new FieldTypeManager());
+        self::assertSame($authority->blueprintFieldTypeIds(), $blueprintValues);
+    }
 
-        self::assertNotContains('entity_reference', $blueprintValues, 'entity_reference is owned by relationships, not scalar fields.');
-        self::assertNotContains('file', $blueprintValues, 'Media field types are out of the initial blueprint scope.');
-        self::assertNotContains('image', $blueprintValues, 'Media field types are out of the initial blueprint scope.');
+    #[Test]
+    public function attributeFieldTypesEqualTheLiveRegistryAdmissionAuthority(): void
+    {
+        $attributeValues = FieldTypeInferrer::VALID_TYPE_IDS;
+        sort($attributeValues, SORT_STRING);
 
-        $expectedExcluded = ['entity_reference', 'file', 'image'];
-        $expectedIncluded = array_values(array_diff(array_keys($discovered), $expectedExcluded));
-        sort($expectedIncluded, SORT_STRING);
-        $actual = $blueprintValues;
-        sort($actual, SORT_STRING);
-        self::assertSame($expectedIncluded, $actual);
+        $registryValues = array_keys(new FieldTypeManager()->getDefinitions());
+        sort($registryValues, SORT_STRING);
+
+        self::assertSame($registryValues, $attributeValues);
     }
 
     #[Test]

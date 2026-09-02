@@ -38,39 +38,23 @@ abstract class AbstractFieldType extends PluginBase implements FieldTypeInterfac
     /**
      * Default per-definition JSON Schema.
      *
-     * Reproduces the legacy per-type mapping that previously lived as a hardcoded
-     * match in `FieldDefinition::toJsonSchema()`. Field types that need
-     * per-definition variation (e.g. `EnumItem` reading `settings.enum_class`)
-     * override this method; types happy with the legacy mapping (string, integer,
-     * boolean, float, text, entity_reference) get bit-identical behaviour with zero
-     * overrides. Intentionally returns the legacy mapping rather than delegating to
-     * `static::jsonSchema()` — the latter is the richer per-type schema, but
-     * `FieldDefinition::toJsonSchema()` has historically emitted this minimal shape,
-     * and preserving that emission contract is mandated by the WP01 regression test.
+     * The plugin's jsonSchema() method is the single structural mapping for the
+     * field type. Types that need definition-specific variation (for example,
+     * EnumItem reading settings.enum_class) override this method.
      */
     public static function jsonSchemaFor(FieldDefinitionInterface $def): array
     {
-        return match ($def->getType()) {
-            'string' => ['type' => 'string'],
-            'integer' => ['type' => 'integer'],
-            'boolean' => ['type' => 'boolean'],
-            'float' => ['type' => 'number'],
-            'text' => [
-                'type' => 'object',
-                'properties' => [
-                    'value' => ['type' => 'string'],
-                    'format' => ['type' => 'string'],
-                ],
-            ],
-            'entity_reference' => [
-                'type' => 'object',
-                'properties' => [
-                    'target_id' => ['type' => 'integer'],
-                    'target_type' => ['type' => 'string'],
-                ],
-            ],
-            default => ['type' => 'string'],
-        };
+        return static::jsonSchema();
+    }
+
+    public static function supportsBlueprint(): bool
+    {
+        return true;
+    }
+
+    public static function entityValueJsonSchemaFor(FieldDefinitionInterface $def): array
+    {
+        return static::jsonSchemaFor($def);
     }
 
     /**
@@ -82,5 +66,26 @@ abstract class AbstractFieldType extends PluginBase implements FieldTypeInterfac
     public static function schemaFor(FieldDefinitionInterface $def): array
     {
         return static::schema();
+    }
+
+    public static function entityStorageColumnSchemaFor(
+        FieldDefinitionInterface $def,
+        ?FieldStorageSchemaContext $context = null,
+    ): array {
+        $columns = static::schemaFor($def);
+        if (isset($columns['value'])) {
+            return $columns['value'];
+        }
+        if (isset($columns[$def->getName()])) {
+            return $columns[$def->getName()];
+        }
+        if (count($columns) === 1) {
+            return reset($columns);
+        }
+
+        throw new \LogicException(sprintf(
+            'Field type "%s" exposes multiple item columns and must declare its entity storage column explicitly.',
+            $def->getType(),
+        ));
     }
 }

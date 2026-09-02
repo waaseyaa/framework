@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Tests\Unit\Schema;
 
-use Waaseyaa\Api\Schema\SchemaPresenter;
-use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Entity\EntityType;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\EntityType;
 
 #[CoversClass(SchemaPresenter::class)]
 final class SchemaPresenterTest extends TestCase
@@ -65,6 +65,22 @@ final class SchemaPresenterTest extends TestCase
         // Bundle should be hidden.
         $this->assertArrayHasKey('type', $properties);
         $this->assertSame('hidden', $properties['type']['x-widget']);
+    }
+
+    #[Test]
+    public function revisionKeyIsReadOnlyAndHidden(): void
+    {
+        $keys = TestEntity::definitionKeys();
+        $keys['revision'] = 'revision_id';
+        $schema = $this->presenter->present($this->createEntityType(
+            translatable: false,
+            revisionable: true,
+            keys: $keys,
+        ));
+
+        self::assertSame('integer', $schema['properties']['revision_id']['type']);
+        self::assertTrue($schema['properties']['revision_id']['readOnly']);
+        self::assertSame('hidden', $schema['properties']['revision_id']['x-widget']);
     }
 
     #[Test]
@@ -135,13 +151,22 @@ final class SchemaPresenterTest extends TestCase
             public function registerCoreFields(string $entityTypeId, array $fields): void {}
             public function mergeCoreFields(string $entityTypeId, array $fields): void {}
             public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
-            public function coreFieldsFor(string $entityTypeId): array { return []; }
-            public function bundleFieldsFor(string $entityTypeId, string $bundle): array { return []; }
+            public function coreFieldsFor(string $entityTypeId): array
+            {
+                return [];
+            }
+            public function bundleFieldsFor(string $entityTypeId, string $bundle): array
+            {
+                return [];
+            }
             public function bundleNamesFor(string $entityTypeId): array
             {
                 return ['announcement', 'article', 'page'];
             }
-            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array { return []; }
+            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
+            {
+                return [];
+            }
         };
 
         $presenter = new SchemaPresenter($registry);
@@ -172,10 +197,22 @@ final class SchemaPresenterTest extends TestCase
             public function registerCoreFields(string $entityTypeId, array $fields): void {}
             public function mergeCoreFields(string $entityTypeId, array $fields): void {}
             public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
-            public function coreFieldsFor(string $entityTypeId): array { return []; }
-            public function bundleFieldsFor(string $entityTypeId, string $bundle): array { return []; }
-            public function bundleNamesFor(string $entityTypeId): array { return []; }
-            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array { return []; }
+            public function coreFieldsFor(string $entityTypeId): array
+            {
+                return [];
+            }
+            public function bundleFieldsFor(string $entityTypeId, string $bundle): array
+            {
+                return [];
+            }
+            public function bundleNamesFor(string $entityTypeId): array
+            {
+                return [];
+            }
+            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
+            {
+                return [];
+            }
         };
 
         $presenter = new SchemaPresenter($registry);
@@ -246,13 +283,54 @@ final class SchemaPresenterTest extends TestCase
     }
 
     #[Test]
+    public function presentPreservesLegacyCompatibilityProjectionsAndWidgets(): void
+    {
+        $schema = $this->presenter->present($this->createEntityType(), [
+            'legacy_int' => ['type' => 'int'],
+            'legacy_bool' => ['type' => 'bool'],
+            'legacy_uri' => ['type' => 'uri'],
+            'legacy_timestamp' => ['type' => 'timestamp'],
+            'legacy_map' => ['type' => 'map'],
+            'legacy_list' => [
+                'type' => 'list_string',
+                'settings' => ['allowed_values' => ['draft' => 'Draft', 'published' => 'Published']],
+            ],
+        ]);
+
+        $properties = $schema['properties'];
+        self::assertSame('string', $properties['legacy_int']['type']);
+        self::assertSame('text', $properties['legacy_int']['x-widget']);
+        self::assertSame('string', $properties['legacy_bool']['type']);
+        self::assertSame('text', $properties['legacy_bool']['x-widget']);
+        self::assertSame(['type' => 'string', 'format' => 'uri'], [
+            'type' => $properties['legacy_uri']['type'],
+            'format' => $properties['legacy_uri']['format'],
+        ]);
+        self::assertSame('url', $properties['legacy_uri']['x-widget']);
+        self::assertSame(['type' => 'string', 'format' => 'date-time'], [
+            'type' => $properties['legacy_timestamp']['type'],
+            'format' => $properties['legacy_timestamp']['format'],
+        ]);
+        self::assertSame('datetime', $properties['legacy_timestamp']['x-widget']);
+        self::assertSame('string', $properties['legacy_map']['type']);
+        self::assertSame('text', $properties['legacy_map']['x-widget']);
+        self::assertSame('string', $properties['legacy_list']['type']);
+        self::assertSame('select', $properties['legacy_list']['x-widget']);
+        self::assertSame(['draft', 'published'], $properties['legacy_list']['enum']);
+        self::assertSame(
+            ['draft' => 'Draft', 'published' => 'Published'],
+            $properties['legacy_list']['x-enum-labels'],
+        );
+    }
+
+    #[Test]
     public function presentWithSelectFieldAndAllowedValues(): void
     {
         $entityType = $this->createEntityType();
 
         $fieldDefinitions = [
             'color' => [
-                'type' => 'list_string',
+                'type' => 'list',
                 'label' => 'Color',
                 'settings' => [
                     'allowed_values' => [
@@ -297,6 +375,25 @@ final class SchemaPresenterTest extends TestCase
 
         self::assertSame(-1, $schema['properties']['attachment']['x-cardinality']);
         self::assertSame(1, $schema['properties']['author']['x-cardinality']);
+    }
+
+    #[Test]
+    public function present_places_multiple_value_constraints_on_items(): void
+    {
+        $schema = $this->presenter->present($this->createEntityType(), [
+            'colors' => [
+                'type' => 'list',
+                'cardinality' => -1,
+                'settings' => ['allowed_values' => ['red' => 'Red', 'blue' => 'Blue']],
+            ],
+        ]);
+
+        self::assertSame(['red', 'blue'], $schema['properties']['colors']['items']['enum']);
+        self::assertArrayNotHasKey('enum', $schema['properties']['colors']);
+        self::assertSame(
+            ['red' => 'Red', 'blue' => 'Blue'],
+            $schema['properties']['colors']['x-enum-labels'],
+        );
     }
 
     #[Test]
@@ -374,7 +471,7 @@ final class SchemaPresenterTest extends TestCase
                 'settings' => ['min' => 3],
             ],
             'recorded_at' => [
-                'type' => 'timestamp',
+                'type' => 'datetime',
                 'label' => 'Recorded at',
             ],
         ]);

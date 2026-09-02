@@ -17,8 +17,25 @@ use Waaseyaa\Field\Attribute\FieldType;
 /**
  * @api
  */
-final class LinkItem extends AbstractFieldType
+final class LinkItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::String;
+    }
+
+    public static function entityStorageColumnSchemaFor(
+        \Waaseyaa\Field\FieldDefinitionInterface $def,
+        ?\Waaseyaa\Field\FieldStorageSchemaContext $context = null,
+    ): array {
+        return static::schema()['uri'];
+    }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string', 'format' => 'uri'];
+    }
+
     public static function schema(): array
     {
         return [

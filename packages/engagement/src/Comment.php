@@ -13,7 +13,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'cid', uuid: 'uuid', label: 'body')]
 final class Comment extends ContentEntityBase
 {
-    #[Field(type: 'text', label: 'Body', settings: ['weight' => 0, 'subtype' => 'text_long'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'text_long', label: 'Body', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $body = '';
 
     #[Field(label: 'User ID', settings: ['weight' => 1, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

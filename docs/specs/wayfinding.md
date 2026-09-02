@@ -1,5 +1,7 @@
 # Wayfinding
 
+<!-- Spec reviewed 2026-09-02 - #2786 B1: WayfindingServiceProvider constructs AnchorRegistry with SchemaPresenter over the kernel's boot-scoped FieldSchemaAuthority. Manifest-discovered downstream field types therefore produce field anchors; absence of that kernel authority refuses composition instead of silently falling back to built-ins. -->
+
 <!-- Spec reviewed 2026-08-16 - S1-FW-DB-03: TrailStore reads the current default or language peer snapshot before human edits and re-recording, derives the aggregate mutation token from that observed Trail, and supplies it to translation/live-revision writes. A concurrent trail mutation therefore refuses the stale edit or promotion rather than silently overwriting the newer peer; the recorded-vs-human promotion rules below are unchanged. Canonical concurrency contract: s1-concurrency-fencing.md. -->
 
 <!-- Spec reviewed 2026-08-04 - #2181: admin Wayfinding is authenticated and installation-gated. Public auth routes and slim installs open no broadcast stream and make no session-token request; losing authentication tears down the consumer and clears token state. -->

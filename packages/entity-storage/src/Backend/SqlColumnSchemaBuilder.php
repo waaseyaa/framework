@@ -6,8 +6,10 @@ namespace Waaseyaa\EntityStorage\Backend;
 
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
-use Waaseyaa\EntityStorage\Schema\ColumnSpecMap;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldStorageSchemaContext;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -50,11 +52,18 @@ final class SqlColumnSchemaBuilder
 {
     private readonly LoggerInterface $logger;
 
+    private readonly FieldTypeManagerInterface $fieldTypes;
+
     public function __construct(
         private readonly DBALDatabase $database,
         ?LoggerInterface $logger = null,
+        ?FieldTypeManagerInterface $fieldTypes = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        // Isolated construction: a builder constructed without a registry
+        // (unit tests) projects against the built-in roster; SqlSchemaHandler
+        // and the translation schema handler thread the boot-scoped one.
+        $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
     }
 
     /**
@@ -107,8 +116,7 @@ final class SqlColumnSchemaBuilder
                 ));
             }
 
-            $settings = $field->getSettings();
-            $spec['fields'][$fieldName] = $this->buildColumnSpec($fieldType, $settings);
+            $spec['fields'][$fieldName] = $this->buildColumnSpec($field);
 
             if ($field->isIndexed()) {
                 $indexedFields[] = $fieldName;
@@ -149,7 +157,7 @@ final class SqlColumnSchemaBuilder
             return;
         }
 
-        $columnSpec = $this->buildColumnSpec($field->getType(), $field->getSettings());
+        $columnSpec = $this->buildColumnSpec($field);
         $schema->addField($tableName, $fieldName, $columnSpec);
 
         if ($field->isIndexed()) {
@@ -176,26 +184,21 @@ final class SqlColumnSchemaBuilder
      * For true lossless decimal on SQLite we store as TEXT; on Postgres we rely
      * on Doctrine's 'decimal' type. We default to 'text' for the widest safety.
      *
-     * @param array<string,mixed> $settings
      * @return array<string,mixed>
      */
-    private function buildColumnSpec(string $fieldType, array $settings): array
+    private function buildColumnSpec(FieldDefinition $field): array
     {
-        // Map §8.2 field type → Waaseyaa abstract type understood by DBALSchema.
-        $abstractType = ColumnSpecMap::abstractTypeFor($fieldType);
-
-        $spec = [
-            'type'     => $abstractType,
-            'not null' => (bool) ($settings['not_null'] ?? false),
-        ];
+        $settings = $field->getSettings();
+        $spec = $this->fieldTypes->entityStorageColumnSchemaFor($field, FieldStorageSchemaContext::ColumnSpecMap);
+        $spec['not null'] = (bool) ($settings['not_null'] ?? false);
 
         if (array_key_exists('default', $settings)) {
             $spec['default'] = $settings['default'];
         }
 
         // VARCHAR length.
-        if ($abstractType === 'varchar') {
-            $spec['length'] = isset($settings['length']) ? (int) $settings['length'] : 255;
+        if (($spec['type'] ?? null) === 'varchar' && isset($settings['length'])) {
+            $spec['length'] = (int) $settings['length'];
         }
 
         return $spec;

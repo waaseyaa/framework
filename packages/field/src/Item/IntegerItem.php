@@ -17,8 +17,22 @@ use Waaseyaa\Field\Attribute\FieldType;
 /**
  * @api
  */
-final class IntegerItem extends AbstractFieldType
+final class IntegerItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::Integer;
+    }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        if ($def->getSetting('subtype') === 'timestamp') {
+            return ['type' => 'string', 'format' => 'date-time'];
+        }
+
+        return static::jsonSchema();
+    }
+
     public static function schema(): array
     {
         return [

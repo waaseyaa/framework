@@ -29,6 +29,8 @@ use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\Query\DefinitionValidator;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Foundation\Community\CommunityContextBootstrapper;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -82,6 +84,15 @@ abstract class AbstractKernel
     protected EntityTypeManager $entityTypeManager;
     protected ?ScheduleInterface $schedule = null;
     protected ?\Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface $fieldRegistry = null;
+
+    /**
+     * The one boot-scoped field-type registry (#2786 B1): built-in plugins plus
+     * the downstream `#[FieldType]` plugins the package manifest discovered.
+     * Composed before the field registry and the entity-type manager so every
+     * admission and every runtime schema handler consults the same instance;
+     * the kernel-services bus serves it to providers.
+     */
+    protected ?FieldTypeManager $fieldTypeManager = null;
     protected PackageManifest $manifest;
     protected EntityAccessHandler $accessHandler;
     protected EntityTypeLifecycleManager $lifecycleManager;
@@ -215,8 +226,11 @@ abstract class AbstractKernel
         $this->dispatcher->addListener(\Waaseyaa\Entity\Event\EntityEvents::POST_SAVE->value, [$auditListener, 'onPostSave']);
         $this->dispatcher->addListener(\Waaseyaa\Entity\Event\EntityEvents::POST_DELETE->value, [$auditListener, 'onPostDelete']);
         $this->bootDatabase();
-        $this->bootEntityTypeManager();
+        // The manifest precedes the entity-type manager: its `field_types`
+        // inventory seeds the boot-scoped field-type registry that the field
+        // registry admits against and the schema handlers project through.
         $this->compileManifest();
+        $this->bootEntityTypeManager();
         $this->bootMigrations();
         $this->discoverAndRegisterProviders();
         $this->secretResolverRegistry()->freeze();
@@ -261,7 +275,18 @@ abstract class AbstractKernel
 
     protected function bootEntityTypeManager(): void
     {
-        $fieldRegistry = new \Waaseyaa\Field\FieldDefinitionRegistry();
+        if (!isset($this->manifest)) {
+            throw new \LogicException(
+                'Cannot boot the entity-type manager before the package manifest is compiled.',
+            );
+        }
+
+        // Resolved eagerly: a manifest plugin that is missing, not a field type,
+        // or claims an admitted id refuses boot here with the classes named.
+        $fieldTypes = FieldTypeManager::fromManifest($this->manifest->fieldTypes);
+        $this->fieldTypeManager = $fieldTypes;
+
+        $fieldRegistry = new FieldDefinitionRegistry($fieldTypes);
         $this->fieldRegistry = $fieldRegistry;
         ContentEntityBase::setFieldRegistry($fieldRegistry);
 
@@ -283,6 +308,7 @@ abstract class AbstractKernel
                 $this->attachAccountContext($repository);
             },
             fieldReadScope: $this->fieldReadScope(),
+            fieldTypes: $fieldTypes,
         );
     }
 
@@ -725,6 +751,7 @@ abstract class AbstractKernel
             $this->entityTypeManager,
             $registry,
             $this->logger,
+            $this->getFieldTypeManager(),
         );
     }
 
@@ -1172,6 +1199,22 @@ abstract class AbstractKernel
     public function getManifest(): PackageManifest
     {
         return $this->manifest;
+    }
+
+    /**
+     * The boot-scoped field-type registry this kernel admits fields against.
+     *
+     * The same instance the canonical field registry, the runtime schema
+     * handlers, and the kernel-services bus hold; never the process-static
+     * built-ins-only default.
+     */
+    public function getFieldTypeManager(): FieldTypeManager
+    {
+        if ($this->fieldTypeManager === null) {
+            throw new \LogicException('The field-type registry is composed by bootEntityTypeManager(); boot the kernel first.');
+        }
+
+        return $this->fieldTypeManager;
     }
 
     public function getAccessHandler(): EntityAccessHandler

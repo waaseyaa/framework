@@ -1531,6 +1531,13 @@ jobs:
       - name: Boot a fresh packaged-form install
         run: bash tests/PackagedForm/check-fresh-install-boot
 
+      # #2786/#2809: an external package's #[FieldType] must be discovered by
+      # the compiled manifest, admitted by the boot-scoped registry, and
+      # projected through entity schema, API, and GraphQL in both development
+      # and optimized production-shaped consumers.
+      - name: Prove downstream custom field admission in dev and prod consumers
+        run: bash tests/PackagedForm/check-custom-field-admission
+
   bimaaji-skill-resources:
     # #2656: `bimaaji:install` must work from a real packaged consumer. The
     # canonical Agent Skills used to live at the monorepo root, so the command

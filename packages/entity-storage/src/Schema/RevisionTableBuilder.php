@@ -9,6 +9,9 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Exception\StorageMigrationException;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldStorageSchemaContext;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 
 /**
  * Emits the `<entity>__revision` table schema for a revisionable entity type.
@@ -94,9 +97,17 @@ final class RevisionTableBuilder
 {
     public const TRANSLATION_REVISION_SUFFIX = '__translation__revision';
 
+    private readonly FieldTypeManagerInterface $fieldTypes;
+
     public function __construct(
         private readonly DBALDatabase $database,
-    ) {}
+        ?FieldTypeManagerInterface $fieldTypes = null,
+    ) {
+        // Isolated construction: a builder constructed without a registry
+        // (unit tests) projects against the built-in roster; the translation
+        // schema handler threads the boot-scoped one.
+        $this->fieldTypes = $fieldTypes ?? FieldTypeManager::default();
+    }
 
     /**
      * Materialise the `<entity>__revision` table.
@@ -326,37 +337,33 @@ final class RevisionTableBuilder
                 continue;
             }
 
-            $spec['fields'][$fieldName] = $this->columnSpecForType(
-                $field->getType(),
-                $field->getSettings(),
-            );
+            $spec['fields'][$fieldName] = $this->columnSpecFor($field);
         }
     }
 
     /**
-     * Map a FieldDefinition type + settings to a DBALSchema column spec array.
+     * Resolve a FieldDefinition to a DBALSchema column spec array.
      *
-     * Mirrors the mapping in `SqlColumnSchemaBuilder::buildColumnSpec()` so that
-     * revision-table columns have the same shape as primary-table columns.
+     * The abstract column shape comes from the field-type plugin's
+     * entity-storage projection (the same seam `SqlColumnSchemaBuilder`
+     * uses), so revision-table columns have the same shape as primary-table
+     * columns; definition settings `not_null`, `default`, and `length`
+     * decorate that projection.
      *
-     * @param array<string, mixed> $settings
      * @return array<string, mixed>
      */
-    private function columnSpecForType(string $fieldType, array $settings): array
+    private function columnSpecFor(FieldDefinition $field): array
     {
-        $abstractType = ColumnSpecMap::abstractTypeFor($fieldType);
-
-        $spec = [
-            'type'     => $abstractType,
-            'not null' => (bool) ($settings['not_null'] ?? false),
-        ];
+        $settings = $field->getSettings();
+        $spec = $this->fieldTypes->entityStorageColumnSchemaFor($field, FieldStorageSchemaContext::ColumnSpecMap);
+        $spec['not null'] = (bool) ($settings['not_null'] ?? false);
 
         if (array_key_exists('default', $settings)) {
             $spec['default'] = $settings['default'];
         }
 
-        if ($abstractType === 'varchar') {
-            $spec['length'] = isset($settings['length']) ? (int) $settings['length'] : 255;
+        if (($spec['type'] ?? null) === 'varchar' && isset($settings['length'])) {
+            $spec['length'] = (int) $settings['length'];
         }
 
         return $spec;
@@ -423,10 +430,7 @@ final class RevisionTableBuilder
                     // belongs on another sql-* table and is not materialised here.
                     continue;
                 }
-                $spec['fields'][$field->getName()] = $this->columnSpecForType(
-                    $field->getType(),
-                    $field->getSettings(),
-                );
+                $spec['fields'][$field->getName()] = $this->columnSpecFor($field);
             }
         } else {
             // sql-blob: translatable values live in a single JSON blob.

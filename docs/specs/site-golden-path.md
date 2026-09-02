@@ -201,6 +201,15 @@ anywhere is `SITE045`, never a silent grammar failure).
   `required` field or relationship absent from `values` entirely is `SITE011`
   at that field's pointer.
 
+The field-type roster is a Layer-0 closed mirror, not a second discovery
+mechanism. `FieldTypeManager::blueprintFieldTypeIds()` is the live Layer-1
+admission authority; each plugin declares whether it is directly admissible.
+The root `ApplicationBlueprintVocabularyTest` instantiates that registry and
+proves exact equality with `BlueprintFieldType::cases()`. This keeps
+`site-contract` free of an upward dependency while ensuring a newly registered,
+removed, or reclassified field type cannot drift silently into or out of the
+blueprint contract (#2786).
+
 - **`checks`** (`BlueprintCheckKind`, `kind`-dispatched): `role_permission`
   (`role`, `permission`, `expect: granted|denied`); `workflow_transition`
   (`role`, `workflow`, `transition`, `expect: allowed|denied`);

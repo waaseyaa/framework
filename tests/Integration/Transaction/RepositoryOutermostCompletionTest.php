@@ -79,6 +79,7 @@ final class RepositoryOutermostCompletionTest extends TestCase
             communityScoreResolver: static fn($definition) => null,
             accountContextAttacher: static function (object $repository): void {},
             fieldReadScope: new AccountFieldReadScope(),
+            fieldTypes: $fieldRegistry->fieldTypeManager(),
         );
         $definition = EntityType::fromClass($entityClass);
         $manager->registerEntityType($definition);

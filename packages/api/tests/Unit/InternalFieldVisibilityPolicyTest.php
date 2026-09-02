@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Api\InternalFieldVisibilityPolicy;
 use Waaseyaa\Field\FieldDefinition;
 
+#[CoversClass(InternalFieldVisibilityPolicy::class)]
 final class InternalFieldVisibilityPolicyTest extends TestCase
 {
     #[Test]

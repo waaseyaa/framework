@@ -2728,6 +2728,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/entity-storage/tests/Unit/Backend/SqlColumnSchemaBuilderTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
             "path": "packages/entity-storage/tests/Unit/BeforeRevisionPointerMoveEventTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -3086,6 +3093,13 @@
         },
         {
             "path": "packages/entity-storage/tests/Unit/EntityRepositoryTranslationAxisTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/EntitySchemaSyncFieldTypeAuthorityTest.php",
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
@@ -3799,6 +3813,13 @@
             "occurrence": 1
         },
         {
+            "path": "packages/foundation/tests/Unit/Http/Router/SchemaRouterTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
             "path": "packages/foundation/tests/Unit/Http/Router/SearchRouterTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -3925,6 +3946,20 @@
             "occurrence": 13
         },
         {
+            "path": "packages/foundation/tests/Unit/Kernel/Bootstrap/ProviderRegistryKernelServicesTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 14
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Kernel/Bootstrap/ProviderRegistryKernelServicesTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 15
+        },
+        {
             "path": "packages/foundation/tests/Unit/Kernel/Bootstrap/ProviderRegistryTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -3993,6 +4028,13 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 10
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Kernel/EntityTypeManagerFactoryFieldTypesTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/EntityTypeManagerFactoryTest.php",
@@ -4077,6 +4119,13 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 10
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 11
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/ProviderDrivenRouteRegistrationTest.php",

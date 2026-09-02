@@ -10,10 +10,13 @@ use GraphQL\Type\Definition\NonNull;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Field\Exception\UnknownFieldTypeException;
+use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\GraphQL\Schema\FieldTypeMapper;
+use Waaseyaa\GraphQL\Tests\Fixtures\CustomMoneyFieldType;
+use Waaseyaa\GraphQL\Tests\Fixtures\UndeclaredValueKindFieldType;
 
 #[CoversClass(FieldTypeMapper::class)]
 final class FieldTypeMapperTest extends TestCase
@@ -30,7 +33,7 @@ final class FieldTypeMapperTest extends TestCase
     #[Test]
     public function stringTypesMApToGraphQlString(): void
     {
-        foreach (['string', 'email', 'uri', 'timestamp', 'datetime', 'list_string'] as $fieldType) {
+        foreach (['string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'classification_label', 'int', 'bool', 'uri', 'timestamp', 'map', 'list_string'] as $fieldType) {
             $type = $this->mapper->toOutputType($fieldType, false);
             self::assertSame(Type::string(), $type, "Field type '{$fieldType}' should map to String");
         }
@@ -51,12 +54,15 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function floatTypesMApToGraphQlFloat(): void
+    public function floatTypeMapsToGraphQlFloat(): void
     {
-        foreach (['float', 'decimal'] as $fieldType) {
-            $type = $this->mapper->toOutputType($fieldType, false);
-            self::assertSame(Type::float(), $type, "Field type '{$fieldType}' should map to Float");
-        }
+        self::assertSame(Type::float(), $this->mapper->toOutputType('float', false));
+    }
+
+    #[Test]
+    public function decimalTypeMapsToLosslessGraphQlString(): void
+    {
+        self::assertSame(Type::string(), $this->mapper->toOutputType('decimal', false));
     }
 
     #[Test]
@@ -70,7 +76,7 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function textLongTypeMapsToTextValueObjectType(): void
+    public function textLongTypePreservesTheLegacyTextValueObjectMapping(): void
     {
         $type = $this->mapper->toOutputType('text_long', false);
         self::assertInstanceOf(ObjectType::class, $type);
@@ -78,10 +84,40 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function unknownTypeOutputFallsBackToString(): void
+    public function unknownOutputTypeFailsClosed(): void
     {
-        $type = $this->mapper->toOutputType('unknown_custom_type', false);
-        self::assertSame(Type::string(), $type);
+        $this->expectException(UnknownFieldTypeException::class);
+        $this->mapper->toOutputType('unknown_custom_type', false);
+    }
+
+    #[Test]
+    public function registeredTypeWithoutAnOutputAdapterFailsClosed(): void
+    {
+        $this->expectException(\DomainException::class);
+        $this->mapper->toOutputType('entity_reference', false);
+    }
+
+    #[Test]
+    public function registeredExtensionUsesItsDeclaredTransportNeutralValueKind(): void
+    {
+        $mapper = new FieldTypeMapper(FieldTypeManager::fromManifest([
+            'fixture_money' => CustomMoneyFieldType::class,
+        ]));
+
+        self::assertSame(Type::string(), $mapper->toOutputType('fixture_money', false));
+        self::assertSame(Type::string(), $mapper->toInputType('fixture_money', false));
+    }
+
+    #[Test]
+    public function registeredExtensionWithoutADeclaredValueKindFailsClosed(): void
+    {
+        $mapper = new FieldTypeMapper(FieldTypeManager::fromManifest([
+            'fixture_undeclared_kind' => UndeclaredValueKindFieldType::class,
+        ]));
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('no declared transport-neutral value kind');
+        $mapper->toOutputType('fixture_undeclared_kind', false);
     }
 
     // ── isMultiple wraps in listOf ───────────────────────────────
@@ -113,7 +149,7 @@ final class FieldTypeMapperTest extends TestCase
     #[Test]
     public function inputStringTypesMApCorrectly(): void
     {
-        foreach (['string', 'email', 'uri', 'timestamp', 'datetime', 'list_string'] as $fieldType) {
+        foreach (['string', 'email', 'date', 'datetime', 'list', 'enum', 'json', 'link', 'file', 'image', 'classification_label', 'int', 'bool', 'uri', 'timestamp', 'map', 'list_string'] as $fieldType) {
             $type = $this->mapper->toInputType($fieldType, false);
             self::assertSame(Type::string(), $type, "Input field type '{$fieldType}' should map to String");
         }
@@ -132,17 +168,29 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function inputFloatTypesMApCorrectly(): void
+    public function inputFloatTypeMapsCorrectly(): void
     {
-        foreach (['float', 'decimal'] as $fieldType) {
-            self::assertSame(Type::float(), $this->mapper->toInputType($fieldType, false));
-        }
+        self::assertSame(Type::float(), $this->mapper->toInputType('float', false));
+    }
+
+    #[Test]
+    public function inputDecimalTypeMapsToLosslessGraphQlString(): void
+    {
+        self::assertSame(Type::string(), $this->mapper->toInputType('decimal', false));
     }
 
     #[Test]
     public function inputTextTypeMapsToTextValueInput(): void
     {
         $type = $this->mapper->toInputType('text', false);
+        self::assertInstanceOf(InputObjectType::class, $type);
+        self::assertSame('TextValueInput', $type->name);
+    }
+
+    #[Test]
+    public function inputTextLongTypePreservesTheLegacyTextValueInputMapping(): void
+    {
+        $type = $this->mapper->toInputType('text_long', false);
         self::assertInstanceOf(InputObjectType::class, $type);
         self::assertSame('TextValueInput', $type->name);
     }
@@ -158,10 +206,16 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function inputUnknownTypeFallsBackToString(): void
+    public function inputUnknownTypeFailsClosed(): void
     {
-        $type = $this->mapper->toInputType('unknown_custom_type', false);
-        self::assertSame(Type::string(), $type);
+        $this->expectException(UnknownFieldTypeException::class);
+        $this->mapper->toInputType('unknown_custom_type', false);
+    }
+
+    #[Test]
+    public function classificationLabelInputMapsToString(): void
+    {
+        self::assertSame(Type::string(), $this->mapper->toInputType('classification_label', false));
     }
 
     // ── isEntityReference ────────────────────────────────────────
@@ -186,7 +240,7 @@ final class FieldTypeMapperTest extends TestCase
     public function textTypeSingletonIsReused(): void
     {
         $type1 = $this->mapper->toOutputType('text', false);
-        $type2 = $this->mapper->toOutputType('text_long', false);
+        $type2 = $this->mapper->toOutputType('text', false);
 
         self::assertSame($type1, $type2, 'TextValue ObjectType should be reused (singleton)');
     }
@@ -195,7 +249,7 @@ final class FieldTypeMapperTest extends TestCase
     public function textInputTypeSingletonIsReused(): void
     {
         $type1 = $this->mapper->toInputType('text', false);
-        $type2 = $this->mapper->toInputType('text_long', false);
+        $type2 = $this->mapper->toInputType('text', false);
 
         self::assertSame($type1, $type2, 'TextValueInput should be reused (singleton)');
     }

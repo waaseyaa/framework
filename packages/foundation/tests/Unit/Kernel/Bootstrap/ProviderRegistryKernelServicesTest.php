@@ -19,6 +19,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldTypeManager;
+use Waaseyaa\Field\FieldTypeManagerInterface;
+use Waaseyaa\Field\Tests\Fixtures\ExtensionFieldTypeFixture;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Community\CommunityContext;
@@ -277,5 +280,34 @@ final class ProviderRegistryKernelServicesTest extends TestCase
 
         self::assertNotNull($dispatcher);
         self::assertSame($services->get(SymfonyContractsEventDispatcherInterface::class), $dispatcher);
+    }
+
+    /**
+     * #2786 B1: the bus serves the exact boot-scoped field-type registry the
+     * kernel's canonical field registry admits with, so a provider resolving
+     * `FieldTypeManagerInterface` sees every downstream plugin the manifest
+     * admitted — never a second, built-ins-only instance.
+     */
+    #[Test]
+    public function get_field_type_manager_returns_the_registry_owned_instance(): void
+    {
+        $fieldTypes = FieldTypeManager::fromManifest([
+            'bus_money' => ExtensionFieldTypeFixture::declare('bus_money'),
+        ]);
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $manager = new EntityTypeManager($dispatcher, fieldRegistry: new FieldDefinitionRegistry($fieldTypes));
+        $services = $this->services(DBALDatabase::createSqlite(), entityTypeManager: $manager);
+
+        self::assertSame($fieldTypes, $services->get(FieldTypeManagerInterface::class));
+        self::assertSame($fieldTypes, $services->get(FieldTypeManager::class));
+    }
+
+    #[Test]
+    public function get_field_type_manager_is_null_for_a_bare_manager_without_a_registry(): void
+    {
+        $services = $this->services(DBALDatabase::createSqlite());
+
+        self::assertNull($services->get(FieldTypeManagerInterface::class));
+        self::assertNull($services->get(FieldTypeManager::class));
     }
 }

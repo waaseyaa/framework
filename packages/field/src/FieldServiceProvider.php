@@ -52,7 +52,7 @@ final class FieldServiceProvider extends ServiceProvider
     {
         $this->singleton(
             FieldDefinitionRegistryInterface::class,
-            fn() => new FieldDefinitionRegistry(),
+            fn() => new FieldDefinitionRegistry($this->resolve(FieldTypeManagerInterface::class)),
         );
 
         $this->singleton(
@@ -60,9 +60,41 @@ final class FieldServiceProvider extends ServiceProvider
             fn() => $this->resolve(FieldDefinitionRegistryInterface::class),
         );
 
+        // One boot-scoped field-type registry per kernel. The kernel builds it
+        // from the package manifest (built-in plugins plus downstream
+        // `#[FieldType]` plugins) before any provider registers — the canonical
+        // field registry and the runtime schema handlers are composed from it
+        // first — and serves it on the kernel-services bus. Every binding here
+        // adopts that exact instance so container consumers and the kernel's
+        // own registry share one plugin authority. Outside a kernel (isolated
+        // provider tests) a built-ins-only registry is constructed: there is no
+        // manifest to admit downstream plugins from.
+        $this->singleton(
+            FieldTypeManagerInterface::class,
+            function (): FieldTypeManagerInterface {
+                $bootScoped = $this->kernelServices?->get(FieldTypeManagerInterface::class);
+
+                return $bootScoped instanceof FieldTypeManagerInterface ? $bootScoped : new FieldTypeManager();
+            },
+        );
         $this->singleton(
             FieldTypeManager::class,
-            fn() => new FieldTypeManager(),
+            function (): FieldTypeManager {
+                $registry = $this->resolve(FieldTypeManagerInterface::class);
+                if (!$registry instanceof FieldTypeManager) {
+                    throw new \LogicException(sprintf(
+                        'The kernel-owned field-type registry is %s, not %s.',
+                        $registry::class,
+                        FieldTypeManager::class,
+                    ));
+                }
+
+                return $registry;
+            },
+        );
+        $this->singleton(
+            FieldSchemaAuthority::class,
+            fn() => new FieldSchemaAuthority($this->resolve(FieldTypeManagerInterface::class)),
         );
 
         $this->singleton(

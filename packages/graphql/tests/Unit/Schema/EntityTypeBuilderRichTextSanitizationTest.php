@@ -53,6 +53,7 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
                 'uuid' => new FieldDefinition(name: 'uuid', type: 'string'),
                 'title' => new FieldDefinition(name: 'title', type: 'string'),
                 'body' => new FieldDefinition(name: 'body', type: 'text_long'),
+                'body_multi' => new FieldDefinition(name: 'body_multi', type: 'text_long', cardinality: -1),
             ],
             keys: TestEntity::definitionKeys(),
             class: TestEntity::class,
@@ -82,7 +83,26 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         self::assertInstanceOf(ObjectType::class, $type);
 
         $bodyField = $type->getField('body');
+        self::assertInstanceOf(ObjectType::class, $bodyField->getType());
+        self::assertSame('TextValue', $bodyField->getType()->name);
         self::assertNotNull($bodyField->resolveFn, 'The body field must declare a resolver.');
+
+        return $bodyField->resolveFn;
+    }
+
+    private function bodyMultiFieldResolver(): callable
+    {
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
+        $schema = $factory->build();
+        $queryType = $schema->getQueryType();
+        self::assertNotNull($queryType);
+
+        $field = $queryType->getField('article');
+        $type = $field->getType();
+        self::assertInstanceOf(ObjectType::class, $type);
+
+        $bodyField = $type->getField('body_multi');
+        self::assertNotNull($bodyField->resolveFn, 'The multi-value body field must declare a resolver.');
 
         return $bodyField->resolveFn;
     }
@@ -95,6 +115,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $data = ['body' => '<p>hi</p><script>alert(document.cookie)</script>'];
         $result = $resolve($data);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertStringNotContainsString(
             '<script',
@@ -113,6 +135,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $data = ['body' => '<img src=x onerror=alert(1)>'];
         $result = $resolve($data);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertStringNotContainsString('onerror', $result);
         self::assertStringNotContainsString('alert(1)', $result);
@@ -128,6 +152,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
             . "gichi-mookomaan, macron \u{101}, o'ow, nake'</p><script>alert(1)</script>";
 
         $result = $resolve(['body' => $payload]);
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
 
         $decoded = html_entity_decode($result, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -148,6 +174,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $resolve = $this->bodyFieldResolver();
         $result = $resolve(['body' => '<div class="sfn-program-contact">x</div>']);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertSame('<div>x</div>', $result);
         self::assertStringNotContainsString('class=', $result);
@@ -159,8 +187,60 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $resolve = $this->bodyFieldResolver();
         $result = $resolve(['body' => '<p>x</p><img src="//evil.example/px" alt="px">']);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertSame('<p>x</p><img alt="px" />', $result);
         self::assertStringNotContainsString('evil.example', $result);
+    }
+
+    #[Test]
+    public function multiValueResolverTreatsAssociativeTextValueAsOneItem(): void
+    {
+        $resolve = $this->bodyMultiFieldResolver();
+
+        $result = $resolve([
+            'body_multi' => [
+                'value' => '<p>one</p><script>alert(1)</script>',
+                'format' => 'basic_html',
+            ],
+        ]);
+
+        self::assertSame([
+            [
+                'value' => '<p>one</p>',
+                'format' => 'basic_html',
+            ],
+        ], $result);
+    }
+
+    #[Test]
+    public function multiValueResolverPreservesNormalTextValueLists(): void
+    {
+        $resolve = $this->bodyMultiFieldResolver();
+
+        $result = $resolve([
+            'body_multi' => [
+                [
+                    'value' => '<p>one</p><script>alert(1)</script>',
+                    'format' => 'basic_html',
+                ],
+                [
+                    'value' => '<p>two</p>',
+                    'format' => 'plain_text',
+                ],
+            ],
+        ]);
+
+        self::assertSame([
+            [
+                'value' => '<p>one</p>',
+                'format' => 'basic_html',
+            ],
+            [
+                'value' => '<p>two</p>',
+                'format' => 'plain_text',
+            ],
+        ], $result);
     }
 }

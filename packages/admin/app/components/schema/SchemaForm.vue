@@ -524,7 +524,7 @@ async function confirmAdvisorySubmission() {
                 :required="fieldIsRequired(fieldName, fieldSchema)"
                 :error="fieldErrors[fieldName]"
                 :disabled="!!fieldSchema['x-access-restricted']"
-                :model-value="formData[fieldName] ?? ''"
+                :model-value="formData[fieldName] ?? (fieldSchema.type === 'array' ? [] : '')"
                 @update:model-value="(val: any) => onFieldUpdate(fieldName, val, !!fieldSchema['x-access-restricted'])"
               />
             </div>

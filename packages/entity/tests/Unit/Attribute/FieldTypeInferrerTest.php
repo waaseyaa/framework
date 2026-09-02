@@ -298,6 +298,37 @@ final class FieldTypeInferrerTest extends TestCase
     }
 
     #[Test]
+    public function registered_custom_type_is_deferred_to_the_boot_registry(): void
+    {
+        $property = new \ReflectionProperty(InferrerTestFixtures::class, 'aString');
+
+        $result = FieldTypeInferrer::inferForRegisteredType(
+            $property,
+            new Field(type: 'custom_money'),
+        );
+
+        self::assertSame([
+            'type' => 'custom_money',
+            'required' => true,
+            'settings' => [],
+        ], $result);
+    }
+
+    #[Test]
+    public function registered_known_type_still_enforces_php_compatibility(): void
+    {
+        $property = new \ReflectionProperty(InferrerTestFixtures::class, 'aString');
+
+        $this->expectException(EntityMetadataException::class);
+        $this->expectExceptionMessage('Conflicting field type');
+
+        FieldTypeInferrer::inferForRegisteredType(
+            $property,
+            new Field(type: 'integer'),
+        );
+    }
+
+    #[Test]
     public function it_throws_when_explicit_type_conflicts_with_inferred_php_type(): void
     {
         $property = new \ReflectionProperty(InferrerTestFixtures::class, 'aString');
@@ -376,8 +407,10 @@ final class FieldTypeInferrerTest extends TestCase
     public function compatibilityGroupsExposesPrivateConstantVerbatim(): void
     {
         $expected = [
-            ['string', 'text', 'email', 'link', 'classification_label'],
-            ['integer', 'list'],
+            ['string', 'text', 'text_long', 'email', 'link', 'uri', 'list_string', 'classification_label'],
+            ['boolean', 'bool'],
+            ['integer', 'int', 'list'],
+            ['integer', 'int', 'timestamp'],
             ['float', 'decimal'],
             ['datetime', 'date'],
         ];

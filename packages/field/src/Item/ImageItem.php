@@ -17,8 +17,30 @@ use Waaseyaa\Field\Attribute\FieldType;
 /**
  * @api
  */
-final class ImageItem extends AbstractFieldType
+final class ImageItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::String;
+    }
+
+    public static function entityStorageColumnSchemaFor(
+        \Waaseyaa\Field\FieldDefinitionInterface $def,
+        ?\Waaseyaa\Field\FieldStorageSchemaContext $context = null,
+    ): array {
+        return static::schema()['uri'];
+    }
+
+    public static function supportsBlueprint(): bool
+    {
+        return false;
+    }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string'];
+    }
+
     public static function schema(): array
     {
         return [

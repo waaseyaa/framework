@@ -33,6 +33,9 @@ final class GraphQlServiceProvider extends ServiceProvider implements HasHttpDom
                 $httpKernel->getEntityTypeManager(),
                 $httpKernel->getAccessHandler(),
                 $gqlOverrides,
+                // The kernel's boot-scoped field-type registry (#2786 B1): the
+                // wire-type adapter admits exactly the ids the field registry did.
+                $httpKernel->getFieldTypeManager(),
             ),
         ];
     }

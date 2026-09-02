@@ -11,7 +11,7 @@ use Waaseyaa\Plugin\PluginInspectionInterface;
  */
 interface FieldTypeInterface extends PluginInspectionInterface
 {
-    /** @return array<string, array{type: string, description?: string}> */
+    /** @return array<string, array<string, mixed>> */
     public static function schema(): array;
 
     /** @return array<string, mixed> */
@@ -26,10 +26,15 @@ interface FieldTypeInterface extends PluginInspectionInterface
      *
      * Allows field-type plugins to vary their JSON Schema by field definition
      * (e.g. enum types reading `settings.enum_class`). Default implementation
-     * on AbstractFieldType preserves the framework's pre-existing per-type schema
-     * mapping so existing field types are unaffected.
+     * on AbstractFieldType delegates to the plugin's canonical jsonSchema().
      */
     public static function jsonSchemaFor(FieldDefinitionInterface $def): array;
+
+    /** Canonical schema for the value exposed on an entity authoring surface. */
+    public static function entityValueJsonSchemaFor(FieldDefinitionInterface $def): array;
+
+    /** Whether governed application blueprints may declare this type directly. */
+    public static function supportsBlueprint(): bool;
 
     /**
      * Per-definition storage column shape.
@@ -38,7 +43,21 @@ interface FieldTypeInterface extends PluginInspectionInterface
      * definition. Default implementation on AbstractFieldType delegates to the
      * static schema() method so existing field types are unaffected.
      *
-     * @return array<string, array{type: string, description?: string}>
+     * @return array<string, array<string, mixed>>
      */
     public static function schemaFor(FieldDefinitionInterface $def): array;
+
+    /**
+     * Canonical single-column schema used when an entity backend stores the
+     * exposed field value directly under the field name.
+     *
+     * The optional context is a bounded migration seam for historical paths
+     * whose physical shape differed; it must not be used as a second type map.
+     *
+     * @return array<string, mixed>
+     */
+    public static function entityStorageColumnSchemaFor(
+        FieldDefinitionInterface $def,
+        ?FieldStorageSchemaContext $context = null,
+    ): array;
 }

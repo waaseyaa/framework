@@ -9,6 +9,7 @@ use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
 use Waaseyaa\Field\FieldDefinitionInterface;
+use Waaseyaa\Field\FieldStorageSchemaContext;
 
 /**
  * Field type for entity classification labels.
@@ -34,8 +35,18 @@ use Waaseyaa\Field\FieldDefinitionInterface;
     category: 'classification',
     defaultCardinality: 1,
 )]
-final class ClassificationLabelFieldType extends AbstractFieldType
+final class ClassificationLabelFieldType extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::String;
+    }
+
+    public static function supportsBlueprint(): bool
+    {
+        return false;
+    }
+
     // ---------------------------------------------------------------------------
     // FieldTypeInterface
     // ---------------------------------------------------------------------------
@@ -108,6 +119,30 @@ final class ClassificationLabelFieldType extends AbstractFieldType
     public static function jsonSchemaFor(FieldDefinitionInterface $def): array
     {
         return static::jsonSchema();
+    }
+
+    /**
+     * The entity-facing value is the resolved label identifier. The inheritance
+     * provenance columns remain a storage concern and are not part of the field
+     * value exposed through API, admin, AI, or GraphQL schema surfaces.
+     */
+    public static function entityValueJsonSchemaFor(FieldDefinitionInterface $def): array
+    {
+        return ['type' => ['string', 'null']];
+    }
+
+    /**
+     * Entity table storage keeps the scalar label identifier in the primary
+     * classification column; the lifecycle subscriber owns the provenance
+     * columns declared by schemaFor().
+     *
+     * @return array<string, mixed>
+     */
+    public static function entityStorageColumnSchemaFor(
+        FieldDefinitionInterface $def,
+        ?FieldStorageSchemaContext $context = null,
+    ): array {
+        return static::schemaFor($def)['classification_label'];
     }
 
     // ---------------------------------------------------------------------------
