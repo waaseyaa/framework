@@ -18,7 +18,10 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageGate;
+use Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresOptionalPackagesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\HttpClient\PhpStreamSseClient;
 
@@ -29,12 +32,30 @@ use Waaseyaa\HttpClient\PhpStreamSseClient;
  *  - `ai:purge-runs` (FR-006) — retention sweep.
  *  - `ai:reap-stalled-runs` (FR-007, NFR-004) — crash recovery.
  *
+ * `waaseyaa/ai-agent` is only suggested by this package. When it is absent the
+ * provider binds nothing and yields no commands, so a `--no-dev` consumer
+ * without the agent runtime sees zero `ai:*` commands instead of commands
+ * whose handlers cannot resolve (#2826).
+ *
  * @api
  */
-final class AiServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
+final class AiServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface, RequiresOptionalPackagesInterface
 {
+    public static function optionalPackageRequirements(): iterable
+    {
+        yield new OptionalPackageRequirement(
+            package: 'waaseyaa/ai-agent',
+            sentinelClass: AgentRunRepository::class,
+            purpose: 'the ai:run, ai:purge-runs and ai:reap-stalled-runs operator commands',
+        );
+    }
+
     public function register(): void
     {
+        if (!OptionalPackageGate::satisfied($this)) {
+            return;
+        }
+
         $this->singleton(
             AiRunCommand::class,
             function (): AiRunCommand {
@@ -93,6 +114,10 @@ final class AiServiceProvider extends ServiceProvider implements ProvidesConsole
 
     public function consoleCommands(): iterable
     {
+        if (!OptionalPackageGate::satisfied($this)) {
+            return;
+        }
+
         yield new HandlerCommand(
             name: 'ai:run',
             description: 'Run an AI agent (FR-005). Use --inline for sync execution, otherwise async via the Messenger bus.',
