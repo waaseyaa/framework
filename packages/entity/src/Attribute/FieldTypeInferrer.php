@@ -117,6 +117,8 @@ final class FieldTypeInferrer
         }
 
         if ($attribute->type !== null) {
+            $isKnownType = \in_array($attribute->type, self::VALID_TYPE_IDS, true);
+
             if ($validateExplicitType) {
                 self::assertValidTypeId($attribute->type, $property);
             }
@@ -131,7 +133,10 @@ final class FieldTypeInferrer
             }
 
             // If both inferred and explicit are present, require compatibility.
-            if ($validateExplicitType && $inferredType !== null && !self::isCompatible($inferredType, $attribute->type)) {
+            // Boot-time registration admits custom ids, which the boot-scoped
+            // registry validates later. Known ids still go through the same
+            // PHP-type compatibility contract as direct callers.
+            if ($isKnownType && $inferredType !== null && !self::isCompatible($inferredType, $attribute->type)) {
                 throw self::conflictException($property, $phpTypeName ?? '(unknown)', $inferredType, $attribute->type);
             }
 

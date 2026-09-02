@@ -1,4 +1,5 @@
 <!-- Spec reviewed 2026-09-02 - #2786 phase 2A: GraphQL now consumes each registered plugin's transport-neutral FieldValueKind rather than an id roster; existing mappings are unchanged, undeclared kinds and unknown ids fail closed. -->
+<!-- Spec reviewed 2026-09-02 - #2786 contract edge: GraphQL multi-value FormattedText resolvers distinguish list-shaped values from an associative single TextValue map, wrapping the latter as one item while recursively sanitizing both shapes. -->
 # API Layer
 
 <!-- Spec reviewed 2026-09-01 - #2757: AuthOidcRouteServiceProvider injects

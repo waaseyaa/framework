@@ -228,7 +228,12 @@ final class EntityTypeBuilder
                                 return $asTextValue($sanitized);
                             }
 
-                            $values = is_array($sanitized) ? $sanitized : [$sanitized];
+                            // A single formatted-text value is an associative
+                            // TextValue map. Treat it as one item rather than
+                            // expanding its value/format keys as list entries.
+                            $values = is_array($sanitized) && array_is_list($sanitized)
+                                ? $sanitized
+                                : [$sanitized];
 
                             return array_map($asTextValue, $values);
                         },
