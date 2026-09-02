@@ -93,8 +93,19 @@ final readonly class SqliteArtifactPreparer
 
                 if (!$hasCandidate) {
                     $this->cloneSchema($current, $candidate, $definition->name);
-                } elseif ($this->schemaSignature($current, $definition->name) !== $this->schemaSignature($candidate, $definition->name)) {
-                    throw new \RuntimeException('Incompatible runtime schema for ' . $definition->name);
+                } else {
+                    // Structural comparison: the same schema created by a
+                    // different code path (line breaks, quoting, CLOB versus
+                    // TEXT, an explicit DEFAULT NULL, an inline primary key)
+                    // is the same schema. A real column, constraint, index,
+                    // or trigger difference names its first differing part.
+                    $difference = SqliteSchemaSignature::firstDifference(
+                        SqliteSchemaSignature::describe($current, $definition->name),
+                        SqliteSchemaSignature::describe($candidate, $definition->name),
+                    );
+                    if ($difference !== null) {
+                        throw new \RuntimeException('Incompatible runtime schema for ' . $definition->name . ' (' . $difference . ')');
+                    }
                 }
 
                 $before = $this->profile($current, $definition->name);
@@ -257,60 +268,6 @@ final readonly class SqliteArtifactPreparer
         if (!$created) {
             throw new \RuntimeException('Could not clone serving-only runtime schema for ' . $table);
         }
-    }
-
-    private function schemaSignature(\PDO $pdo, string $table): string
-    {
-        $quoted = $this->quoteIdentifier($table);
-        $parts = [
-            'table_sql' => $this->schemaSql($pdo, 'table', $table),
-            'columns' => $pdo->query("PRAGMA table_xinfo($quoted)")->fetchAll(),
-            'foreign_keys' => $pdo->query("PRAGMA foreign_key_list($quoted)")->fetchAll(),
-            'indexes' => [],
-            'triggers' => [],
-        ];
-        $indexes = $pdo->query("PRAGMA index_list($quoted)")->fetchAll();
-        usort($indexes, static fn(array $left, array $right): int => strcmp((string) $left['name'], (string) $right['name']));
-        foreach ($indexes as $index) {
-            $name = (string) $index['name'];
-            $parts['indexes'][] = [
-                'name' => $name,
-                'unique' => (int) $index['unique'],
-                'origin' => (string) $index['origin'],
-                'partial' => (int) $index['partial'],
-                'sql' => $this->optionalSchemaSql($pdo, 'index', $name),
-                'columns' => $pdo->query('PRAGMA index_xinfo(' . $this->quoteIdentifier($name) . ')')->fetchAll(),
-            ];
-        }
-        $trigger = $this->prepareStatement($pdo, "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ? ORDER BY name");
-        $trigger->execute([$table]);
-        $parts['triggers'] = $trigger->fetchAll(\PDO::FETCH_COLUMN);
-
-        return hash('sha256', json_encode($parts, JSON_THROW_ON_ERROR));
-    }
-
-    private function schemaSql(\PDO $pdo, string $type, string $name): string
-    {
-        $statement = $this->prepareStatement($pdo, 'SELECT sql FROM sqlite_master WHERE type = ? AND name = ?');
-        $statement->execute([$type, $name]);
-        $sql = $statement->fetchColumn();
-        if (!is_string($sql) || trim($sql) === '') {
-            throw new \RuntimeException(sprintf('Missing %s schema SQL for %s', $type, $name));
-        }
-
-        return preg_replace('/\s+/', ' ', trim($sql)) ?? trim($sql);
-    }
-
-    private function optionalSchemaSql(\PDO $pdo, string $type, string $name): ?string
-    {
-        $statement = $this->prepareStatement($pdo, 'SELECT sql FROM sqlite_master WHERE type = ? AND name = ?');
-        $statement->execute([$type, $name]);
-        $sql = $statement->fetchColumn();
-        if (!is_string($sql) || trim($sql) === '') {
-            return null;
-        }
-
-        return preg_replace('/\s+/', ' ', trim($sql)) ?? trim($sql);
     }
 
     private function copyRows(\PDO $source, \PDO $target, string $table, bool $replace): void

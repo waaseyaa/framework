@@ -2511,6 +2511,20 @@
             "occurrence": 1
         },
         {
+            "path": "packages/deployer/tests/Unit/SqliteSchemaSignatureTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "29d1a44b961f6542f5883b6cb074cb28436db848260ecf2fb4e7ec7b97ecf1c3",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteSchemaSignatureTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
             "path": "packages/entity-storage/tests/Contract/SqlStorageDriverContractTest.php",
             "pattern": "dbal_factory",
             "class": "test",
