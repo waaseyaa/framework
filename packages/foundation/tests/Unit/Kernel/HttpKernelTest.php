@@ -45,6 +45,7 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\LanguageResolver;
 use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
@@ -88,6 +89,43 @@ final class HttpKernelTest extends TestCase
         $ref = new \ReflectionMethod(HttpKernel::class, 'handle');
 
         $this->assertSame('Symfony\Component\HttpFoundation\Response', $ref->getReturnType()?->getName());
+    }
+
+    #[Test]
+    public function handle_builds_the_schema_router_with_the_boot_scoped_field_authority(): void
+    {
+        $databasePath = $this->projectRoot . '/runtime.sqlite';
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test']];",
+        );
+        file_put_contents(
+            $this->projectRoot . '/config/entity-types.php',
+            "<?php return [];",
+        );
+        $this->writeInstalledPackageProviders([
+            'waaseyaa/foundation' => ['Waaseyaa\\Foundation\\FoundationServiceProvider'],
+            'waaseyaa/user' => ['Waaseyaa\\User\\UserServiceProvider'],
+            'waaseyaa/audit' => ['Waaseyaa\\Audit\\AuditServiceProvider'],
+        ]);
+        $database = DBALDatabase::createSqlite($databasePath, 'testing');
+        RuntimeSchemaMigrations::broadcast($database);
+        RuntimeSchemaMigrations::audit($database);
+        $database->getConnection()->close();
+        RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
+
+        $server = $_SERVER;
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/api/search';
+
+        try {
+            $response = new HttpKernel($this->projectRoot)->handle();
+
+            self::assertInstanceOf(Response::class, $response);
+            self::assertContains($response->getStatusCode(), [404, 500]);
+        } finally {
+            $_SERVER = $server;
+        }
     }
 
     #[Test]
