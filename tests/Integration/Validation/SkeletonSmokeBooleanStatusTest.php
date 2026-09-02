@@ -183,6 +183,7 @@ final class SkeletonSmokeBooleanStatusTest extends TestCase
             public function publicBoot(): void
             {
                 $this->bootDatabase();
+                $this->compileManifest();
                 $this->bootEntityTypeManager();
             }
 

@@ -295,6 +295,7 @@ final class KernelValidationWiringTest extends TestCase
             public function publicBoot(): void
             {
                 $this->bootDatabase();
+                $this->compileManifest();
                 $this->bootEntityTypeManager();
             }
 

@@ -164,6 +164,21 @@ final class AbstractKernelTest extends TestCase
     }
 
     #[Test]
+    public function entity_type_manager_composition_refuses_an_uncompiled_manifest(): void
+    {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
+            public function publicBootEntityTypeManager(): void
+            {
+                $this->bootEntityTypeManager();
+            }
+        };
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('before the package manifest is compiled');
+        $kernel->publicBootEntityTypeManager();
+    }
+
+    #[Test]
     public function production_runtime_schema_assertion_refuses_missing_sql_tables(): void
     {
         $kernel = new class ($this->projectRoot) extends AbstractKernel {
