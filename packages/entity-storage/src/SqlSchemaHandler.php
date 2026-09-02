@@ -22,6 +22,7 @@ use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldStorage;
+use Waaseyaa\Field\FieldStorageSchemaContext;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -1438,7 +1439,7 @@ final class SqlSchemaHandler
     private function deriveColumnSpec(FieldDefinitionInterface $field): array
     {
         return self::completeColumnSpec(
-            $this->fieldTypes->entityStorageColumnSchemaFor($field),
+            $this->fieldTypes->entityStorageColumnSchemaFor($field, FieldStorageSchemaContext::BaseTable),
             $field,
         );
     }
@@ -1460,7 +1461,7 @@ final class SqlSchemaHandler
         // registry to derive from; pass the boot-scoped registry explicitly
         // when a kernel-wired diff producer lands.
         $array = self::completeColumnSpec(
-            ($fieldTypes ?? FieldTypeManager::default())->entityStorageColumnSchemaFor($field),
+            ($fieldTypes ?? FieldTypeManager::default())->entityStorageColumnSchemaFor($field, FieldStorageSchemaContext::BaseTable),
             $field,
         );
 

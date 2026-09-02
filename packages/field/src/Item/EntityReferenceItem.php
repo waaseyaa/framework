@@ -24,8 +24,10 @@ final class EntityReferenceItem extends AbstractFieldType implements \Waaseyaa\F
         return \Waaseyaa\Field\FieldValueKind::EntityReference;
     }
 
-    public static function entityStorageColumnSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
-    {
+    public static function entityStorageColumnSchemaFor(
+        \Waaseyaa\Field\FieldDefinitionInterface $def,
+        ?\Waaseyaa\Field\FieldStorageSchemaContext $context = null,
+    ): array {
         return ['type' => 'varchar', 'length' => (int) ($def->getSetting('length') ?? 255)];
     }
 
