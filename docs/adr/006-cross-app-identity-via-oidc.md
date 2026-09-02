@@ -125,3 +125,28 @@ None for existing users (there are none yet at the cross-app layer). For the fra
 - **ADR-008 (future): `waaseyaa/events` package.** Lift Redis pub/sub from North Cloud into a reusable framework package with documented topic conventions.
 - **ADR-009 (future): `waaseyaa/tenant` package.** Realms/organizations for multi-tenant OIDC, if/when a concrete requirement emerges.
 - **Per-app `User` projection contract.** Minor spec documenting the `sub` → local `User` mapping rules that consumer apps implement on OIDC callback.
+
+## 10. Implementation status
+
+This ADR is preserved above as the historical decision record — the text in
+§1–§9 is not rewritten to match current code. The `waaseyaa/oidc` issuer
+package has since shipped (discovery, JWKS, authorization code with mandatory
+PKCE, token and refresh, userinfo, revocation, a consent screen, the signing-
+key lifecycle, and encrypted key/token custody), but four target-shape claims
+above no longer describe the implementation. Each was verified against the
+tree at commit `c674ee734`:
+
+| ADR claim | Section | Current code |
+|---|---|---|
+| `waaseyaa/oauth-provider` gains a `GenericOidcProvider` class (§5.3, and the consumer adoption pattern in §5.4/§7 step 4) | §5.3, §7 | Does not exist. `packages/oauth-provider/src/Provider/` contains only `GoogleOAuthProvider` and `GitHubOAuthProvider`. Consumer federation and JIT `User` projection remain unbuilt. |
+| The package tree includes `Http/` route controllers for, among others, `end_session` (RP-initiated logout) | §5.1 | No `end_session` controller exists. There is no route for it in `packages/routing/src/OidcHttpRoutes.php`, no `end_session` string anywhere in `packages/oidc/src`, and no `end_session_endpoint` in the discovery document. RP-initiated logout is explicitly deferred by the completion spec. |
+| `waaseyaa/oidc` "wraps `league/oauth2-server` plus a thin OIDC layer" (§1 item 1, §4 comparison table, §5.1) | §1, §4, §5.1 | No `League\OAuth2\*` type is imported anywhere in `packages/oidc/src`. The dependency is declared in `packages/oidc/composer.json` but unused; the grant, token, and userinfo paths are first-party. (`lcobucci/jwt`, named alongside it in §5.1, is likewise declared but unused — `Token\IdTokenMinter` assembles, signs, and verifies the ID token itself.) |
+| The package "enters the `replace` block at v0.1" of the root manifest (§7 step 1, §8) | §7, §8 | The root `composer.json` has no `replace` section. `waaseyaa/oidc` is declared under `require-dev` and is split-published to Packagist from `packages/oidc`, so a production `--no-dev` install of the framework metapackage does not pull it in. |
+
+None of these are protocol-behaviour changes; they are corrections to this
+record's target-shape description. For current, code-verified capability —
+including the capability matrix, HTTP route table, configuration keys, and
+secrets-at-rest custody model — see
+[`packages/oidc/README.md`](../../packages/oidc/README.md), which is the
+authority this ADR now defers to. `docs/upgrade-notes/oidc-secrets-at-rest.md`
+covers the `oidc:migrate-secrets` upgrade path.

@@ -16,7 +16,7 @@ use Waaseyaa\User\Middleware\CsrfMiddleware;
 /**
  * GET/POST /oidc/consent — consent screen for OIDC authorization.
  *
- * GET: render the consent screen (Twig template).
+ * GET: render the consent screen as inline HTML (heredoc, htmlspecialchars()-escaped).
  * POST: process Approve / Deny from the consent form.
  *
  * The pending authorization request is stored in session under
