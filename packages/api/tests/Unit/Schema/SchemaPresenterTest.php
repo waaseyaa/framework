@@ -283,6 +283,47 @@ final class SchemaPresenterTest extends TestCase
     }
 
     #[Test]
+    public function presentPreservesLegacyCompatibilityProjectionsAndWidgets(): void
+    {
+        $schema = $this->presenter->present($this->createEntityType(), [
+            'legacy_int' => ['type' => 'int'],
+            'legacy_bool' => ['type' => 'bool'],
+            'legacy_uri' => ['type' => 'uri'],
+            'legacy_timestamp' => ['type' => 'timestamp'],
+            'legacy_map' => ['type' => 'map'],
+            'legacy_list' => [
+                'type' => 'list_string',
+                'settings' => ['allowed_values' => ['draft' => 'Draft', 'published' => 'Published']],
+            ],
+        ]);
+
+        $properties = $schema['properties'];
+        self::assertSame('string', $properties['legacy_int']['type']);
+        self::assertSame('text', $properties['legacy_int']['x-widget']);
+        self::assertSame('string', $properties['legacy_bool']['type']);
+        self::assertSame('text', $properties['legacy_bool']['x-widget']);
+        self::assertSame(['type' => 'string', 'format' => 'uri'], [
+            'type' => $properties['legacy_uri']['type'],
+            'format' => $properties['legacy_uri']['format'],
+        ]);
+        self::assertSame('url', $properties['legacy_uri']['x-widget']);
+        self::assertSame(['type' => 'string', 'format' => 'date-time'], [
+            'type' => $properties['legacy_timestamp']['type'],
+            'format' => $properties['legacy_timestamp']['format'],
+        ]);
+        self::assertSame('datetime', $properties['legacy_timestamp']['x-widget']);
+        self::assertSame('string', $properties['legacy_map']['type']);
+        self::assertSame('text', $properties['legacy_map']['x-widget']);
+        self::assertSame('string', $properties['legacy_list']['type']);
+        self::assertSame('select', $properties['legacy_list']['x-widget']);
+        self::assertSame(['draft', 'published'], $properties['legacy_list']['enum']);
+        self::assertSame(
+            ['draft' => 'Draft', 'published' => 'Published'],
+            $properties['legacy_list']['x-enum-labels'],
+        );
+    }
+
+    #[Test]
     public function presentWithSelectFieldAndAllowedValues(): void
     {
         $entityType = $this->createEntityType();

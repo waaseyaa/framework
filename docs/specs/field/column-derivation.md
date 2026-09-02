@@ -25,6 +25,21 @@ Unknown plugin ids raise `UnknownFieldTypeException`. An ambiguous multi-column
 plugin without an explicit projection raises `LogicException`. Neither case
 logs and falls back to `text`; DDL is refused.
 
+### Temporary legacy compatibility
+
+The one-release compatibility window retains dedicated plugins for `int`,
+`bool`, `uri`, `timestamp`, `map`, and `list_string`. They are deliberately
+not blueprint vocabulary and do not alias a canonical plugin. Their entity
+value and GraphQL projections preserve the old public shapes; in particular,
+the timestamp's generic `jsonSchema()` remains a plain string while its
+entity-value schema is a date-time string. It accepts the existing Unix domain
+value, stores text, and is serialized as an ISO date-time string. `uri` is the
+only legacy id whose old physical shape differed by path: base-table derivation
+remains `varchar(2048)` by default (or the definition's `length` setting) while
+the former `ColumnSpecMap` primary/revision/translation paths remain `text`.
+Callers select that distinction through the explicit `FieldStorageSchemaContext`;
+no consumer may invent another context.
+
 ## `FieldStorage` interaction
 
 `FieldStorage::Data` vs `FieldStorage::Column` is decided **before** `deriveColumnSpec()` runs: fields marked **`Data`** are not materialized as bundle columns, so **no column spec** is built for them on that path. Registry admission nevertheless validates their entity-value schema; column-stored definitions validate both projections. See `docs/specs/bundle-scoped-storage.md` and `FieldStorage` in `packages/field/src/FieldStorage.php`.

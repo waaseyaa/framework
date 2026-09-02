@@ -9,6 +9,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Exception\StorageMigrationException;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldStorageSchemaContext;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldTypeManagerInterface;
 
@@ -354,7 +355,7 @@ final class RevisionTableBuilder
     private function columnSpecFor(FieldDefinition $field): array
     {
         $settings = $field->getSettings();
-        $spec = $this->fieldTypes->entityStorageColumnSchemaFor($field);
+        $spec = $this->fieldTypes->entityStorageColumnSchemaFor($field, FieldStorageSchemaContext::ColumnSpecMap);
         $spec['not null'] = (bool) ($settings['not_null'] ?? false);
 
         if (array_key_exists('default', $settings)) {

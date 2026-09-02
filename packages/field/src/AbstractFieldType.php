@@ -68,8 +68,10 @@ abstract class AbstractFieldType extends PluginBase implements FieldTypeInterfac
         return static::schema();
     }
 
-    public static function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array
-    {
+    public static function entityStorageColumnSchemaFor(
+        FieldDefinitionInterface $def,
+        ?FieldStorageSchemaContext $context = null,
+    ): array {
         $columns = static::schemaFor($def);
         if (isset($columns['value'])) {
             return $columns['value'];

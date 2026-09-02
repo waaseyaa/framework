@@ -24,8 +24,10 @@ final class LinkItem extends AbstractFieldType implements \Waaseyaa\Field\FieldV
         return \Waaseyaa\Field\FieldValueKind::String;
     }
 
-    public static function entityStorageColumnSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
-    {
+    public static function entityStorageColumnSchemaFor(
+        \Waaseyaa\Field\FieldDefinitionInterface $def,
+        ?\Waaseyaa\Field\FieldStorageSchemaContext $context = null,
+    ): array {
         return static::schema()['uri'];
     }
 

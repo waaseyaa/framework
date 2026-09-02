@@ -12,6 +12,7 @@ use Waaseyaa\EntityStorage\Backend\SqlColumnSchemaBuilder;
 use Waaseyaa\EntityStorage\CoordinatedEntitySchemaExecutor;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
+use Waaseyaa\Field\FieldStorageSchemaContext;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -428,7 +429,7 @@ final class TranslationSchemaHandler
     {
         $settings = $field->getSettings();
 
-        $spec = $this->fieldTypes->entityStorageColumnSchemaFor($field);
+        $spec = $this->fieldTypes->entityStorageColumnSchemaFor($field, FieldStorageSchemaContext::ColumnSpecMap);
         if (($spec['type'] ?? null) === 'varchar' && isset($settings['length'])) {
             $spec['length'] = (int) $settings['length'];
         }
