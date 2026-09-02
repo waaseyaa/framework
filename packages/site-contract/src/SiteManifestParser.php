@@ -6,16 +6,19 @@ namespace Waaseyaa\SiteContract;
 
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprintParser;
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprintValidator;
 use Waaseyaa\SiteContract\Capability\CapabilityDeclaration;
 use Waaseyaa\SiteContract\Capability\CapabilityState;
-use Waaseyaa\SiteContract\Exception\ManifestViolation;
-use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\Version\ManifestVersionDisposition;
 use Waaseyaa\SiteContract\Version\SiteManifestVersionPolicy;
 
 /** @api */
 final class SiteManifestParser
 {
+    use ManifestShapeReader;
+
     public function render(SiteManifest $manifest): string
     {
         $normalized = json_decode($manifest->canonicalJson, true, 512, JSON_THROW_ON_ERROR);
@@ -38,7 +41,7 @@ final class SiteManifestParser
 
         $root = $this->shape(
             $decoded,
-            ['schema', 'version', 'generator_version', 'application', 'framework', 'content_types', 'capabilities', 'personal_data_stores', 'recipes', 'verification'],
+            ['schema', 'version', 'generator_version', 'application', 'framework', 'content_types', 'capabilities', 'personal_data_stores', 'recipes', 'verification', 'application_blueprint'],
             ['schema', 'version', 'generator_version', 'application', 'framework', 'content_types', 'capabilities', 'personal_data_stores', 'recipes', 'verification'],
             '/',
             $source,
@@ -70,6 +73,14 @@ final class SiteManifestParser
             $this->fail($source, 'SITE014_INVALID_VALUE', '/verification/command', 'The provider-neutral verification command is fixed.');
         }
 
+        $applicationBlueprint = null;
+        $requiredGeneratorFeatures = [];
+        if (array_key_exists('application_blueprint', $root)) {
+            $applicationBlueprint = new ApplicationBlueprintParser()->parse($root['application_blueprint'], '/application_blueprint', $source);
+            new ApplicationBlueprintValidator()->validate($applicationBlueprint, array_keys($contentTypes), $source);
+            $requiredGeneratorFeatures = [ApplicationBlueprint::GENERATOR_FEATURE];
+        }
+
         $normalized = [
             'schema' => 'waaseyaa.site',
             'version' => $schemaVersion,
@@ -82,6 +93,9 @@ final class SiteManifestParser
             'recipes' => array_map(static fn(RecipeSelection $item): array => $item->toArray(), array_values($recipes)),
             'verification' => ['command' => $verificationCommand],
         ];
+        if ($applicationBlueprint !== null) {
+            $normalized['application_blueprint'] = $applicationBlueprint->toArray();
+        }
         $canonicalJson = CanonicalJson::encode($normalized);
 
         return new SiteManifest(
@@ -96,6 +110,8 @@ final class SiteManifestParser
             $verificationCommand,
             $canonicalJson,
             hash('sha256', $canonicalJson),
+            $applicationBlueprint,
+            $requiredGeneratorFeatures,
         );
     }
 
@@ -295,71 +311,6 @@ final class SiteManifestParser
         return $result;
     }
 
-    /**
-     * @param list<string> $allowed
-     * @param list<string> $required
-     * @return array<string, mixed>
-     */
-    private function shape(
-        mixed $value,
-        array $allowed,
-        array $required,
-        string $path,
-        string $source,
-        bool $rejectUnknown = true,
-    ): array {
-        if (!is_array($value) || (array_is_list($value) && $value !== [])) {
-            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a mapping.');
-        }
-
-        if ($rejectUnknown) {
-            $unknown = array_values(array_diff(array_keys($value), $allowed));
-            sort($unknown, SORT_STRING);
-            if ($unknown !== []) {
-                $unknownPath = ($path === '/' ? '' : $path) . '/' . $this->pointer($unknown[0]);
-                $this->fail($source, 'SITE001_UNKNOWN_KEY', $unknownPath, 'Unknown manifest key.');
-            }
-        }
-        foreach ($required as $key) {
-            if (!array_key_exists($key, $value)) {
-                $requiredPath = ($path === '/' ? '' : $path) . '/' . $this->pointer($key);
-                $this->fail($source, 'SITE011_REQUIRED_KEY', $requiredPath, 'Required manifest key is missing.');
-            }
-        }
-
-        return $value;
-    }
-
-    /** @return list<mixed> */
-    private function list(mixed $value, string $path, string $source, bool $allowEmpty = true): array
-    {
-        if (!is_array($value) || !array_is_list($value)) {
-            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a list.');
-        }
-        if (!$allowEmpty && $value === []) {
-            $this->fail($source, 'SITE012_EMPTY_VALUE', $path, 'At least one entry is required.');
-        }
-
-        return $value;
-    }
-
-    /** @return list<string> */
-    private function stringList(mixed $value, string $path, string $source, bool $allowEmpty = true): array
-    {
-        $rows = $this->list($value, $path, $source, $allowEmpty);
-        $seen = [];
-        foreach ($rows as $index => $row) {
-            $item = $this->string($row, $path . '/' . $index, $source);
-            if (isset($seen[$item])) {
-                $this->fail($source, 'SITE021_DUPLICATE_VALUE', $path . '/' . $index, 'List values must be unique.');
-            }
-            $seen[$item] = true;
-            $rows[$index] = $item;
-        }
-
-        return $rows;
-    }
-
     /** @return list<string> */
     private function routeList(mixed $value, string $path, string $source): array
     {
@@ -390,83 +341,5 @@ final class SiteManifestParser
         }
 
         return $route;
-    }
-
-    private function string(mixed $value, string $path, string $source): string
-    {
-        if (!is_string($value)) {
-            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected a string.');
-        }
-        if ($value === '' || trim($value) !== $value) {
-            $this->fail($source, 'SITE012_EMPTY_VALUE', $path, 'Expected a non-empty, trimmed string.');
-        }
-
-        return $value;
-    }
-
-    private function id(mixed $value, string $path, string $source): string
-    {
-        $id = $this->string($value, $path, $source);
-        if (preg_match('/^[a-z][a-z0-9_-]*$/D', $id) !== 1) {
-            $this->fail($source, 'SITE014_INVALID_VALUE', $path, 'Expected a stable lowercase identity.');
-        }
-
-        return $id;
-    }
-
-    private function integer(mixed $value, string $path, string $source): int
-    {
-        if (!is_int($value)) {
-            $this->fail($source, 'SITE010_INVALID_TYPE', $path, 'Expected an integer.');
-        }
-
-        return $value;
-    }
-
-    private function positiveInteger(mixed $value, string $path, string $source): int
-    {
-        $integer = $this->integer($value, $path, $source);
-        if ($integer < 1) {
-            $this->fail($source, 'SITE014_INVALID_VALUE', $path, 'Expected a positive integer.');
-        }
-
-        return $integer;
-    }
-
-    private function sha256(mixed $value, string $path, string $source): string
-    {
-        $digest = $this->string($value, $path, $source);
-        if (preg_match('/^[a-f0-9]{64}$/D', $digest) !== 1) {
-            $this->fail($source, 'SITE014_INVALID_VALUE', $path, 'Expected a lowercase SHA-256 digest.');
-        }
-
-        return $digest;
-    }
-
-    /** @param array<string, mixed> $items */
-    private function assertUniqueId(array $items, string $id, string $path, string $source): void
-    {
-        if (array_key_exists($id, $items)) {
-            $this->fail($source, 'SITE020_DUPLICATE_ID', $path, 'Identities must be unique within their collection.');
-        }
-    }
-
-    private function pointer(string|int $key): string
-    {
-        return str_replace(['~', '/'], ['~0', '~1'], (string) $key);
-    }
-
-    private function fail(
-        string $source,
-        string $code,
-        string $path,
-        string $message,
-        ?\Throwable $previous = null,
-    ): never {
-        throw new SiteManifestValidationException(
-            $source,
-            [new ManifestViolation($code, $path, $message)],
-            $previous,
-        );
     }
 }

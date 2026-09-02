@@ -65,6 +65,85 @@ final class SiteManifestParserTest extends TestCase
         self::assertSame([], $manifest->capabilities['governed_authoring']->publicRoutes);
     }
 
+    public function test_generator_features_are_empty_without_a_blueprint_section(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->validManifest());
+
+        self::assertNull($manifest->applicationBlueprint);
+        self::assertSame([], $manifest->requiredGeneratorFeatures);
+    }
+
+    public function test_generator_features_derive_from_blueprint_presence(): void
+    {
+        $withBlueprint = $this->validManifest() . "\n" . $this->minimalBlueprintSection();
+        $manifest = new SiteManifestParser()->parse($withBlueprint);
+
+        self::assertNotNull($manifest->applicationBlueprint);
+        self::assertSame(['site-application-blueprint-v1'], $manifest->requiredGeneratorFeatures);
+    }
+
+    #[DataProvider('forbiddenAuthorityKeyProvider')]
+    public function test_authority_bearing_keys_are_not_in_the_closed_blueprint_vocabulary(string $key): void
+    {
+        $withBlueprint = $this->validManifest() . "\n" . $this->minimalBlueprintSection();
+        $withForbiddenKey = str_replace(
+            "application_blueprint:\n  contract_version: 1",
+            "application_blueprint:\n  {$key}: proposed\n  contract_version: 1",
+            $withBlueprint,
+        );
+
+        try {
+            new SiteManifestParser()->parse($withForbiddenKey);
+            self::fail("Expected the authored '{$key}' key to be rejected as an unknown key.");
+        } catch (SiteManifestValidationException $exception) {
+            self::assertSame('SITE001_UNKNOWN_KEY', $exception->violations[0]->code);
+            self::assertSame("/application_blueprint/{$key}", $exception->violations[0]->path);
+        }
+    }
+
+    /**
+     * Authored proposal state cannot impersonate a valid attributable
+     * approval (ADR-023 D-3, "Put state: approved in site.yaml" rejected
+     * alternative). None of these keys are in any closed shape, so they all
+     * fail as unknown keys rather than being silently accepted as authority.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function forbiddenAuthorityKeyProvider(): iterable
+    {
+        foreach (['state', 'status', 'approved', 'applied', 'approval', 'decision', 'receipt', 'lifecycle'] as $key) {
+            yield $key => [$key];
+        }
+    }
+
+    private function minimalBlueprintSection(): string
+    {
+        return <<<'YAML'
+            application_blueprint:
+              contract_version: 1
+              entities:
+                - id: page
+                  label: Page
+                  storage: sql-blob
+                  revisionable: false
+                  translatable: false
+                  keys:
+                    id: id
+                    uuid: uuid
+                    label: title
+                  fields:
+                    - id: title
+                      type: string
+              relationships: []
+              permissions: []
+              roles: []
+              policies: []
+              workflows: []
+              fixtures: []
+              checks: []
+            YAML;
+    }
+
     public function test_version_policy_never_migrates_or_downgrades_implicitly(): void
     {
         $policy = new SiteManifestVersionPolicy();
