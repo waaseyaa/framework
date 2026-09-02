@@ -26,10 +26,15 @@ interface FieldTypeInterface extends PluginInspectionInterface
      *
      * Allows field-type plugins to vary their JSON Schema by field definition
      * (e.g. enum types reading `settings.enum_class`). Default implementation
-     * on AbstractFieldType preserves the framework's pre-existing per-type schema
-     * mapping so existing field types are unaffected.
+     * on AbstractFieldType delegates to the plugin's canonical jsonSchema().
      */
     public static function jsonSchemaFor(FieldDefinitionInterface $def): array;
+
+    /** Canonical schema for the value exposed on an entity authoring surface. */
+    public static function entityValueJsonSchemaFor(FieldDefinitionInterface $def): array;
+
+    /** Whether governed application blueprints may declare this type directly. */
+    public static function supportsBlueprint(): bool;
 
     /**
      * Per-definition storage column shape.

@@ -36,6 +36,11 @@ use Waaseyaa\Field\FieldDefinitionInterface;
 )]
 final class ClassificationLabelFieldType extends AbstractFieldType
 {
+    public static function supportsBlueprint(): bool
+    {
+        return false;
+    }
+
     // ---------------------------------------------------------------------------
     // FieldTypeInterface
     // ---------------------------------------------------------------------------

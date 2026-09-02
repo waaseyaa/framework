@@ -374,11 +374,11 @@ final class EntityWithFieldsTest extends TestCase
             $properties[$name] = $def->toJsonSchema();
         }
 
-        $this->assertSame(['type' => 'string'], $properties['label']);
+        $this->assertSame(['type' => 'string', 'maxLength' => 255], $properties['label']);
         $this->assertSame(['type' => 'number'], $properties['price']);
         $this->assertSame([
             'type' => 'array',
-            'items' => ['type' => 'string'],
+            'items' => ['type' => 'string', 'maxLength' => 255],
         ], $properties['tags']);
         $this->assertSame([
             'type' => 'object',

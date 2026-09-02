@@ -6,6 +6,7 @@ namespace Waaseyaa\Field;
 
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Field\Attribute\FieldType;
+use Waaseyaa\Field\Exception\UnknownFieldTypeException;
 use Waaseyaa\Plugin\DefaultPluginManager;
 use Waaseyaa\Plugin\Discovery\AttributeDiscovery;
 
@@ -21,6 +22,10 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
         array $directories = [],
         ?CacheBackendInterface $cache = null,
     ) {
+        if ($directories === []) {
+            $directories = [__DIR__];
+        }
+
         $discovery = new AttributeDiscovery(
             directories: $directories,
             attributeClass: FieldType::class,
@@ -66,11 +71,20 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
         $class = $this->resolveItemClass($def->getType());
 
         if ($class === null) {
-            // Unknown plugin: preserve legacy default emission.
-            return ['type' => 'string'];
+            throw UnknownFieldTypeException::for($def->getType());
         }
 
         return $class::jsonSchemaFor($def);
+    }
+
+    public function entityValueJsonSchemaFor(FieldDefinitionInterface $def): array
+    {
+        $class = $this->resolveItemClass($def->getType());
+        if ($class === null) {
+            throw UnknownFieldTypeException::for($def->getType());
+        }
+
+        return $class::entityValueJsonSchemaFor($def);
     }
 
     /**
@@ -84,7 +98,7 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
         $class = $this->resolveItemClass($def->getType());
 
         if ($class === null) {
-            return [];
+            throw UnknownFieldTypeException::for($def->getType());
         }
 
         return $class::schemaFor($def);
@@ -106,5 +120,19 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
         }
 
         return $class;
+    }
+
+    public function blueprintFieldTypeIds(): array
+    {
+        $ids = [];
+        foreach ($this->getDefinitions() as $id => $definition) {
+            $class = $definition->class;
+            if (is_subclass_of($class, FieldTypeInterface::class) && $class::supportsBlueprint()) {
+                $ids[] = $id;
+            }
+        }
+        sort($ids, SORT_STRING);
+
+        return $ids;
     }
 }

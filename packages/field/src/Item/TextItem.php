@@ -37,4 +37,9 @@ final class TextItem extends AbstractFieldType
             ],
         ];
     }
+
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => 'string'];
+    }
 }

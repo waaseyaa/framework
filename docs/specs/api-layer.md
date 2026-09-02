@@ -155,6 +155,7 @@ and execution timing remain unobservable.
 <!-- Spec reviewed 2026-07-18 - #2064 WP4 retains only bounded structural route templates and stable priority buckets as route-build optimizations. JsonApiRouteProvider keys templates by base path, exact entity-type exposure shape, and base/workflow mode, then clones every Route into a fresh WaaseyaaRouter. No request, account, entity, authorization decision, provider/service instance, runtime controller capture, or mutable RouteCollection is cached. WaaseyaaRouter preserves descending priority and registration-order ties while reading each priority once. -->
 
 <!-- Spec reviewed 2026-07-15 - #2050: SchemaPresenter maps authoritative field type date to JSON Schema string/format date/x-widget date and projects date settings min/max as x-min/x-max presentation bounds; timestamp/datetime and ordinary strings remain distinct. -->
+<!-- Spec reviewed 2026-09-01 - #2786: SchemaPresenter no longer owns a field-type-to-JSON-Schema table. It decorates FieldSchemaAuthority's closed entity-value schema with admin widgets and principal-bound access results; an access handler/account without the matching subject entity now fails closed. -->
 <!-- Spec reviewed 2026-07-15 - #2047: SchemaPresenter exposes its sorted registry-backed bundle roster to mounted generic admin callers; null means no registry, [] means registry present/no registered bundles. SchemaController rejects a non-empty explicit bundle outside that authoritative roster with 422 instead of silently returning the base schema. -->
 <!-- Spec reviewed 2026-07-14 - #2018 authoring spine: EntityValidationException is mapped to 422 on store(), plain update(), and expectation-stated update(); repository validation can no longer escape as an admin/API HTTP 500. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GraphQlRouter propagates GraphQlEndpoint's statusCode instead of forcing HTTP 200, so parse/auth/method failures reach clients as 400/401/405. withMutationOverrides() remains supported, but a custom update/delete resolver replaces the generated EntityResolver path and therefore owns the enduring not-found/access-denied collapse obligation; delegating to EntityResolver is the preferred way to preserve it. -->
@@ -1034,6 +1035,9 @@ The fix is a single shared class, `Waaseyaa\Api\Sanitizer\RichTextSanitizer` (`p
 
 - `ResourceSerializer::castAttributes()` sanitizes any attribute whose field type is in `RichTextSanitizer::HTML_FIELD_TYPES` (currently `['text_long']` only -- plain-text types like `string`/`text` are excluded, since they render as literal text and sanitizing them would corrupt legitimate content).
 - `EntityTypeBuilder::buildOutputFields()` (GraphQL, `packages/graphql/src/Schema/EntityTypeBuilder.php`) wraps the plain-field resolver for a `text_long` field with the same sanitizer, covering both queries and the create/update mutation response (both resolve through the same field resolver). Safe to share one stateless `RichTextSanitizer` instance across the R12 per-process schema cache, since it carries no per-request/account state.
+- GraphQL declares `text_long` as a `String`, matching the sanitized scalar returned by that resolver. Formatted `text` remains the distinct `{value, format}` object adapter.
+- GraphQL's `json` wire adapter remains a `String`, but its resolver JSON-encodes the native array/scalar values returned by storage before handing them to the GraphQL scalar.
+- GraphQL exposes `decimal` as `String`, preserving the framework's lossless decimal storage contract; only `float` maps to the GraphQL `Float` scalar.
 - `FieldAutoSaveController::update()` sanitizes the value it echoes back in its 200 response when the target field's type is `text_long`.
 
 All three classes take an optional `?RichTextSanitizer` constructor parameter (default: a fresh instance, resolved in the constructor body), so every existing call site (JSON:API routers, `GenericAdminSurfaceHost`, `SsrPageHandler`'s Markdown presenter, `SchemaFactory`) is covered without a wiring change, and a caller with a container-resolved instance can inject one explicitly instead.
@@ -1130,7 +1134,20 @@ System keys (id, uuid, label, bundle, langcode) are always shown as-is.
 
 ### Type and Widget Mappings
 
-Field type to JSON Schema type: `string->string`, `text->string`, `boolean->boolean`, `integer->integer`, `float->number`, `decimal->number`, `email->string`, `uri->string`, `date->string`, `timestamp->string`, `datetime->string`, `entity_reference->string`.
+Field JSON Schema shapes come from the registered field-type plugin through
+`FieldSchemaAuthority::fieldSchema()`. `SchemaPresenter` owns only admin
+decoration (`x-widget`, labels, weights, enum labels, bundle selection, and
+access hints); it has no structural type/format fallback. Unknown field types
+fail closed. The object schema is closed with `additionalProperties: false`.
+For a multi-value field, structural value constraints such as `enum`,
+`maxLength`, `minimum`, and `maximum` live on the array's `items` schema;
+admin-only labels remain decorations on the field property.
+
+When access context is supplied, all three values — prototype/subject entity,
+`EntityAccessHandler`, and account — are required. View-forbidden fields are
+removed before return and edit-forbidden fields are marked `readOnly` plus
+`x-access-restricted`. A partial context throws
+`PartialAccessContextException`; it never produces an unfiltered schema.
 
 Field type to widget: `string->text`, `text->textarea`, `text_long->richtext`, `boolean->boolean`, `integer->number`, `email->email`, `uri->url`, `date->date`, `timestamp->datetime`, `datetime->datetime`, `entity_reference->entity_autocomplete`, `list_string->select`.
 

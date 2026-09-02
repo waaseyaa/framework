@@ -64,6 +64,14 @@ final class FieldServiceProvider extends ServiceProvider
             FieldTypeManager::class,
             fn() => new FieldTypeManager(),
         );
+        $this->singleton(
+            FieldTypeManagerInterface::class,
+            fn() => $this->resolve(FieldTypeManager::class),
+        );
+        $this->singleton(
+            FieldSchemaAuthority::class,
+            fn() => new FieldSchemaAuthority($this->resolve(FieldTypeManagerInterface::class)),
+        );
 
         $this->singleton(
             BundleTemplateCompiler::class,
