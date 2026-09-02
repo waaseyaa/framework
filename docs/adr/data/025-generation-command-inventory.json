@@ -1,0 +1,276 @@
+{
+  "$schema": "waaseyaa.adr.generation-command-inventory",
+  "version": 1,
+  "adr": "025-unified-artifact-generation-authority",
+  "anchor_issue": 2845,
+  "as_of_commit": "4c00b3327",
+  "verification_method": "Every row was verified against packages/cli/src/Handler/*.php and packages/cli/src/Provider/*ServiceProvider*.php in this worktree, not assumed from an unverified pre-brief. writes_files / mutates_composer_json are grep-verified for file_put_contents/mkdir/composer.json call sites in the named class.",
+  "disposition_definitions": {
+    "keep": "No behavior or interface change required by this ADR. Command stays exactly as it is.",
+    "merge": "Writes application files today outside the transactional authority (SiteInitializationService). Must migrate onto the single typed artifact-plan contract this ADR establishes, in a follow-on issue, per the D-11 migration sequence. No behavior changes in THIS ADR.",
+    "out_of_scope": "Not a generation entrypoint in the artifact-plan sense (no application-file or composer.json writes of its own); governed by a different contract this ADR does not reopen.",
+    "planned": "Does not exist yet. Listed so its dependent issue is bound to this ADR's authority up front and cannot invent a competing one."
+  },
+  "entrypoints": [
+    {
+      "command": "make:entity",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeEntityHandler",
+      "file": "packages/cli/src/Handler/MakeEntityHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php (SymfonyCommandIO::write of a rendered stub; copy-paste workflow)",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($rendered)."
+    },
+    {
+      "command": "make:job",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeJobHandler",
+      "file": "packages/cli/src/Handler/MakeJobHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($rendered)."
+    },
+    {
+      "command": "make:listener",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeListenerHandler",
+      "file": "packages/cli/src/Handler/MakeListenerHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($rendered)."
+    },
+    {
+      "command": "make:policy",
+      "class": "Waaseyaa\\CLI\\Handler\\MakePolicyHandler",
+      "file": "packages/cli/src/Handler/MakePolicyHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($rendered)."
+    },
+    {
+      "command": "make:provider",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeProviderHandler",
+      "file": "packages/cli/src/Handler/MakeProviderHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($rendered)."
+    },
+    {
+      "command": "make:test",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeTestHandler",
+      "file": "packages/cli/src/Handler/MakeTestHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($rendered)."
+    },
+    {
+      "command": "make:entity-type",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeEntityTypeHandler",
+      "file": "packages/cli/src/Handler/MakeEntityTypeHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($template)."
+    },
+    {
+      "command": "make:plugin",
+      "class": "Waaseyaa\\CLI\\Handler\\MakePluginHandler",
+      "file": "packages/cli/src/Handler/MakePluginHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-php",
+      "disposition": "keep",
+      "why": "No side effects to govern. Verified: only call site is $io->write($template)."
+    },
+    {
+      "command": "make:content-type",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeContentTypeHandler",
+      "file": "packages/cli/src/Handler/MakeContentTypeHandler.php",
+      "writes_files": true,
+      "mutates_composer_json": true,
+      "output": "two PHP files (src/Entity/{Name}.php, src/Provider/{Name}ServiceProvider.php) + direct composer.json read-modify-write",
+      "disposition": "merge",
+      "why": "CRITICAL/exemplar case. writeFile() at lines 100-101 writes two files with its own is_dir()||mkdir() guard (no transaction, no journal). registerProvider() at lines 278-309 decodes composer.json, appends to extra.waaseyaa.providers in memory, and writes it back with no lock, no collision check against a concurrent editor, and no rollback if the two prior file writes already landed and this step fails. This is the entrypoint ADR D-8 forbids after migration and D-5 gives a typed registration-effect design for."
+    },
+    {
+      "command": "make:public",
+      "class": "Waaseyaa\\CLI\\Handler\\MakePublicHandler",
+      "file": "packages/cli/src/Handler/MakePublicHandler.php",
+      "writes_files": true,
+      "mutates_composer_json": false,
+      "output": "one PHP file (public/index.php from a template)",
+      "disposition": "merge",
+      "why": "Own is_dir()||mkdir() guard at line 25, own file_put_contents at line 50, no transaction/journal/collision-refusal beyond a simple existence check."
+    },
+    {
+      "command": "make:migration",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeMigrationHandler",
+      "file": "packages/cli/src/Handler/MakeMigrationHandler.php",
+      "writes_files": true,
+      "mutates_composer_json": false,
+      "output": "one PHP file (migrations/{Ymd_His}_{name}.php)",
+      "disposition": "merge",
+      "why": "Own mkdir()/file_put_contents() at lines 62-78 and 161-170 (base path and --add-translations path), no transaction/journal. Timestamp is chosen with date('Ymd_His') at call time -- D-5 requires the compiled plan to freeze this value once per compilation so dry-run and apply agree on the filename."
+    },
+    {
+      "command": "make:storage-migration",
+      "class": "Waaseyaa\\CLI\\Handler\\MakeStorageMigrationHandler",
+      "file": "packages/cli/src/Handler/MakeStorageMigrationHandler.php",
+      "writes_files": true,
+      "mutates_composer_json": false,
+      "output": "one PHP migration file, or stdout with --dry-run",
+      "disposition": "merge",
+      "why": "Own mkdir()/file_put_contents() at lines 112/142, no transaction/journal. Declares its own exit-code contract in its class docblock (0 success, 1 unknown entity type, 2 unsupported --target, 3 file exists, 4 unmapped field type) that predates and diverges from the general CLI 0/1/2 convention (docs/specs/cli-kernel.md lines 422-423, 488). D-6 preserves these exact codes through the compatibility window; they are not silently renumbered."
+    },
+    {
+      "command": "scaffold:bundle",
+      "class": "Waaseyaa\\CLI\\Handler\\BundleScaffoldHandler",
+      "file": "packages/cli/src/Handler/BundleScaffoldHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-json (bundle/field schema)",
+      "disposition": "keep",
+      "why": "Verified: only call site is $io->writeln(json_encode(...)). A blueprint-composition input, not a filesystem generator."
+    },
+    {
+      "command": "scaffold:relationship",
+      "class": "Waaseyaa\\CLI\\Handler\\RelationshipTypeScaffoldHandler",
+      "file": "packages/cli/src/Handler/RelationshipTypeScaffoldHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-json (relationship-type schema)",
+      "disposition": "keep",
+      "why": "Verified: only call site is $io->writeln(json_encode(...))."
+    },
+    {
+      "command": "scaffold:workflow",
+      "class": "Waaseyaa\\CLI\\Handler\\WorkflowScaffoldHandler",
+      "file": "packages/cli/src/Handler/WorkflowScaffoldHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-json (workflow schema)",
+      "disposition": "keep",
+      "why": "Verified: only call site is $io->writeln(json_encode(...))."
+    },
+    {
+      "command": "scaffold:extension",
+      "class": "Waaseyaa\\CLI\\Handler\\ExtensionScaffoldHandler",
+      "file": "packages/cli/src/Handler/ExtensionScaffoldHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-json (extension SDK template payload, including a composer.json TEMPLATE STRING for the consumer to save by hand)",
+      "disposition": "keep",
+      "why": "The composer.json text at line 64 is a rendered template value inside the JSON payload, never opened or written by this handler. Verified: only call site touching the filesystem is $io->writeln(json_encode(...))."
+    },
+    {
+      "command": "scaffold:auth",
+      "class": "Waaseyaa\\CLI\\Handler\\ScaffoldAuthHandler",
+      "file": "packages/cli/src/Handler/ScaffoldAuthHandler.php",
+      "writes_files": true,
+      "mutates_composer_json": false,
+      "output": "framework auth UI presentation files + a versioned scaffold manifest with per-file provenance digests (delegated to AuthUiScaffoldManager, packages/cli/src/Scaffold/AuthUiScaffoldManager.php)",
+      "disposition": "merge",
+      "why": "Has its own drift-tracking manifest and --check/--dry-run/--force/--accept-current modes (docs/specs/cli-kernel.md 2026-08-26 note), which is real governance -- but a second, independent one from SiteInitializationService's journal/collision/ownership model. Preserve --check as a standalone pre-plan verification surface (it is read-only and does not fit the apply lifecycle); route publishing through the single execution authority."
+    },
+    {
+      "command": "fixture:scaffold",
+      "class": "Waaseyaa\\CLI\\Handler\\FixtureScaffoldHandler",
+      "file": "packages/cli/src/Handler/FixtureScaffoldHandler.php",
+      "writes_files": "optional (-o writes an arbitrary path outside project generated-artifact ownership)",
+      "mutates_composer_json": false,
+      "output": "stdout-json (fixture scenario), or a file at a caller-chosen path with -o",
+      "disposition": "keep",
+      "why": "Deterministic JSON producer; the -o file write is a plain path the operator names, not a project-owned generated artifact under .waaseyaa/generated.json. A blueprint-composition input, not a filesystem generator in the site:init sense."
+    },
+    {
+      "command": "fixture:generate",
+      "class": "Waaseyaa\\CLI\\Handler\\FixtureGenerateHandler",
+      "file": "packages/cli/src/Handler/FixtureGenerateHandler.php",
+      "writes_files": "optional (-o, same shape as fixture:scaffold)",
+      "mutates_composer_json": false,
+      "output": "stdout-json (topology-derived fixture scenario), or a file with -o",
+      "disposition": "keep",
+      "why": "Same shape and rationale as fixture:scaffold."
+    },
+    {
+      "command": "fixture:pack:refresh",
+      "class": "Waaseyaa\\CLI\\Handler\\FixturePackRefreshHandler",
+      "file": "packages/cli/src/Handler/FixturePackRefreshHandler.php",
+      "writes_files": "optional (-o, same shape as fixture:scaffold)",
+      "mutates_composer_json": false,
+      "output": "stdout-json (aggregated fixture pack), or a file with -o",
+      "disposition": "keep",
+      "why": "Same shape and rationale as fixture:scaffold; reads existing scenario .json files, does not touch application source or composer.json."
+    },
+    {
+      "command": "site:init",
+      "class": "Waaseyaa\\CLI\\Handler\\SiteInitHandler",
+      "file": "packages/cli/src/Handler/SiteInitHandler.php",
+      "writes_files": true,
+      "mutates_composer_json": false,
+      "output": "the governed artifact set defined by docs/specs/site-golden-path.md, via SiteArtifactRendererFactory -> GeneratedSite -> SiteInitializationService::initialize()",
+      "disposition": "keep",
+      "why": "This is the incumbent transactional authority this ADR names as canonical (D-1/D-2). No interface or behavior change. It does not itself touch composer.json today; D-5's typed registration effect is new surface, not a change to this command."
+    },
+    {
+      "command": "site:doctor",
+      "class": "Waaseyaa\\CLI\\Handler\\SiteDoctorHandler",
+      "file": "packages/cli/src/Handler/SiteDoctorHandler.php",
+      "writes_files": false,
+      "mutates_composer_json": false,
+      "output": "stdout-text or stdout-json diagnostic report",
+      "disposition": "keep",
+      "why": "Read-only by governed invariant (docs/specs/site-golden-path.md \"Strict diagnostics\"; boot-free per #2644). No generation of any kind."
+    },
+    {
+      "command": "install:init",
+      "class": "Waaseyaa\\CLI\\Handler\\InstallInitHandler",
+      "file": "packages/cli/src/Handler/InstallInitHandler.php",
+      "writes_files": "database + config/sync directory only (mkdir at line 129); no application source, no composer.json",
+      "mutates_composer_json": false,
+      "output": "applied migrations, synced entity storage schema, activated configuration generation",
+      "disposition": "out_of_scope",
+      "why": "Materialization authority (migrations + schema:sync + config-generation activation), not a filesystem artifact generator -- docs/specs/site-golden-path.md names it as phase 3 of the fresh-project lifecycle, composed by #2664, and this ADR does not reopen it. It writes no application file and no composer.json."
+    },
+    {
+      "command": "project:init",
+      "class": null,
+      "file": null,
+      "writes_files": null,
+      "mutates_composer_json": null,
+      "output": null,
+      "disposition": "planned",
+      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-12 up front: composes site:init + install:init, invents no second transaction or ownership manifest."
+    },
+    {
+      "command": "project:init --upgrade",
+      "class": null,
+      "file": null,
+      "writes_files": null,
+      "mutates_composer_json": null,
+      "output": null,
+      "disposition": "planned",
+      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-12: versioned, idempotent, marker-bounded migrations through the same execution authority."
+    },
+    {
+      "command": "ai:update / ai:verify",
+      "class": null,
+      "file": null,
+      "writes_files": null,
+      "mutates_composer_json": null,
+      "output": null,
+      "disposition": "planned",
+      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-12: shares the one hash/version engine SiteInitializationService and .waaseyaa/generated.json already provide; invents no second one."
+    }
+  ]
+}
