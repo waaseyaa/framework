@@ -7,7 +7,7 @@
   "verification_method": "Every row was verified against packages/cli/src/Handler/*.php and packages/cli/src/Provider/*ServiceProvider*.php in this worktree, not assumed from an unverified pre-brief. writes_files / mutates_composer_json are grep-verified for file_put_contents/mkdir/composer.json call sites in the named class.",
   "disposition_definitions": {
     "keep": "No behavior or interface change required by this ADR. Command stays exactly as it is.",
-    "merge": "Writes application files today outside the transactional authority (SiteInitializationService). Must migrate onto the single typed artifact-plan contract this ADR establishes, in a follow-on issue, per the D-11 migration sequence. No behavior changes in THIS ADR.",
+    "merge": "Writes application files today outside the transactional authority (SiteInitializationService). Must migrate onto the single typed artifact-plan contract this ADR establishes, in a follow-on issue, per the D-12 migration sequence. No behavior changes in THIS ADR.",
     "out_of_scope": "Not a generation entrypoint in the artifact-plan sense (no application-file or composer.json writes of its own); governed by a different contract this ADR does not reopen.",
     "planned": "Does not exist yet. Listed so its dependent issue is bound to this ADR's authority up front and cannot invent a competing one."
   },
@@ -100,7 +100,7 @@
       "mutates_composer_json": true,
       "output": "two PHP files (src/Entity/{Name}.php, src/Provider/{Name}ServiceProvider.php) + direct composer.json read-modify-write",
       "disposition": "merge",
-      "why": "CRITICAL/exemplar case. writeFile() at lines 100-101 writes two files with its own is_dir()||mkdir() guard (no transaction, no journal). registerProvider() at lines 280-313 decodes composer.json, appends to extra.waaseyaa.providers in memory, and writes it back with no lock, no collision check against a concurrent editor, and no rollback if the two prior file writes already landed and this step fails. This is the entrypoint ADR D-8 forbids after migration and D-5 gives a typed registration-effect design for."
+      "why": "CRITICAL/exemplar case. writeFile() at lines 100-101 writes two files with its own is_dir()||mkdir() guard (no transaction, no journal). registerProvider() at lines 280-313 decodes composer.json, appends to extra.waaseyaa.providers in memory, and writes it back with no lock, no collision check against a concurrent editor, and no rollback if the two prior file writes already landed and this step fails. This is the entrypoint ADR D-9 forbids after migration and D-6 gives a typed registration-effect design for. After migration it publishes one seeded non-root generation unit (D-2) and requires an initialized site (D-7 rule 6)."
     },
     {
       "command": "make:public",
@@ -120,7 +120,7 @@
       "mutates_composer_json": false,
       "output": "one PHP file (migrations/{Ymd_His}_{name}.php)",
       "disposition": "merge",
-      "why": "Own mkdir()/file_put_contents() at lines 74/78 and 167/170 (base path and --add-translations path), no transaction/journal. Timestamp is chosen with date('Ymd_His') at call time -- D-5 requires the compiled plan to freeze this value once per compilation so dry-run and apply agree on the filename."
+      "why": "Own mkdir()/file_put_contents() at lines 74/78 and 167/170 (base path and --add-translations path), no transaction/journal. Timestamp is chosen with date('Ymd_His') at call time -- D-6.6 makes this value part of the compiler's validated input, frozen once per compilation and covered by the plan digest, so dry-run and the apply that executes that same plan agree on the filename."
     },
     {
       "command": "make:storage-migration",
@@ -130,7 +130,7 @@
       "mutates_composer_json": false,
       "output": "one PHP migration file, or stdout with --dry-run",
       "disposition": "merge",
-      "why": "Own mkdir()/file_put_contents() at lines 112/142, no transaction/journal. Declares its own exit-code contract in its class docblock (0 success, 1 unknown entity type, 2 unsupported --target, 3 file exists, 4 unmapped field type) that predates and diverges from the general CLI 0/1/2 convention (docs/specs/cli-kernel.md lines 422-423, 488). D-6 preserves these exact codes through the compatibility window; they are not silently renumbered."
+      "why": "Own mkdir()/file_put_contents() at lines 112/142, no transaction/journal. Declares its own exit-code contract in its class docblock (0 success, 1 unknown entity type, 2 unsupported --target, 3 file exists, 4 unmapped field type) that predates and diverges from the general CLI 0/1/2 convention (docs/specs/cli-kernel.md lines 422-423, 488). D-7 preserves these exact codes through the compatibility window; they are not silently renumbered."
     },
     {
       "command": "scaffold:bundle",
@@ -220,7 +220,7 @@
       "mutates_composer_json": false,
       "output": "the governed artifact set defined by docs/specs/site-golden-path.md, via SiteArtifactRendererFactory -> GeneratedSite -> SiteInitializationService::initialize()",
       "disposition": "keep",
-      "why": "This is the incumbent transactional authority this ADR names as canonical (D-1/D-2). No interface or behavior change. It does not itself touch composer.json today; D-5's typed registration effect is new surface, not a change to this command."
+      "why": "This is the incumbent transactional authority this ADR names as canonical (D-1/D-3), and the publisher of the root 'site' generation unit (D-2). No interface or behavior change. It does not itself touch composer.json today; D-6's typed registration effect is new surface, not a change to this command."
     },
     {
       "command": "site:doctor",
@@ -230,7 +230,7 @@
       "mutates_composer_json": false,
       "output": "stdout-text or stdout-json diagnostic report",
       "disposition": "keep",
-      "why": "Read-only by governed invariant (docs/specs/site-golden-path.md \"Strict diagnostics\"; boot-free per #2644). No generation of any kind."
+      "why": "Read-only by governed invariant (docs/specs/site-golden-path.md \"Strict diagnostics\"; boot-free per #2644). No generation of any kind. Its interface does not change; #2846 makes its generated-artifact findings unit-aware in the same slice as D-2 (ADR D-2.7), because a whole-document byte comparison would report drift on every project that has published a non-root generation unit."
     },
     {
       "command": "install:init",
@@ -250,7 +250,7 @@
       "mutates_composer_json": null,
       "output": null,
       "disposition": "planned",
-      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-12 up front: composes site:init + install:init, invents no second transaction or ownership manifest."
+      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-13 up front: composes site:init + install:init, invents no second transaction or ownership manifest."
     },
     {
       "command": "project:init --upgrade",
@@ -260,7 +260,7 @@
       "mutates_composer_json": null,
       "output": null,
       "disposition": "planned",
-      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-12: versioned, idempotent, marker-bounded migrations through the same execution authority."
+      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-13: versioned, idempotent, marker-bounded migrations through the same execution authority."
     },
     {
       "command": "ai:update / ai:verify",
@@ -270,7 +270,7 @@
       "mutates_composer_json": null,
       "output": null,
       "disposition": "planned",
-      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-12: shares the one hash/version engine SiteInitializationService and .waaseyaa/generated.json already provide; invents no second one."
+      "why": "Does not exist yet. #2664's outcome. Bound to this ADR's authority by D-13: shares the one hash/version engine SiteInitializationService and .waaseyaa/generated.json already provide; invents no second one."
     }
   ]
 }
