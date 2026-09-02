@@ -1,4 +1,4 @@
-# ADR-025 — client guidance and skill delivery conventions (#2660 open questions)
+# ADR-026 — client guidance and skill delivery conventions (#2660 open questions)
 
 - **Status:** Proposed. Unlike ADR-022/023, this ADR is **NOT accepted on
   merge**. It is a decision memo: it presents options, tradeoffs, and a

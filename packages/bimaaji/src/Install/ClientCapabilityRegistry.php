@@ -23,7 +23,7 @@ namespace Waaseyaa\Bimaaji\Install;
  * the #2660 decision memo's proposed conventions (e.g. Codex per-skill
  * `.agents/skills/`), because that mapping is gated on an undecided
  * maintainer question (open question (a) — see
- * `docs/adr/025-client-guidance-and-skill-conventions.md`).
+ * `docs/adr/026-client-guidance-and-skill-conventions.md`).
  *
  * @api
  */

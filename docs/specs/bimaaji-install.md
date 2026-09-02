@@ -320,7 +320,7 @@ aspirational target, and it intentionally does not encode the `.agents/skills/`-
 Codex layout, an unsupported-capability diagnostic, or a guidance/skill-body
 split for single-file clients. Those three remain maintainer-owned open
 questions; see
-[docs/adr/025-client-guidance-and-skill-conventions.md](../adr/025-client-guidance-and-skill-conventions.md)
+[docs/adr/026-client-guidance-and-skill-conventions.md](../adr/026-client-guidance-and-skill-conventions.md)
 for the options, tradeoffs, and recommendation on each, and #2660 for
 tracking.
 
