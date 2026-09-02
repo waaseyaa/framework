@@ -175,14 +175,16 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
         return $class::schemaFor($def);
     }
 
-    public function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array
-    {
+    public function entityStorageColumnSchemaFor(
+        FieldDefinitionInterface $def,
+        ?FieldStorageSchemaContext $context = null,
+    ): array {
         $class = $this->resolveItemClass($def->getType());
         if ($class === null) {
             throw UnknownFieldTypeException::for($def->getType());
         }
 
-        return $class::entityStorageColumnSchemaFor($def);
+        return $class::entityStorageColumnSchemaFor($def, $context);
     }
 
     /**

@@ -85,6 +85,14 @@ final class SchemaPresenter
      * @var array<string, string>
      */
     private const WIDGET_MAP = [
+        // Legacy ids remain readable for one compatibility window. Their
+        // plugins own structural/API projections; these entries preserve the
+        // base Admin metadata without making them blueprint vocabulary.
+        'int' => 'text',
+        'bool' => 'text',
+        'uri' => 'url',
+        'timestamp' => 'datetime',
+        'list_string' => 'select',
         'string' => 'text',
         'text' => 'textarea',
         'text_long' => 'richtext',

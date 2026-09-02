@@ -120,8 +120,8 @@ final class FieldDefinitionRegistryInvariantTest extends TestCase
     {
         $registry = new FieldDefinitionRegistry();
         $field = new FieldDefinition(
-            name: 'legacy_map',
-            type: 'map',
+            name: 'legacy_uuid',
+            type: 'uuid',
             targetEntityTypeId: 'sample_entity',
         );
 

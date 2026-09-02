@@ -9,6 +9,7 @@ use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
 use Waaseyaa\Field\FieldDefinitionInterface;
+use Waaseyaa\Field\FieldStorageSchemaContext;
 
 /**
  * Field type for entity classification labels.
@@ -137,8 +138,10 @@ final class ClassificationLabelFieldType extends AbstractFieldType implements \W
      *
      * @return array<string, mixed>
      */
-    public static function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array
-    {
+    public static function entityStorageColumnSchemaFor(
+        FieldDefinitionInterface $def,
+        ?FieldStorageSchemaContext $context = null,
+    ): array {
         return static::schemaFor($def)['classification_label'];
     }
 

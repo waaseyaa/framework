@@ -376,8 +376,10 @@ final class FieldTypeInferrerTest extends TestCase
     public function compatibilityGroupsExposesPrivateConstantVerbatim(): void
     {
         $expected = [
-            ['string', 'text', 'text_long', 'email', 'link', 'classification_label'],
-            ['integer', 'list'],
+            ['string', 'text', 'text_long', 'email', 'link', 'uri', 'list_string', 'classification_label'],
+            ['boolean', 'bool'],
+            ['integer', 'int', 'list'],
+            ['integer', 'int', 'timestamp'],
             ['float', 'decimal'],
             ['datetime', 'date'],
         ];

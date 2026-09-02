@@ -543,6 +543,7 @@ return [
     'Waaseyaa\Field\FieldReadDefinitionInterface' => 'public',
     'Waaseyaa\Field\FieldReadMetadataSource' => 'public',
     'Waaseyaa\Field\FieldStorage' => 'public',
+    'Waaseyaa\Field\FieldStorageSchemaContext' => 'public',
     'Waaseyaa\Field\FieldValueKind' => 'public',
     'Waaseyaa\Field\FieldValueKindProviderInterface' => 'public',
     'Waaseyaa\Field\FieldValueKindResolverInterface' => 'public',

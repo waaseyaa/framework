@@ -51,7 +51,13 @@ interface FieldTypeInterface extends PluginInspectionInterface
      * Canonical single-column schema used when an entity backend stores the
      * exposed field value directly under the field name.
      *
+     * The optional context is a bounded migration seam for historical paths
+     * whose physical shape differed; it must not be used as a second type map.
+     *
      * @return array<string, mixed>
      */
-    public static function entityStorageColumnSchemaFor(FieldDefinitionInterface $def): array;
+    public static function entityStorageColumnSchemaFor(
+        FieldDefinitionInterface $def,
+        ?FieldStorageSchemaContext $context = null,
+    ): array;
 }
