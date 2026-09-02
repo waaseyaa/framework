@@ -10,6 +10,8 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\SiteArtifactRendererFactory;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteManifestWizard;
+use Waaseyaa\CLI\Site\SitePreset;
+use Waaseyaa\CLI\Site\SitePresetResolver;
 use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
@@ -22,21 +24,33 @@ final readonly class SiteInitHandler
     {
         $projectRoot = trim((string) ($io->option('project-root') ?? $this->defaultProjectRoot));
         $answers = trim((string) ($io->option('answers') ?? ''));
+        $presetOption = trim((string) ($io->option('preset') ?? ''));
         $dryRun = (bool) $io->option('dry-run');
         $yes = (bool) $io->option('yes');
 
         try {
+            $preset = $presetOption === '' ? null : SitePreset::fromCliValue($presetOption);
+
             if ($answers !== '') {
                 $answerPath = $this->resolveAnswerPath($answers, $projectRoot);
                 if (!is_file($answerPath)) {
                     throw new \InvalidArgumentException("Answer document does not exist: {$answers}");
                 }
-                $yaml = file_get_contents($answerPath);
-                if ($yaml === false) {
+                $document = file_get_contents($answerPath);
+                if ($document === false) {
                     throw new \RuntimeException("Unable to read answer document: {$answers}");
                 }
+                $yaml = $preset === null
+                    ? $document
+                    : new SitePresetResolver()->resolveFromSeedDocument($preset, $document, $answers, $projectRoot);
             } elseif ($io->isInteractive()) {
-                $yaml = new SiteManifestWizard()->create($io, $projectRoot);
+                $yaml = $preset === null
+                    ? new SiteManifestWizard()->create($io, $projectRoot)
+                    : new SitePresetResolver()->resolveInteractively($preset, $io, $projectRoot);
+            } elseif ($preset !== null) {
+                $io->error('Non-interactive site:init with --preset requires a --answers seed document naming application identity and content types.');
+
+                return 2;
             } else {
                 $io->error('Non-interactive site:init requires a complete --answers document.');
 

@@ -1,5 +1,6 @@
 # Fresh-site golden path
 
+<!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. -->
 <!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
 
 ## Purpose
@@ -406,19 +407,54 @@ layer down, outside `site:init` entirely: `db:init` and
 `Waaseyaa\Media\LocalFileRepository` each create their own parent directory
 on first write.
 
-`minimal` and `editorial` — wherever a future `site:init` flow (#2442) names
-them as a shortcut between a plain, capability-declining site and a fuller
-one with governed visual authoring enabled — are **init-time presets, not a
-durable runtime profile flag**. The choice is made once, the way
-`SiteManifestWizard` already resolves every other product decision through
-one-time answers; nothing reads "which preset produced this site" after
-`site:init` has run. Correspondingly, what persists in the `waaseyaa.site`
-manifest is the **resolved decisions**, never a preset name: capability
-states, content types and routes, personal-data stores, and selected recipe
-digests, exactly as the Capability manifest section above already defines.
-`SiteManifestSchema` has no `preset`/`profile` field, and none is added by
-resolving a preset — a preset resolves to the same manifest shape any other
-init-time answer set does.
+### Init-time presets
+
+`site:init --preset=minimal|editorial` (#2442) is a shortcut between a plain,
+capability-declining site and a fuller one with governed visual authoring
+enabled. Per ADR-024 D-3/D-4, a preset is an **init-time preset, not a
+durable runtime profile flag**: `SitePresetResolver` resolves the choice once,
+the same moment `SiteManifestWizard` already resolves every other product
+decision through one-time answers, into an ordinary `waaseyaa.site` answer
+document that runs through the exact same `SiteManifestParser` →
+`SiteArtifactRendererFactory` → `SiteInitializationService` pipeline a
+hand-written `--answers` document does. Nothing reads "which preset produced
+this site" after `site:init` has run, because nothing is asked to: `--preset`
+never reaches `.waaseyaa/site.yaml` or `.waaseyaa/generated.json`.
+Correspondingly, what persists in the manifest is the **resolved decisions**,
+never a preset name: capability states, content types and routes,
+personal-data stores, and selected recipe digests, exactly as the Capability
+manifest section above already defines. `SiteManifestSchema` has no
+`preset`/`profile` field, and none is added by resolving one — a preset
+resolves to the same manifest shape any other init-time answer set does.
+
+Both presets start from the same published skeleton and package cohort, and
+neither publishes backend auth/security implementation code — a preset only
+selects among the existing recipes described under "Recipe contract" below,
+never generates code of its own:
+
+- `minimal` activates only the `published_content` capability/recipe;
+  `governed_authoring` and `subscription` both resolve `not_needed`, with the
+  exact reason text `SiteManifestWizard` records for the equivalent "no"
+  answer. This is the smaller preset — no `page-builder`, `admin-surface`, or
+  `publishing` package is required, and no page-builder or subscriber
+  artifact is generated.
+- `editorial` additionally activates `governed_authoring` — the existing
+  governed-authoring recipe under "Recipe contract" below, unchanged — which
+  reaches a usable authenticated authoring starting point (draft, preview,
+  revision history, restore, the shared Admin SPA/Anokii page-builder
+  surface) built entirely from that one recipe. `subscription` still resolves
+  `not_needed`: personal-data collection is an orthogonal decision a preset
+  does not make on an operator's behalf.
+
+Both `--answers` (a small identity/content-type seed document, not a complete
+manifest, when combined with `--preset`) and interactive mode (fewer
+questions — no governed-authoring or personal-data prompts, since the preset
+already answered them) resolve through `SitePresetResolver` before manifest
+parsing. Re-running `site:init` with the same preset and the same seed is
+byte-identical and reports the exact proposed diff before changing an
+already-initialized site, through the unchanged `SiteInitializationService`
+dry-run/collision/journal machinery this section already documents above —
+a preset introduces no second transaction, execution, or ownership authority.
 
 Existing applications are never migrated to the newer, smaller skeleton
 layout. No upgrade path — in particular `project:init --upgrade` (#2664) —

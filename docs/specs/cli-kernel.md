@@ -1,5 +1,13 @@
 # CLI Console
 
+<!-- Spec reviewed 2026-09-02 - #2442: `site:init` gains `--preset=minimal|editorial`,
+an init-time-only shortcut resolved once by `SitePresetResolver` into an
+ordinary `waaseyaa.site` answer document before the existing
+`SiteManifestParser` → `SiteArtifactRendererFactory` → `SiteInitializationService`
+pipeline runs; see "Site initialization" below and "Init-time presets" in
+site-golden-path.md. No preset name is persisted, and no second command path,
+transaction, or ownership authority is introduced. -->
+
 <!-- Spec reviewed 2026-09-02 - #2828: the OIDC sibling of #2826. `OidcServiceProvider`
 now implements `RequiresOptionalPackagesInterface` and gates `register()` and
 `consoleCommands()` on `waaseyaa/oidc` (sentinel `SigningKeyRepository`), so a
@@ -381,10 +389,10 @@ verification while being an invalid installation.
 
 ## Site initialization
 
-`SiteServiceProvider` registers `site:init [--answers=PATH] [--project-root=PATH]
-[--dry-run] [--yes]`. It runs on the boot-free command seam, alongside
-`site:doctor` and `db:init`, and composes the Layer-0 site-contract package.
-`SiteInitHandler` takes only a project root and
+`SiteServiceProvider` registers `site:init [--answers=PATH] [--preset=minimal|editorial]
+[--project-root=PATH] [--dry-run] [--yes]`. It runs on the boot-free command
+seam, alongside `site:doctor` and `db:init`, and composes the Layer-0
+site-contract package. `SiteInitHandler` takes only a project root and
 `SiteArtifactRendererFactory::create()` composes its recipes with `new`, so no
 container is required; routing it through restricted boot would open the
 database, and the site-contract phase runs before the framework has one (#2644).
@@ -393,6 +401,17 @@ requires a complete answer document and explicit `--yes`; `--dry-run` performs
 no writes. Publication is serialized by the project initialization lock and
 delegates collision refusal, durable journaling, rollback, crash recovery, and
 generated ownership to `SiteInitializationService`.
+
+`--preset` (#2442) is an init-time-only shortcut, resolved once by
+`SitePresetResolver` into an ordinary answer document before it ever reaches
+the pipeline above — see "Init-time presets" in
+[site-golden-path.md](site-golden-path.md) for the full contract. It adds no
+second command path: `--answers` still names a document (a small identity/
+content-type seed rather than a complete manifest, when `--preset` is also
+given), interactive mode still asks questions when neither is given, and the
+resolved YAML runs through the exact same `SiteManifestParser` →
+`SiteArtifactRendererFactory` → `SiteInitializationService` sequence as a
+hand-written answer document.
 
 Regeneration across a renderer change is carried by the manifest rebind, not by
 a migration engine: there is none, and `generator_version` is read from the
