@@ -1125,8 +1125,8 @@ two digits of the code it replaced, so an old log line is still findable:
 | `-31041` | `UNACCEPTABLE_ACCEPT` | `Accept` lacks a required media type | `-32041` |
 | `-31042` | `UNSUPPORTED_CONTENT_TYPE` | `Content-Type` is not `application/json` | `-32042` |
 | `-31043` | `REQUEST_TOO_LARGE` | Body over the transport size cap | `-32043` |
-| `-31029` | `RATE_LIMIT_EXCEEDED` | Request budget exhausted (`data.retry_after_seconds`) | `-32029` |
-| `-31030` | `RATE_LIMITER_UNAVAILABLE` | No durable limiter decision; fails closed | `-32030` |
+| `-31029` | `RATE_LIMIT_EXCEEDED` | Request budget exhausted (`data.retry_after_seconds`, mirrored onto a `Retry-After` HTTP header) | `-32029` |
+| `-31030` | `RATE_LIMITER_UNAVAILABLE` | No durable limiter decision; fails closed (no `Retry-After` -- retry semantics undefined for this refusal) | `-32030` |
 | `-31001` | `AUDIT_TRAIL_UNAVAILABLE` | Audit reservation not durable; refused pre-execution | `-32002` |
 | `-31002` | `APPROVAL_STORE_UNAVAILABLE` | Approval store unreachable; refused | `-32002` |
 

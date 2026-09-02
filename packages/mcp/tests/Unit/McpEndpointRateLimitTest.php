@@ -141,6 +141,7 @@ final class McpEndpointRateLimitTest extends TestCase
         $body = json_decode($limited->body, true);
         self::assertSame(McpErrorCode::RATE_LIMIT_EXCEEDED, $body['error']['code']);
         self::assertSame(60, $body['error']['data']['retry_after_seconds']);
+        self::assertSame('60', $limited->headers['Retry-After']);
     }
 
     #[Test]
@@ -215,5 +216,7 @@ final class McpEndpointRateLimitTest extends TestCase
         self::assertSame(503, $first->statusCode);
         self::assertSame(503, $second->statusCode);
         self::assertStringNotContainsString('limiter db down', $first->body);
+        self::assertArrayNotHasKey('Retry-After', $first->headers);
+        self::assertArrayNotHasKey('Retry-After', $second->headers);
     }
 }

@@ -75,10 +75,13 @@ final readonly class McpEndpoint
      *        is supplied and `$rateLimitMaxRequests > 0`. Keys are
      *        `mcp:<tier>:<principal id>`; exceeding the budget yields JSON-RPC
      *        error {@see McpErrorCode::RATE_LIMIT_EXCEEDED} with `retry_after_seconds`
-     *        (HTTP 429). The limiter is
+     *        (HTTP 429, mirrored onto a `Retry-After` response header so a
+     *        generic HTTP client backs off without parsing the JSON-RPC body).
+     *        The limiter is
      *        consulted only AFTER successful authentication (anonymous 401s never
      *        consume budget). A limiter that cannot make a durable decision
-     *        fails closed with a sanitized 503; requests are never admitted on
+     *        fails closed with a sanitized 503 (no `Retry-After` — that refusal's
+     *        retry semantics are undefined); requests are never admitted on
      *        an assumed budget.
      * @param ?\Waaseyaa\Foundation\Log\LoggerInterface $logger Destination for the detail
      *        of an unhandled tool exception, forwarded to the per-request bridge. The
@@ -376,6 +379,7 @@ final readonly class McpEndpoint
                         'id' => null,
                     ], \JSON_THROW_ON_ERROR),
                     statusCode: 429,
+                    headers: ['Retry-After' => (string) $this->rateLimitWindowSeconds],
                 );
             }
         }
