@@ -1,4 +1,4 @@
-<!-- Spec reviewed 2026-09-02 - #2786 phase 2A: FieldValueKind is the field-owned, transport-neutral presentation seam. GraphQL adapts declared kinds without a Layer-1 GraphQL dependency; absent declarations fail closed. Attribute-first custom-type admission remains a separately documented blocker. -->
+<!-- Spec reviewed 2026-09-02 - #2786 phase 2A: FieldValueKind is the field-owned, transport-neutral presentation seam. GraphQL adapts declared kinds without a Layer-1 GraphQL dependency; absent declarations fail closed. Attribute-first explicit custom-type admission uses the boot-scoped FieldTypeManager at registry admission; direct FieldTypeInferrer calls retain the closed scalar roster and PHPStan contract. -->
 <!-- Spec reviewed 2026-08-27 - #2544: `RevisionRestoreChangedFields::CREDENTIAL_KEYS` gains `legacy_pass`, so an imported credential pending upgrade is never restored by a revision rollback - same treatment as `pass`. -->
 <!-- Spec reviewed 2026-08-26 - #2562: EntityRepository::promotePublishedRevision() is the complete-promotion entry point used by ContentPublisher. It dispatches the same BeforeRevisionPointerMoveEvent as setPublishedRevision(), then applies default-revision semantics so the served base row is rewritten from the target revision. setPublishedRevision() remains pointer-only unless a subscriber sets the event flag. Storage still does not infer discipline from published_revision_id (Playbook H). -->
 <!-- Spec reviewed 2026-08-26 - #2562 review: EntityRepository::clearPublishedRevision() drops the published pointer and unpublished the served row without a BeforeRevisionPointerMoveEvent. loadRevision() hydrates revision `_data` without the live subtable overlay when the revision is not the base pointer. shouldCreateRevision() duck-checks isNewRevision() so trait-only ContentEntityBase types honor setNewRevision(true). Waaseyaa\Entity\RevisionId is the shared revision-id extractor. -->
@@ -289,13 +289,16 @@ capability is refused instead of being guessed from JSON Schema or silently
 treated as a string; existing direct `FieldTypeInterface` implementors remain
 source-compatible.
 
-Attribute-first entity metadata still validates explicit `#[Field(type: ...)]`
-values against `FieldTypeInferrer::VALID_TYPE_IDS`, the built-ins-only static
-roster. Consequently, manifest discovery alone does not yet let a downstream
-package declare a custom type on an attributed entity property. Closing that
-gap requires a separately reviewed runtime-aware admission seam (and matching
-PHPStan behavior); it must not weaken static checking by accepting arbitrary
-strings.
+Attribute-first entity metadata resolves explicit `#[Field(type: ...)]` values
+through a named internal path during boot. It does not consult the
+built-ins-only `FieldTypeInferrer::VALID_TYPE_IDS` roster at that stage. The
+resulting definition must still pass the shared `FieldDefinitionRegistry`
+admission boundary, which uses the kernel's boot-scoped `FieldTypeManager`
+composed from the compiled package manifest. An unknown downstream id therefore
+fails closed with entity and field context. Direct `FieldTypeInferrer::infer()`
+callers retain strict static validation and pure scalar inference; the runtime
+seam is not an arbitrary caller-controlled bypass and keeps PHPStan's closed
+static vocabulary sound.
 
 Entity field enumeration remains owned by
 `EntityTypeManagerInterface::resolveFieldDefinitions()`. The schema authority
@@ -308,10 +311,9 @@ proven equal at the root architecture boundary.
 Field definition registration is the shared admission boundary. Core and
 bundle fields must resolve both an entity-value schema and, for
 `FieldStorage::Column`, a canonical entity-storage column shape before they can
-enter the registry. Attribute inference's closed type roster is proven equal to
-the default live plugin registry, so an attribute cannot admit a declaration
-that later schema consumers reject. Storage schema handlers consume the same
-plugin authority; there is no second type map and no unknown-type fallback.
+enter the registry. Attribute inference, runtime registration, and downstream
+schema consumers therefore converge on the same boot-scoped plugin authority;
+there is no second type map and no unknown-type fallback.
 - Direct mutation of `$values` from outside the entity class is unsupported; subclasses that override `get`/`set` must preserve cast semantics or document exceptions.
 
 ### Rules for `toArray()`

@@ -72,6 +72,33 @@ final class FieldTypeInferrer
      */
     public static function infer(\ReflectionProperty $property, Field $attribute): array
     {
+        return self::inferInternal($property, $attribute, true);
+    }
+
+    /**
+     * Resolve an attribute during boot-time entity registration.
+     *
+     * Explicit ids are admitted by the boot-scoped FieldTypeManager when the
+     * resulting definition enters FieldDefinitionRegistry. This named
+     * internal seam keeps the public inferrer strict for direct callers and
+     * keeps PHPStan's closed static vocabulary sound.
+     *
+     * @internal
+     * @return array{type: string, required: bool, settings: array<string, mixed>}
+     */
+    public static function inferForRegisteredType(\ReflectionProperty $property, Field $attribute): array
+    {
+        return self::inferInternal($property, $attribute, false);
+    }
+
+    /**
+     * @return array{type: string, required: bool, settings: array<string, mixed>}
+     */
+    private static function inferInternal(
+        \ReflectionProperty $property,
+        Field $attribute,
+        bool $validateExplicitType,
+    ): array {
         $reflectionType = $property->getType();
         $isNullable = $reflectionType?->allowsNull() ?? false;
         $phpTypeName = self::resolvePhpTypeName($reflectionType);
@@ -84,7 +111,9 @@ final class FieldTypeInferrer
         }
 
         if ($attribute->type !== null) {
-            self::assertValidTypeId($attribute->type, $property);
+            if ($validateExplicitType) {
+                self::assertValidTypeId($attribute->type, $property);
+            }
 
             // AS-8 / C-004 hard cutover: explicit type='string' on a backed-enum
             // property is no longer supported. The legacy bridge ('string' +
@@ -96,7 +125,7 @@ final class FieldTypeInferrer
             }
 
             // If both inferred and explicit are present, require compatibility.
-            if ($inferredType !== null && !self::isCompatible($inferredType, $attribute->type)) {
+            if ($validateExplicitType && $inferredType !== null && !self::isCompatible($inferredType, $attribute->type)) {
                 throw self::conflictException($property, $phpTypeName ?? '(unknown)', $inferredType, $attribute->type);
             }
 

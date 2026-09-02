@@ -1,0 +1,24 @@
+{
+    "name": "fixture/custom-field",
+    "description": "Disposable downstream custom field-type consumer proof",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.5",
+        "waaseyaa/entity": "*",
+        "waaseyaa/field": "*",
+        "waaseyaa/foundation": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Fixture\\CustomField\\": "src/"
+        }
+    },
+    "extra": {
+        "waaseyaa": {
+            "providers": [
+                "Fixture\\CustomField\\CustomFieldServiceProvider"
+            ]
+        }
+    }
+}
