@@ -1576,6 +1576,48 @@ jobs:
       - name: Install bimaaji skills from installed package resources
         run: bash tests/PackagedForm/check-bimaaji-skill-resources
 
+  cli-health-report:
+    # #2820: `health:report` must run in a consumer application that adds no
+    # container bindings of its own. The command crashed in every such
+    # consumer ("Cannot auto-wire HealthReportHandler: unresolvable parameter
+    # $projectRoot") while the monorepo and the unit suite stayed green — and a
+    # first fix, proven only by a unit test over a fake kernel-services bus,
+    # shipped without changing that. This job builds a --no-dev consumer from
+    # the candidate tree with path repositories, requires only waaseyaa/core +
+    # waaseyaa/cli, strips the skeleton's application source so nothing but
+    # installed bytes can carry the binding, runs install:init, and executes
+    # `health:report`, `health:report --json` (stdout must parse as one JSON
+    # document naming the consumer's own project root), and
+    # `health:report --json --output`. The fast in-tree half runs inside
+    # ci/unit-tests as tests/Architecture/CliHealthReportGateTest.php and
+    # tests/Integration/OperatorDiagnostics/HealthReportCommandWiringTest.php.
+    # See tests/PackagedForm/check-cli-health-report.
+    name: ci/cli-health-report
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # Installs into a fresh mktemp consumer with its own dependency graph, so
+      # it cannot consume prepare-test-plan's vendor archive. Exact key only —
+      # no restore-keys — same rationale as the other consumer-shaped jobs.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Run health:report in a packaged-form consumer
+        run: bash tests/PackagedForm/check-cli-health-report
+
   split-artifact-acceptance:
     # #2649 (child of #2527). Release Gate 2 must prove that the EXACT candidate
     # SURVIVES PACKAGING, not merely that it boots. ci/fresh-install-boot builds

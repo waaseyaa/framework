@@ -19,11 +19,14 @@ use Waaseyaa\CLI\Handler\SchemaCheckHandler;
 use Waaseyaa\CLI\Handler\SchemaListHandler;
 use Waaseyaa\CLI\Handler\SchemaSyncHandler;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Migration\LegacyEntityDataPayloadUpgrader;
 use Waaseyaa\EntityStorage\Tenancy\CommunityTranslationPeerRepairer;
 use Waaseyaa\Field\Preflight\FieldAccessPreflightScanner;
+use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
@@ -50,6 +53,23 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
                 $manager,
                 new FieldAccessPreflightScanner(),
                 $this->projectRoot,
+            );
+        });
+        // Without this binding, a consumer application's `health:report` falls
+        // through to reflection-based auto-wiring, which cannot resolve the
+        // handler's plain `string $projectRoot` constructor parameter (#2820).
+        $this->singleton(HealthReportHandler::class, function (): HealthReportHandler {
+            $checker = $this->resolve(HealthCheckerInterface::class);
+            $authority = $this->resolve(ConfigurationAuthorityContext::class);
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            assert($checker instanceof HealthCheckerInterface);
+            assert($authority instanceof ConfigurationAuthorityContext);
+
+            return new HealthReportHandler(
+                $checker,
+                $this->projectRoot,
+                $authority,
+                $logger instanceof LoggerInterface ? $logger : null,
             );
         });
         $this->singleton(LegacyEntityDataPayloadUpgradeHandler::class, function (): LegacyEntityDataPayloadUpgradeHandler {

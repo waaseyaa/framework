@@ -71,3 +71,17 @@ landed; its fail-closed hatch fired as designed. Sixteen seeded negative
 controls run on every invocation and the run fails if any corruption goes
 undetected. It seals `HEAD` and refuses a dirty worktree unless
 `--allow-dirty` is passed; Composer 2.9+ is required.
+
+`check-cli-health-report` covers the consumer-DI boundary (#2820). It builds
+one disposable `--no-dev` consumer from the candidate tree with path
+repositories, requiring only `waaseyaa/core` + `waaseyaa/cli`, and strips the
+skeleton's `src/`, its PSR-4 root, and its `extra.waaseyaa.providers`
+declaration, so nothing but installed framework bytes can carry a container
+binding. After `install:init` it boots the real console runtime and executes
+`health:report`, `health:report --json` (stdout must parse as a single JSON
+document whose `system."Project Root"` is the consumer's own root — the value
+only the framework composition contract can have supplied), and
+`health:report --json --output FILE`. The exact defect string
+(`Cannot auto-wire … unresolvable parameter`) is rejected by name whatever the
+exit code. Like `check-cli-ai-commands-optional`, it archives `HEAD`, so it
+proves committed bytes, not the working tree.

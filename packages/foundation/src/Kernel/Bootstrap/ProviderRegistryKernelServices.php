@@ -21,6 +21,7 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
+use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Http\RequestContext;
@@ -55,6 +56,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
      * @var (\Closure(): ?EntityAccessHandler)|null
      */
     private readonly ?\Closure $accessHandlerAccessor;
+
+    /** @var (\Closure(): HealthCheckerInterface)|null */
+    private readonly ?\Closure $healthCheckerAccessor;
 
     /**
      * Memoized {@see GateInterface} adapter, rebuilt only when the resolved
@@ -98,13 +102,33 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         private readonly ?RequestContext $requestContext = null,
         private readonly ?CommunityContextInterface $communityContext = null,
         private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
+        /**
+         * Lazy accessor for the kernel-owned {@see HealthCheckerInterface}
+         * (#2820). The checker is composed from the kernel's boot diagnostic
+         * report, so only the kernel can build it — before this accessor a
+         * provider binding that depended on it (cli's `HealthReportHandler`)
+         * could only resolve through the handler container's kernel bindings,
+         * never through this bus, and fell through to reflection auto-wiring
+         * in every consumer application. Lazy because the report reflects
+         * the entity types registered by the time it is read. Null leaves
+         * `HealthCheckerInterface::class` unresolvable through this bus.
+         *
+         * @var (\Closure(): HealthCheckerInterface)|null
+         */
+        ?\Closure $healthCheckerAccessor = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
+        $this->healthCheckerAccessor = $healthCheckerAccessor;
     }
 
     public function get(string $abstract): ?object
     {
+        if ($abstract === HealthCheckerInterface::class) {
+            return $this->healthCheckerAccessor !== null
+                ? ($this->healthCheckerAccessor)()
+                : null;
+        }
         if ($abstract === ProviderCapabilitySource::class) {
             return $this->providerCapabilities ??= new ProviderCapabilitySource($this->providersAccessor);
         }

@@ -360,6 +360,27 @@
             "occurrence": 3
         },
         {
+            "path": "packages/cli/src/Provider/HealthSchemaServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "diagnostic-composition",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/cli/src/Provider/HealthSchemaServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "diagnostic-composition",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/cli/src/Provider/HealthSchemaServiceProvider.php",
+            "pattern": "authority_context",
+            "class": "diagnostic-composition",
+            "match_sha256": "baeee60dd095fffb7af069bfc22a2790809861ad65e090b44f60cd5fe2994269",
+            "occurrence": 3
+        },
+        {
             "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
             "pattern": "authority_context",
             "class": "command-adapter",

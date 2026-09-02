@@ -59,11 +59,84 @@ final class KernelHandlerContainerTest extends TestCase
         $this->assertSame(1, $callCount);
     }
 
+    /**
+     * #2820. A provider bound the handler, but its factory failed to resolve
+     * one of ITS dependencies. That surfaces as "No binding registered for
+     * <dependency>" — the same prefix an unbound id uses — so the container
+     * fell through to reflection auto-wiring and reported the constructor
+     * parameter reflection tripped over ("$projectRoot") instead of the
+     * dependency that actually broke. The dependency failure must now be
+     * chained and named.
+     */
+    #[Test]
+    public function auto_wire_failure_names_the_provider_factory_dependency_that_broke(): void
+    {
+        $handler = new class ('/srv/app') {
+            public function __construct(public readonly string $projectRoot) {}
+        };
+        $handlerClass = $handler::class;
+
+        $provider = new class ($handlerClass) extends ServiceProvider {
+            public function __construct(private readonly string $handlerClass) {}
+
+            public function register(): void {}
+
+            public function resolve(string $abstract): object
+            {
+                if ($abstract === $this->handlerClass) {
+                    // The factory ran and failed on a dependency the bus does
+                    // not serve — exactly ServiceProvider::resolve()'s signal.
+                    throw new \RuntimeException('No binding registered for Acme\Diagnostic\CheckerInterface.');
+                }
+
+                throw new \RuntimeException("No binding registered for {$abstract}.");
+            }
+        };
+
+        $container = new KernelHandlerContainer(providers: [$provider], kernelBindings: []);
+
+        try {
+            $container->get($handlerClass);
+            self::fail('Auto-wiring a string parameter must fail.');
+        } catch (NotFoundExceptionInterface $e) {
+            self::assertStringContainsString('unresolvable parameter "$projectRoot"', $e->getMessage());
+            self::assertStringContainsString(
+                'A provider binding exists but its factory failed first: No binding registered for Acme\Diagnostic\CheckerInterface.',
+                $e->getMessage(),
+            );
+            self::assertInstanceOf(\RuntimeException::class, $e->getPrevious());
+            self::assertSame('No binding registered for Acme\Diagnostic\CheckerInterface.', $e->getPrevious()->getMessage());
+        }
+    }
+
+    #[Test]
+    public function genuinely_unbound_id_reports_no_factory_failure(): void
+    {
+        $provider = new class extends ServiceProvider {
+            public function register(): void {}
+
+            public function resolve(string $abstract): object
+            {
+                throw new \RuntimeException("No binding registered for {$abstract}.");
+            }
+        };
+
+        $container = new KernelHandlerContainer(providers: [$provider], kernelBindings: []);
+
+        try {
+            $container->get('totally.unbound.id');
+            self::fail('An unbound non-class id must not resolve.');
+        } catch (NotFoundExceptionInterface $e) {
+            self::assertSame('No binding for "totally.unbound.id" in KernelHandlerContainer.', $e->getMessage());
+            self::assertNull($e->getPrevious());
+        }
+    }
+
     #[Test]
     public function resolves_provider_binding(): void
     {
         $sentinel = new \stdClass();
-        $provider = new class($sentinel) extends ServiceProvider {
+        $provider = new class ($sentinel) extends ServiceProvider {
             public function __construct(private readonly object $instance) {}
 
             public function register(): void {}
@@ -88,7 +161,7 @@ final class KernelHandlerContainerTest extends TestCase
         $kernelInstance = new \stdClass();
         $providerInstance = new \stdClass();
 
-        $provider = new class($providerInstance) extends ServiceProvider {
+        $provider = new class ($providerInstance) extends ServiceProvider {
             public function __construct(private readonly object $instance) {}
 
             public function register(): void {}

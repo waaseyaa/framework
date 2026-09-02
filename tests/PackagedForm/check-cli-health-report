@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+
+# `health:report` consumer proof (#2820).
+#
+# `HealthSchemaServiceProvider` published the `health:report` command but never
+# bound `HealthReportHandler` itself, so a normal consumer application — one
+# that `composer require`s `waaseyaa/core` and adds no application-local
+# container bindings or handler subclasses — fell through to reflection-based
+# auto-wiring, which cannot resolve the handler's plain `string $projectRoot`
+# constructor parameter:
+#
+#   Cannot auto-wire "Waaseyaa\CLI\Handler\HealthReportHandler":
+#   unresolvable parameter "$projectRoot"
+#
+# The monorepo never saw it: nothing in-tree forces resolution through that
+# fallback, and the unit proof for the binding
+# (packages/cli/tests/Unit/Provider/HealthSchemaServiceProviderTest.php)
+# necessarily hands the provider a kernel context by hand. This harness proves
+# the property the maintainer actually cares about, from installed bytes:
+#
+#   builds ONE disposable production consumer from the EXACT candidate tree
+#   using path repositories — no Packagist, no tag — installed `--no-dev` with
+#   `waaseyaa/core` + `waaseyaa/cli` only, runs `install:init` exactly as a
+#   deployment does, then boots the REAL console runtime and executes
+#
+#     health:report                       exit 0, human-readable sections
+#     health:report --json                exit 0, stdout parses as JSON
+#     health:report --json --output FILE  exit 0, the file parses as JSON
+#
+#   and asserts the report's `Project Root` is the consumer's own root — the
+#   value the binding must obtain from the framework composition contract
+#   (`ServiceProvider::$projectRoot`), since no application code supplies it.
+#
+# The consumer adds NOTHING of its own: no service provider, no `src/`, no
+# container binding. If the command only works because the application wired
+# something, this proof cannot pass.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-cli-health-report.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "$*" >&2
+    exit 1
+}
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+mkdir -p "$source_root"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+
+# ------------------------------------------------------------ build consumer
+mkdir -p "$consumer"
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+# The dev skeleton ships an `App\` PSR-4 root and a `src/` directory. A
+# consumer that could hide a fix inside application code is exactly what this
+# proof must NOT be, so strip both: the installed bytes alone must carry the
+# binding.
+rm -rf "$consumer/src" "$consumer/tests"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*"],
+        ["type" => "path", "url" => $argv[2]],
+    ];
+    unset($composer["require"]["waaseyaa/framework"]);
+    $composer["require"]["waaseyaa/core"] = "*";
+    $composer["require"]["waaseyaa/cli"] = "*";
+    $composer["minimum-stability"] = "dev";
+    $composer["prefer-stable"] = true;
+    // The skeleton also declares App\Provider\AppServiceProvider under
+    // extra.waaseyaa.providers; with src/ gone that would only log a
+    // "Provider class not found" warning, so drop the declaration too.
+    unset(
+        $composer["autoload"],
+        $composer["autoload-dev"],
+        $composer["require-dev"],
+        $composer["extra"]["merge-plugin"],
+        $composer["extra"]["waaseyaa"],
+        $composer["scripts"],
+    );
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/consumer.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$app_secret" "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" --no-dev \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    fail "composer install --no-dev failed for $consumer"
+fi
+
+if [[ -d "$consumer/src" ]]; then
+    fail 'The consumer must carry no application source directory; the proof would not be consumer-shaped.'
+fi
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install.out" 2>&1; then
+    cat "$work/install.out" >&2
+    fail 'install:init failed for the consumer.'
+fi
+grep -Fq 'Installation is complete.' "$work/install.out"
+
+# --------------------------------------------------------- reject auto-wire
+# Shared assertion: the exact #2820 defect string must never appear, whatever
+# the exit code — a handler that degraded to a non-zero exit with the same
+# message is the same bug.
+reject_autowire_failure() {
+    if grep -Fq 'Cannot auto-wire' "$1" || grep -Fq 'unresolvable parameter' "$1"; then
+        cat "$1" >&2
+        fail "health:report fell through to reflection auto-wiring in the consumer (#2820): $2"
+    fi
+}
+
+# ------------------------------------------------------- health:report (text)
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa health:report ) >"$work/report.txt.out" 2>&1; then
+    reject_autowire_failure "$work/report.txt.out" 'health:report'
+    cat "$work/report.txt.out" >&2
+    fail 'health:report must exit 0 on a freshly installed consumer.'
+fi
+reject_autowire_failure "$work/report.txt.out" 'health:report'
+for section in 'System Information' 'Health Checks' 'Project Root:' 'Configuration authority:'; do
+    if ! grep -Fq "$section" "$work/report.txt.out"; then
+        cat "$work/report.txt.out" >&2
+        fail "health:report output is missing the '$section' section."
+    fi
+done
+
+# ------------------------------------------------------- health:report --json
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa health:report --json ) >"$work/report.json.out" 2>"$work/report.json.err"; then
+    cat "$work/report.json.out" "$work/report.json.err" >&2
+    reject_autowire_failure "$work/report.json.err" 'health:report --json'
+    fail 'health:report --json must exit 0 on a freshly installed consumer.'
+fi
+reject_autowire_failure "$work/report.json.err" 'health:report --json'
+
+# validate_report <json-file> <consumer-root> <label>
+#
+# stdout must be the JSON document and nothing else: parse it strictly, then
+# pin the documented shape (docs/specs/operator-diagnostics.md "health:report")
+# and the one value only the composition contract can have supplied.
+validate_report() {
+    php -r '
+        [$file, $consumerRoot, $label] = array_slice($argv, 1);
+        $raw = (string) file_get_contents($file);
+        try {
+            $report = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            fwrite(STDERR, $raw . PHP_EOL);
+            fwrite(STDERR, sprintf("%s did not emit a single JSON document: %s%s", $label, $e->getMessage(), PHP_EOL));
+            exit(1);
+        }
+        $problems = [];
+        if (!is_array($report)) {
+            $problems[] = "the report is not a JSON object";
+        }
+        foreach (["generated_at", "system", "health_checks", "ingestion_summary"] as $key) {
+            if (!is_array($report) || !array_key_exists($key, $report)) {
+                $problems[] = sprintf("missing top-level key \"%s\"", $key);
+            }
+        }
+        if ($problems === []) {
+            $system = $report["system"];
+            if (!is_array($system) || !isset($system["Project Root"])) {
+                $problems[] = "system.\"Project Root\" is missing";
+            } elseif (realpath((string) $system["Project Root"]) !== realpath($consumerRoot)) {
+                $problems[] = sprintf(
+                    "system.\"Project Root\" is %s, expected the consumer root %s — the handler did not receive the consumer\x27s project root from the composition contract",
+                    var_export($system["Project Root"], true),
+                    $consumerRoot,
+                );
+            }
+            $checks = $report["health_checks"];
+            if (!is_array($checks) || $checks === []) {
+                $problems[] = "health_checks is empty";
+            } else {
+                $names = [];
+                foreach ($checks as $check) {
+                    if (!is_array($check) || !isset($check["name"], $check["status"])) {
+                        $problems[] = "a health check entry lacks name/status";
+                        continue;
+                    }
+                    $names[$check["name"]] = $check["status"];
+                }
+                if (($names["Configuration authority"] ?? null) !== "pass") {
+                    $problems[] = sprintf(
+                        "the \"Configuration authority\" check must pass on a freshly initialized consumer, got %s",
+                        var_export($names["Configuration authority"] ?? null, true),
+                    );
+                }
+                if (!array_key_exists("Database", $names)) {
+                    $problems[] = "the \"Database\" health check is missing";
+                }
+            }
+        }
+        if ($problems !== []) {
+            fwrite(STDERR, $raw . PHP_EOL);
+            foreach ($problems as $problem) {
+                fwrite(STDERR, sprintf("%s: %s%s", $label, $problem, PHP_EOL));
+            }
+            exit(1);
+        }
+    ' "$1" "$2" "$3"
+}
+
+validate_report "$work/report.json.out" "$consumer" 'health:report --json'
+
+# ---------------------------------------------- health:report --json --output
+report_file="$work/health-report.json"
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa health:report --json --output "$report_file" ) >"$work/report.file.out" 2>&1; then
+    cat "$work/report.file.out" >&2
+    reject_autowire_failure "$work/report.file.out" 'health:report --json --output'
+    fail 'health:report --json --output must exit 0 on a freshly installed consumer.'
+fi
+reject_autowire_failure "$work/report.file.out" 'health:report --json --output'
+if [[ ! -s "$report_file" ]]; then
+    cat "$work/report.file.out" >&2
+    fail "health:report --json --output did not write $report_file."
+fi
+grep -Fq "Report written to $report_file" "$work/report.file.out"
+validate_report "$report_file" "$consumer" 'health:report --json --output'
+
+printf 'health:report consumer proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"
