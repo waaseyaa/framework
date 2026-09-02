@@ -1,0 +1,77 @@
+schema: waaseyaa.site
+version: 1
+generator_version: 1
+application:
+  name: Minimal Blueprint Application
+  id: minimal-blueprint
+  canonical_origin:
+    config_key: APP_ORIGIN
+framework:
+  revision_policy: exact-lock
+  observed_lock_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+content_types:
+  - id: article
+    canonical_route: /articles/{slug}
+  - id: person
+    canonical_route: /people/{slug}
+capabilities:
+  - id: payments
+    state: not_needed
+    reason: Payments are outside this application.
+personal_data_stores: []
+recipes: []
+verification:
+  command: bin/maintenance/site-verify
+application_blueprint:
+  contract_version: 1
+  entities:
+    - id: article
+      label: Article
+      storage: sql-blob
+      revisionable: false
+      translatable: false
+      keys:
+        id: id
+        uuid: uuid
+        label: title
+        owner: author
+      fields:
+        - id: title
+          type: string
+          required: true
+        - id: status
+          type: enum
+          values: [draft, final]
+    - id: person
+      label: Person
+      storage: sql-blob
+      revisionable: false
+      translatable: false
+      keys:
+        id: id
+        uuid: uuid
+        label: name
+      fields:
+        - id: name
+          type: string
+          required: true
+  relationships:
+    - id: article_author
+      from: { entity: article, field: author }
+      to: { entity: person }
+      required: true
+  permissions: []
+  roles: []
+  policies: []
+  workflows: []
+  fixtures:
+    - id: jane
+      entity: person
+      values:
+        name: Jane
+    - id: welcome
+      entity: article
+      values:
+        title: 5
+        author: jane
+  checks: []

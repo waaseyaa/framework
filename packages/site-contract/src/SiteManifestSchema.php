@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SiteContract;
 
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprintSchema;
+
 /** @api */
 final class SiteManifestSchema
 {
@@ -111,8 +113,9 @@ final class SiteManifestSchema
                     'required' => ['command'],
                     'properties' => ['command' => ['const' => 'bin/maintenance/site-verify']],
                 ],
+                'application_blueprint' => ['$ref' => '#/$defs/applicationBlueprint'],
             ],
-            '$defs' => [
+            '$defs' => self::blueprintDefs() + [
                 'sha256' => ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$'],
                 'activeCapability' => [
                     'type' => 'object',
@@ -149,5 +152,24 @@ final class SiteManifestSchema
     public static function canonicalJson(): string
     {
         return CanonicalJson::encode(self::document());
+    }
+
+    /**
+     * The blueprint fragment's own `$defs` extracted and merged into this
+     * document's root `$defs`, plus an `applicationBlueprint` entry holding
+     * everything else. JSON Schema `$ref` resolves `#/$defs/...` against the
+     * document root, not the referencing subschema, so a nested `$defs` under
+     * `applicationBlueprint` would be unreachable from the fragment's own
+     * internal `$ref`s.
+     *
+     * @return array<string, mixed>
+     */
+    private static function blueprintDefs(): array
+    {
+        $fragment = ApplicationBlueprintSchema::fragment();
+        $nested = $fragment['$defs'];
+        unset($fragment['$defs']);
+
+        return $nested + ['applicationBlueprint' => $fragment];
     }
 }

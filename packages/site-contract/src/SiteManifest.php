@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SiteContract;
 
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Capability\CapabilityDeclaration;
 
 /** @api */
@@ -14,6 +15,9 @@ final readonly class SiteManifest
      * @param array<string, CapabilityDeclaration> $capabilities
      * @param array<string, PersonalDataStore> $personalDataStores
      * @param array<string, RecipeSelection> $recipes
+     * @param list<string> $requiredGeneratorFeatures runtime-negotiation feature tokens
+     *   derived from optional manifest sections (ADR-023 D-2) — disjoint from
+     *   authored `capabilities` and never itself authored.
      */
     public function __construct(
         public int $schemaVersion,
@@ -27,5 +31,7 @@ final readonly class SiteManifest
         public string $verificationCommand,
         public string $canonicalJson,
         public string $digest,
+        public ?ApplicationBlueprint $applicationBlueprint = null,
+        public array $requiredGeneratorFeatures = [],
     ) {}
 }

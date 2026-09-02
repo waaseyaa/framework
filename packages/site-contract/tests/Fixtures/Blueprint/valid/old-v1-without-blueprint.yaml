@@ -1,0 +1,58 @@
+schema: waaseyaa.site
+version: 1
+generator_version: 1
+application:
+  name: Sheguiandah First Nation
+  id: sheguiandah-first-nation
+  canonical_origin:
+    config_key: APP_ORIGIN
+framework:
+  revision_policy: exact-lock
+  observed_lock_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+content_types:
+  - id: page
+    canonical_route: /{slug}
+  - id: post
+    canonical_route: /news/{slug}
+  - id: community_event
+    canonical_route: /events/{slug}
+  - id: job_posting
+    canonical_route: /employment/{slug}
+  - id: announcement
+    canonical_route: /announcements/{slug}
+capabilities:
+  - id: governed_authoring
+    state: active
+    package: waaseyaa/page-builder
+    provider: site.page_builder
+    configuration_authority: .waaseyaa/site.yaml#/capabilities/governed_authoring
+    public_routes:
+      - /page-builder-preview/{id}
+    data_classification: public
+    lifecycle:
+      - create
+      - revise
+      - publish
+      - archive
+    verification:
+      - tests/Acceptance/GovernedAuthoringTest.php
+  - id: oidc
+    state: planned
+    note: Activate only after key-custody readiness.
+  - id: payments
+    state: not_needed
+    reason: Payments are outside this application.
+personal_data_stores:
+  - id: subscriber
+    classification: personal
+    consent_operation: subscriber:consent
+    retention: P2Y
+    export_operation: subscriber:export
+    deletion_operation: subscriber:delete
+recipes:
+  - id: governed_authoring
+    version: 1
+    capability: governed_authoring
+    artifact_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+verification:
+  command: bin/maintenance/site-verify

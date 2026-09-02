@@ -58,6 +58,13 @@ core/.phpstan-baseline.php text eol=lf whitespace=blank-at-eol,-blank-at-eof,-sp
 *.stderr  text eol=lf -whitespace
 *.exit    text eol=lf -whitespace
 
+# #2785: the application_blueprint fixture corpus and its .expect assertion
+# files must be byte-stable across Windows and Linux checkouts — the CRLF
+# stability proof in ApplicationBlueprintContractTest converts LF fixture
+# bytes to CRLF in memory and asserts identical parsing, which is only a
+# meaningful proof if the fixture ON DISK is reliably LF to begin with.
+packages/site-contract/tests/Fixtures/** text eol=lf
+
 # Define binary file attributes.
 # - Do not treat them as text.
 # - Include binary diff in patches instead of "binary files differ."

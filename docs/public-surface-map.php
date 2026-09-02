@@ -241,6 +241,20 @@ return [
     'Waaseyaa\SiteContract\Doctor\FindingSeverity' => 'public',
     'Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface' => 'public',
     'Waaseyaa\SiteContract\Version\ManifestVersionDisposition' => 'public',
+    // Governed application blueprints (#2785, ADR-023). Closed vocabularies
+    // for the optional application_blueprint section, serialized the same
+    // way the rest of the manifest contract is.
+    'Waaseyaa\SiteContract\Blueprint\BlueprintCheckKind' => 'public',
+    'Waaseyaa\SiteContract\Blueprint\BlueprintConditionKind' => 'public',
+    'Waaseyaa\SiteContract\Blueprint\BlueprintDecision' => 'public',
+    'Waaseyaa\SiteContract\Blueprint\BlueprintFieldType' => 'public',
+    'Waaseyaa\SiteContract\Blueprint\BlueprintLifecycle' => 'public',
+    'Waaseyaa\SiteContract\Blueprint\BlueprintOnDelete' => 'public',
+    'Waaseyaa\SiteContract\Blueprint\BlueprintOperation' => 'public',
+    'Waaseyaa\SiteContract\Blueprint\BlueprintStorage' => 'public',
+    // Internal shared parsing helper, not an extension point — invoked only
+    // by the package's own structural parsers.
+    'Waaseyaa\SiteContract\ManifestShapeReader' => 'internal',
 
     // Layer 1: Core Data — public
     // Deprecated compatibility helpers. New tests use the typed fixtures below.

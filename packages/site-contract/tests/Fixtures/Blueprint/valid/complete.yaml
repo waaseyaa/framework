@@ -1,0 +1,127 @@
+schema: waaseyaa.site
+version: 1
+generator_version: 1
+application:
+  name: Complete Blueprint Application
+  id: complete-blueprint
+  canonical_origin:
+    config_key: APP_ORIGIN
+framework:
+  revision_policy: exact-lock
+  observed_lock_sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+content_types:
+  - id: article
+    canonical_route: /articles/{slug}
+  - id: person
+    canonical_route: /people/{slug}
+capabilities:
+  - id: payments
+    state: not_needed
+    reason: Payments are outside this application.
+personal_data_stores: []
+recipes: []
+verification:
+  command: bin/maintenance/site-verify
+application_blueprint:
+  contract_version: 1
+  entities:
+    - id: article
+      label: Article
+      storage: sql-column
+      revisionable: true
+      translatable: false
+      keys:
+        id: id
+        uuid: uuid
+        label: title
+        revision: vid
+        owner: author
+      fields:
+        - id: title
+          type: string
+          required: true
+          indexed: true
+        - id: status
+          type: enum
+          values: [draft, final]
+    - id: person
+      label: Person
+      storage: sql-blob
+      revisionable: false
+      translatable: false
+      keys:
+        id: id
+        uuid: uuid
+        label: name
+      fields:
+        - id: name
+          type: string
+          required: true
+  relationships:
+    - id: article_author
+      from: { entity: article, field: author }
+      to: { entity: person }
+      required: true
+      on_delete: nullify
+  permissions:
+    - id: edit article
+      title: Edit articles
+    - id: view article
+      title: View articles
+    - id: use editorial transition publish
+      title: Publish articles
+  roles:
+    - id: editor
+      label: Editor
+      permissions: [edit article, use editorial transition publish]
+    - id: viewer
+      label: Viewer
+      permissions: [view article]
+  policies:
+    - id: article_view
+      entity: article
+      operation: view
+      condition:
+        kind: permission
+        permission: view article
+    - id: article_update_own
+      entity: article
+      operation: update
+      condition:
+        kind: ownership
+        permission: edit article
+    - id: article_publish_state
+      entity: article
+      operation: update
+      condition:
+        kind: workflow_state
+        permission: use editorial transition publish
+        states: [draft]
+  workflows:
+    - id: editorial
+      label: Editorial
+      initial_state: draft
+      states:
+        - { id: draft, label: Draft, published: false }
+        - { id: published, label: Published, published: true }
+      transitions:
+        - { id: publish, label: Publish, from: [draft], to: published, permission: use editorial transition publish }
+      bindings:
+        - { entity: article }
+  fixtures:
+    - id: jane
+      entity: person
+      values:
+        name: Jane
+    - id: welcome
+      entity: article
+      values:
+        title: Welcome
+        status: draft
+        author: jane
+      workflow_state: draft
+  checks:
+    - { id: editor_publishes, kind: role_permission, role: editor, permission: use editorial transition publish, expect: granted }
+    - { id: viewer_cannot_publish, kind: workflow_transition, role: viewer, workflow: editorial, transition: publish, expect: denied }
+    - { id: anon_cannot_update, kind: entity_access, role: viewer, entity: article, operation: update, fixture: welcome, expect: deny }
+    - { id: welcome_exists, kind: fixture_present, fixture: welcome }
