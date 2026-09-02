@@ -58,7 +58,12 @@ final class ComposerProvenanceReporter
         }
 
         $packages = [];
-        $pathHeads = [];
+        /** @var array<string, null|string> $headByCheckout checkout root => HEAD sha or null (one git call per checkout) */
+        $headByCheckout = [];
+        /** @var array<string, string> $resolvedCheckouts checkout root => HEAD sha, for every root that bound; keyed by ROOT so two clones at one SHA stay distinct */
+        $resolvedCheckouts = [];
+        /** @var array<string, true> $unresolved distinct reasons a path install could not be bound to a Git HEAD */
+        $unresolved = [];
         $hasPath = false;
         $hasDist = false;
 
@@ -81,16 +86,29 @@ final class ComposerProvenanceReporter
 
                 $sourceKind = 'unknown';
                 $resolvedPath = null;
+                $checkoutRoot = null;
                 $gitHead = null;
 
                 if ($distType === 'path' && $distUrl !== '') {
                     $hasPath = true;
                     $sourceKind = 'path';
                     $resolvedPath = $this->resolvePath($distUrl);
-                    if ($resolvedPath !== null) {
-                        $gitHead = $this->gitRevParseHead($resolvedPath);
-                        if ($gitHead !== null) {
-                            $pathHeads[$gitHead] = ($pathHeads[$gitHead] ?? 0) + 1;
+                    if ($resolvedPath === null) {
+                        $unresolved[sprintf("path target '%s' does not exist (relative to the project root)", $distUrl)] = true;
+                    } else {
+                        $checkoutRoot = $this->findGitCheckoutRoot($resolvedPath);
+                        if ($checkoutRoot === null) {
+                            $unresolved[sprintf("path target '%s' is not inside a Git checkout", $resolvedPath)] = true;
+                        } else {
+                            if (!array_key_exists($checkoutRoot, $headByCheckout)) {
+                                $headByCheckout[$checkoutRoot] = $this->gitRevParseHead($checkoutRoot);
+                            }
+                            $gitHead = $headByCheckout[$checkoutRoot];
+                            if ($gitHead === null) {
+                                $unresolved[sprintf("git could not resolve HEAD for checkout '%s' (git unavailable, or the checkout is unreadable or refused)", $checkoutRoot)] = true;
+                            } else {
+                                $resolvedCheckouts[$checkoutRoot] = $gitHead;
+                            }
                         }
                     }
                 } elseif ($distType === 'zip' || $distType === 'tar') {
@@ -109,6 +127,7 @@ final class ComposerProvenanceReporter
                     distReference: $distRef,
                     resolvedPath: $resolvedPath,
                     gitHead: $gitHead,
+                    checkoutRoot: $checkoutRoot,
                 );
             }
         }
@@ -116,19 +135,26 @@ final class ComposerProvenanceReporter
         $uniqueConstraints = array_values(array_unique(array_values($constraints)));
         $constraintDrift = count($uniqueConstraints) > 1;
 
-        $pathHeadList = array_keys($pathHeads);
-        $multiplePathHeads = $hasPath && count($pathHeadList) > 1;
+        // The contract is ONE checkout root with ONE HEAD. A root has exactly one HEAD, so
+        // comparing roots is strictly stronger than comparing HEADs: two clones at the same
+        // SHA are still two checkouts and must be reported.
+        $multipleCheckouts = count($resolvedCheckouts) > 1;
 
         $mixedPathAndPackagist = $hasPath && $hasDist;
 
         $goldenMismatch = false;
         $goldenMessage = null;
         if ($golden !== null && $golden !== '') {
-            if ($hasPath && $pathHeadList !== []) {
-                foreach ($pathHeadList as $head) {
+            if ($hasPath && $resolvedCheckouts !== []) {
+                foreach ($resolvedCheckouts as $root => $head) {
                     if (! self::headMatchesGolden($head, $golden)) {
                         $goldenMismatch = true;
-                        $goldenMessage = 'path checkout HEAD does not match WAASEYAA_GOLDEN_SHA / .waaseyaa-golden-sha';
+                        $goldenMessage = sprintf(
+                            "path checkout HEAD %s does not match golden SHA %s (WAASEYAA_GOLDEN_SHA / .waaseyaa-golden-sha); checkout '%s'",
+                            $head,
+                            $golden,
+                            $root,
+                        );
                         break;
                     }
                 }
@@ -145,16 +171,24 @@ final class ComposerProvenanceReporter
         if ($mixedPathAndPackagist) {
             $driftMessages[] = 'mixed path and dist installs for waaseyaa/* packages';
         }
-        if ($multiplePathHeads) {
-            $driftMessages[] = 'multiple distinct Git HEAD values under path installs (expected one monorepo checkout)';
+        if ($multipleCheckouts) {
+            $described = [];
+            foreach ($resolvedCheckouts as $root => $head) {
+                $described[] = sprintf("'%s' (HEAD %s)", $root, $head);
+            }
+            $driftMessages[] = 'multiple distinct Git checkout roots under path installs (expected one monorepo checkout): ' . implode('; ', $described);
         }
         if ($goldenMismatch && $goldenMessage !== null) {
             $driftMessages[] = $goldenMessage;
         }
 
-        $primaryPathHead = count($pathHeadList) === 1 ? $pathHeadList[0] : null;
+        $primaryPathRoot = count($resolvedCheckouts) === 1 ? array_key_first($resolvedCheckouts) : null;
+        $primaryPathHead = $primaryPathRoot !== null ? $resolvedCheckouts[$primaryPathRoot] : null;
 
-        if ($hasPath && $pathHeadList === []) {
+        if ($unresolved !== []) {
+            // Every path install must bind to a Git HEAD, otherwise its provenance is unproven.
+            $driftMessages[] = 'path installs present but Git HEAD could not be resolved: ' . implode('; ', array_keys($unresolved));
+        } elseif ($hasPath && $resolvedCheckouts === []) {
             $driftMessages[] = 'path installs present but Git HEAD could not be resolved (git missing or not a checkout)';
         }
 
@@ -168,6 +202,7 @@ final class ComposerProvenanceReporter
             pathMonorepoHead: $primaryPathHead,
             driftMessages: $driftMessages,
             projectRoot: $rootDisplay,
+            pathMonorepoRoot: $primaryPathRoot,
         );
     }
 
@@ -238,26 +273,61 @@ final class ComposerProvenanceReporter
         return $trim !== '' ? $trim : null;
     }
 
+    /**
+     * Resolve a composer.lock `dist.url` of type `path` to the real directory it names.
+     *
+     * Candidates come only from lock path-dist entries: the same manifests Composer
+     * already trusts to symlink code into `vendor/`. Relative URLs are anchored at the
+     * project root; absolute URLs are used as declared. Targets may sit outside the
+     * project root (the sibling-checkout topology, #2810) but must exist and be a
+     * directory — a missing target is reported, never guessed. Symlinks are resolved so
+     * that a symlinked path install binds to the checkout that actually owns the code.
+     */
     private function resolvePath(string $relativeOrAbsolute): ?string
     {
         if ($relativeOrAbsolute === '') {
             return null;
         }
-        $base = $this->projectRoot;
-        if (str_starts_with($relativeOrAbsolute, '/')) {
-            $candidate = $relativeOrAbsolute;
-        } else {
-            $candidate = $base . '/' . $relativeOrAbsolute;
-        }
+        $candidate = self::isAbsolutePath($relativeOrAbsolute)
+            ? $relativeOrAbsolute
+            : $this->projectRoot . '/' . $relativeOrAbsolute;
+
         $real = realpath($candidate);
-        $realBase = realpath($base);
-        if ($real === false || $realBase === false) {
+        if ($real === false || !is_dir($real)) {
             return null;
         }
 
-        $contained = $real === $realBase || str_starts_with($real, rtrim($realBase, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
+        return $real;
+    }
 
-        return $contained ? $real : null;
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/')
+            || str_starts_with($path, '\\')
+            || preg_match('/^[A-Za-z]:[\\\\\/]/', $path) === 1;
+    }
+
+    /**
+     * Walk up from a resolved path target to the nearest directory containing a `.git`
+     * entry (a directory for a normal clone, a file for a linked worktree).
+     *
+     * Git is only ever executed with `-C <checkoutRoot>` on a directory this method has
+     * confirmed is a checkout root, so the reporter never runs Git against an arbitrary
+     * filesystem location.
+     */
+    private function findGitCheckoutRoot(string $resolvedPath): ?string
+    {
+        $current = $resolvedPath;
+        while (true) {
+            if (file_exists($current . DIRECTORY_SEPARATOR . '.git')) {
+                return $current;
+            }
+            $parent = dirname($current);
+            if ($parent === $current) {
+                return null;
+            }
+            $current = $parent;
+        }
     }
 
     private function gitRevParseHead(string $inPath): ?string
@@ -311,8 +381,11 @@ final class ComposerProvenanceReporter
 
         if ($report->pathMonorepoHead !== null) {
             $out('Path monorepo HEAD: ' . $report->pathMonorepoHead);
+            if ($report->pathMonorepoRoot !== null) {
+                $out('Path monorepo checkout: ' . $report->pathMonorepoRoot);
+            }
         } elseif ($report->hasPathInstalls()) {
-            $out('Path monorepo HEAD: (unresolved — run from project with path deps and git available)');
+            $out('Path monorepo HEAD: (unresolved — see drift summary)');
         } else {
             $out('Path monorepo HEAD: (no path installs in lockfile)');
         }
