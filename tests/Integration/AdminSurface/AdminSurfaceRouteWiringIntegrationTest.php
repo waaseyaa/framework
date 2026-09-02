@@ -24,6 +24,7 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -69,7 +70,12 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
+        // Mirror the production kernel seam: the entity manager owns the
+        // canonical registry, and the provider bus exposes that registry's
+        // boot-scoped field-type manager. The generic host intentionally
+        // refuses composition without this authority (#2786 B1).
+        $fieldRegistry = new FieldDefinitionRegistry();
+        $this->entityTypeManager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: $fieldRegistry);
         $this->entityTypeManager->registerEntityType(new EntityType(
             id: 'article',
             label: 'Article',
@@ -85,6 +91,14 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             config: [],
             manifestFormatters: [],
         );
+        $provider->setKernelServices(new class ($fieldRegistry->fieldTypeManager()) implements KernelServicesInterface {
+            public function __construct(private readonly FieldTypeManagerInterface $fieldTypes) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === FieldTypeManagerInterface::class ? $this->fieldTypes : null;
+            }
+        });
         $provider->routes($this->router, $this->entityTypeManager);
     }
 
@@ -189,6 +203,14 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         $postRouter = new WaaseyaaRouter(new RequestContext('', 'POST'));
         $provider = new AdminSurfaceServiceProvider();
         $provider->setKernelContext(sys_get_temp_dir(), [], []);
+        $provider->setKernelServices(new class ($this->entityTypeManager->getFieldRegistry()->fieldTypeManager()) implements KernelServicesInterface {
+            public function __construct(private readonly FieldTypeManagerInterface $fieldTypes) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === FieldTypeManagerInterface::class ? $this->fieldTypes : null;
+            }
+        });
         $provider->routes($postRouter, $this->entityTypeManager);
 
         $match = $postRouter->match('/admin/_surface/article/action/publish');
@@ -333,6 +355,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             {
                 return match ($abstract) {
                     FieldDefinitionRegistryInterface::class => $this->registry,
+                    FieldTypeManagerInterface::class => $this->registry->fieldTypeManager(),
                     EntityAccessHandler::class => $this->accessHandler,
                     WorkflowBindingResolver::class => $this->bindingResolver,
                     default => null,

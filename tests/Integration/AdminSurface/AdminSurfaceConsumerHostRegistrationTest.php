@@ -19,6 +19,8 @@ use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -164,21 +166,29 @@ final class AdminSurfaceConsumerHostRegistrationTest extends TestCase
     private function buildRouter(?AdminSurfaceHostFactoryInterface $factory, string $method = 'GET'): WaaseyaaRouter
     {
         $router = new WaaseyaaRouter(new RequestContext('', $method));
-        $this->providerWith($factory)->routes($router, $this->entityTypeManager());
+        $manager = $this->entityTypeManager();
+        $this->providerWith($factory, $manager->getFieldRegistry()->fieldTypeManager())->routes($router, $manager);
 
         return $router;
     }
 
-    private function providerWith(?AdminSurfaceHostFactoryInterface $factory): AdminSurfaceServiceProvider
+    private function providerWith(?AdminSurfaceHostFactoryInterface $factory, ?FieldTypeManagerInterface $fieldTypes = null): AdminSurfaceServiceProvider
     {
         $provider = new AdminSurfaceServiceProvider();
         $provider->setKernelContext(projectRoot: sys_get_temp_dir(), config: [], manifestFormatters: []);
-        $provider->setKernelServices(new class ($factory) implements KernelServicesInterface {
-            public function __construct(private readonly ?AdminSurfaceHostFactoryInterface $factory) {}
+        $provider->setKernelServices(new class ($factory, $fieldTypes) implements KernelServicesInterface {
+            public function __construct(
+                private readonly ?AdminSurfaceHostFactoryInterface $factory,
+                private readonly ?FieldTypeManagerInterface $fieldTypes,
+            ) {}
 
             public function get(string $abstract): ?object
             {
-                return $abstract === AdminSurfaceHostFactoryInterface::class ? $this->factory : null;
+                return match ($abstract) {
+                    AdminSurfaceHostFactoryInterface::class => $this->factory,
+                    FieldTypeManagerInterface::class => $this->fieldTypes,
+                    default => null,
+                };
             }
         });
 
@@ -187,7 +197,7 @@ final class AdminSurfaceConsumerHostRegistrationTest extends TestCase
 
     private function entityTypeManager(): EntityTypeManager
     {
-        $manager = new EntityTypeManager(new EventDispatcher());
+        $manager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: new FieldDefinitionRegistry());
         $manager->registerEntityType(new EntityType(
             id: 'article',
             label: 'Article',
