@@ -158,10 +158,13 @@ Layer discipline: ai-tools / ai-agent / ai-pipeline / ai-vector / ai-observabili
 
 ### Schema Generation Flow
 
-1. `EntityJsonSchemaGenerator` reads entity type definitions from `EntityTypeManagerInterface`
-2. Maps entity keys (id, uuid, label, bundle, langcode, revision) to JSON Schema properties
-3. Produces JSON Schema draft 2020-12 with `additionalProperties: true`
-4. `SchemaRegistry` caches tool definitions in memory via `$this->toolCache ??= $this->toolGenerator->generateAll()`
+1. `EntityJsonSchemaGenerator` resolves the effective field set from `EntityTypeManagerInterface`
+2. Requires a matching entity subject, access handler, and immutable principal
+3. Delegates structural field shapes to the Layer-1 `FieldSchemaAuthority`
+4. Produces a closed JSON Schema draft 2020-12 with `additionalProperties: false`
+
+There is no `SchemaRegistry` or unscoped `generateAll()` entity catalogue in
+the shipped package. AI tool schemas remain owned by `waaseyaa/ai-tools`.
 
 ### MCP endpoint
 

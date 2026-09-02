@@ -101,3 +101,28 @@ For work package 01A, run `git diff --check`,
 `php bin/check-changelog-shape`, `bash tools/drift-detector.sh origin/main`, and
 the governed Linux CI/preflight roster. Environment-limited local results do
 not replace exact-head hosted evidence.
+
+## Work package 01C design — schema authority (#2786)
+
+The canonical authority lives in `packages/field` (Layer 1), where field-type
+plugins are registered. `FieldSchemaAuthority` composes closed entity schemas
+from the effective field set supplied by `EntityTypeManagerInterface`; it does
+not rediscover fields. Plugins own two named representations because the
+boundary is real, not provider convenience: field-item JSON Schema describes
+multi-column item values, while entity-value JSON Schema describes authoring
+and entity introspection values. Unknown types fail closed in both paths.
+
+`SchemaPresenter` is retained as an API-layer decorator for widgets, bundle
+hints, exposure policy, and explicit principal/subject field access. The
+Layer-5 `EntityJsonSchemaGenerator` is retained only as a principal-bound thin
+adapter; its open `generateAll()` catalogue is removed and no runtime consumer
+is invented. GraphQL remains a distinct wire-type adapter and does not become
+JSON Schema authority. `site-contract` stays at Layer 0: its enum remains
+closed, while a root composition test proves exact equality with the live
+plugin registry's blueprint-admission roster.
+
+Candidate evidence must cover registered plugin shapes, field-item versus
+entity-value projection, cardinality and revision/translation metadata,
+effective-field enumeration through the real schema controller, exact
+blueprint-roster equality, protected-field concealment, unknown-type refusal,
+package layers, and the governed CI/preflight roster.

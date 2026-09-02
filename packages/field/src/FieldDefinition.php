@@ -41,7 +41,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, FieldR
         private bool $readOnly = false,
         private array $constraints = [],
         private FieldStorage $stored = FieldStorage::Column,
-        private ?FieldTypeManager $fieldTypeManager = null,
+        private ?FieldTypeManagerInterface $fieldTypeManager = null,
         private string $group = '',
         private array $promptAliases = [],
         private ?string $backendId = null,
@@ -106,9 +106,9 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, FieldR
 
     public function toJsonSchema(): array
     {
-        $schema = $this->fieldTypeManager !== null
-            ? $this->fieldTypeManager->jsonSchemaFor($this)
-            : $this->legacyJsonSchema();
+        // Manager-less construction still resolves through the live core
+        // registry; it never falls back to a second hardcoded type table.
+        $schema = ($this->fieldTypeManager ?? new FieldTypeManager())->jsonSchemaFor($this);
 
         if ($this->isMultiple()) {
             return [
@@ -118,20 +118,6 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, FieldR
         }
 
         return $schema;
-    }
-
-    /**
-     * Fallback JSON Schema mapping used when no FieldTypeManager has been
-     * threaded through construction.
-     *
-     * Delegates to {@see AbstractFieldType::jsonSchemaFor()} so manager-less
-     * construction (unit tests, ad-hoc callers) and manager-driven
-     * construction emit bit-identical output for every existing field type.
-     * EnumItem (WP02) only takes effect when a manager is present.
-     */
-    private function legacyJsonSchema(): array
-    {
-        return AbstractFieldType::jsonSchemaFor($this);
     }
 
     // DataDefinitionInterface methods

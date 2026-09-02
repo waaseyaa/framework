@@ -13,6 +13,7 @@ use Waaseyaa\Access\Exception\PartialAccessContextException;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\EntityInterface;
 
 /**
  * Negative-path coverage for the paired-nullable access-context invariant on
@@ -51,15 +52,31 @@ final class SchemaPresenterPartialContextTest extends TestCase
     #[Test]
     public function presentAcceptsBothNonNullContext(): void
     {
+        $entity = $this->createStub(EntityInterface::class);
+        $entity->method('getEntityTypeId')->willReturn('article');
         $schema = $this->presenter->present(
+            $this->entityType,
+            [],
+            $entity,
+            new EntityAccessHandler([]),
+            $this->createStub(AccountInterface::class),
+        );
+
+        self::assertSame('article', $schema['x-entity-type']);
+    }
+
+    #[Test]
+    public function presentRejectsAccessContextWithoutASubjectEntity(): void
+    {
+        $this->expectException(PartialAccessContextException::class);
+
+        $this->presenter->present(
             $this->entityType,
             [],
             null,
             new EntityAccessHandler([]),
             $this->createStub(AccountInterface::class),
         );
-
-        self::assertSame('article', $schema['x-entity-type']);
     }
 
     #[Test]

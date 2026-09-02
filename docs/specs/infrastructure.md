@@ -1,4 +1,9 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-01 - #2786: HttpKernel resolves the provider-bound
+FieldSchemaAuthority through its existing HttpKernelServiceResolver and passes
+it into SchemaRouter/SchemaPresenter. This is composition wiring only: no new
+route, configuration, lifecycle, or kernel-owned service contract is added;
+the optional fallback preserves bare/unit construction. -->
 <!-- Spec reviewed 2026-09-01 - #2761: SqlSchemaHandler::assertRuntimeSchema()
 (the no-DDL contract every getRepository() resolution runs) now also
 validates declared entity-type foreign keys, not only base columns and

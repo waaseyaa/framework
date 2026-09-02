@@ -19,6 +19,15 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class IntegerItem extends AbstractFieldType
 {
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        if ($def->getSetting('subtype') === 'timestamp') {
+            return ['type' => 'string', 'format' => 'date-time'];
+        }
+
+        return static::jsonSchema();
+    }
+
     public static function schema(): array
     {
         return [

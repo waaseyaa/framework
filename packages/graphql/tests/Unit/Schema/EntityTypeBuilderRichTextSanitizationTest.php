@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\GraphQL\Tests\Unit\Schema;
 
 use GraphQL\Type\Definition\ObjectType;
+use GraphQL\Type\Definition\Type;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -82,6 +83,11 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         self::assertInstanceOf(ObjectType::class, $type);
 
         $bodyField = $type->getField('body');
+        self::assertSame(
+            Type::string(),
+            $bodyField->getType(),
+            'A text_long resolver returns a sanitized scalar string, so its GraphQL wire type must also be String.',
+        );
         self::assertNotNull($bodyField->resolveFn, 'The body field must declare a resolver.');
 
         return $bodyField->resolveFn;

@@ -19,6 +19,11 @@ use Waaseyaa\Field\Attribute\FieldType;
  */
 final class JsonItem extends AbstractFieldType
 {
+    public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
+    {
+        return ['type' => ['object', 'array', 'string', 'number', 'boolean', 'null']];
+    }
+
     public static function schema(): array
     {
         return [
