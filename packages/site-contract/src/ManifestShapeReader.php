@@ -14,8 +14,8 @@ use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
  * semantics — same codes, same JSON Pointer construction, same "reject
  * unknown, then require, then type" order — without a second implementation.
  *
- * Not `@api`: this is an internal implementation detail of the package's own
- * parsers, not an extension point.
+ * @internal implementation detail of the package's own parsers, not an
+ * extension point.
  */
 trait ManifestShapeReader
 {
