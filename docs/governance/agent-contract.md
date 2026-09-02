@@ -57,8 +57,13 @@ maintainer.
   `changes/unreleased/<issue>.<slice>.<type>.md` fragment for the governed
   release compiler.
 - Review spec impact explicitly. Update enduring contracts when behavior or
-  architecture changes; otherwise use the supported `spec-reviewed:` commit
-  trailer with a concrete reason.
+  architecture changes. If a change set affects no specs, no trailer is
+  required, and one is not accepted as a spec acknowledgement — the drift
+  detector has nothing to acknowledge, so it warns and discards the trailer
+  rather than rejecting the change. If a change set affects a spec you
+  intentionally leave unchanged, carry a `spec-reviewed:` commit trailer
+  naming that exact affected spec path and the reason, in the grammar
+  `spec-reviewed: docs/specs/<name>.md - <reason>`.
 - Respect package layers and existing boundary checkers. Any exemption belongs
   in the explicit allowlist with a concise rationale and a boundary test.
 
