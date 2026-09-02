@@ -5,6 +5,12 @@ This Layer 0 package owns the provider-neutral `.waaseyaa/site.yaml` contract:
 - a strict versioned schema;
 - typed application, framework, content, capability, privacy, recipe, and
   verification declarations;
+- an optional, closed `application_blueprint` section (#2785, ADR-023)
+  describing a model-independent application proposal — entities and fields,
+  relationships, permissions and roles, default-deny policies, workflows,
+  fixtures, and generated behavioural checks — under
+  `Waaseyaa\SiteContract\Blueprint\`, plus a request-scoped decision receipt
+  and lifecycle resolver;
 - deterministic YAML parsing and canonical JSON/SHA-256 identity; and
 - an explicit version disposition that refuses implicit migration or
   downgrade; and

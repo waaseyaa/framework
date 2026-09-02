@@ -150,6 +150,115 @@ transcripts, confidence, and repair metadata remain outside the contract. A
 human-authored proposal and an AI-proposed one pass through the same parser,
 validator, exact-digest decision boundary, initializer, and verifier.
 
+### Closed vocabulary (#2785)
+
+Namespace `Waaseyaa\SiteContract\Blueprint\`. Every list is a closed mapping
+(`additionalProperties: false`); every id uses the manifest's stable-id
+grammar `^[a-z][a-z0-9_-]*$` except a permission id/reference, which uses
+`^[a-z0-9_-]+( [a-z0-9_-]+)*$` (lowercase words, single spaces; a literal `*`
+anywhere is `SITE045`, never a silent grammar failure).
+
+- **`entities`** (min 1) — `id` (must equal an existing `content_types[].id`),
+  `label`, `storage` (`BlueprintStorage`: `sql-blob` | `sql-column`, equal to
+  `Waaseyaa\Entity\Storage\PrimaryStorageBackend::SQL_BLOB`/`SQL_COLUMN`),
+  `revisionable`, `translatable`, `keys` (`id`, `uuid`, `label` always;
+  `revision` iff `revisionable`; `langcode`/`default_langcode` iff
+  `translatable`; optional `owner` naming a relationship field on this
+  entity), `fields` (each: `id`, `type` — `BlueprintFieldType`, the 13
+  `#[FieldType(id: ...)]` ids under `packages/field/src/Item/` minus
+  `entity_reference` (owned by relationships), `file`, and `image` (media is
+  out of scope) — `required`, `cardinality` (≥1 or `-1`), `translatable`,
+  `revisionable`, `indexed` (requires `sql-column`), `values` (required iff
+  `type: enum`, forbidden otherwise)).
+- **`relationships`** — `id`, `from: {entity, field}` (the field id created on
+  that entity), `to: {entity}`, `cardinality`, `required`, `on_delete`
+  (`BlueprintOnDelete`: `restrict` | `nullify`).
+- **`permissions`** — `id`, `title`.
+- **`roles`** — `id`, `label`, `permissions` (unique refs into `permissions`).
+- **`policies`** — default-deny; `id`, `entity`, `operation`
+  (`BlueprintOperation`: `view` | `create` | `update` | `delete`),
+  `condition` (`BlueprintConditionKind`, `kind`-dispatched closed shape):
+  `permission` → `{kind, permission}`; `ownership` → `{kind, permission}`
+  (requires `entity.keys.owner`, `SITE046`); `workflow_state` → `{kind,
+  permission, states}` (requires the entity bound to exactly one workflow).
+  No expression, script, callable, or regex condition exists.
+- **`workflows`** — `id`, `label`, `initial_state`, `states` (min 1: `id`,
+  `label`, `published`), `transitions` (`id`, `label`, `from` (state ids),
+  `to`, `permission`), `bindings` (`{entity}`; the entity must be
+  revisionable and not translatable, `SITE043`; an entity binds to at most
+  one workflow across all workflows).
+- **`fixtures`** — `id`, `entity`, `values` (closed to the entity's declared
+  fields plus its relationship `from.field`s; a relationship value is a
+  fixture id — or list, per cardinality — of the relationship's `to.entity`),
+  optional `workflow_state` (only when the entity is bound).
+- **`checks`** (`BlueprintCheckKind`, `kind`-dispatched): `role_permission`
+  (`role`, `permission`, `expect: granted|denied`); `workflow_transition`
+  (`role`, `workflow`, `transition`, `expect: allowed|denied`);
+  `entity_access` (`role`, `entity`, `operation`, optional `fixture`,
+  `expect: allow|deny`); `fixture_present` (`fixture`).
+
+Authority-bearing keys (`state`, `status`, `approved`, `applied`, `approval`,
+`decision`, `receipt`, `lifecycle`) are not in any closed shape at any level —
+authoring one fails `SITE001_UNKNOWN_KEY`, never silently accepted or ignored.
+
+**Canonical order.** Each id-keyed collection (`entities`, `relationships`,
+`permissions`, `roles`, `policies`, `workflows`, `fixtures`, `checks`, and
+`fields`/`states`/`transitions` within their parent) is emitted sorted by id.
+`roles[].permissions`, `transitions[].from`, enum `values`, and
+`workflow_state` condition `states` are sorted `SORT_STRING`. Optional scalars
+with defaults are always emitted (`required: false`, `cardinality: 1`,
+`translatable: false`, `revisionable: false`, `indexed: false`, `on_delete:
+restrict`); optional keys with no default (`keys.owner`, `fixtures[].workflow_state`,
+non-enum `values`, …) are omitted, never emitted as `null`. `fixtures[].values`
+data (scalar lists, not structural collections) keeps authored order.
+
+**Digest formula.** `ApplicationBlueprint::$digest` is `sha256` over the
+canonical JSON of `{schema: "waaseyaa.application_blueprint",
+contract_version: 1, payload: <normalized section without contract_version>}`.
+It participates independently from the full site-manifest digest: a blueprint
+value change moves both; a manifest-context-only change (e.g.
+`application.name`) moves only the manifest digest.
+
+**Error codes** (JSON Pointer paths rooted at `/application_blueprint`; generic
+manifest codes `SITE001`/`SITE010`–`SITE012`/`SITE014`/`SITE020`/`SITE021`
+apply for ordinary shape/type/duplicate failures):
+
+| Code | When |
+|---|---|
+| `SITE040_BLUEPRINT_UNSUPPORTED_CONTRACT_VERSION` | `contract_version` other than `1` |
+| `SITE041_BLUEPRINT_UNKNOWN_CONTENT_TYPE` | an entity id is not a `content_types[].id` |
+| `SITE042_BLUEPRINT_UNRESOLVED_REFERENCE` | any dangling entity/field/permission/role/workflow/state/fixture/transition reference |
+| `SITE043_BLUEPRINT_WORKFLOW_BINDING_UNSUPPORTED` | bound entity not revisionable, or translatable, or bound twice |
+| `SITE044_BLUEPRINT_FIELD_PREREQUISITE` | field/key flags don't match their entity prerequisite, or `values` mismatches `type` |
+| `SITE045_BLUEPRINT_WILDCARD_PERMISSION` | `*` anywhere in a permission id or reference |
+| `SITE046_BLUEPRINT_OWNERSHIP_FIELD_REQUIRED` | an `ownership` condition on an entity without `keys.owner` |
+| `SITE047_BLUEPRINT_UNSUPPORTED_CONDITION` | an unknown condition/check `kind` |
+| `SITE050_DECISION_RECEIPT_INVALID` | a decision receipt fails its closed shape or grammar |
+
+Structural shape/grammar/per-collection-duplicate-id checks
+(`ApplicationBlueprintParser`) fail first; cross-collection semantic checks
+(`ApplicationBlueprintValidator`, invoked immediately after by
+`SiteManifestParser::parse()`) run once the whole section is typed.
+
+### Decision receipt and lifecycle (#2785, ADR-023 D-4/D-5)
+
+`Blueprint\BlueprintDecisionReceipt::fromArray()` types a closed mapping
+(`schema` = `waaseyaa.blueprint_decision`, `version` = `1`, `decision`
+(`BlueprintDecision`: `approved` | `rejected`), `blueprint_digest`,
+`manifest_digest` (both sha256), `actor`, `decided_at` (RFC 3339 UTC,
+`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`), `mechanism`). It is request input,
+not a second site file — `site-contract` defines its shape and exact-digest
+matching only; a higher layer decides how one is produced, authenticated, or
+retained. `matches(SiteManifest $manifest)` is true only when both digests
+equal the manifest's current ones. `Blueprint\BlueprintLifecycleResolver::resolve()`
+derives `BlueprintLifecycle` (`proposed` | `approved` | `rejected`) from a
+manifest and an optional receipt — never trusted from YAML: no receipt, or a
+non-matching one, resolves `proposed`; a matching receipt resolves its
+decision; a rejection never resolves `approved`; editing any blueprint or
+manifest byte after approval reverts resolution to `proposed`. `applied` and
+`superseded` require `.waaseyaa/generated.json` evidence and are #2787's
+initializer/doctor extension, not part of this resolver.
+
 ## Initialization
 
 ### Canonical fresh-project lifecycle
