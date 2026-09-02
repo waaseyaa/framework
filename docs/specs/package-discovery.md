@@ -625,6 +625,38 @@ authority provider publishes the declaration that binds the active database,
 generation, and selector provenance. This makes missing or split configuration
 authority a deterministic pre-boot refusal.
 
+### Optional package contributions
+
+A required capability fails composition when absent. An **optional package
+requirement** is the complementary contract for providers whose contribution
+depends on a package their own manifest lists only under `suggest` or
+`require-dev` (#2826). The provider implements
+`RequiresOptionalPackagesInterface` and yields one `OptionalPackageRequirement`
+per optional package: the Composer package name, a sentinel class, interface,
+or enum FQCN that the optional package autoloads, and the purpose of the
+contribution. The requirement is evaluated statically through
+`OptionalPackageGate`, from the provider class name alone, so that:
+
+- `PackageManifestCompiler` omits the provider from `console_command_providers`
+  while any requirement is unsatisfied, even though the provider itself stays
+  discovered and registered;
+- the console runtime (`ConsoleApplicationFactory`) registers none of the
+  provider's commands while any requirement is unsatisfied, so `list`, `help`,
+  and invocation agree with discovery;
+- the provider's own `register()` and `consoleCommands()` consult the same gate
+  and contribute nothing while unsatisfied.
+
+Composer autoload presence is the only install signal; no binding, stub, or
+consumer-side filter stands in for the absent package, and a command that
+would fail at first use is never advertised. The first adopter is
+`Waaseyaa\CLI\Provider\AiServiceProvider`, which gates the `ai:*` operator
+commands on `waaseyaa/ai-agent` with `AgentRunRepository` as the sentinel.
+`packages/cli/tests/Unit/Provider/OptionalPackageImportDeclarationTest.php`
+enforces that a cli provider importing a namespace outside cli's runtime
+`require` closure declares that package through this contract, and
+`tests/PackagedForm/check-cli-ai-commands-optional` proves the absent and
+present consumers from installed bytes.
+
 ## File Reference
 
 ### packages/foundation/src/ServiceProvider/
@@ -638,6 +670,9 @@ Capability/CapabilityRequirement.php -- accepted version range
 Capability/CapabilityRegistry.php -- validates the complete provider graph pre-boot
 Capability/ProvidesCapabilitiesInterface.php -- declaration capability
 Capability/RequiresCapabilitiesInterface.php -- requirement capability
+Capability/RequiresOptionalPackagesInterface.php -- optional (suggest-only) package contribution gate
+Capability/OptionalPackageRequirement.php -- package name, autoload sentinel, purpose
+Capability/OptionalPackageGate.php -- static verdict shared by discovery and the console runtime
 ```
 
 ### packages/foundation/src/Discovery/

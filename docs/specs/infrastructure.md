@@ -1,4 +1,14 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-02 - #2826: foundation gains the optional-package
+contribution contract (ServiceProvider/Capability/RequiresOptionalPackagesInterface,
+OptionalPackageRequirement, OptionalPackageGate). PackageManifestCompiler now
+omits a console-command provider from `console_command_providers` while any of
+its declared optional packages is absent (Composer-autoload sentinel), so
+discovery metadata agrees with the console runtime, which applies the same gate
+before enumerating commands. The enduring contract text lives in
+package-discovery.md, "Optional package contributions"; the first adopter is
+cli's AiServiceProvider (cli-kernel.md). No kernel boot order, provider
+registration, or capability-registry validation semantics changed. -->
 <!-- Spec reviewed 2026-09-01 - #2761: SqlSchemaHandler::assertRuntimeSchema()
 (the no-DDL contract every getRepository() resolution runs) now also
 validates declared entity-type foreign keys, not only base columns and

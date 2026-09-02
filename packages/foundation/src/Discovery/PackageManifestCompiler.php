@@ -147,6 +147,12 @@ final class PackageManifestCompiler
             }
             $implements = class_implements($providerClass);
             if (is_array($implements) && isset($implements[self::CAPABILITY_PROVIDES_CONSOLE_COMMANDS])) {
+                // A provider whose commands depend on an absent optional
+                // package contributes no commands; keep the roster honest so
+                // discovery metadata agrees with the console runtime (#2826).
+                if (!\Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageGate::satisfied($providerClass)) {
+                    continue;
+                }
                 $consoleCommandProviders[] = $providerClass;
             }
         }

@@ -86,6 +86,17 @@ selects `agent_run` explicitly. The AI aggregate types declare the
 and `waaseyaa/ai-agent` declares its migration directory so both fresh and
 upgraded installations receive the required entity base columns.
 
+The `ai:*` commands are an optional contribution: `waaseyaa/cli` only suggests
+`waaseyaa/ai-agent`, so `AiServiceProvider` implements
+`RequiresOptionalPackagesInterface` (see `package-discovery.md`, "Optional
+package contributions") and registers zero commands, and binds nothing, while
+that package is absent. A `--no-dev` consumer without the agent runtime lists
+no `ai:*` command and refuses `ai:purge-runs` as unknown instead of failing on
+the `AgentRunRepository` binding (#2826). Core lifecycle commands never depend
+on the optional package. `ConsoleApplicationFactory` applies the same gate
+before enumerating any provider's commands, so a provider cannot advertise a
+command whose handler cannot resolve.
+
 Command presentation belongs to this Layer-6 package even when the domain operation belongs lower in the stack. For example, `BearerTokenServiceProvider` owns the `bearer-token:issue|list|rotate|revoke` Symfony commands and depends downward on auth's `BearerTokenStoreInterface`; `AuthServiceProvider` owns the durable credential binding and exposes no Symfony Console types. A lower-layer provider must never construct CLI command objects, including through hidden string FQCNs.
 
 `HealthSchemaServiceProvider` registers `tenancy:repair-translation-peers <entity_type> [--dry-run] [--json]`. `CommunityTranslationPeerRepairHandler` resolves the entity type, delegates to the entity-storage repairer, and renders either a stable JSON report or concise operator output. This command follows ordinary full console boot because it requires entity metadata and a database connection. It is not part of the restricted pre-boot command set. Applying repairs is an explicit operator action and requires the quiesce procedure in `docs/specs/operations-playbooks.md`.

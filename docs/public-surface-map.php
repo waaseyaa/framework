@@ -101,6 +101,7 @@ return [
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\RequiresOptionalPackagesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface' => 'public',

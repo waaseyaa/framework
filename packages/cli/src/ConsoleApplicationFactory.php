@@ -13,6 +13,7 @@ use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageGate;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 
 final class ConsoleApplicationFactory
@@ -59,6 +60,12 @@ final class ConsoleApplicationFactory
 
         foreach ($this->providers as $provider) {
             if (!$provider instanceof ProvidesConsoleCommandsInterface) {
+                continue;
+            }
+            // Fail closed before enumeration: a provider whose commands need an
+            // absent optional package registers nothing, so `list`, `help`,
+            // and invocation agree with discovery (#2826).
+            if (!OptionalPackageGate::satisfied($provider)) {
                 continue;
             }
 
