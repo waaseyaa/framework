@@ -300,7 +300,13 @@ produces two `strict_audit_ledger` rows sharing one `correlation_id`: a
 `reserved` row (`request_accepted`) and a `finalized` row
 (`execution_succeeded` / `_failed`), both `surface = 'waaseyaa.local.stdio'`,
 `actor_uid` NULL, and `descriptor.metadata.principal =
-'local-operator:stdio'`. `tests/Integration/Mcp/StdioMcpConformanceTest.php`
+'local-operator:stdio'`. Those ledger assertions —
+surface, NULL `actor_uid`, shared `correlation_id`, and principal metadata —
+live in `packages/cli/tests/Unit/Command/Mcp/McpServeCommandTest.php` against
+an in-memory ledger fake; the conformance test below asserts protocol shape
+and never touches the ledger table.
+
+`tests/Integration/Mcp/StdioMcpConformanceTest.php`
 spawns the real `mcp:serve` subprocess over real OS pipes (`proc_open`, not
 `Symfony\Process`, because this session is interactive request/response, not
 run-to-completion) and proves the FULL round trip: `initialize` negotiates a
