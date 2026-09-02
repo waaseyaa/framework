@@ -213,9 +213,25 @@ final class EntityTypeBuilder
                     $richTextSanitizer = $this->richTextSanitizer;
                     $fields[$fieldName] = [
                         'type' => $graphqlType,
-                        'resolve' => static fn(array $data) => $richTextSanitizer->sanitizeValue(
-                            $data[$fieldName] ?? null,
-                        ),
+                        'resolve' => static function (array $data) use ($richTextSanitizer, $fieldName, $isMultiple): mixed {
+                            $sanitized = $richTextSanitizer->sanitizeValue($data[$fieldName] ?? null);
+                            if ($sanitized === null) {
+                                return null;
+                            }
+
+                            $asTextValue = static fn(mixed $value): array => is_array($value)
+                                && array_key_exists('value', $value)
+                                ? $value
+                                : ['value' => $value, 'format' => null];
+
+                            if (!$isMultiple) {
+                                return $asTextValue($sanitized);
+                            }
+
+                            $values = is_array($sanitized) ? $sanitized : [$sanitized];
+
+                            return array_map($asTextValue, $values);
+                        },
                     ];
                 } else {
                     $fields[$fieldName] = [

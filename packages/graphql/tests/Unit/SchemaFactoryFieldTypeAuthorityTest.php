@@ -12,6 +12,7 @@ use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\Exception\UnknownFieldTypeException;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -21,6 +22,7 @@ use Waaseyaa\GraphQL\GraphQlEndpoint;
 use Waaseyaa\GraphQL\Http\Router\GraphQlRouter;
 use Waaseyaa\GraphQL\Schema\SchemaFactory;
 use Waaseyaa\GraphQL\Tests\Fixtures\AttributeFirstEntities\ArticleSchemaFixture;
+use Waaseyaa\GraphQL\Tests\Fixtures\CustomMoneyFieldType;
 
 require_once __DIR__ . '/../Fixtures/AttributeFirstEntities/ArticleSchemaFixture.php';
 
@@ -59,6 +61,32 @@ final class SchemaFactoryFieldTypeAuthorityTest extends TestCase
 
         $this->expectException(UnknownFieldTypeException::class);
         $schema->getType('Article');
+    }
+
+    #[Test]
+    public function registered_custom_type_declares_its_graphql_wire_shape_without_a_graphql_dependency(): void
+    {
+        $manager = FieldTypeManager::fromManifest(['fixture_money' => CustomMoneyFieldType::class]);
+        $entityType = new EntityType(
+            id: 'fixture_product',
+            label: 'Fixture product',
+            class: ArticleSchemaFixture::class,
+            keys: ['id' => 'id'],
+            _fieldDefinitions: [
+                'id' => new FieldDefinition(name: 'id', type: 'integer', required: true),
+                'price' => new FieldDefinition(name: 'price', type: 'fixture_money', required: true),
+            ],
+        );
+        $this->entityTypeManager->registerCoreEntityType($entityType);
+
+        $schema = (new SchemaFactory($this->entityTypeManager, $manager))->build();
+        $output = $schema->getType('FixtureProduct');
+        $createInput = $schema->getType('FixtureProductCreateInput');
+
+        self::assertInstanceOf(\GraphQL\Type\Definition\ObjectType::class, $output);
+        self::assertSame('String', (string) $output->getField('price')->getType());
+        self::assertInstanceOf(\GraphQL\Type\Definition\InputObjectType::class, $createInput);
+        self::assertSame('String!', (string) $createInput->getField('price')->getType());
     }
 
     #[Test]

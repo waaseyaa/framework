@@ -1,3 +1,4 @@
+<!-- Spec reviewed 2026-09-02 - #2786 phase 2A: GraphQL now consumes each registered plugin's transport-neutral FieldValueKind rather than an id roster; existing mappings are unchanged, undeclared kinds and unknown ids fail closed. -->
 # API Layer
 
 <!-- Spec reviewed 2026-09-01 - #2757: AuthOidcRouteServiceProvider injects
@@ -1163,13 +1164,13 @@ the kernel-services bus. GraphQL receives the same manager through
 `SchemaFactory`, so admission and wire adaptation consult one registry. Bare
 constructors retain the built-ins-only default solely for isolated use.
 
-**Known #2786 recovery blocker:** registry admission does not itself define a
-GraphQL wire type. `FieldTypeMapper` still has an explicit first-party adapter
-roster and refuses a registered downstream id with `DomainException`. A custom
-field type is therefore not GraphQL-usable until the field-owned contract gains
-a transport-neutral scalar/value-kind seam (or another explicit generic policy)
-that GraphQL can adapt without making Layer 1 depend on GraphQL. Do not weaken
-this to an unknown-id `String` fallback.
+GraphQL adapts the field-owned, transport-neutral `FieldValueKind` declared by
+the registered plugin. The field package does not depend on GraphQL, and the
+GraphQL mapper no longer owns an id roster. Built-in ids preserve their prior
+scalar/object mappings. A downstream plugin can opt into one of the supported
+semantic shapes; omission fails closed with `DomainException`, while an unknown
+id still raises `UnknownFieldTypeException`. There is no inferred or unknown-id
+`String` fallback.
 
 ```php
 // packages/api/src/Controller/SchemaController.php

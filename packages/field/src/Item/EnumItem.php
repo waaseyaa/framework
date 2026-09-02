@@ -25,8 +25,13 @@ use Waaseyaa\Field\FieldDefinitionInterface;
  * @api
  */
 #[FieldType(id: 'enum', label: 'Enum')]
-final class EnumItem extends AbstractFieldType
+final class EnumItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::String;
+    }
+
     /**
      * Memoization cache for `\ReflectionEnum`, keyed by enum FQCN.
      *

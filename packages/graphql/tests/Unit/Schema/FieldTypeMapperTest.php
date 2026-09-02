@@ -13,7 +13,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Field\Exception\UnknownFieldTypeException;
+use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\GraphQL\Schema\FieldTypeMapper;
+use Waaseyaa\GraphQL\Tests\Fixtures\CustomMoneyFieldType;
+use Waaseyaa\GraphQL\Tests\Fixtures\UndeclaredValueKindFieldType;
 
 #[CoversClass(FieldTypeMapper::class)]
 final class FieldTypeMapperTest extends TestCase
@@ -73,10 +76,11 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function textLongTypeMapsToGraphQlString(): void
+    public function textLongTypePreservesTheLegacyTextValueObjectMapping(): void
     {
         $type = $this->mapper->toOutputType('text_long', false);
-        self::assertSame(Type::string(), $type);
+        self::assertInstanceOf(ObjectType::class, $type);
+        self::assertSame('TextValue', $type->name);
     }
 
     #[Test]
@@ -91,6 +95,29 @@ final class FieldTypeMapperTest extends TestCase
     {
         $this->expectException(\DomainException::class);
         $this->mapper->toOutputType('entity_reference', false);
+    }
+
+    #[Test]
+    public function registeredExtensionUsesItsDeclaredTransportNeutralValueKind(): void
+    {
+        $mapper = new FieldTypeMapper(FieldTypeManager::fromManifest([
+            'fixture_money' => CustomMoneyFieldType::class,
+        ]));
+
+        self::assertSame(Type::string(), $mapper->toOutputType('fixture_money', false));
+        self::assertSame(Type::string(), $mapper->toInputType('fixture_money', false));
+    }
+
+    #[Test]
+    public function registeredExtensionWithoutADeclaredValueKindFailsClosed(): void
+    {
+        $mapper = new FieldTypeMapper(FieldTypeManager::fromManifest([
+            'fixture_undeclared_kind' => UndeclaredValueKindFieldType::class,
+        ]));
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('no declared transport-neutral value kind');
+        $mapper->toOutputType('fixture_undeclared_kind', false);
     }
 
     // ── isMultiple wraps in listOf ───────────────────────────────
@@ -161,9 +188,11 @@ final class FieldTypeMapperTest extends TestCase
     }
 
     #[Test]
-    public function inputTextLongTypeMapsToGraphQlString(): void
+    public function inputTextLongTypePreservesTheLegacyTextValueInputMapping(): void
     {
-        self::assertSame(Type::string(), $this->mapper->toInputType('text_long', false));
+        $type = $this->mapper->toInputType('text_long', false);
+        self::assertInstanceOf(InputObjectType::class, $type);
+        self::assertSame('TextValueInput', $type->name);
     }
 
     #[Test]

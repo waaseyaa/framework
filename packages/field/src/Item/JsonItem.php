@@ -17,8 +17,13 @@ use Waaseyaa\Field\Attribute\FieldType;
 /**
  * @api
  */
-final class JsonItem extends AbstractFieldType
+final class JsonItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::String;
+    }
+
     public static function entityValueJsonSchemaFor(\Waaseyaa\Field\FieldDefinitionInterface $def): array
     {
         return ['type' => ['object', 'array', 'string', 'number', 'boolean', 'null']];

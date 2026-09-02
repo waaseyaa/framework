@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\GraphQL\Tests\Unit\Schema;
 
 use GraphQL\Type\Definition\ObjectType;
-use GraphQL\Type\Definition\Type;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -83,11 +82,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         self::assertInstanceOf(ObjectType::class, $type);
 
         $bodyField = $type->getField('body');
-        self::assertSame(
-            Type::string(),
-            $bodyField->getType(),
-            'A text_long resolver returns a sanitized scalar string, so its GraphQL wire type must also be String.',
-        );
+        self::assertInstanceOf(ObjectType::class, $bodyField->getType());
+        self::assertSame('TextValue', $bodyField->getType()->name);
         self::assertNotNull($bodyField->resolveFn, 'The body field must declare a resolver.');
 
         return $bodyField->resolveFn;
@@ -101,6 +97,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $data = ['body' => '<p>hi</p><script>alert(document.cookie)</script>'];
         $result = $resolve($data);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertStringNotContainsString(
             '<script',
@@ -119,6 +117,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $data = ['body' => '<img src=x onerror=alert(1)>'];
         $result = $resolve($data);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertStringNotContainsString('onerror', $result);
         self::assertStringNotContainsString('alert(1)', $result);
@@ -134,6 +134,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
             . "gichi-mookomaan, macron \u{101}, o'ow, nake'</p><script>alert(1)</script>";
 
         $result = $resolve(['body' => $payload]);
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
 
         $decoded = html_entity_decode($result, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -154,6 +156,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $resolve = $this->bodyFieldResolver();
         $result = $resolve(['body' => '<div class="sfn-program-contact">x</div>']);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertSame('<div>x</div>', $result);
         self::assertStringNotContainsString('class=', $result);
@@ -165,6 +169,8 @@ final class EntityTypeBuilderRichTextSanitizationTest extends TestCase
         $resolve = $this->bodyFieldResolver();
         $result = $resolve(['body' => '<p>x</p><img src="//evil.example/px" alt="px">']);
 
+        self::assertIsArray($result);
+        $result = $result['value'];
         self::assertIsString($result);
         self::assertSame('<p>x</p><img alt="px" />', $result);
         self::assertStringNotContainsString('evil.example', $result);

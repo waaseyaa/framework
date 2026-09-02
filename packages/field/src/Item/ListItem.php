@@ -17,8 +17,13 @@ use Waaseyaa\Field\Attribute\FieldType;
 /**
  * @api
  */
-final class ListItem extends AbstractFieldType
+final class ListItem extends AbstractFieldType implements \Waaseyaa\Field\FieldValueKindProviderInterface
 {
+    public static function valueKind(): \Waaseyaa\Field\FieldValueKind
+    {
+        return \Waaseyaa\Field\FieldValueKind::String;
+    }
+
     public static function schema(): array
     {
         return [

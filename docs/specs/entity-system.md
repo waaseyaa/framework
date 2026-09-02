@@ -1,3 +1,4 @@
+<!-- Spec reviewed 2026-09-02 - #2786 phase 2A: FieldValueKind is the field-owned, transport-neutral presentation seam. GraphQL adapts declared kinds without a Layer-1 GraphQL dependency; absent declarations fail closed. Attribute-first custom-type admission remains a separately documented blocker. -->
 <!-- Spec reviewed 2026-08-27 - #2544: `RevisionRestoreChangedFields::CREDENTIAL_KEYS` gains `legacy_pass`, so an imported credential pending upgrade is never restored by a revision rollback - same treatment as `pass`. -->
 <!-- Spec reviewed 2026-08-26 - #2562: EntityRepository::promotePublishedRevision() is the complete-promotion entry point used by ContentPublisher. It dispatches the same BeforeRevisionPointerMoveEvent as setPublishedRevision(), then applies default-revision semantics so the served base row is rewritten from the target revision. setPublishedRevision() remains pointer-only unless a subscriber sets the event flag. Storage still does not infer discipline from published_revision_id (Playbook H). -->
 <!-- Spec reviewed 2026-08-26 - #2562 review: EntityRepository::clearPublishedRevision() drops the published pointer and unpublished the served row without a BeforeRevisionPointerMoveEvent. loadRevision() hydrates revision `_data` without the live subtable overlay when the revision is not the base pointer. shouldCreateRevision() duck-checks isNewRevision() so trait-only ContentEntityBase types honor setNewRevision(true). Waaseyaa\Entity\RevisionId is the shared revision-id extractor. -->
@@ -278,11 +279,23 @@ matching the decoded values returned by both SQL storage backends. `decimal`
 remains a patterned string so SQLite and GraphQL preserve its lossless-text
 storage contract rather than coercing it through a binary float.
 
-Manifest admission currently covers structural JSON-schema and storage
-projection. GraphQL remains an explicit adapter roster: a registered downstream
-id without a wire adapter is refused. The required follow-up is a
-transport-neutral field-owned value-kind contract, not a GraphQL dependency in
-this Layer-1 package and not an unknown-id string fallback.
+Each field-type plugin may also declare a transport-neutral `FieldValueKind`.
+GraphQL maps that semantic kind to its native scalar or structured type, so a
+manifest-discovered downstream plugin can cross the GraphQL boundary without
+depending on the Layer-6 GraphQL package. All first-party plugins declare their
+historical wire shape explicitly through the optional
+`FieldValueKindProviderInterface`. A registered plugin that omits the
+capability is refused instead of being guessed from JSON Schema or silently
+treated as a string; existing direct `FieldTypeInterface` implementors remain
+source-compatible.
+
+Attribute-first entity metadata still validates explicit `#[Field(type: ...)]`
+values against `FieldTypeInferrer::VALID_TYPE_IDS`, the built-ins-only static
+roster. Consequently, manifest discovery alone does not yet let a downstream
+package declare a custom type on an attributed entity property. Closing that
+gap requires a separately reviewed runtime-aware admission seam (and matching
+PHPStan behavior); it must not weaken static checking by accepting arbitrary
+strings.
 
 Entity field enumeration remains owned by
 `EntityTypeManagerInterface::resolveFieldDefinitions()`. The schema authority

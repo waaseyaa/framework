@@ -23,7 +23,7 @@ use Waaseyaa\Plugin\DefaultPluginManager;
  *
  * @api
  */
-final class FieldTypeManager extends DefaultPluginManager implements FieldTypeManagerInterface
+final class FieldTypeManager extends DefaultPluginManager implements FieldTypeManagerInterface, FieldValueKindResolverInterface
 {
     private static ?self $default = null;
 
@@ -139,6 +139,23 @@ final class FieldTypeManager extends DefaultPluginManager implements FieldTypeMa
         }
 
         return $class::entityValueJsonSchemaFor($def);
+    }
+
+    public function valueKind(string $fieldType): FieldValueKind
+    {
+        $class = $this->resolveItemClass($fieldType);
+        if ($class === null) {
+            throw UnknownFieldTypeException::for($fieldType);
+        }
+
+        if (!is_subclass_of($class, FieldValueKindProviderInterface::class)) {
+            throw new \DomainException(sprintf(
+                'Registered field type "%s" has no declared transport-neutral value kind.',
+                $fieldType,
+            ));
+        }
+
+        return $class::valueKind();
     }
 
     /**
