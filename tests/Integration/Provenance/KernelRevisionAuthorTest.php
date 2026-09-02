@@ -232,6 +232,7 @@ final class KernelRevisionAuthorTest extends TestCase
                 } else {
                     $this->bootDatabase();
                 }
+                $this->compileManifest();
                 $this->bootEntityTypeManager();
             }
 
