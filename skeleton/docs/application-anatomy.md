@@ -1,6 +1,11 @@
 # Application anatomy and ownership
 
-Waaseyaa applications deliberately start with a small `src/`. Authentication,
+Waaseyaa applications deliberately start with a small `src/`: only
+`src/Provider/` and `src/Http/` ship with real files (#2438). Every other area
+named below — `src/Access/`, `src/Controller/`, `src/Domain/`, `src/Entity/`,
+`migrations/`, `tests/Integration/` — is not scaffolded as an empty directory;
+it appears the moment a generator or your own edit writes the first real file
+into it. Nothing downstream depends on the directory pre-existing. Authentication,
 sessions, authorization, the user security model, and the Admin SPA are supplied
 by installed Framework packages so security fixes continue to arrive through
 Composer. Your application owns its domain and presentation and extends the
@@ -124,16 +129,30 @@ authentication check as a substitute for route policy.
 ## Application path reference
 
 - `src/Provider/AppServiceProvider.php` — initial DI and route composition.
-- `src/Access/` — application-owned access policies.
-- `src/Controller/` — thin request orchestration.
-- `src/Domain/` — bounded-context logic.
-- `src/Entity/` — application entities and profile/domain records.
+- `src/Access/` — application-owned access policies; created when you save
+  your first policy (`make:policy` prints a starting stub to save there).
+- `src/Controller/` — thin request orchestration; created on your first
+  controller.
+- `src/Domain/` — bounded-context logic; created on your first domain class.
+- `src/Entity/` — application entities and profile/domain records; created by
+  `make:content-type`, or on your first hand-written entity.
 - `templates/` — consumer-owned Twig presentation.
 - `config/waaseyaa.php` — supported Framework configuration.
 - `config/entity-types.php` — additional entity-type declarations.
 - `config/services.php` — application service bindings and supported overrides.
 - `migrations/` — created on first `make:migration` invocation.
-- `tests/Unit/` and `tests/Integration/` — fast logic and real-boundary coverage.
+- `tests/Unit/` — fast logic coverage; ships with the skeleton and is already
+  in `phpunit.xml.dist`.
+- `tests/Integration/` — real-boundary coverage; created on your first
+  integration test. Add its `<testsuite>` entry back to `phpunit.xml.dist`
+  when you create it — PHPUnit refuses to boot with a declared testsuite
+  directory that does not exist, which is why the skeleton does not
+  pre-declare it against an empty directory.
+
+None of this is migrated for applications generated before #2438: an existing
+application's directory layout is left exactly as it is, and `project:init
+--upgrade` does not treat the newer, smaller skeleton shape as drift to
+reconcile.
 
 After adding providers, rebuild the production discovery manifest with
 `./vendor/bin/waaseyaa optimize:manifest`. Run `.ci/site-verify` before treating

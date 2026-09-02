@@ -379,6 +379,53 @@ the project's own manifest and the framework has no way to raise it, so the
 version-mismatch branch cannot fire on a framework upgrade; the manifest rebind
 is what carries a project across a renderer change.
 
+### Skeleton layout: minimal and bootable, no placeholder directories
+
+`skeleton/` — what phase 1 (`create`) copies into a fresh project — ships only
+what a fresh application needs to boot: `public/index.php`, `src/Http/
+BootFailureResponder.php`, `src/Provider/AppServiceProvider.php`, the
+`config/*.php` bundle, `templates/*.twig`, and `tests/Unit/`, which already
+holds a real test. It ships **no placeholder directories** — no directory
+whose only committed content is a `.gitkeep` (ADR-024, #2438).
+
+Optional architectural areas — `src/Access/`, `src/Controller/`,
+`src/Domain/`, `src/Entity/`, `src/Ingestion/`, `src/Search/`, `src/Seed/`,
+`src/Support/`, `migrations/`, `tests/Integration/` — are created **only**
+through deterministic generators: a directory appears the moment something
+writes a real file into it, never as an empty scaffold, and that creation
+reuses the same machinery this section already documents for `site:init`
+recipes (`ensureTargetDirectory()`, collision checks, `SitePathContainment`,
+the transaction journal) or, for `make:*` handlers that write files at all
+(`make:content-type`, `make:public`, `make:migration`,
+`make:storage-migration`), each handler's own `is_dir() || mkdir(…,
+recursive: true)` guard immediately ahead of the write. Neither mechanism is
+new; removing the placeholder directories changed nothing about either one,
+because neither ever read or required the target directory to pre-exist.
+`storage/` and the configured `files_dir` follow the identical shape one
+layer down, outside `site:init` entirely: `db:init` and
+`Waaseyaa\Media\LocalFileRepository` each create their own parent directory
+on first write.
+
+`minimal` and `editorial` — wherever a future `site:init` flow (#2442) names
+them as a shortcut between a plain, capability-declining site and a fuller
+one with governed visual authoring enabled — are **init-time presets, not a
+durable runtime profile flag**. The choice is made once, the way
+`SiteManifestWizard` already resolves every other product decision through
+one-time answers; nothing reads "which preset produced this site" after
+`site:init` has run. Correspondingly, what persists in the `waaseyaa.site`
+manifest is the **resolved decisions**, never a preset name: capability
+states, content types and routes, personal-data stores, and selected recipe
+digests, exactly as the Capability manifest section above already defines.
+`SiteManifestSchema` has no `preset`/`profile` field, and none is added by
+resolving a preset — a preset resolves to the same manifest shape any other
+init-time answer set does.
+
+Existing applications are never migrated to the newer, smaller skeleton
+layout. No upgrade path — in particular `project:init --upgrade` (#2664) —
+treats an application generated under an earlier skeleton as drifted merely
+because the current skeleton no longer ships a directory that application
+still has, or never had.
+
 ## Recipe contract
 
 A recipe is a versioned first-party generator with four parts:

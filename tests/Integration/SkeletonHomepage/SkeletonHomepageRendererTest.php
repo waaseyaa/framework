@@ -107,6 +107,37 @@ final class SkeletonHomepageRendererTest extends TestCase
         $this->assertStringNotContainsString('Edit <code>templates/home.html.twig</code>', $response['body']);
     }
 
+    /**
+     * #2438 / ADR-024 regression guard: the mirrored `src/` tree this fixture
+     * boots from is exactly `skeleton/src/` as committed — no placeholder
+     * directory is added anywhere in this suite. Asserting the exact file set
+     * (rather than just that boot succeeds) means a reintroduced empty
+     * placeholder directory would still fail here even though PHP silently
+     * tolerates an empty `mkdir()`, and `homepage_twig_expression_is_evaluated…`
+     * above is the proof that this exact minimal tree boots the production
+     * `HttpKernel` and serves a request end to end.
+     */
+    #[Test]
+    public function the_booted_src_tree_carries_no_placeholder_directory(): void
+    {
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->projectRoot . '/src', \FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = str_replace('\\', '/', substr((string) $file->getPathname(), strlen($this->projectRoot) + 1));
+            }
+        }
+        sort($files);
+
+        $this->assertSame(
+            ['src/Http/BootFailureResponder.php', 'src/Provider/AppServiceProvider.php'],
+            $files,
+            'The booted src/ tree must be exactly what the minimal skeleton ships — no placeholder directory.',
+        );
+    }
+
     /** The clean-URL diagnostic route stays application-owned (#2651 non-goal). */
     #[Test]
     public function application_still_owns_the_clean_url_probe_route(): void

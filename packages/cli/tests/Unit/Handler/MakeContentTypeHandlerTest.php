@@ -307,4 +307,55 @@ final class MakeContentTypeHandlerTest extends TestCase
             self::assertSame(0, $exitCode, sprintf('%s failed php -l: %s', $file, implode("\n", $lintOutput)));
         }
     }
+
+    /**
+     * #2438 regression guard: the skeleton no longer ships an empty
+     * `src/Entity/` (placeholder `.gitkeep`) directory for `make:content-type`
+     * to write into — a freshly created project mirrors `skeleton/src/`, which
+     * holds only `Http/` and `Provider/AppServiceProvider.php`. This proves
+     * the generator creates its own target directory on write (its own
+     * `is_dir() || mkdir(..., recursive: true)` guard in `writeFile()`), the
+     * same deterministic, collision-checked machinery it already used when a
+     * placeholder happened to pre-exist — no directory-creation behavior
+     * changed, only the starting tree did.
+     */
+    #[Test]
+    public function creates_its_target_directory_against_the_minimal_skeleton_with_no_preexisting_entity_directory(): void
+    {
+        $repoRoot = (string) realpath(__DIR__ . '/../../../../../');
+        $root = sys_get_temp_dir() . '/waaseyaa_mct_skeleton_' . uniqid('', true);
+        mkdir($root, 0o755, true);
+        (new Filesystem())->mirror($repoRoot . '/skeleton/src', $root . '/src');
+
+        try {
+            file_put_contents(
+                $root . '/composer.json',
+                (string) json_encode(['name' => 'app/app', 'autoload' => ['psr-4' => ['App\\' => 'src/']]], \JSON_PRETTY_PRINT),
+            );
+
+            self::assertDirectoryDoesNotExist($root . '/src/Entity', 'The minimal skeleton must not pre-scaffold src/Entity/.');
+            self::assertDirectoryExists($root . '/src/Provider', 'The skeleton still ships src/Provider/AppServiceProvider.php.');
+
+            $command = new HandlerCommand(
+                name: 'make:content-type',
+                description: 'Scaffold a content type',
+                arguments: [new HandlerArgument(name: 'name', mode: HandlerArgumentMode::Required, description: 'name')],
+                options: [
+                    new HandlerOption(name: 'fields', mode: HandlerOptionMode::Required, description: 'fields', default: 'title:string'),
+                    new HandlerOption(name: 'force', mode: HandlerOptionMode::None, description: 'force'),
+                ],
+                handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $root), 'execute']),
+            );
+            $tester = CliTester::for($command, $this->emptyContainer());
+            $tester->executeMap(['name' => 'story', '--fields' => 'title:string']);
+
+            self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+            self::assertFileExists($root . '/src/Entity/Story.php');
+            self::assertFileExists($root . '/src/Provider/StoryServiceProvider.php');
+            // The pre-existing AppServiceProvider.php survives the write.
+            self::assertFileExists($root . '/src/Provider/AppServiceProvider.php');
+        } finally {
+            (new Filesystem())->remove($root);
+        }
+    }
 }

@@ -1,7 +1,5 @@
 /vendor/
-/storage/framework/
-/files/*
-!/files/.gitkeep
+/storage/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
