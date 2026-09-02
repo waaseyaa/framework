@@ -1,6 +1,6 @@
 # Fresh-site golden path
 
-<!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. -->
+<!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented, and its non-interactive input is the closed, versioned `waaseyaa.site-seed` v1 document. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. Presets land the declarative half only - activating a declared capability in the canonical lifecycle is the pre-existing gap tracked by #2857, decided by #2845/#2846. -->
 <!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
 
 ## Purpose
@@ -439,22 +439,78 @@ never generates code of its own:
   `publishing` package is required, and no page-builder or subscriber
   artifact is generated.
 - `editorial` additionally activates `governed_authoring` — the existing
-  governed-authoring recipe under "Recipe contract" below, unchanged — which
-  reaches a usable authenticated authoring starting point (draft, preview,
-  revision history, restore, the shared Admin SPA/Anokii page-builder
-  surface) built entirely from that one recipe. `subscription` still resolves
-  `not_needed`: personal-data collection is an orthogonal decision a preset
-  does not make on an operator's behalf.
+  governed-authoring recipe under "Recipe contract" below, unchanged — so the
+  capability state, the recipe digest, and that recipe's generated artifacts
+  are published and reviewable in version control. `subscription` still
+  resolves `not_needed`: personal-data collection is an orthogonal decision a
+  preset does not make on an operator's behalf.
 
-Both `--answers` (a small identity/content-type seed document, not a complete
-manifest, when combined with `--preset`) and interactive mode (fewer
-questions — no governed-authoring or personal-data prompts, since the preset
-already answered them) resolve through `SitePresetResolver` before manifest
-parsing. Re-running `site:init` with the same preset and the same seed is
+**What a preset does not do.** A preset lands the *declarative* half only. It
+selects capabilities and recipes and publishes their artifacts; it does not
+make a declared capability run. `editorial` therefore does **not** by itself
+reach a usable authenticated authoring surface: the canonical
+`create-project` → `site:init` → `install:init` lifecycle never reruns
+Composer after generation, and `PackageManifestCompiler::readRootComposer()`
+reads the literal root `composer.json` rather than the merge-plugin result, so
+a recipe-declared provider and its package requirements are generated and
+never activated. That gap is **pre-existing and not preset-specific** — every
+manifest that activates `governed_authoring` has it — and is tracked by
+**#2857**; the contract that closes it is the materialization decision under
+#2845/#2846, and duplicating it here would be exactly the second activation
+authority those issues exist to prevent. Until then, treat an `editorial`
+site as a correct, reviewable *declaration* of governed authoring, not as a
+running authoring surface.
+
+Both `--answers` (a `waaseyaa.site-seed` document, not a complete manifest,
+when combined with `--preset`) and interactive mode (fewer questions — no
+governed-authoring or personal-data prompts, since the preset already answered
+them) resolve through `SitePresetResolver` before manifest parsing. Re-running `site:init` with the same preset and the same seed is
 byte-identical and reports the exact proposed diff before changing an
 already-initialized site, through the unchanged `SiteInitializationService`
 dry-run/collision/journal machinery this section already documents above —
 a preset introduces no second transaction, execution, or ownership authority.
+
+#### The `waaseyaa.site-seed` document
+
+`--preset` plus `--answers` is a **second authored input**, so it is closed and
+versioned for the same reason `waaseyaa.site` is: an unknown, duplicated, or
+ill-typed key is an operator decision, and silently discarding one while
+`site:init` reports success is precisely the failure the manifest schema
+exists to prevent. `Waaseyaa\SiteContract\Seed\SiteSeedParser` reads it:
+
+```yaml
+schema: waaseyaa.site-seed
+version: 1
+application:
+  id: example
+  name: Example
+  canonical_origin:
+    config_key: APP_ORIGIN
+content_types:
+  - id: page
+    canonical_route: /{slug}
+```
+
+All four root keys are required and no other key is accepted, at any depth.
+`schema` and `version` are exact: a foreign `schema` fails
+`SITE014_INVALID_VALUE` and any version but `1` fails
+`SITE003_UNSUPPORTED_SCHEMA_VERSION`, so a document written for a future seed
+shape is refused rather than partially honoured. Content types keep their
+authored order (which is the order of the resolved capability's
+`public_routes`), and duplicate identities and duplicate canonical routes are
+rejected exactly as the manifest rejects them.
+
+This is **not** a second validation authority. The seed parser reuses the same
+`ManifestShapeReader` closed-shape readers `SiteManifestParser` and
+`ApplicationBlueprintParser` use — same `SITE0xx` codes, same JSON Pointer
+construction, same reject-unknown-then-require-then-type order — and the
+application-identity and content-type sections are read by one shared
+implementation for both documents, so what a canonical route or an application
+identity may be cannot drift between them. There is no separate JSON-Schema
+mirror the way `SiteManifestSchema` has one: a seed is an input to `site:init`
+and never a generated artifact a consumer's tooling validates. The resolved
+manifest still passes through `SiteManifestParser` unchanged, so the published
+contract has exactly one validation authority as before.
 
 Existing applications are never migrated to the newer, smaller skeleton
 layout. No upgrade path — in particular `project:init --upgrade` (#2664) —
@@ -473,6 +529,22 @@ A recipe is a versioned first-party generator with four parts:
 
 Recipes may generate application code and configuration, but must not create a
 private framework fork or duplicate framework-owned services.
+
+**Activation is not yet part of this contract (#2857).** A recipe that emits a
+Composer fragment — `composer.site-recipes.json`,
+`composer.governed-authoring-recipe.json`, `composer.subscription-recipe.json`
+— relies on the skeleton's `extra.merge-plugin.include` list to see it. All
+three are listed there (the governed-authoring entry was missing, an asymmetry
+with no rationale; `include` patterns that match no file are ignored by
+`wikimedia/composer-merge-plugin`, so listing a fragment a given site never
+generates is inert). Being listed is necessary and **not sufficient**: the
+canonical `create-project` → `site:init` → `install:init` lifecycle never
+reruns Composer after generation, and `PackageManifestCompiler` reads the
+literal root `composer.json` rather than the merged result, so a
+recipe-declared package requirement is not installed and a recipe-declared
+provider is not registered. Closing that is the materialization decision under
+#2845/#2846, tracked for recipes by #2857; nothing in this spec may introduce a
+second activation authority ahead of it.
 
 ### Published content
 

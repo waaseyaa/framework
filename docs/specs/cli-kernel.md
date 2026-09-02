@@ -4,9 +4,11 @@
 an init-time-only shortcut resolved once by `SitePresetResolver` into an
 ordinary `waaseyaa.site` answer document before the existing
 `SiteManifestParser` → `SiteArtifactRendererFactory` → `SiteInitializationService`
-pipeline runs; see "Site initialization" below and "Init-time presets" in
-site-golden-path.md. No preset name is persisted, and no second command path,
-transaction, or ownership authority is introduced. -->
+pipeline runs; its non-interactive input is the closed, versioned
+`waaseyaa.site-seed` v1 document. See "Site initialization" below and
+"Init-time presets" in site-golden-path.md. No preset name is persisted, and no
+second command path, transaction, validation, or ownership authority is
+introduced. -->
 
 <!-- Spec reviewed 2026-09-02 - #2828: the OIDC sibling of #2826. `OidcServiceProvider`
 now implements `RequiresOptionalPackagesInterface` and gates `register()` and
@@ -406,12 +408,15 @@ generated ownership to `SiteInitializationService`.
 `SitePresetResolver` into an ordinary answer document before it ever reaches
 the pipeline above — see "Init-time presets" in
 [site-golden-path.md](site-golden-path.md) for the full contract. It adds no
-second command path: `--answers` still names a document (a small identity/
-content-type seed rather than a complete manifest, when `--preset` is also
-given), interactive mode still asks questions when neither is given, and the
-resolved YAML runs through the exact same `SiteManifestParser` →
-`SiteArtifactRendererFactory` → `SiteInitializationService` sequence as a
-hand-written answer document.
+second command path: `--answers` still names a document (a closed, versioned
+`waaseyaa.site-seed` v1 identity/content-type seed rather than a complete
+manifest, when `--preset` is also given), interactive mode still asks
+questions when neither is given, and the resolved YAML runs through the exact
+same `SiteManifestParser` → `SiteArtifactRendererFactory` →
+`SiteInitializationService` sequence as a hand-written answer document. A
+malformed seed fails the command with the same `SITE0xx` code and JSON Pointer
+a malformed manifest does; a preset selects capabilities and publishes their
+artifacts, and does not make a declared capability run (#2857).
 
 Regeneration across a renderer change is carried by the manifest rebind, not by
 a migration engine: there is none, and `generator_version` is read from the

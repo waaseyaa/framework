@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Site;
 
-use Symfony\Component\Yaml\Yaml;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\SiteContract\ContentTypeDeclaration;
+use Waaseyaa\SiteContract\Seed\SiteSeedParser;
 
 /**
  * Resolves a `site:init --preset` choice (#2442) to a complete `waaseyaa.site`
@@ -51,10 +52,20 @@ final class SitePresetResolver
 
     public function resolveFromSeedDocument(SitePreset $preset, string $yaml, string $sourceLabel, string $projectRoot): string
     {
-        [$id, $name, $originKey, $contentTypes] = $this->parseSeedDocument($yaml, $sourceLabel);
+        $seed = new SiteSeedParser()->parse($yaml, $sourceLabel);
         $lockSha256 = hash_file('sha256', $this->lockPath($projectRoot));
 
-        return $this->build($preset, $id, $name, $originKey, $contentTypes, (string) $lockSha256);
+        return $this->build(
+            $preset,
+            $seed->application->id,
+            $seed->application->name,
+            $seed->application->canonicalOriginConfigKey,
+            array_values(array_map(
+                static fn(ContentTypeDeclaration $contentType): array => $contentType->toArray(),
+                $seed->contentTypes,
+            )),
+            (string) $lockSha256,
+        );
     }
 
     private function lockPath(string $projectRoot): string
@@ -79,57 +90,5 @@ final class SitePresetResolver
         $recipes = SiteManifestAssembly::recipes($governedAuthoring, false);
 
         return SiteManifestAssembly::document($id, $name, $originKey, $contentTypes, $capabilities, [], $recipes, $lockSha256);
-    }
-
-    /**
-     * A preset seed document is deliberately not a `waaseyaa.site` answer
-     * document — it carries only the identity/content-type inputs a preset
-     * cannot resolve on its own (`SiteManifestSchema` requires capabilities,
-     * recipes, personal_data_stores, and verification, none of which a seed
-     * document supplies). This performs only the light shape checks needed
-     * to gather those inputs; the resolved manifest this produces still
-     * passes through the one existing `SiteManifestParser` for full closed-
-     * schema validation, so no second validation authority is introduced.
-     *
-     * @return array{0: string, 1: string, 2: string, 3: list<array{id: string, canonical_route: string}>}
-     */
-    private function parseSeedDocument(string $yaml, string $sourceLabel): array
-    {
-        $data = Yaml::parse($yaml);
-        if (!is_array($data)) {
-            throw new \InvalidArgumentException("Preset seed document must be a YAML mapping: {$sourceLabel}");
-        }
-        $application = $data['application'] ?? null;
-        if (!is_array($application)) {
-            throw new \InvalidArgumentException("Preset seed document requires an application mapping: {$sourceLabel}");
-        }
-        $id = $application['id'] ?? null;
-        $name = $application['name'] ?? null;
-        if (!is_string($id) || $id === '' || !is_string($name) || $name === '') {
-            throw new \InvalidArgumentException("Preset seed document requires application.id and application.name: {$sourceLabel}");
-        }
-        $canonicalOrigin = $application['canonical_origin'] ?? null;
-        $originKey = is_array($canonicalOrigin) ? ($canonicalOrigin['config_key'] ?? null) : null;
-        if (!is_string($originKey) || $originKey === '') {
-            throw new \InvalidArgumentException("Preset seed document requires application.canonical_origin.config_key: {$sourceLabel}");
-        }
-        $contentTypes = $data['content_types'] ?? null;
-        if (!is_array($contentTypes) || $contentTypes === []) {
-            throw new \InvalidArgumentException("Preset seed document requires at least one content type: {$sourceLabel}");
-        }
-        $normalized = [];
-        foreach ($contentTypes as $contentType) {
-            if (!is_array($contentType)) {
-                throw new \InvalidArgumentException("Each preset seed content type requires id and canonical_route: {$sourceLabel}");
-            }
-            $contentTypeId = $contentType['id'] ?? null;
-            $canonicalRoute = $contentType['canonical_route'] ?? null;
-            if (!is_string($contentTypeId) || $contentTypeId === '' || !is_string($canonicalRoute) || $canonicalRoute === '') {
-                throw new \InvalidArgumentException("Each preset seed content type requires id and canonical_route: {$sourceLabel}");
-            }
-            $normalized[] = ['id' => $contentTypeId, 'canonical_route' => $canonicalRoute];
-        }
-
-        return [$id, $name, $originKey, $normalized];
     }
 }

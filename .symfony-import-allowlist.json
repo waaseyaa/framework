@@ -15,6 +15,7 @@
     "packages/user/src/Middleware/ResponseCacheControlMiddleware.php": "Implements the established HTTP middleware contract and reconciles the final Symfony response after session and cookie writers unwind.",
     "packages/ssr/src/PageComposition/EntityPageComposerInterface.php": "The SSR page-composition contract returns the same HttpFoundation response type as the existing SSR render pipeline so application shell headers and decorators survive delegation.",
     "packages/site-contract/src/Doctor/DoctorSuppressionSet.php": "The provider-neutral diagnostic suppression authority uses Symfony Yaml only as its declared serialization parser and projects no Symfony type into the public contract.",
+    "packages/site-contract/src/Seed/SiteSeedParser.php": "The provider-neutral preset-seed authority uses Symfony Yaml only as its declared serialization parser, and translates its parse failures into the package's own ManifestViolation vocabulary rather than projecting a Symfony type into the public contract.",
     "packages/site-contract/src/SiteManifestParser.php": "The provider-neutral manifest authority uses Symfony Yaml only as its declared serialization parser and projects no Symfony type into the public contract."
   },
   "legacy_files": [
@@ -121,6 +122,7 @@
     "packages/search/src/EventSubscriber/SearchIndexSubscriber.php",
     "packages/search/src/SearchServiceProvider.php",
     "packages/site-contract/src/Doctor/DoctorSuppressionSet.php",
+    "packages/site-contract/src/Seed/SiteSeedParser.php",
     "packages/site-contract/src/SiteManifestParser.php",
     "packages/ssr/src/Formatter/HtmlFormatter.php",
     "packages/ssr/src/Http/AppController/AppControllerArgumentResolver.php",
