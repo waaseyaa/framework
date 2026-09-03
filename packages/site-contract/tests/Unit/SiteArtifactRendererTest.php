@@ -79,6 +79,16 @@ final class SiteArtifactRendererTest extends TestCase
     }
 
     #[Test]
+    public function blueprintFreeV1OwnershipMetadataRemainsByteIdentical(): void
+    {
+        $site = new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($this->manifest()));
+        $expected = file_get_contents(__DIR__ . '/../Fixtures/Generation/blueprint-free-v1.generated.json');
+
+        self::assertNotFalse($expected);
+        self::assertSame($expected, $site->artifacts['.waaseyaa/generated.json']->content);
+    }
+
+    #[Test]
     public function itRejectsInvalidGeneratedPhpBeforePublication(): void
     {
         $this->expectException(\InvalidArgumentException::class);
