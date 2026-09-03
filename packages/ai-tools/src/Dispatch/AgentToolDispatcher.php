@@ -65,12 +65,18 @@ final class AgentToolDispatcher implements ToolDispatcherInterface
      *        discards the detail. Sanitization of the RESPONSE does not depend on
      *        a logger being present: with or without one, the caller receives the
      *        same fixed envelope.
+     * @param ?string $correlationId Correlation identity supplied by a host
+     *        that already owns the request boundary. When present, sanitized
+     *        execution and output-schema failures use this exact identity in
+     *        both the response and log. Standalone callers may omit it and the
+     *        dispatcher will mint an identity only when a failure needs one.
      */
     public function __construct(
         private readonly ToolRegistryInterface $registry,
         private readonly AuthorizationPrincipalInterface $principal,
         ?LoggerInterface $logger = null,
         private readonly string $logPrefix = self::DEFAULT_LOG_PREFIX,
+        private readonly ?string $correlationId = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -145,7 +151,7 @@ final class AgentToolDispatcher implements ToolDispatcherInterface
             // correlation id; the detail goes to the log under the same id.
             // Deliberate domain failures never reach here — tools return them as
             // AgentToolResult values, which pass through untouched below.
-            $correlationId = SanitizedToolError::correlationId();
+            $correlationId = $this->failureCorrelationId();
             $this->logger->error(
                 $this->logPrefix . '.tool_execution_failed',
                 SanitizedToolError::logContext($e, $correlationId, $toolName),
@@ -162,7 +168,7 @@ final class AgentToolDispatcher implements ToolDispatcherInterface
                 ? [['field' => '$', 'message' => 'structuredContent is required by the advertised outputSchema.']]
                 : ToolInputSchemaValidator::validate($tool->outputSchema, $result->structuredContent);
             if ($outputViolations !== []) {
-                $correlationId = SanitizedToolError::correlationId();
+                $correlationId = $this->failureCorrelationId();
                 $this->logger->error($this->logPrefix . '.tool_output_schema_violation', [
                     'correlation_id' => $correlationId,
                     'tool' => $toolName,
@@ -176,10 +182,33 @@ final class AgentToolDispatcher implements ToolDispatcherInterface
             }
         }
 
-        return new ToolDispatchOutcome(
-            self::toolResultToEnvelope($result),
-            self::classify($result),
-        );
+        $envelope = self::toolResultToEnvelope($result);
+        try {
+            // ToolDispatchOutcome is the transport-neutral wire value consumed
+            // by both HTTP and stdio. Prove it is JSON-representable before an
+            // audited wrapper can finalize the request as successful; otherwise
+            // the durable ledger and the caller would report opposite outcomes.
+            \json_encode($envelope, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES);
+        } catch (\JsonException $e) {
+            $correlationId = $this->failureCorrelationId();
+            $this->logger->error('agent_tool.output_encoding_failed', [
+                'correlation_id' => $correlationId,
+                'tool' => $toolName,
+                'exception' => $e::class,
+            ]);
+
+            return new ToolDispatchOutcome(
+                self::errorEnvelope(SanitizedToolError::body($correlationId)),
+                AuditStage::ExecutionFailed,
+            );
+        }
+
+        return new ToolDispatchOutcome($envelope, self::classify($result));
+    }
+
+    private function failureCorrelationId(): string
+    {
+        return $this->correlationId ?? SanitizedToolError::correlationId();
     }
 
     /**

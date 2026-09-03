@@ -270,13 +270,112 @@ without a deliberate roster update. Two cross-checks read
 reflexive `--write-roster` cannot silence a rename or removal. Seeded positive
 control: `tests/Architecture/LocalOperatorToolProfileGateTest.php`.
 
-**Not owned here.** The dispatch path does not exist yet. The strict-ledger
-refusal (`NullStrictAuditLedger` must not satisfy D-5) and the
-reserve/finalize wrapper around dispatch are #2657's; the stdio `surface`
-constant and per-request correlation id are #2659's. `bimaaji_search_specs` is
-on the allowlist and inert until #2661 and #2662 —
-`BimaajiServiceProvider::resolveSpecsDirectory()` returns `null` unless
-`bimaaji.specs_directory` is configured, and `docs/specs/` ships in no package.
+**Not owned here.** `bimaaji_search_specs` is on the allowlist and inert until
+#2661 and #2662 — `BimaajiServiceProvider::resolveSpecsDirectory()` returns
+`null` unless `bimaaji.specs_directory` is configured, and `docs/specs/` ships
+in no package. The dispatch path (reserve/finalize wrapper, `NullStrictAuditLedger`
+refusal) is #2657's, discharged in `waaseyaa/ai-tools`. The stdio transport
+itself — the `surface` constant, per-request correlation id, and the
+conformant JSON-RPC server — is #2659's, discharged below.
+
+### Local stdio MCP transport (`mcp:serve`, ADR-022 D-9.2, #2659)
+
+`waaseyaa mcp:serve --profile=developer` speaks conformant JSON-RPC 2.0 over
+stdin/stdout: newline-delimited request/response objects, no batching, no
+resources/prompts capability (only `tools`). It is a CLI command, not a
+`waaseyaa/mcp` route — installing it registers zero HTTP surface, per ADR-022
+D-1.4/D-9.1, and it works when `waaseyaa/mcp` is not installed at all.
+
+| Class | Package | Role |
+|---|---|---|
+| `Waaseyaa\CLI\Mcp\Stdio\StdioMcpServer` | `waaseyaa/ai-tools`-only deps | The read loop: `initialize`, `ping`, `tools/list`, `tools/call`; every other method is `-32601`. Writes ONLY complete JSON-RPC frames to its `$out` stream — every diagnostic goes through an injected closure the caller wires to stderr. Listing goes through the injected `ToolDispatcherInterface` unaudited (`tools()`/`tool()` only, matching D-5.B: `initialize`/`ping`/`tools/list` mutate nothing); `tools/call` goes through a caller-supplied `$dispatch` closure so a correlation id can be minted fresh per request (D-5.C.6) — this class never constructs the audited dispatcher itself. |
+| `Waaseyaa\CLI\Mcp\Stdio\StdioMcpProtocol` | none | Protocol-version negotiation, independent of `Waaseyaa\Mcp\McpProtocol` on purpose — depending on `waaseyaa/mcp` to borrow four strings would pull in its route registrar (ADR-022 C-4). |
+| `Waaseyaa\CLI\Mcp\Stdio\StdioJsonRpcErrorCode` | none | The five base JSON-RPC 2.0 codes this transport needs; it has no rate limiter, bearer auth, or Origin check, so none of `Waaseyaa\Mcp\McpErrorCode`'s `-31xxx` band applies here. |
+| `Waaseyaa\CLI\Mcp\Stdio\StdioServerExecutableResolver` | none | Pure function: project root (POSIX or Windows shaped) → `{command, args}` for invoking `vendor/bin/waaseyaa mcp:serve`. Always `PHP_BINARY` or an injected override, never the bare string `'php'` — the acceptance criterion this class exists to satisfy ("reuses `waaseyaa dev`'s discipline, never assumes `command: php`"). Descriptor generation and machine-local configuration are owned by downstream #2663; see "Transferred" below. |
+| `Waaseyaa\CLI\Command\Mcp\McpServeCommand` | `waaseyaa/ai-agent` (optional) | The wiring: constructs `LocalOperatorPrincipal::forLocalStdioTransport()`, narrows the host's `ToolRegistryInterface` with `ToolIdAllowlistRegistry` to the principal's D-7 tool ids, wraps it in `AgentToolDispatcher`, and — per `tools/call` — a fresh `AuditedToolDispatcher` with surface `McpServeCommand::AUDIT_SURFACE` (`waaseyaa.local.stdio`, never `mcp`/`mcp.*`), `$principal->auditActorUid()` (always `null`), and `$principal->auditMetadata()`. A construction-only `AuditedToolDispatcher` probe at startup (discarded, never dispatched) surfaces a `NullStrictAuditLedger` or surface-collision refusal before the read loop starts rather than on the first call. Every refusal — unsupported `--profile`, `LocalOperatorRefusal`, the audit probe — writes one structured JSON diagnostic to stderr and returns exit `1`; nothing reaches stdout. |
+| `Waaseyaa\CLI\Provider\McpStdioServiceProvider` | — | Registers `mcp:serve`, gated on both `waaseyaa/ai-agent` and `waaseyaa/ai-tools` via `RequiresOptionalPackagesInterface`. `waaseyaa/cli` only `suggest`s both packages: a production `waaseyaa/cms` consumer does not gain the Layer-5 tool plane through `cms → cli`, while a development install carrying both packages exposes the command. |
+
+**Audit correlation is provably real, not merely wired.** The stdio transport
+mints the request identity and supplies it to both dispatcher layers. A
+`tools/call` produces two `strict_audit_ledger` rows sharing that exact
+`correlation_id`: a
+`reserved` row (`request_accepted`) and a `finalized` row
+(`execution_succeeded` / `_failed`), both `surface = 'waaseyaa.local.stdio'`,
+`actor_uid` NULL, and `descriptor.metadata.principal =
+'local-operator:stdio'`. The unit wiring tests cover successful dispatch and
+the two sanitized-failure paths against an in-memory ledger. The integration
+test `McpServeCorrelationIntegrationTest` repeats the hard cases — an escaping
+exception and an output-schema violation — against
+`DatabaseStrictAuditLedger` and a real SQLite `strict_audit_ledger`, proving
+that response, safe log context, reservation, and finalization are joinable
+without inference. Standalone `AgentToolDispatcher` callers retain their old
+behaviour and mint an identity only when a sanitized failure needs one.
+
+`tests/Integration/Mcp/StdioMcpConformanceTest.php`
+spawns the real `mcp:serve` subprocess over real OS pipes (`proc_open`, not
+`Symfony\Process`, because this session is interactive request/response, not
+run-to-completion) and proves the FULL round trip: `initialize` negotiates a
+protocol version, a `notifications/initialized` gets no response line at all,
+`tools/list` returns only D-7-allowlisted names, `tools/call` succeeds, a
+malformed line gets a `-32700` frame and the session keeps answering
+afterward, and a production-shaped runtime refuses with **empty stdout** and
+a non-zero exit — every line captured off the child's stdout pipe is asserted
+to parse as JSON, which is how "a stray echo corrupts the stream" is proven
+false rather than assumed. `Waaseyaa\CLI\Tests\Unit\Mcp\Stdio\StdioMcpServerTest`
+covers the same protocol surface against `php://memory` streams and a stub
+dispatcher, for the failure shapes too tedious to reach through a real
+process (JSON-RPC batching rejected, wrong `jsonrpc` version, a thrown
+exception inside `tools/call` sanitized to `Internal error.` on the wire
+while stderr receives only exception class and method — never message,
+arguments, credentials, or an absolute throw-site path).
+
+**A known kernel-boot gap, not a #2659 defect.** Of the three D-7 tool ids,
+only `bimaaji_search_specs` is guaranteed to answer `tools/list` under a plain
+`ConsoleKernel` boot. `bimaaji_introspect_graph` and `bimaaji_introspect_section`
+both depend on `Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator`, whose
+`RoutingIntrospectionProvider` / `PublicSurfaceProvider` sections need a
+`Symfony\Routing\RouteCollection` that only `HttpKernel` binds on the
+kernel-services bus — `ConsoleKernel` does not. `AttributeToolRegistry`
+already treats an unconstructible tool as a documented, silent skip (a
+`ToolDependencyUnavailableException` logged at `debug`, per
+`packages/ai-tools/src/Catalogue/AttributeToolRegistry.php`), so
+`mcp:serve`'s catalogue is simply whatever subset of the allowlist the
+current kernel boot can construct — narrower under `bootForCli()` than under
+`bootForHttp()`, and never wider than the allowlist either way. Binding a
+`RouteCollection` on `ConsoleKernel` (or giving the two introspection
+providers a routeless fallback) is a `waaseyaa/bimaaji` / kernel-wiring
+question, not a transport one, and is left for a follow-up rather than folded
+into this issue.
+
+**Official-client proof.** On 2026-09-03 the released MCP Inspector CLI
+(`@modelcontextprotocol/inspector` 2.5.0) started this branch's packaged
+`mcp:serve --profile=developer` through an uncommitted, machine-local config
+and completed strict `tools/list`. It observed exactly the one constructible,
+approved tool (`bimaaji_search_specs`) and its declared input schema. The
+config contained absolute checkout and PHP paths, remained outside the
+repository, and is not a distributable artifact. The subprocess conformance
+test remains the deterministic CI proof; Inspector is independent client
+interoperability evidence.
+
+**Official PHP SDK evaluation.** `mcp/sdk` v0.8.1 (released 2026-08-29) can
+represent the handshake-era and 2026-07-28 protocols and supports custom
+request handlers, so registry and audit injection are not technical blockers.
+It is nevertheless pre-1.0, classified Tier 3 by the official SDK documentation,
+and adoption in `waaseyaa/cli` would make a developer-only transport dependency
+production-present for every CLI consumer. Moving it to optional
+`waaseyaa/ai-agent` would invert package ownership, while the current
+development metapackage has no code-bearing home for it. #2659 therefore keeps
+the small transport implementation and does not adopt the SDK. Re-evaluate
+when the SDK reaches a stable major or the package graph gains a code-bearing,
+development-only transport owner.
+
+**Transferred to #2663.** Portable launcher descriptors and machine-safe client
+configuration are not shipped by #2659. #2663 owns their generation, safe
+merge, source identity, drift detection, uninstall behaviour, supported-OS
+bootstrap proof, and the rule that an absolute machine path is generated only
+into a private/gitignored artifact. This issue supplies the resolver and
+working server that #2663 consumes; the transfer is explicit rather than an
+unowned deferral.
 
 ## Agent Execution
 

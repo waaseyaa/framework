@@ -187,6 +187,7 @@
         "ext-intl": "For ICU transliteration of diacritic titles to readable Latin ingest keys; a deterministic hash key is used otherwise",
         "ext-pcntl": "Required for clean SIGINT handling in --watch mode",
         "waaseyaa/ai-agent": "Provides the optional ai:* operator commands",
+        "waaseyaa/ai-tools": "Provides the transport-neutral tool registry and dispatch contracts used by optional mcp:serve",
         "waaseyaa/oidc": "Provides the optional oidc:* operator commands"
     },
     "require-dev": {
@@ -223,6 +224,7 @@
                 "Waaseyaa\\CLI\\CliServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\AiServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\McpStdioServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\BearerTokenServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\EntityTypeServiceProvider",

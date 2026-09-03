@@ -96,7 +96,7 @@ final class IntrospectGraphToolTest extends TestCase
         $schema = $this->makeTool()->inputSchema();
 
         self::assertSame('object', $schema['type']);
-        self::assertSame([], $schema['properties']);
+        self::assertEquals(new \stdClass(), $schema['properties']);
         self::assertFalse($schema['additionalProperties']);
     }
 

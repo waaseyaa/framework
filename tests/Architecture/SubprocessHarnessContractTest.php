@@ -52,6 +52,16 @@ final class SubprocessHarnessContractTest extends TestCase
             . 'is the collector that runs the deadlock probe for BenchmarkProcessRunner, so keeping it off '
             . 'symfony/process keeps the measurement from becoming self-referential. Proven at 256KiB on both '
             . 'streams by its own retained_probe_collector_drains_large_stdout_and_stderr().',
+        'tests/Integration/Mcp/StdioMcpConformanceTest.php' =>
+            'Genuinely needs raw bidirectional pipe control, not run-to-completion or fire-and-forget: it '
+            . 'holds an interactive JSON-RPC session open across many request/response round trips against a '
+            . 'live mcp:serve child, which Symfony\\Component\\Process\\Process has no API for (it streams '
+            . 'output via a callback or blocks until exit; it does not let a caller write one line, then read '
+            . 'exactly the next line, repeatedly). Deadlock-safe by the same shape as the two entries above: '
+            . 'all three descriptors (stdin, stdout, stderr) are set non-blocking via stream_set_blocking(), '
+            . 'and readLine() polls stdout AND stderr together in one stream_select() loop, draining whichever '
+            . 'is ready each iteration under a 15s deadline — stderr is buffered for assertion messages rather '
+            . 'than ever left undrained. tearDown() closes every pipe before proc_terminate()+proc_close().',
     ];
 
     #[Test]

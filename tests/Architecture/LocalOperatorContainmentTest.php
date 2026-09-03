@@ -36,6 +36,27 @@ final class LocalOperatorContainmentTest extends TestCase
     private const string HOME_DIRECTORY = 'packages/ai-agent/src/LocalOperator';
     private const string SENTINEL = 'local-operator:stdio';
 
+    /**
+     * The one legitimate reference site this docblock already named before it
+     * existed: "the local stdio transport bootstrap" (#2659, ADR-022 D-9.2).
+     * `McpServeCommand::execute()` is the sole call to
+     * `LocalOperatorPrincipal::forLocalStdioTransport()` outside the home
+     * directory and outside `LocalOperatorTrustBoundaryTest`'s own probes
+     * (which already sit under `tests/`, not `packages/`, so they never reach
+     * this scan); `McpStdioServiceProvider` names the sentinel class only as
+     * an `OptionalPackageRequirement`, never to construct one. Neither file
+     * installs the principal into the kernel `AccountContext` (R-4), holds an
+     * HTTP auth path, or resolves a persisted account (R-1/R-2/R-3) — this
+     * allowlist is exactly as narrow as those rows require, not an escape
+     * hatch for a broader import.
+     *
+     * @var list<string>
+     */
+    private const array ALLOWED_BOOTSTRAP_REFERENCES = [
+        'packages/cli/src/Command/Mcp/McpServeCommand.php',
+        'packages/cli/src/Provider/McpStdioServiceProvider.php',
+    ];
+
     /** @var list<string> */
     private const array PRODUCTION_ROOTS = [
         'composer.json',
@@ -121,6 +142,9 @@ final class LocalOperatorContainmentTest extends TestCase
             if (str_starts_with($relative, self::HOME_DIRECTORY . '/')) {
                 continue;
             }
+            if (in_array($relative, self::ALLOWED_BOOTSTRAP_REFERENCES, true)) {
+                continue;
+            }
             $contents = (string) file_get_contents($absolute);
             foreach (['LocalOperatorPrincipal', 'LocalOperatorTransportAttestation', self::SENTINEL] as $needle) {
                 if (str_contains($contents, $needle)) {
@@ -136,6 +160,32 @@ final class LocalOperatorContainmentTest extends TestCase
             . "LocalOperatorPrincipal. Only the local stdio transport bootstrap constructs it, and only through\n"
             . "LocalOperatorTransportAttestation. Offending references:\n" . implode("\n", $offenders),
         );
+    }
+
+    /**
+     * The allowlist stays honest: every entry must still exist and still
+     * actually reference one of the needles. Otherwise a rename or a refactor
+     * that stopped needing the reference would leave a stale, silently
+     * widening exemption behind — the allowlist would keep passing for a
+     * reason that no longer applies.
+     */
+    #[Test]
+    public function every_allowlisted_bootstrap_file_still_exists_and_still_references_the_principal(): void
+    {
+        foreach (self::ALLOWED_BOOTSTRAP_REFERENCES as $relative) {
+            $absolute = $this->root . '/' . $relative;
+            self::assertFileExists($absolute, sprintf('Allowlisted file %s no longer exists; remove it from ALLOWED_BOOTSTRAP_REFERENCES.', $relative));
+
+            $contents = (string) file_get_contents($absolute);
+            $referencesSomething = false;
+            foreach (['LocalOperatorPrincipal', 'LocalOperatorTransportAttestation', self::SENTINEL] as $needle) {
+                $referencesSomething = $referencesSomething || str_contains($contents, $needle);
+            }
+            self::assertTrue(
+                $referencesSomething,
+                sprintf('Allowlisted file %s no longer references the principal; remove it from ALLOWED_BOOTSTRAP_REFERENCES.', $relative),
+            );
+        }
     }
 
     /**

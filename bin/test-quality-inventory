@@ -158,6 +158,12 @@ foreach ($phpTestFiles as $path) {
             // early via Process::isRunning() if the server dies, so it can
             // neither hang nor pass on a dead server.
             'tests/Integration/LocalOperator/LocalOperatorHttpSapiRefusalTest.php',
+            // #2659: the stdio MCP conformance harness polls proc_get_status()
+            // for the child's clean exit after closing stdin, on a bounded 15s
+            // deadline (waitForExit()), and separately polls readLine()'s
+            // stream_select() loop for a response frame on the same bound —
+            // neither can hang or pass against a dead/unresponsive child.
+            'tests/Integration/Mcp/StdioMcpConformanceTest.php',
             'packages/foundation/tests/Integration/Migration/SchemaAuthorityConcurrencyTest.php' => 'subprocess_polling',
             'packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php' => 'subprocess_polling',
             'tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php' => 'filesystem_retry',

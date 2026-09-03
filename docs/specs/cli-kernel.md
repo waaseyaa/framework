@@ -1,5 +1,16 @@
 # CLI Console
 
+<!-- Spec reviewed 2026-09-03 - #2659: `mcp:serve` remains the optional,
+local-development-only stdio command described below. Each `tools/call` now
+binds its transport-owned correlation id into the inner AgentToolDispatcher as
+well as the durable audit wrapper, so sanitized failure responses, safe log
+contexts, reservations, and finalizations are joinable. The server's emergency
+catch emits exception class and method only; exception messages, credentials,
+arguments, and absolute paths reach neither stdout nor stderr. Command name,
+profile, discovery, startup refusal, and exit-code semantics are unchanged.
+Canonical transport detail and the real-SQLite proof live in ai-integration.md.
+-->
+
 <!-- Spec reviewed 2026-09-02 - #2442: `site:init` gains `--preset=minimal|editorial`,
 an init-time-only shortcut resolved once by `SitePresetResolver` into an
 ordinary `waaseyaa.site` answer document before the existing
@@ -122,6 +133,21 @@ the sentinel and registers zero commands while that package is absent. A
 `--no-dev` consumer without OIDC lists no `oidc:*` command and refuses
 `oidc:init-signing-key` as unknown rather than failing on the signing-key
 repository binding.
+
+`mcp:serve` (ADR-022 D-9.2, #2659 — the local stdio MCP transport) is gated
+the same third way: `McpStdioServiceProvider` implements
+`RequiresOptionalPackagesInterface` with sentinels for both
+`waaseyaa/ai-agent` and `waaseyaa/ai-tools`, which `waaseyaa/cli` only suggests.
+That keeps both Layer-5 packages out of a production `waaseyaa/cms` closure
+that reaches `cli`, while a development install carrying both exposes the
+command. A `--no-dev` consumer missing either package lists no `mcp:serve`
+command. Once started, the
+command takes over stdin/stdout for JSON-RPC (`Waaseyaa\CLI\Mcp\Stdio\StdioMcpServer`)
+and never uses `SymfonyCommandIO::write()`/`writeln()` — only `error()`, so
+every diagnostic including a refused `LocalOperatorPrincipal` attestation
+lands on stderr, never interleaved with a protocol frame on stdout. Full
+transport contract: `docs/specs/ai-integration.md` "Local stdio MCP transport
+(`mcp:serve`, ADR-022 D-9.2, #2659)".
 
 Command presentation belongs to this Layer-6 package even when the domain operation belongs lower in the stack. For example, `BearerTokenServiceProvider` owns the `bearer-token:issue|list|rotate|revoke` Symfony commands and depends downward on auth's `BearerTokenStoreInterface`; `AuthServiceProvider` owns the durable credential binding and exposes no Symfony Console types. A lower-layer provider must never construct CLI command objects, including through hidden string FQCNs.
 

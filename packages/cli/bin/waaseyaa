@@ -3,6 +3,12 @@
 
 declare(strict_types=1);
 
+// Console diagnostics belong on stderr. This is especially critical for
+// `mcp:serve`, whose stdout is a machine protocol, but it is the correct CLI
+// boundary for every command. Set it before Composer autoload or kernel boot
+// so warnings from either cannot be interleaved with command output.
+ini_set('display_errors', 'stderr');
+
 // Project root is the current working directory. This contract matches
 // Laravel's artisan and Symfony's bin/console: the CLI must be invoked
 // from the project root (the directory containing composer.json).
