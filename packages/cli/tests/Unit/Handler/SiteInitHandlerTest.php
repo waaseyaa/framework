@@ -232,13 +232,21 @@ final class SiteInitHandlerTest extends TestCase
     }
 
     /**
-     * `editorial` additionally activates `governed_authoring` — a usable
-     * authenticated authoring starting point built entirely from the
-     * existing governed-authoring recipe, never backend auth/security
-     * implementation code of its own.
+     * `editorial` additionally activates `governed_authoring`, so the
+     * declaration and its recipe-owned artifacts are published and
+     * reviewable, built entirely from the existing governed-authoring
+     * recipe and never from backend auth/security implementation code of
+     * its own.
+     *
+     * This asserts the DECLARATION and the published artifact set only. It
+     * deliberately does not assert a running authoring surface: the
+     * canonical lifecycle never activates a recipe-declared provider or its
+     * Composer requirements (#2857), so no unit test here can honestly
+     * prove one. See docs/specs/site-golden-path.md "What a preset does not
+     * do".
      */
     #[Test]
-    public function editorialPresetSeedDocumentInitializesAnAuthoringStartingPoint(): void
+    public function editorialPresetSeedDocumentPublishesTheGovernedAuthoringDeclaration(): void
     {
         $root = $this->root();
         file_put_contents($root . '/composer.lock', "{}\n");
