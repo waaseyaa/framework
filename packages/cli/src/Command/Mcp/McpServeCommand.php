@@ -134,9 +134,16 @@ final class McpServeCommand
             return 1;
         }
 
-        $dispatch = function (string $name, array $arguments, string $correlationId) use ($catalogue, $ledger, $principal, $logger): ToolDispatchOutcome {
+        $dispatch = function (string $name, array $arguments, string $correlationId) use ($scoped, $ledger, $principal, $logger): ToolDispatchOutcome {
+            $requestDispatcher = new AgentToolDispatcher(
+                $scoped,
+                $principal,
+                $logger,
+                'local_stdio',
+                $correlationId,
+            );
             $audited = new AuditedToolDispatcher(
-                $catalogue,
+                $requestDispatcher,
                 $ledger,
                 self::AUDIT_SURFACE,
                 $correlationId,

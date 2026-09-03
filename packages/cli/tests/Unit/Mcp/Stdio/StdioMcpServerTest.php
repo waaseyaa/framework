@@ -372,6 +372,34 @@ final class StdioMcpServerTest extends TestCase
     }
 
     #[Test]
+    public function consecutive_tools_calls_never_reuse_a_request_correlation_id(): void
+    {
+        $seen = [];
+        $next = 0;
+        $request = static fn(int $id): string => json_encode([
+            'jsonrpc' => '2.0',
+            'id' => $id,
+            'method' => 'tools/call',
+            'params' => ['name' => 'echo'],
+        ], JSON_THROW_ON_ERROR) . "\n";
+
+        $this->roundTrip(
+            $request(1) . $request(2),
+            dispatch: static function (string $name, array $arguments, string $correlationId) use (&$seen): ToolDispatchOutcome {
+                $seen[] = $correlationId;
+
+                return new ToolDispatchOutcome(['content' => [['type' => 'text', 'text' => 'ok']]], AuditStage::ExecutionSucceeded);
+            },
+            correlationIdFactory: static function () use (&$next): string {
+                return 'correlation-' . ++$next;
+            },
+        );
+
+        self::assertSame(['correlation-1', 'correlation-2'], $seen);
+        self::assertCount(2, array_unique($seen));
+    }
+
+    #[Test]
     public function a_tool_level_error_is_still_a_jsonrpc_success_carrying_iserror_true(): void
     {
         // MCP tool errors ("the tool ran and reported a failure") are NOT
@@ -391,13 +419,13 @@ final class StdioMcpServerTest extends TestCase
     }
 
     #[Test]
-    public function an_exception_escaping_the_dispatch_closure_becomes_an_internal_error_frame_and_never_reaches_stdout_raw(): void
+    public function an_exception_escaping_the_dispatch_closure_reaches_neither_protocol_nor_diagnostic_output_raw(): void
     {
         $diagnostics = [];
         $frames = $this->roundTrip(
             json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/call', 'params' => ['name' => 'boom']], JSON_THROW_ON_ERROR) . "\n",
             dispatch: static function (): never {
-                throw new \RuntimeException('credentials=super-secret should never reach stdout');
+                throw new \RuntimeException('credentials=super-secret path=/home/private/worktree/vendor/file.php');
             },
             diagnostic: function (string $line) use (&$diagnostics): void {
                 $diagnostics[] = $line;
@@ -406,8 +434,11 @@ final class StdioMcpServerTest extends TestCase
 
         self::assertSame(StdioJsonRpcErrorCode::INTERNAL_ERROR, $frames[0]['error']['code']);
         self::assertSame('Internal error.', $frames[0]['error']['message'], 'The raw exception message must not leak onto the wire.');
-        self::assertNotSame([], $diagnostics, 'The exception detail must still be reported — to the diagnostic sink, not stdout.');
-        self::assertStringContainsString('super-secret', implode("\n", $diagnostics));
+        self::assertNotSame([], $diagnostics, 'A safe structural diagnostic must identify the failed boundary.');
+        $diagnostic = implode("\n", $diagnostics);
+        self::assertStringContainsString(\RuntimeException::class, $diagnostic);
+        self::assertStringNotContainsString('super-secret', $diagnostic);
+        self::assertStringNotContainsString('/home/private/worktree', $diagnostic);
     }
 
     #[Test]

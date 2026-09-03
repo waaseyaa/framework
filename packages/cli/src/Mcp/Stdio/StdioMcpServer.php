@@ -182,7 +182,13 @@ final class StdioMcpServer
         try {
             $this->routeRequest($id, $method, $params);
         } catch (\Throwable $e) {
-            $this->emitDiagnostic(\sprintf('waaseyaa mcp:serve: unhandled %s dispatching "%s": %s', $e::class, $method, $e->getMessage()));
+            // This is an emergency boundary for a Throwable that escaped the
+            // dispatcher itself. Its message can contain credentials, raw
+            // arguments, or absolute machine paths, so stderr receives only
+            // fixed structural metadata. Ordinary tool failures are sanitized
+            // and correlation-bound inside AgentToolDispatcher before they can
+            // reach this catch.
+            $this->emitDiagnostic(\sprintf('waaseyaa mcp:serve: unhandled %s dispatching "%s".', $e::class, $method));
             $this->writeError($id, StdioJsonRpcErrorCode::INTERNAL_ERROR, 'Internal error.');
         }
     }

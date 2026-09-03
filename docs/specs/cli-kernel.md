@@ -1,5 +1,16 @@
 # CLI Console
 
+<!-- Spec reviewed 2026-09-03 - #2659: `mcp:serve` remains the optional,
+local-development-only stdio command described below. Each `tools/call` now
+binds its transport-owned correlation id into the inner AgentToolDispatcher as
+well as the durable audit wrapper, so sanitized failure responses, safe log
+contexts, reservations, and finalizations are joinable. The server's emergency
+catch emits exception class and method only; exception messages, credentials,
+arguments, and absolute paths reach neither stdout nor stderr. Command name,
+profile, discovery, startup refusal, and exit-code semantics are unchanged.
+Canonical transport detail and the real-SQLite proof live in ai-integration.md.
+-->
+
 <!-- Spec reviewed 2026-09-02 - #2442: `site:init` gains `--preset=minimal|editorial`,
 an init-time-only shortcut resolved once by `SitePresetResolver` into an
 ordinary `waaseyaa.site` answer document before the existing

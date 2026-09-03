@@ -15,6 +15,7 @@ use Waaseyaa\AI\Agent\LocalOperator\LocalOperatorPrincipal;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
+use Waaseyaa\AI\Tools\Tests\Support\Dispatch\RecordingLogger;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\CLI\Command\Mcp\McpServeCommand;
@@ -178,6 +179,30 @@ final class McpServeCommandTest extends TestCase
         self::assertNotSame('', $reserve['reservation']->correlationId);
     }
 
+    #[Test]
+    public function an_escaping_tool_exception_uses_one_correlation_id_across_response_log_and_audit(): void
+    {
+        $this->assertFailureCorrelationIsJoined($this->fixtureTool(
+            'bimaaji_search_specs',
+            'bimaaji.read',
+            static fn(array $arguments): AgentToolResult => throw new \RuntimeException('secret failure detail'),
+        ));
+    }
+
+    #[Test]
+    public function an_output_schema_failure_uses_one_correlation_id_across_response_log_and_audit(): void
+    {
+        $this->assertFailureCorrelationIsJoined($this->fixtureTool(
+            'bimaaji_search_specs',
+            'bimaaji.read',
+            static fn(array $arguments): AgentToolResult => AgentToolResult::success(
+                [['type' => 'text', 'text' => 'ok']],
+                structuredContent: ['wrong' => true],
+            ),
+            ['type' => 'object', 'required' => ['count'], 'properties' => ['count' => ['type' => 'integer']]],
+        ));
+    }
+
     // ---------------------------------------------------------------- helpers
 
     /** @return array{0: SymfonyCommandIO, 1: BufferedOutput, 2: BufferedOutput} */
@@ -246,11 +271,27 @@ final class McpServeCommandTest extends TestCase
         };
     }
 
-    private function fixtureTool(string $name, string $capability): AgentTool
+    /**
+     * @param ?\Closure(array<string, mixed>): AgentToolResult $handler
+     * @param ?array<string, mixed> $outputSchema
+     */
+    private function fixtureTool(
+        string $name,
+        string $capability,
+        ?\Closure $handler = null,
+        ?array $outputSchema = null,
+    ): AgentTool
     {
-        $impl = new class implements AgentToolInterface {
+        $impl = new class ($handler) implements AgentToolInterface {
+            /** @param ?\Closure(array<string, mixed>): AgentToolResult $handler */
+            public function __construct(private readonly ?\Closure $handler) {}
+
             public function execute(array $arguments, \Waaseyaa\Access\AuthorizationPrincipalInterface $account): AgentToolResult
             {
+                if ($this->handler !== null) {
+                    return ($this->handler)($arguments);
+                }
+
                 return AgentToolResult::success([['type' => 'text', 'text' => 'ok']]);
             }
 
@@ -283,6 +324,44 @@ final class McpServeCommandTest extends TestCase
             category: 'test',
             inputSchema: ['type' => 'object', 'properties' => ['query' => ['type' => 'string']], 'additionalProperties' => false],
             impl: $impl,
+            outputSchema: $outputSchema,
         );
+    }
+
+    private function assertFailureCorrelationIsJoined(AgentTool $tool): void
+    {
+        [$io] = $this->io();
+        $out = fopen('php://memory', 'r+');
+        $in = fopen('php://memory', 'r+');
+        fwrite($in, json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/call',
+            'params' => ['name' => $tool->name, 'arguments' => ['query' => 'entity']],
+        ], JSON_THROW_ON_ERROR) . "\n");
+        rewind($in);
+
+        $ledger = new RecordingStrictAuditLedger();
+        $logger = new RecordingLogger();
+        $command = new McpServeCommand(
+            toolRegistry: $this->registry([$tool]),
+            auditLedger: $ledger,
+            runtimeConfig: self::DEV_CONFIG,
+            serverVersion: '1.0.0',
+            logger: $logger,
+            in: $in,
+            out: $out,
+        );
+
+        self::assertSame(0, $command->execute($io));
+
+        $frame = json_decode($this->contents($out), true, flags: JSON_THROW_ON_ERROR);
+        $body = json_decode($frame['result']['content'][0]['text'], true, flags: JSON_THROW_ON_ERROR);
+        $correlationId = $body['meta']['correlation_id'];
+        self::assertNotSame('', $correlationId);
+        self::assertSame($correlationId, $logger->withLevel('error')[0]['context']['correlation_id']);
+        self::assertSame($correlationId, $ledger->calls[0]['reservation']->correlationId);
+        self::assertSame($correlationId, $ledger->calls[1]['receipt']->correlationId);
+        self::assertSame(\Waaseyaa\Foundation\Audit\AuditStage::ExecutionFailed, $ledger->calls[1]['stage']);
     }
 }

@@ -291,20 +291,25 @@ D-1.4/D-9.1, and it works when `waaseyaa/mcp` is not installed at all.
 | `Waaseyaa\CLI\Mcp\Stdio\StdioMcpServer` | `waaseyaa/ai-tools`-only deps | The read loop: `initialize`, `ping`, `tools/list`, `tools/call`; every other method is `-32601`. Writes ONLY complete JSON-RPC frames to its `$out` stream — every diagnostic goes through an injected closure the caller wires to stderr. Listing goes through the injected `ToolDispatcherInterface` unaudited (`tools()`/`tool()` only, matching D-5.B: `initialize`/`ping`/`tools/list` mutate nothing); `tools/call` goes through a caller-supplied `$dispatch` closure so a correlation id can be minted fresh per request (D-5.C.6) — this class never constructs the audited dispatcher itself. |
 | `Waaseyaa\CLI\Mcp\Stdio\StdioMcpProtocol` | none | Protocol-version negotiation, independent of `Waaseyaa\Mcp\McpProtocol` on purpose — depending on `waaseyaa/mcp` to borrow four strings would pull in its route registrar (ADR-022 C-4). |
 | `Waaseyaa\CLI\Mcp\Stdio\StdioJsonRpcErrorCode` | none | The five base JSON-RPC 2.0 codes this transport needs; it has no rate limiter, bearer auth, or Origin check, so none of `Waaseyaa\Mcp\McpErrorCode`'s `-31xxx` band applies here. |
-| `Waaseyaa\CLI\Mcp\Stdio\StdioServerExecutableResolver` | none | Pure function: project root (POSIX or Windows shaped) → `{command, args}` for invoking `vendor/bin/waaseyaa mcp:serve`. Always `PHP_BINARY` or an injected override, never the bare string `'php'` — the acceptance criterion this class exists to satisfy ("reuses `waaseyaa dev`'s discipline, never assumes `command: php`"). Consumed by a future platform launcher descriptor, deliberately NOT shipped here — see "Deferred" below. |
+| `Waaseyaa\CLI\Mcp\Stdio\StdioServerExecutableResolver` | none | Pure function: project root (POSIX or Windows shaped) → `{command, args}` for invoking `vendor/bin/waaseyaa mcp:serve`. Always `PHP_BINARY` or an injected override, never the bare string `'php'` — the acceptance criterion this class exists to satisfy ("reuses `waaseyaa dev`'s discipline, never assumes `command: php`"). Descriptor generation and machine-local configuration are owned by downstream #2663; see "Transferred" below. |
 | `Waaseyaa\CLI\Command\Mcp\McpServeCommand` | `waaseyaa/ai-agent` (optional) | The wiring: constructs `LocalOperatorPrincipal::forLocalStdioTransport()`, narrows the host's `ToolRegistryInterface` with `ToolIdAllowlistRegistry` to the principal's D-7 tool ids, wraps it in `AgentToolDispatcher`, and — per `tools/call` — a fresh `AuditedToolDispatcher` with surface `McpServeCommand::AUDIT_SURFACE` (`waaseyaa.local.stdio`, never `mcp`/`mcp.*`), `$principal->auditActorUid()` (always `null`), and `$principal->auditMetadata()`. A construction-only `AuditedToolDispatcher` probe at startup (discarded, never dispatched) surfaces a `NullStrictAuditLedger` or surface-collision refusal before the read loop starts rather than on the first call. Every refusal — unsupported `--profile`, `LocalOperatorRefusal`, the audit probe — writes one structured JSON diagnostic to stderr and returns exit `1`; nothing reaches stdout. |
 | `Waaseyaa\CLI\Provider\McpStdioServiceProvider` | — | Registers `mcp:serve`, gated on `waaseyaa/ai-agent` via `RequiresOptionalPackagesInterface` exactly like `AiServiceProvider` gates `ai:*` (#2826): `waaseyaa/cli` only `suggest`s `ai-agent` (never `require`s it — CP009), so a `--no-dev` consumer without the local AI-development plane sees zero `mcp:*` commands. `waaseyaa/ai-tools` — where the transport-neutral dispatch contracts live — IS a hard `require` of `waaseyaa/cli`, since it is already production-present in `waaseyaa/framework` and `waaseyaa/full`; gating it would buy nothing. |
 
-**Audit correlation is provably real, not merely wired.** A `tools/call`
-produces two `strict_audit_ledger` rows sharing one `correlation_id`: a
+**Audit correlation is provably real, not merely wired.** The stdio transport
+mints the request identity and supplies it to both dispatcher layers. A
+`tools/call` produces two `strict_audit_ledger` rows sharing that exact
+`correlation_id`: a
 `reserved` row (`request_accepted`) and a `finalized` row
 (`execution_succeeded` / `_failed`), both `surface = 'waaseyaa.local.stdio'`,
 `actor_uid` NULL, and `descriptor.metadata.principal =
-'local-operator:stdio'`. Those ledger assertions —
-surface, NULL `actor_uid`, shared `correlation_id`, and principal metadata —
-live in `packages/cli/tests/Unit/Command/Mcp/McpServeCommandTest.php` against
-an in-memory ledger fake; the conformance test below asserts protocol shape
-and never touches the ledger table.
+'local-operator:stdio'`. The unit wiring tests cover successful dispatch and
+the two sanitized-failure paths against an in-memory ledger. The integration
+test `McpServeCorrelationIntegrationTest` repeats the hard cases — an escaping
+exception and an output-schema violation — against
+`DatabaseStrictAuditLedger` and a real SQLite `strict_audit_ledger`, proving
+that response, safe log context, reservation, and finalization are joinable
+without inference. Standalone `AgentToolDispatcher` callers retain their old
+behaviour and mint an identity only when a sanitized failure needs one.
 
 `tests/Integration/Mcp/StdioMcpConformanceTest.php`
 spawns the real `mcp:serve` subprocess over real OS pipes (`proc_open`, not
@@ -321,7 +326,8 @@ covers the same protocol surface against `php://memory` streams and a stub
 dispatcher, for the failure shapes too tedious to reach through a real
 process (JSON-RPC batching rejected, wrong `jsonrpc` version, a thrown
 exception inside `tools/call` sanitized to `Internal error.` on the wire
-while the raw detail reaches only the diagnostic sink).
+while stderr receives only exception class and method — never message,
+arguments, credentials, or an absolute throw-site path).
 
 **A known kernel-boot gap, not a #2659 defect.** Of the three D-7 tool ids,
 only `bimaaji_search_specs` is guaranteed to answer `tools/list` under a plain
@@ -341,11 +347,35 @@ providers a routeless fallback) is a `waaseyaa/bimaaji` / kernel-wiring
 question, not a transport one, and is left for a follow-up rather than folded
 into this issue.
 
-**Deferred.** Platform launcher descriptors — the Claude Desktop / VS Code
-config-fragment shape that would invoke `StdioServerExecutableResolver`'s
-output — are an explicitly open design question (ADR-022, #2659's own scope
-note) and are not shipped here. Absolute machine paths belong in THAT
-artifact once its shape is decided, never in this repository.
+**Official-client proof.** On 2026-09-03 the released MCP Inspector CLI
+(`@modelcontextprotocol/inspector` 2.5.0) started this branch's packaged
+`mcp:serve --profile=developer` through an uncommitted, machine-local config
+and completed strict `tools/list`. It observed exactly the one constructible,
+approved tool (`bimaaji_search_specs`) and its declared input schema. The
+config contained absolute checkout and PHP paths, remained outside the
+repository, and is not a distributable artifact. The subprocess conformance
+test remains the deterministic CI proof; Inspector is independent client
+interoperability evidence.
+
+**Official PHP SDK evaluation.** `mcp/sdk` v0.8.1 (released 2026-08-29) can
+represent the handshake-era and 2026-07-28 protocols and supports custom
+request handlers, so registry and audit injection are not technical blockers.
+It is nevertheless pre-1.0, classified Tier 3 by the official SDK documentation,
+and adoption in `waaseyaa/cli` would make a developer-only transport dependency
+production-present for every CLI consumer. Moving it to optional
+`waaseyaa/ai-agent` would invert package ownership, while the current
+development metapackage has no code-bearing home for it. #2659 therefore keeps
+the small transport implementation and does not adopt the SDK. Re-evaluate
+when the SDK reaches a stable major or the package graph gains a code-bearing,
+development-only transport owner.
+
+**Transferred to #2663.** Portable launcher descriptors and machine-safe client
+configuration are not shipped by #2659. #2663 owns their generation, safe
+merge, source identity, drift detection, uninstall behaviour, supported-OS
+bootstrap proof, and the rule that an absolute machine path is generated only
+into a private/gitignored artifact. This issue supplies the resolver and
+working server that #2663 consumes; the transfer is explicit rather than an
+unowned deferral.
 
 ## Agent Execution
 

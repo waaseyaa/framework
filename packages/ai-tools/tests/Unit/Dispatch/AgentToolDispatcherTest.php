@@ -106,6 +106,29 @@ final class AgentToolDispatcherTest extends TestCase
         $errors = $logger->withLevel('error');
         self::assertCount(1, $errors);
         self::assertSame('tool_dispatch.tool_execution_failed', $errors[0]['message']);
+        $body = $this->body($outcome);
+        self::assertNotSame('', $body['meta']['correlation_id']);
+        self::assertSame($body['meta']['correlation_id'], $errors[0]['context']['correlation_id']);
+    }
+
+    #[Test]
+    public function a_host_supplied_correlation_id_binds_an_escaping_exception_response_and_log(): void
+    {
+        $logger = new RecordingLogger();
+        $registry = new ArrayToolRegistry([
+            $this->tool('probe', handler: static fn(array $a): AgentToolResult => throw new \RuntimeException('boom')),
+        ]);
+
+        $outcome = new AgentToolDispatcher(
+            $registry,
+            new FixedPrincipal(),
+            $logger,
+            'local_stdio',
+            'transport-correlation-42',
+        )->dispatch('probe', []);
+
+        self::assertSame('transport-correlation-42', $this->body($outcome)['meta']['correlation_id']);
+        self::assertSame('transport-correlation-42', $logger->withLevel('error')[0]['context']['correlation_id']);
     }
 
     #[Test]
@@ -144,6 +167,33 @@ final class AgentToolDispatcherTest extends TestCase
 
         self::assertSame(AuditStage::ExecutionFailed, $outcome->stage);
         self::assertSame('tool_dispatch.tool_output_schema_violation', $logger->withLevel('error')[0]['message']);
+    }
+
+    #[Test]
+    public function a_host_supplied_correlation_id_binds_an_output_schema_failure_response_and_log(): void
+    {
+        $logger = new RecordingLogger();
+        $registry = new ArrayToolRegistry([
+            $this->tool(
+                'probe',
+                handler: static fn(array $a): AgentToolResult => AgentToolResult::success(
+                    [['type' => 'text', 'text' => 'ok']],
+                    structuredContent: ['wrong' => true],
+                ),
+                outputSchema: ['type' => 'object', 'required' => ['count'], 'properties' => ['count' => ['type' => 'integer']]],
+            ),
+        ]);
+
+        $outcome = new AgentToolDispatcher(
+            $registry,
+            new FixedPrincipal(),
+            $logger,
+            'local_stdio',
+            'transport-correlation-43',
+        )->dispatch('probe', []);
+
+        self::assertSame('transport-correlation-43', $this->body($outcome)['meta']['correlation_id']);
+        self::assertSame('transport-correlation-43', $logger->withLevel('error')[0]['context']['correlation_id']);
     }
 
     #[Test]
