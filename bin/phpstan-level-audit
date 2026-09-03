@@ -17,7 +17,14 @@ $levels = range(5, 10);
 $comparePath = null;
 $allowDirty = false;
 
-foreach (array_slice($argv, 1) as $argument) {
+$rawArguments = $_SERVER['argv'] ?? [];
+$arguments = [];
+foreach ($rawArguments as $argument) {
+    if (is_string($argument)) {
+        $arguments[] = $argument;
+    }
+}
+foreach (array_slice($arguments, 1) as $argument) {
     if ($argument === '--self-test') {
         selfTest();
         exit(0);
@@ -179,7 +186,8 @@ function configurationDigests(string $root): array
     }
     $paths = ['phpstan.neon'];
     $inIncludes = false;
-    foreach (preg_split('/\R/', $bytes) ?: [] as $line) {
+    $lines = preg_split('/\R/', $bytes);
+    foreach ($lines === false ? [] : $lines as $line) {
         if (preg_match('/^includes:\s*$/', $line) === 1) {
             $inIncludes = true;
             continue;
@@ -213,7 +221,11 @@ function configurationDigests(string $root): array
     return $digests;
 }
 
-/** @return array{0:int, 1:string} */
+/**
+ * @param list<string> $command
+ *
+ * @return array{0:int, 1:string}
+ */
 function command(array $command, string $cwd): array
 {
     $descriptorSpec = [
@@ -225,16 +237,26 @@ function command(array $command, string $cwd): array
     if (!is_resource($process)) {
         return [127, ''];
     }
-    $stdout = stream_get_contents($pipes[1]) ?: '';
-    $stderr = stream_get_contents($pipes[2]) ?: '';
-    fclose($pipes[1]);
-    fclose($pipes[2]);
+    $stdoutPipe = $pipes[1] ?? null;
+    $stderrPipe = $pipes[2] ?? null;
+    if (!is_resource($stdoutPipe) || !is_resource($stderrPipe)) {
+        proc_terminate($process);
+        proc_close($process);
+
+        return [127, ''];
+    }
+    $stdoutBytes = stream_get_contents($stdoutPipe);
+    $stderrBytes = stream_get_contents($stderrPipe);
+    $stdout = $stdoutBytes === false ? '' : $stdoutBytes;
+    $stderr = $stderrBytes === false ? '' : $stderrBytes;
+    fclose($stdoutPipe);
+    fclose($stderrPipe);
     $exitCode = proc_close($process);
     if (!in_array($exitCode, [0, 1], true) && $stderr !== '') {
         fwrite(STDERR, $stderr);
     }
 
-    return [is_int($exitCode) ? $exitCode : 1, $stdout];
+    return [$exitCode, $stdout];
 }
 
 function canonicalGit(string $root): string

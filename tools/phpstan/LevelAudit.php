@@ -24,7 +24,7 @@ final class LevelAudit
 
         $levels = array_values(array_unique($levels));
         sort($levels, SORT_NUMERIC);
-        if ($levels === [] || min($levels) < 0 || max($levels) > 10) {
+        if (min($levels) < 0 || max($levels) > 10) {
             throw new \InvalidArgumentException('Levels must be a non-empty subset of 0 through 10.');
         }
 
@@ -85,7 +85,7 @@ final class LevelAudit
         $normalizedRoot = rtrim(str_replace('\\', '/', $root), '/');
 
         foreach ($findings as $finding) {
-            $identifier = $finding['identifier'] ?? 'unknown';
+            $identifier = $finding['identifier'];
             if ($identifier === null || $identifier === '') {
                 $identifier = 'unknown';
             }
@@ -112,7 +112,7 @@ final class LevelAudit
         ];
     }
 
-    /** @param array<string, mixed> $value */
+    /** @param array<mixed> $value */
     public static function canonicalJson(array $value): string
     {
         self::sortAssociative($value);
