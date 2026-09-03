@@ -25,6 +25,37 @@ sequence in D-12 into two lanes, and corrects a mis-attributed guard in
 D-11. D-2 is new, so every decision after D-1 shifts by one: the previous
 D-2…D-12 are now D-3…D-13, with their topics unchanged.
 
+**Revision note (review round 3).** This revision closes two contracts the
+previous round stated but left unexecutable. It adds no decision section and
+renumbers nothing: D-1…D-13 keep their numbers and topics.
+
+1. **Registration ownership is persisted.** Round 2 promised that retiring a
+   unit "withdraws exactly that unit's registrations from `composer.json`"
+   while persisting a unit record of `{id, disposition, generator,
+   input_digest}` — nothing that names a registration. Retirement therefore
+   had no roster to withdraw from. Each non-root unit record now carries a
+   required `registrations` roster (D-2.1);
+   `ComposerProviderRegistration` loses its untargeted `group` member and
+   names the one composer key the framework actually reads (D-6.6);
+   ownership, conflict, freezing, and withdrawal are specified end to end
+   (D-2.3 steps 1, 3, 6, 7); and a plan may supply no unit at all
+   (`unit: null`, D-6.1) so that a retirement is expressible on its own
+   rather than only as a rider on some other publish.
+2. **The apply request carries the reviewed project state.** Round 2 promised
+   that `GEN005_STALE_PLAN` names "the first differing member or target"
+   while the request carried only digests, from which no difference can be
+   named. The request now carries the reviewed `ProjectStateIdentity`
+   document itself, its digest must self-verify against it, the recomputation
+   point in the transaction is fixed, and a total comparison order makes the
+   first difference well-defined (D-6.2, D-6.5).
+
+Two `GEN0xx` consequences follow, both stated rather than slipped in:
+`GEN010` keeps its id and is renamed `GEN010_UNIT_OWNERSHIP_CONFLICT`,
+widened from paths to every kind of roster conflict; and
+`GEN011_UNIT_SET_EXPANSION` is added — the amendment D-5's own "an eleventh
+id is an amendment to this ADR" reservation requires, which also codes the
+frozen-set refusal that round 2 stated without a code.
+
 ## Context
 
 The CLI exposes more than twenty generation entrypoints — `make:*`,
@@ -140,9 +171,10 @@ artifact is no longer composed by `GeneratedSite`'s constructor alone (D-2.6).
 
 `.waaseyaa/generated.json` records **generation units**. A unit is one
 independent, re-addressable claim of ownership over a set of generated
-paths, produced by one compiler from one validated input. `site:init`
+paths — and over the `composer.json` registrations that accompany them
+(D-2.1) — produced by one compiler from one validated input. `site:init`
 publishes one unit; a migrated `make:content-type story` publishes another;
-neither can see, compare against, or silently drop the other's paths.
+neither can see, compare against, or silently drop the other's claims.
 
 #### D-2.1 Persisted shape
 
@@ -156,7 +188,8 @@ that unknown member").
 - A top-level **`units`** list, one record per **non-root** unit, sorted by
   `id` byte-wise ascending (mirroring the existing `artifacts` sort by
   `path`). Each record is the closed object
-  `{"id", "disposition", "generator": {"fqcn", "version"}, "input_digest"}`.
+  `{"id", "disposition", "generator": {"fqcn", "version"}, "input_digest",
+  "registrations"}` — five members, every one required, no others accepted.
 - An optional per-row **`unit`** key on an `artifacts` row, naming the
   non-root unit that owns that path.
 
@@ -176,7 +209,10 @@ Both members are emitted only when at least one non-root unit owns state.
         "fqcn": "Waaseyaa\\CLI\\Handler\\MakeContentTypeHandler",
         "version": 1
       },
-      "input_digest": "<64 hex>"
+      "input_digest": "<64 hex>",
+      "registrations": [
+        { "fqcn": "App\\Provider\\StoryServiceProvider" }
+      ]
     }
   ],
   "artifacts": [
@@ -204,8 +240,11 @@ and unique; `mode` is `0644` or `0755`; `managed_sha256` is 64 lowercase
 hex; the whole document is byte-equal to `CanonicalJson::encode($document)
 . "\n"`. `CanonicalJson::encode()` `ksort`s object keys
 (`packages/site-contract/src/CanonicalJson.php` line 30), so `units` sorts
-between `schema` and `version` and `unit` sorts last within a row, without
-moving any existing member's bytes relative to its neighbours.
+between `schema` and `version`, `unit` sorts last within a row, and
+`registrations` sorts last within a unit record, without moving any existing
+member's bytes relative to its neighbours. Every JSON block in this ADR is
+written in reading order for legibility; the published bytes are always the
+`ksort`ed canonical encoding.
 
 **Unit ids.** An id is one or more `:`-separated segments, each matching
 `/^[a-z0-9]+(?:-[a-z0-9]+)*$/D`, at most 128 characters total. The
@@ -224,6 +263,39 @@ validated compiler input. It plays, per unit, exactly the role
 `manifest_digest` plays for the root unit: it is what lets regeneration
 distinguish "the input changed" from "the bytes were substituted".
 
+**`registrations`** is the unit's persisted `composer.json` ownership: a
+list of `ComposerProviderRegistration` documents (D-6.6), each the closed
+object `{"fqcn"}`, sorted byte-wise ascending by `fqcn`, `fqcn` unique
+within the list and unique across the whole roster. It is the plan's
+`registrations` list (D-6.1) recorded verbatim — one shape, not a second
+projection of it — so "what this unit owns in `composer.json`" is a stored
+fact rather than something a retirement would have to re-derive from a plan
+that no longer exists. **A path is owned by exactly one unit and so is a
+registration**; the two are the same exclusivity rule applied to the two
+kinds of state a generator can claim.
+
+The member is **required and always emitted, `[]` when the unit registers
+nothing**, and its absence is a refusal (`GEN010`, D-5) rather than a
+default. An optional member could not be told apart from "written by a
+producer that did not record registrations", and reading that case as "owns
+none" would silently turn retirement back into the promise this revision
+exists to repair — leaving a live provider registration behind for a class
+the retirement just deleted. Requiring it costs nothing to adopt because
+`units` is introduced by this ADR: no document with a four-member unit
+record can exist in the field, so there is no upgrade path to write and
+nothing to migrate. Root-only documents are unaffected in every case — they
+carry no `units` member at all (D-2.5).
+
+**The root unit owns no registrations, and that is enforced rather than
+assumed.** The root unit is the implicit top-level triple named above, which
+has nowhere to persist a roster, and inventing a top-level `registrations`
+member would put ownership in a second place — precisely what D-1 forbids.
+A plan supplying the root unit must therefore declare an empty
+`registrations` list; a non-empty one is `GEN007_UNSUPPORTED_DECLARATION`.
+Nothing is lost today: `site:init` does not touch `composer.json`
+(D-4 inventory). If a future root-unit compiler genuinely needs a
+registration, the amendment must name where it persists.
+
 #### D-2.2 Two dispositions
 
 - **`managed`** — today's semantics verbatim. The unit's artifacts are
@@ -238,6 +310,17 @@ distinguish "the input changed" from "the bytes were substituted".
   `managed_sha256` is retained as provenance of what was originally emitted
   — it is what lets `site:doctor` say "modified since generation" — and is
   never a refusal input.
+
+**Registrations follow their unit's disposition exactly as artifact bytes
+do.** A `managed` unit's recorded registrations are re-applied idempotently
+on every publish that supplies it, so an entry a human removed from
+`composer.json` is restored by the next regeneration, just as a deleted
+managed artifact is re-rendered. A `seeded` unit's registrations are applied
+once, by the publish that creates the unit, and never again — a removed
+entry is reported by `site:doctor` (D-2.7) and not silently re-added, for
+the same reason a `seeded` file is never re-rendered over the developer's
+edit. Neither disposition changes what is *recorded*: the roster is frozen
+for the life of the unit either way (D-2.3 step 3).
 
 The `seeded` disposition is not a convenience; it is the half of the model
 without which the scaffold case still fails. A one-shot scaffold exists to
@@ -254,37 +337,53 @@ an escape hatch and the `managed` guarantee erodes by drift.
 
 #### D-2.3 Reconciliation: per-unit, carry-forward, frozen per unit
 
-A plan (D-6) declares the unit it supplies and, optionally, a unit it
-retires. `SiteInitializationService` reconciles as follows, replacing the
-single global comparison at lines 139–143:
+A plan (D-6) declares the unit it supplies — or `null`, for a
+retirement-only plan — and the units it retires, usually none.
+`SiteInitializationService` reconciles as follows, replacing the single
+global comparison at lines 139–143:
 
-1. **Read.** The document is read into a roster of units and a path→unit
-   index built alongside the existing `priorRows`. A path recorded under two
-   units, a row naming an unknown unit, or a duplicate unit id is
-   `GEN010_UNIT_PATH_CONFLICT` — the same class of fail-closed refusal as
-   today's "Generated ownership metadata repeats {$path}" (line 135),
-   widened from within-list to across-units. A document with no `units`
-   member is promoted, **in memory only**, to a single root unit owning
-   every recorded row.
+1. **Read.** The document is read into a roster of units, a path→unit index
+   built alongside the existing `priorRows`, and an fqcn→unit index over
+   every unit's `registrations`. A path recorded under two units, a
+   registration recorded under two units, a row naming an unknown unit, a
+   duplicate unit id, or a unit record that is not the closed five-member
+   D-2.1 object — a missing or malformed `registrations` member included —
+   is `GEN010_UNIT_OWNERSHIP_CONFLICT` — the same class of fail-closed
+   refusal as today's "Generated ownership metadata repeats {$path}" (line
+   135), widened from within-list to across-units and from paths to every
+   kind of claim. Nothing is defaulted, repaired, or upgraded in place. A
+   document with no `units` member is promoted, **in memory only**, to a
+   single root unit owning every recorded row and no registrations.
 2. **Carry forward.** Recorded units the plan does not supply or retire are
    preserved verbatim: their rows are carried into the composed document
    unchanged, their bytes are not re-derived, and **no set check and no byte
    check runs against them** — neither can, because nothing re-rendered
    them. This is the step that makes an incremental scaffold expressible,
    and the step that stops the next ordinary `site:init` from omitting it.
-3. **Frozen set, per unit.** For the supplied unit, the recorded path set
-   and the supplied path set are compared unconditionally, outside the
-   input-digest guard, and any inequality refuses, with no override and no
-   migration path — character-for-character today's rule, evaluated over one
-   unit's partition instead of the whole document. A plan addressing a unit
-   id that is not recorded is a **new** unit: no set comparison runs,
-   because there is nothing to compare.
+3. **Frozen set, per unit — paths and registrations alike.** For the
+   supplied unit, the recorded path set and the supplied path set are
+   compared unconditionally, outside the input-digest guard, and any
+   inequality refuses, with no override and no migration path —
+   character-for-character today's rule, evaluated over one unit's partition
+   instead of the whole document. The recorded `registrations` roster and
+   the plan's `registrations` list are compared the same way, byte-wise as
+   canonical documents, because a registration is ownership of project state
+   exactly as a path is. The two directions carry distinct codes so the
+   refusal names the operator's move: a recorded path or registration
+   missing from the supplied plan is `GEN009_UNDECLARED_UNIT_RETIREMENT`
+   (declare the retirement), and a supplied path or registration the
+   recorded unit does not contain is `GEN011_UNIT_SET_EXPANSION` (retire and
+   re-create, D-2.3 step 7). A plan addressing a unit id that is not
+   recorded is a **new** unit: neither comparison runs, because there is
+   nothing to compare.
 4. **Partition.** The union of every unit's paths, root included, is a
-   partition of the recorded path set. It is enforced at three points: at
-   read (step 1); at compile, because an `ArtifactPlan` declares exactly one
-   owning unit and the type cannot express a cross-unit claim; and at
-   publish, where a supplied path resolving to a *different* recorded unit
-   is `GEN003_COLLISION_REFUSED`.
+   partition of the recorded path set, and the union of every unit's
+   registrations is a partition of the recorded registration roster. Both
+   are enforced at three points: at read (step 1); at compile, because an
+   `ArtifactPlan` declares at most one owning unit and the type cannot
+   express a cross-unit claim; and at publish, where a supplied path or
+   registration resolving to a *different* recorded unit is
+   `GEN003_COLLISION_REFUSED`.
 5. **Collision polarity: the first recorded owner wins, permanently.** The
    second claimant is refused, identically in dry-run and apply. There is no
    merge, no last-writer-wins, and no re-parenting. Three reasons, each
@@ -297,22 +396,77 @@ single global comparison at lines 139–143:
    The operator's move is to retire the owning unit and re-run — a reviewed
    two-step, exactly as the `framework.observed_lock_sha256` rebind is the
    reviewed move for changed managed bytes.
-6. **Retirement is explicit.** A recorded row disappearing from a supplied
-   unit's output without a declared retirement is
-   `GEN009_UNDECLARED_UNIT_RETIREMENT`. A declared retirement applies to
-   each recorded path the same proofs a publish applies before overwriting —
-   private regular file, managed digest equal to the recorded
-   `managed_sha256` — then removes the files, removes directories the
-   retirement empties, withdraws exactly that unit's registrations from
-   `composer.json`, and publishes a composed document with the unit absent.
-   Retiring an unrecorded id is an idempotent success. **The root unit is
-   not retirable**: retiring it would leave `.waaseyaa/site.yaml` without
-   ownership metadata, precisely the state lines 114–117 already refuse to
-   read.
+
+   The same polarity governs registrations, with one clause the file case
+   does not need. A declared registration already present in
+   `extra.waaseyaa.providers` and **not** recorded to the supplied unit —
+   recorded to another unit, or to no unit at all, as a hand-added entry is
+   — is `GEN003_COLLISION_REFUSED`. A generator never adopts a registration
+   it did not create, exactly as it never overwrites an unowned file, and
+   the reason is the same asymmetry read forward in time: adopting is
+   harmless now and destructive at retirement, when the withdrawal would
+   remove an entry the project, not the generator, put there. Present **and**
+   recorded to the supplied unit is the ordinary re-run: a no-op that retains
+   ownership, which is the case `MakeContentTypeHandler::registerProvider()`'s
+   `return false` (line 299) actually protects. Absent is the ordinary
+   claim. This is the exact content of D-7 rule 4's announcement that
+   `make:content-type`'s unconditional `composer.json` write "becomes
+   subject to the same collision refusal every other generated artifact
+   gets".
+6. **Retirement is explicit, and withdraws exactly what is recorded.** A
+   recorded path or registration disappearing from a supplied unit without a
+   declared retirement is `GEN009_UNDECLARED_UNIT_RETIREMENT`. A declared
+   retirement names whole units, never individual paths, and executes
+   entirely from the persisted record — it never consults a plan that
+   produced the unit, because that plan is gone (D-10.3). For each id in
+   the plan's `retires` list, in the order the list's byte-wise sort fixes:
+
+   - **Paths.** Each recorded path gets the same proofs a publish applies
+     before overwriting: private regular file (`assertRegularOwnedFile()`),
+     and, for a `managed` row, a managed digest equal to the recorded
+     `managed_sha256` — a modified `managed` file refuses
+     `GEN003_COLLISION_REFUSED`, exactly as it refuses an overwrite today
+     (line 194). A `seeded` row is **released, not deleted, when its bytes
+     differ from the recorded `managed_sha256`**: the row and its unit leave
+     the document, the file stays on disk as an ordinary unowned project
+     file, and the result names it as released. Requiring the digest to
+     match would make an edited seed unretirable, and editing a seed is the
+     entire point of the disposition (D-2.2 keeps its recorded digest
+     provenance, "never a refusal input"). An unmodified row's file is
+     removed, and directories the removal empties are removed in reverse
+     depth order.
+   - **Registrations.** For each recorded `fqcn`, every occurrence of that
+     exact string is removed from `extra.waaseyaa.providers`, preserving the
+     relative order of the entries that remain, and the document is
+     re-encoded and written by the same mechanism a registration add uses
+     (D-6.6) — inside the same journal and lock as the file removals, bound
+     by the captured `composer_json_sha256` so a concurrent edit is a
+     `GEN005` refusal rather than a silent clobber. A recorded `fqcn` no
+     longer present is an idempotent success: the end state is already
+     reached, and an entry the unit does not have recorded is never touched.
+     Emptying the list leaves `"providers": []` in place; withdrawal removes
+     entries, never keys, because removing a key would require deciding how
+     far to cascade through `extra.waaseyaa` and could delete a key the
+     project authored. **Retirement is therefore not a byte-level undo of
+     the registration write** — it guarantees the recorded entries are gone,
+     not that `composer.json` returns to its pre-registration bytes.
+   - **Document.** The composed document is published with the unit absent
+     from `units` and its rows absent from `artifacts`, last in the journal
+     as always (D-2.6).
+
+   Retiring an unrecorded id is an idempotent success. A plan may not retire
+   the unit it supplies — `unit.id` appearing in `retires` is an invalid
+   plan — and a plan that retires without supplying anything is the
+   `unit: null` shape D-6.1 defines, which is how an operator retires a unit
+   without also regenerating something. **The root unit is not retirable**:
+   retiring it would leave `.waaseyaa/site.yaml` without ownership metadata,
+   precisely the state lines 114–117 already refuse to read.
 7. **No set delta on a changed input.** This ADR does **not** grant any unit
-   an authorized path-set change. A unit's set changes only by the unit
-   being created (nothing recorded to compare) or retired (explicit,
-   journaled, drift-refusing). The alternative — permitting a declared
+   an authorized path-set or registration-set change. A unit's sets change
+   only by the unit being created (nothing recorded to compare) or retired
+   (explicit, journaled, drift-refusing) — so a scaffold that wants to
+   register a second provider on a re-run does not get one; it is retired
+   and re-created, and the operator sees both halves. The alternative — permitting a declared
    delta when `input_digest` changes — was considered and rejected for v1:
    it widens the frozen-set contract, and retire-then-recreate already gives
    the operator a reviewed, transactional path with no new authorization
@@ -350,8 +504,9 @@ assertion:
   `managed` rows, with per-unit `input_digest` supplying the "input
   unchanged, bytes changed" refusal the root unit gets from
   `manifest_digest`.
-- **No ambiguous ownership** — exclusive partition, first-recorded-owner
-  wins, refused identically in dry-run and apply (D-2.3 steps 4–5).
+- **No ambiguous ownership** — exclusive partition over paths *and*
+  registrations, first-recorded-owner wins, refused identically in dry-run
+  and apply (D-2.3 steps 4–5).
 
 In two respects the guarantee is strictly *stronger* than today's.
 Scaffold-written files are currently outside the ownership model entirely:
@@ -360,13 +515,24 @@ deletion is invisible. Recorded as unit rows, their deletion, substitution,
 and mode drift are all detected. And ambiguity between owners becomes an
 explicit refusal where today the second writer simply wins by being second.
 
-One widening must be stated rather than inherited silently: carried-forward
-rows are trusted from the metadata document without re-derivation, so a
-tampered document could assert `seeded` ownership of arbitrary paths. The
-blast radius is bounded and asymmetric — a recorded row can only *block* a
-write, as a collision, and can never cause one, and `assertSafeTarget()`
-still runs against every path — but it is a real change in what the document
-asserts, and D-11 records it as its own threat row.
+Two widenings must be stated rather than inherited silently, because
+carried-forward records are trusted from the metadata document without
+re-derivation.
+
+A tampered document could assert `seeded` ownership of arbitrary **paths**.
+That blast radius is bounded and asymmetric — a recorded row can only
+*block* a write, as a collision, and can never cause one, and
+`assertSafeTarget()` still runs against every path.
+
+A tampered document could also assert ownership of a **registration** the
+generator never made, and there the asymmetry does not hold: a retirement of
+that unit would withdraw a real, project-authored provider entry. It is
+bounded three ways rather than one — the removal is reachable only through
+an explicit operator-initiated retirement of that named unit, it is
+journaled and rolled back like any other item, and it can only ever delete a
+string from `extra.waaseyaa.providers`, never write arbitrary bytes anywhere
+— but it is a destructive capability the round-2 document did not have. D-11
+records both as their own threat rows.
 
 #### D-2.5 What happens to an existing `.waaseyaa/generated.json`
 
@@ -383,8 +549,11 @@ construction**, for the same reason ADR-023's own optional member preserves
 it. The document stays version 1, so there is no reader-version negotiation
 and no second shape. The root unit is not represented in `units`, so its
 five members keep their names, types, ordering, and row grammar exactly.
-`units` is emitted only when non-empty, so for every project that has run
-only `site:init` — which is every project until a migrated `make:*` runs —
+The per-unit `registrations` roster lives inside a `units` record and
+nowhere else (D-2.1), so it cannot appear in a document that has no `units`
+member. `units` is emitted only when non-empty, so for every project that
+has run only `site:init` — which is every project until a migrated `make:*`
+runs —
 the composition over the prior document is the identity function and the
 published bytes are the bytes `SiteArtifactRenderer` produced. Root-owned
 rows never gain a `unit` key even in a multi-unit document, so root row
@@ -413,7 +582,12 @@ from release notes rather than from a red `site:doctor`.
 
 There is no downgrade tool and none is needed: retiring every non-root unit
 removes every `units` entry, conditional emission drops the member, and the
-document returns to byte-identical v1.
+document returns to byte-identical v1. One thing that does *not* return to
+its prior bytes is `composer.json` — retirement withdraws the recorded
+entries but is not a byte-level undo of the registration write (D-2.3 step
+6). That costs nothing here: `composer.json` is never read as ownership
+state, so an older reader meeting a withdrawn-from `composer.json` sees an
+ordinary manifest.
 
 #### D-2.6 Metadata composition moves to the transaction authority
 
@@ -460,6 +634,13 @@ Doctor therefore changes in the same #2846 slice, not as a follow-up:
   because a modified seed is the expected state).
 - A recorded row whose file is **missing** is drift regardless of
   disposition.
+- A recorded **registration** missing from `extra.waaseyaa.providers` is
+  reported against its owning unit, blocking for a `managed` unit (the next
+  supplying publish restores it, exactly as it re-renders a missing managed
+  file) and non-blocking for a `seeded` one (nothing will restore it, and
+  the developer may have removed it deliberately). Its finding id is
+  #2846's to assign within the existing `SITE0xx` family and must not reuse
+  `SITE010`.
 - Doctor's per-row output always surfaces the owning unit and its
   disposition, so a mis-set disposition — which otherwise fails silently, a
   `managed` artifact wrongly recorded as `seeded` simply stops being
@@ -485,15 +666,16 @@ and it is legitimate future work with its own decision to make.
 | Decided by this ADR (binding) | Implemented by #2846 (not authorized here) |
 |---|---|
 | Generated state is partitioned into generation units; the unit is the ownership granule | Widening `readMetadata()`'s key-set assertions (lines 429, 444–449) from exact-list to required-plus-known-optional-allowlist |
-| The persisted shape: optional `units` list + optional per-row `unit`, version 1, root unit implicit (D-2.1) | Read-time implicit promotion of a `units`-free document to one root unit |
+| The persisted shape: optional `units` list + optional per-row `unit`, version 1, root unit implicit, each unit record the closed five-member object including a required `registrations` roster (D-2.1) | Read-time implicit promotion of a `units`-free document to one root unit |
 | The unit-id grammar and its reserved `site` id | Each migrating handler's own id derivation (its own PR) |
 | Two dispositions, fixed by compiler kind, with a closed `seeded` allowlist (D-2.2) | The architecture test asserting that allowlist |
-| Per-unit frozen set, carry-forward, partition, first-owner-wins, explicit retirement (D-2.3) | Replacing lines 139–145 with per-unit reconciliation and gating 146–169 on the supplied unit |
-| No authorized set delta on a changed input (D-2.3 step 7) | — |
+| Per-unit frozen set over paths *and* registrations, carry-forward, partition, first-owner-wins, explicit retirement (D-2.3) | Replacing lines 139–145 with per-unit reconciliation and gating 146–169 on the supplied unit |
+| Registration ownership is persisted per unit, and retirement withdraws exactly the recorded entries, from the record alone (D-2.1, D-2.3 step 6, D-6.6) | The `composer.json` decode/merge/withdraw/re-encode path, its journal item, and the released-vs-removed branch for a modified `seeded` row |
+| No authorized set delta on a changed input, paths or registrations (D-2.3 step 7) | — |
 | Metadata composition moves to the transaction authority (D-2.6) | The composition itself, the service-level re-derivation check, and the byte-identity fixture test that must land **before** the relocation |
 | Retirement is a new journal verb with its own rollback and directory-cleanup semantics | The journal item kind, the rollback branch that restores a deleted file from backup, and its failure-injection coverage |
 | `site:doctor` splits into root-projection compare plus disposition-aware row loop (D-2.7) | The split itself and its new non-blocking finding id |
-| `GEN009`/`GEN010` are reserved (D-5) | Coding the exceptions to carry them |
+| `GEN009`/`GEN010`/`GEN011` are reserved (D-5) | Coding the exceptions to carry them |
 
 ### D-3. Owning package and layer, with no dependency cycle
 
@@ -612,20 +794,22 @@ proves out:
   |---|---|---|
   | `GEN001_UNSAFE_PATH` | traversal, absolute path, backslash, embedded null | `GeneratedArtifact` constructor `\InvalidArgumentException` (first four) and `SiteInitializationService::assertSafeTarget()` (all five) |
   | `GEN002_SYMLINK_REJECTED` | a path component or target resolves through a symlink | `SiteInitializationService::assertSafeTarget()`/`assertRegularOwnedFile()` (currently unexposed as a distinct exception) |
-  | `GEN003_COLLISION_REFUSED` | an existing unrecognized file/directory blocks the target, or the target is recorded to a different generation unit (D-2.3 step 4) | `SiteInitializationCollisionException` |
+  | `GEN003_COLLISION_REFUSED` | an existing unrecognized file/directory blocks the target; the target is recorded to a different generation unit (D-2.3 step 4); a declared registration is already present in `composer.json` without being recorded to the supplied unit (D-2.3 step 5); or a retirement finds a `managed` recorded file whose bytes no longer match its record (D-2.3 step 6) | `SiteInitializationCollisionException` |
   | `GEN004_AMBIGUOUS_EXTENSION_REGION` | managed-region digest drifted from what the generator expects, so a regeneration can't tell edit from substitution | `GeneratedArtifact::regionBounds()` `\InvalidArgumentException` |
   | `GEN005_STALE_PLAN` | the plan digest or the captured project-state digest no longer matches what apply recomputes (D-6.5 optimistic-concurrency refusal — #2846 net-new) | none today (no concept of a plan to go stale) |
   | `GEN006_MALICIOUS_IDENTIFIER` | a user-supplied name fails the existing `AbstractMakeHandler::IDENTIFIER_PATTERN`/`MACHINE_NAME_PATTERN`/`FQCN_PATTERN` grammar, or a unit id fails the D-2.1 grammar | `AbstractMakeHandler::validateIdentifier()` `\RuntimeException` |
-  | `GEN007_UNSUPPORTED_DECLARATION` | an unsupported field type or generator-feature token, mirroring `SITE042`/the blueprint generator-feature-token refusal for the plan-compilation boundary | `ApplicationBlueprintValidator` `SITE042`, generalized |
+  | `GEN007_UNSUPPORTED_DECLARATION` | a declaration the installed cohort or the target project cannot support: an unsupported field type or generator-feature token (mirroring `SITE042`/the blueprint generator-feature-token refusal for the plan-compilation boundary), a registration declared by a root-unit plan (D-2.1), or a registration declared against a project with no `composer.json` (D-6.6) | `ApplicationBlueprintValidator` `SITE042`, generalized; `MakeContentTypeHandler::registerProvider()`'s missing-`composer.json` `\RuntimeException` (line 283) |
   | `GEN008_LOCKED` | a concurrent initialization holds the project lock | `SiteInitializationLockedException` |
-  | `GEN009_UNDECLARED_UNIT_RETIREMENT` | a recorded row disappears from a supplied unit's output with no declared retirement (D-2.3 step 6) | none today (no concept of a unit) |
-  | `GEN010_UNIT_PATH_CONFLICT` | a duplicate unit id, a row naming an unknown unit, or one path claimed by two units (D-2.3 step 1) | none today (no concept of a unit) |
+  | `GEN009_UNDECLARED_UNIT_RETIREMENT` | a recorded row **or a recorded registration** disappears from a supplied unit's output with no declared retirement (D-2.3 steps 3 and 6) | none today (no concept of a unit) |
+  | `GEN010_UNIT_OWNERSHIP_CONFLICT` | a duplicate unit id, a row naming an unknown unit, one path or one registration claimed by two units, or a unit record that is not the closed five-member D-2.1 object — a missing or malformed `registrations` member included (D-2.3 step 1) | none today (no concept of a unit) |
+  | `GEN011_UNIT_SET_EXPANSION` | a supplied unit declares a path or a registration its recorded set does not contain; the sets are frozen per unit and the authorized move is retire-then-recreate (D-2.3 steps 3 and 7) | none today (no concept of a unit) |
 
   Assigning these codes now, in this ADR, is a decision (the family exists,
-  is `site-contract`-owned, and these ten ids are reserved for the D-11
+  is `site-contract`-owned, and these eleven ids are reserved for the D-11
   threats) — *coding the exceptions to carry them* is #2846 implementation,
-  not authorized here. An eleventh id is an amendment to this ADR, not a
-  silent addition.
+  not authorized here. A twelfth id is an amendment to this ADR, not a
+  silent addition; `GEN011` and `GEN010`'s rename are exactly that amendment
+  made in the round-3 revision, not a silent addition to a round-2 list.
 - **Exit statuses.** The general CLI convention already stated in
   `docs/specs/cli-kernel.md` — `0` success, `1` command/domain failure, `2`
   usage/input error — is the target for every `merge` command's *new*
@@ -672,11 +856,11 @@ Its canonical document, `{"schema": "waaseyaa.artifact_plan", "version": 1}`:
 | Member | Type | Meaning |
 |---|---|---|
 | `generator` | `{fqcn: string, version: int}` | which compiler (D-8) produced this plan |
-| `unit` | `{id: string, disposition: "managed"\|"seeded"}` | the generation unit this plan supplies (D-2.1/D-2.2) |
+| `unit` | `{id: string, disposition: "managed"\|"seeded"}` or `null` | the generation unit this plan supplies (D-2.1/D-2.2); `null` only for a retirement-only plan (below) |
 | `input_digest` | 64 hex | `sha256` over the canonical encoding of the compiler's validated input |
 | `artifacts` | list of `{path, mode, content, extension_region?}` | the full, final bytes of every artifact this unit owns, sorted by `path` |
 | `retires` | list of unit ids, sorted | units this plan retires (D-2.3 step 6); usually empty |
-| `registrations` | list of `ComposerProviderRegistration` | `{fqcn, group?}`, sorted by `fqcn` then `group` |
+| `registrations` | list of `ComposerProviderRegistration` | `{fqcn}`, sorted by `fqcn`, `fqcn` unique; recorded verbatim on the unit (D-2.1) and applied to `extra.waaseyaa.providers` (D-6.6) |
 | `companion_tests` | list of paths, sorted | must each also appear in `artifacts` |
 | `schema_effects` / `config_effects` | lists of strings, sorted | reserved, empty for every compiler this ADR inventories |
 
@@ -694,6 +878,21 @@ plan does **not** contain `.waaseyaa/generated.json`: that document is
 composed by the transaction authority from the plan plus the carried roster
 (D-2.6), and a plan that declared it would be claiming ownership of state it
 cannot see.
+
+**The retirement-only plan.** `unit` is `null` in exactly one case: a plan
+whose `retires` list is non-empty and whose `artifacts`, `registrations`,
+`companion_tests`, `schema_effects`, and `config_effects` are all empty. Any
+other combination involving `unit: null` is an invalid plan, as is a plan
+whose `unit.id` also appears in its own `retires`. This shape exists because
+the round-2 contract made retirement reachable only as a rider on some other
+publish, while the decision text repeatedly names "retire the owning unit
+and re-run" as *the* operator move for a collision (D-2.3 step 5), for a
+frozen-set change (step 7), and for a mis-derived unit id (Consequences). A
+move with no expressible input is not a move. The plan still carries a
+`generator` — the compiler that owns the id grammar being retired — and an
+`input_digest` over its validated input, which for this shape is the set of
+ids. Which command surface emits one is each migrating command's own PR to
+define under D-7; this ADR fixes only the plan shape and its semantics.
 
 #### D-6.2 `ProjectStateIdentity` and `EvaluatedArtifactPlan` — the evaluation half
 
@@ -717,6 +916,35 @@ file, which evaluation refuses but the identity must still record as
 observed). `sha256` is the file's bytes or 64 zeros. `mode` is `0644`,
 `0755`, `other`, or `unknown` on a host where
 `SiteHostPlatform::enforcesPermissionBits()` is false.
+`composer_json_sha256` is deliberately the **whole file's** digest rather
+than a digest of `extra.waaseyaa.providers`: any concurrent edit to that
+document is worth a refusal, and a narrower binding would let an unrelated
+edit land inside the same window in which registrations are merged.
+
+**Its digest, and the order a difference is read in.**
+`project_state_digest = sha256(CanonicalJson::encode($projectStateDocument)
+. "\n")` — the same formula D-6.3 fixes for the plan, over exactly the
+document above and nothing else. Lists are not reordered by
+`CanonicalJson::encode()`, so `targets` is ascending byte-wise by `path`,
+with paths unique, and a document whose `targets` are not in that order is
+invalid rather than silently re-sorted.
+
+Two identities are compared in one fixed, total order, so that "the first
+difference" is a well-defined thing to name rather than an artifact of
+iteration:
+
+1. `generated_metadata_sha256`
+2. `manifest_sha256`
+3. `composer_json_sha256`
+4. `targets`, ascending byte-wise by `path`; within one target row, `state`,
+   then `sha256`, then `mode`.
+
+That is the member order of the table above — most-authoritative first, and
+within a row most-significant first (does the file exist, then what is in
+it, then how it is moded) — not the canonical *encoding* order, which
+`ksort` would lead with `composer_json_sha256`. The two must not be
+confused: the encoding order fixes bytes, this order fixes diagnostics.
+D-6.5 is the sole consumer.
 
 `Waaseyaa\SiteContract\Generation\EvaluatedArtifactPlan` (new,
 `site-contract`, Layer 0) is the result of evaluating one `ArtifactPlan`
@@ -729,14 +957,21 @@ immutable once constructed:
 - `projectState` / `projectStateDigest` — the `ProjectStateIdentity` and its
   digest.
 - `status` — `array<string, 'created'|'changed'|'unchanged'|'refused'>`,
-  keyed by the plan's artifact paths. This is the widened output shape of
+  keyed by the plan's artifact paths, plus the literal key `composer.json`
+  whenever the plan declares a registration or retires a unit that has one
+  recorded, so that a dry-run shows the registration effect instead of
+  hiding it behind the artifact list. That key is never `created`: a plan
+  declaring registrations against a project with no `composer.json` is
+  refused (`GEN007`, D-6.6). This is the widened output shape of
   the computation `SiteInitializationService::prepare()` already performs
   and today surfaces only as `SiteInitializationResult::$changedPaths`, a
   flat list with no per-path status or refusal detail. #2846 widens that
   existing computation's output; it does not add a second engine that
   independently re-derives it.
-- `refusals` — `list<{code: string, path?: string, message: string}>`, the
-  coded detail behind every `refused` status.
+- `refusals` — `list<{code: string, path?: string, pointer?: string,
+  message: string}>`, the coded detail behind every `refused` status; the
+  same shape D-6.4's `errors` carries, so the result envelope copies
+  refusals rather than re-deriving them into a second shape.
 
 `--dry-run` renders an `EvaluatedArtifactPlan`. So does the evaluation half
 of an apply, which is why no check can differ between them.
@@ -759,8 +994,10 @@ are not in that order is invalid rather than silently re-sorted:
 - `artifacts` — ascending byte-wise by `path`; paths unique.
 - `retires`, `companion_tests`, `schema_effects`, `config_effects` —
   ascending byte-wise; entries unique.
-- `registrations` — ascending byte-wise by `fqcn`, then by `group`, with an
-  absent `group` sorting before any present one; `fqcn` unique.
+- `registrations` — ascending byte-wise by `fqcn`; `fqcn` unique. The same
+  order is the one persisted on the unit record (D-2.1), so the recorded
+  roster and a re-supplied plan's list are comparable as bytes rather than
+  as sets (D-2.3 step 3).
 
 The digest is a function of compiler output alone. `status`, the project
 state, the evaluation's wall-clock time, and the operator's terminal are all
@@ -786,20 +1023,25 @@ This is a strict superset of today's `SiteInitializationResult`
 (`changedPaths`, `dryRun`, `recoveredInterruptedTransaction`,
 `cleanupPending`, `cancelled`), so no information available today is lost;
 `dryRun` and `cancelled` are absorbed into `outcome`. `pointer` is a JSON
-Pointer into the plan document, so a refusal about a specific artifact row
-or registration is addressable the same way `SITE0xx` addresses a manifest.
+Pointer into the document the refusal is *about* — the plan document for a
+compilation-boundary refusal, the `waaseyaa.artifact_apply_request` document
+for an apply-time one (D-6.5), which is what lets a `GEN005` address
+`/project_state/targets/3/sha256` as precisely as `SITE0xx` addresses a
+manifest. Every refusal that names a project path also fills `path`, so a
+consumer that does not resolve pointers still learns which file is at issue.
 
 #### D-6.5 The apply input, and what `GEN005_STALE_PLAN` binds
 
 `Waaseyaa\SiteContract\Generation\ArtifactApplyRequest` (new,
 `site-contract`, Layer 0), canonical document
 `{"schema": "waaseyaa.artifact_apply_request", "version": 1}`, carries
-exactly three members:
+exactly four members:
 
 - `plan` — the `ArtifactPlan` document verbatim, the bytes included.
 - `plan_digest` — the digest the operator reviewed.
-- `project_state_digest` — the `ProjectStateIdentity` digest the reviewed
-  evaluation was computed against.
+- `project_state` — the reviewed `ProjectStateIdentity` document verbatim
+  (D-6.2).
+- `project_state_digest` — that identity's digest.
 
 The request carries the **plan itself**, not merely its digest, and the
 compiler is not re-run at apply time in a two-process flow. That is not
@@ -810,47 +1052,169 @@ would not bind anything. Carrying the plan makes apply's input *provably*
 the reviewed artifact for every generator, time-dependent or not, and
 `plan_digest` is then a self-check against transport corruption.
 
-**`GEN005_STALE_PLAN` is the failure of that binding.** Under the exclusive
-lock, before any byte is staged, apply:
+It carries the **identity itself** for the same reason and one more. A
+digest can prove that something changed; it cannot say what. The round-2
+contract promised a `GEN005` that names "the first differing member or
+target path" while handing apply nothing but two 64-hex strings, which is
+not a diagnostic that can be produced — the promise was unimplementable, and
+this revision closes it by carrying the document the difference is measured
+against. Carrying it crosses no boundary: `ProjectStateIdentity` is already
+a Layer-0 `site-contract` value (D-6.2), so no new type and no new
+dependency edge appears; `site-contract` still observes no project, because
+the identity is *constructed* by the execution authority and merely
+*transported* by the request; and the payload cost is a few dozen digests
+beside a document that already carries every artifact's full bytes.
 
-1. recomputes `plan_digest` over the plan document it was handed, and
-   refuses `GEN005` if it differs from the request's `plan_digest`;
-2. recomputes the `ProjectStateIdentity` over the same target set the
-   evaluation used, and refuses `GEN005` if its digest differs from the
-   request's `project_state_digest`, naming the first differing member or
-   target path in the error's `pointer`/`path`.
+**`GEN005_STALE_PLAN` is the failure of that binding.** Apply performs the
+following, in this order, **inside the exclusive lock, after
+`recoverIfRequired()` and before evaluation, staging, or any other write**
+(`SiteInitializationService::initialize()` already fixes lock → recover →
+prepare, lines 81–89; the recomputation is inserted between recovery and
+`prepare()`):
 
-Only then does it re-run evaluation and publish. So a `composer.json` edited
-by a human between dry-run and apply, a target file created or modified in
-that window, or a concurrent publish that changed the unit roster are all
-one decidable, coded refusal instead of an incidental collision message.
+1. Recompute `sha256(CanonicalJson::encode($request['plan']) . "\n")` and
+   refuse `GEN005` at `/plan_digest` if it differs from the request's
+   `plan_digest`.
+2. Recompute `sha256(CanonicalJson::encode($request['project_state']) .
+   "\n")` and refuse `GEN005` at `/project_state_digest` if it differs from
+   the request's `project_state_digest`. Steps 1 and 2 are self-checks: they
+   catch transport corruption and a hand-edited request, and they must pass
+   before either document is trusted enough to compare anything against.
+3. Re-observe the project over **exactly the paths the carried
+   `project_state.targets` names, in the order it names them**, plus the
+   three named files, producing a second identity. This is what "the same
+   target set the evaluation used" means, and it is now a set the request
+   states rather than one apply has to guess: a roster change that would
+   have altered the derived set is itself a
+   `generated_metadata_sha256` difference, caught in step 4.
+4. Compare the two identities member by member in the D-6.2 order and refuse
+   `GEN005` at the **first** difference, filling `pointer` with a JSON
+   Pointer into the request document and `path` when the difference is
+   inside `targets`: `/project_state/composer_json_sha256` for a human's
+   `composer.json` edit, `/project_state/targets/3/state` with
+   `path: "src/Entity/Story.php"` for a target that appeared,
+   `/project_state/generated_metadata_sha256` for a concurrent publish that
+   changed the unit roster.
+5. Assert that the carried `targets` path list equals the D-6.2 derivation
+   over the carried plan and the now-proven-unchanged roster, and refuse
+   `GEN005` at `/project_state/targets` naming the first differing path if
+   it does not. Step 4 has already proven the project unchanged, so an
+   inequality here is not a race: it is a request whose identity was never
+   the one that plan would have produced, and accepting it would let a
+   forged or mis-built request narrow the very set the check ranges over.
+
+Only then does it re-run evaluation (D-6.2) and publish. So a `composer.json`
+edited by a human between dry-run and apply, a target file created or
+modified in that window, or a concurrent publish that changed the unit
+roster are all one decidable, coded refusal that names the cause, instead of
+an incidental collision message.
+
+The recovery ordering is deliberate and is worth stating, because it is the
+one case where the framework itself moves the project between review and
+apply. A dry-run cannot even be computed while an interrupted transaction
+exists — `initialize()` refuses it outright (lines 41–44) — so a reviewed
+identity is always one captured on a project with no pending journal. If
+recovery therefore runs at apply time, it necessarily post-dates the review
+and may have restored or removed a target the operator's plan was evaluated
+against. Recomputing *after* recovery makes that a `GEN005` the operator
+sees; recomputing before it would prove a state the publish then no longer
+operates on.
+
+One consequence of that placement is decided here rather than left to
+discovery, because it decides which code the operator actually sees.
+`initialize()` today runs a *pre-lock* collision pass (line 54, "Refuse
+deterministic collisions before creating lock/control state") whose refusals
+would fire before the lock is taken — so a target that appeared between
+review and apply would surface as `GEN003` from that pass rather than as the
+`GEN005` this contract promises. For a plan-bound apply the stale-plan check
+is **the first evaluation performed**, and the pre-lock pass may not preempt
+it: #2846 either skips that pass on the plan-bound path or defers its
+refusal to the under-lock outcome. Nothing is lost by doing so — the same
+checks run again under the lock at line 89 either way.
 
 In the default single-invocation flow (`make:content-type story` with no
 `--dry-run`), compile, evaluate, and apply happen once in one process, and
-the same two digests are computed and passed through the same check. There
-is one code path, not a fast path and a careful path.
+the same plan and the same captured identity are carried through the same
+five steps. The window they bind is short rather than absent — the
+evaluation still precedes the publish — so the checks are not ceremony
+there: they are the same checks, over a smaller gap. There is one code path,
+not a fast path and a careful path.
 
 #### D-6.6 Registrations, companion tests, and reserved effects
 
 `ComposerProviderRegistration` (`Waaseyaa\SiteContract\Generation\`, new,
-Layer 0) is `{fqcn: string, group?: string}` — the typed replacement for
+Layer 0) is `{fqcn: string}` — the typed replacement for
 `MakeContentTypeHandler::registerProvider()`'s direct
 `json_decode`/mutate/`json_encode` of `composer.json`
 (`packages/cli/src/Handler/MakeContentTypeHandler.php` lines 280–313).
+
+**It names one target key, and only one.** A registration is an entry in
+`extra.waaseyaa.providers`, the flat `list<class-string>` both discovery
+readers consume — `ProviderDiscovery::discoverFromArray()`
+(`packages/foundation/src/ServiceProvider/ProviderDiscovery.php` lines
+27–28) and `PackageManifestCompiler`
+(`packages/foundation/src/Discovery/PackageManifestCompiler.php` lines
+121–122 for installed packages, 979–988 for the root project). Round 2's
+optional `group` member is **removed**: no grouped provider surface exists
+anywhere in the framework, so `group` named no key, which left both the
+application and the withdrawal of a grouped entry undefined — and an
+ownership record whose target is undefined cannot be withdrawn from. Any
+other `composer.json` effect (a script, a repository, a `require` entry) is
+outside v1 and is `GEN007_UNSUPPORTED_DECLARATION`; widening the target set
+is an amendment, because each new target needs its own idempotence,
+ordering, and withdrawal rules.
+
 `composer.json` cannot become a wholly generator-owned `GeneratedArtifact`
 the way `public/index.php` can — a real application's `composer.json` has
 hundreds of unrelated, user-owned keys — so it is not modeled as file
-content at all. It is modeled as a **merge instruction**:
-`SiteInitializationService` decodes the project's current `composer.json`,
-applies every pending registration idempotently (already present ⇒ no-op,
-matching `registerProvider()`'s existing `return false` behavior),
-re-encodes with the project's existing formatting conventions, and writes it
-back **inside the same transaction and journal as every other artifact in
-the plan** — atomic with the file writes it accompanies, bound by
-`composer_json_sha256` in the captured project state so a concurrent edit is
-a `GEN005` refusal rather than a silent clobber, and rolled back with
-everything else on failure. Registrations are attributed to the unit that
-declared them, so retiring a unit withdraws exactly its own and no others.
+content at all. It is modeled as a **merge instruction** with a fully
+determined result:
+
+- `SiteInitializationService` decodes the project's current `composer.json`
+  with `json_decode(..., associative: true)`, which preserves the file's own
+  key order, and changes nothing but the `extra.waaseyaa.providers` list.
+- Additions **append**, in the plan's canonical `fqcn` order, after the
+  entries already present, whose relative order is preserved. Appending is
+  not a stylistic choice: providers are registered in list order, so the
+  list's order is observable behavior, and appending is both what
+  `registerProvider()` does today (line 302) and the only edit that cannot
+  reorder somebody else's registration.
+- Withdrawal removes entries and preserves the order of the rest (D-2.3
+  step 6).
+- The document is re-encoded with `JSON_PRETTY_PRINT |
+  JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE` plus a trailing newline —
+  byte-for-byte the encoder `registerProvider()` already uses (lines
+  307–308), named here rather than described as "the project's existing
+  formatting conventions", which is not a decidable rule. Naming today's
+  encoder is also what makes the migration formatting-neutral: a project
+  that has ever run `make:content-type` sees exactly the encoding it already
+  has.
+
+The result is that the written bytes are a deterministic function of the
+decoded pre-image, the ordered additions, and the removals — which is what
+lets `composer_json_sha256` bind the write at all.
+
+It is written **inside the same transaction and journal as every other
+artifact in the plan** — atomic with the file writes it accompanies, bound
+by `composer_json_sha256` in the captured project state so a concurrent edit
+is a `GEN005` refusal rather than a silent clobber, and rolled back with
+everything else on failure. It needs no new journal verb: a whole-file
+rename-into-place with `existed`/`backup`/`installed_sha256` is exactly the
+existing item shape (`SiteInitializationService::publish()` lines 233–261),
+and `composer.json` at mode `0644` satisfies `validateJournal()`'s existing
+item grammar unchanged. Only unit *retirement*'s file removal needs a new
+verb (Consequences).
+
+**Ownership.** Registrations are attributed to the unit that declared them
+and recorded on that unit (D-2.1), so retirement withdraws exactly its own
+and no others — from the persisted record, not from a plan that no longer
+exists. The claim rules are D-2.3's, applied to registrations: exclusive
+partition (step 4), first-recorded-owner-wins with a present-but-unowned
+entry refused `GEN003` rather than adopted (step 5), frozen per unit in both
+directions (step 3), and changeable only by retire-then-recreate (step 7).
+A plan declaring a registration against a project with no `composer.json` is
+`GEN007`, refused before staging — today's `registerProvider()` throws on
+the same condition (line 283), so no working invocation loses.
 
 `companion_tests` is bookkeeping cross-reference, not a new artifact kind: a
 companion test is an ordinary artifact row under a `tests/` path, and this
@@ -880,14 +1244,25 @@ include a clock reading.
 
 Decided: the type split (immutable `ArtifactPlan` versus
 `EvaluatedArtifactPlan`), the four `waaseyaa.*` v1 documents and their
-closed member sets, the exact canonical digest formula and list orders
-(D-6.3), the captured project-state identity and its target set (D-6.2), the
-result/error envelope (D-6.4), and that apply carries the plan and is bound
-to both digests by `GEN005` (D-6.5). Implemented by #2846: the classes, the
-extraction of the evaluation half out of `prepare()`, the widened result
-surface, and the tests — including a red boundary test proving dry-run and
-apply run the identical check set, and one proving a mutated plan or a
-touched target refuses `GEN005` rather than publishing.
+closed member sets, the exact canonical digest formulas and list orders
+(D-6.3, D-6.2), the captured project-state identity, its target set and the
+total order a difference in it is read in (D-6.2), the retirement-only plan
+shape (D-6.1), the result/error envelope (D-6.4), that apply carries both
+the plan and the reviewed identity and runs the five ordered `GEN005` checks
+under the lock after recovery and ahead of the pre-lock collision pass
+(D-6.5), and the registration target key, encoder, append order, and
+ownership rules (D-6.6).
+
+Implemented by #2846: the classes, the extraction of the evaluation half out
+of `prepare()`, the widened result surface, the `composer.json` journal item
+and its merge/withdraw path, and the tests — including a red boundary test
+proving dry-run and apply run the identical check set; one proving a mutated
+plan or a touched target refuses `GEN005` rather than publishing, with the
+`pointer`/`path` naming the difference; one proving a request whose carried
+`targets` do not match the plan's derivation refuses rather than narrowing
+the check; and one proving a registration add followed by the unit's
+retirement leaves `extra.waaseyaa.providers` without the entry and with
+every other entry in its original order.
 
 ### D-7. Compatibility and deprecation windows; script migration detection
 
@@ -918,7 +1293,12 @@ command, one PR at a time, per the D-12 sequence, and each such PR:
    unconditional `composer.json` write becomes subject to the same
    collision refusal every other generated artifact gets (a concurrently
    edited `composer.json` today silently loses the concurrent edit; after
-   migration it is a `GEN005`/`GEN003` refusal), and `--force` narrows from
+   migration it is a `GEN005`/`GEN003` refusal — and one narrower case moves
+   with it, a first generation whose provider FQCN a human had already
+   hand-added to `extra.waaseyaa.providers`, which today exits `0` with
+   "Provider already registered" and after migration is a `GEN003` rather
+   than the generator adopting an entry it did not create, D-2.3 step 5),
+   and `--force` narrows from
    "overwrite whatever is there" to "regenerate this unit's own recorded
    paths". After migration `--force` may **never** overwrite a path owned by
    another unit or an unowned pre-existing file; the mechanics by which it
@@ -1015,10 +1395,11 @@ issue; writing that gate is implementation, not authorized by this ADR.
 #### D-10.1 Provenance is carried at generation-unit cardinality
 
 **Provenance is recorded per generation unit — not per artifact, and not per
-effect.** Each non-root unit record carries `{fqcn, version}` and
-`input_digest` (D-2.1); each non-root artifact row names its owning unit;
-each registration and each future schema/config effect is attributed to the
-unit that declared it. Per-artifact provenance is therefore *derivable* by
+effect.** Each non-root unit record carries `{fqcn, version}`,
+`input_digest`, and its `registrations` roster (D-2.1); each non-root
+artifact row names its owning unit; each registration is recorded on the
+unit that declared it, and each future schema/config effect is attributed
+the same way. Per-artifact provenance is therefore *derivable* by
 lookup (row → unit → generator) and is deliberately not duplicated into the
 row: two copies of the same fact can disagree, and a row-level FQCN that
 disagreed with its unit's would make ownership ambiguous in exactly the way
@@ -1067,7 +1448,7 @@ evaluated result; the same document is what apply is handed):
   ],
   "retires": [],
   "registrations": [
-    { "fqcn": "App\\Provider\\StoryServiceProvider", "group": "content" }
+    { "fqcn": "App\\Provider\\StoryServiceProvider" }
   ],
   "companion_tests": [],
   "schema_effects": [],
@@ -1089,6 +1470,7 @@ dry-run, and what the apply half recomputes:
   "plan_digest": "<64 hex>",
   "project_state_digest": "<64 hex>",
   "status": {
+    "composer.json": "changed",
     "src/Entity/Story.php": "created",
     "src/Provider/StoryServiceProvider.php": "created"
   },
@@ -1102,9 +1484,13 @@ dry-run, and what the apply half recomputes:
 The `project_state_digest` covers `{generated_metadata_sha256,
 manifest_sha256, composer_json_sha256, targets}` (D-6.2); `targets` here is
 the two plan paths (both `absent`) because `scaffold:content-type:story` is
-not yet recorded, so no recorded rows join the target set.
+not yet recorded, so no recorded rows join the target set. `composer.json`
+is in `status` and not in `targets`: the plan declares a registration, so the
+file is an effect of this publish, and it is bound by its own identity
+member rather than as a target row.
 
-**3. The apply request** binds apply to exactly that reviewed plan:
+**3. The apply request** binds apply to exactly that reviewed plan *and*
+that reviewed project:
 
 ```json
 {
@@ -1112,14 +1498,31 @@ not yet recorded, so no recorded rows join the target set.
   "version": 1,
   "plan": { "...": "the document from step 1, verbatim" },
   "plan_digest": "<the digest from step 2>",
+  "project_state": {
+    "schema": "waaseyaa.project_state",
+    "version": 1,
+    "generated_metadata_sha256": "<64 hex>",
+    "manifest_sha256": "<64 hex>",
+    "composer_json_sha256": "<64 hex>",
+    "targets": [
+      { "path": "src/Entity/Story.php", "state": "absent", "sha256": "<64 zeros>", "mode": "unknown" },
+      { "path": "src/Provider/StoryServiceProvider.php", "state": "absent", "sha256": "<64 zeros>", "mode": "unknown" }
+    ]
+  },
   "project_state_digest": "<the digest from step 2>"
 }
 ```
 
-If a human edits `composer.json`, or `src/Entity/Story.php` appears, between
-steps 2 and 3, the recomputed project-state digest differs and apply refuses
-`GEN005_STALE_PLAN` naming the differing target — instead of publishing over
-a project it never evaluated.
+Now the stale cases are decidable *and* nameable. If a human adds a
+dependency to `composer.json` between steps 2 and 3, apply's step-4
+comparison finds `composer_json_sha256` first and refuses
+`GEN005_STALE_PLAN` at `pointer: "/project_state/composer_json_sha256"`. If
+`src/Entity/Story.php` appears in that window instead, the first three
+members match and the first `targets` row differs on `state`
+(`absent` → `file`), so the refusal is `pointer:
+"/project_state/targets/0/state"`, `path: "src/Entity/Story.php"`. Neither
+is an incidental collision message, and neither is possible to produce from
+digests alone — which is why the request carries the identity (D-6.5).
 
 **The reconciliation this walkthrough turns on.** At evaluation,
 `scaffold:content-type:story` is not in the recorded roster, so it is a new
@@ -1140,6 +1543,59 @@ and touches neither Story file. The set change that today would refuse
 forever never arises. The developer's subsequent edit to
 `src/Entity/Story.php` — the point of the scaffold — refuses nothing, now or
 ever, because the unit is `seeded`.
+
+**4. Retiring the unit, registration included.** Months later the story type
+is dropped. The recorded unit is exactly what step 1 published:
+
+```json
+{
+  "id": "scaffold:content-type:story",
+  "disposition": "seeded",
+  "generator": { "fqcn": "Waaseyaa\\CLI\\Handler\\MakeContentTypeHandler", "version": 1 },
+  "input_digest": "<64 hex>",
+  "registrations": [ { "fqcn": "App\\Provider\\StoryServiceProvider" } ]
+}
+```
+
+and the retirement-only plan (D-6.1) is:
+
+```json
+{
+  "schema": "waaseyaa.artifact_plan",
+  "version": 1,
+  "generator": { "fqcn": "Waaseyaa\\CLI\\Handler\\MakeContentTypeHandler", "version": 1 },
+  "unit": null,
+  "input_digest": "<sha256 of the canonical id list>",
+  "artifacts": [],
+  "retires": ["scaffold:content-type:story"],
+  "registrations": [],
+  "companion_tests": [],
+  "schema_effects": [],
+  "config_effects": []
+}
+```
+
+Under the lock, after the D-6.5 checks pass, the service reads the recorded
+unit and works from it alone. `src/Provider/StoryServiceProvider.php` still
+digests to its recorded `managed_sha256`, so it is removed;
+`src/Entity/Story.php` does not, because the developer added three fields to
+it in month two, so — the unit being `seeded` — it is **released rather than
+deleted** and stays on disk as an ordinary unowned file (D-2.3 step 6). The
+recorded registration `App\Provider\StoryServiceProvider` is removed from
+`extra.waaseyaa.providers`, and every other entry keeps its position, so no
+unrelated provider's registration order moves. `src/Provider/` is removed if
+the file removal emptied it. The composed document is published with the
+unit gone from `units` and its two rows gone from `artifacts`; since it was
+the only non-root unit, `units` is no longer emitted and the document is
+byte-identical v1 again (D-2.5).
+
+This is the walkthrough round 2 could not complete. Its unit record was
+`{id, disposition, generator, input_digest}`, its artifact rows named only a
+unit, and the plan that declared `registrations` was gone the moment the
+command exited — so "withdraws exactly that unit's registrations" had no
+roster to read, and `App\Provider\StoryServiceProvider` would have stayed in
+`composer.json`, pointing at a class the same retirement had just deleted,
+until someone noticed a boot failure.
 
 **A blueprint materializing the same entity** produces a plan that differs
 in three visible ways and is otherwise the same shape: `generator.fqcn` is
@@ -1169,10 +1625,15 @@ command exits.
 What is true under D-2, stated exactly:
 
 - **For non-root state recorded after this model ships**, provenance is
-  recoverable at unit granularity: a path resolves to its unit, and the unit
-  record carries `{fqcn, version}` and `input_digest`. `site:doctor` can say
-  which compiler at which version produced a file, and whether the input
-  that produced it still digests the same.
+  recoverable at unit granularity: a path resolves to its unit, a
+  `composer.json` registration resolves to its unit the same way, and the
+  unit record carries `{fqcn, version}`, `input_digest`, and the roster of
+  registrations it owns. `site:doctor` can say which compiler at which
+  version produced a file, and whether the input that produced it still
+  digests the same. That the registrations are *persisted* rather than
+  merely attributed is what makes withdrawal executable: retirement reads
+  the record, never the plan, because by then the plan is exactly what this
+  section says it is — gone.
 - **For root-owned paths**, provenance is manifest-derived. Whether a
   blueprint was applied is read from the `application_blueprint` evidence
   member ADR-023 already specifies — not from a compiler FQCN, because a
@@ -1206,13 +1667,14 @@ What is true under D-2, stated exactly:
 | **Races** (concurrent `site:init`/scaffold invocations) | Exclusive advisory lock around the transaction; `GEN008` on contention | `SiteInitializationService` lock + `SiteInitializationLockedException` |
 | **Partial writes** (process or host death mid-publication) | Write-to-temp-then-rename plus a journaled per-item state machine; the next run recovers to the exact prior generation before starting new work | `SiteInitializationService` journal/recovery (existing, `docs/specs/site-golden-path.md` "Initialization") |
 | **Ambiguous overwrite** (an extension region's managed-content digest drifted, so regeneration can't tell a user edit from a substitution) | Refuse regeneration; `GEN004`; the sanctioned unblock is the existing `framework.observed_lock_sha256` rebind, never a silent overwrite | `GeneratedArtifact::regionBounds()`/`withExtensionFrom()`, `docs/specs/site-golden-path.md` "Changed managed bytes" |
-| **Stale approval** (the plan or the project changed between review and apply — a human edited `composer.json`, a target appeared, a concurrent publish changed the unit roster) | Apply recomputes the plan digest and the captured project-state identity under the lock and refuses `GEN005` on either mismatch, naming the differing member or target — **net-new for #2846** | D-6.5 (named here, not implemented here) |
+| **Stale approval** (the plan or the project changed between review and apply — a human edited `composer.json`, a target appeared, a concurrent publish changed the unit roster) | The request carries the reviewed plan *and* the reviewed `ProjectStateIdentity`; both digests self-verify, then apply re-observes the carried target set under the lock, after recovery and ahead of the pre-lock collision pass, and refuses `GEN005` at the first difference in a fixed total order, naming it by `pointer`/`path` — **net-new for #2846** | D-6.2, D-6.5 (named here, not implemented here) |
 | **Malicious identifiers** (a name crafted to break class-name/namespace/path assumptions, or a unit id crafted to shadow `site`) | Reject, never sanitize, before the value reaches a class name, namespace, path, or unit id; `GEN006` | `AbstractMakeHandler::validateIdentifier()`/`validateMachineName()`; the D-2.1 unit-id grammar (net-new) |
 | **Unsupported field/capability declarations** (an entity field type or generator-feature token the installed cohort doesn't advertise) | Fail closed at validation, before compilation; `GEN007`, generalizing the existing `SITE042`/generator-feature-token refusal | `ApplicationBlueprintValidator` (`SITE042`), `FieldTypeManager::blueprintFieldTypeIds()` |
-| **`composer.json` read-modify-write race** (two generators, or a generator and a human editor, mutate it concurrently) | The D-6.6 registration merge runs inside the same transaction/journal/lock as every artifact and is bound by `composer_json_sha256` in the captured project state; this closes the exact gap `MakeContentTypeHandler::registerProvider()` has today | D-6.6 (net-new type + execution path, named here, implemented by the D-12 sequence) |
+| **`composer.json` read-modify-write race** (two generators, or a generator and a human editor, mutate it concurrently) | The D-6.6 registration merge — and the D-2.3 step 6 withdrawal, which is the same write in reverse — runs inside the same transaction/journal/lock as every artifact, edits only `extra.waaseyaa.providers`, and is bound by `composer_json_sha256` in the captured project state; this closes the exact gap `MakeContentTypeHandler::registerProvider()` has today | D-6.6 (net-new type + execution path, named here, implemented by the D-12 sequence) |
 | **Cross-unit path capture** (a scaffold claims a path the root unit owns, or two scaffolds claim one path) | The recorded owner wins permanently; the second claimant is `GEN003`, identically in dry-run and apply; no merge, no re-parenting | D-2.3 steps 4–5 (net-new) |
-| **Silent ownership loss** (a supplied unit quietly stops emitting a recorded path, orphaning a governed file) | An undeclared drop is `GEN009`; retirement must be declared, applies the same drift proofs a publish applies, and is journaled and rolled back like any other item | D-2.3 step 6 (net-new) |
-| **Tampered ownership metadata asserting foreign ownership** (a hand-edited or merge-conflicted `.waaseyaa/generated.json` claiming `seeded` ownership of arbitrary paths) | Bounded and asymmetric by construction: a recorded row can only *block* a write as a collision and can never cause one; `assertSafeTarget()` still runs against every recorded path; duplicate or unknown ownership is `GEN010` at read | D-2.3 step 1, D-2.4 (net-new; this is a genuine widening of what the document asserts, recorded rather than inherited) |
+| **Silent ownership loss** (a supplied unit quietly stops emitting a recorded path or registration, orphaning a governed file or leaving a live provider entry for a deleted class) | An undeclared drop of either is `GEN009`, an undeclared addition is `GEN011`; retirement must be declared, executes from the persisted unit record — paths *and* its `registrations` roster — applies the same drift proofs a publish applies, and is journaled and rolled back like any other item | D-2.1, D-2.3 steps 3 and 6 (net-new) |
+| **Tampered ownership metadata asserting foreign path ownership** (a hand-edited or merge-conflicted `.waaseyaa/generated.json` claiming `seeded` ownership of arbitrary paths) | Bounded and asymmetric by construction: a recorded row can only *block* a write as a collision and can never cause one; `assertSafeTarget()` still runs against every recorded path; duplicate or unknown ownership is `GEN010` at read | D-2.3 step 1, D-2.4 (net-new; this is a genuine widening of what the document asserts, recorded rather than inherited) |
+| **Tampered ownership metadata asserting foreign registration ownership** (the same document claiming a unit owns a provider entry it never made, so that retiring that unit withdraws a project-authored registration) | Not asymmetric — this one can destroy state — so it is bounded three other ways: the withdrawal is reachable only through an explicit operator-initiated retirement of that named unit, it is journaled and rolled back like any other item, and its only possible effect is deleting a string from `extra.waaseyaa.providers`; a registration recorded to two units, or a unit record that is not the closed five-member object, is `GEN010` at read | D-2.1, D-2.3 steps 1 and 6, D-2.4 (net-new, and the one destructive capability this revision adds — recorded rather than discovered) |
 
 ### D-12. Migration sequence for follow-on issues: one dependent lane, one parallel lane
 
@@ -1223,9 +1685,11 @@ What is true under D-2, stated exactly:
    `ArtifactApplyRequest`, `ArtifactApplyResult`,
    `ComposerProviderRegistration`) to `site-contract`; splits target
    evaluation out of `prepare()`; implements the D-2 unit model — read-time
-   promotion, per-unit reconciliation, carry-forward, composed metadata,
-   the retirement journal verb, and the D-2.7 `site:doctor` split — and
-   codes the `GEN0xx` exceptions. Ships with unit, adversarial,
+   promotion, per-unit reconciliation over paths and registrations,
+   carry-forward, composed metadata, the persisted per-unit registration
+   roster with its `composer.json` merge/withdraw path, the retirement
+   journal verb, and the D-2.7 `site:doctor` split — and codes the `GEN0xx`
+   exceptions. Ships with unit, adversarial,
    failure-injection, and recovery tests per its own acceptance criteria,
    plus the two ordering constraints this ADR fixes: the byte-identity
    fixture test lands **before** the metadata-composition relocation
@@ -1246,9 +1710,10 @@ What is true under D-2, stated exactly:
    command and the registration path needs at least one real caller before
    any other `merge` command adopts it. Publishes a `seeded` non-root unit;
    default invocation unchanged in an initialized project, with the two
-   D-7 rule-4 announcements (`--force` narrowing, `composer.json` collision)
-   and the D-7 rule-6 initialized-site requirement in its changelog
-   fragment.
+   D-7 rule-4 announcements (`--force` narrowing, `composer.json` collision
+   — the hand-added-provider-entry case named explicitly, since that is the
+   one previously-succeeding invocation that starts refusing) and the D-7
+   rule-6 initialized-site requirement in its changelog fragment.
 4. **`make:public`, `make:migration`, `make:storage-migration` migration**
    (own PR each, or combined if the diff stays reviewable) — same D-7
    contract; `make:storage-migration` keeps its existing five-value exit
@@ -1310,8 +1775,11 @@ re-implement any part of it:
   `.waaseyaa/generated.json`; create a second collision, containment, or
   symlink-safety check; introduce a per-run disposition flag or any way for
   a caller to choose `seeded` for a unit whose compiler is not on the closed
-  allowlist; or bump `waaseyaa.generated` past version 1 to carry the unit
-  members. It **must**: extend `SiteInitializationService`'s existing
+  allowlist; bump `waaseyaa.generated` past version 1 to carry the unit
+  members; or record `composer.json` registration ownership anywhere but the
+  owning unit's record — a sidecar ledger, a second manifest key, or a
+  re-derivation from a stored plan are each a second ownership authority.
+  It **must**: extend `SiteInitializationService`'s existing
   evaluation, result, and dry-run surface; implement D-2's unit model inside
   the one generated-state authority; and add the D-6 types to
   `site-contract` beside the types they extend.
@@ -1371,6 +1839,26 @@ Costs and one-way doors, recorded here rather than discovered later:
   item kind, a new rollback branch, and a new interaction with the
   reverse-order created-directory cleanup. The existing failure-injection
   matrix covers none of it, so #2846's recovery suite grows by a whole axis.
+  The `composer.json` write is the cheap half by comparison: a whole-file
+  rename-into-place fits the existing item shape exactly (D-6.6), so
+  registration and withdrawal need no verb of their own.
+- **Registration ownership is persisted state with a destructive inverse.**
+  Recording what a unit owns in `composer.json` is what makes automatic
+  withdrawal possible at all, and it is also the first thing in this model
+  whose *record* can cause a deletion rather than only block a write. The
+  controls are the exclusive partition, the refusal to adopt an entry the
+  generator did not create, and retirement's journal/rollback — all three
+  are required, and D-11 carries the residual threat row. Retirement is also
+  not a byte-level undo: `composer.json` loses the recorded entries, not the
+  formatting or the empty `providers` list the registration created.
+- **Retiring a `seeded` unit can leave files behind.** A modified seed is
+  released rather than deleted (D-2.3 step 6), so a retirement can complete
+  with the developer's edited file still on disk and no longer owned by
+  anything. That residue is deliberate — deleting edited work to satisfy a
+  bookkeeping operation is the worse failure — but it means "the unit is
+  retired" and "the project is clean" are different statements, and the
+  result names which files were released so the operator can act on the
+  difference.
 - **`site:doctor` loses its reproducibility oracle for non-root units.** It
   proves a `managed` non-root row is unmodified; it cannot prove the row is
   what its recorded generator would produce again, and for a `seeded` row it
@@ -1391,6 +1879,15 @@ Costs and one-way doors, recorded here rather than discovered later:
   re-encoded and rewritten under the lock on every publish. Absolute size
   stays small, but publish cost becomes proportional to total units rather
   than to changed artifacts.
+- **The apply binding is strict, and that is felt as friction, not as
+  safety, by whoever hits it.** Because the identity covers whole-file
+  `composer.json` bytes and every target's state, any edit in the review
+  window refuses — including one entirely unrelated to the plan, such as
+  adding a dependency. The refusal now says exactly what moved (D-6.5), and
+  the operator's move is to re-run the dry-run, but a two-process review flow
+  over a long window will go stale often. A narrower binding was rejected
+  because a partial one cannot tell an unrelated edit from a conflicting one
+  without re-deciding the merge semantics under the lock.
 - **The older-reader refusal is a per-project one-way door** (D-2.5). It is
   the intended fail-closed polarity, but it must reach operators through
   release notes and the refusal message, not through an unexplained
@@ -1404,8 +1901,8 @@ Costs and one-way doors, recorded here rather than discovered later:
   a required machine-readable deliverable a consistent, versioned home
   beside the decision that requires them, distinct from `docs/audits/`'s
   independently-triggered, SHA-pinned census artifacts.
-- The `GEN0xx` family gives #2846 a fixed namespace and ten pre-assigned ids
-  to implement against, rather than inventing codes ad hoc per PR the way
+- The `GEN0xx` family gives #2846 a fixed namespace and eleven pre-assigned
+  ids to implement against, rather than inventing codes ad hoc per PR the way
   `SITE0xx` grew organically before ADR-023 closed its vocabulary.
 
 ## Non-goals

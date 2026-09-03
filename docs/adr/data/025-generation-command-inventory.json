@@ -4,7 +4,7 @@
   "adr": "025-unified-artifact-generation-authority",
   "anchor_issue": 2845,
   "as_of_commit": "4c00b3327",
-  "verification_method": "Every row was verified against packages/cli/src/Handler/*.php and packages/cli/src/Provider/*ServiceProvider*.php in this worktree, not assumed from an unverified pre-brief. writes_files / mutates_composer_json are grep-verified for file_put_contents/mkdir/composer.json call sites in the named class.",
+  "verification_method": "Every row was verified against packages/cli/src/Handler/*.php and packages/cli/src/Provider/*ServiceProvider*.php in this worktree, not assumed from an unverified pre-brief. writes_files / mutates_composer_json are grep-verified for file_put_contents/mkdir/composer.json call sites in the named class. The one composer.json surface any generator touches was verified end to end: MakeContentTypeHandler::registerProvider() writes extra.waaseyaa.providers (lines 280-313), and that key is a flat list<class-string> read by ProviderDiscovery::discoverFromArray() (packages/foundation/src/ServiceProvider/ProviderDiscovery.php lines 27-28) and PackageManifestCompiler (packages/foundation/src/Discovery/PackageManifestCompiler.php lines 121-122 and 979-988). No grouped provider surface exists, which is why ADR D-6.6 drops the ComposerProviderRegistration 'group' member.",
   "disposition_definitions": {
     "keep": "No behavior or interface change required by this ADR. Command stays exactly as it is.",
     "merge": "Writes application files today outside the transactional authority (SiteInitializationService). Must migrate onto the single typed artifact-plan contract this ADR establishes, in a follow-on issue, per the D-12 migration sequence. No behavior changes in THIS ADR.",
@@ -100,7 +100,7 @@
       "mutates_composer_json": true,
       "output": "two PHP files (src/Entity/{Name}.php, src/Provider/{Name}ServiceProvider.php) + direct composer.json read-modify-write",
       "disposition": "merge",
-      "why": "CRITICAL/exemplar case. writeFile() at lines 100-101 writes two files with its own is_dir()||mkdir() guard (no transaction, no journal). registerProvider() at lines 280-313 decodes composer.json, appends to extra.waaseyaa.providers in memory, and writes it back with no lock, no collision check against a concurrent editor, and no rollback if the two prior file writes already landed and this step fails. This is the entrypoint ADR D-9 forbids after migration and D-6 gives a typed registration-effect design for. After migration it publishes one seeded non-root generation unit (D-2) and requires an initialized site (D-7 rule 6)."
+      "why": "CRITICAL/exemplar case. writeFile() at lines 100-101 writes two files with its own is_dir()||mkdir() guard (no transaction, no journal). registerProvider() at lines 280-313 decodes composer.json, appends to extra.waaseyaa.providers in memory, and writes it back with no lock, no collision check against a concurrent editor, and no rollback if the two prior file writes already landed and this step fails. This is the entrypoint ADR D-9 forbids after migration and D-6 gives a typed registration-effect design for. After migration it publishes one seeded non-root generation unit (D-2) and requires an initialized site (D-7 rule 6). Its provider registration is recorded on that unit (ADR D-2.1 'registrations'), so retiring the unit withdraws exactly that entry from extra.waaseyaa.providers and no other (D-2.3 step 6); a first generation whose FQCN a human had already hand-added is refused GEN003 rather than adopted (D-2.3 step 5, announced under D-7 rule 4)."
     },
     {
       "command": "make:public",
@@ -220,7 +220,7 @@
       "mutates_composer_json": false,
       "output": "the governed artifact set defined by docs/specs/site-golden-path.md, via SiteArtifactRendererFactory -> GeneratedSite -> SiteInitializationService::initialize()",
       "disposition": "keep",
-      "why": "This is the incumbent transactional authority this ADR names as canonical (D-1/D-3), and the publisher of the root 'site' generation unit (D-2). No interface or behavior change. It does not itself touch composer.json today; D-6's typed registration effect is new surface, not a change to this command."
+      "why": "This is the incumbent transactional authority this ADR names as canonical (D-1/D-3), and the publisher of the root 'site' generation unit (D-2). No interface or behavior change. It does not itself touch composer.json today; D-6's typed registration effect is new surface, not a change to this command. Because the root unit has nowhere to persist a registration roster, a root-unit plan must declare an empty registrations list and a non-empty one is GEN007 (ADR D-2.1), so this command's composer.json-free behavior is enforced rather than merely observed."
     },
     {
       "command": "site:doctor",
