@@ -345,8 +345,9 @@ The authorization is split across the two halves D-6 already separates,
 because only one of them may observe the project.
 
 **The compiler declares capability, purely.** `ArtifactPlan` gains one
-member, `set_evolution`, with values `frozen` (the default, and the only
-value for every compiler this ADR inventories) or `additive`. It is a
+member, `set_evolution`, with values `frozen` or `additive`. `frozen` is
+the default; `additive` is valid only for the closed eligibility list
+below. It is a
 property of the compiler and its validated input — not of any project — so
 the plan stays a pure function of its input and two runs still produce
 byte-identical bytes. A compiler that cannot reason about growing its own
@@ -370,7 +371,11 @@ one binding may emit `set_evolution: additive` in v1:
   already lives (`PublishedContentRecipe::render()` emits one bundle class
   per `contentTypes` entry, D-2.8), and, once #2787 lands, the
   approved-blueprint root compiler that produces the same root unit from an
-  `application_blueprint` plus its matching `BlueprintDecisionReceipt`.
+  `application_blueprint` plus its matching `BlueprintDecisionReceipt`. That
+  second entry is a **forward reference, not a standing grant**: the
+  compiler does not exist, #2846's architecture test can only assert the
+  manifest-render half, and adding the blueprint compiler to this list is an
+  authority expansion that #2787 must earn against the review gate in D-13.
 
 Every other compiler in the D-4 inventory — every `make:*`, every
 `scaffold:*`, every non-root unit — is `frozen`, and a plan from one of them
@@ -1382,8 +1387,9 @@ What is true under D-2, stated exactly:
    sink is deferred to its own decision (D-14.7). **No `make:*`/`scaffold:*` handler
    changes in this step** — the engine exists and is proven before anything
    is asked to compile into it.
-2. **#2787 — blueprint materialization.** Adds the blueprint-aware root-unit
-   compiler, consuming #2846's `ArtifactPlan` and the existing
+2. **#2787 — blueprint materialization**, subject to D-13's
+   authority-expansion review gate for its addition to D-2.3a's eligibility
+   list. Adds the blueprint-aware root-unit compiler, consuming #2846's `ArtifactPlan` and the existing
    `ApplicationBlueprint`. Composes `SiteArtifactRenderer` +
    `SiteInitializationService` exactly as its own issue text already commits
    to ("Do not create a second transaction, ownership manifest, project
@@ -1484,6 +1490,32 @@ re-implement any part of it:
   plan object — its own "Settled authority" section), and publish
   exclusively through the root-unit render plus
   `SiteInitializationService`.
+
+  **#2787 carries an authority-expansion review gate.** Adding the
+  approved-blueprint root compiler to D-2.3a's closed eligibility list is
+  the only widening of a closed authority allowlist this ADR anticipates.
+  The code change may be one line; changing a closed authority allowlist is
+  never merely a test update, and #2787's acceptance is not satisfied
+  without explicit review evidence for all six of these:
+
+  1. **The engine controls eligibility, not the compiler.** The list is
+     evaluated by the execution authority against the plan's declared
+     `generator`; a compiler cannot assert its own eligibility by setting
+     `set_evolution`.
+  2. **Only the approved-blueprint root compiler is added.** No other
+     compiler, and no generalization of the entry to a category.
+  3. **A valid, digest-matched `BlueprintDecisionReceipt` is mandatory.**
+     An unapproved or mismatched blueprint is not eligible to evolve a path
+     set, whatever its plan declares.
+  4. **It produces the existing root `site` unit** — not a new unit, not a
+     parallel one (D-10.1, restated because eligibility makes the
+     temptation concrete).
+  5. **Missing or invalid approval, or an ineligible compiler carrying
+     `additive`, is `GEN011`** — identically in dry-run and apply.
+  6. **Architecture tests prove the boundary in both directions**: the
+     existing manifest binding remains eligible, and every other compiler
+     in the D-4 inventory remains frozen. A test asserting only the
+     addition is insufficient.
 - **#2664 may not**: fork `site:init`'s profile semantics; create a second
   hash/version engine for `ai:update --check/--apply` and `ai:verify`
   distinct from `.waaseyaa/generated.json`'s digests; or let Composer
