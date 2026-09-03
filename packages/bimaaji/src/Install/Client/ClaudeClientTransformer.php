@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Bimaaji\Install\Client;
 
+use Waaseyaa\Bimaaji\Install\ClientCapabilities;
+use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
@@ -36,6 +38,14 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
  * marker, survive. A skill directory may also hold supporting files the user
  * added; the installer never removes those.
  *
+ * That frontmatter block is emitted **because
+ * {@see ClientCapabilities::$requiresFrontmatterAtByteZero} says so**, not
+ * because this class hardcodes it. Path, prefix and frontmatter all come from
+ * the one registry entry, so the registry cannot describe a client whose
+ * shipped bytes disagree with it. Injecting capabilities via the constructor
+ * is a test seam for exactly that proof; production always resolves the
+ * registered entry.
+ *
  * Upstream convention: <https://code.claude.com/docs/en/skills> §"Where skills
  * live" (`Project | .claude/skills/<skill-name>/SKILL.md`) and §"How a skill
  * gets its command name" (verified 2026-08-29).
@@ -45,12 +55,12 @@ use Waaseyaa\Bimaaji\Install\TargetFile;
 final class ClaudeClientTransformer implements ClientTransformerInterface
 {
     /**
-     * Prefix applied to every installed skill directory, so a consumer can
-     * tell framework-installed skills from their own at a glance and the
-     * command names (`/waaseyaa-entity-system`) do not collide with a
-     * project skill of the same bare name.
+     * @param ClientCapabilities|null $capabilities Overrides the registered
+     *     entry. Null — the production path — resolves
+     *     {@see ClientCapabilityRegistry::default()}. A non-null value must
+     *     declare this client id; anything else is a programming error.
      */
-    private const string DIRECTORY_PREFIX = 'waaseyaa-';
+    public function __construct(private readonly ?ClientCapabilities $capabilities = null) {}
 
     public function clientId(): string
     {
@@ -59,41 +69,83 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
 
     public function targetFiles(array $skills): array
     {
+        $capabilities = $this->resolveCapabilities();
         $files = [];
 
         foreach ($skills as $skill) {
             $files[] = new TargetFile(
-                path: sprintf('.claude/skills/%s%s/SKILL.md', self::DIRECTORY_PREFIX, $skill->id),
-                content: $this->renderSkillFile($skill),
+                path: $capabilities->skillFilePath($skill->id),
+                content: $this->renderSkillFile($skill, $capabilities),
                 sourceSkill: $skill->id,
             );
         }
 
         $files[] = new TargetFile(
-            path: '.claude/CLAUDE-WAASEYAA.md',
-            content: $this->renderIndex($skills),
+            path: $capabilities->guidancePath,
+            content: $this->renderIndex($skills, $capabilities),
             sourceSkill: null,
         );
 
         return $files;
     }
 
-    private function renderSkillFile(ParsedSkill $skill): string
+    /**
+     * The capabilities this render reads — the injected override, else this
+     * client's registered entry. See the
+     * {@see AbstractSingleFileClientTransformer::capabilities()} docblock
+     * for why a missing entry is a `\LogicException`, not a soft failure;
+     * an override for a *different* client is the same class of error, and
+     * is rejected rather than quietly used to render Claude's output.
+     */
+    private function resolveCapabilities(): ClientCapabilities
     {
+        if ($this->capabilities !== null) {
+            if ($this->capabilities->clientId !== $this->clientId()) {
+                throw new \LogicException(sprintf(
+                    'ClaudeClientTransformer was given capabilities that declare client "%s", not "%s".',
+                    $this->capabilities->clientId,
+                    $this->clientId(),
+                ));
+            }
+
+            return $this->capabilities;
+        }
+
+        $capabilities = ClientCapabilityRegistry::default()->for($this->clientId());
+        if ($capabilities === null) {
+            throw new \LogicException(sprintf(
+                'No registered ClientCapabilityRegistry entry for client "%s".',
+                $this->clientId(),
+            ));
+        }
+
+        return $capabilities;
+    }
+
+    private function renderSkillFile(ParsedSkill $skill, ClientCapabilities $capabilities): string
+    {
+        $body = ManagedRegion::wrap($skill->body);
+
+        // Frontmatter is a discovery requirement of the client, so the
+        // capability decides — not this method. A per-skill client that does
+        // not require it gets the managed body alone.
+        if (!$capabilities->requiresFrontmatterAtByteZero) {
+            return $body;
+        }
+
         // `name` must match the directory so the listing label and the
         // command a user types agree; `description` is what Claude reads to
         // decide whether to load the skill.
         return sprintf(
-            "---\nname: %s%s\ndescription: %s\n---\n\n%s",
-            self::DIRECTORY_PREFIX,
-            $skill->id,
+            "---\nname: %s\ndescription: %s\n---\n\n%s",
+            $capabilities->skillDirectoryName($skill->id),
             $this->escapeYamlScalar($skill->description),
-            ManagedRegion::wrap($skill->body),
+            $body,
         );
     }
 
     /** @param list<ParsedSkill> $skills */
-    private function renderIndex(array $skills): string
+    private function renderIndex(array $skills, ClientCapabilities $capabilities): string
     {
         $lines = [
             '# Waaseyaa framework — Claude Code guidelines',
@@ -110,9 +162,8 @@ final class ClaudeClientTransformer implements ClientTransformerInterface
         } else {
             foreach ($skills as $skill) {
                 $lines[] = sprintf(
-                    '- `/%s%s` — **%s** — %s',
-                    self::DIRECTORY_PREFIX,
-                    $skill->id,
+                    '- `/%s` — **%s** — %s',
+                    $capabilities->skillDirectoryName($skill->id),
                     $skill->name,
                     $skill->description,
                 );

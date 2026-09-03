@@ -36,9 +36,4 @@ final class CodexClientTransformer extends AbstractSingleFileClientTransformer
     {
         return 'codex';
     }
-
-    protected function targetPath(): string
-    {
-        return 'AGENTS.md';
-    }
 }

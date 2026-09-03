@@ -19,9 +19,4 @@ final class CopilotClientTransformer extends AbstractSingleFileClientTransformer
     {
         return 'copilot';
     }
-
-    protected function targetPath(): string
-    {
-        return '.github/copilot-instructions.md';
-    }
 }

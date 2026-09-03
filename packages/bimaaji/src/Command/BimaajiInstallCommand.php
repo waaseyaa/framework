@@ -8,6 +8,7 @@ use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\InstalledManifest;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
+use Waaseyaa\Bimaaji\Install\SkillInventory;
 use Waaseyaa\Bimaaji\Install\SkillResourceException;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Install\TargetFile;
@@ -94,7 +95,13 @@ final class BimaajiInstallCommand
         $force = (bool) $io->option('force');
 
         try {
-            $skills = $this->skillSetParser->parse();
+            // SkillInventory is the one enumeration every transformer and
+            // future generated-state consumer reads — it wraps `parse()`
+            // rather than re-deriving the skill set from disk a second way
+            // (#2660 Part A). `->all()` below hands transformers the same
+            // `list<ParsedSkill>` they always received; nothing about the
+            // write set changes.
+            $skills = SkillInventory::fromParser($this->skillSetParser)->all();
         } catch (SkillResourceException $exception) {
             // The diagnostic already names the resolved absolute directory
             // and the remedy for this failure class (missing vs corrupt).
