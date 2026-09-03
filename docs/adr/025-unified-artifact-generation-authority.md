@@ -1247,12 +1247,13 @@ What is true under D-2, stated exactly:
    (D-2.6), and the `site:doctor` split lands **in the same slice** as the
    unit model (D-2.7), because a first multi-unit publish otherwise turns
    `site:doctor --strict` red and breaks every generated
-   `bin/maintenance/site-verify`. It also emits the D-14.7 change receipt —
-   the envelope members, the outcome mapping, and the
-   `.waaseyaa/receipts.jsonl` append with its three evidence-not-authority
-   rules — in the same slice that introduces the apply result, because a
-   result type shipped without its receipt binding would have to be widened
-   again immediately. **No `make:*`/`scaffold:*` handler
+   `bin/maintenance/site-verify`. It also returns the D-14.7 change receipt —
+   the closed envelope, the outcome mapping, and
+   `SiteInitializationService::CONTRACT_VERSION` as its sole version
+   declaration (D-14.9) — in the same slice that introduces the apply
+   result, because a result type shipped without its receipt binding would
+   have to be widened again immediately. It persists no receipt: the durable
+   sink is deferred to its own decision (D-14.7). **No `make:*`/`scaffold:*` handler
    changes in this step** — the engine exists and is proven before anything
    is asked to compile into it.
 2. **#2787 — blueprint materialization.** Adds the blueprint-aware root-unit
@@ -1331,16 +1332,20 @@ re-implement any part of it:
   symlink-safety check; introduce a per-run disposition flag or any way for
   a caller to choose `seeded` for a unit whose compiler is not on the closed
   allowlist; bump `waaseyaa.generated` past version 1 to carry the unit
-  members; create a second durable record that competes with
-  `.waaseyaa/generated.json` for authority over what is owned — the D-14.7
-  receipt log is evidence and is never read to make a decision; or extract a
+  members; persist change receipts to any durable sink, or create any second
+  durable record that competes with `.waaseyaa/generated.json` for authority
+  over what is owned or with the transaction journal for authority over
+  recovery (D-14.7 defers the sink to its own decision); restate
+  `authority_version` anywhere but
+  `SiteInitializationService::CONTRACT_VERSION` (D-14.9); or extract a
   shared protocol type, interface, or package on the strength of this one
   binding (D-14.8). It **must**: extend `SiteInitializationService`'s
   existing evaluation, result, and dry-run surface; implement D-2's unit
   model inside the one generated-state authority; add the D-6 types to
   `site-contract` beside the types they extend; and satisfy D-14.1's seven
-  obligations, recording a D-14.3 change receipt for every terminated
-  state-changing attempt.
+  obligations, returning a D-14.3 change receipt for every terminated
+  controlled-apply or recovery attempt, including the non-mutating terminal
+  outcomes `refused` and `failed`.
 - **#2787 may not**: create a second transaction, ownership manifest,
   project initializer, or product-specific compiler (its own issue text,
   restated here as binding on this ADR too); or give blueprint
@@ -1398,7 +1403,7 @@ An authority conforming to the protocol must provide:
 | 2 | **Side-effect-free preview.** Evaluating a plan against live state produces a decidable prediction and writes nothing. | Preview that can mutate is not preview, and a preview that differs from apply's own evaluation is a second interpretation. |
 | 3 | **Stale-plan detection.** Apply recomputes both the plan digest and a captured precondition identity under the exclusive lock, and refuses with a typed code when either moved. | Otherwise the window between review and apply is an unbounded, silent race. |
 | 4 | **Controlled apply.** State-changing work happens under an exclusive lock, is atomic with respect to interruption, and either reaches its declared end state or leaves the prior one. | Partial success reported as success is the failure mode the beta exit contract names by name. |
-| 5 | **Typed change receipt.** Every terminated state-changing attempt records one receipt conforming to D-14.3. | Evidence of what happened must outlive the process that did it, in a shape a reader can interpret without knowing the domain. |
+| 5 | **Typed change receipt.** Every terminated **controlled-apply or recovery attempt** records one receipt conforming to D-14.3 — including attempts that terminate without changing anything, because `refused` and `failed` are outcomes a reader must be able to see. | Evidence of what happened must outlive the process that did it, in a shape a reader can interpret without knowing the domain. |
 | 6 | **Verification.** The authority can re-derive, from durable state alone, whether its declared end state still holds. | Recovery and upgrade both require a truth test that does not depend on the run that produced the state. |
 | 7 | **Recovery.** An interrupted apply resolves, on the next run, to a named prior state before new work begins, and says so. | A lifecycle whose interruption semantics are undefined cannot be operated. |
 
@@ -1436,7 +1441,8 @@ as new top-level members.
 | `plan_digest` | 64 hex | the exact approved plan this outcome is bound to |
 | `outcome` | enum | `applied` \| `no_op` \| `refused` \| `failed` \| `recovered` |
 | `correlation_id` | string | shared identifier for one top-level operation |
-| `causation_receipt_id` | string, optional | the direct predecessor in the causal chain |
+| `causation_receipt_id` | string, optional | the direct predecessor in the causal chain, always another **change** receipt |
+| `decision_receipt_id` | string, optional | the approval this outcome executed (D-14.6), never carried in `causation_receipt_id` |
 | `recorded_at` | RFC 3339 UTC | durable recording time |
 | `domain_payload` | versioned object | authority-owned detail; carries its own `version` |
 
@@ -1448,16 +1454,29 @@ work began; it is wall-clock and therefore never an input to any digest.
 | `outcome` | Means |
 |---|---|
 | `applied` | the declared end state was reached and is durable |
-| `no_op` | the attempt terminated with no durable change, including an operator cancelling at confirmation |
+| `no_op` | controlled apply began and terminated with no durable change — the declared end state already held |
 | `refused` | the authority declined before changing anything, with a typed code |
 | `failed` | the attempt neither reached its end state nor cleanly restored the prior one — the state requires operator attention |
 | `recovered` | the durable effect of this run was resolving a prior interrupted attempt, and no new work was published |
 
-**Preview does not emit a receipt.** Obligation 2 makes preview
-side-effect-free, and a receipt is a durable record of a state-changing
-attempt; a dry-run yields the evaluation, nothing more. This is the one
-place the envelope deliberately does not mirror `ArtifactApplyResult`, whose
-`planned` outcome exists to describe a dry-run's *return value*.
+**A receipt begins at controlled apply or recovery, not before.** Obligation
+2 makes preview side-effect-free, so a dry-run yields its evaluation and
+nothing more. The same boundary settles cancellation: an operator who
+declines at confirmation does so **before** apply begins — in the generation
+binding, `SiteInitializationService`'s authorize callback runs after
+evaluation and before `publish()`
+(`packages/cli/src/Site/SiteInitializationService.php:94-96`), so no byte is
+staged, no journal item is opened, and nothing has been attempted to record.
+**Pre-apply cancellation emits no receipt.** It is not a `no_op`: `no_op`
+means apply ran and found the end state already satisfied, which is
+operationally a different fact, and burying the difference in
+`domain_payload` would hide a distinction the vocabulary exists to make. An
+authority whose cancellation can occur *after* apply begins does not have
+this option and must record the terminal outcome it actually reached.
+
+This is also the one place the envelope deliberately does not mirror
+`ArtifactApplyResult`, whose `planned` and `cancelled` values describe a
+*return value* rather than a durable event.
 
 **Recovery followed by new work is two receipts, not one.** When a run
 resolves an interrupted transaction and then publishes, it records a
@@ -1497,8 +1516,11 @@ authority **did**, after it ran. They are different objects at different
 ends of the lifecycle, and neither substitutes for the other: an approved
 plan that was never applied has a decision receipt and no change receipt; a
 refused apply has a change receipt and may have no decision receipt at all.
-Where both exist for one operation, the change receipt's `domain_payload`
-carries the decision receipt's identifier — a reference, never a copy.
+Where both exist for one operation, the change receipt sets the top-level
+`decision_receipt_id` — a reference, never a copy. It is a protocol-level
+relationship and therefore a closed-envelope member, not domain detail; and
+it is never expressed by overloading `causation_receipt_id`, which chains
+change receipts to change receipts only.
 
 #### D-14.7 The generation binding
 
@@ -1510,29 +1532,41 @@ are added around them:
 | Envelope member | Generation binding |
 |---|---|
 | `authority` | `waaseyaa.generation` |
-| `authority_version` | the `SiteInitializationService` contract version |
+| `authority_version` | `SiteInitializationService::CONTRACT_VERSION`, a new `public const int` that is the **sole** machine-readable declaration of this authority's contract version (D-14.9) |
 | `operation` | the invoking entrypoint's stable name (`site.init`, `make.content_type`, `blueprint.materialize`, …) |
 | `plan_digest` | D-6.3, unchanged |
-| `outcome` | mapped from D-6.4: `applied`→`applied`, `no_changes`→`no_op`, `cancelled`→`no_op` (with `domain_payload.termination = "cancelled"`), `refused`→`refused`; `planned` emits no receipt (D-14.4); a transaction that could neither complete nor roll back is `failed`; a recovery-only run is `recovered` |
-| `domain_payload` | `{version: 1, project_state_digest, status, changed, errors, recovered_interrupted_transaction, cleanup_pending, termination?, decision_receipt_id?}` |
+| `outcome` | mapped from D-6.4: `applied`→`applied`, `no_changes`→`no_op`, `refused`→`refused`; a transaction that could neither complete nor roll back is `failed`; a recovery-only run is `recovered`. `planned` and `cancelled` emit **no receipt** — both terminate before controlled apply (D-14.4) |
+| `domain_payload` | `{version: 1, project_state_digest, status, changed, errors, recovered_interrupted_transaction, cleanup_pending}` — generation detail only; `decision_receipt_id` is a top-level envelope member (D-14.3), not payload |
 
-Receipts are appended, one canonical JSON document per line, to
-`.waaseyaa/receipts.jsonl`, owned by the generation authority. Three rules
-keep that file evidence rather than a second authority:
+**v1 returns the receipt; it does not persist it.** The generation binding
+constructs and returns a conformant change receipt, and stops there.
+`.waaseyaa/generated.json` remains the sole authority for what is owned, and
+the existing transaction journal remains the sole authority for recovery.
+Neither is displaced, duplicated, or narrated by a second file.
 
-1. **It is written after the transaction reaches a terminal state**, not
-   inside it. A rolled-back apply must still leave a `refused` or `failed`
-   receipt; a receipt erased by the rollback it describes is worthless.
-2. **The engine never reads it to make a decision.**
-   `.waaseyaa/generated.json` remains the sole authority for what is owned
-   and what is current (D-1/D-2). The receipt log is read by operators,
-   diagnostics, and `site:doctor`.
-3. **A missing receipt is a reconcilable gap, not corruption.** Host death
-   between commit and append can lose the last receipt. The next run detects
-   that `generated.json` advanced past the newest `applied` receipt and
-   records a `recovered` receipt naming the gap. Because the ownership
-   record is authoritative and the log is evidence, this is a repair, not an
-   ambiguity.
+An earlier draft of this section required an append-only
+`.waaseyaa/receipts.jsonl`. That is withdrawn, because a durable receipt
+sink is a custody problem this ADR has not solved and a half-solved one
+would be the discontinuity D-14 exists to prevent:
+
+- If a failed append leaves the apply successful, the file is best-effort
+  telemetry and calling it durable evidence is false.
+- If a failed append fails the apply, the engine reports failure *after* a
+  committed mutation — the exact success-shaped-lie inversion, in the other
+  direction.
+- Reconstructing lost receipts from `.waaseyaa/generated.json` cannot
+  recover `refused`, `failed`, or recovery detail: the ownership record only
+  knows about outcomes that changed ownership.
+- Concurrent append, truncation, `fsync`, permissions, retention, redaction
+  of `domain_payload`, and Windows append semantics each become acceptance
+  obligations nobody has specified.
+
+Persistent receipt projection is therefore **a separately governed sink**,
+designed as its own decision once its failure semantics are settled, and
+sequenced after #2846. Until then a receipt reaches an operator through the
+command's machine-readable output and reaches a caller as a return value —
+which is enough for the CLI contract doctrine requires, and honest about
+what is not yet durable.
 
 #### D-14.8 No shared runtime code until a second binding exists
 
@@ -1554,6 +1588,31 @@ tested; a closed envelope per D-14.3 with a domain-versioned payload; the
 outcome vocabulary of D-14.4 with preview emitting no receipt; correlation
 and causation per D-14.5 with no cross-authority rollback implied; its own
 durable record, explicitly non-overlapping with every record in D-14.2.
+
+#### D-14.9 One declaration of `authority_version`
+
+`authority_version` has exactly one machine-readable source per authority.
+For generation that is a new `public const int
+SiteInitializationService::CONTRACT_VERSION`, starting at `1`. Receipts,
+tests, fixtures, and documentation **read** it; none of them restate its
+value. A fixture carrying a literal version integer is a defect, not a
+convenience.
+
+Compatibility semantics: the constant is a monotonically increasing integer,
+incremented when the authority's observable contract changes — its refusal
+codes, its `domain_payload` shape, or its recovery semantics — and never for
+an internal refactor. A reader may always parse the closed envelope of a
+receipt from any `authority_version`; it may not assume `domain_payload`
+compatibility across a bump without consulting that payload's own `version`.
+
+This rule is written because the adjacent concept already violates it:
+`generator_version` has no single declaration today. It is a bare literal
+`1` in `SiteManifestWizard.php:114`, flows untyped through
+`SiteManifest::$generatorVersion` into `GeneratedSite` and the ownership
+metadata, and sits beside a per-recipe `SubscriptionRecipe::VERSION` and a
+`SiteManifestSchema::CURRENT_VERSION` on a different axis entirely.
+Consolidating `generator_version` is not authorized here; `authority_version`
+simply does not repeat the mistake.
 
 ## Consequences
 
