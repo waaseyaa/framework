@@ -131,6 +131,12 @@ final class S1RosterLibraryTest extends TestCase
             'packages/demo/node_modules/dep',
             'storage/cache',
             'tmp/scratch',
+            // #2865: tmp/ at any depth, matching vendor/ and node_modules/.
+            'packages/demo/tmp/cache',
+            // #2865: a nested git worktree is a separate checkout, and its
+            // PHPStan caches were being scanned as production source.
+            '.claude/worktrees/wf_x/tmp/phpstan',
+            '.claude/worktrees/wf_x/packages/demo/src',
         ] as $dir) {
             mkdir($this->tempDir . '/' . $dir, 0o755, true);
             file_put_contents($this->tempDir . '/' . $dir . '/Poison.php', "<?php\nGovernedNeedle::run();\n");
@@ -144,7 +150,29 @@ final class S1RosterLibraryTest extends TestCase
             static fn(string $relative, string $patternId): string => 'demo-class',
         );
 
-        $this->assertSame([], $entries, 'Excluded trees (.git, vendor at any depth, node_modules, storage, tmp) must not contribute candidates.');
+        $this->assertSame([], $entries, 'Excluded trees (.git, vendor/node_modules/tmp at any depth, storage, .claude/worktrees) must not contribute candidates.');
+    }
+
+    #[Test]
+    public function tracked_claude_content_is_still_scanned(): void
+    {
+        // #2865 guards both directions: .claude/worktrees/ is a separate
+        // checkout and excluded, but .claude/ itself holds tracked repository
+        // content (.claude/rules/*.md, .claude/settings.json), so an
+        // exclusion widened to all of .claude/ is a regression, not a fix.
+        mkdir($this->tempDir . '/.claude/rules', 0o755, true);
+        file_put_contents($this->tempDir . '/.claude/rules/Tracked.php', "<?php\nGovernedNeedle::run();\n");
+
+        $entries = s1RosterScan(
+            $this->tempDir,
+            [''],
+            ['needle' => '/\bGovernedNeedle\b/'],
+            static fn(string $relative, string $contents): bool => str_ends_with($relative, '.php'),
+            static fn(string $relative, string $patternId): string => 'demo-class',
+        );
+
+        $this->assertCount(1, $entries, 'Tracked .claude/ content must remain scannable.');
+        $this->assertSame('.claude/rules/Tracked.php', $entries[0]['path']);
     }
 
     #[Test]

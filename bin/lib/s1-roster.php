@@ -20,15 +20,20 @@ declare(strict_types=1);
 /**
  * Trees that are never repository content: excluded from every scan so a
  * local run and a CI run of the same gate agree on the same tree
- * (governed-gates.md invariant 5). vendor/ and node_modules/ are excluded at
- * any depth (nested package vendors are gitignored build artifacts that
- * poison local-only scans).
+ * (governed-gates.md invariant 5). vendor/, node_modules/ and tmp/ are
+ * excluded at any depth, and .claude/worktrees/ is excluded outright: all
+ * four are gitignored build artifacts or separate checkouts that exist
+ * locally and never in CI, so scanning them makes the same gate disagree
+ * with itself across the two runs (#2865).
+ *
+ * .claude/ itself is NOT excluded -- .claude/rules/*.md and
+ * .claude/settings.json are tracked repository content.
  */
 function s1RosterIsExcluded(string $relative): bool
 {
     if (str_starts_with($relative, '.git/')
         || str_starts_with($relative, 'storage/')
-        || str_starts_with($relative, 'tmp/')
+        || str_starts_with($relative, '.claude/worktrees/')
     ) {
         return true;
     }
@@ -36,7 +41,9 @@ function s1RosterIsExcluded(string $relative): bool
     return str_starts_with($relative, 'vendor/')
         || str_contains($relative, '/vendor/')
         || str_starts_with($relative, 'node_modules/')
-        || str_contains($relative, '/node_modules/');
+        || str_contains($relative, '/node_modules/')
+        || str_starts_with($relative, 'tmp/')
+        || str_contains($relative, '/tmp/');
 }
 
 /**
