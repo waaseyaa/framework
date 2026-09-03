@@ -906,6 +906,9 @@ return [
     'Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunnerInterface' => 'internal',
     'Waaseyaa\CLI\Site\SiteHostPlatform' => 'internal',
     'Waaseyaa\CLI\Site\SitePathContainment' => 'internal',
+    // #2442: the closed `--preset` CLI vocabulary, resolved once by
+    // SitePresetResolver — not a third-party extension point.
+    'Waaseyaa\CLI\Site\SitePreset' => 'internal',
 
     // Layer 6: Interfaces — internal
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',

@@ -49,6 +49,7 @@
         "merge-plugin": {
             "include": [
                 "composer.site-recipes.json",
+                "composer.governed-authoring-recipe.json",
                 "composer.subscription-recipe.json",
                 "composer.local.json"
             ],

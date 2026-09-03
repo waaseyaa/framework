@@ -59,7 +59,8 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
             name: 'site:init',
             description: 'Initialize or deterministically regenerate the governed site contract',
             options: [
-                new HandlerOption('answers', mode: HandlerOptionMode::Required, description: 'Complete YAML answer document for automation'),
+                new HandlerOption('answers', mode: HandlerOptionMode::Required, description: 'Complete YAML answer document for automation (a preset seed document, when --preset is also given)'),
+                new HandlerOption('preset', mode: HandlerOptionMode::Required, description: "Init-time preset resolving deterministically to a manifest: 'minimal' or 'editorial'. Not persisted; see docs/specs/site-golden-path.md"),
                 new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Application project root'),
                 new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Inspect and report the complete change set without writing'),
                 new HandlerOption('yes', shortcut: 'y', mode: HandlerOptionMode::None, description: 'Publish the reviewed transaction non-interactively'),
