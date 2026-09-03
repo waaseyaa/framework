@@ -110,7 +110,7 @@ final class StdioMcpServerTest extends TestCase
     }
 
     #[Test]
-    public function initialize_falls_back_to_current_for_an_unsupported_version(): void
+    public function initialize_falls_back_to_the_latest_handshake_revision_for_an_unsupported_version(): void
     {
         $request = [
             'jsonrpc' => '2.0',
@@ -120,7 +120,45 @@ final class StdioMcpServerTest extends TestCase
         ];
         $frames = $this->roundTrip(json_encode($request, JSON_THROW_ON_ERROR) . "\n");
 
-        self::assertSame(StdioMcpProtocol::CURRENT, $frames[0]['result']['protocolVersion']);
+        self::assertSame(StdioMcpProtocol::LATEST_HANDSHAKE_REVISION, $frames[0]['result']['protocolVersion']);
+    }
+
+    #[Test]
+    public function initialize_never_advertises_a_modern_era_revision_it_does_not_implement(): void
+    {
+        // A modern client asking for 2026-07-28 gets the newest handshake-era
+        // revision back, not its own request echoed: this server has no
+        // `server/discover` and reads no per-request `_meta`, so claiming the
+        // modern era would be a lie the client would immediately act on.
+        $request = [
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'initialize',
+            'params' => ['protocolVersion' => '2026-07-28', 'capabilities' => [], 'clientInfo' => ['name' => 'p', 'version' => '1']],
+        ];
+        $frames = $this->roundTrip(json_encode($request, JSON_THROW_ON_ERROR) . "\n");
+
+        self::assertSame(StdioMcpProtocol::LATEST_HANDSHAKE_REVISION, $frames[0]['result']['protocolVersion']);
+        self::assertNotSame('2026-07-28', $frames[0]['result']['protocolVersion']);
+    }
+
+    #[Test]
+    public function server_discover_is_method_not_found_which_is_how_a_dual_era_client_detects_a_legacy_server(): void
+    {
+        // MCP 2026-07-28 "stdio" §Backward Compatibility: a dual-era client
+        // probes `server/discover` first and falls back to `initialize` on
+        // "any other error" — anything that is NOT a recognized modern error.
+        // -32601 is that signal. Answering the probe, or returning -32022
+        // UnsupportedProtocolVersionError, would strand the client in the
+        // modern era against a server that has no modern surface.
+        $frames = $this->roundTrip(
+            json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'server/discover', 'params' => [
+                '_meta' => ['io.modelcontextprotocol/protocolVersion' => '2026-07-28'],
+            ]], JSON_THROW_ON_ERROR) . "\n",
+        );
+
+        self::assertSame(StdioJsonRpcErrorCode::METHOD_NOT_FOUND, $frames[0]['error']['code']);
+        self::assertNotSame(-32022, $frames[0]['error']['code']);
     }
 
     #[Test]
@@ -168,6 +206,148 @@ final class StdioMcpServerTest extends TestCase
         $frames = $this->roundTrip(json_encode($request, JSON_THROW_ON_ERROR) . "\n");
 
         self::assertSame(StdioJsonRpcErrorCode::INVALID_PARAMS, $frames[0]['error']['code']);
+    }
+
+    // ------------------------------------------- decoded-JSON shape validation
+    //
+    // `json_decode($line, true)` collapses JSON `{}` and `[]` onto the same
+    // PHP `[]`, so a bare is_array() check cannot tell an object from an
+    // array. These pin the one distinction that survives decoding — a
+    // NON-EMPTY PHP list is unambiguously a JSON array — and pin that the
+    // ambiguous empty case keeps working, because `{}` is how a conformant
+    // client says "no arguments".
+
+    #[Test]
+    public function a_non_empty_json_list_as_params_is_invalid_params_and_the_session_survives_it(): void
+    {
+        $frames = $this->roundTrip(
+            '{"jsonrpc":"2.0","id":1,"method":"ping","params":[1,2,3]}' . "\n"
+            . '{"jsonrpc":"2.0","id":2,"method":"ping"}' . "\n",
+        );
+
+        self::assertCount(2, $frames);
+        self::assertSame(1, $frames[0]['id']);
+        self::assertSame(StdioJsonRpcErrorCode::INVALID_PARAMS, $frames[0]['error']['code']);
+        self::assertSame(2, $frames[1]['id'], 'A malformed frame must not end the session.');
+        self::assertArrayHasKey('result', $frames[1]);
+    }
+
+    #[Test]
+    public function a_decoded_empty_json_object_is_still_accepted_as_params(): void
+    {
+        $frames = $this->roundTrip('{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}' . "\n");
+
+        self::assertArrayHasKey('result', $frames[0], '`"params": {}` is the conformant way to send no parameters.');
+    }
+
+    #[Test]
+    public function tools_call_rejects_a_non_empty_json_list_as_arguments_without_invoking_dispatch(): void
+    {
+        $invoked = false;
+        $frames = $this->roundTrip(
+            '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"echo","arguments":["positional"]}}' . "\n",
+            dispatch: function () use (&$invoked): never {
+                $invoked = true;
+                self::fail('dispatch must never see a JSON array where an arguments object belongs.');
+            },
+        );
+
+        self::assertFalse($invoked);
+        self::assertSame(StdioJsonRpcErrorCode::INVALID_PARAMS, $frames[0]['error']['code']);
+    }
+
+    #[Test]
+    public function tools_call_accepts_a_decoded_empty_json_object_as_arguments(): void
+    {
+        $seen = null;
+        $this->roundTrip(
+            '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"echo","arguments":{}}}' . "\n",
+            dispatch: function (string $name, array $arguments) use (&$seen): ToolDispatchOutcome {
+                $seen = $arguments;
+
+                return new ToolDispatchOutcome(['content' => []], AuditStage::ExecutionSucceeded);
+            },
+        );
+
+        self::assertSame([], $seen);
+    }
+
+    #[Test]
+    public function initialize_rejects_a_non_empty_json_list_where_an_object_belongs(): void
+    {
+        foreach ([
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":["tools"],"clientInfo":{"name":"p","version":"1"}}}',
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":["p","1"]}}',
+        ] as $line) {
+            $frames = $this->roundTrip($line . "\n");
+
+            self::assertSame(StdioJsonRpcErrorCode::INVALID_PARAMS, $frames[0]['error']['code'], $line);
+        }
+    }
+
+    // ------------------------------------------------------- request id shapes
+
+    /**
+     * JSON-RPC 2.0 allows String, Number, or Null; MCP narrows that to a
+     * string or an integer, never null. Anything else is rejected BEFORE it
+     * can be echoed back into a response frame.
+     */
+    #[Test]
+    public function a_non_scalar_or_disallowed_id_is_invalid_request_answered_with_a_null_id(): void
+    {
+        foreach ([
+            'object' => '{"jsonrpc":"2.0","id":{"nested":"object"},"method":"ping"}',
+            'array' => '{"jsonrpc":"2.0","id":[1,2],"method":"ping"}',
+            'null' => '{"jsonrpc":"2.0","id":null,"method":"ping"}',
+            'bool' => '{"jsonrpc":"2.0","id":true,"method":"ping"}',
+            'float' => '{"jsonrpc":"2.0","id":1.5,"method":"ping"}',
+        ] as $label => $line) {
+            $frames = $this->roundTrip($line . "\n");
+
+            self::assertCount(1, $frames, $label);
+            self::assertSame(StdioJsonRpcErrorCode::INVALID_REQUEST, $frames[0]['error']['code'], $label);
+            self::assertNull($frames[0]['id'], $label . ': an unusable id must never be echoed back onto the wire.');
+        }
+    }
+
+    #[Test]
+    public function a_disallowed_id_is_rejected_before_any_other_field_is_judged(): void
+    {
+        // Same frame, two defects: an object id AND a wrong jsonrpc version.
+        // The id is rejected first and deterministically, because the
+        // alternative — reporting the version error — would have to name the
+        // offending id in the response frame to be correlatable at all.
+        $frames = $this->roundTrip('{"jsonrpc":"1.0","id":{"a":1},"method":"nope"}' . "\n");
+
+        self::assertCount(1, $frames);
+        self::assertNull($frames[0]['id']);
+        self::assertStringContainsString('"id"', $frames[0]['error']['message']);
+    }
+
+    #[Test]
+    public function string_and_integer_ids_are_answered_and_correlated_verbatim(): void
+    {
+        $frames = $this->roundTrip(
+            '{"jsonrpc":"2.0","id":0,"method":"ping"}' . "\n"
+            . '{"jsonrpc":"2.0","id":-7,"method":"ping"}' . "\n"
+            . '{"jsonrpc":"2.0","id":"req-abc","method":"ping"}' . "\n",
+        );
+
+        self::assertSame([0, -7, 'req-abc'], array_column($frames, 'id'));
+    }
+
+    #[Test]
+    public function a_rejected_id_does_not_end_the_session(): void
+    {
+        $frames = $this->roundTrip(
+            '{"jsonrpc":"2.0","id":[1],"method":"ping"}' . "\n"
+            . '{"jsonrpc":"2.0","id":9,"method":"ping"}' . "\n",
+        );
+
+        self::assertCount(2, $frames);
+        self::assertNull($frames[0]['id']);
+        self::assertSame(9, $frames[1]['id']);
+        self::assertArrayHasKey('result', $frames[1]);
     }
 
     #[Test]

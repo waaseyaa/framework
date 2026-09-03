@@ -4124,7 +4124,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "e1abfe12c1d602bbf00a793aa16fecad5110b9f2"
+                "reference": "a6013173afa00347b7acad97e4bfbf30635e9dc6"
             },
             "require": {
                 "php": ">=8.5",
@@ -4165,6 +4165,7 @@
                 "phpunit/phpunit": "^13.0",
                 "waaseyaa/ai-agent": "^0.1.0-alpha.300",
                 "waaseyaa/node": "^0.1.0-alpha.300",
+                "waaseyaa/oidc": "^0.1.0-alpha.300",
                 "waaseyaa/relationship": "^0.1.0-alpha.300",
                 "waaseyaa/testing": "^0.1.0-alpha.300"
             },
@@ -4188,6 +4189,7 @@
                         "Waaseyaa\\CLI\\CliServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\AiServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
+                        "Waaseyaa\\CLI\\Provider\\McpStdioServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\BearerTokenServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\EntityTypeServiceProvider",
@@ -13115,6 +13117,8 @@
     "stability-flags": {
         "waaseyaa/access": 20,
         "waaseyaa/admin-surface": 20,
+        "waaseyaa/ai-agent": 20,
+        "waaseyaa/ai-observability": 20,
         "waaseyaa/ai-pipeline": 20,
         "waaseyaa/ai-schema": 20,
         "waaseyaa/ai-tools": 20,
@@ -13131,12 +13135,14 @@
         "waaseyaa/database-legacy": 20,
         "waaseyaa/debug": 20,
         "waaseyaa/deployer": 20,
+        "waaseyaa/engagement": 20,
         "waaseyaa/entity": 20,
         "waaseyaa/entity-storage": 20,
         "waaseyaa/error-handler": 20,
         "waaseyaa/field": 20,
         "waaseyaa/foundation": 20,
         "waaseyaa/frankenphp": 20,
+        "waaseyaa/genealogy": 20,
         "waaseyaa/geo": 20,
         "waaseyaa/github": 20,
         "waaseyaa/graphql": 20,
@@ -13147,14 +13153,17 @@
         "waaseyaa/ingestion": 20,
         "waaseyaa/listing": 20,
         "waaseyaa/mail": 20,
+        "waaseyaa/mcp": 20,
         "waaseyaa/media": 20,
         "waaseyaa/menu": 20,
         "waaseyaa/mercure": 20,
+        "waaseyaa/messaging": 20,
         "waaseyaa/migration": 20,
         "waaseyaa/node": 20,
         "waaseyaa/note": 20,
         "waaseyaa/notification": 20,
         "waaseyaa/oauth-provider": 20,
+        "waaseyaa/oidc": 20,
         "waaseyaa/page-builder": 20,
         "waaseyaa/path": 20,
         "waaseyaa/plugin": 20,
@@ -13171,19 +13180,12 @@
         "waaseyaa/structured-import": 20,
         "waaseyaa/taxonomy": 20,
         "waaseyaa/telescope": 20,
+        "waaseyaa/testing": 20,
         "waaseyaa/typed-data": 20,
         "waaseyaa/user": 20,
         "waaseyaa/validation": 20,
-        "waaseyaa/workflows": 20,
-        "waaseyaa/ai-agent": 20,
-        "waaseyaa/ai-observability": 20,
-        "waaseyaa/engagement": 20,
-        "waaseyaa/genealogy": 20,
-        "waaseyaa/mcp": 20,
-        "waaseyaa/messaging": 20,
-        "waaseyaa/oidc": 20,
-        "waaseyaa/testing": 20,
-        "waaseyaa/wayfinding": 20
+        "waaseyaa/wayfinding": 20,
+        "waaseyaa/workflows": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
@@ -13193,6 +13195,6 @@
         "ext-sodium": "*",
         "ext-sqlite3": "*"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.6.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
 }
