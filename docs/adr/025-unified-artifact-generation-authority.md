@@ -1411,7 +1411,7 @@ An authority conforming to the protocol must provide:
 | 2 | **Side-effect-free preview.** Evaluating a plan against live state produces a decidable prediction and writes nothing. | Preview that can mutate is not preview, and a preview that differs from apply's own evaluation is a second interpretation. |
 | 3 | **Stale-plan detection.** Apply recomputes both the plan digest and a captured precondition identity under the exclusive lock, and refuses with a typed code when either moved. | Otherwise the window between review and apply is an unbounded, silent race. |
 | 4 | **Controlled apply.** State-changing work happens under an exclusive lock, is atomic with respect to interruption, and either reaches its declared end state or leaves the prior one. | Partial success reported as success is the failure mode the beta exit contract names by name. |
-| 5 | **Typed change receipt.** Every terminated **controlled-apply or recovery attempt** records one receipt conforming to D-14.3 — including attempts that terminate without changing anything, because `refused` and `failed` are outcomes a reader must be able to see. | Evidence of what happened must outlive the process that did it, in a shape a reader can interpret without knowing the domain. |
+| 5 | **Typed change receipt.** Every terminated **controlled-apply or recovery attempt** emits one receipt conforming to D-14.3 — including attempts that terminate without changing anything, because `refused` and `failed` are outcomes a caller must be able to see. | What happened must be expressible in a shape a reader can interpret without knowing the domain. v1 requires the *typed outcome*, not its retention: see D-14.7. |
 | 6 | **Verification.** The authority can re-derive, from durable state alone, whether its declared end state still holds. | Recovery and upgrade both require a truth test that does not depend on the run that produced the state. |
 | 7 | **Recovery.** An interrupted apply resolves, on the next run, to a named prior state before new work begins, and says so. | A lifecycle whose interruption semantics are undefined cannot be operated. |
 
@@ -1428,14 +1428,20 @@ state; the migration ledger is authoritative for schema state; the audit
 ledger is authoritative for authorization events; the validation read ledger
 is authoritative for its own reads. These stay separate. What the protocol
 requires is that each boundary's ownership is **explicit and
-non-overlapping**, and that cross-boundary work is reconstructed by
-*correlating* receipts rather than by one record narrating another's
-business. No ledger may record, infer, or restate an outcome that belongs to
-another authority.
+non-overlapping**, and that where cross-boundary work is reconstructed at
+all it is reconstructed by *correlating* receipts rather than by one record
+narrating another's business. No ledger may record, infer, or restate an
+outcome that belongs to another authority.
+
+Reconstruction is therefore **conditional on retention**, and v1 mandates no
+retention (D-14.7). An authority that has not adopted a governed retention
+sink can correlate receipts only within the process that emitted them. This
+is a stated limit of v1, not a capability the protocol claims and fails to
+deliver.
 
 #### D-14.3 The change-receipt envelope
 
-Every conforming authority records receipts carrying at least these members.
+Every conforming authority emits receipts carrying at least these members.
 The envelope is closed: an authority adds detail under `domain_payload`, not
 as new top-level members.
 
@@ -1451,11 +1457,15 @@ as new top-level members.
 | `correlation_id` | string | shared identifier for one top-level operation |
 | `causation_receipt_id` | string, optional | the direct predecessor in the causal chain, always another **change** receipt |
 | `decision_receipt_id` | string, optional | the approval this outcome executed (D-14.6), never carried in `causation_receipt_id` |
-| `recorded_at` | RFC 3339 UTC | durable recording time |
+| `issued_at` | RFC 3339 UTC | the time the authority issued this outcome |
 | `domain_payload` | versioned object | authority-owned detail; carries its own `version` |
 
-`recorded_at` is the time the receipt was durably recorded, not the time the
-work began; it is wall-clock and therefore never an input to any digest.
+`issued_at` is the time the authority reached and issued this terminal
+outcome, not the time the work began, and not a claim that anything was
+stored — v1 emits receipts and retains none (D-14.7). It is wall-clock and
+therefore never an input to any digest. A future retention sink that needs
+to distinguish issuing from recording adds its own member; it does not
+redefine this one.
 
 #### D-14.4 The outcome vocabulary, and what does not earn a receipt
 
@@ -1487,7 +1497,7 @@ This is also the one place the envelope deliberately does not mirror
 *return value* rather than a durable event.
 
 **Recovery followed by new work is two receipts, not one.** When a run
-resolves an interrupted transaction and then publishes, it records a
+resolves an interrupted transaction and then publishes, it emits a
 `recovered` receipt and an `applied` receipt sharing a `correlation_id`,
 with the second naming the first as its `causation_receipt_id`. An outcome
 enum cannot express two durable effects, and collapsing them would make the
@@ -1500,20 +1510,22 @@ An authority invoked without one mints one and is itself the top level; an
 authority invoked by an orchestrator inherits the one it is given.
 
 `causation_receipt_id` names the single receipt this one directly followed.
-Together they reconstruct a tree, and that reconstruction is the *only*
-sanctioned way to describe a multi-authority operation.
+Together they describe a tree, and that tree is the *only* sanctioned way
+to describe a multi-authority operation — reconstructible for as long as the
+receipts are held, which in v1 is the emitting process unless a governed
+retention sink says otherwise.
 
 Correlation carries no transactional meaning. It does not imply a
 distributed transaction, a shared lock, a two-phase commit, or a rollback
 that crosses authorities. A correlated sibling failing does not oblige an
-authority to undo an `applied` outcome it already recorded — and an
+authority to undo an `applied` outcome it already emitted — and an
 orchestrator that wants that behavior must implement compensation as
 explicit new operations with their own receipts.
 
-A composite orchestrator **may** record a parent receipt whose
+A composite orchestrator **may** emit a parent receipt whose
 `domain_payload` references child receipt ids and summarizes their outcomes.
 It **may not** overwrite a child receipt, restate a child's outcome as its
-own, or record a receipt on a child authority's behalf.
+own, or emit a receipt on a child authority's behalf.
 
 #### D-14.6 A change receipt is not a decision receipt
 
@@ -1546,8 +1558,11 @@ are added around them:
 | `outcome` | mapped from D-6.4: `applied`→`applied`, `no_changes`→`no_op`, `refused`→`refused`; a transaction that could neither complete nor roll back is `failed`; a recovery-only run is `recovered`. `planned` and `cancelled` emit **no receipt** — both terminate before controlled apply (D-14.4) |
 | `domain_payload` | `{version: 1, project_state_digest, status, changed, errors, recovered_interrupted_transaction, cleanup_pending}` — generation detail only; `decision_receipt_id` is a top-level envelope member (D-14.3), not payload |
 
-**v1 returns the receipt; it does not persist it.** The generation binding
-constructs and returns a conformant change receipt, and stops there.
+**v1 emits the receipt; it does not retain it.** The generation binding
+constructs and returns a conformant change receipt, and stops there. This is
+the protocol's v1 position, not a generation-specific shortcut: obligation 5
+requires the typed outcome, and retention is delegated in full to a future
+governed sink.
 `.waaseyaa/generated.json` remains the sole authority for what is owned, and
 the existing transaction journal remains the sole authority for recovery.
 Neither is displaced, duplicated, or narrated by a second file.
