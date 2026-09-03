@@ -200,6 +200,28 @@ final class SiteInitHandlerTest extends TestCase
     }
 
     /**
+     * A preset resolves every decision except provenance: the manifest binds
+     * the exact framework revision the site was initialized against. Without
+     * a `composer.lock` there is nothing to bind, so a well-formed seed is
+     * still refused — before any artifact is written — rather than published
+     * with an invented or absent lock digest.
+     */
+    #[Test]
+    public function presetResolutionRefusesAProjectWithoutFrameworkProvenance(): void
+    {
+        $root = $this->root();
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('composer.lock', $tester->getStderr());
+        self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
+    }
+
+    /**
      * #2442, ADR-024 D-3/D-4: `minimal` resolves deterministically to the
      * smallest active decision set — `published_content` only. Neither
      * `governed_authoring` nor `subscription` artifacts are generated, and
@@ -372,8 +394,56 @@ final class SiteInitHandlerTest extends TestCase
     {
         $root = $this->root();
         file_put_contents($root . '/composer.lock', "{}\n");
-        $lines = ['Example Nation', 'example-nation', 'APP_ORIGIN', 'page', '/{slug}'];
-        $stdin = new class ($lines) {
+        $tester = $this->tester($root, $this->interactiveStdin(['Example Nation', 'example-nation', 'APP_ORIGIN', 'page', '/{slug}']));
+
+        $tester->execute(['--preset=editorial', "--project-root={$root}", '--yes']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
+        self::assertSame('example-nation', $manifest->application->id);
+        self::assertSame('active', $manifest->capabilities['governed_authoring']->state->value);
+        self::assertSame('not_needed', $manifest->capabilities['subscription']->state->value);
+        self::assertSame([], $manifest->personalDataStores);
+        self::assertSame(hash_file('sha256', $root . '/composer.lock'), $manifest->framework->observedLockSha256);
+    }
+
+    /**
+     * A preset is a shortcut through the same questions, not a second way to
+     * build a site: an operator who answers the full wizard the way
+     * `editorial` answers it must get exactly the site `--preset=editorial`
+     * publishes. Both paths are run here from the same identity and
+     * content-type answers and the published manifests are compared byte for
+     * byte, so a capability or recipe fragment that drifted in either caller
+     * would fail this.
+     */
+    #[Test]
+    public function theWizardAndTheEditorialPresetPublishTheSameSiteForEquivalentAnswers(): void
+    {
+        $identity = ['Example Nation', 'example-nation', 'APP_ORIGIN', 'page, article', '/{slug}', '/article/{slug}'];
+
+        $wizardRoot = $this->root();
+        file_put_contents($wizardRoot . '/composer.lock', "{\"content-hash\": \"stable\"}\n");
+        $wizard = $this->tester($wizardRoot, $this->interactiveStdin([...$identity, 'yes', 'no']));
+        $wizard->execute(["--project-root={$wizardRoot}", '--yes']);
+        self::assertSame(0, $wizard->getExitCode(), $wizard->getStderr());
+
+        $presetRoot = $this->root();
+        file_put_contents($presetRoot . '/composer.lock', "{\"content-hash\": \"stable\"}\n");
+        $preset = $this->tester($presetRoot, $this->interactiveStdin($identity));
+        $preset->execute(['--preset=editorial', "--project-root={$presetRoot}", '--yes']);
+        self::assertSame(0, $preset->getExitCode(), $preset->getStderr());
+
+        self::assertSame(
+            (string) file_get_contents($wizardRoot . '/.waaseyaa/site.yaml'),
+            (string) file_get_contents($presetRoot . '/.waaseyaa/site.yaml'),
+        );
+        self::assertSame($this->generatedArtifactDigests($wizardRoot), $this->generatedArtifactDigests($presetRoot));
+    }
+
+    /** @param list<string> $lines */
+    private function interactiveStdin(array $lines): object
+    {
+        return new class ($lines) {
             /** @param list<string> $lines */
             public function __construct(private array $lines) {}
             public function readLine(): ?string
@@ -385,17 +455,6 @@ final class SiteInitHandlerTest extends TestCase
                 return true;
             }
         };
-        $tester = $this->tester($root, $stdin);
-
-        $tester->execute(['--preset=editorial', "--project-root={$root}", '--yes']);
-
-        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
-        $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
-        self::assertSame('example-nation', $manifest->application->id);
-        self::assertSame('active', $manifest->capabilities['governed_authoring']->state->value);
-        self::assertSame('not_needed', $manifest->capabilities['subscription']->state->value);
-        self::assertSame([], $manifest->personalDataStores);
-        self::assertSame(hash_file('sha256', $root . '/composer.lock'), $manifest->framework->observedLockSha256);
     }
 
     /**
