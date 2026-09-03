@@ -320,15 +320,80 @@ single global comparison at lines 139–143:
    not retirable**: retiring it would leave `.waaseyaa/site.yaml` without
    ownership metadata, precisely the state lines 114–117 already refuse to
    read.
-7. **No set delta on a changed input.** This ADR does **not** grant any unit
-   an authorized path-set change. A unit's set changes only by the unit
-   being created (nothing recorded to compare) or retired (explicit,
-   journaled, drift-refusing). The alternative — permitting a declared
-   delta when `input_digest` changes — was considered and rejected for v1:
-   it widens the frozen-set contract, and retire-then-recreate already gives
-   the operator a reviewed, transactional path with no new authorization
-   surface. A consequence to state rather than discover: this ADR therefore
-   does *not* fix the pre-existing defect described in D-2.8.
+7. **No *undeclared* set delta.** A supplied unit whose rendered path set
+   differs from its recorded set, without declaring that difference, is
+   refused: an undeclared drop is `GEN009`, an undeclared addition is
+   `GEN011`. What a unit may not do is change its set *silently*. Declared
+   additive evolution is authorized and digest-bound under D-2.10;
+   shrinking a unit remains retirement-only (step 6). There is no flag, no
+   `--force`, and no override on any of these paths.
+
+#### D-2.3a Authorized successor-plan evolution (additive, digest-bound)
+
+An earlier draft froze every unit's path set outright and pointed the
+operator at retire-then-recreate. That is wrong for the case the framework
+most needs to support: #2787's acceptance requires a changed blueprint to
+produce an exact reviewable diff, and a blueprint that gains one entity
+gains generated artifacts. Under a frozen set, ordinary evolution of an
+authored declaration is refused forever, and the only sanctioned answer —
+retire the root unit and recreate it — deletes and rewrites every file the
+application owns in order to add one. Fail-closed *ownership* is right;
+fail-closed *evolution* is not, and the two are separable.
+
+The authorization is split across the two halves D-6 already separates,
+because only one of them may observe the project.
+
+**The compiler declares capability, purely.** `ArtifactPlan` gains one
+member, `set_evolution`, with values `frozen` (the default, and the only
+value for every compiler this ADR inventories) or `additive`. It is a
+property of the compiler and its validated input — not of any project — so
+the plan stays a pure function of its input and two runs still produce
+byte-identical bytes. A compiler that cannot reason about growing its own
+output keeps `frozen` and behaves exactly as before.
+
+**Evaluation computes the delta and binds it.** `ProjectStateIdentity`
+already observes "the union of the plan's artifact paths and every path
+recorded to a unit the plan supplies or retires" (D-6.2), so the recorded
+set is *already* inside the captured precondition identity and already bound
+by `project_state_digest`. `EvaluatedArtifactPlan` surfaces the comparison
+as `setDelta: {adds, drops}`, both sorted. No new digest is introduced: a
+successor plan compiled against a generation that has since moved is refused
+by the `GEN005_STALE_PLAN` recomputation D-6.5 already performs under the
+exclusive lock.
+
+Four rules make this an authorization rather than an override:
+
+1. **Additive only, in v1.** `drops` must be empty. A supplied unit whose
+   render no longer contains a recorded path is `GEN009` (undeclared
+   retirement) or, where the unit declared evolution, `GEN011`. Shrinking a
+   unit is still retirement (D-2.3 step 6): explicit, journaled, and
+   rollback-covered.
+2. **Growth requires a declared capability.** `adds` non-empty against a
+   `frozen` plan is `GEN011`, identically in dry-run and apply. The
+   compiler must have said it evolves its set; the engine will not infer
+   permission from the fact that the paths happen to be new.
+3. **Every added path faces the full admission checks.** `assertSafeTarget()`
+   (`GEN001`/`GEN002`), the cross-unit ownership check (`GEN003`, `GEN010`),
+   and the existing-unmanaged-file collision refusal (`GEN003`) run on each
+   added path exactly as on a first publish. An added path colliding with a
+   file this authority does not own is refused with no override — the
+   property the frozen set was really protecting, retained in full.
+4. **Carried-forward paths are unaffected.** Paths in both sets keep the
+   managed-digest and extension-region checks they have today (`GEN004`).
+   Successor evolution widens *which paths a unit may own*; it changes
+   nothing about how an already-owned path may be rewritten.
+
+There is no flag and no `--force` on any of these paths. A plan may add
+paths because its compiler declared `additive` and evaluation verified the
+delta against state the digest already binds — not because an operator
+asserted an override.
+
+This closes the additive half of the live defect in D-2.8 — adding a content
+type to an already-initialized `.waaseyaa/site.yaml` — and gives #2787 an
+iterative blueprint path with no second mechanism. The subtractive half
+remains refused in v1: a correct removal must decide the fate of the removed
+file's contents, and that decision belongs to its own issue rather than to
+this ADR's margins.
 
 #### D-2.4 The no-ambiguous-set-change guarantee is retained
 
@@ -355,7 +420,10 @@ Three sub-guarantees, each preserved by a named mechanism rather than by
 assertion:
 
 - **No ambiguous set change** — per-unit unconditional comparison, outside
-  the input-digest guard, no override (D-2.3 step 3, step 7).
+  the input-digest guard, no override (D-2.3 step 3, step 7). What the
+  guarantee forbids is *ambiguity*, not evolution: a declared, digest-bound
+  additive successor (D-2.3a) is unambiguous by construction, and an
+  undeclared change of any shape is still refused.
 - **No ambiguous overwrite** — the existing managed-digest and
   extension-region checks (lines 146–204) run per path exactly as today for
   `managed` rows, with per-unit `input_digest` supplying the "input
@@ -486,10 +554,13 @@ list of variable cardinality. Combined with the unconditional set comparison
 at lines 139–143, that means **adding a content type to an
 already-initialized `.waaseyaa/site.yaml` is refused today** — the
 manifest's own documented editing surface is blocked by the frozen-set rule.
-This ADR does not fix that: D-2.3 keeps the root unit's set frozen exactly
-as it is, and F1's scope is scaffold commands, not manifest-driven set
-growth. It is recorded here so a reviewer does not mistake it for solved,
-and it is legitimate future work with its own decision to make.
+D-2.3a fixes the additive half of this: adding a content type renders a
+strict superset of the recorded root set, which a successor plan may declare
+and apply, bound to the recorded state it evolved from. **Removing** a
+content type remains refused — the rendered set would shrink, which v1
+routes to retirement rather than to a silent delete — so this defect is
+narrowed, not closed, and its subtractive half is legitimate future work
+with its own decision to make.
 
 #### D-2.9 Decided here versus implemented in #2846
 
@@ -500,7 +571,7 @@ and it is legitimate future work with its own decision to make.
 | The unit-id grammar and its reserved `site` id | Each migrating handler's own id derivation (its own PR) |
 | Two dispositions, fixed by compiler kind, with a closed `seeded` allowlist (D-2.2) | The architecture test asserting that allowlist |
 | Per-unit frozen set, carry-forward, partition, first-owner-wins, explicit retirement (D-2.3) | Replacing lines 139–145 with per-unit reconciliation and gating 146–169 on the supplied unit |
-| No authorized set delta on a changed input (D-2.3 step 7) | — |
+| Declared additive successor evolution, digest-bound, with removal still routed to retirement (D-2.3 step 7, D-2.3a) | The `set_evolution` plan member, `EvaluatedArtifactPlan::$setDelta`, and `GEN011` |
 | Metadata composition moves to the transaction authority (D-2.6) | The composition itself, the service-level re-derivation check, and the byte-identity fixture test that must land **before** the relocation |
 | Retirement is a new journal verb with its own rollback and directory-cleanup semantics | The journal item kind, the rollback branch that restores a deleted file from backup, and its failure-injection coverage |
 | `site:doctor` splits into root-projection compare plus disposition-aware row loop (D-2.7) | The split itself and its new non-blocking finding id |
@@ -630,6 +701,7 @@ proves out:
   | `GEN007_UNSUPPORTED_DECLARATION` | an unsupported field type or generator-feature token, mirroring `SITE042`/the blueprint generator-feature-token refusal for the plan-compilation boundary | `ApplicationBlueprintValidator` `SITE042`, generalized |
   | `GEN008_LOCKED` | a concurrent initialization holds the project lock | `SiteInitializationLockedException` |
   | `GEN009_UNDECLARED_UNIT_RETIREMENT` | a recorded row disappears from a supplied unit's output with no declared retirement (D-2.3 step 6) | none today (no concept of a unit) |
+  | `GEN011_UNAUTHORIZED_SET_DELTA` | a supplied unit renders paths its recorded set does not contain while its plan declares `set_evolution: frozen`, or an evolving unit's render drops a recorded path (D-2.3a) | none today (no concept of a unit) |
   | `GEN010_UNIT_PATH_CONFLICT` | a duplicate unit id, a row naming an unknown unit, or one path claimed by two units (D-2.3 step 1) | none today (no concept of a unit) |
 
   Assigning these codes now, in this ADR, is a decision (the family exists,
@@ -689,6 +761,7 @@ Its canonical document, `{"schema": "waaseyaa.artifact_plan", "version": 1}`:
 | `retires` | list of unit ids, sorted | units this plan retires (D-2.3 step 6); usually empty |
 | `registrations` | list of `ComposerProviderRegistration` | `{fqcn, group?}`, sorted by `fqcn` then `group` |
 | `companion_tests` | list of paths, sorted | must each also appear in `artifacts` |
+| `set_evolution` | `"frozen"` \| `"additive"` | whether this compiler may render a strict superset of its unit's recorded path set (D-2.3a); `frozen` for every compiler this ADR inventories |
 | `schema_effects` / `config_effects` | lists of strings, sorted | reserved, empty for every compiler this ADR inventories |
 
 `artifacts` carries the artifact **bytes**, not a digest of them, because
@@ -746,6 +819,10 @@ immutable once constructed:
   flat list with no per-path status or refusal detail. #2846 widens that
   existing computation's output; it does not add a second engine that
   independently re-derives it.
+- `setDelta` — `{adds: list<string>, drops: list<string>}`, both sorted:
+  the comparison of the plan's path set against the recorded set for the
+  unit it supplies (D-2.3a). Empty on a first publish, since nothing is
+  recorded to compare.
 - `refusals` — `list<{code: string, path?: string, message: string}>`, the
   coded detail behind every `refused` status.
 
@@ -757,8 +834,8 @@ of an apply, which is why no check can differ between them.
 **`plan_digest = sha256(CanonicalJson::encode($planDocument) . "\n")`**,
 where `$planDocument` is exactly the D-6.1 document — `schema`, `version`,
 `generator`, `unit`, `input_digest`, `artifacts`, `retires`,
-`registrations`, `companion_tests`, `schema_effects`, `config_effects` — and
-nothing else.
+`registrations`, `companion_tests`, `set_evolution`, `schema_effects`,
+`config_effects` — and nothing else.
 
 `CanonicalJson::encode()` (`packages/site-contract/src/CanonicalJson.php`)
 `ksort`s every object's keys with `SORT_STRING` and encodes with
@@ -1248,7 +1325,10 @@ What is true under D-2, stated exactly:
    evaluation out of `prepare()`; implements the D-2 unit model — read-time
    promotion, per-unit reconciliation, carry-forward, composed metadata,
    the retirement journal verb, and the D-2.7 `site:doctor` split — and
-   codes the `GEN0xx` exceptions. Ships with unit, adversarial,
+   codes the `GEN0xx` exceptions, `GEN011` and D-2.3a's additive successor
+   evolution included — the `set_evolution` plan member, the
+   `EvaluatedArtifactPlan::$setDelta` comparison, and the refusals on a
+   frozen-plan addition and an evolving-unit drop. Ships with unit, adversarial,
    failure-injection, and recovery tests per its own acceptance criteria,
    plus the two ordering constraints this ADR fixes: the byte-identity
    fixture test lands **before** the metadata-composition relocation
@@ -1349,7 +1429,8 @@ re-implement any part of it:
   shared protocol type, interface, or package on the strength of this one
   binding (D-14.8). It **must**: extend `SiteInitializationService`'s
   existing evaluation, result, and dry-run surface; implement D-2's unit
-  model inside the one generated-state authority; add the D-6 types to
+  model inside the one generated-state authority, D-2.3a's declared
+  additive evolution included; add the D-6 types to
   `site-contract` beside the types they extend; and satisfy D-14.1's seven
   obligations, returning a D-14.3 change receipt for every terminated
   controlled-apply or recovery attempt, including the non-mutating terminal
@@ -1732,9 +1813,9 @@ authorizes:
   satisfy and the rule that no shared code is extracted until a second
   binding exists.
 - This ADR does not fix the pre-existing refusal on manifest-driven artifact
-  set growth described in D-2.8, does not grant any unit an authorized
-  path-set delta (D-2.3 step 7), and does not adopt already-written,
-  unowned scaffold output into the unit model retroactively (D-10.3).
+  set *shrinkage* described in D-2.8 — additive growth is authorized by
+  D-2.3a, removal is not — and does not adopt already-written, unowned
+  scaffold output into the unit model retroactively (D-10.3).
 - This ADR does not retire, rename, or set a removal date for any `keep` or
   `merge` command. Deprecation windows and removal dates, where they prove
   necessary, are each `merge` command's own D-12 migration PR's decision to
