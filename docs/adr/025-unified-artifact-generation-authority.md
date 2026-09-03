@@ -324,7 +324,8 @@ single global comparison at lines 139–143:
    differs from its recorded set, without declaring that difference, is
    refused: an undeclared drop is `GEN009`, an undeclared addition is
    `GEN011`. What a unit may not do is change its set *silently*. Declared
-   additive evolution is authorized and digest-bound under D-2.10;
+   additive evolution is authorized and digest-bound under D-2.3a, and only
+   for the compilers that section's closed eligibility list names;
    shrinking a unit remains retirement-only (step 6). There is no flag, no
    `--force`, and no override on any of these paths.
 
@@ -361,7 +362,26 @@ successor plan compiled against a generation that has since moved is refused
 by the `GEN005_STALE_PLAN` recomputation D-6.5 already performs under the
 exclusive lock.
 
-Four rules make this an authorization rather than an override:
+**Eligibility is a closed list, not a field a compiler may set.** Exactly
+one binding may emit `set_evolution: additive` in v1:
+
+- the **root `site` compiler** — the `SiteArtifactRenderer`-composed render
+  of a `waaseyaa.site` manifest, which is where manifest-authored cardinality
+  already lives (`PublishedContentRecipe::render()` emits one bundle class
+  per `contentTypes` entry, D-2.8), and, once #2787 lands, the
+  approved-blueprint root compiler that produces the same root unit from an
+  `application_blueprint` plus its matching `BlueprintDecisionReceipt`.
+
+Every other compiler in the D-4 inventory — every `make:*`, every
+`scaffold:*`, every non-root unit — is `frozen`, and a plan from one of them
+carrying `additive` is `GEN011` regardless of what its paths look like. This
+mirrors the closed `seeded` allowlist in D-2.2: the value is not a
+self-service capability, it is a reviewed property of a named compiler.
+#2846 carries the architecture test that asserts this list, alongside the
+one that asserts the `seeded` allowlist, so a future compiler cannot promote
+itself merely by setting the field.
+
+Four further rules make this an authorization rather than an override:
 
 1. **Additive only, in v1.** `drops` must be empty. A supplied unit whose
    render no longer contains a recorded path is `GEN009` (undeclared
@@ -397,17 +417,31 @@ this ADR's margins.
 
 #### D-2.4 The no-ambiguous-set-change guarantee is retained
 
-The guarantee's scope changes; its nature does not. The sentence in
+The guarantee's scope changes, and D-2.3a adds one named exception to its
+letter; its nature does not change. The sentence in
 `docs/specs/site-golden-path.md` — "A changed artifact set — one generated
 file added or removed — is compared unconditionally, outside the
 manifest-digest guard, and refuses regeneration on every already-initialized
 project with no override and no migration path. Treat the set as frozen" —
-remains true word for word of the root unit, which is the unit it has always
-been about. `site:init` renders the root set; its path set is compared to
-the recorded root set outside the manifest-digest guard; one file added or
-removed still refuses, with no override, no `--force`, and no migration
-engine. Every non-root unit gets the same unconditional treatment inside its
-own boundary.
+remains true of the root unit for **every undeclared change and every
+removal**, which is the behaviour it was written to protect. What it no
+longer describes exhaustively is growth: a *declared* additive successor
+from an eligible compiler (D-2.3a) is authorized, digest-bound, and refused
+the moment it is undeclared, non-additive, or emitted by a compiler outside
+that section's eligibility list.
+
+Concretely, for the root unit: the path set is still compared to the
+recorded set outside the manifest-digest guard; a removal still refuses with
+no override, no `--force`, and no migration engine; an undeclared addition
+is `GEN011`; and a declared addition from the eligible root compiler applies
+under the same lock, the same admission checks, and the same stale-state
+refusal as a first publish. Every non-root unit keeps the unconditional
+treatment inside its own boundary, because no non-root compiler is eligible
+to declare `additive`.
+
+`docs/specs/site-golden-path.md` is not edited by this ADR: it documents
+shipped behaviour, and the behaviour ships with #2846. That update is named
+in D-12 step 1 as part of the slice, not deferred to a later cleanup.
 
 What is removed is only the conflation. Today the guard cannot tell "the
 framework's own generated set drifted" from "another generator wrote a
@@ -554,9 +588,10 @@ list of variable cardinality. Combined with the unconditional set comparison
 at lines 139–143, that means **adding a content type to an
 already-initialized `.waaseyaa/site.yaml` is refused today** — the
 manifest's own documented editing surface is blocked by the frozen-set rule.
-D-2.3a fixes the additive half of this: adding a content type renders a
-strict superset of the recorded root set, which a successor plan may declare
-and apply, bound to the recorded state it evolved from. **Removing** a
+D-2.3a fixes the additive half of this: the root `site` compiler is on its
+closed eligibility list precisely because of this case, so adding a content
+type renders a strict superset of the recorded root set, which its plan may
+declare `additive` and apply, bound to the recorded state it evolved from. **Removing** a
 content type remains refused — the rendered set would shrink, which v1
 routes to retirement rather than to a silent delete — so this defect is
 narrowed, not closed, and its subtractive half is legitimate future work
@@ -571,7 +606,7 @@ with its own decision to make.
 | The unit-id grammar and its reserved `site` id | Each migrating handler's own id derivation (its own PR) |
 | Two dispositions, fixed by compiler kind, with a closed `seeded` allowlist (D-2.2) | The architecture test asserting that allowlist |
 | Per-unit frozen set, carry-forward, partition, first-owner-wins, explicit retirement (D-2.3) | Replacing lines 139–145 with per-unit reconciliation and gating 146–169 on the supplied unit |
-| Declared additive successor evolution, digest-bound, with removal still routed to retirement (D-2.3 step 7, D-2.3a) | The `set_evolution` plan member, `EvaluatedArtifactPlan::$setDelta`, and `GEN011` |
+| Declared additive successor evolution, digest-bound, with removal still routed to retirement, and a closed eligibility list for `additive` (D-2.3 step 7, D-2.3a) | The `set_evolution` plan member, `EvaluatedArtifactPlan::$setDelta`, `GEN011`, and the architecture test asserting the eligibility list |
 | Metadata composition moves to the transaction authority (D-2.6) | The composition itself, the service-level re-derivation check, and the byte-identity fixture test that must land **before** the relocation |
 | Retirement is a new journal verb with its own rollback and directory-cleanup semantics | The journal item kind, the rollback branch that restores a deleted file from backup, and its failure-injection coverage |
 | `site:doctor` splits into root-projection compare plus disposition-aware row loop (D-2.7) | The split itself and its new non-blocking finding id |
@@ -761,7 +796,7 @@ Its canonical document, `{"schema": "waaseyaa.artifact_plan", "version": 1}`:
 | `retires` | list of unit ids, sorted | units this plan retires (D-2.3 step 6); usually empty |
 | `registrations` | list of `ComposerProviderRegistration` | `{fqcn, group?}`, sorted by `fqcn` then `group` |
 | `companion_tests` | list of paths, sorted | must each also appear in `artifacts` |
-| `set_evolution` | `"frozen"` \| `"additive"` | whether this compiler may render a strict superset of its unit's recorded path set (D-2.3a); `frozen` for every compiler this ADR inventories |
+| `set_evolution` | `"frozen"` \| `"additive"` | whether this compiler may render a strict superset of its unit's recorded path set (D-2.3a). `additive` only for the compilers on D-2.3a's closed eligibility list; `frozen` for every other compiler in the inventory, and the default |
 | `schema_effects` / `config_effects` | lists of strings, sorted | reserved, empty for every compiler this ADR inventories |
 
 `artifacts` carries the artifact **bytes**, not a digest of them, because
@@ -1327,8 +1362,11 @@ What is true under D-2, stated exactly:
    the retirement journal verb, and the D-2.7 `site:doctor` split — and
    codes the `GEN0xx` exceptions, `GEN011` and D-2.3a's additive successor
    evolution included — the `set_evolution` plan member, the
-   `EvaluatedArtifactPlan::$setDelta` comparison, and the refusals on a
-   frozen-plan addition and an evolving-unit drop. Ships with unit, adversarial,
+   `EvaluatedArtifactPlan::$setDelta` comparison, the refusals on a
+   frozen-plan addition and an evolving-unit drop, the architecture test
+   asserting D-2.3a's closed eligibility list, and the
+   `docs/specs/site-golden-path.md` update that records the one named
+   exception to the frozen-set sentence (D-2.4). Ships with unit, adversarial,
    failure-injection, and recovery tests per its own acceptance criteria,
    plus the two ordering constraints this ADR fixes: the byte-identity
    fixture test lands **before** the metadata-composition relocation
@@ -1430,7 +1468,8 @@ re-implement any part of it:
   binding (D-14.8). It **must**: extend `SiteInitializationService`'s
   existing evaluation, result, and dry-run surface; implement D-2's unit
   model inside the one generated-state authority, D-2.3a's declared
-  additive evolution included; add the D-6 types to
+  additive evolution and its closed eligibility list included; add the D-6
+  types to
   `site-contract` beside the types they extend; and satisfy D-14.1's seven
   obligations, returning a D-14.3 change receipt for every terminated
   controlled-apply or recovery attempt, including the non-mutating terminal
@@ -1761,6 +1800,12 @@ Costs and one-way doors, recorded here rather than discovered later:
   protected, with no error. The closed `seeded` allowlist and doctor's
   per-row disposition output are the two controls; both are required, not
   optional.
+- **`set_evolution` is a reviewed property, not a capability flag.** A
+  compiler that could set `additive` for itself would have re-invented
+  `--force` with extra steps: the refusal that protects an application's
+  files would become opt-out by the very code being protected against. The
+  closed eligibility list and its architecture test are the control, and
+  they are required, not optional — exactly as for the `seeded` allowlist.
 - **Unit ids are published surface from their first release.** A key
   derivation changed later orphans the old unit while the new one collides
   with it, and the collision is permanent until one is retired. Each
