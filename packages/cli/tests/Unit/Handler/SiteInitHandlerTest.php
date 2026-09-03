@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -13,6 +14,8 @@ use Waaseyaa\CLI\Handler\SiteInitHandler;
 use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteManifestWizard;
+use Waaseyaa\CLI\Site\SitePreset;
+use Waaseyaa\CLI\Site\SitePresetResolver;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
@@ -20,6 +23,8 @@ use Waaseyaa\SiteContract\SiteManifestParser;
 #[CoversClass(SiteInitHandler::class)]
 #[CoversClass(SiteServiceProvider::class)]
 #[CoversClass(SiteManifestWizard::class)]
+#[CoversClass(SitePreset::class)]
+#[CoversClass(SitePresetResolver::class)]
 final class SiteInitHandlerTest extends TestCase
 {
     /** @var list<string> */
@@ -28,7 +33,7 @@ final class SiteInitHandlerTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->roots as $root) {
-            (new Filesystem())->remove($root);
+            new Filesystem()->remove($root);
         }
     }
 
@@ -166,6 +171,453 @@ final class SiteInitHandlerTest extends TestCase
         self::assertFileExists($root . '/migrations/2026_08_13_000001_create_subscriber_table.php');
         self::assertFileExists($root . '/src/Provider/SubscriptionServiceProvider.php');
         self::assertFileExists($root . '/tests/Acceptance/SubscriptionRecipeTest.php');
+    }
+
+    #[Test]
+    public function unknownPresetValueIsRejected(): void
+    {
+        $root = $this->root();
+        $answers = $root . '/seed.yaml';
+        file_put_contents($answers, $this->presetSeed());
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=nonexistent', "--answers={$answers}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString("Unknown site:init preset 'nonexistent'", $tester->getStderr());
+    }
+
+    #[Test]
+    public function nonInteractivePresetWithoutAnswersRequiresASeedDocument(): void
+    {
+        $tester = $this->tester($this->root());
+
+        $tester->execute(['--preset=minimal', '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('--preset', $tester->getStderr());
+        self::assertStringContainsString('--answers', $tester->getStderr());
+    }
+
+    /**
+     * A preset resolves every decision except provenance: the manifest binds
+     * the exact framework revision the site was initialized against. Without
+     * a `composer.lock` there is nothing to bind, so a well-formed seed is
+     * still refused — before any artifact is written — rather than published
+     * with an invented or absent lock digest.
+     */
+    #[Test]
+    public function presetResolutionRefusesAProjectWithoutFrameworkProvenance(): void
+    {
+        $root = $this->root();
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('composer.lock', $tester->getStderr());
+        self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
+    }
+
+    /**
+     * #2442, ADR-024 D-3/D-4: `minimal` resolves deterministically to the
+     * smallest active decision set — `published_content` only. Neither
+     * `governed_authoring` nor `subscription` artifacts are generated, and
+     * nothing in the published manifest names the preset that produced it.
+     */
+    #[Test]
+    public function minimalPresetSeedDocumentInitializesTheSmallestProject(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $manifestYaml = (string) file_get_contents($root . '/.waaseyaa/site.yaml');
+        self::assertStringNotContainsString('preset', $manifestYaml);
+        self::assertStringNotContainsString('profile', $manifestYaml);
+        $manifest = new SiteManifestParser()->parse($manifestYaml);
+        self::assertSame('not_needed', $manifest->capabilities['governed_authoring']->state->value);
+        self::assertSame('not_needed', $manifest->capabilities['subscription']->state->value);
+        self::assertArrayHasKey('published_content', $manifest->recipes);
+        self::assertArrayNotHasKey('governed_authoring', $manifest->recipes);
+        self::assertArrayNotHasKey('subscription', $manifest->recipes);
+        self::assertFileExists($root . '/src/Provider/PublishedContentServiceProvider.php');
+        self::assertFileDoesNotExist($root . '/src/Provider/GovernedAuthoringServiceProvider.php');
+        self::assertFileDoesNotExist($root . '/src/Provider/SubscriptionServiceProvider.php');
+    }
+
+    /**
+     * `editorial` additionally activates `governed_authoring`, so the
+     * declaration and its recipe-owned artifacts are published and
+     * reviewable, built entirely from the existing governed-authoring
+     * recipe and never from backend auth/security implementation code of
+     * its own.
+     *
+     * This asserts the DECLARATION and the published artifact set only. It
+     * deliberately does not assert a running authoring surface: the
+     * canonical lifecycle never activates a recipe-declared provider or its
+     * Composer requirements (#2857), so no unit test here can honestly
+     * prove one. See docs/specs/site-golden-path.md "What a preset does not
+     * do".
+     */
+    #[Test]
+    public function editorialPresetSeedDocumentPublishesTheGovernedAuthoringDeclaration(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=editorial', "--answers={$seed}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
+        self::assertSame('active', $manifest->capabilities['governed_authoring']->state->value);
+        self::assertSame('not_needed', $manifest->capabilities['subscription']->state->value);
+        self::assertArrayHasKey('published_content', $manifest->recipes);
+        self::assertArrayHasKey('governed_authoring', $manifest->recipes);
+        self::assertArrayNotHasKey('subscription', $manifest->recipes);
+        self::assertFileExists($root . '/src/Provider/GovernedAuthoringServiceProvider.php');
+        self::assertFileExists($root . '/tests/Acceptance/GovernedAuthoringRecipeTest.php');
+        self::assertFileDoesNotExist($root . '/src/Provider/SubscriptionServiceProvider.php');
+        self::assertFileDoesNotExist($root . '/migrations');
+    }
+
+    #[Test]
+    public function presetDryRunReportsThePlanWithoutWriting(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        $before = hash_file('sha256', $seed);
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=editorial', "--answers={$seed}", "--project-root={$root}", '--dry-run']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        self::assertStringContainsString('Would initialize', $tester->getStdout());
+        self::assertStringContainsString('generated artifacts', $tester->getStdout());
+        self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
+        self::assertSame($before, hash_file('sha256', $seed));
+    }
+
+    /**
+     * Re-running the same preset seed is deterministic and reports the exact
+     * proposed diff before changing an already-initialized site: a second
+     * `--dry-run` (nothing changed) reports zero pending artifacts, and a
+     * second non-dry-run publish is a byte-identical no-op.
+     */
+    #[Test]
+    public function reRunningTheSamePresetIsIdempotentAndReportsAnEmptyDiff(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+
+        $first = $this->tester($root);
+        $first->execute(['--preset=editorial', "--answers={$seed}", "--project-root={$root}", '--yes']);
+        self::assertSame(0, $first->getExitCode(), $first->getStderr());
+
+        $dryRun = $this->tester($root);
+        $dryRun->execute(['--preset=editorial', "--answers={$seed}", "--project-root={$root}", '--dry-run']);
+        self::assertSame(0, $dryRun->getExitCode(), $dryRun->getStderr());
+        self::assertStringContainsString('Would initialize 0 generated artifacts', $dryRun->getStdout());
+
+        $second = $this->tester($root);
+        $second->execute(['--preset=editorial', "--answers={$seed}", "--project-root={$root}", '--yes']);
+        self::assertSame(0, $second->getExitCode(), $second->getStderr());
+        self::assertStringContainsString('Initialized 0 generated artifacts', $second->getStdout());
+    }
+
+    /**
+     * Conflicting-existing-state: a foreign, un-owned file already occupying
+     * a preset-generated target path is never silently overwritten. This
+     * reuses `SiteInitializationService`'s existing collision detection —
+     * preset resolution introduces no second ownership authority.
+     */
+    #[Test]
+    public function presetRefusesAnUnownedCollisionBeforeWritingAnyTarget(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        mkdir($root . '/tests/Architecture', 0o777, true);
+        file_put_contents($root . '/tests/Architecture/SiteContractTest.php', 'owned by the application, not the generator');
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString('Refusing to overwrite unowned artifact', $tester->getStderr());
+        self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
+    }
+
+    /**
+     * A conflict that surfaces only after a project already carries a
+     * preset-generated site: editing a governed artifact outside its
+     * declared extension region is refused on the next `--preset` run,
+     * exactly as it is for a full `--answers` manifest.
+     */
+    #[Test]
+    public function presetRefusesRegenerationAfterAnExternalEditToAGeneratedArtifact(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        $first = $this->tester($root);
+        $first->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+        self::assertSame(0, $first->getExitCode(), $first->getStderr());
+
+        file_put_contents($root . '/src/Provider/PublishedContentServiceProvider.php', '<?php // tampered outside any extension region');
+
+        $second = $this->tester($root);
+        $second->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(2, $second->getExitCode());
+        self::assertStringContainsString('edited outside an extension region', $second->getStderr());
+    }
+
+    #[Test]
+    public function interactivePresetAsksOnlyIdentityAndContentTypeQuestions(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $tester = $this->tester($root, $this->interactiveStdin(['Example Nation', 'example-nation', 'APP_ORIGIN', 'page', '/{slug}']));
+
+        $tester->execute(['--preset=editorial', "--project-root={$root}", '--yes']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
+        self::assertSame('example-nation', $manifest->application->id);
+        self::assertSame('active', $manifest->capabilities['governed_authoring']->state->value);
+        self::assertSame('not_needed', $manifest->capabilities['subscription']->state->value);
+        self::assertSame([], $manifest->personalDataStores);
+        self::assertSame(hash_file('sha256', $root . '/composer.lock'), $manifest->framework->observedLockSha256);
+    }
+
+    /**
+     * A preset is a shortcut through the same questions, not a second way to
+     * build a site: an operator who answers the full wizard the way
+     * `editorial` answers it must get exactly the site `--preset=editorial`
+     * publishes. Both paths are run here from the same identity and
+     * content-type answers and the published manifests are compared byte for
+     * byte, so a capability or recipe fragment that drifted in either caller
+     * would fail this.
+     */
+    #[Test]
+    public function theWizardAndTheEditorialPresetPublishTheSameSiteForEquivalentAnswers(): void
+    {
+        $identity = ['Example Nation', 'example-nation', 'APP_ORIGIN', 'page, article', '/{slug}', '/article/{slug}'];
+
+        $wizardRoot = $this->root();
+        file_put_contents($wizardRoot . '/composer.lock', "{\"content-hash\": \"stable\"}\n");
+        $wizard = $this->tester($wizardRoot, $this->interactiveStdin([...$identity, 'yes', 'no']));
+        $wizard->execute(["--project-root={$wizardRoot}", '--yes']);
+        self::assertSame(0, $wizard->getExitCode(), $wizard->getStderr());
+
+        $presetRoot = $this->root();
+        file_put_contents($presetRoot . '/composer.lock', "{\"content-hash\": \"stable\"}\n");
+        $preset = $this->tester($presetRoot, $this->interactiveStdin($identity));
+        $preset->execute(['--preset=editorial', "--project-root={$presetRoot}", '--yes']);
+        self::assertSame(0, $preset->getExitCode(), $preset->getStderr());
+
+        self::assertSame(
+            (string) file_get_contents($wizardRoot . '/.waaseyaa/site.yaml'),
+            (string) file_get_contents($presetRoot . '/.waaseyaa/site.yaml'),
+        );
+        self::assertSame($this->generatedArtifactDigests($wizardRoot), $this->generatedArtifactDigests($presetRoot));
+    }
+
+    /** @param list<string> $lines */
+    private function interactiveStdin(array $lines): object
+    {
+        return new class ($lines) {
+            /** @param list<string> $lines */
+            public function __construct(private array $lines) {}
+            public function readLine(): ?string
+            {
+                return array_shift($this->lines);
+            }
+            public function isInteractive(): bool
+            {
+                return true;
+            }
+        };
+    }
+
+    /**
+     * #2442 review finding 2: `--preset --answers` must not be an open second
+     * input contract. A seed document is read through the closed, versioned
+     * `waaseyaa.site-seed` schema, so an operator decision the framework does
+     * not understand fails the command at its original pointer rather than
+     * being discarded while `site:init` reports success.
+     */
+    #[Test]
+    #[DataProvider('rejectedSeedDocumentProvider')]
+    public function malformedSeedDocumentsAreRejectedAtTheirOriginalPointer(
+        string $mutation,
+        string $replacement,
+        string $expectedCode,
+        string $expectedPath,
+    ): void {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, str_replace($mutation, $replacement, $this->presetSeed()));
+        $tester = $this->tester($root);
+
+        $tester->execute(['--preset=editorial', "--answers={$seed}", "--project-root={$root}", '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        self::assertStringContainsString($expectedCode, $tester->getStderr());
+        self::assertStringContainsString($expectedPath, $tester->getStderr());
+        self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
+    }
+
+    /** @return iterable<string, array{string, string, string, string}> */
+    public static function rejectedSeedDocumentProvider(): iterable
+    {
+        yield 'unknown top-level key' => [
+            'content_types:',
+            "governed_authoring: true\ncontent_types:",
+            'SITE001_UNKNOWN_KEY',
+            '/governed_authoring',
+        ];
+        yield 'unknown nested key' => [
+            '  name: Example',
+            "  name: Example\n  tagline: Discarded",
+            'SITE001_UNKNOWN_KEY',
+            '/application/tagline',
+        ];
+        yield 'duplicate key' => [
+            '  name: Example',
+            "  name: Example\n  name: Shadowed",
+            'SITE000_INVALID_YAML',
+            '/',
+        ];
+        yield 'wrong type' => ['  name: Example', '  name: 42', 'SITE010_INVALID_TYPE', '/application/name'];
+        yield 'missing version' => ['version: 1', '', 'SITE011_REQUIRED_KEY', '/version'];
+        yield 'unsupported version' => ['version: 1', 'version: 2', 'SITE003_UNSUPPORTED_SCHEMA_VERSION', '/version'];
+        yield 'foreign schema identity' => [
+            'schema: waaseyaa.site-seed',
+            'schema: waaseyaa.site',
+            'SITE014_INVALID_VALUE',
+            '/schema',
+        ];
+    }
+
+    /**
+     * The packaged/upgrade half of #2442 that is honestly provable today: a
+     * preset plus a seed is a pure function of its inputs. Two independent
+     * project roots initialized from the same seed and the same framework
+     * lock publish byte-identical governed artifacts, so a published site is
+     * reviewable in version control without depending on where it was run.
+     */
+    #[Test]
+    public function thePresetAndSeedAloneDetermineEveryPublishedArtifactByte(): void
+    {
+        $digests = [];
+        foreach (['first', 'second'] as $run) {
+            $root = $this->root();
+            file_put_contents($root . '/composer.lock', "{\"content-hash\": \"stable\"}\n");
+            $seed = $root . '/seed.yaml';
+            file_put_contents($seed, $this->presetSeed());
+            $tester = $this->tester($root);
+
+            $tester->execute(['--preset=editorial', "--answers={$seed}", "--project-root={$root}", '--yes']);
+            self::assertSame(0, $tester->getExitCode(), $run . ': ' . $tester->getStderr());
+
+            $digests[$run] = $this->generatedArtifactDigests($root);
+        }
+
+        self::assertNotSame([], $digests['first']);
+        self::assertSame($digests['first'], $digests['second']);
+    }
+
+    /**
+     * The upgrade axis without an activation contract: an already-initialized
+     * preset site whose framework lock moves does not silently keep the stale
+     * provenance, and does not silently rewrite it either. The next run
+     * reports the rebind as a proposed change through the same dry-run
+     * machinery, and publishing it rebinds exactly the manifest.
+     */
+    #[Test]
+    public function aFrameworkLockChangeIsReportedAsAProposedManifestRebind(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.lock', "{\"content-hash\": \"before\"}\n");
+        $seed = $root . '/seed.yaml';
+        file_put_contents($seed, $this->presetSeed());
+        $first = $this->tester($root);
+        $first->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+        self::assertSame(0, $first->getExitCode(), $first->getStderr());
+        $before = $this->generatedArtifactDigests($root);
+
+        file_put_contents($root . '/composer.lock', "{\"content-hash\": \"after\"}\n");
+
+        $plan = $this->tester($root);
+        $plan->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--dry-run']);
+        self::assertSame(0, $plan->getExitCode(), $plan->getStderr());
+        self::assertStringContainsString('.waaseyaa/site.yaml', $plan->getStdout());
+        self::assertStringContainsString('.waaseyaa/generated.json', $plan->getStdout());
+        self::assertStringContainsString('Would initialize 2 generated artifacts', $plan->getStdout());
+        self::assertSame($before, $this->generatedArtifactDigests($root));
+
+        $publish = $this->tester($root);
+        $publish->execute(['--preset=minimal', "--answers={$seed}", "--project-root={$root}", '--yes']);
+        self::assertSame(0, $publish->getExitCode(), $publish->getStderr());
+
+        $after = $this->generatedArtifactDigests($root);
+        self::assertSame(array_keys($before), array_keys($after));
+        self::assertNotSame($before['.waaseyaa/site.yaml'], $after['.waaseyaa/site.yaml']);
+        $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
+        self::assertSame(hash_file('sha256', $root . '/composer.lock'), $manifest->framework->observedLockSha256);
+    }
+
+    /**
+     * Every path the generator declares it owns, plus the ownership record
+     * itself, digested from the published bytes on disk.
+     *
+     * @return array<string, string>
+     */
+    private function generatedArtifactDigests(string $root): array
+    {
+        $metadata = $root . '/.waaseyaa/generated.json';
+        /** @var array{artifacts: list<array{path: string}>} $recorded */
+        $recorded = json_decode((string) file_get_contents($metadata), true, 512, JSON_THROW_ON_ERROR);
+        $digests = ['.waaseyaa/generated.json' => (string) hash_file('sha256', $metadata)];
+        foreach ($recorded['artifacts'] as $row) {
+            $digests[$row['path']] = (string) hash_file('sha256', $root . '/' . $row['path']);
+        }
+        ksort($digests, SORT_STRING);
+
+        return $digests;
+    }
+
+    private function presetSeed(): string
+    {
+        return <<<'YAML'
+            schema: waaseyaa.site-seed
+            version: 1
+            application:
+              id: example
+              name: Example
+              canonical_origin: {config_key: APP_ORIGIN}
+            content_types:
+              - {id: page, canonical_route: '/{slug}'}
+            YAML;
     }
 
     private function tester(string $root, ?object $stdin = null): CliTester

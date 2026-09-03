@@ -7,7 +7,11 @@ namespace Waaseyaa\Bimaaji\Tests\Unit\Install;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Bimaaji\Install\ClientCapabilities;
+use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
+use Waaseyaa\Bimaaji\Install\ManagedRegion;
+use Waaseyaa\Bimaaji\Install\SkillDeliveryMode;
 use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
 
 #[CoversClass(ClaudeClientTransformer::class)]
@@ -139,6 +143,94 @@ final class ClaudeClientTransformerTest extends TestCase
         $files = (new ClaudeClientTransformer())->targetFiles([]);
         self::assertCount(1, $files, 'Empty skill set still emits the index file.');
         self::assertStringContainsString('_No skills installed._', $files[0]->content);
+    }
+
+    #[Test]
+    public function everyTargetPathIsDerivedFromTheRegisteredCapabilitiesNotAHardcodedConstant(): void // #2660 Part A
+    {
+        // Locks the capability-registry seam this transformer now reads
+        // instead of its own (removed) DIRECTORY_PREFIX constant: every
+        // path targetFiles() produces must be reproducible purely from
+        // ClientCapabilityRegistry::default()->for('claude'), given the
+        // same skill ids.
+        $capabilities = ClientCapabilityRegistry::default()->for('claude');
+        self::assertNotNull($capabilities, 'The "claude" client must be registered.');
+
+        $files = (new ClaudeClientTransformer())->targetFiles(InstallSkillFixtures::all());
+
+        $skillTargets = array_values(array_filter($files, static fn($file): bool => $file->sourceSkill !== null));
+        self::assertCount(3, $skillTargets);
+        foreach ($skillTargets as $file) {
+            self::assertSame($capabilities->skillFilePath((string) $file->sourceSkill), $file->path);
+        }
+
+        $index = $this->findByPath($files, $capabilities->guidancePath);
+        self::assertNotNull($index, 'The index file must be written at the registry-declared guidancePath.');
+    }
+
+    #[Test]
+    public function perSkillFrontmatterIsDerivedFromTheCapabilityFlagNotEmittedUnconditionally(): void // #2660 Part A repair
+    {
+        // The registry declares `requiresFrontmatterAtByteZero` for Claude,
+        // but renderSkillFile() used to emit the block unconditionally — so
+        // the flag was decorative and the registry was not actually the
+        // authority for this fact. Flip the flag on an injected capability
+        // and the emitted bytes must follow it.
+        $withoutFrontmatter = new ClaudeClientTransformer(new ClientCapabilities(
+            clientId: 'claude',
+            skillDelivery: SkillDeliveryMode::PerSkillFile,
+            requiresFrontmatterAtByteZero: false,
+            guidancePath: '.claude/CLAUDE-WAASEYAA.md',
+            skillDirectory: '.claude/skills',
+            skillIdPrefix: 'waaseyaa-',
+        ));
+
+        $files = $withoutFrontmatter->targetFiles([InstallSkillFixtures::alpha()]);
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
+
+        self::assertNotNull($alpha);
+        self::assertStringStartsNotWith('---', $alpha->content);
+        self::assertStringNotContainsString('name: waaseyaa-skill-alpha', $alpha->content);
+        self::assertSame(
+            ManagedRegion::wrap(InstallSkillFixtures::alpha()->body),
+            $alpha->content,
+            'With the capability off, a per-skill file is exactly the managed body and nothing else.',
+        );
+    }
+
+    #[Test]
+    public function theShippedCapabilityRequiresFrontmatterAndTheShippedBytesCarryIt(): void // #2660 Part A repair
+    {
+        // Binds the registry entry to the bytes in one assertion pair: if a
+        // future edit clears the flag for Claude, the second assertion fails
+        // — the two can no longer silently disagree.
+        $capabilities = ClientCapabilityRegistry::default()->for('claude');
+        self::assertNotNull($capabilities);
+        self::assertTrue($capabilities->requiresFrontmatterAtByteZero);
+
+        $files = (new ClaudeClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $alpha = $this->findByPath($files, '.claude/skills/waaseyaa-skill-alpha/SKILL.md');
+
+        self::assertNotNull($alpha);
+        self::assertStringStartsWith("---\nname: waaseyaa-skill-alpha\n", $alpha->content);
+    }
+
+    #[Test]
+    public function capabilitiesForAnotherClientAreRejectedRatherThanQuietlyUsed(): void // #2660 Part A repair
+    {
+        // The injection seam exists so the flag is testable, not so a caller
+        // can render Claude output from Cursor's conventions. A mismatched
+        // clientId is a programming error, and it fails loudly.
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageMatches('/declare client "cursor", not "claude"/');
+
+        new ClaudeClientTransformer(new ClientCapabilities(
+            clientId: 'cursor',
+            skillDelivery: SkillDeliveryMode::PerSkillFile,
+            requiresFrontmatterAtByteZero: true,
+            guidancePath: '.cursorrules',
+            skillDirectory: '.cursor/skills',
+        ))->targetFiles([InstallSkillFixtures::alpha()]);
     }
 
     /**
