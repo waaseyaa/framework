@@ -187,7 +187,20 @@ that unknown member").
   therefore flat and attributed, exactly as `artifacts` already is for the
   identical ownership question about paths.
 
-Both members are emitted only when at least one non-root unit owns state.
+The three members are emitted under **independent** conditions, not one shared
+one:
+
+- **`units`** and the per-artifact **`unit`** key appear only when at least
+  one non-root unit owns state.
+- **`registrations`** appears whenever its roster is non-empty — **including a
+  root-only roster, with no non-root unit in the document at all**. That is
+  precisely the #2857 case: recipe-declared providers are root-owned, and a
+  project may own registrations while owning no non-root unit.
+
+An earlier revision said "both members are emitted only when at least one
+non-root unit owns state". Carried forward to three members that would have
+suppressed a root-only registration roster, which is the one case #2857
+needs.
 
 ```json
 {
@@ -304,8 +317,11 @@ survivor.
    | Claim of an `fqcn` recorded to a different unit or to the root | either | refused | untouched | `GEN012` |
    | Claim of an `fqcn` present in `composer.json` with no roster row | either | refused | untouched | `GEN012` |
    | Duplicate `fqcn` in the roster, or a row naming a `unit` absent from `units` | either | refused at read | untouched | `GEN012` |
+   | `extra.waaseyaa.providers` present but not a list | either | refused at read | untouched | `GEN014` |
    | Malformed `extra.waaseyaa.providers` member — non-string or empty | either | refused at read | untouched | `GEN014` |
    | Duplicate entry inside `extra.waaseyaa.providers` | either | refused at read | untouched | `GEN014` |
+   | Roster row not an object, unknown member, missing/non-string `fqcn`, non-string `group`/`unit`, or empty string in any | either | refused at read | untouched | `GEN015` |
+   | Roster not in canonical `fqcn`-then-`group` order | either | refused at read | untouched | `GEN015` |
 
    **A `seeded` unit's registration set is frozen at creation.** Apply-once
    means a later publish supplying that unit cannot act on registrations, so a
@@ -751,7 +767,7 @@ with its own decision to make.
 | The persisted shape: optional `units` list + optional per-row `unit`, version 1, root unit implicit (D-2.1) | Read-time implicit promotion of a `units`-free document to one root unit |
 | The unit-id grammar and its reserved `site` id | Each migrating handler's own id derivation (its own PR) |
 | Two dispositions, fixed by compiler kind, with a closed `seeded` allowlist (D-2.2) | The architecture test asserting that allowlist |
-| The `registrations` roster: top-level, `{fqcn, group?, unit?}`, root ownership by absent `unit`, global FQCN exclusivity, deterministic order, omitted when empty, `group` as roster/plan metadata with no Composer representation, the disposition-split evolution matrix, and the exact retirement withdrawal set (D-2.1, D-2.1a, D-2.3 step 6) | Recording and reconciling the roster inside the transaction; the `GEN012`, `GEN013` and `GEN014` refusals; `managed` drift restoration and the `seeded` non-restoration that pairs with it; the seeded transition tests (creation and retirement succeed; addition, removal and `group` change each refuse `GEN013`); `site:doctor`'s registration verification distinguishing unrelated user entries, collisions, and disposition-aware FQCN-absence drift; the `readMetadata()` known-optional widening for `registrations`; and the byte-identity fixture case proving a registration-free document is unchanged |
+| The `registrations` roster: top-level, `{fqcn, group?, unit?}`, root ownership by absent `unit`, global FQCN exclusivity, deterministic order, omitted when empty, `group` as roster/plan metadata with no Composer representation, the disposition-split evolution matrix, and the exact retirement withdrawal set (D-2.1, D-2.1a, D-2.3 step 6) | Recording and reconciling the roster inside the transaction; the `GEN012`, `GEN013` and `GEN014` refusals; `managed` drift restoration and the `seeded` non-restoration that pairs with it; the seeded transition tests (creation and retirement succeed; addition, removal and `group` change each refuse `GEN013`); the negative fixtures for `GEN014` (`extra.waaseyaa.providers` present but not a list, a non-string member, an empty string, a duplicate entry) and for `GEN015` (a row that is not an object, an unknown row member, a missing `fqcn`, a non-string `fqcn`/`group`/`unit`, an empty string in any of the three, and a roster out of canonical order), each exiting non-zero on its own; `site:doctor`'s registration verification distinguishing unrelated user entries, collisions, and disposition-aware FQCN-absence drift; the `readMetadata()` known-optional widening for `registrations`; and the byte-identity fixture case proving a registration-free document is unchanged |
 | Per-unit frozen set, carry-forward, partition, first-owner-wins, explicit retirement (D-2.3) | Replacing lines 139–145 with per-unit reconciliation and gating 146–169 on the supplied unit |
 | Declared additive successor evolution, digest-bound, with removal still routed to retirement, and a closed eligibility list for `additive` (D-2.3 step 7, D-2.3a) | The `set_evolution` plan member, `EvaluatedArtifactPlan::$setDelta`, `GEN011`, and the architecture test asserting the eligibility list |
 | Metadata composition moves to the transaction authority (D-2.6) | The composition itself, the service-level re-derivation check, and the byte-identity fixture test that must land **before** the relocation |
@@ -887,7 +903,8 @@ proves out:
   | `GEN010_UNIT_PATH_CONFLICT` | a duplicate unit id, a row naming an unknown unit, or one path claimed by two units (D-2.3 step 1) | none today (no concept of a unit) |
   | `GEN012_REGISTRATION_OWNERSHIP_CONFLICT` | **ownership**: a plan declares an `fqcn` already recorded to a different unit or to the root; or declares an `fqcn` already present in `composer.json` with no roster row; or the roster holds a duplicate `fqcn`; or a roster row names a `unit` absent from `units` (D-2.1a rules 2, 4, 6) | none today (no persisted registrations) |
   | `GEN013_SEEDED_REGISTRATION_REDECLARED` | **declaration evolution**: a plan changes a `seeded` unit's registration set after creation — an addition, a removal, or a `group` change (D-2.1a rule 4) | none today |
-  | `GEN014_INVALID_COMPOSER_PROVIDER_STATE` | **existing-state integrity**: `extra.waaseyaa.providers` holds a malformed member (non-string, or empty) or a duplicate entry; refused at read, independently of any plan (D-2.1a rule 6) | none today |
+  | `GEN014_INVALID_COMPOSER_PROVIDER_STATE` | **existing Composer state**: `extra.waaseyaa.providers` is present but is **not a list**; or holds a malformed member (non-string, or empty); or holds a duplicate entry. Refused at read, independently of any plan (D-2.1a rule 6) | none today |
+  | `GEN015_INVALID_REGISTRATION_ROSTER` | **persisted roster shape and order**: a `registrations` row that is not an object; an unknown member on a row; a missing or non-string `fqcn`; a non-string `group` or `unit`; an empty string in any of the three; or a roster not in the canonical `fqcn`-then-`group` order (D-2.1, D-2.1a rules 1 and 3). Refused at read | none today |
 
   Assigning these codes now, in this ADR, is a decision (the family exists,
   is `site-contract`-owned, and the ids enumerated in the table above are
@@ -900,13 +917,21 @@ proves out:
   exactly that drift, where a row is added and a sentence two lines below
   silently becomes false.
 
-  `GEN012`, `GEN013` and `GEN014` are kept apart because they answer three
-  different questions and no one of them could name the others precisely:
-  `GEN012` says *this registration belongs to someone else*; `GEN013` says
-  *this declaration cannot be enacted*; `GEN014` says *the state already on
-  disk is not well-formed*. `GEN010` carries none of them — its scope is the
-  unit-and-path model, and a registration row naming an unknown unit is a
-  registration-ownership failure, not a path conflict.
+  `GEN012` through `GEN015` are kept apart because they answer four different
+  questions and no one of them could name the others precisely: `GEN012` says
+  *this registration belongs to someone else*; `GEN013` says *this declaration
+  cannot be enacted*; `GEN014` says *the Composer provider state on disk is
+  not well-formed*; `GEN015` says *the persisted roster itself is not
+  well-formed*. The last two are separate because they validate **different
+  documents** — `composer.json` is foreign state this authority merges into,
+  the roster is this authority's own record — and a single code could not tell
+  an operator which file to look at. `GEN010` carries none of them: its scope
+  is the unit-and-path model, and a registration row naming an unknown unit is
+  a registration-**ownership** failure, not a path conflict.
+
+  Ownership stays strictly `GEN012`'s: a well-formed row naming a real unit
+  that conflicts over an FQCN is `GEN012`, never `GEN015`, and a structurally
+  invalid row is `GEN015` even when it would also have conflicted.
 - **Exit statuses.** The general CLI convention already stated in
   `docs/specs/cli-kernel.md` — `0` success, `1` command/domain failure, `2`
   usage/input error — is the target for every `merge` command's *new*
