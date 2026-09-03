@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Agent\LocalOperator\LocalOperatorPrincipal;
+use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Provider\McpStdioServiceProvider;
 use Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageGate;
@@ -28,18 +29,22 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresOptionalPackagesInter
 final class McpStdioServiceProviderTest extends TestCase
 {
     #[Test]
-    public function the_provider_declares_ai_agent_as_its_optional_package(): void
+    public function the_provider_declares_both_ai_packages_as_optional(): void
     {
         self::assertInstanceOf(RequiresOptionalPackagesInterface::class, new McpStdioServiceProvider());
 
         $requirements = iterator_to_array(McpStdioServiceProvider::optionalPackageRequirements(), false);
-        self::assertCount(1, $requirements);
+        self::assertCount(2, $requirements);
         self::assertSame('waaseyaa/ai-agent', $requirements[0]->package);
         self::assertSame(LocalOperatorPrincipal::class, $requirements[0]->sentinelClass);
+        self::assertSame('waaseyaa/ai-tools', $requirements[1]->package);
+        self::assertSame(ToolRegistryInterface::class, $requirements[1]->sentinelClass);
 
         $cliManifest = json_decode((string) file_get_contents(\dirname(__DIR__, 3) . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
         self::assertArrayNotHasKey('waaseyaa/ai-agent', $cliManifest['require'], 'cli must not require ai-agent unconditionally (CP009 / ADR-022 D-3.0).');
+        self::assertArrayNotHasKey('waaseyaa/ai-tools', $cliManifest['require'], 'cli must not widen the cms production closure for a development-only command.');
         self::assertArrayHasKey('waaseyaa/ai-agent', $cliManifest['suggest'], 'The optional package stays declared in suggest.');
+        self::assertArrayHasKey('waaseyaa/ai-tools', $cliManifest['suggest'], 'The optional dispatch package stays declared in suggest.');
 
         $agentManifest = json_decode((string) file_get_contents(\dirname(__DIR__, 4) . '/ai-agent/composer.json'), true, flags: JSON_THROW_ON_ERROR);
         $owned = false;
@@ -47,17 +52,13 @@ final class McpStdioServiceProviderTest extends TestCase
             $owned = $owned || str_starts_with($requirements[0]->sentinelClass, $prefix);
         }
         self::assertTrue($owned, 'The sentinel must be a class the optional package itself autoloads.');
-    }
 
-    #[Test]
-    public function ai_tools_is_a_hard_require_not_an_optional_one(): void
-    {
-        // Unlike ai-agent, ai-tools is already production-present in
-        // waaseyaa/framework and waaseyaa/full — gating it here would buy
-        // nothing (ADR-022 D-9.3's transport-neutral dispatch contracts live
-        // there), so cli requires it directly.
-        $cliManifest = json_decode((string) file_get_contents(\dirname(__DIR__, 3) . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
-        self::assertArrayHasKey('waaseyaa/ai-tools', $cliManifest['require']);
+        $toolsManifest = json_decode((string) file_get_contents(\dirname(__DIR__, 4) . '/ai-tools/composer.json'), true, flags: JSON_THROW_ON_ERROR);
+        $owned = false;
+        foreach (array_keys($toolsManifest['autoload']['psr-4']) as $prefix) {
+            $owned = $owned || str_starts_with($requirements[1]->sentinelClass, $prefix);
+        }
+        self::assertTrue($owned, 'The dispatch sentinel must be a class the optional package itself autoloads.');
     }
 
     #[Test]

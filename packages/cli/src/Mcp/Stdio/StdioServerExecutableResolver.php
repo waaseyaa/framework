@@ -78,7 +78,9 @@ final class StdioServerExecutableResolver
 
         return [
             'command' => $php,
-            'args' => [$normalizedRoot . '/vendor/bin/waaseyaa', 'mcp:serve', '--profile=' . $profile],
+            // Apply before PHP loads the target script, so even bootstrap and
+            // autoload warnings cannot corrupt the JSON-RPC stdout stream.
+            'args' => ['-d', 'display_errors=stderr', $normalizedRoot . '/vendor/bin/waaseyaa', 'mcp:serve', '--profile=' . $profile],
         ];
     }
 }

@@ -26,7 +26,7 @@ final class StdioServerExecutableResolverTest extends TestCase
 
         self::assertSame('/usr/bin/php8.5', $result['command']);
         self::assertSame(
-            ['/home/dev/app/vendor/bin/waaseyaa', 'mcp:serve', '--profile=developer'],
+            ['-d', 'display_errors=stderr', '/home/dev/app/vendor/bin/waaseyaa', 'mcp:serve', '--profile=developer'],
             $result['args'],
         );
     }
@@ -43,7 +43,7 @@ final class StdioServerExecutableResolverTest extends TestCase
         // is normalized.
         self::assertSame('C:\\tools\\php85\\php.exe', $result['command']);
         self::assertSame(
-            ['C:/Users/dev/app/vendor/bin/waaseyaa', 'mcp:serve', '--profile=developer'],
+            ['-d', 'display_errors=stderr', 'C:/Users/dev/app/vendor/bin/waaseyaa', 'mcp:serve', '--profile=developer'],
             $result['args'],
         );
     }
@@ -54,8 +54,8 @@ final class StdioServerExecutableResolverTest extends TestCase
         $posix = StdioServerExecutableResolver::resolve('/home/dev/app/', phpBinary: '/usr/bin/php');
         $windows = StdioServerExecutableResolver::resolve('C:\\Users\\dev\\app\\', phpBinary: 'C:\\php\\php.exe');
 
-        self::assertSame('/home/dev/app/vendor/bin/waaseyaa', $posix['args'][0]);
-        self::assertSame('C:/Users/dev/app/vendor/bin/waaseyaa', $windows['args'][0]);
+        self::assertSame('/home/dev/app/vendor/bin/waaseyaa', $posix['args'][2]);
+        self::assertSame('C:/Users/dev/app/vendor/bin/waaseyaa', $windows['args'][2]);
     }
 
     #[Test]
@@ -79,8 +79,8 @@ final class StdioServerExecutableResolverTest extends TestCase
     {
         $result = StdioServerExecutableResolver::resolve('/home/dev/app', phpBinary: '/usr/bin/php', profile: 'developer');
 
-        self::assertSame('mcp:serve', $result['args'][1]);
-        self::assertSame('--profile=developer', $result['args'][2]);
+        self::assertSame('mcp:serve', $result['args'][3]);
+        self::assertSame('--profile=developer', $result['args'][4]);
     }
 
     #[Test]

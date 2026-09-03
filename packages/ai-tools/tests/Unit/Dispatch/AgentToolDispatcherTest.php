@@ -197,6 +197,35 @@ final class AgentToolDispatcherTest extends TestCase
     }
 
     #[Test]
+    public function an_unencodable_tool_result_becomes_a_correlation_bound_failure_before_audit_finalization(): void
+    {
+        $logger = new RecordingLogger();
+        $registry = new ArrayToolRegistry([
+            $this->tool(
+                'probe',
+                handler: static fn(array $a): AgentToolResult => AgentToolResult::success([
+                    ['type' => 'text', 'text' => "invalid-utf8-\xFF"],
+                ]),
+            ),
+        ]);
+
+        $outcome = new AgentToolDispatcher(
+            $registry,
+            new FixedPrincipal(),
+            $logger,
+            'local_stdio',
+            'transport-correlation-encoding',
+        )->dispatch('probe', []);
+
+        self::assertSame(AuditStage::ExecutionFailed, $outcome->stage);
+        self::assertTrue($outcome->isError());
+        self::assertSame('transport-correlation-encoding', $this->body($outcome)['meta']['correlation_id']);
+        self::assertSame('agent_tool.output_encoding_failed', $logger->withLevel('error')[0]['message']);
+        self::assertSame('transport-correlation-encoding', $logger->withLevel('error')[0]['context']['correlation_id']);
+        self::assertJson(json_encode($outcome->envelope, JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function a_missing_structured_content_violates_an_advertised_output_schema(): void
     {
         $registry = new ArrayToolRegistry([

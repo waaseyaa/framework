@@ -31,11 +31,11 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  * zero `mcp:*` commands rather than one whose handler cannot resolve, matching
  * the `ai:*` precedent {@see AiServiceProvider} set for #2826.
  *
- * `waaseyaa/ai-tools` is a hard `require` of this package, not optional: it is
- * already part of `waaseyaa/framework`'s and `waaseyaa/full`'s production
- * closure (it is where the transport-neutral dispatch contracts extracted by
- * #2657 live), so gating it here would buy nothing and would misstate which
- * package this command actually depends on conditionally.
+ * `waaseyaa/ai-tools` is optional for the same reason: `waaseyaa/cms` requires
+ * `waaseyaa/cli` but does not otherwise install the Layer-5 AI tool plane.
+ * Requiring it here would silently widen every CMS consumer's production
+ * closure for a development-only command. Both sentinels must be present
+ * before this provider registers anything.
  *
  * @api
  */
@@ -47,6 +47,11 @@ final class McpStdioServiceProvider extends ServiceProvider implements ProvidesC
             package: 'waaseyaa/ai-agent',
             sentinelClass: LocalOperatorPrincipal::class,
             purpose: 'the mcp:serve local stdio MCP transport (ADR-022 D-9.2), which constructs LocalOperatorPrincipal',
+        );
+        yield new OptionalPackageRequirement(
+            package: 'waaseyaa/ai-tools',
+            sentinelClass: ToolRegistryInterface::class,
+            purpose: 'the mcp:serve local stdio MCP transport, which dispatches through the transport-neutral tool registry',
         );
     }
 

@@ -182,10 +182,28 @@ final class AgentToolDispatcher implements ToolDispatcherInterface
             }
         }
 
-        return new ToolDispatchOutcome(
-            self::toolResultToEnvelope($result),
-            self::classify($result),
-        );
+        $envelope = self::toolResultToEnvelope($result);
+        try {
+            // ToolDispatchOutcome is the transport-neutral wire value consumed
+            // by both HTTP and stdio. Prove it is JSON-representable before an
+            // audited wrapper can finalize the request as successful; otherwise
+            // the durable ledger and the caller would report opposite outcomes.
+            \json_encode($envelope, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES);
+        } catch (\JsonException $e) {
+            $correlationId = $this->failureCorrelationId();
+            $this->logger->error('agent_tool.output_encoding_failed', [
+                'correlation_id' => $correlationId,
+                'tool' => $toolName,
+                'exception' => $e::class,
+            ]);
+
+            return new ToolDispatchOutcome(
+                self::errorEnvelope(SanitizedToolError::body($correlationId)),
+                AuditStage::ExecutionFailed,
+            );
+        }
+
+        return new ToolDispatchOutcome($envelope, self::classify($result));
     }
 
     private function failureCorrelationId(): string

@@ -19,6 +19,9 @@ final class StdioMcpProtocolTest extends TestCase
      */
     private const string FIRST_MODERN_REVISION = '2026-07-28';
 
+    /** The only handshake revision whose receivers MUST accept batches. */
+    private const string BATCHING_REVISION = '2025-03-26';
+
     #[Test]
     public function every_supported_version_is_echoed_back_verbatim(): void
     {
@@ -45,6 +48,16 @@ final class StdioMcpProtocolTest extends TestCase
         self::assertSame(
             StdioMcpProtocol::LATEST_HANDSHAKE_REVISION,
             StdioMcpProtocol::negotiate(self::FIRST_MODERN_REVISION),
+        );
+    }
+
+    #[Test]
+    public function the_batching_revision_is_not_advertised_by_a_server_that_rejects_batches(): void
+    {
+        self::assertNotContains(self::BATCHING_REVISION, StdioMcpProtocol::SUPPORTED);
+        self::assertSame(
+            StdioMcpProtocol::LATEST_HANDSHAKE_REVISION,
+            StdioMcpProtocol::negotiate(self::BATCHING_REVISION),
         );
     }
 

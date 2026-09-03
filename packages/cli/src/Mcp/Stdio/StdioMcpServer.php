@@ -50,6 +50,9 @@ final class StdioMcpServer
 {
     private const string JSONRPC_VERSION = '2.0';
 
+    /** Maximum request bytes before the terminating newline. */
+    public const int MAX_FRAME_BYTES = 1_048_576;
+
     /**
      * @param ToolDispatcherInterface $catalogue Consulted ONLY for `tools()` /
      *        `tool()` — an unaudited, name-ordered listing. `initialize`,
@@ -102,7 +105,21 @@ final class StdioMcpServer
      */
     public function run(): int
     {
-        while (($line = fgets($this->in)) !== false) {
+        // The extra two bytes allow a maximum-size payload plus its newline.
+        // `fgets()` otherwise grows until newline/EOF and lets one caller
+        // exhaust the process before the protocol can return a typed refusal.
+        while (($line = fgets($this->in, self::MAX_FRAME_BYTES + 2)) !== false) {
+            if (!$this->isCompleteBoundedFrame($line)) {
+                $this->discardRemainderOfOversizedFrame($line);
+                $this->writeError(
+                    null,
+                    StdioJsonRpcErrorCode::INVALID_REQUEST,
+                    \sprintf('Invalid Request: frame exceeds %d bytes.', self::MAX_FRAME_BYTES),
+                );
+
+                continue;
+            }
+
             $trimmed = rtrim($line, "\r\n");
             if ($trimmed === '') {
                 continue;
@@ -111,6 +128,27 @@ final class StdioMcpServer
         }
 
         return 0;
+    }
+
+    private function isCompleteBoundedFrame(string $line): bool
+    {
+        $hasTerminator = str_ends_with($line, "\n");
+        $payloadLength = \strlen(rtrim($line, "\r\n"));
+
+        return $payloadLength <= self::MAX_FRAME_BYTES
+            && ($hasTerminator || feof($this->in));
+    }
+
+    private function discardRemainderOfOversizedFrame(string $firstChunk): void
+    {
+        $chunk = $firstChunk;
+        while (!str_ends_with($chunk, "\n") && !feof($this->in)) {
+            $next = fgets($this->in, 8192);
+            if ($next === false) {
+                return;
+            }
+            $chunk = $next;
+        }
     }
 
     private function handleLine(string $line): void

@@ -45,8 +45,10 @@ namespace Waaseyaa\CLI\Mcp\Stdio;
  * an HTTP-package dependency here. The list below is deliberately identical
  * to that class's `LEGACY_SUPPORTED` (its own `initialize` negotiates from
  * exactly these three revisions and never from `CURRENT`), kept in step by
- * hand rather than by import; a version bump to one is not automatically a
- * bump to the other. The HTTP tiers additionally serve the modern era on the
+ * hand rather than by import; this stdio implementation deliberately omits
+ * `2025-03-26`, whose normative base protocol requires receivers to accept
+ * JSON-RPC batches. A version bump to one is not automatically a bump to the
+ * other. The HTTP tiers additionally serve the modern era on the
  * same endpoint — a dual-era server — which is why `McpProtocol::SUPPORTED`
  * is wider than this list. This transport is single-era on purpose.
  *
@@ -68,7 +70,6 @@ final class StdioMcpProtocol
     public const array SUPPORTED = [
         self::LATEST_HANDSHAKE_REVISION,
         '2025-06-18',
-        '2025-03-26',
     ];
 
     /**

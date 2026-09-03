@@ -136,17 +136,12 @@ repository binding.
 
 `mcp:serve` (ADR-022 D-9.2, #2659 — the local stdio MCP transport) is gated
 the same third way: `McpStdioServiceProvider` implements
-`RequiresOptionalPackagesInterface` with `LocalOperatorPrincipal` as the
-sentinel for `waaseyaa/ai-agent`, which `waaseyaa/cli` only suggests (never
-requires — CP009 requires that package stay out of every production require
-closure, since it homes the local-plane's identity primitive). A `--no-dev`
-consumer without the local AI-development plane lists no `mcp:serve` command.
-Unlike `ai:*` and `oidc:*`, `mcp:serve`'s OWN dispatch dependencies
-(`Waaseyaa\AI\Tools\Dispatch\*`, `ToolRegistryInterface`) come from
-`waaseyaa/ai-tools`, which `waaseyaa/cli` DOES require directly and
-unconditionally — that package is already production-present in
-`waaseyaa/framework` and `waaseyaa/full`, so gating it here would add a
-conditional around something that is never actually absent. Once started, the
+`RequiresOptionalPackagesInterface` with sentinels for both
+`waaseyaa/ai-agent` and `waaseyaa/ai-tools`, which `waaseyaa/cli` only suggests.
+That keeps both Layer-5 packages out of a production `waaseyaa/cms` closure
+that reaches `cli`, while a development install carrying both exposes the
+command. A `--no-dev` consumer missing either package lists no `mcp:serve`
+command. Once started, the
 command takes over stdin/stdout for JSON-RPC (`Waaseyaa\CLI\Mcp\Stdio\StdioMcpServer`)
 and never uses `SymfonyCommandIO::write()`/`writeln()` — only `error()`, so
 every diagnostic including a refused `LocalOperatorPrincipal` attestation

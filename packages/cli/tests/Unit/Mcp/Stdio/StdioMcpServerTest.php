@@ -47,6 +47,20 @@ final class StdioMcpServerTest extends TestCase
     }
 
     #[Test]
+    public function an_oversized_frame_is_bounded_refused_and_the_session_recovers(): void
+    {
+        $ping = json_encode(['jsonrpc' => '2.0', 'id' => 9, 'method' => 'ping'], JSON_THROW_ON_ERROR);
+        $frames = $this->roundTrip(str_repeat('x', StdioMcpServer::MAX_FRAME_BYTES + 1) . "\n" . $ping . "\n");
+
+        self::assertCount(2, $frames);
+        self::assertNull($frames[0]['id']);
+        self::assertSame(StdioJsonRpcErrorCode::INVALID_REQUEST, $frames[0]['error']['code']);
+        self::assertStringContainsString((string) StdioMcpServer::MAX_FRAME_BYTES, $frames[0]['error']['message']);
+        self::assertSame(9, $frames[1]['id']);
+        self::assertArrayHasKey('result', $frames[1]);
+    }
+
+    #[Test]
     public function a_notification_produces_no_frame_at_all_known_or_unknown(): void
     {
         $lines = json_encode(['jsonrpc' => '2.0', 'method' => 'notifications/initialized', 'params' => new \stdClass()], JSON_THROW_ON_ERROR)

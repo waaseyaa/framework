@@ -52,6 +52,16 @@ final class McpServeCorrelationIntegrationTest extends TestCase
         ));
     }
 
+    #[Test]
+    public function an_unencodable_result_is_failed_before_the_durable_outcome_is_finalized(): void
+    {
+        $this->assertDurableCorrelation($this->tool(
+            static fn(array $arguments): AgentToolResult => AgentToolResult::success([
+                ['type' => 'text', 'text' => "invalid-utf8-\xFF"],
+            ]),
+        ));
+    }
+
     private function assertDurableCorrelation(AgentTool $tool): void
     {
         $database = DBALDatabase::createSqlite();

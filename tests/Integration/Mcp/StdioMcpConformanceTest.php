@@ -49,6 +49,8 @@ final class StdioMcpConformanceTest extends TestCase
 
     private string $stderrBuffer = '';
 
+    private string $stdoutBuffer = '';
+
     protected function setUp(): void
     {
         $this->repoRoot = (string) realpath(__DIR__ . '/../../..');
@@ -124,6 +126,8 @@ final class StdioMcpConformanceTest extends TestCase
         $this->closeStdin();
         $exitCode = $this->waitForExit();
         self::assertSame(0, $exitCode, 'A clean EOF must exit 0. stderr: ' . $this->stderrBuffer);
+        self::assertStringContainsString('stdio purity probe', $this->stderrBuffer, 'The forced bootstrap warning must be redirected to stderr.');
+        self::assertSame('', trim($this->stdoutBuffer), 'No unread stdout bytes may remain after the final frame.');
     }
 
     #[Test]
@@ -295,7 +299,16 @@ final class StdioMcpConformanceTest extends TestCase
         $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
 
         $process = proc_open(
-            [\PHP_BINARY, $this->repoRoot . '/packages/cli/bin/waaseyaa', 'mcp:serve', '--profile=developer'],
+            [
+                \PHP_BINARY,
+                '-d',
+                'display_errors=stderr',
+                '-d',
+                'auto_prepend_file=' . __DIR__ . '/Fixtures/stdio_boot_warning.php',
+                $this->repoRoot . '/packages/cli/bin/waaseyaa',
+                'mcp:serve',
+                '--profile=developer',
+            ],
             $descriptors,
             $pipes,
             $this->projectRoot,
@@ -375,7 +388,6 @@ final class StdioMcpConformanceTest extends TestCase
         self::assertNotNull($this->pipes);
         [, $stdout, $stderr] = $this->pipes;
 
-        $buffer = '';
         $deadline = microtime(true) + 15.0;
 
         while (microtime(true) < $deadline) {
@@ -397,16 +409,19 @@ final class StdioMcpConformanceTest extends TestCase
                     $this->stderrBuffer .= $chunk;
                     continue;
                 }
-                $buffer .= $chunk;
+                $this->stdoutBuffer .= $chunk;
             }
 
-            $newlineAt = strpos($buffer, "\n");
+            $newlineAt = strpos($this->stdoutBuffer, "\n");
             if ($newlineAt !== false) {
-                return substr($buffer, 0, $newlineAt);
+                $line = substr($this->stdoutBuffer, 0, $newlineAt);
+                $this->stdoutBuffer = substr($this->stdoutBuffer, $newlineAt + 1);
+
+                return $line;
             }
         }
 
-        self::fail('Timed out waiting for a response frame. Buffered so far: ' . var_export($buffer, true) . ' stderr: ' . $this->stderrBuffer);
+        self::fail('Timed out waiting for a response frame. Buffered so far: ' . var_export($this->stdoutBuffer, true) . ' stderr: ' . $this->stderrBuffer);
     }
 
     private function waitForExit(): int
