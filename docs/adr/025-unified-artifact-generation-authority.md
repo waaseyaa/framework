@@ -8,7 +8,9 @@
   accepted), #2664 (`project:init`/upgrade/AI-verify orchestration), #2442
   (`site:init` `minimal`/`editorial` presets — a parallel lane, see D-12),
   #2438/ADR-024 (minimal bootable skeleton), ADR-023 (governed application
-  blueprints extend `waaseyaa.site` v1), `docs/specs/site-golden-path.md`,
+  blueprints extend `waaseyaa.site` v1), #1625/#2730/#2731 (schema
+  migration — a future, separately bound consumer of the D-14 protocol, not
+  authorized here), `docs/specs/site-golden-path.md`,
   `docs/specs/cli-kernel.md`
 - **Command inventory:** `docs/adr/data/025-generation-command-inventory.json`
   (see "Why the inventory lives here" below)
@@ -98,6 +100,15 @@ exactly that kind of artifact: `docs/adr/data/<NNN>-<slug>.json`, referenced
 by filename from the owning ADR, never by a separate index.
 
 ## Decision
+
+D-1 through D-13 fix the generation authority: one execution authority, one
+generated-state authority, one plan contract, one migration sequence. D-14
+names the lifecycle semantics that authority is an instance of — the
+governed-change protocol and its change-receipt envelope — so that schema
+migration can later conform without inheriting generation's types, and so
+that no second interpretation of plan, preview, apply, receipt, verify and
+recovery can appear by default. D-14 authorizes exactly one binding: the
+generation one.
 
 ### D-1. Single execution authority, single generated-state authority
 
@@ -309,29 +320,133 @@ single global comparison at lines 139–143:
    not retirable**: retiring it would leave `.waaseyaa/site.yaml` without
    ownership metadata, precisely the state lines 114–117 already refuse to
    read.
-7. **No set delta on a changed input.** This ADR does **not** grant any unit
-   an authorized path-set change. A unit's set changes only by the unit
-   being created (nothing recorded to compare) or retired (explicit,
-   journaled, drift-refusing). The alternative — permitting a declared
-   delta when `input_digest` changes — was considered and rejected for v1:
-   it widens the frozen-set contract, and retire-then-recreate already gives
-   the operator a reviewed, transactional path with no new authorization
-   surface. A consequence to state rather than discover: this ADR therefore
-   does *not* fix the pre-existing defect described in D-2.8.
+7. **No *undeclared* set delta.** A supplied unit whose rendered path set
+   differs from its recorded set, without declaring that difference, is
+   refused: an undeclared drop is `GEN009`, an undeclared addition is
+   `GEN011`. What a unit may not do is change its set *silently*. Declared
+   additive evolution is authorized and digest-bound under D-2.3a, and only
+   for the compilers that section's closed eligibility list names;
+   shrinking a unit remains retirement-only (step 6). There is no flag, no
+   `--force`, and no override on any of these paths.
+
+#### D-2.3a Authorized successor-plan evolution (additive, digest-bound)
+
+An earlier draft froze every unit's path set outright and pointed the
+operator at retire-then-recreate. That is wrong for the case the framework
+most needs to support: #2787's acceptance requires a changed blueprint to
+produce an exact reviewable diff, and a blueprint that gains one entity
+gains generated artifacts. Under a frozen set, ordinary evolution of an
+authored declaration is refused forever, and the only sanctioned answer —
+retire the root unit and recreate it — deletes and rewrites every file the
+application owns in order to add one. Fail-closed *ownership* is right;
+fail-closed *evolution* is not, and the two are separable.
+
+The authorization is split across the two halves D-6 already separates,
+because only one of them may observe the project.
+
+**The compiler declares capability, purely.** `ArtifactPlan` gains one
+member, `set_evolution`, with values `frozen` or `additive`. `frozen` is
+the default; `additive` is valid only for the closed eligibility list
+below. It is a
+property of the compiler and its validated input — not of any project — so
+the plan stays a pure function of its input and two runs still produce
+byte-identical bytes. A compiler that cannot reason about growing its own
+output keeps `frozen` and behaves exactly as before.
+
+**Evaluation computes the delta and binds it.** `ProjectStateIdentity`
+already observes "the union of the plan's artifact paths and every path
+recorded to a unit the plan supplies or retires" (D-6.2), so the recorded
+set is *already* inside the captured precondition identity and already bound
+by `project_state_digest`. `EvaluatedArtifactPlan` surfaces the comparison
+as `setDelta: {adds, drops}`, both sorted. No new digest is introduced: a
+successor plan compiled against a generation that has since moved is refused
+by the `GEN005_STALE_PLAN` recomputation D-6.5 already performs under the
+exclusive lock.
+
+**Eligibility is a closed list, not a field a compiler may set.** Exactly
+one binding may emit `set_evolution: additive` in v1:
+
+- the **root `site` compiler** — the `SiteArtifactRenderer`-composed render
+  of a `waaseyaa.site` manifest, which is where manifest-authored cardinality
+  already lives (`PublishedContentRecipe::render()` emits one bundle class
+  per `contentTypes` entry, D-2.8), and, once #2787 lands, the
+  approved-blueprint root compiler that produces the same root unit from an
+  `application_blueprint` plus its matching `BlueprintDecisionReceipt`. That
+  second entry is a **forward reference, not a standing grant**: the
+  compiler does not exist, #2846's architecture test can only assert the
+  manifest-render half, and adding the blueprint compiler to this list is an
+  authority expansion that #2787 must earn against the review gate in D-13.
+
+Every other compiler in the D-4 inventory — every `make:*`, every
+`scaffold:*`, every non-root unit — is `frozen`, and a plan from one of them
+carrying `additive` is `GEN011` regardless of what its paths look like. This
+mirrors the closed `seeded` allowlist in D-2.2: the value is not a
+self-service capability, it is a reviewed property of a named compiler.
+#2846 carries the architecture test that asserts this list, alongside the
+one that asserts the `seeded` allowlist, so a future compiler cannot promote
+itself merely by setting the field.
+
+Four further rules make this an authorization rather than an override:
+
+1. **Additive only, in v1.** `drops` must be empty. A supplied unit whose
+   render no longer contains a recorded path is `GEN009` (undeclared
+   retirement) or, where the unit declared evolution, `GEN011`. Shrinking a
+   unit is still retirement (D-2.3 step 6): explicit, journaled, and
+   rollback-covered.
+2. **Growth requires a declared capability.** `adds` non-empty against a
+   `frozen` plan is `GEN011`, identically in dry-run and apply. The
+   compiler must have said it evolves its set; the engine will not infer
+   permission from the fact that the paths happen to be new.
+3. **Every added path faces the full admission checks.** `assertSafeTarget()`
+   (`GEN001`/`GEN002`), the cross-unit ownership check (`GEN003`, `GEN010`),
+   and the existing-unmanaged-file collision refusal (`GEN003`) run on each
+   added path exactly as on a first publish. An added path colliding with a
+   file this authority does not own is refused with no override — the
+   property the frozen set was really protecting, retained in full.
+4. **Carried-forward paths are unaffected.** Paths in both sets keep the
+   managed-digest and extension-region checks they have today (`GEN004`).
+   Successor evolution widens *which paths a unit may own*; it changes
+   nothing about how an already-owned path may be rewritten.
+
+There is no flag and no `--force` on any of these paths. A plan may add
+paths because its compiler declared `additive` and evaluation verified the
+delta against state the digest already binds — not because an operator
+asserted an override.
+
+This closes the additive half of the live defect in D-2.8 — adding a content
+type to an already-initialized `.waaseyaa/site.yaml` — and gives #2787 an
+iterative blueprint path with no second mechanism. The subtractive half
+remains refused in v1: a correct removal must decide the fate of the removed
+file's contents, and that decision belongs to its own issue rather than to
+this ADR's margins.
 
 #### D-2.4 The no-ambiguous-set-change guarantee is retained
 
-The guarantee's scope changes; its nature does not. The sentence in
+The guarantee's scope changes, and D-2.3a adds one named exception to its
+letter; its nature does not change. The sentence in
 `docs/specs/site-golden-path.md` — "A changed artifact set — one generated
 file added or removed — is compared unconditionally, outside the
 manifest-digest guard, and refuses regeneration on every already-initialized
 project with no override and no migration path. Treat the set as frozen" —
-remains true word for word of the root unit, which is the unit it has always
-been about. `site:init` renders the root set; its path set is compared to
-the recorded root set outside the manifest-digest guard; one file added or
-removed still refuses, with no override, no `--force`, and no migration
-engine. Every non-root unit gets the same unconditional treatment inside its
-own boundary.
+remains true of the root unit for **every undeclared change and every
+removal**, which is the behaviour it was written to protect. What it no
+longer describes exhaustively is growth: a *declared* additive successor
+from an eligible compiler (D-2.3a) is authorized, digest-bound, and refused
+the moment it is undeclared, non-additive, or emitted by a compiler outside
+that section's eligibility list.
+
+Concretely, for the root unit: the path set is still compared to the
+recorded set outside the manifest-digest guard; a removal still refuses with
+no override, no `--force`, and no migration engine; an undeclared addition
+is `GEN011`; and a declared addition from the eligible root compiler applies
+under the same lock, the same admission checks, and the same stale-state
+refusal as a first publish. Every non-root unit keeps the unconditional
+treatment inside its own boundary, because no non-root compiler is eligible
+to declare `additive`.
+
+`docs/specs/site-golden-path.md` is not edited by this ADR: it documents
+shipped behaviour, and the behaviour ships with #2846. That update is named
+in D-12 step 1 as part of the slice, not deferred to a later cleanup.
 
 What is removed is only the conflation. Today the guard cannot tell "the
 framework's own generated set drifted" from "another generator wrote a
@@ -344,7 +459,10 @@ Three sub-guarantees, each preserved by a named mechanism rather than by
 assertion:
 
 - **No ambiguous set change** — per-unit unconditional comparison, outside
-  the input-digest guard, no override (D-2.3 step 3, step 7).
+  the input-digest guard, no override (D-2.3 step 3, step 7). What the
+  guarantee forbids is *ambiguity*, not evolution: a declared, digest-bound
+  additive successor (D-2.3a) is unambiguous by construction, and an
+  undeclared change of any shape is still refused.
 - **No ambiguous overwrite** — the existing managed-digest and
   extension-region checks (lines 146–204) run per path exactly as today for
   `managed` rows, with per-unit `input_digest` supplying the "input
@@ -475,10 +593,14 @@ list of variable cardinality. Combined with the unconditional set comparison
 at lines 139–143, that means **adding a content type to an
 already-initialized `.waaseyaa/site.yaml` is refused today** — the
 manifest's own documented editing surface is blocked by the frozen-set rule.
-This ADR does not fix that: D-2.3 keeps the root unit's set frozen exactly
-as it is, and F1's scope is scaffold commands, not manifest-driven set
-growth. It is recorded here so a reviewer does not mistake it for solved,
-and it is legitimate future work with its own decision to make.
+D-2.3a fixes the additive half of this: the root `site` compiler is on its
+closed eligibility list precisely because of this case, so adding a content
+type renders a strict superset of the recorded root set, which its plan may
+declare `additive` and apply, bound to the recorded state it evolved from. **Removing** a
+content type remains refused — the rendered set would shrink, which v1
+routes to retirement rather than to a silent delete — so this defect is
+narrowed, not closed, and its subtractive half is legitimate future work
+with its own decision to make.
 
 #### D-2.9 Decided here versus implemented in #2846
 
@@ -489,7 +611,7 @@ and it is legitimate future work with its own decision to make.
 | The unit-id grammar and its reserved `site` id | Each migrating handler's own id derivation (its own PR) |
 | Two dispositions, fixed by compiler kind, with a closed `seeded` allowlist (D-2.2) | The architecture test asserting that allowlist |
 | Per-unit frozen set, carry-forward, partition, first-owner-wins, explicit retirement (D-2.3) | Replacing lines 139–145 with per-unit reconciliation and gating 146–169 on the supplied unit |
-| No authorized set delta on a changed input (D-2.3 step 7) | — |
+| Declared additive successor evolution, digest-bound, with removal still routed to retirement, and a closed eligibility list for `additive` (D-2.3 step 7, D-2.3a) | The `set_evolution` plan member, `EvaluatedArtifactPlan::$setDelta`, `GEN011`, and the architecture test asserting the eligibility list |
 | Metadata composition moves to the transaction authority (D-2.6) | The composition itself, the service-level re-derivation check, and the byte-identity fixture test that must land **before** the relocation |
 | Retirement is a new journal verb with its own rollback and directory-cleanup semantics | The journal item kind, the rollback branch that restores a deleted file from backup, and its failure-injection coverage |
 | `site:doctor` splits into root-projection compare plus disposition-aware row loop (D-2.7) | The split itself and its new non-blocking finding id |
@@ -619,6 +741,7 @@ proves out:
   | `GEN007_UNSUPPORTED_DECLARATION` | an unsupported field type or generator-feature token, mirroring `SITE042`/the blueprint generator-feature-token refusal for the plan-compilation boundary | `ApplicationBlueprintValidator` `SITE042`, generalized |
   | `GEN008_LOCKED` | a concurrent initialization holds the project lock | `SiteInitializationLockedException` |
   | `GEN009_UNDECLARED_UNIT_RETIREMENT` | a recorded row disappears from a supplied unit's output with no declared retirement (D-2.3 step 6) | none today (no concept of a unit) |
+  | `GEN011_UNAUTHORIZED_SET_DELTA` | a supplied unit renders paths its recorded set does not contain while its plan declares `set_evolution: frozen`, or an evolving unit's render drops a recorded path (D-2.3a) | none today (no concept of a unit) |
   | `GEN010_UNIT_PATH_CONFLICT` | a duplicate unit id, a row naming an unknown unit, or one path claimed by two units (D-2.3 step 1) | none today (no concept of a unit) |
 
   Assigning these codes now, in this ADR, is a decision (the family exists,
@@ -678,6 +801,7 @@ Its canonical document, `{"schema": "waaseyaa.artifact_plan", "version": 1}`:
 | `retires` | list of unit ids, sorted | units this plan retires (D-2.3 step 6); usually empty |
 | `registrations` | list of `ComposerProviderRegistration` | `{fqcn, group?}`, sorted by `fqcn` then `group` |
 | `companion_tests` | list of paths, sorted | must each also appear in `artifacts` |
+| `set_evolution` | `"frozen"` \| `"additive"` | whether this compiler may render a strict superset of its unit's recorded path set (D-2.3a). `additive` only for the compilers on D-2.3a's closed eligibility list; `frozen` for every other compiler in the inventory, and the default |
 | `schema_effects` / `config_effects` | lists of strings, sorted | reserved, empty for every compiler this ADR inventories |
 
 `artifacts` carries the artifact **bytes**, not a digest of them, because
@@ -735,6 +859,10 @@ immutable once constructed:
   flat list with no per-path status or refusal detail. #2846 widens that
   existing computation's output; it does not add a second engine that
   independently re-derives it.
+- `setDelta` — `{adds: list<string>, drops: list<string>}`, both sorted:
+  the comparison of the plan's path set against the recorded set for the
+  unit it supplies (D-2.3a). Empty on a first publish, since nothing is
+  recorded to compare.
 - `refusals` — `list<{code: string, path?: string, message: string}>`, the
   coded detail behind every `refused` status.
 
@@ -746,8 +874,8 @@ of an apply, which is why no check can differ between them.
 **`plan_digest = sha256(CanonicalJson::encode($planDocument) . "\n")`**,
 where `$planDocument` is exactly the D-6.1 document — `schema`, `version`,
 `generator`, `unit`, `input_digest`, `artifacts`, `retires`,
-`registrations`, `companion_tests`, `schema_effects`, `config_effects` — and
-nothing else.
+`registrations`, `companion_tests`, `set_evolution`, `schema_effects`,
+`config_effects` — and nothing else.
 
 `CanonicalJson::encode()` (`packages/site-contract/src/CanonicalJson.php`)
 `ksort`s every object's keys with `SORT_STRING` and encodes with
@@ -781,6 +909,10 @@ times digest-identical, and what makes the digest a stable review handle.
 | `changed` | the paths actually published, sorted |
 | `recovered_interrupted_transaction` / `cleanup_pending` | today's `SiteInitializationResult` booleans, unchanged in meaning |
 | `errors` | `list<{code, path?, pointer?, message}>`, `code` from the `GEN0xx` family (D-5); empty unless `outcome` is `refused` |
+
+`ArtifactApplyResult` is also the generation binding of the
+change-receipt envelope; D-14.7 fixes how these members map onto it and
+where the receipt is durably recorded.
 
 This is a strict superset of today's `SiteInitializationResult`
 (`changedPaths`, `dryRun`, `recoveredInterruptedTransaction`,
@@ -952,9 +1084,17 @@ command, one PR at a time, per the D-12 sequence, and each such PR:
 ### D-8. How #2438 presets and #2787 blueprints compile to the same plan without sharing product-specific DTOs
 
 `site-contract` already proves this exact fan-in pattern for `site:init`:
-`SiteRecipeRendererInterface::render(SiteManifest): GeneratedSite` is
-implemented by several distinct recipe renderers, each of which knows its
+`SiteRecipeRendererInterface::render(SiteManifest): list<GeneratedArtifact>`
+(`packages/site-contract/src/Generation/SiteRecipeRendererInterface.php:14-15`)
+is implemented by several distinct recipe renderers, each of which knows its
 own input shape intimately and each of which emits the same output type.
+`SiteArtifactRenderer::render()`
+(`packages/site-contract/src/Generation/SiteArtifactRenderer.php:30`) is the
+composer above them, and it — not the per-recipe interface — is what returns
+`GeneratedSite`. An earlier draft of this section attributed the
+`GeneratedSite` return to the interface itself; the fan-in argument is
+unchanged, but the citation was wrong and this ADR becomes accepted evidence
+for the issues that consume it.
 This ADR generalizes that one interface's shape, unchanged in spirit, to
 every input surface in the inventory:
 
@@ -1225,18 +1365,31 @@ What is true under D-2, stated exactly:
    evaluation out of `prepare()`; implements the D-2 unit model — read-time
    promotion, per-unit reconciliation, carry-forward, composed metadata,
    the retirement journal verb, and the D-2.7 `site:doctor` split — and
-   codes the `GEN0xx` exceptions. Ships with unit, adversarial,
+   codes the `GEN0xx` exceptions, `GEN011` and D-2.3a's additive successor
+   evolution included — the `set_evolution` plan member, the
+   `EvaluatedArtifactPlan::$setDelta` comparison, the refusals on a
+   frozen-plan addition and an evolving-unit drop, the architecture test
+   asserting D-2.3a's closed eligibility list, and the
+   `docs/specs/site-golden-path.md` update that records the one named
+   exception to the frozen-set sentence (D-2.4). Ships with unit, adversarial,
    failure-injection, and recovery tests per its own acceptance criteria,
    plus the two ordering constraints this ADR fixes: the byte-identity
    fixture test lands **before** the metadata-composition relocation
    (D-2.6), and the `site:doctor` split lands **in the same slice** as the
    unit model (D-2.7), because a first multi-unit publish otherwise turns
    `site:doctor --strict` red and breaks every generated
-   `bin/maintenance/site-verify`. **No `make:*`/`scaffold:*` handler
+   `bin/maintenance/site-verify`. It also returns the D-14.7 change receipt —
+   the closed envelope, the outcome mapping, and
+   `SiteInitializationService::CONTRACT_VERSION` as its sole version
+   declaration (D-14.9) — in the same slice that introduces the apply
+   result, because a result type shipped without its receipt binding would
+   have to be widened again immediately. It persists no receipt: the durable
+   sink is deferred to its own decision (D-14.7). **No `make:*`/`scaffold:*` handler
    changes in this step** — the engine exists and is proven before anything
    is asked to compile into it.
-2. **#2787 — blueprint materialization.** Adds the blueprint-aware root-unit
-   compiler, consuming #2846's `ArtifactPlan` and the existing
+2. **#2787 — blueprint materialization**, subject to D-13's
+   authority-expansion review gate for its addition to D-2.3a's eligibility
+   list. Adds the blueprint-aware root-unit compiler, consuming #2846's `ArtifactPlan` and the existing
    `ApplicationBlueprint`. Composes `SiteArtifactRenderer` +
    `SiteInitializationService` exactly as its own issue text already commits
    to ("Do not create a second transaction, ownership manifest, project
@@ -1310,11 +1463,23 @@ re-implement any part of it:
   `.waaseyaa/generated.json`; create a second collision, containment, or
   symlink-safety check; introduce a per-run disposition flag or any way for
   a caller to choose `seeded` for a unit whose compiler is not on the closed
-  allowlist; or bump `waaseyaa.generated` past version 1 to carry the unit
-  members. It **must**: extend `SiteInitializationService`'s existing
-  evaluation, result, and dry-run surface; implement D-2's unit model inside
-  the one generated-state authority; and add the D-6 types to
-  `site-contract` beside the types they extend.
+  allowlist; bump `waaseyaa.generated` past version 1 to carry the unit
+  members; persist change receipts to any durable sink, or create any second
+  durable record that competes with `.waaseyaa/generated.json` for authority
+  over what is owned or with the transaction journal for authority over
+  recovery (D-14.7 defers the sink to its own decision); restate
+  `authority_version` anywhere but
+  `SiteInitializationService::CONTRACT_VERSION` (D-14.9); or extract a
+  shared protocol type, interface, or package on the strength of this one
+  binding (D-14.8). It **must**: extend `SiteInitializationService`'s
+  existing evaluation, result, and dry-run surface; implement D-2's unit
+  model inside the one generated-state authority, D-2.3a's declared
+  additive evolution and its closed eligibility list included; add the D-6
+  types to
+  `site-contract` beside the types they extend; and satisfy D-14.1's seven
+  obligations, returning a D-14.3 change receipt for every terminated
+  controlled-apply or recovery attempt, including the non-mutating terminal
+  outcomes `refused` and `failed`.
 - **#2787 may not**: create a second transaction, ownership manifest,
   project initializer, or product-specific compiler (its own issue text,
   restated here as binding on this ADR too); or give blueprint
@@ -1325,6 +1490,32 @@ re-implement any part of it:
   plan object — its own "Settled authority" section), and publish
   exclusively through the root-unit render plus
   `SiteInitializationService`.
+
+  **#2787 carries an authority-expansion review gate.** Adding the
+  approved-blueprint root compiler to D-2.3a's closed eligibility list is
+  the only widening of a closed authority allowlist this ADR anticipates.
+  The code change may be one line; changing a closed authority allowlist is
+  never merely a test update, and #2787's acceptance is not satisfied
+  without explicit review evidence for all six of these:
+
+  1. **The engine controls eligibility, not the compiler.** The list is
+     evaluated by the execution authority against the plan's declared
+     `generator`; a compiler cannot assert its own eligibility by setting
+     `set_evolution`.
+  2. **Only the approved-blueprint root compiler is added.** No other
+     compiler, and no generalization of the entry to a category.
+  3. **A valid, digest-matched `BlueprintDecisionReceipt` is mandatory.**
+     An unapproved or mismatched blueprint is not eligible to evolve a path
+     set, whatever its plan declares.
+  4. **It produces the existing root `site` unit** — not a new unit, not a
+     parallel one (D-10.1, restated because eligibility makes the
+     temptation concrete).
+  5. **Missing or invalid approval, or an ineligible compiler carrying
+     `additive`, is `GEN011`** — identically in dry-run and apply.
+  6. **Architecture tests prove the boundary in both directions**: the
+     existing manifest binding remains eligible, and every other compiler
+     in the D-4 inventory remains frozen. A test asserting only the
+     addition is insufficient.
 - **#2664 may not**: fork `site:init`'s profile semantics; create a second
   hash/version engine for `ai:update --check/--apply` and `ai:verify`
   distinct from `.waaseyaa/generated.json`'s digests; or let Composer
@@ -1338,6 +1529,265 @@ Any of the three found, on implementation, to require a genuinely new
 capability this decision cannot express extends this ADR with a follow-on
 decision naming the extension — it does not invent a parallel mechanism
 silently inside its own issue.
+
+### D-14. The governed-change protocol and the change-receipt envelope
+
+Doctrine holds that install, generate, upgrade, replay and rollback must
+stop being separate interpretations of the same lifecycle. The earlier draft
+of this ADR answered only half of that: it fixed a plan/preview/apply
+contract that is correct for generation and said nothing about whether
+schema migration — which owns its own planner, executor and ledger under
+#1625/#2730/#2731 — is speaking the same language or a different one.
+Leaving that open would settle it by default, and the default is the exact
+authority discontinuity #2851 exists to prevent.
+
+This section names the shared semantics now and binds only generation to
+them now. It authorizes no schema work, no new package, and no shared
+runtime code.
+
+#### D-14.1 What the protocol is, and what it deliberately is not
+
+The **governed-change protocol** is a set of obligations on any lifecycle
+authority that mutates durable project state. It is a *contract*, not an
+implementation: there is no protocol base class, no shared interface, and no
+new package. Two authorities conform to it by satisfying its obligations in
+their own types, not by importing each other's.
+
+`protocol_version` is **1** for everything this ADR authorizes.
+
+An authority conforming to the protocol must provide:
+
+| # | Obligation | Why it is protocol-level and not domain-level |
+|---|---|---|
+| 1 | **Immutable, digest-bound plan.** A plan is a pure function of validated input and the planner's own version, carries no observation of the target, and is identified by a digest over its canonical document. | The review handle must be stable across processes and machines, or an operator's approval binds nothing. |
+| 2 | **Side-effect-free preview.** Evaluating a plan against live state produces a decidable prediction and writes nothing. | Preview that can mutate is not preview, and a preview that differs from apply's own evaluation is a second interpretation. |
+| 3 | **Stale-plan detection.** Apply recomputes both the plan digest and a captured precondition identity under the exclusive lock, and refuses with a typed code when either moved. | Otherwise the window between review and apply is an unbounded, silent race. |
+| 4 | **Controlled apply.** State-changing work happens under an exclusive lock, is atomic with respect to interruption, and either reaches its declared end state or leaves the prior one. | Partial success reported as success is the failure mode the beta exit contract names by name. |
+| 5 | **Typed change receipt.** Every terminated **controlled-apply or recovery attempt** emits one receipt conforming to D-14.3 — including attempts that terminate without changing anything, because `refused` and `failed` are outcomes a caller must be able to see. | What happened must be expressible in a shape a reader can interpret without knowing the domain. v1 requires the *typed outcome*, not its retention: see D-14.7. |
+| 6 | **Verification.** The authority can re-derive, from durable state alone, whether its declared end state still holds. | Recovery and upgrade both require a truth test that does not depend on the run that produced the state. |
+| 7 | **Recovery.** An interrupted apply resolves, on the next run, to a named prior state before new work begins, and says so. | A lifecycle whose interruption semantics are undefined cannot be operated. |
+
+The protocol does **not** define: a shared plan type, a shared executor, a
+shared lock, a universal ledger, a distributed transaction, or a
+cross-domain rollback. Each authority owns its planner, its executor, its
+durable record, and its recovery.
+
+#### D-14.2 "One durable ownership record" means one per boundary
+
+Exactly one authoritative record per lifecycle boundary — not one record for
+the framework. `.waaseyaa/generated.json` is authoritative for generated
+state; the migration ledger is authoritative for schema state; the audit
+ledger is authoritative for authorization events; the validation read ledger
+is authoritative for its own reads. These stay separate. What the protocol
+requires is that each boundary's ownership is **explicit and
+non-overlapping**, and that where cross-boundary work is reconstructed at
+all it is reconstructed by *correlating* receipts rather than by one record
+narrating another's business. No ledger may record, infer, or restate an
+outcome that belongs to another authority.
+
+Reconstruction is therefore **conditional on retention**, and v1 mandates no
+retention (D-14.7). An authority that has not adopted a governed retention
+sink can correlate receipts only within the process that emitted them. This
+is a stated limit of v1, not a capability the protocol claims and fails to
+deliver.
+
+#### D-14.3 The change-receipt envelope
+
+Every conforming authority emits receipts carrying at least these members.
+The envelope is closed: an authority adds detail under `domain_payload`, not
+as new top-level members.
+
+| Member | Type | Meaning |
+|---|---|---|
+| `receipt_id` | string, unique, immutable | identifies this receipt for all time; never reused, never rewritten |
+| `protocol_version` | int | governed-change protocol version (`1`) |
+| `authority` | string, namespaced | the lifecycle owner, e.g. `waaseyaa.generation` |
+| `authority_version` | int | the authority's own implementation/contract version |
+| `operation` | string, domain-defined | stable operation name, e.g. `site.init` |
+| `plan_digest` | 64 hex | the exact approved plan this outcome is bound to |
+| `outcome` | enum | `applied` \| `no_op` \| `refused` \| `failed` \| `recovered` |
+| `correlation_id` | string | shared identifier for one top-level operation |
+| `causation_receipt_id` | string, optional | the direct predecessor in the causal chain, always another **change** receipt |
+| `decision_receipt_id` | string, optional | the approval this outcome executed (D-14.6), never carried in `causation_receipt_id` |
+| `issued_at` | RFC 3339 UTC | the time the authority issued this outcome |
+| `domain_payload` | versioned object | authority-owned detail; carries its own `version` |
+
+`issued_at` is the time the authority reached and issued this terminal
+outcome, not the time the work began, and not a claim that anything was
+stored — v1 emits receipts and retains none (D-14.7). It is wall-clock and
+therefore never an input to any digest. A future retention sink that needs
+to distinguish issuing from recording adds its own member; it does not
+redefine this one.
+
+#### D-14.4 The outcome vocabulary, and what does not earn a receipt
+
+| `outcome` | Means |
+|---|---|
+| `applied` | the declared end state was reached and is durable |
+| `no_op` | controlled apply began and terminated with no durable change — the declared end state already held |
+| `refused` | the authority declined before changing anything, with a typed code |
+| `failed` | the attempt neither reached its end state nor cleanly restored the prior one — the state requires operator attention |
+| `recovered` | the durable effect of this run was resolving a prior interrupted attempt, and no new work was published |
+
+**A receipt begins at controlled apply or recovery, not before.** Obligation
+2 makes preview side-effect-free, so a dry-run yields its evaluation and
+nothing more. The same boundary settles cancellation: an operator who
+declines at confirmation does so **before** apply begins — in the generation
+binding, `SiteInitializationService`'s authorize callback runs after
+evaluation and before `publish()`
+(`packages/cli/src/Site/SiteInitializationService.php:94-96`), so no byte is
+staged, no journal item is opened, and nothing has been attempted to record.
+**Pre-apply cancellation emits no receipt.** It is not a `no_op`: `no_op`
+means apply ran and found the end state already satisfied, which is
+operationally a different fact, and burying the difference in
+`domain_payload` would hide a distinction the vocabulary exists to make. An
+authority whose cancellation can occur *after* apply begins does not have
+this option and must record the terminal outcome it actually reached.
+
+This is also the one place the envelope deliberately does not mirror
+`ArtifactApplyResult`, whose `planned` and `cancelled` values describe a
+*return value* rather than a durable event.
+
+**Recovery followed by new work is two receipts, not one.** When a run
+resolves an interrupted transaction and then publishes, it emits a
+`recovered` receipt and an `applied` receipt sharing a `correlation_id`,
+with the second naming the first as its `causation_receipt_id`. An outcome
+enum cannot express two durable effects, and collapsing them would make the
+recovery invisible to anyone reading receipts rather than logs.
+
+#### D-14.5 Correlation and causation
+
+`correlation_id` groups every receipt belonging to one top-level operation.
+An authority invoked without one mints one and is itself the top level; an
+authority invoked by an orchestrator inherits the one it is given.
+
+`causation_receipt_id` names the single receipt this one directly followed.
+Together they describe a tree, and that tree is the *only* sanctioned way
+to describe a multi-authority operation — reconstructible for as long as the
+receipts are held, which in v1 is the emitting process unless a governed
+retention sink says otherwise.
+
+Correlation carries no transactional meaning. It does not imply a
+distributed transaction, a shared lock, a two-phase commit, or a rollback
+that crosses authorities. A correlated sibling failing does not oblige an
+authority to undo an `applied` outcome it already emitted — and an
+orchestrator that wants that behavior must implement compensation as
+explicit new operations with their own receipts.
+
+A composite orchestrator **may** emit a parent receipt whose
+`domain_payload` references child receipt ids and summarizes their outcomes.
+It **may not** overwrite a child receipt, restate a child's outcome as its
+own, or emit a receipt on a child authority's behalf.
+
+#### D-14.6 A change receipt is not a decision receipt
+
+ADR-023 already owns the word *receipt* for approval:
+`BlueprintDecisionReceipt` records that a proposed change **was authorized**,
+before anything runs. This section's **change receipt** records what an
+authority **did**, after it ran. They are different objects at different
+ends of the lifecycle, and neither substitutes for the other: an approved
+plan that was never applied has a decision receipt and no change receipt; a
+refused apply has a change receipt and may have no decision receipt at all.
+Where both exist for one operation, the change receipt sets the top-level
+`decision_receipt_id` — a reference, never a copy. It is a protocol-level
+relationship and therefore a closed-envelope member, not domain detail; and
+it is never expressed by overloading `causation_receipt_id`, which chains
+change receipts to change receipts only.
+
+#### D-14.7 The generation binding
+
+`ArtifactApplyResult` (D-6.4) is the **generation binding** of this
+envelope, and the only binding this ADR authorizes. Its existing members are
+retained verbatim and relocated under `domain_payload`; the envelope members
+are added around them:
+
+| Envelope member | Generation binding |
+|---|---|
+| `authority` | `waaseyaa.generation` |
+| `authority_version` | `SiteInitializationService::CONTRACT_VERSION`, a new `public const int` that is the **sole** machine-readable declaration of this authority's contract version (D-14.9) |
+| `operation` | the invoking entrypoint's stable name (`site.init`, `make.content_type`, `blueprint.materialize`, …) |
+| `plan_digest` | D-6.3, unchanged |
+| `outcome` | mapped from D-6.4: `applied`→`applied`, `no_changes`→`no_op`, `refused`→`refused`; a transaction that could neither complete nor roll back is `failed`; a recovery-only run is `recovered`. `planned` and `cancelled` emit **no receipt** — both terminate before controlled apply (D-14.4) |
+| `domain_payload` | `{version: 1, project_state_digest, status, changed, errors, recovered_interrupted_transaction, cleanup_pending}` — generation detail only; `decision_receipt_id` is a top-level envelope member (D-14.3), not payload |
+
+**v1 emits the receipt; it does not retain it.** The generation binding
+constructs and returns a conformant change receipt, and stops there. This is
+the protocol's v1 position, not a generation-specific shortcut: obligation 5
+requires the typed outcome, and retention is delegated in full to a future
+governed sink.
+`.waaseyaa/generated.json` remains the sole authority for what is owned, and
+the existing transaction journal remains the sole authority for recovery.
+Neither is displaced, duplicated, or narrated by a second file.
+
+An earlier draft of this section required an append-only
+`.waaseyaa/receipts.jsonl`. That is withdrawn, because a durable receipt
+sink is a custody problem this ADR has not solved and a half-solved one
+would be the discontinuity D-14 exists to prevent:
+
+- If a failed append leaves the apply successful, the file is best-effort
+  telemetry and calling it durable evidence is false.
+- If a failed append fails the apply, the engine reports failure *after* a
+  committed mutation — the exact success-shaped-lie inversion, in the other
+  direction.
+- Reconstructing lost receipts from `.waaseyaa/generated.json` cannot
+  recover `refused`, `failed`, or recovery detail: the ownership record only
+  knows about outcomes that changed ownership.
+- Concurrent append, truncation, `fsync`, permissions, retention, redaction
+  of `domain_payload`, and Windows append semantics each become acceptance
+  obligations nobody has specified.
+
+Persistent receipt projection is therefore **a separately governed sink**,
+designed as its own decision once its failure semantics are settled, and
+sequenced after #2846. Until then a receipt reaches an operator through the
+command's machine-readable output and reaches a caller as a return value —
+which is enough for the CLI contract doctrine requires, and honest about
+what is not yet durable.
+
+#### D-14.8 No shared runtime code until a second binding exists
+
+The envelope is specified here; it is **not** extracted into shared code.
+Generation's types stay in `waaseyaa/site-contract`. A future schema binding
+under #1625/#2730/#2731 conforms by satisfying D-14.1's obligations and
+emitting D-14.3's envelope through **its own** planner, executor and ledger.
+It may not import a generation type, and no schema operation may be routed
+through `SiteInitializationService`.
+
+Only when a second binding exists, and its shape is observed rather than
+predicted, may a shared runtime home be proposed — as its own decision,
+naming the package boundary the two real implementations demonstrate. One
+implementation is not evidence of the right abstraction.
+
+**Conformance checklist for a second binding**, to be satisfied in its own
+issue and reviewed against this section: obligations 1–7 of D-14.1 named and
+tested; a closed envelope per D-14.3 with a domain-versioned payload; the
+outcome vocabulary of D-14.4 with preview emitting no receipt; correlation
+and causation per D-14.5 with no cross-authority rollback implied; its own
+durable record, explicitly non-overlapping with every record in D-14.2.
+
+#### D-14.9 One declaration of `authority_version`
+
+`authority_version` has exactly one machine-readable source per authority.
+For generation that is a new `public const int
+SiteInitializationService::CONTRACT_VERSION`, starting at `1`. Receipts,
+tests, fixtures, and documentation **read** it; none of them restate its
+value. A fixture carrying a literal version integer is a defect, not a
+convenience.
+
+Compatibility semantics: the constant is a monotonically increasing integer,
+incremented when the authority's observable contract changes — its refusal
+codes, its `domain_payload` shape, or its recovery semantics — and never for
+an internal refactor. A reader may always parse the closed envelope of a
+receipt from any `authority_version`; it may not assume `domain_payload`
+compatibility across a bump without consulting that payload's own `version`.
+
+This rule is written because the adjacent concept already violates it:
+`generator_version` has no single declaration today. It is a bare literal
+`1` in `SiteManifestWizard.php:114`, flows untyped through
+`SiteManifest::$generatorVersion` into `GeneratedSite` and the ownership
+metadata, and sits beside a per-recipe `SubscriptionRecipe::VERSION` and a
+`SiteManifestSchema::CURRENT_VERSION` on a different axis entirely.
+Consolidating `generator_version` is not authorized here; `authority_version`
+simply does not repeat the mistake.
 
 ## Consequences
 
@@ -1382,6 +1832,12 @@ Costs and one-way doors, recorded here rather than discovered later:
   protected, with no error. The closed `seeded` allowlist and doctor's
   per-row disposition output are the two controls; both are required, not
   optional.
+- **`set_evolution` is a reviewed property, not a capability flag.** A
+  compiler that could set `additive` for itself would have re-invented
+  `--force` with extra steps: the refusal that protects an application's
+  files would become opt-out by the very code being protected against. The
+  closed eligibility list and its architecture test are the control, and
+  they are required, not optional — exactly as for the `seeded` allowlist.
 - **Unit ids are published surface from their first release.** A key
   derivation changed later orphans the old unit while the new one collides
   with it, and the collision is permanent until one is retired. Each
@@ -1425,11 +1881,18 @@ authorizes:
 - This ADR does not define an approval/decision-receipt mechanism beyond
   what ADR-023 already specifies for blueprints — that remains owned by the
   higher layer (AI system, human review, forge adapter) ADR-023 already
-  names.
+  names. D-14's **change receipt** is a different object at the other end of
+  the lifecycle (D-14.6) and does not extend, replace, or reinterpret
+  ADR-023's decision receipt.
+- This ADR does not authorize a schema-migration binding of the D-14
+  protocol, a shared runtime implementation of it, or a new package to hold
+  one. D-14.8 fixes both the conformance obligations a second binding must
+  satisfy and the rule that no shared code is extracted until a second
+  binding exists.
 - This ADR does not fix the pre-existing refusal on manifest-driven artifact
-  set growth described in D-2.8, does not grant any unit an authorized
-  path-set delta (D-2.3 step 7), and does not adopt already-written,
-  unowned scaffold output into the unit model retroactively (D-10.3).
+  set *shrinkage* described in D-2.8 — additive growth is authorized by
+  D-2.3a, removal is not — and does not adopt already-written, unowned
+  scaffold output into the unit model retroactively (D-10.3).
 - This ADR does not retire, rename, or set a removal date for any `keep` or
   `merge` command. Deprecation windows and removal dates, where they prove
   necessary, are each `merge` command's own D-12 migration PR's decision to
