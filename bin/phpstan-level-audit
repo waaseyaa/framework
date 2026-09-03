@@ -1,0 +1,299 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$autoload = $root . '/vendor/autoload.php';
+if (!is_file($autoload)) {
+    fwrite(STDERR, "ERROR: vendor/autoload.php is missing; run composer install first.\n");
+    exit(1);
+}
+require $autoload;
+
+use Waaseyaa\Tools\PHPStan\LevelAudit;
+
+$levels = range(5, 10);
+$comparePath = null;
+$allowDirty = false;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if ($argument === '--self-test') {
+        selfTest();
+        exit(0);
+    }
+    if ($argument === '--allow-dirty') {
+        $allowDirty = true;
+        continue;
+    }
+    if (str_starts_with($argument, '--levels=')) {
+        try {
+            $levels = LevelAudit::parseLevels(substr($argument, strlen('--levels=')));
+        } catch (InvalidArgumentException $exception) {
+            fail($exception->getMessage());
+        }
+        continue;
+    }
+    if (str_starts_with($argument, '--compare=')) {
+        $comparePath = substr($argument, strlen('--compare='));
+        continue;
+    }
+    if ($argument === '--help') {
+        echo "Usage: bin/phpstan-level-audit [--levels=5-10] [--compare=evidence.json] [--allow-dirty]\n";
+        exit(0);
+    }
+
+    fail(sprintf('Unknown argument: %s', $argument));
+}
+
+$phpstan = $root . '/vendor/bin/phpstan';
+if (!is_file($phpstan)) {
+    fail("vendor/bin/phpstan is missing; run composer install first.");
+}
+
+[$statusExit, $statusOutput] = command([canonicalGit($root), 'status', '--porcelain'], $root);
+if ($statusExit !== 0) {
+    fail('Unable to inspect the working tree.');
+}
+if (!$allowDirty && trim($statusOutput) !== '') {
+    fail('The working tree is dirty; commit the candidate or use --allow-dirty for non-authoritative development output.');
+}
+
+[$commitExit, $commit] = command([canonicalGit($root), 'rev-parse', 'HEAD'], $root);
+if ($commitExit !== 0 || preg_match('/^[0-9a-f]{40}$/', trim($commit)) !== 1) {
+    fail('Unable to resolve the analysed Git commit.');
+}
+[$versionExit, $version] = command([PHP_BINARY, $phpstan, '--version'], $root);
+if ($versionExit !== 0) {
+    fail('Unable to read the PHPStan version.');
+}
+
+$configurationFiles = configurationDigests($root);
+$expandedByLevel = [];
+$summaries = [];
+$previousTotal = null;
+foreach ($levels as $level) {
+    [$parametersExit, $parameters] = command([
+        PHP_BINARY,
+        $phpstan,
+        'dump-parameters',
+        '--configuration=phpstan.neon',
+        '--level=' . $level,
+    ], $root);
+    if ($parametersExit !== 0) {
+        fail(sprintf('PHPStan parameter expansion failed at level %d.', $level));
+    }
+    $expandedByLevel[(string) $level] = normalizeText($parameters, $root);
+
+    [$analysisExit, $analysis] = command([
+        PHP_BINARY,
+        $phpstan,
+        'analyse',
+        '--configuration=phpstan.neon',
+        '--level=' . $level,
+        '--error-format=json',
+        '--no-progress',
+        '--memory-limit=2G',
+    ], $root);
+    if (!in_array($analysisExit, [0, 1], true)) {
+        fail(sprintf('PHPStan analysis failed operationally at level %d (exit %d).', $level, $analysisExit));
+    }
+    $decoded = json_decode($analysis, true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || !isset($decoded['files'], $decoded['totals']) || !is_array($decoded['files'])) {
+        fail(sprintf('PHPStan emitted an invalid JSON result at level %d.', $level));
+    }
+    if (($decoded['totals']['errors'] ?? 0) !== 0) {
+        fail(sprintf('PHPStan reported non-file errors at level %d.', $level));
+    }
+
+    $findings = [];
+    foreach ($decoded['files'] as $file => $fileResult) {
+        if (!is_array($fileResult) || !is_array($fileResult['messages'] ?? null)) {
+            continue;
+        }
+        foreach ($fileResult['messages'] as $message) {
+            if (!is_array($message)) {
+                continue;
+            }
+            $identifier = $message['identifier'] ?? null;
+            $findings[] = [
+                'file' => (string) $file,
+                'identifier' => is_string($identifier) ? $identifier : null,
+            ];
+        }
+    }
+    $summary = LevelAudit::summarize($findings, $root);
+    $reportedTotal = $decoded['totals']['file_errors'] ?? null;
+    if (!is_int($reportedTotal) || $reportedTotal !== $summary['total']) {
+        fail(sprintf('Finding reconciliation failed at level %d.', $level));
+    }
+    $summary['increment_from_previous_level'] = $previousTotal === null ? null : $summary['total'] - $previousTotal;
+    $summaries[(string) $level] = $summary;
+    $previousTotal = $summary['total'];
+}
+
+$expandedParameters = LevelAudit::canonicalJson($expandedByLevel);
+$evidence = [
+    'schema_version' => 1,
+    'analysed_commit' => trim($commit),
+    'working_tree_dirty' => trim($statusOutput) !== '',
+    'phpstan_version' => trim($version),
+    'levels' => $levels,
+    'configuration_files' => $configurationFiles,
+    'active_baselines' => array_values(array_filter(
+        array_keys($configurationFiles),
+        static fn (string $path): bool => str_contains(basename($path), 'baseline'),
+    )),
+    'expanded_parameters_sha256' => hash('sha256', $expandedParameters),
+    'input_identity_sha256' => LevelAudit::inputIdentity(
+        levels: $levels,
+        phpstanVersion: $version,
+        expandedParameters: $expandedParameters,
+        root: $root,
+        configurationFiles: $configurationFiles,
+    ),
+    'results' => $summaries,
+];
+
+if ($comparePath !== null) {
+    $expectedBytes = @file_get_contents($comparePath);
+    if (!is_string($expectedBytes)) {
+        fail(sprintf('Unable to read comparison evidence: %s', $comparePath));
+    }
+    $expected = json_decode($expectedBytes, true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($expected)) {
+        fail('Comparison evidence must be a JSON object.');
+    }
+    LevelAudit::assertComparable($expected, $evidence);
+}
+
+echo json_encode($evidence, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+
+/** @return array<string, string> */
+function configurationDigests(string $root): array
+{
+    $configuration = $root . '/phpstan.neon';
+    $bytes = file_get_contents($configuration);
+    if (!is_string($bytes)) {
+        fail('Unable to read phpstan.neon.');
+    }
+    $paths = ['phpstan.neon'];
+    $inIncludes = false;
+    foreach (preg_split('/\R/', $bytes) ?: [] as $line) {
+        if (preg_match('/^includes:\s*$/', $line) === 1) {
+            $inIncludes = true;
+            continue;
+        }
+        if (!$inIncludes) {
+            continue;
+        }
+        if (preg_match('/^\s+-\s+(.+?)\s*$/', $line, $matches) === 1) {
+            $paths[] = trim($matches[1], "'\"");
+            continue;
+        }
+        if (trim($line) !== '' && !str_starts_with(ltrim($line), '#')) {
+            break;
+        }
+    }
+
+    $digests = [];
+    foreach ($paths as $path) {
+        $absolute = str_starts_with($path, '/') ? $path : $root . '/' . $path;
+        if (!is_file($absolute)) {
+            fail(sprintf('Included PHPStan configuration is missing: %s', $path));
+        }
+        $digest = hash_file('sha256', $absolute);
+        if (!is_string($digest)) {
+            fail(sprintf('Unable to hash PHPStan configuration: %s', $path));
+        }
+        $digests[str_replace('\\', '/', $path)] = $digest;
+    }
+    ksort($digests, SORT_STRING);
+
+    return $digests;
+}
+
+/** @return array{0:int, 1:string} */
+function command(array $command, string $cwd): array
+{
+    $descriptorSpec = [
+        0 => ['file', 'php://stdin', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+    $process = proc_open($command, $descriptorSpec, $pipes, $cwd);
+    if (!is_resource($process)) {
+        return [127, ''];
+    }
+    $stdout = stream_get_contents($pipes[1]) ?: '';
+    $stderr = stream_get_contents($pipes[2]) ?: '';
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+    if (!in_array($exitCode, [0, 1], true) && $stderr !== '') {
+        fwrite(STDERR, $stderr);
+    }
+
+    return [is_int($exitCode) ? $exitCode : 1, $stdout];
+}
+
+function canonicalGit(string $root): string
+{
+    $git = $root . '/bin/git';
+    if (!is_file($git)) {
+        fail('bin/git is missing.');
+    }
+
+    return $git;
+}
+
+function normalizeText(string $value, string $root): string
+{
+    return str_replace(
+        rtrim(str_replace('\\', '/', $root), '/'),
+        '{repo}',
+        str_replace('\\', '/', $value),
+    );
+}
+
+function selfTest(): void
+{
+    $baseArguments = [
+        'levels' => [5, 6, 7, 8, 9, 10],
+        'phpstanVersion' => 'PHPStan self-test',
+        'expandedParameters' => "paths:\n- /repo/packages\nexcludePaths:\n- /repo/packages/admin/*\n",
+        'root' => '/repo',
+        'configurationFiles' => ['phpstan.neon' => 'a', 'phpstan-baseline.neon' => 'b'],
+    ];
+    $base = LevelAudit::inputIdentity(...$baseArguments);
+    $mutations = [
+        'level' => ['levels' => [5, 6, 7, 8]],
+        'source path' => ['expandedParameters' => "paths:\n- /repo/other\n"],
+        'exclusion' => ['expandedParameters' => "excludePaths:\n- /repo/packages/admin/*\n"],
+        'include' => ['configurationFiles' => ['phpstan.neon' => 'changed']],
+    ];
+    foreach ($mutations as $name => $mutation) {
+        $changed = LevelAudit::inputIdentity(...array_replace($baseArguments, $mutation));
+        if (hash_equals($base, $changed)) {
+            fail(sprintf('Self-test failed to detect %s drift.', $name));
+        }
+        try {
+            LevelAudit::assertComparable(
+                ['input_identity_sha256' => $base],
+                ['input_identity_sha256' => $changed],
+            );
+            fail(sprintf('Self-test comparison accepted %s drift.', $name));
+        } catch (RuntimeException $exception) {
+            if (!str_contains($exception->getMessage(), 'measurement inputs changed')) {
+                throw $exception;
+            }
+        }
+    }
+    echo "OK - PHPStan level audit detects level, source-path, exclusion, and include drift.\n";
+}
+
+function fail(string $message): never
+{
+    fwrite(STDERR, 'ERROR: ' . $message . PHP_EOL);
+    exit(1);
+}
