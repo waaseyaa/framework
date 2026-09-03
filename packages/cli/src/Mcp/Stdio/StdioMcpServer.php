@@ -33,12 +33,16 @@ use Waaseyaa\AI\Tools\Dispatch\ToolDispatchOutcome;
  * it cannot be a single constructed instance), while this class stays
  * audit-agnostic and unit-testable with a bare stub.
  *
- * **Scope.** Only `initialize`, `ping`, `tools/list`, and `tools/call` are
- * implemented — the only capability this transport advertises is `tools`, so
- * there is no `resources/*` or `prompts/*` surface to answer for. Every other
- * method is `-32601 Method not found`. Batched requests (a JSON array of
- * request objects) are rejected as `-32600 Invalid Request`; this transport
- * has exactly one caller per process and no need for batching.
+ * **Scope.** This is a handshake-era (legacy) MCP server — see
+ * {@see StdioMcpProtocol} for why, and for the revisions it will negotiate.
+ * Only `initialize`, `ping`, `tools/list`, and `tools/call` are implemented —
+ * the only capability this transport advertises is `tools`, so there is no
+ * `resources/*` or `prompts/*` surface to answer for. Every other method,
+ * `server/discover` explicitly included, is `-32601 Method not found`: that
+ * is the specified signal a dual-era client probes for before falling back to
+ * `initialize`. Batched requests (a JSON array of request objects) are
+ * rejected as `-32600 Invalid Request`; this transport has exactly one caller
+ * per process and no need for batching.
  *
  * @api
  */
@@ -128,6 +132,16 @@ final class StdioMcpServer
         }
 
         $hasId = \array_key_exists('id', $decoded);
+        if ($hasId && !self::isValidRequestId($decoded['id'])) {
+            // Answered with a null id rather than by echoing the offending
+            // value: a client that sent `{"id": {"a": 1}}` cannot correlate
+            // the reply anyway, and echoing an arbitrary structure back would
+            // put an unbounded, unvalidated fragment of the request onto the
+            // wire inside a frame the client will parse as a JSON-RPC id.
+            $this->writeError(null, StdioJsonRpcErrorCode::INVALID_REQUEST, 'Invalid Request: "id" must be a string or an integer.');
+
+            return;
+        }
         $id = $hasId ? $decoded['id'] : null;
 
         if (($decoded['jsonrpc'] ?? null) !== self::JSONRPC_VERSION) {
@@ -148,7 +162,7 @@ final class StdioMcpServer
         }
 
         $params = $decoded['params'] ?? [];
-        if (!\is_array($params)) {
+        if (!self::isDecodedJsonObject($params)) {
             if ($hasId) {
                 $this->writeError($id, StdioJsonRpcErrorCode::INVALID_PARAMS, 'Invalid params: "params" must be an object.');
             }
@@ -194,8 +208,8 @@ final class StdioMcpServer
 
         if (
             !\is_string($requestedVersion)
-            || !\is_array($capabilities)
-            || !\is_array($clientInfo)
+            || !self::isDecodedJsonObject($capabilities)
+            || !self::isDecodedJsonObject($clientInfo)
             || !isset($clientInfo['name'], $clientInfo['version'])
             || !\is_string($clientInfo['name'])
             || !\is_string($clientInfo['version'])
@@ -237,7 +251,7 @@ final class StdioMcpServer
         }
 
         $arguments = $params['arguments'] ?? [];
-        if (!\is_array($arguments)) {
+        if (!self::isDecodedJsonObject($arguments)) {
             $this->writeError($id, StdioJsonRpcErrorCode::INVALID_PARAMS, 'Invalid params: "arguments" must be an object.');
 
             return;
@@ -248,6 +262,49 @@ final class StdioMcpServer
         $outcome = ($this->dispatch)($name, $arguments, $correlationId);
 
         $this->writeResult($id, $outcome->envelope);
+    }
+
+    /**
+     * Is this decoded value a JSON *object*, as every `params`-shaped field on
+     * this wire must be?
+     *
+     * `json_decode($line, true)` is lossy in exactly one way that matters
+     * here: it erases the JSON `{}` / `[]` distinction, handing both back as
+     * the same PHP `[]`. A bare `\is_array()` check therefore accepts
+     * `"params": [1, 2, 3]` — a JSON *array* — as if it were an object, and
+     * the request then flows on to a handler that reads `$params['name']`
+     * off it and finds nothing, producing a misleading downstream error for
+     * what is really a malformed frame.
+     *
+     * A NON-EMPTY PHP list is unambiguously a JSON array and is rejected. The
+     * empty array is genuinely ambiguous — it is what BOTH `{}` and `[]`
+     * decode to — and is accepted, because `{}` is the common, correct way a
+     * client sends "no arguments" and there is no way to tell the two apart
+     * after decoding. Erring towards accepting `[]` costs nothing: every
+     * handler treats an empty params object and an absent one identically.
+     *
+     * @phpstan-assert-if-true array<string, mixed> $value
+     */
+    private static function isDecodedJsonObject(mixed $value): bool
+    {
+        return \is_array($value) && ($value === [] || !array_is_list($value));
+    }
+
+    /**
+     * Is this a JSON-RPC id this server will answer to?
+     *
+     * JSON-RPC 2.0 allows a String, a Number, or Null; MCP narrows that to
+     * "a string or integer" that "MUST NOT be `null`". This server takes the
+     * narrower rule, which also disposes of the shapes that would otherwise
+     * be echoed straight back into a response frame: an array, an object, a
+     * bool, or a float. Fractional ids are rejected rather than coerced —
+     * JSON-RPC itself says a Number id SHOULD NOT contain fractional parts,
+     * and silently answering `1.0` as `1` would break correlation on any
+     * client that compares ids strictly.
+     */
+    private static function isValidRequestId(mixed $id): bool
+    {
+        return \is_int($id) || \is_string($id);
     }
 
     private function writeResult(mixed $id, mixed $result): void

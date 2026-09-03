@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
+use Waaseyaa\CLI\Mcp\Stdio\StdioJsonRpcErrorCode;
+use Waaseyaa\CLI\Mcp\Stdio\StdioMcpProtocol;
 use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 /**
@@ -80,12 +82,12 @@ final class StdioMcpConformanceTest extends TestCase
         $this->startServer();
 
         $init = $this->request(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize', 'params' => [
-            'protocolVersion' => '2026-07-28',
+            'protocolVersion' => StdioMcpProtocol::LATEST_HANDSHAKE_REVISION,
             'capabilities' => [],
             'clientInfo' => ['name' => 'conformance-probe', 'version' => '0.0.1'],
         ]]);
         self::assertSame(1, $init['id']);
-        self::assertSame('2026-07-28', $init['result']['protocolVersion']);
+        self::assertSame(StdioMcpProtocol::LATEST_HANDSHAKE_REVISION, $init['result']['protocolVersion']);
         self::assertSame('waaseyaa', $init['result']['serverInfo']['name']);
         self::assertArrayHasKey('tools', $init['result']['capabilities']);
 
@@ -147,11 +149,105 @@ final class StdioMcpConformanceTest extends TestCase
 
         $this->writeRawLine('this is not json');
         $malformed = $this->readFrame();
-        self::assertSame(-32700, $malformed['error']['code']);
+        self::assertSame(StdioJsonRpcErrorCode::PARSE_ERROR, $malformed['error']['code']);
 
         // The server must still be alive and answering after a parse error.
         $ping = $this->request(['jsonrpc' => '2.0', 'id' => 99, 'method' => 'ping']);
         self::assertSame(99, $ping['id']);
+    }
+
+    /**
+     * The era contract, proven on the real wire rather than only against the
+     * negotiation helper: a modern client's opening moves both get the answers
+     * that identify this process as a handshake-era server, and the session it
+     * then opens works normally.
+     */
+    #[Test]
+    public function a_modern_era_client_is_told_this_is_a_handshake_era_server_and_can_still_open_a_session(): void
+    {
+        $this->installAndBoot();
+        $this->startServer();
+
+        // 1. The specified stdio probe. Any error that is not a recognized
+        //    modern one means "legacy server, fall back to initialize" — so
+        //    -32601 here is load-bearing, and -32022 would be actively wrong.
+        $probe = $this->request(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'server/discover', 'params' => [
+            '_meta' => ['io.modelcontextprotocol/protocolVersion' => '2026-07-28'],
+        ]]);
+        self::assertSame(StdioJsonRpcErrorCode::METHOD_NOT_FOUND, $probe['error']['code']);
+
+        // 2. The fallback handshake, still asking for the modern revision.
+        //    The server must answer with a revision it actually implements.
+        $init = $this->request(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'initialize', 'params' => [
+            'protocolVersion' => '2026-07-28',
+            'capabilities' => [],
+            'clientInfo' => ['name' => 'modern-probe', 'version' => '0.0.1'],
+        ]]);
+        self::assertSame(StdioMcpProtocol::LATEST_HANDSHAKE_REVISION, $init['result']['protocolVersion']);
+        self::assertContains($init['result']['protocolVersion'], StdioMcpProtocol::SUPPORTED);
+
+        $ping = $this->request(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'ping']);
+        self::assertSame(3, $ping['id']);
+    }
+
+    /**
+     * Wire-shape rejection over real pipes. `json_decode(..., true)` erasing
+     * the JSON `{}` / `[]` distinction is a decoding artefact of THIS process,
+     * so the unit test proves the rule; this proves the rule survives the real
+     * command's own decode path — and that every rejection leaves a session a
+     * client can keep using, which is the property a wire-shape guard is most
+     * likely to break.
+     */
+    #[Test]
+    public function malformed_wire_shapes_are_rejected_one_frame_at_a_time_without_ending_the_session(): void
+    {
+        $this->installAndBoot();
+        $this->startServer();
+
+        $expectations = [
+            // A JSON array where a params object belongs.
+            '{"jsonrpc":"2.0","id":1,"method":"ping","params":[1,2,3]}'
+                => [StdioJsonRpcErrorCode::INVALID_PARAMS, 1],
+            // A JSON array where a tools/call arguments object belongs.
+            '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"bimaaji_search_specs","arguments":["entity"]}}'
+                => [StdioJsonRpcErrorCode::INVALID_PARAMS, 2],
+            // Ids MCP does not allow: an object, an array, and null. Each is
+            // answered with a null id rather than echoed back.
+            '{"jsonrpc":"2.0","id":{"nested":"object"},"method":"ping"}'
+                => [StdioJsonRpcErrorCode::INVALID_REQUEST, null],
+            '{"jsonrpc":"2.0","id":[1,2],"method":"ping"}'
+                => [StdioJsonRpcErrorCode::INVALID_REQUEST, null],
+            '{"jsonrpc":"2.0","id":null,"method":"ping"}'
+                => [StdioJsonRpcErrorCode::INVALID_REQUEST, null],
+            // A batch, which this transport does not implement.
+            '[{"jsonrpc":"2.0","id":3,"method":"ping"}]'
+                => [StdioJsonRpcErrorCode::INVALID_REQUEST, null],
+        ];
+
+        foreach ($expectations as $line => [$code, $expectedId]) {
+            $this->writeRawLine($line);
+            $frame = $this->readFrame();
+
+            self::assertSame($code, $frame['error']['code'], 'For line: ' . $line);
+            self::assertSame($expectedId, $frame['id'], 'For line: ' . $line);
+            self::assertArrayNotHasKey('result', $frame, 'For line: ' . $line);
+        }
+
+        // `"params": {}` is the ambiguous case that MUST keep working: it is
+        // how a conformant client sends "no parameters", and it decodes to the
+        // same empty PHP array a rejected `[]` would.
+        $empty = $this->request(['jsonrpc' => '2.0', 'id' => 4, 'method' => 'ping', 'params' => new \stdClass()]);
+        self::assertArrayHasKey('result', $empty, 'stderr was: ' . $this->stderrBuffer);
+        self::assertSame(4, $empty['id']);
+
+        // And a real tool call still succeeds after all of the above — the
+        // session was never poisoned by any rejection.
+        $call = $this->request(['jsonrpc' => '2.0', 'id' => 5, 'method' => 'tools/call', 'params' => [
+            'name' => 'bimaaji_search_specs',
+            'arguments' => ['query' => 'entity'],
+        ]]);
+        self::assertArrayHasKey('result', $call, 'stderr was: ' . $this->stderrBuffer);
+        self::assertSame(5, $call['id']);
     }
 
     #[Test]
