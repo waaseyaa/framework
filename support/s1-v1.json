@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "contract_version": "s1-v1",
-  "last_reviewed": "2026-08-10",
-  "review_by": "2026-10-01",
+  "last_reviewed": "2026-09-03",
+  "review_by": "2026-10-15",
   "profile": {
     "name": "S1",
     "status": "candidate",
