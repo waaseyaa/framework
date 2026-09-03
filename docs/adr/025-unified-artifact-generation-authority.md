@@ -967,9 +967,17 @@ command, one PR at a time, per the D-12 sequence, and each such PR:
 ### D-8. How #2438 presets and #2787 blueprints compile to the same plan without sharing product-specific DTOs
 
 `site-contract` already proves this exact fan-in pattern for `site:init`:
-`SiteRecipeRendererInterface::render(SiteManifest): GeneratedSite` is
-implemented by several distinct recipe renderers, each of which knows its
+`SiteRecipeRendererInterface::render(SiteManifest): list<GeneratedArtifact>`
+(`packages/site-contract/src/Generation/SiteRecipeRendererInterface.php:14-15`)
+is implemented by several distinct recipe renderers, each of which knows its
 own input shape intimately and each of which emits the same output type.
+`SiteArtifactRenderer::render()`
+(`packages/site-contract/src/Generation/SiteArtifactRenderer.php:30`) is the
+composer above them, and it — not the per-recipe interface — is what returns
+`GeneratedSite`. An earlier draft of this section attributed the
+`GeneratedSite` return to the interface itself; the fan-in argument is
+unchanged, but the citation was wrong and this ADR becomes accepted evidence
+for the issues that consume it.
 This ADR generalizes that one interface's shape, unchanged in spirit, to
 every input surface in the inventory:
 
