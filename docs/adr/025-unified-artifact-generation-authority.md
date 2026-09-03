@@ -8,7 +8,9 @@
   accepted), #2664 (`project:init`/upgrade/AI-verify orchestration), #2442
   (`site:init` `minimal`/`editorial` presets — a parallel lane, see D-12),
   #2438/ADR-024 (minimal bootable skeleton), ADR-023 (governed application
-  blueprints extend `waaseyaa.site` v1), `docs/specs/site-golden-path.md`,
+  blueprints extend `waaseyaa.site` v1), #1625/#2730/#2731 (schema
+  migration — a future, separately bound consumer of the D-14 protocol, not
+  authorized here), `docs/specs/site-golden-path.md`,
   `docs/specs/cli-kernel.md`
 - **Command inventory:** `docs/adr/data/025-generation-command-inventory.json`
   (see "Why the inventory lives here" below)
@@ -98,6 +100,15 @@ exactly that kind of artifact: `docs/adr/data/<NNN>-<slug>.json`, referenced
 by filename from the owning ADR, never by a separate index.
 
 ## Decision
+
+D-1 through D-13 fix the generation authority: one execution authority, one
+generated-state authority, one plan contract, one migration sequence. D-14
+names the lifecycle semantics that authority is an instance of — the
+governed-change protocol and its change-receipt envelope — so that schema
+migration can later conform without inheriting generation's types, and so
+that no second interpretation of plan, preview, apply, receipt, verify and
+recovery can appear by default. D-14 authorizes exactly one binding: the
+generation one.
 
 ### D-1. Single execution authority, single generated-state authority
 
@@ -782,6 +793,10 @@ times digest-identical, and what makes the digest a stable review handle.
 | `recovered_interrupted_transaction` / `cleanup_pending` | today's `SiteInitializationResult` booleans, unchanged in meaning |
 | `errors` | `list<{code, path?, pointer?, message}>`, `code` from the `GEN0xx` family (D-5); empty unless `outcome` is `refused` |
 
+`ArtifactApplyResult` is also the generation binding of the
+change-receipt envelope; D-14.7 fixes how these members map onto it and
+where the receipt is durably recorded.
+
 This is a strict superset of today's `SiteInitializationResult`
 (`changedPaths`, `dryRun`, `recoveredInterruptedTransaction`,
 `cleanupPending`, `cancelled`), so no information available today is lost;
@@ -1232,7 +1247,12 @@ What is true under D-2, stated exactly:
    (D-2.6), and the `site:doctor` split lands **in the same slice** as the
    unit model (D-2.7), because a first multi-unit publish otherwise turns
    `site:doctor --strict` red and breaks every generated
-   `bin/maintenance/site-verify`. **No `make:*`/`scaffold:*` handler
+   `bin/maintenance/site-verify`. It also emits the D-14.7 change receipt —
+   the envelope members, the outcome mapping, and the
+   `.waaseyaa/receipts.jsonl` append with its three evidence-not-authority
+   rules — in the same slice that introduces the apply result, because a
+   result type shipped without its receipt binding would have to be widened
+   again immediately. **No `make:*`/`scaffold:*` handler
    changes in this step** — the engine exists and is proven before anything
    is asked to compile into it.
 2. **#2787 — blueprint materialization.** Adds the blueprint-aware root-unit
@@ -1310,11 +1330,17 @@ re-implement any part of it:
   `.waaseyaa/generated.json`; create a second collision, containment, or
   symlink-safety check; introduce a per-run disposition flag or any way for
   a caller to choose `seeded` for a unit whose compiler is not on the closed
-  allowlist; or bump `waaseyaa.generated` past version 1 to carry the unit
-  members. It **must**: extend `SiteInitializationService`'s existing
-  evaluation, result, and dry-run surface; implement D-2's unit model inside
-  the one generated-state authority; and add the D-6 types to
-  `site-contract` beside the types they extend.
+  allowlist; bump `waaseyaa.generated` past version 1 to carry the unit
+  members; create a second durable record that competes with
+  `.waaseyaa/generated.json` for authority over what is owned — the D-14.7
+  receipt log is evidence and is never read to make a decision; or extract a
+  shared protocol type, interface, or package on the strength of this one
+  binding (D-14.8). It **must**: extend `SiteInitializationService`'s
+  existing evaluation, result, and dry-run surface; implement D-2's unit
+  model inside the one generated-state authority; add the D-6 types to
+  `site-contract` beside the types they extend; and satisfy D-14.1's seven
+  obligations, recording a D-14.3 change receipt for every terminated
+  state-changing attempt.
 - **#2787 may not**: create a second transaction, ownership manifest,
   project initializer, or product-specific compiler (its own issue text,
   restated here as binding on this ADR too); or give blueprint
@@ -1338,6 +1364,196 @@ Any of the three found, on implementation, to require a genuinely new
 capability this decision cannot express extends this ADR with a follow-on
 decision naming the extension — it does not invent a parallel mechanism
 silently inside its own issue.
+
+### D-14. The governed-change protocol and the change-receipt envelope
+
+Doctrine holds that install, generate, upgrade, replay and rollback must
+stop being separate interpretations of the same lifecycle. The earlier draft
+of this ADR answered only half of that: it fixed a plan/preview/apply
+contract that is correct for generation and said nothing about whether
+schema migration — which owns its own planner, executor and ledger under
+#1625/#2730/#2731 — is speaking the same language or a different one.
+Leaving that open would settle it by default, and the default is the exact
+authority discontinuity #2851 exists to prevent.
+
+This section names the shared semantics now and binds only generation to
+them now. It authorizes no schema work, no new package, and no shared
+runtime code.
+
+#### D-14.1 What the protocol is, and what it deliberately is not
+
+The **governed-change protocol** is a set of obligations on any lifecycle
+authority that mutates durable project state. It is a *contract*, not an
+implementation: there is no protocol base class, no shared interface, and no
+new package. Two authorities conform to it by satisfying its obligations in
+their own types, not by importing each other's.
+
+`protocol_version` is **1** for everything this ADR authorizes.
+
+An authority conforming to the protocol must provide:
+
+| # | Obligation | Why it is protocol-level and not domain-level |
+|---|---|---|
+| 1 | **Immutable, digest-bound plan.** A plan is a pure function of validated input and the planner's own version, carries no observation of the target, and is identified by a digest over its canonical document. | The review handle must be stable across processes and machines, or an operator's approval binds nothing. |
+| 2 | **Side-effect-free preview.** Evaluating a plan against live state produces a decidable prediction and writes nothing. | Preview that can mutate is not preview, and a preview that differs from apply's own evaluation is a second interpretation. |
+| 3 | **Stale-plan detection.** Apply recomputes both the plan digest and a captured precondition identity under the exclusive lock, and refuses with a typed code when either moved. | Otherwise the window between review and apply is an unbounded, silent race. |
+| 4 | **Controlled apply.** State-changing work happens under an exclusive lock, is atomic with respect to interruption, and either reaches its declared end state or leaves the prior one. | Partial success reported as success is the failure mode the beta exit contract names by name. |
+| 5 | **Typed change receipt.** Every terminated state-changing attempt records one receipt conforming to D-14.3. | Evidence of what happened must outlive the process that did it, in a shape a reader can interpret without knowing the domain. |
+| 6 | **Verification.** The authority can re-derive, from durable state alone, whether its declared end state still holds. | Recovery and upgrade both require a truth test that does not depend on the run that produced the state. |
+| 7 | **Recovery.** An interrupted apply resolves, on the next run, to a named prior state before new work begins, and says so. | A lifecycle whose interruption semantics are undefined cannot be operated. |
+
+The protocol does **not** define: a shared plan type, a shared executor, a
+shared lock, a universal ledger, a distributed transaction, or a
+cross-domain rollback. Each authority owns its planner, its executor, its
+durable record, and its recovery.
+
+#### D-14.2 "One durable ownership record" means one per boundary
+
+Exactly one authoritative record per lifecycle boundary — not one record for
+the framework. `.waaseyaa/generated.json` is authoritative for generated
+state; the migration ledger is authoritative for schema state; the audit
+ledger is authoritative for authorization events; the validation read ledger
+is authoritative for its own reads. These stay separate. What the protocol
+requires is that each boundary's ownership is **explicit and
+non-overlapping**, and that cross-boundary work is reconstructed by
+*correlating* receipts rather than by one record narrating another's
+business. No ledger may record, infer, or restate an outcome that belongs to
+another authority.
+
+#### D-14.3 The change-receipt envelope
+
+Every conforming authority records receipts carrying at least these members.
+The envelope is closed: an authority adds detail under `domain_payload`, not
+as new top-level members.
+
+| Member | Type | Meaning |
+|---|---|---|
+| `receipt_id` | string, unique, immutable | identifies this receipt for all time; never reused, never rewritten |
+| `protocol_version` | int | governed-change protocol version (`1`) |
+| `authority` | string, namespaced | the lifecycle owner, e.g. `waaseyaa.generation` |
+| `authority_version` | int | the authority's own implementation/contract version |
+| `operation` | string, domain-defined | stable operation name, e.g. `site.init` |
+| `plan_digest` | 64 hex | the exact approved plan this outcome is bound to |
+| `outcome` | enum | `applied` \| `no_op` \| `refused` \| `failed` \| `recovered` |
+| `correlation_id` | string | shared identifier for one top-level operation |
+| `causation_receipt_id` | string, optional | the direct predecessor in the causal chain |
+| `recorded_at` | RFC 3339 UTC | durable recording time |
+| `domain_payload` | versioned object | authority-owned detail; carries its own `version` |
+
+`recorded_at` is the time the receipt was durably recorded, not the time the
+work began; it is wall-clock and therefore never an input to any digest.
+
+#### D-14.4 The outcome vocabulary, and what does not earn a receipt
+
+| `outcome` | Means |
+|---|---|
+| `applied` | the declared end state was reached and is durable |
+| `no_op` | the attempt terminated with no durable change, including an operator cancelling at confirmation |
+| `refused` | the authority declined before changing anything, with a typed code |
+| `failed` | the attempt neither reached its end state nor cleanly restored the prior one — the state requires operator attention |
+| `recovered` | the durable effect of this run was resolving a prior interrupted attempt, and no new work was published |
+
+**Preview does not emit a receipt.** Obligation 2 makes preview
+side-effect-free, and a receipt is a durable record of a state-changing
+attempt; a dry-run yields the evaluation, nothing more. This is the one
+place the envelope deliberately does not mirror `ArtifactApplyResult`, whose
+`planned` outcome exists to describe a dry-run's *return value*.
+
+**Recovery followed by new work is two receipts, not one.** When a run
+resolves an interrupted transaction and then publishes, it records a
+`recovered` receipt and an `applied` receipt sharing a `correlation_id`,
+with the second naming the first as its `causation_receipt_id`. An outcome
+enum cannot express two durable effects, and collapsing them would make the
+recovery invisible to anyone reading receipts rather than logs.
+
+#### D-14.5 Correlation and causation
+
+`correlation_id` groups every receipt belonging to one top-level operation.
+An authority invoked without one mints one and is itself the top level; an
+authority invoked by an orchestrator inherits the one it is given.
+
+`causation_receipt_id` names the single receipt this one directly followed.
+Together they reconstruct a tree, and that reconstruction is the *only*
+sanctioned way to describe a multi-authority operation.
+
+Correlation carries no transactional meaning. It does not imply a
+distributed transaction, a shared lock, a two-phase commit, or a rollback
+that crosses authorities. A correlated sibling failing does not oblige an
+authority to undo an `applied` outcome it already recorded — and an
+orchestrator that wants that behavior must implement compensation as
+explicit new operations with their own receipts.
+
+A composite orchestrator **may** record a parent receipt whose
+`domain_payload` references child receipt ids and summarizes their outcomes.
+It **may not** overwrite a child receipt, restate a child's outcome as its
+own, or record a receipt on a child authority's behalf.
+
+#### D-14.6 A change receipt is not a decision receipt
+
+ADR-023 already owns the word *receipt* for approval:
+`BlueprintDecisionReceipt` records that a proposed change **was authorized**,
+before anything runs. This section's **change receipt** records what an
+authority **did**, after it ran. They are different objects at different
+ends of the lifecycle, and neither substitutes for the other: an approved
+plan that was never applied has a decision receipt and no change receipt; a
+refused apply has a change receipt and may have no decision receipt at all.
+Where both exist for one operation, the change receipt's `domain_payload`
+carries the decision receipt's identifier — a reference, never a copy.
+
+#### D-14.7 The generation binding
+
+`ArtifactApplyResult` (D-6.4) is the **generation binding** of this
+envelope, and the only binding this ADR authorizes. Its existing members are
+retained verbatim and relocated under `domain_payload`; the envelope members
+are added around them:
+
+| Envelope member | Generation binding |
+|---|---|
+| `authority` | `waaseyaa.generation` |
+| `authority_version` | the `SiteInitializationService` contract version |
+| `operation` | the invoking entrypoint's stable name (`site.init`, `make.content_type`, `blueprint.materialize`, …) |
+| `plan_digest` | D-6.3, unchanged |
+| `outcome` | mapped from D-6.4: `applied`→`applied`, `no_changes`→`no_op`, `cancelled`→`no_op` (with `domain_payload.termination = "cancelled"`), `refused`→`refused`; `planned` emits no receipt (D-14.4); a transaction that could neither complete nor roll back is `failed`; a recovery-only run is `recovered` |
+| `domain_payload` | `{version: 1, project_state_digest, status, changed, errors, recovered_interrupted_transaction, cleanup_pending, termination?, decision_receipt_id?}` |
+
+Receipts are appended, one canonical JSON document per line, to
+`.waaseyaa/receipts.jsonl`, owned by the generation authority. Three rules
+keep that file evidence rather than a second authority:
+
+1. **It is written after the transaction reaches a terminal state**, not
+   inside it. A rolled-back apply must still leave a `refused` or `failed`
+   receipt; a receipt erased by the rollback it describes is worthless.
+2. **The engine never reads it to make a decision.**
+   `.waaseyaa/generated.json` remains the sole authority for what is owned
+   and what is current (D-1/D-2). The receipt log is read by operators,
+   diagnostics, and `site:doctor`.
+3. **A missing receipt is a reconcilable gap, not corruption.** Host death
+   between commit and append can lose the last receipt. The next run detects
+   that `generated.json` advanced past the newest `applied` receipt and
+   records a `recovered` receipt naming the gap. Because the ownership
+   record is authoritative and the log is evidence, this is a repair, not an
+   ambiguity.
+
+#### D-14.8 No shared runtime code until a second binding exists
+
+The envelope is specified here; it is **not** extracted into shared code.
+Generation's types stay in `waaseyaa/site-contract`. A future schema binding
+under #1625/#2730/#2731 conforms by satisfying D-14.1's obligations and
+emitting D-14.3's envelope through **its own** planner, executor and ledger.
+It may not import a generation type, and no schema operation may be routed
+through `SiteInitializationService`.
+
+Only when a second binding exists, and its shape is observed rather than
+predicted, may a shared runtime home be proposed — as its own decision,
+naming the package boundary the two real implementations demonstrate. One
+implementation is not evidence of the right abstraction.
+
+**Conformance checklist for a second binding**, to be satisfied in its own
+issue and reviewed against this section: obligations 1–7 of D-14.1 named and
+tested; a closed envelope per D-14.3 with a domain-versioned payload; the
+outcome vocabulary of D-14.4 with preview emitting no receipt; correlation
+and causation per D-14.5 with no cross-authority rollback implied; its own
+durable record, explicitly non-overlapping with every record in D-14.2.
 
 ## Consequences
 
@@ -1425,7 +1641,14 @@ authorizes:
 - This ADR does not define an approval/decision-receipt mechanism beyond
   what ADR-023 already specifies for blueprints — that remains owned by the
   higher layer (AI system, human review, forge adapter) ADR-023 already
-  names.
+  names. D-14's **change receipt** is a different object at the other end of
+  the lifecycle (D-14.6) and does not extend, replace, or reinterpret
+  ADR-023's decision receipt.
+- This ADR does not authorize a schema-migration binding of the D-14
+  protocol, a shared runtime implementation of it, or a new package to hold
+  one. D-14.8 fixes both the conformance obligations a second binding must
+  satisfy and the rule that no shared code is extracted until a second
+  binding exists.
 - This ADR does not fix the pre-existing refusal on manifest-driven artifact
   set growth described in D-2.8, does not grant any unit an authorized
   path-set delta (D-2.3 step 7), and does not adopt already-written,
