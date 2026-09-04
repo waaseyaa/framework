@@ -74,7 +74,7 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
             // enough. `evaluate` is an ordinary English verb that unrelated
             // scripts use, so it only counts inside a file that also names the
             // service -- precision here, not an allowlist.
-            $entersSeam = preg_match('/->\s*(?:receiptFor|inspectUnits|readUnitMetadata|prepareUnitPlan)\s*\(/', $code) === 1
+            $entersSeam = preg_match('/->\s*(?:receiptFor|inspectUnits|readUnitMetadata|readComposerProviderState|prepareUnitPlan)\s*\(/', $code) === 1
                 || (str_contains($code, 'SiteInitializationService') && preg_match('/->\s*evaluate\s*\(/', $code) === 1);
             if ($entersSeam) {
                 $offenders[] = $relative;

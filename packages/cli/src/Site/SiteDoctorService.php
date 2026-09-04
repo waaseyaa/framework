@@ -129,12 +129,13 @@ final class SiteDoctorService
         try {
             // Reading and target admission belong to the existing execution
             // authority, including every carried path; doctor owns no parser.
-            $metadata = new SiteInitializationService($root)->readUnitMetadata();
+            $authority = new SiteInitializationService($root);
+            $metadata = $authority->readUnitMetadata();
         } catch (\Throwable) {
             return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated unit ownership metadata is missing or invalid.', 'Restore the governed ownership metadata.', 'invalid-units')];
         }
         $projection = $metadata;
-        unset($projection['units']);
+        unset($projection['units'], $projection['registrations']);
         $projection['artifacts'] = array_values(array_filter($metadata['artifacts'], static fn(array $row): bool => !array_key_exists('unit', $row)));
         $expected = SiteArtifactRendererFactory::create()->render($manifest)->artifacts['.waaseyaa/generated.json']->content;
         if (!hash_equals($expected, CanonicalJson::encode($projection) . "\n")) {
@@ -144,7 +145,7 @@ final class SiteDoctorService
         foreach ($metadata['units'] ?? [] as $unit) {
             $units[$unit['id']] = $unit['disposition'];
         }
-        $findings = [];
+        $findings = $this->registrationFindings($authority, $metadata, $units);
         foreach ($metadata['artifacts'] as $row) {
             $unit = $row['unit'] ?? 'site';
             $disposition = $units[$unit] ?? 'managed';
@@ -171,6 +172,37 @@ final class SiteDoctorService
             $mode = DIRECTORY_SEPARATOR === '/' ? fileperms($path) : null;
             if ($mode !== null && ($mode === false || sprintf('%04o', $mode & 0o777) !== $row['mode'])) {
                 $findings[] = $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', $row['path'], 1, $context . 'Recorded artifact mode was substituted.', 'Restore the recorded mode.', is_int($mode) ? sprintf('%04o', $mode & 0o777) : 'unreadable');
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, string> $units
+     * @return list<SiteDoctorFinding>
+     */
+    private function registrationFindings(SiteInitializationService $authority, array $metadata, array $units): array
+    {
+        try {
+            $state = $authority->readComposerProviderState();
+        } catch (\Throwable) {
+            return [$this->finding('SITE015_REGISTRATION_DRIFT', 'composer.json', 1, 'Composer provider state is invalid or unsafe to inspect.', 'Restore a valid unique provider list and a private regular Composer manifest.', 'invalid-provider-state')];
+        }
+        $findings = [];
+        foreach ($metadata['registrations'] ?? [] as $row) {
+            if (in_array($row['fqcn'], $state['providers'], true)) {
+                continue;
+            }
+            $unit = $row['unit'] ?? 'site';
+            $disposition = $units[$unit] ?? 'managed';
+            $context = "[unit {$unit}; disposition {$disposition}] ";
+            if ($disposition === 'seeded') {
+                $id = 'SITE016_SEEDED_REGISTRATION_MISSING';
+                $findings[] = new SiteDoctorFinding($id, FindingSeverity::Warning, 'composer.json', 1, $context . "Seeded provider registration {$row['fqcn']} is absent.", 'Review the developer-owned removal; regeneration does not restore seeded registrations.', hash('sha256', $id . "\0" . $row['fqcn'] . "\0" . $unit));
+            } else {
+                $findings[] = $this->finding('SITE015_REGISTRATION_DRIFT', 'composer.json', 1, $context . "Managed provider registration {$row['fqcn']} is absent.", 'Restore the recorded provider registration through the owning generation plan.', $row['fqcn'] . "\0" . $unit);
             }
         }
 

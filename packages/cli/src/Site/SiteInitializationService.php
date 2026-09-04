@@ -239,12 +239,12 @@ final class SiteInitializationService
      * Prepare the complete ownership transition without staging a byte.
      * Handler activation, stale-plan checking and public apply are slice 8.
      *
-     * @return array{prepared: array<string, GeneratedArtifact>, retirements: array<string, array<string, mixed>>, evaluation: EvaluatedArtifactPlan}
+     * @return array{prepared: array<string, GeneratedArtifact>, retirements: array<string, array<string, mixed>>, composerMerge: array{content: string, mode: int, before_sha256: string}|null, evaluation: EvaluatedArtifactPlan}
      */
     private function prepareUnitPlan(ArtifactPlan $plan): array
     {
-        if ($plan->registrations !== [] || $plan->schemaEffects !== [] || $plan->configEffects !== []) {
-            $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'Registration and reserved effects are not active.');
+        if ($plan->schemaEffects !== [] || $plan->configEffects !== []) {
+            $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'Reserved effects are not active.');
         }
         if ($plan->setEvolution !== ArtifactSetEvolution::Frozen) {
             $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'Additive evolution is not active.');
@@ -284,7 +284,7 @@ final class SiteInitializationService
         $existing = $plan->unitId === 'site'
             ? ($prior === null ? null : ['generator' => ['fqcn' => SiteArtifactRenderer::class, 'version' => $prior['generator_version']], 'disposition' => 'managed', 'input_digest' => $prior['manifest_digest']])
             : ($units[$plan->unitId] ?? null);
-        if ($existing === null && $plan->unitId !== 'site' && $plan->artifacts === []) {
+        if ($existing === null && $plan->unitId !== 'site' && $plan->artifacts === [] && $plan->registrations === []) {
             $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'A new non-root unit must own state.');
         }
         if ($existing !== null && ($existing['generator']['fqcn'] !== $plan->generatorFqcn || $existing['generator']['version'] !== $plan->generatorVersion || $existing['disposition'] !== $plan->disposition->value)) {
@@ -294,6 +294,8 @@ final class SiteInitializationService
         if ($existing === null && $plan->disposition === GenerationUnitDisposition::Seeded && !in_array($plan->generatorFqcn, self::SEEDED_COMPILERS, true)) {
             $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'The compiler is not permitted to create seeded units.');
         }
+        $composerState = $this->readComposerProviderState();
+        $registrationEffects = $this->reconcileRegistrations($plan, $prior['registrations'] ?? [], $existing, $composerState);
         /** @var array<string, array<string, mixed>> $priorRows */
         $priorRows = [];
         /** @var array<string, array<string, mixed>> $suppliedRows */
@@ -414,6 +416,22 @@ final class SiteInitializationService
         foreach ($plan->retires as $retired) {
             unset($units[$retired]);
         }
+        $registrations = $registrationEffects['registrations'];
+        if ($plan->unitId !== 'site' && $plan->disposition === GenerationUnitDisposition::Managed) {
+            $ownsState = false;
+            foreach ([...array_values($rows), ...$registrations] as $row) {
+                if (($row['unit'] ?? 'site') === $plan->unitId) {
+                    $ownsState = true;
+                }
+            }
+            if (!$ownsState) {
+                unset($units[$plan->unitId]);
+            }
+        }
+        unset($document['registrations']);
+        if ($registrations !== []) {
+            $document['registrations'] = $registrations;
+        }
         ksort($rows, SORT_STRING);
         ksort($units, SORT_STRING);
         $document['artifacts'] = array_values($rows);
@@ -439,8 +457,327 @@ final class SiteInitializationService
         return [
             'prepared' => $prepared,
             'retirements' => $retirements,
-            'evaluation' => new EvaluatedArtifactPlan($plan, $this->captureProjectState($artifacts, $observedRows), $targets['status'], $adds, $drops),
+            'composerMerge' => $registrationEffects['composerMerge'],
+            'evaluation' => new EvaluatedArtifactPlan($plan, $this->captureProjectState($artifacts, $observedRows, $composerState['sha256']), $targets['status'], $adds, $drops),
         ];
+    }
+
+    /**
+     * @internal Shared Composer observation for the dormant engine and doctor.
+     * @return array{exists: bool, raw: ?string, sha256: string, mode: ?int, providers: list<string>, spans: array<string, mixed>}
+     */
+    public function readComposerProviderState(): array
+    {
+        $this->assertSafeTarget('composer.json');
+        $path = $this->absolute('composer.json');
+        if (!file_exists($path) && !is_link($path)) {
+            return ['exists' => false, 'raw' => null, 'sha256' => ProjectStateIdentity::ABSENT_DIGEST, 'mode' => null, 'providers' => [], 'spans' => []];
+        }
+        $this->assertRegularOwnedFile($path, 'composer.json');
+        $raw = file_get_contents($path);
+        if (!is_string($raw)) {
+            $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Composer manifest cannot be read.', 'composer.json');
+        }
+        $this->injectFault('after-composer-read', -1, 'composer.json');
+        try {
+            $decoded = json_decode($raw, false, flags: JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Composer manifest must be valid JSON.', 'composer.json');
+        }
+        if (!$decoded instanceof \stdClass) {
+            $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Composer manifest must be a JSON object.', 'composer.json');
+        }
+        // Decode validates syntax; spans preserve foreign number/escape lexemes
+        // and object/list identity. Only the targeted ancestor keys are unique.
+        $offset = 0;
+        $root = $this->composerJsonSpan($raw, $offset);
+        $extra = $this->composerObjectMember($root, 'extra');
+        $waaseyaa = $extra === null ? null : $this->composerObjectMember($extra, 'waaseyaa');
+        $providerSpan = $waaseyaa === null ? null : $this->composerObjectMember($waaseyaa, 'providers');
+        $providers = [];
+        if ($providerSpan !== null) {
+            if ($providerSpan['kind'] !== 'array') {
+                $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Composer providers must be a list.', 'composer.json');
+            }
+            foreach ($providerSpan['items'] as $item) {
+                $provider = json_decode(substr($raw, $item['start'], (int) ($item['end'] - $item['start'])), true, flags: JSON_THROW_ON_ERROR);
+                if (!is_string($provider) || $provider === '' || in_array($provider, $providers, true)) {
+                    $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Composer providers must be unique nonempty strings.', 'composer.json');
+                }
+                $providers[] = $provider;
+            }
+        }
+
+        return [
+            'exists' => true, 'raw' => $raw, 'sha256' => hash('sha256', $raw),
+            'mode' => $this->platform->enforcesPermissionBits() ? fileperms($path) & 0o777 : 0o644,
+            'providers' => $providers,
+            'spans' => ['root' => $root, 'extra' => $extra, 'waaseyaa' => $waaseyaa, 'providers' => $providerSpan],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function composerJsonSpan(string $raw, int &$offset): array
+    {
+        $offset += strspn($raw, " \t\r\n", $offset);
+        $start = $offset;
+        $token = $raw[$offset++];
+        if ($token === '"') {
+            while ($raw[$offset] !== '"') {
+                $offset += $raw[$offset] === '\\' ? 2 : 1;
+            }
+            ++$offset;
+
+            return ['start' => $start, 'end' => $offset, 'kind' => 'string'];
+        }
+        if ($token !== '{' && $token !== '[') {
+            while ($offset < strlen($raw) && !str_contains(" \t\r\n,]}", $raw[$offset])) {
+                ++$offset;
+            }
+
+            return ['start' => $start, 'end' => $offset, 'kind' => 'scalar'];
+        }
+        $object = $token === '{';
+        $closing = $object ? '}' : ']';
+        $members = [];
+        $items = [];
+        $offset += strspn($raw, " \t\r\n", $offset);
+        while ($raw[$offset] !== $closing) {
+            if ($object) {
+                $key = $this->composerJsonSpan($raw, $offset);
+                $offset += strspn($raw, " \t\r\n", $offset);
+                ++$offset; // The colon is already JSON-validated.
+                $value = $this->composerJsonSpan($raw, $offset);
+                $members[] = ['key' => json_decode(substr($raw, $key['start'], (int) ($key['end'] - $key['start'])), true, flags: JSON_THROW_ON_ERROR), 'key_start' => $key['start'], 'value' => $value];
+            } else {
+                $items[] = $this->composerJsonSpan($raw, $offset);
+            }
+            $offset += strspn($raw, " \t\r\n", $offset);
+            if ($raw[$offset] === ',') {
+                ++$offset;
+                $offset += strspn($raw, " \t\r\n", $offset);
+            }
+        }
+        ++$offset;
+
+        return ['start' => $start, 'end' => $offset, 'kind' => $object ? 'object' : 'array', 'members' => $members, 'items' => $items];
+    }
+
+    /** @param array<string, mixed> $object @return array<string, mixed>|null */
+    private function composerObjectMember(array $object, string $key): ?array
+    {
+        if ($object['kind'] !== 'object') {
+            $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Composer provider ancestors must be JSON objects.', 'composer.json');
+        }
+        $found = null;
+        foreach ($object['members'] as $member) {
+            if ($member['key'] === $key) {
+                if ($found !== null) {
+                    $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Composer provider ancestors must not contain duplicate targeted keys.', 'composer.json');
+                }
+                $found = $member['value'];
+            }
+        }
+
+        return $found;
+    }
+
+    private function validateRegistrationRosterShape(mixed $roster): void
+    {
+        if (!is_array($roster) || !array_is_list($roster) || $roster === []) {
+            $this->unitRefusal(GenerationErrorCode::InvalidRegistrationRoster, 'A present registration roster must be a nonempty list.');
+        }
+        foreach ($roster as $row) {
+            if (!is_array($row)) {
+                $this->unitRefusal(GenerationErrorCode::InvalidRegistrationRoster, 'A registration row must be an object.');
+            }
+            foreach ($row as $key => $value) {
+                if (!in_array($key, ['fqcn', 'group', 'unit'], true) || !is_string($value) || $value === '') {
+                    $this->unitRefusal(GenerationErrorCode::InvalidRegistrationRoster, 'A registration row has invalid members.');
+                }
+            }
+            if (!isset($row['fqcn'])) {
+                $this->unitRefusal(GenerationErrorCode::InvalidRegistrationRoster, 'A registration row requires an FQCN.');
+            }
+        }
+    }
+
+    /** @param list<array<string, string>> $roster @param array<string, bool> $units */
+    private function validateRegistrationRosterOwnership(array $roster, array $units): void
+    {
+        $seen = [];
+        foreach ($roster as $row) {
+            if (isset($seen[$row['fqcn']]) || (isset($row['unit']) && !isset($units[$row['unit']]))) {
+                $this->unitRefusal(GenerationErrorCode::RegistrationOwnershipConflict, 'Registration ownership is duplicated or names an unknown unit.');
+            }
+            $seen[$row['fqcn']] = true;
+        }
+        $previous = null;
+        foreach ($roster as $row) {
+            if ($previous !== null && strcmp($previous, $row['fqcn']) >= 0) {
+                $this->unitRefusal(GenerationErrorCode::InvalidRegistrationRoster, 'Registration rows must be in canonical FQCN order.');
+            }
+            $previous = $row['fqcn'];
+        }
+    }
+
+    /**
+     * @param list<array<string, string>> $priorRoster
+     * @param array<string, mixed>|null $existing
+     * @param array<string, mixed> $composer
+     * @return array{registrations: list<array<string, string>>, composerMerge: array{content: string, mode: int, before_sha256: string}|null}
+     */
+    private function reconcileRegistrations(ArtifactPlan $plan, array $priorRoster, ?array $existing, array $composer): array
+    {
+        $prior = [];
+        $supplied = [];
+        foreach ($priorRoster as $row) {
+            $prior[$row['fqcn']] = $row;
+            if (($row['unit'] ?? 'site') === $plan->unitId) {
+                $entry = $row;
+                unset($entry['unit']);
+                $supplied[] = $entry;
+            }
+        }
+        $declared = array_map(static fn($registration): array => $registration->toArray(), $plan->registrations);
+        foreach ($declared as $row) {
+            if (isset($prior[$row['fqcn']]) && ($prior[$row['fqcn']]['unit'] ?? 'site') !== $plan->unitId) {
+                $this->unitRefusal(GenerationErrorCode::RegistrationOwnershipConflict, 'The provider belongs to another generation unit.');
+            }
+            if (!isset($prior[$row['fqcn']]) && in_array($row['fqcn'], $composer['providers'], true)) {
+                $this->unitRefusal(GenerationErrorCode::RegistrationOwnershipConflict, 'The provider is application-owned. Keep its manual registration or remove it deliberately before requesting generation; implicit adoption is not supported.');
+            }
+        }
+        if ($existing !== null && $plan->disposition === GenerationUnitDisposition::Seeded && $supplied !== $declared) {
+            $this->unitRefusal(GenerationErrorCode::SeededRegistrationRedeclared, 'A seeded registration declaration is frozen after creation.');
+        }
+        $roster = [];
+        $withdraw = [];
+        foreach ($priorRoster as $row) {
+            $owner = $row['unit'] ?? 'site';
+            if (in_array($owner, $plan->retires, true)) {
+                $withdraw[] = $row['fqcn'];
+            } elseif ($owner !== $plan->unitId) {
+                $roster[$row['fqcn']] = $row;
+            } elseif (!in_array($row['fqcn'], array_column($declared, 'fqcn'), true)) {
+                $withdraw[] = $row['fqcn'];
+            }
+        }
+        $providers = array_values(array_filter($composer['providers'], static fn(string $fqcn): bool => !in_array($fqcn, $withdraw, true)));
+        foreach ($declared as $row) {
+            if ($plan->unitId !== 'site') {
+                $row['unit'] = $plan->unitId;
+            }
+            $roster[$row['fqcn']] = $row;
+            if (($existing === null || $plan->disposition === GenerationUnitDisposition::Managed) && !in_array($row['fqcn'], $providers, true)) {
+                $providers[] = $row['fqcn'];
+            }
+        }
+        ksort($roster, SORT_STRING);
+        $merge = null;
+        if ($providers !== $composer['providers']) {
+            if ($composer['exists'] !== true) {
+                $this->unitRefusal(GenerationErrorCode::InvalidComposerProviderState, 'Registration changes require an existing application composer.json.', 'composer.json');
+            }
+            $merge = ['content' => $this->renderComposerProviders($composer, $providers), 'mode' => $composer['mode'], 'before_sha256' => $composer['sha256']];
+        }
+
+        return ['registrations' => array_values($roster), 'composerMerge' => $merge];
+    }
+
+    /** @param array<string, mixed> $composer @param list<string> $providers */
+    private function renderComposerProviders(array $composer, array $providers): string
+    {
+        $raw = $composer['raw'];
+        $spans = $composer['spans'];
+        $tokens = [];
+        if ($spans['providers'] !== null) {
+            foreach ($spans['providers']['items'] as $index => $item) {
+                $tokens[$composer['providers'][$index]] = substr($raw, $item['start'], (int) ($item['end'] - $item['start']));
+            }
+        }
+        $encoded = array_map(static fn(string $provider): string => $tokens[$provider] ?? json_encode($provider, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $providers);
+        $rootBytes = substr($raw, $spans['root']['start'], (int) ($spans['root']['end'] - $spans['root']['start']));
+        $newline = str_contains($rootBytes, "\r\n") ? "\r\n" : "\n";
+        $pretty = str_contains($rootBytes, "\n");
+        preg_match('/\r?\n([ \t]+)"/', $rootBytes, $indentMatch);
+        $indent = $indentMatch[1] ?? '    ';
+        $colon = str_contains($rootBytes, '": ') ? ': ' : ':';
+        if ($spans['providers'] !== null) {
+            $span = $spans['providers'];
+            $old = substr($raw, $span['start'], (int) ($span['end'] - $span['start']));
+            if (str_contains($old, "\n")) {
+                $base = $this->composerLineIndent($raw, (int) $span['end'] - 1);
+                $itemIndent = isset($span['items'][0]) ? $this->composerLineIndent($raw, $span['items'][0]['start']) : $base . $indent;
+                $replacement = $encoded === [] ? '[]' : '[' . $newline . $itemIndent . implode(',' . $newline . $itemIndent, $encoded) . $newline . $base . ']';
+            } else {
+                preg_match('/^\[([ \t]*)/', $old, $left);
+                preg_match('/([ \t]*)\]$/', $old, $right);
+                $separator = ',';
+                if (count($span['items']) > 1) {
+                    $gap = substr($raw, $span['items'][0]['end'], (int) ($span['items'][1]['start'] - $span['items'][0]['end']));
+                    $separator = $gap;
+                } elseif (($left[1] ?? '') !== '') {
+                    $separator = ', ';
+                }
+                $replacement = '[' . ($left[1] ?? '') . implode($separator, $encoded) . ($right[1] ?? '') . ']';
+            }
+
+            return substr($raw, 0, $span['start']) . $replacement . substr($raw, $span['end']);
+        }
+        if ($spans['waaseyaa'] !== null) {
+            $parent = $spans['waaseyaa'];
+            $keys = ['providers'];
+        } elseif ($spans['extra'] !== null) {
+            $parent = $spans['extra'];
+            $keys = ['waaseyaa', 'providers'];
+        } else {
+            $parent = $spans['root'];
+            $keys = ['extra', 'waaseyaa', 'providers'];
+        }
+        if ($parent['members'] !== []) {
+            $pretty = str_contains(substr($raw, $parent['start'], (int) ($parent['end'] - $parent['start'])), "\n");
+        }
+        $base = $this->composerLineIndent($raw, $parent['start']);
+        $memberIndent = $base . $indent;
+        if ($pretty && isset($parent['members'][0])) {
+            $memberIndent = $this->composerLineIndent($raw, $parent['members'][0]['key_start']);
+        }
+        $member = $this->composerNewMember($keys, $encoded, $pretty, $memberIndent, $indent, $newline, $colon);
+        if ($parent['members'] === []) {
+            $replacement = $pretty ? '{' . $newline . $memberIndent . $member . $newline . $base . '}' : '{' . $member . '}';
+
+            return substr($raw, 0, $parent['start']) . $replacement . substr($raw, $parent['end']);
+        }
+        $last = $parent['members'][array_key_last($parent['members'])]['value']['end'];
+        $separator = $pretty ? $newline . $memberIndent : ($colon === ': ' ? ' ' : '');
+
+        return substr($raw, 0, $last) . ',' . $separator . $member . substr($raw, $last);
+    }
+
+    private function composerLineIndent(string $raw, int $offset): string
+    {
+        $lineStart = strrpos(substr($raw, 0, $offset), "\n");
+        $lineStart = $lineStart === false ? 0 : $lineStart + 1;
+        preg_match('/^[ \t]*/', substr($raw, $lineStart), $match);
+
+        return $match[0];
+    }
+
+    /** @param list<string> $keys @param list<string> $encoded */
+    private function composerNewMember(array $keys, array $encoded, bool $pretty, string $base, string $indent, string $newline, string $colon): string
+    {
+        $key = array_shift($keys);
+        if ($keys === []) {
+            $value = $pretty
+                ? '[' . $newline . $base . $indent . implode(',' . $newline . $base . $indent, $encoded) . $newline . $base . ']'
+                : '[' . implode(',', $encoded) . ']';
+        } else {
+            $nested = $this->composerNewMember($keys, $encoded, $pretty, $base . $indent, $indent, $newline, $colon);
+            $value = $pretty ? '{' . $newline . $base . $indent . $nested . $newline . $base . '}' : '{' . $nested . '}';
+        }
+
+        return json_encode($key, JSON_THROW_ON_ERROR) . $colon . $value;
     }
 
     private function unitRefusal(GenerationErrorCode $code, string $message, ?string $path = null): never
@@ -502,7 +839,7 @@ final class SiteInitializationService
      * @param array<string, GeneratedArtifact> $artifacts
      * @param array<string, array<string, mixed>> $priorRows
      */
-    private function captureProjectState(array $artifacts, array $priorRows): ProjectStateIdentity
+    private function captureProjectState(array $artifacts, array $priorRows, ?string $composerDigest = null): ProjectStateIdentity
     {
         $paths = array_values(array_unique([...array_keys($artifacts), ...array_keys($priorRows)]));
         sort($paths, SORT_STRING);
@@ -515,7 +852,7 @@ final class SiteInitializationService
         return new ProjectStateIdentity(
             $this->observeDocument(self::METADATA),
             $this->observeDocument('.waaseyaa/site.yaml'),
-            $this->observeDocument('composer.json'),
+            $composerDigest ?? $this->observeDocument('composer.json'),
             $targets,
         );
     }
@@ -624,8 +961,9 @@ final class SiteInitializationService
     /**
      * @param array<string, GeneratedArtifact> $artifacts
      * @param array<string, array<string, mixed>> $retirements
+     * @param array{content: string, mode: int, before_sha256: string}|null $composerMerge
      */
-    private function publish(array $artifacts, array $retirements = []): bool
+    private function publish(array $artifacts, array $retirements = [], ?array $composerMerge = null): bool
     {
         $transactionId = bin2hex(random_bytes(12));
         $stageRelative = '.waaseyaa/site-init-stage-' . $transactionId;
@@ -636,7 +974,10 @@ final class SiteInitializationService
         $this->makePrivateDirectory($backup);
 
         $publishOrder = array_keys($artifacts + $retirements);
-        if ($retirements !== []) {
+        if ($composerMerge !== null) {
+            $publishOrder[] = 'composer.json';
+        }
+        if ($retirements !== [] || $composerMerge !== null) {
             sort($publishOrder, SORT_STRING);
         }
         $publishOrder = array_values(array_filter($publishOrder, static fn(string $path): bool => $path !== self::METADATA));
@@ -646,15 +987,16 @@ final class SiteInitializationService
         $items = [];
         foreach ($publishOrder as $index => $path) {
             $removing = isset($retirements[$path]);
+            $merging = $path === 'composer.json' && $composerMerge !== null;
             $artifact = $artifacts[$path] ?? null;
-            $mode = $removing ? intval($retirements[$path]['mode'], 8) : $artifact->mode;
+            $mode = $merging ? $composerMerge['mode'] : ($removing ? intval($retirements[$path]['mode'], 8) : $artifact->mode);
             $stageFile = $stage . '/' . sprintf('%04d.artifact', $index);
             if (!$removing) {
-                $this->writeDurably($stageFile, $artifact->content, $mode);
+                $this->writeDurably($stageFile, $merging ? $composerMerge['content'] : $artifact->content, $mode);
                 $this->injectFault('after-stage', $index, $path);
             }
             $target = $this->absolute($path);
-            if ($removing) {
+            if ($removing || $merging) {
                 $this->assertSafeTarget($path);
                 $this->assertRegularOwnedFile($target, $path);
             }
@@ -680,8 +1022,8 @@ final class SiteInitializationService
                 'mode' => $mode,
                 'state' => 'pending',
             ];
-            if ($removing) {
-                $items[array_key_last($items)]['kind'] = 'remove';
+            if ($removing || $merging) {
+                $items[array_key_last($items)]['kind'] = $merging ? 'composer-merge' : 'remove';
             }
         }
         $journal = [
@@ -760,7 +1102,7 @@ final class SiteInitializationService
             $this->writeJournal($journal);
         } catch (\Exception $exception) {
             unset($item);
-            $this->rollback($journal, $retirements !== []);
+            $this->rollback($journal, $retirements !== [] || $composerMerge !== null);
             throw $exception;
         }
         try {
@@ -814,6 +1156,7 @@ final class SiteInitializationService
             // recovery evidence. Already-restored exact tuples are valid after
             // an interruption; merely matching bytes are not enough.
             $this->validateRetirementRecoveryState($journal);
+            $this->validateComposerMergeRecoveryState($journal);
             foreach (array_reverse($journal['removed_directories'] ?? []) as $directory) {
                 if ($directory['state'] === 'pending') {
                     continue;
@@ -964,6 +1307,36 @@ final class SiteInitializationService
     }
 
     /** @param array<string, mixed> $journal */
+    private function validateComposerMergeRecoveryState(array $journal): void
+    {
+        foreach ($journal['items'] as $item) {
+            if (($item['kind'] ?? null) !== 'composer-merge') {
+                continue;
+            }
+            // A pending merge has not touched the manifest. Later states may
+            // hold either the installed tuple or an exact prior restoration.
+            // Prove all tuples before any rollback item mutates the project.
+            $this->assertSafeTarget($item['backup'], true);
+            $backup = $this->absolute($item['backup']);
+            $this->assertRegularOwnedFile($backup, $item['backup']);
+            if (!hash_equals($item['backup_sha256'], $this->digestFile($backup)) || !$this->modeMatches($backup, $item['backup_mode'])) {
+                throw new SiteInitializationCollisionException('Cannot recover composer.json: its backup was substituted.');
+            }
+            $this->assertSafeTarget($item['path'], true);
+            $target = $this->absolute($item['path']);
+            $this->assertRegularOwnedFile($target, $item['path']);
+            $digest = $this->digestFile($target);
+            $prior = hash_equals($item['backup_sha256'], $digest) && $this->modeMatches($target, $item['backup_mode']);
+            $installed = $item['state'] !== 'pending'
+                && hash_equals($item['installed_sha256'], $digest)
+                && $this->modeMatches($target, $item['mode']);
+            if (!$prior && !$installed) {
+                throw new SiteInitializationCollisionException('Cannot recover a changed Composer manifest.');
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $journal */
     private function validateRetirementRecoveryState(array $journal): void
     {
         $removals = [];
@@ -1057,9 +1430,16 @@ final class SiteInitializationService
         $metadataKeys = array_keys($metadata);
         sort($metadataKeys, SORT_STRING);
         $allowedMetadataKeys = ['artifacts', 'generator_version', 'manifest_digest', 'schema', 'version'];
-        if ($unitAware && array_key_exists('units', $metadata)) {
-            $allowedMetadataKeys[] = 'units';
+        if ($unitAware) {
+            foreach (['units', 'registrations'] as $member) {
+                if (array_key_exists($member, $metadata)) {
+                    $allowedMetadataKeys[] = $member;
+                }
+            }
             sort($allowedMetadataKeys, SORT_STRING);
+            if (array_key_exists('registrations', $metadata)) {
+                $this->validateRegistrationRosterShape($metadata['registrations']);
+            }
         }
         if ($metadataKeys !== $allowedMetadataKeys
             || ($metadata['schema'] ?? null) !== 'waaseyaa.generated'
@@ -1109,6 +1489,9 @@ final class SiteInitializationService
                 $previousId = $id;
                 $unitIds[$id] = true;
             }
+        }
+        if ($unitAware && array_key_exists('registrations', $metadata)) {
+            $this->validateRegistrationRosterOwnership($metadata['registrations'], $unitIds);
         }
         $paths = [];
         foreach ($metadata['artifacts'] as $row) {
@@ -1310,7 +1693,7 @@ final class SiteInitializationService
     private function assertUnitOwnershipPath(string $path): void
     {
         $this->assertSafeTarget($path, true);
-        if ($path === self::METADATA || $path === self::LOCK || $path === self::JOURNAL
+        if ($path === 'composer.json' || $path === self::METADATA || $path === self::LOCK || $path === self::JOURNAL
             || str_starts_with($path, '.waaseyaa/site-init-')
             || str_starts_with($path, self::JOURNAL . '.')) {
             $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'Transaction control state cannot be owned by a generation unit.', $path);
@@ -1415,8 +1798,9 @@ final class SiteInitializationService
             $itemKeys = array_keys($item);
             sort($itemKeys, SORT_STRING);
             $removing = $unitAware && ($item['kind'] ?? null) === 'remove';
+            $merging = $unitAware && ($item['kind'] ?? null) === 'composer-merge';
             $expectedItemKeys = ['backup', 'backup_mode', 'backup_sha256', 'existed', 'installed_sha256', 'mode', 'path', 'stage', 'state'];
-            if ($removing) {
+            if ($removing || $merging) {
                 $expectedItemKeys[] = 'kind';
                 sort($expectedItemKeys, SORT_STRING);
             }
@@ -1424,7 +1808,9 @@ final class SiteInitializationService
                 || !is_string($item['path'] ?? null)
                 || isset($paths[$item['path']])
                 || !is_bool($item['existed'] ?? null)
-                || !in_array($item['mode'] ?? null, [0o644, 0o755], true)
+                || ($merging
+                    ? (!is_int($item['mode'] ?? null) || $item['mode'] < 0 || $item['mode'] > 0o777 || $item['path'] !== 'composer.json' || $item['existed'] !== true)
+                    : !in_array($item['mode'] ?? null, [0o644, 0o755], true))
                 || !in_array($item['state'] ?? null, ['pending', 'installing', 'applied'], true)
                 || ($removing
                     ? ($item['installed_sha256'] !== null || $item['stage'] !== null || $item['existed'] !== true || !array_key_exists('removed_directories', $journal))
