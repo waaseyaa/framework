@@ -1,0 +1,358 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Opis\JsonSchema\Validator;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+const LEDGER_SCHEMA = 'ops/observability/delivery-agent-event-v1.schema.json';
+const LEDGER_PATH = 'ops/observability/delivery-agent-events-v1.jsonl';
+
+/** @return list<string> */
+function validateLedger(string $contents, object $schema): array
+{
+    $errors = [];
+    if ($contents === '') {
+        return ['ledger must contain at least one event'];
+    }
+    if (!str_ends_with($contents, "\n")) {
+        $errors[] = 'ledger must be newline-terminated';
+    }
+    $events = [];
+    $eventLines = [];
+    $lastRecordedAt = null;
+    foreach (preg_split('/\R/', $contents) ?: [] as $index => $line) {
+        if ($line === '') {
+            continue;
+        }
+        if (trim($line) === '') {
+            $errors[] = sprintf('line %d is blank or whitespace-only', $index + 1);
+            continue;
+        }
+        try {
+            $document = json_decode($line, flags: JSON_THROW_ON_ERROR);
+            $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            $errors[] = sprintf('line %d is not valid JSON: %s', $index + 1, $exception->getMessage());
+            continue;
+        }
+        if (!is_object($document) || !is_array($event) || array_is_list($event)) {
+            $errors[] = sprintf('line %d must be a JSON object', $index + 1);
+            continue;
+        }
+        if (!(new Validator())->validate($document, $schema)->isValid()) {
+            $errors[] = sprintf('line %d does not conform to %s', $index + 1, LEDGER_SCHEMA);
+            continue;
+        }
+        $recordedAt = new DateTimeImmutable($event['recorded_at']);
+        if (is_string($event['occurred_at']) && new DateTimeImmutable($event['occurred_at']) > $recordedAt) {
+            $errors[] = sprintf('line %d has an occurrence time after its custody time', $index + 1);
+        }
+        if ($lastRecordedAt !== null && $recordedAt < $lastRecordedAt) {
+            $errors[] = sprintf('line %d has a custody timestamp earlier than the preceding event', $index + 1);
+        }
+        $lastRecordedAt = $recordedAt;
+        $eventId = $event['event_id'];
+        if (isset($events[$eventId])) {
+            $errors[] = sprintf('line %d duplicates event_id %s first seen on line %d', $index + 1, $eventId, $eventLines[$eventId]);
+            continue;
+        }
+        $events[$eventId] = $event;
+        $eventLines[$eventId] = $index + 1;
+        validateEventSemantics($event, $events, $eventLines, $index + 1, $errors);
+    }
+    return $errors;
+}
+
+/**
+ * @param array<string, mixed> $event
+ * @param array<string, array<string, mixed>> $events
+ * @param array<string, int> $eventLines
+ * @param list<string> $errors
+ */
+function validateEventSemantics(array $event, array $events, array $eventLines, int $line, array &$errors): void
+{
+    $type = $event['event_type'];
+    $adjudication = $event['adjudication'];
+    $causeId = $event['causation_event_id'];
+
+    $cause = null;
+    if (is_string($causeId)) {
+        $cause = $events[$causeId] ?? null;
+        if ($cause === null || ($eventLines[$causeId] ?? PHP_INT_MAX) >= $line) {
+            $errors[] = "line {$line}: causation_event_id must name an earlier event";
+            return;
+        }
+        foreach (['repository', 'pull_request'] as $key) {
+            if ($cause[$key] !== $event[$key]) {
+                $errors[] = "line {$line}: causal event {$key} differs from its predecessor";
+            }
+        }
+        if (new DateTimeImmutable($event['recorded_at']) < new DateTimeImmutable($cause['recorded_at'])) {
+            $errors[] = "line {$line}: custody time precedes its causal event";
+        }
+        if (is_string($event['occurred_at']) && is_string($cause['occurred_at']) && new DateTimeImmutable($event['occurred_at']) < new DateTimeImmutable($cause['occurred_at'])) {
+            $errors[] = "line {$line}: occurrence time precedes its causal event";
+        }
+    }
+
+    if ($type !== 'verification_finding_adjudicated' || !is_string($causeId) || $cause === null) {
+        return;
+    }
+    if ($cause['event_type'] !== 'verification_finding_issued') {
+        $errors[] = "line {$line}: an adjudication must cause from a verification finding";
+    }
+    if ($cause['head_sha'] !== $event['head_sha']) {
+        $errors[] = "line {$line}: adjudication head_sha differs from its finding";
+    }
+    foreach ($events as $priorId => $prior) {
+        if ($priorId !== $event['event_id'] && $prior['event_type'] === 'verification_finding_adjudicated' && $prior['causation_event_id'] === $causeId) {
+            $errors[] = "line {$line}: finding {$causeId} already has an adjudication";
+            break;
+        }
+    }
+    if (is_array($adjudication) && is_array($cause['verification'] ?? null)) {
+        $classification = $adjudication['classification'];
+        $claimed = $cause['verification']['candidate_defect_claimed'];
+        $confirmed = $adjudication['candidate_defect_confirmed'];
+        $coherent = match ($classification) {
+            'true_positive' => $claimed === true && $confirmed === true,
+            'false_positive' => $claimed === true && $confirmed === false,
+            'false_negative' => $claimed === false && $confirmed === true,
+            'unresolved' => $confirmed === null,
+            default => false,
+        };
+        if (!$coherent) {
+            $errors[] = "line {$line}: adjudication classification contradicts claimed and confirmed defect state";
+        }
+        if ($adjudication['adjudicated_by'] !== $event['actor']['name']) {
+            $errors[] = "line {$line}: adjudicated_by differs from the event actor name";
+        }
+    }
+}
+
+/** @return list<string> */
+function validateAppendOnly(string $prior, string $current): array
+{
+    if ($prior === '') {
+        return [];
+    }
+    if (!str_ends_with($prior, "\n")) {
+        return ['the base ledger is not newline-terminated'];
+    }
+    return str_starts_with($current, $prior) ? [] : ['the ledger is not an exact byte-prefix extension of the base ledger'];
+}
+
+/** @return array{exit: int, output: string} */
+function gitShow(string $root, string $base, string $path): array
+{
+    $pipes = [];
+    $process = proc_open(
+        ['git', '-C', $root, 'show', $base . ':' . $path],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+    );
+    if (!is_resource($process)) {
+        return ['exit' => 1, 'output' => 'could not start git'];
+    }
+    $output = stream_get_contents($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exit = proc_close($process);
+    return ['exit' => $exit, 'output' => $exit === 0 ? $output : $error];
+}
+
+/** @return array<string, mixed> */
+function validEvent(string $id, string $type = 'review_started'): array
+{
+    return [
+        'schema_version' => 'delivery-agent-event/v1', 'event_id' => $id, 'event_type' => $type,
+        'recorded_at' => '2026-09-03T20:00:00Z', 'occurred_at' => null,
+        'repository' => 'waaseyaa/framework', 'pull_request' => 2869, 'head_sha' => str_repeat('a', 40),
+        'actor' => ['kind' => 'codex', 'name' => 'Codex', 'model' => null], 'evidence_kind' => 'observed',
+        'causation_event_id' => null, 'review_depth' => null, 'outcome' => null, 'finding_count' => null,
+        'token_count' => null, 'elapsed_ms' => null, 'source_url' => null, 'notes' => null,
+        'verification' => null, 'adjudication' => null,
+    ];
+}
+
+function encodeEvent(array $event): string
+{
+    return json_encode($event, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+}
+
+function readRequiredFile(string $path, string $label): string
+{
+    if (!is_file($path) || !is_readable($path)) {
+        fwrite(STDERR, "delivery agent event contract: {$label} is missing or unreadable: {$path}\n");
+        exit(2);
+    }
+    $contents = file_get_contents($path);
+    if (!is_string($contents)) {
+        fwrite(STDERR, "delivery agent event contract: could not read {$label}: {$path}\n");
+        exit(2);
+    }
+    return $contents;
+}
+
+function selfTest(object $schema): int
+{
+    $firstId = '11111111-1111-4111-8111-111111111111';
+    $finding = validEvent($firstId, 'verification_finding_issued');
+    $finding['verification'] = ['verifier_id' => 'probe-1', 'check_type' => 'review_probe', 'claim' => 'the guard refuses malformed input', 'observed' => 'the guard exited non-zero', 'candidate_defect_claimed' => true, 'safety_effect' => 'fail_closed'];
+    $adjudication = validEvent('22222222-2222-4222-8222-222222222222', 'verification_finding_adjudicated');
+    $adjudication['causation_event_id'] = $firstId;
+    $adjudication['adjudication'] = ['classification' => 'false_positive', 'candidate_defect_confirmed' => false, 'rationale' => 'the verifier failed closed without a product defect', 'adjudicated_by' => 'Codex'];
+    $valid = encodeEvent($finding) . encodeEvent($adjudication);
+    if (validateLedger($valid, $schema) !== []) {
+        fwrite(STDERR, "self-test failed: valid causal ledger was refused\n");
+        return 1;
+    }
+    $unknown = $finding;
+    $unknown['unexpected'] = true;
+    $unknownNested = $finding;
+    $unknownNested['actor']['unexpected'] = true;
+    $negative = $finding;
+    $negative['elapsed_ms'] = -1;
+    $badTimestamp = $finding;
+    $badTimestamp['recorded_at'] = 'not-a-timestamp';
+    $badSha = $finding;
+    $badSha['head_sha'] = 'abc123';
+    $orphan = $adjudication;
+    $orphan['causation_event_id'] = '33333333-3333-4333-8333-333333333333';
+    $wrongSha = $adjudication;
+    $wrongSha['head_sha'] = str_repeat('b', 40);
+    $third = $adjudication;
+    $third['event_id'] = '33333333-3333-4333-8333-333333333333';
+    $inverted = $adjudication;
+    $inverted['recorded_at'] = '2026-09-03T19:59:59Z';
+    $incoherent = $adjudication;
+    $incoherent['adjudication']['candidate_defect_confirmed'] = true;
+    $actorMismatch = $adjudication;
+    $actorMismatch['adjudication']['adjudicated_by'] = 'Someone else';
+    $futureOccurrence = $finding;
+    $futureOccurrence['occurred_at'] = '2026-09-03T20:00:01Z';
+    $sourceWithoutUrl = $finding;
+    $sourceWithoutUrl['evidence_kind'] = 'source_event';
+    $sourceWithInvalidUrl = $finding;
+    $sourceWithInvalidUrl['evidence_kind'] = 'source_event';
+    $sourceWithInvalidUrl['source_url'] = 'https://';
+    $wrongOutcome = $finding;
+    $wrongOutcome['outcome'] = 'passed';
+    $mutations = [
+        'unknown top-level member' => encodeEvent($unknown),
+        'unknown nested member' => encodeEvent($unknownNested),
+        'negative measurement' => encodeEvent($negative),
+        'malformed timestamp' => encodeEvent($badTimestamp),
+        'malformed SHA' => encodeEvent($badSha),
+        'duplicate event id' => encodeEvent($finding) . encodeEvent($finding),
+        'orphan adjudication' => encodeEvent($orphan),
+        'cross-SHA adjudication' => encodeEvent($finding) . encodeEvent($wrongSha),
+        'duplicate adjudication' => $valid . encodeEvent($third),
+        'inverted custody time' => encodeEvent($finding) . encodeEvent($inverted),
+        'incoherent adjudication' => encodeEvent($finding) . encodeEvent($incoherent),
+        'adjudicator identity mismatch' => encodeEvent($finding) . encodeEvent($actorMismatch),
+        'occurrence after custody' => encodeEvent($futureOccurrence),
+        'source event without provenance' => encodeEvent($sourceWithoutUrl),
+        'source event with malformed provenance' => encodeEvent($sourceWithInvalidUrl),
+        'outcome on the wrong event type' => encodeEvent($wrongOutcome),
+    ];
+    foreach ($mutations as $name => $contents) {
+        if (validateLedger($contents, $schema) === []) {
+            fwrite(STDERR, "self-test failed: {$name} was accepted\n");
+            return 1;
+        }
+    }
+    if (validateAppendOnly(encodeEvent($finding), $valid) !== [] || validateAppendOnly(encodeEvent($finding), encodeEvent($adjudication)) === []) {
+        fwrite(STDERR, "self-test failed: append-only guard did not distinguish append from mutation\n");
+        return 1;
+    }
+    fwrite(STDOUT, "delivery agent event self-test: PASS\n");
+    return 0;
+}
+
+$root = dirname(__DIR__);
+$schemaPath = $root . '/' . LEDGER_SCHEMA;
+$ledgerPath = $root . '/' . LEDGER_PATH;
+$base = null;
+$priorLedgerPath = null;
+$priorSchemaPath = null;
+$selfTest = false;
+$seen = [];
+foreach (array_slice($argv, 1) as $argument) {
+    if ($argument === '--self-test') {
+        if (isset($seen['self-test'])) {
+            fwrite(STDERR, "delivery agent event contract: duplicate --self-test option\n");
+            exit(2);
+        }
+        $seen['self-test'] = true;
+        $selfTest = true;
+        continue;
+    }
+    if (preg_match('/^--(base|ledger|prior-ledger|schema|prior-schema)=(.*)$/D', $argument, $matches) !== 1) {
+        fwrite(STDERR, "delivery agent event contract: unknown or malformed option {$argument}\n");
+        exit(2);
+    }
+    [, $name, $value] = $matches;
+    if ($value === '' || isset($seen[$name])) {
+        fwrite(STDERR, "delivery agent event contract: --{$name} must appear once with a non-empty value\n");
+        exit(2);
+    }
+    $seen[$name] = true;
+    if ($name === 'base' && $value === str_repeat('0', 40)) {
+        fwrite(STDERR, "delivery agent event contract: an all-zero base is not a custody boundary\n");
+        exit(2);
+    }
+    match ($name) {
+        'base' => $base = $value,
+        'ledger' => $ledgerPath = $value,
+        'prior-ledger' => $priorLedgerPath = $value,
+        'schema' => $schemaPath = $value,
+        'prior-schema' => $priorSchemaPath = $value,
+    };
+}
+$schemaBytes = readRequiredFile($schemaPath, 'schema');
+$schema = json_decode($schemaBytes, flags: JSON_THROW_ON_ERROR);
+if ($selfTest) {
+    if (count($seen) !== 1) {
+        fwrite(STDERR, "delivery agent event contract: --self-test cannot be combined with other options\n");
+        exit(2);
+    }
+    exit(selfTest($schema));
+}
+if ($base !== null && ($priorLedgerPath !== null || $priorSchemaPath !== null)) {
+    fwrite(STDERR, "delivery agent event contract: --base and explicit prior files are mutually exclusive\n");
+    exit(2);
+}
+$contents = readRequiredFile($ledgerPath, 'ledger');
+$errors = validateLedger($contents, $schema);
+if ($priorLedgerPath !== null) {
+    array_push($errors, ...validateAppendOnly(readRequiredFile($priorLedgerPath, 'prior ledger'), $contents));
+}
+if ($priorSchemaPath !== null && readRequiredFile($priorSchemaPath, 'prior schema') !== $schemaBytes) {
+    $errors[] = 'the published v1 schema is immutable; create a new schema version';
+}
+if ($base !== null) {
+    $prior = gitShow($root, $base, LEDGER_PATH);
+    if ($prior['exit'] === 0) {
+        array_push($errors, ...validateAppendOnly($prior['output'], $contents));
+    } elseif (!str_contains($prior['output'], 'exists on disk, but not in') && !str_contains($prior['output'], 'does not exist in')) {
+        $errors[] = "could not read the base ledger at {$base}";
+    }
+    $priorSchema = gitShow($root, $base, LEDGER_SCHEMA);
+    if ($priorSchema['exit'] === 0 && $priorSchema['output'] !== $schemaBytes) {
+        $errors[] = 'the published v1 schema is immutable; create a new schema version';
+    } elseif ($priorSchema['exit'] !== 0 && !str_contains($priorSchema['output'], 'exists on disk, but not in') && !str_contains($priorSchema['output'], 'does not exist in')) {
+        $errors[] = "could not read the base schema at {$base}";
+    }
+}
+if ($errors !== []) {
+    foreach ($errors as $error) {
+        fwrite(STDERR, "delivery agent event contract: {$error}\n");
+    }
+    exit(1);
+}
+fwrite(STDOUT, "delivery agent event contract: PASS\n");

@@ -89,6 +89,7 @@ final class PreflightParityTest extends TestCase
             'check-support-contract', 'check-s1-sqlite-contract',
             'check-s1-configuration-activation', 'check-s1-configuration-authority',
             'check-s1-schema-authority',
+            'check-delivery-agent-events',
             // dedicated fast workflows / jobs
             'surface-parity', 'spec-drift', 'changelog-discipline',
             'check-ingestion-defaults', 'check-no-secrets', 'check-release-publish-shape',

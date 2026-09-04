@@ -1,0 +1,321 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://waaseyaa.org/schemas/delivery-agent-event-v1.json",
+    "title": "Waaseyaa delivery agent event v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "recorded_at",
+        "occurred_at",
+        "repository",
+        "pull_request",
+        "head_sha",
+        "actor",
+        "evidence_kind",
+        "causation_event_id",
+        "review_depth",
+        "outcome",
+        "finding_count",
+        "token_count",
+        "elapsed_ms",
+        "source_url",
+        "notes",
+        "verification",
+        "adjudication"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "delivery-agent-event/v1"
+        },
+        "event_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "event_type": {
+            "enum": [
+                "review_started",
+                "substantive_review_issued",
+                "repair_requested",
+                "repair_started",
+                "repair_completed",
+                "decision_recorded",
+                "verification_completed",
+                "verification_finding_issued",
+                "verification_finding_adjudicated"
+            ]
+        },
+        "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "occurred_at": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date-time"
+        },
+        "repository": {
+            "const": "waaseyaa/framework"
+        },
+        "pull_request": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "head_sha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+        },
+        "actor": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "kind",
+                "name",
+                "model"
+            ],
+            "properties": {
+                "kind": {
+                    "enum": [
+                        "human",
+                        "codex",
+                        "claude",
+                        "automation"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "model": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            }
+        },
+        "evidence_kind": {
+            "enum": [
+                "observed",
+                "operator_assertion",
+                "source_event",
+                "derived"
+            ]
+        },
+        "causation_event_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "review_depth": {
+            "enum": [
+                "none",
+                "light",
+                "substantive",
+                "deep",
+                null
+            ]
+        },
+        "outcome": {
+            "enum": [
+                "accepted",
+                "changes_requested",
+                "refused",
+                "passed",
+                "failed",
+                null
+            ]
+        },
+        "finding_count": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "minimum": 0
+        },
+        "token_count": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "minimum": 0
+        },
+        "elapsed_ms": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "minimum": 0
+        },
+        "source_url": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "uri",
+            "pattern": "^https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:[/?#].*)?$"
+        },
+        "notes": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "verification": {
+            "oneOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "verifier_id",
+                        "check_type",
+                        "claim",
+                        "observed",
+                        "candidate_defect_claimed",
+                        "safety_effect"
+                    ],
+                    "properties": {
+                        "verifier_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "check_type": {
+                            "enum": [
+                                "assertion",
+                                "test",
+                                "static_analysis",
+                                "review_probe",
+                                "policy_gate"
+                            ]
+                        },
+                        "claim": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "observed": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "candidate_defect_claimed": {
+                            "type": "boolean"
+                        },
+                        "safety_effect": {
+                            "enum": [
+                                "fail_closed",
+                                "fail_open",
+                                "none"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        "adjudication": {
+            "oneOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "classification",
+                        "candidate_defect_confirmed",
+                        "rationale",
+                        "adjudicated_by"
+                    ],
+                    "properties": {
+                        "classification": {
+                            "enum": [
+                                "true_positive",
+                                "false_positive",
+                                "false_negative",
+                                "unresolved"
+                            ]
+                        },
+                        "candidate_defect_confirmed": {
+                            "type": [
+                                "boolean",
+                                "null"
+                            ]
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "adjudicated_by": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "allOf": [
+        {
+            "if": { "properties": { "event_type": { "const": "verification_finding_issued" } }, "required": ["event_type"] },
+            "then": { "properties": { "verification": { "type": "object" }, "adjudication": { "type": "null" } } },
+            "else": { "properties": { "verification": { "type": "null" } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "const": "verification_finding_adjudicated" } }, "required": ["event_type"] },
+            "then": { "properties": { "verification": { "type": "null" }, "adjudication": { "type": "object" }, "causation_event_id": { "type": "string" } } },
+            "else": { "properties": { "adjudication": { "type": "null" } } }
+        },
+        {
+            "if": { "properties": { "evidence_kind": { "const": "source_event" } }, "required": ["evidence_kind"] },
+            "then": { "properties": { "source_url": { "type": "string" } } }
+        },
+        {
+            "if": { "properties": { "evidence_kind": { "const": "derived" } }, "required": ["evidence_kind"] },
+            "then": {
+                "anyOf": [
+                    { "properties": { "source_url": { "type": "string" } } },
+                    { "properties": { "causation_event_id": { "type": "string" } } }
+                ]
+            }
+        },
+        {
+            "if": { "properties": { "event_type": { "enum": ["review_started", "repair_started", "verification_finding_issued", "verification_finding_adjudicated"] } }, "required": ["event_type"] },
+            "then": { "properties": { "outcome": { "type": "null" } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "const": "substantive_review_issued" } }, "required": ["event_type"] },
+            "then": { "properties": { "outcome": { "enum": ["accepted", "changes_requested", "refused"] } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "const": "repair_requested" } }, "required": ["event_type"] },
+            "then": { "properties": { "outcome": { "const": "changes_requested" } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "enum": ["repair_completed", "verification_completed"] } }, "required": ["event_type"] },
+            "then": { "properties": { "outcome": { "enum": ["passed", "failed"] } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "const": "decision_recorded" } }, "required": ["event_type"] },
+            "then": { "properties": { "outcome": { "enum": ["accepted", "refused"] } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "enum": ["review_started", "substantive_review_issued", "verification_completed"] } }, "required": ["event_type"] },
+            "else": { "properties": { "review_depth": { "type": "null" } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "enum": ["substantive_review_issued", "repair_requested", "repair_completed", "verification_completed"] } }, "required": ["event_type"] },
+            "else": { "properties": { "finding_count": { "type": "null" } } }
+        },
+        {
+            "if": { "properties": { "event_type": { "enum": ["substantive_review_issued", "repair_completed", "verification_completed"] } }, "required": ["event_type"] },
+            "else": { "properties": { "token_count": { "type": "null" }, "elapsed_ms": { "type": "null" } } }
+        }
+    ]
+}

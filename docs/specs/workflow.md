@@ -223,3 +223,8 @@ Failure format is machine- and human-readable, including:
 - expected value
 
 The top-level M11 post-execution governance baseline is [m11-post-execution-governance-bootstrap.md](./m11-post-execution-governance-bootstrap.md). Governed changes enter that loop through a versioned change record. The current [governed-change issue template](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) may mirror the record for GitHub users but is not the audit front door. The operating loop itself is [m11-steady-state-conformance-loop.md](./m11-steady-state-conformance-loop.md), and steady-state drift scans and C17+ logging use [m11-periodic-drift-scan-protocol.md](./m11-periodic-drift-scan-protocol.md) and the optional [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).
+
+Maintainer delivery telemetry follows the same authority rule. GitHub owns its
+native events, while off-platform agent review and verification events enter
+the governed append-only ledger defined by [delivery-telemetry.md](./delivery-telemetry.md).
+DevLake and dashboards are projections of those authorities, never substitutes.

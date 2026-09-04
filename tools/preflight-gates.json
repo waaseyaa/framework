@@ -234,6 +234,14 @@
             }
         },
         {
+            "id": "check-delivery-agent-events",
+            "run": "php bin/check-delivery-agent-events --base={base}",
+            "base": true,
+            "repair": "restore schema and causal conformance, or append a new event without changing prior ledger bytes",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#check-delivery-agent-events --base"
+        },
+        {
             "id": "check-s1-schema-authority",
             "alias": "check-s1-schema-authority",
             "run": "php bin/check-s1-schema-authority",
