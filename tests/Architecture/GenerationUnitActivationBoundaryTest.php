@@ -16,6 +16,17 @@ final class GenerationUnitActivationBoundaryTest extends TestCase
         self::assertSame([], $authority->getConstant('SEEDED_COMPILERS'));
     }
 
+    public function testAdditiveCompilerAdmissionContainsOnlyTheManifestRootCompiler(): void
+    {
+        $authority = new \ReflectionClass(\Waaseyaa\CLI\Site\SiteInitializationService::class);
+        self::assertTrue($authority->hasConstant('ADDITIVE_COMPILERS'));
+        self::assertSame(
+            [\Waaseyaa\SiteContract\Generation\SiteArtifactRenderer::class],
+            $authority->getConstant('ADDITIVE_COMPILERS'),
+            'Blueprint and non-root compilers require a separately reviewed authority expansion.',
+        );
+    }
+
     public function testHandlersDoNotReachDormantGenerationUnitSeams(): void
     {
         $root = dirname(__DIR__, 2);

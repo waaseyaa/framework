@@ -368,9 +368,16 @@ load-bearing (#2644):
 
 - **A changed artifact set** — one generated file added or removed — is compared
   unconditionally, outside the manifest-digest guard, and refuses regeneration
-  on every already-initialized project with no override and no migration path.
-  Treat the set as frozen; a new committed file belongs in the skeleton, not in
-  the generated set.
+  on every already-initialized project through the current legacy entrypoint.
+  The dormant ADR-025 D-2.3a successor-plan path admits one named exception:
+  the managed root `site` binding using `SiteArtifactRenderer` may declare
+  `set_evolution: additive`. It reports sorted additions and no drops; every
+  added path still faces the existing ownership, containment and collision
+  checks, while carried paths retain managed-byte and extension checks. Other
+  bindings remain frozen. Frozen additions refuse `GEN011`, frozen drops
+  `GEN009`, and additive drops or ineligible declarations `GEN011`. The future
+  blueprint binding is not admitted. Slice 8 alone activates this behavior;
+  no command reaches the exception before that slice.
 - **Changed managed bytes** of an existing artifact refuse only while the
   manifest digest is unchanged, because that is the case regeneration cannot
   distinguish from a substitution. Rebinding
