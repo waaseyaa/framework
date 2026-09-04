@@ -124,18 +124,7 @@ final class TransitionService
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $entityId = (string) $entity->id();
 
-        // CW-v1 option-1 (#1920 PR-2, design §3.2, verifier finding 4): the
-        // workflow POSITION is resolved from the WORKING COPY, not the
-        // passed object. Under discipline a caller may have loaded the
-        // entity via find() (served, published content) while a
-        // further-along draft tip already exists — the transition's
-        // legality must be judged against the REAL current position, not a
-        // stale served snapshot. `$workingCopy === null` (repository could
-        // not resolve one — unmodeled fixture, or a race where the row
-        // vanished between load and call) degrades to trusting the passed
-        // object, exactly like {@see \Waaseyaa\Workflows\Listener\WorkflowStateGuard::workingCopyBasis()}'s
-        // identical fallback.
-        $workingCopy = $repository->loadWorkingCopy($entityId);
+        $workingCopy = $this->workingCopy($entity);
         $basisEntity = $workingCopy ?? $entity;
 
         $fromState = $this->currentState($basisEntity, $workflow);
@@ -432,7 +421,7 @@ final class TransitionService
             return [];
         }
 
-        $fromState = $this->currentState($entity, $workflow);
+        $fromState = $this->currentState($this->workingCopy($entity) ?? $entity, $workflow);
 
         $available = [];
         foreach ($workflow->getValidTransitions($fromState) as $transition) {
@@ -503,6 +492,51 @@ final class TransitionService
         }
 
         return null;
+    }
+
+    /**
+     * The repository working copy for `$entity`, or null when none resolves —
+     * the ONE basis from which both {@see doTransition()} and
+     * {@see doGetAvailableTransitions()} judge the workflow position (#2836).
+     *
+     * CW-v1 option-1 (#1920 PR-2, design §3.2, verifier finding 4): the
+     * workflow POSITION comes from the WORKING COPY, not the passed object.
+     * Under discipline a caller may have loaded the entity via find()
+     * (served, published content) while a further-along draft tip already
+     * exists — legality must be judged against the REAL current position,
+     * not a stale served snapshot, and the read side must not offer an edge
+     * the write side would then refuse as REASON_ILLEGAL_EDGE. Null (no id
+     * yet, no repository for the type, or the repository resolved no
+     * working copy — unmodeled fixture, or a race where the row vanished
+     * between load and call) means "trust the passed object", exactly like
+     * {@see \Waaseyaa\Workflows\Listener\WorkflowStateGuard::workingCopyBasis()}'s
+     * identical fallback.
+     */
+    private function workingCopy(EntityInterface $entity): ?EntityInterface
+    {
+        $id = $entity->id();
+        if ($id === null || $id === '') {
+            return null;
+        }
+
+        try {
+            $repository = $this->entityTypeManager->getRepository($entity->getEntityTypeId());
+        } catch (\RuntimeException | \InvalidArgumentException) {
+            // No repository (or no registered definition) for this entity
+            // type. {@see doTransition()} has already resolved one before it
+            // gets here, so only the read side can reach this arm: degrade
+            // to the passed object rather than turning "what may I offer?"
+            // into a failure.
+            return null;
+        }
+
+        // Deliberately UNGUARDED: a working-copy LOAD failure must keep
+        // propagating exactly as it did before #2836. Swallowing it would
+        // fail the enforcement door open — {@see doTransition()} would then
+        // judge the edge from the caller's own snapshot and skip the
+        // stale-caller {@see RevisionConflictException} check, which is the
+        // opposite of what the working-copy basis exists to guarantee.
+        return $repository->loadWorkingCopy((string) $id);
     }
 
     private function currentState(EntityInterface $entity, Workflow $workflow): string
