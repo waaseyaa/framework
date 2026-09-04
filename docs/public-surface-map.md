@@ -144,6 +144,7 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `Generation\ArtifactSetEvolution` | enum | Closed frozen/additive declaration of whether a compiler may render a superset of its unit's recorded path set |
 | `Generation\ObservedTargetState` | enum | Closed absent/file/other record of what evaluation observed at one target path |
 | `Generation\ObservedTargetMode` | enum | Closed 0644/0755/other/unknown record of the permission bits evaluation observed |
+| `Generation\Exception\GenerationErrorCode` | enum | Closed GEN001-GEN015 refusal ids for the generation execution and plan boundary, reserved by ADR-025 D-5 |
 
 ### state
 

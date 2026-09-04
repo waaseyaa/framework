@@ -262,6 +262,13 @@ return [
     'Waaseyaa\SiteContract\Generation\GenerationUnitDisposition' => 'public',
     'Waaseyaa\SiteContract\Generation\ObservedTargetMode' => 'public',
     'Waaseyaa\SiteContract\Generation\ObservedTargetState' => 'public',
+    // #2846 slice 3, ADR-025 D-5: the reserved GEN0xx refusal ids for the
+    // generation execution/plan boundary, separate from the SITE0xx family
+    // that codes manifest and blueprint content errors. The decision closes
+    // the set -- an additional id is an ADR amendment, not a code change --
+    // and the backing strings are what a plan reader switches on and an
+    // operator quotes, so the vocabulary is public from its first release.
+    'Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode' => 'public',
     // Internal shared parsing helper, not an extension point — invoked only
     // by the package's own structural parsers.
     'Waaseyaa\SiteContract\ManifestShapeReader' => 'internal',

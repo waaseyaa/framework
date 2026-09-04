@@ -91,6 +91,18 @@ parameters:
 			path: packages/media/src/Version/MediaVersionStorageDriver.php
 
 		-
+			message: '#^Property Waaseyaa\\SiteContract\\Generation\\Exception\\GenerationRefusalException\:\:\$source is never read$#'
+			identifier: shipmonk.deadProperty.neverRead
+			count: 1
+			path: packages/site-contract/src/Generation/Exception/GenerationRefusalException.php
+
+		-
+			message: '#^Unused Waaseyaa\\SiteContract\\Generation\\Exception\\GenerationRefusalException\:\:toArray$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/site-contract/src/Generation/Exception/GenerationRefusalException.php
+
+		-
 			message: '#^Property Waaseyaa\\Testing\\Traits\\InteractsWithApi\:\:\$requestHeaders is never read$#'
 			identifier: shipmonk.deadProperty.neverRead
 			count: 1

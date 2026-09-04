@@ -123,12 +123,12 @@ final class GenerationPlanTypePurityTest extends TestCase
 
     #[Test]
     #[DataProvider('sliceTypeProvider')]
-    public function itEmitsNoGenerationErrorCodeBeforeTheCodedFamilyExists(string $file): void
+    public function itDelegatesRefusalCodingRatherThanInliningACode(string $file): void
     {
         self::assertDoesNotMatchRegularExpression(
             '/GEN\d{3}/',
             self::strippedCode($file),
-            "{$file} must not emit a GEN0xx code: the coded exception family is a later slice.",
+            "{$file} must not inline a GEN0xx id: the family is carried by the exception classes that own it.",
         );
     }
 
