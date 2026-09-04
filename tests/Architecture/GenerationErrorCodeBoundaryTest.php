@@ -19,11 +19,13 @@ use PHPUnit\Framework\TestCase;
  * exception class; it never inlines an id, which is exactly what centralizing
  * the family in one namespace buys.
  *
- * The TRANSIENT half -- that nothing in production constructs these types yet
- * -- is asserted explicitly by the slice-three-only test below. Slice 4 must
- * delete that test when it introduces the first caller. This visible staged
- * assertion is intentionally not encoded as growth in the repository's
- * shrink-only dead-code baseline.
+ * The TRANSIENT half -- that nothing in production constructed these types yet
+ * -- was asserted by a slice-three-only test that named its own retirement
+ * condition. Slice 4 introduced the first production callers
+ * (`ArtifactApplyResult::$errors` and `EvaluatedArtifactPlan::$refusals` are
+ * `GenerationViolation` by D-6.4 and D-6.2), so that assertion was deleted on
+ * the terms it set for itself. The durable half above is untouched: no slice
+ * may inline a GEN0xx id outside the family, and slice 4 does not.
  */
 #[CoversNothing]
 final class GenerationErrorCodeBoundaryTest extends TestCase
@@ -108,26 +110,6 @@ final class GenerationErrorCodeBoundaryTest extends TestCase
         ] as $concrete) {
             self::assertArrayNotHasKey($concrete, $map);
         }
-    }
-
-    #[Test]
-    public function sliceThreeHasNoProductionCallerOfTheRefusalCarriers(): void
-    {
-        $offenders = [];
-        foreach ($this->productionPhpCodeFiles() as $relative => $code) {
-            if (str_starts_with($relative, self::FAMILY_DIR)) {
-                continue;
-            }
-            if (preg_match('/\b(?:GenerationRefusalException|GenerationViolation)\b/', $code) === 1) {
-                $offenders[] = $relative;
-            }
-        }
-
-        self::assertSame(
-            [],
-            $offenders,
-            'Slice 3 is non-activating. Delete this slice-only assertion when slice 4 introduces the first typed refusal caller.',
-        );
     }
 
     /** @return array<string, string> */
