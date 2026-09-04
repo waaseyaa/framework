@@ -12,16 +12,32 @@ require_once dirname(__DIR__) . '/tools/lib/DevRuntime.php';
  *
  * Repository mode validates declared sources. --ci additionally validates the
  * running test point and can write a machine-readable evidence record.
+ *
+ * --root=DIR       validate another repository tree (fixture-driven tests)
+ * --contract=PATH  validate another contract file, absolute or root-relative
  */
 
 $root = dirname(__DIR__);
-$ci = in_array('--ci', $argv, true);
+/** @var list<string> $arguments */
+$arguments = array_values(array_filter($_SERVER['argv'] ?? [], 'is_string'));
+$ci = in_array('--ci', $arguments, true);
 $evidencePath = null;
 $errors = [];
 
-foreach ($argv as $argument) {
+foreach ($arguments as $argument) {
+    if (str_starts_with($argument, '--root=')) {
+        $root = rtrim(substr($argument, strlen('--root=')), '/');
+    }
+}
+$contractPath = $root . '/support/s1-v1.json';
+
+foreach ($arguments as $argument) {
     if (str_starts_with($argument, '--evidence=')) {
         $evidencePath = substr($argument, strlen('--evidence='));
+    }
+    if (str_starts_with($argument, '--contract=')) {
+        $candidate = substr($argument, strlen('--contract='));
+        $contractPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
     }
 }
 
@@ -95,7 +111,7 @@ function runVersionCommand(string $command): array
 }
 
 try {
-    $contract = readJsonObject($root . '/support/s1-v1.json');
+    $contract = readJsonObject($contractPath);
     requireExactKeys($contract, ['schema_version', 'contract_version', 'last_reviewed', 'review_by', 'profile', 'platform', 'lifecycle', 'evidence', 'unsupported'], 'contract', $errors);
     requireSame($contract['schema_version'] ?? null, 1, 'schema_version', $errors);
     requireSame($contract['contract_version'] ?? null, 's1-v1', 'contract_version', $errors);
@@ -323,7 +339,7 @@ try {
     $evidenceRecord = [
         'schema_version' => 1,
         'contract_version' => $contract['contract_version'] ?? null,
-        'contract_sha256' => hash_file('sha256', $root . '/support/s1-v1.json'),
+        'contract_sha256' => hash_file('sha256', $contractPath),
         'result' => $errors === [] ? 'pass' : 'fail',
         'commit' => null,
         'workflow_sha' => getenv('GITHUB_SHA') ?: null,
