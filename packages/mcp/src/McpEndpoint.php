@@ -1380,7 +1380,7 @@ final readonly class McpEndpoint
                     metadata: ['tier' => $this->rateLimitTier] + $approvalMetadata,
                 ));
             } catch (StrictAuditLedgerException $e) {
-                $this->logger?->critical('mcp.audit_reservation_failed', [
+                $this->reportAuditFailure('mcp.audit_reservation_failed', [
                     'correlation_id' => $correlationId,
                     'tool' => $toolName,
                     'tier' => $this->rateLimitTier,
@@ -1441,7 +1441,7 @@ final readonly class McpEndpoint
                 // neither is attempted. The reservation stays unfinalized, which
                 // is queryable ('reserved' with no 'finalized') and is the
                 // documented crash-window signature. Loud, and never silent.
-                $this->logger?->critical('mcp.audit_finalize_failed', [
+                $this->reportAuditFailure('mcp.audit_finalize_failed', [
                     'correlation_id' => $correlationId,
                     'receipt_id' => $receipt->id,
                     'tool' => $toolName,
@@ -1564,7 +1564,7 @@ final readonly class McpEndpoint
         ?int $actorUid,
         string $toolName,
     ): McpResponse {
-        $this->logger?->critical('mcp.approval_store_unavailable', [
+        $this->reportAuditFailure('mcp.approval_store_unavailable', [
             'correlation_id' => $correlationId,
             'tool' => $toolName,
             'exception' => $e::class,
@@ -1620,7 +1620,7 @@ final readonly class McpEndpoint
         try {
             $consumed = $this->approvalStore()->consume($approval->id, $receipt->id, $correlationId);
         } catch (\Throwable $e) {
-            $this->logger?->critical('mcp.approval_consume_failed', [
+            $this->reportAuditFailure('mcp.approval_consume_failed', [
                 'correlation_id' => $correlationId,
                 'tool' => $toolName,
                 'exception' => $e::class,
@@ -1772,7 +1772,7 @@ final readonly class McpEndpoint
         try {
             $this->auditLedger()->finalize($receipt, $stage, ['tier' => $this->rateLimitTier] + $metadata);
         } catch (\Throwable $e) {
-            $this->logger?->critical('mcp.audit_finalize_failed', [
+            $this->reportAuditFailure('mcp.audit_finalize_failed', [
                 'correlation_id' => $correlationId,
                 'receipt_id' => $receipt->id,
                 'tool' => $toolName,
@@ -1780,6 +1780,33 @@ final readonly class McpEndpoint
                 'exception' => $e::class,
                 'note' => 'Dangling reservation: the refusal stands, its outcome record does not.',
             ]);
+        }
+    }
+
+    /**
+     * Best-effort report of an audit-infrastructure failure to the configured
+     * logger.
+     *
+     * Every callsite here reports AFTER its own caller-visible outcome is
+     * already decided — a refusal that stands, or (in `tools/call`'s
+     * post-execution finalize) a completed tool call that cannot be un-run.
+     * `tools/call` is dispatched directly from {@see handle()}, so nothing
+     * downstream catches for it: an unguarded `critical()` throw would escape
+     * to the HTTP client after the mutation had already committed, and the
+     * caller could retry an action that already happened. The logger call is
+     * therefore wrapped. The failure is deliberately not re-logged: there is no
+     * framework `LoggerInterface` convention for logging a logging failure,
+     * recursing into a broken sink risks looping, and `error_log()` is reserved
+     * for the logging infrastructure itself, not its callers.
+     *
+     * @param array<string, mixed> $context
+     */
+    private function reportAuditFailure(string $event, array $context): void
+    {
+        try {
+            $this->logger?->critical($event, $context);
+        } catch (\Throwable) {
+            // Deliberately empty — see method doc.
         }
     }
 
@@ -1849,7 +1876,7 @@ final readonly class McpEndpoint
                 // \Throwable, not just the contract exception: a ledger that
                 // breaks its own exception contract must not convert a safe
                 // refusal into an endpoint crash (same rationale as finalize).
-                $this->logger?->critical('mcp.audit_terminal_record_failed', [
+                $this->reportAuditFailure('mcp.audit_terminal_record_failed', [
                     'correlation_id' => $correlationId,
                     'stage' => $stage->value,
                     'exception' => $e::class,

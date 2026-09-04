@@ -291,6 +291,36 @@ final class AuditedToolDispatcherTest extends TestCase
         self::assertNotSame([], $logger->withLevel('critical'));
     }
 
+    /**
+     * Same containment, on the reservation path. The refusal is already
+     * decided — fail-closed, tool never run — and a `critical()` throw here
+     * would replace that honest `AuditUnavailableRefused` outcome with an
+     * uncaught exception, breaking `ToolDispatcherInterface`'s contract that a
+     * caller-caused failure never throws. Covered so a future refactor cannot
+     * quietly reintroduce an unguarded logger call at this site.
+     */
+    #[Test]
+    public function a_reservation_failure_reported_to_a_broken_logger_never_escapes_dispatch(): void
+    {
+        /** @var \ArrayObject<int, string> $order */
+        $order = new \ArrayObject();
+
+        $outcome = new AuditedToolDispatcher(
+            $this->inner(order: $order),
+            new UnavailableStrictAuditLedger(),
+            'local.stdio',
+            'corr-1',
+            logger: new ThrowingLogger(),
+        )->dispatch('probe', ['q' => 'x']);
+
+        self::assertSame(AuditStage::AuditUnavailableRefused, $outcome->stage);
+        self::assertTrue($outcome->isError());
+        self::assertSame([], $order->getArrayCopy(), 'The tool must not run when the attempt cannot be recorded.');
+
+        $body = json_decode($outcome->envelope['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(AuditedToolDispatcher::AUDIT_UNAVAILABLE_CODE, $body['code']);
+    }
+
     #[Test]
     public function a_finalize_failure_is_loud_and_never_rethrown(): void
     {
@@ -482,6 +512,30 @@ final class AuditedToolDispatcherTest extends TestCase
         $critical = $logger->withLevel('critical');
         self::assertCount(1, $critical);
         self::assertSame('agent_tool.audit_terminal_record_failed', $critical[0]['message']);
+    }
+
+    /**
+     * Same containment, on the terminal-record path. The refusal is already
+     * decided by the time the report is made, so a broken logger must not
+     * convert it into an uncaught exception. Covered so a future refactor
+     * cannot quietly reintroduce an unguarded logger call at this site.
+     */
+    #[Test]
+    public function a_terminal_record_failure_reported_to_a_broken_logger_never_escapes_dispatch(): void
+    {
+        $outcome = new AuditedToolDispatcher(
+            $this->inner(),
+            new RecordFailingStrictAuditLedger(),
+            'local.stdio',
+            'corr-1',
+            logger: new ThrowingLogger(),
+        )->dispatch('nope', []);
+
+        self::assertSame(AuditStage::AuditUnavailableRefused, $outcome->stage);
+        self::assertTrue($outcome->isError());
+
+        $body = json_decode($outcome->envelope['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(AuditedToolDispatcher::AUDIT_UNAVAILABLE_CODE, $body['code']);
     }
 
     #[Test]
