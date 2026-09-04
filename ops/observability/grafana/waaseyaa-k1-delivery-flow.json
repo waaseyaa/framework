@@ -1,0 +1,139 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "waaseyaa-k1-flow",
+    "title": "Waaseyaa K1 delivery flow",
+    "tags": ["waaseyaa", "k1", "delivery-telemetry"],
+    "timezone": "utc",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "1m",
+    "time": { "from": "now-7d", "to": "now" },
+    "panels": [
+      {
+        "id": 1,
+        "type": "text",
+        "title": "Measurement boundary",
+        "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+        "options": {
+          "mode": "markdown",
+          "content": "GitHub and DevLake prove PR/check events. They do **not** prove an off-platform substantive review. #2866 is a merge-on-green control, not a review-time sample. Missing agent boundaries remain missing until a SHA-bound event is appended."
+        }
+      },
+      {
+        "id": 8,
+        "type": "table",
+        "title": "Governed projection identity",
+        "gridPos": { "h": 5, "w": 24, "x": 0, "y": 6 },
+        "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
+        "targets": [
+          {
+            "refId": "A",
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT source_commit_sha AS `Source commit`, ledger_sha256 AS `Ledger SHA-256`, schema_sha256 AS `Schema SHA-256`, event_count AS `Events`, generation AS `Generation`, projected_at AS `Projected (UTC)` FROM waaseyaa_delivery_projection_state WHERE projection_id = 'delivery-agent-events/v1'"
+          }
+        ],
+        "options": { "showHeader": true, "cellHeight": "sm" }
+      },
+      {
+        "id": 2,
+        "type": "table",
+        "title": "K1 pull-request timeline",
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 11 },
+        "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
+        "targets": [
+          {
+            "refId": "A",
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT number AS `PR`, state AS `Status`, github_created_at AS `Submitted (UTC)`, merged_at AS `Merged (UTC)`, ROUND(TIMESTAMPDIFF(SECOND, github_created_at, COALESCE(merged_at, UTC_TIMESTAMP())) / 3600, 2) AS `Open hours`, LEFT(head_commit_sha, 12) AS `Head SHA` FROM _tool_github_pull_requests WHERE github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY ORDER BY number"
+          }
+        ],
+        "options": { "showHeader": true, "cellHeight": "sm" }
+      },
+      {
+        "id": 3,
+        "type": "table",
+        "title": "GitHub-native review evidence by exact head",
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 21 },
+        "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
+        "targets": [
+          {
+            "refId": "A",
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT p.number AS `PR`, SUM(CASE WHEN r.commit_sha = p.head_commit_sha THEN 1 ELSE 0 END) AS `Current-head reviews`, SUM(CASE WHEN r.github_id IS NOT NULL AND r.commit_sha <> p.head_commit_sha THEN 1 ELSE 0 END) AS `Superseded-head reviews`, MIN(CASE WHEN r.commit_sha = p.head_commit_sha THEN r.github_submit_at END) AS `First current-head review (UTC)`, LEFT(p.head_commit_sha, 12) AS `Current head` FROM _tool_github_pull_requests p LEFT JOIN _tool_github_pull_request_reviews r ON r.connection_id = p.connection_id AND r.pull_request_id = p.github_id WHERE p.github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY GROUP BY p.number, p.head_commit_sha ORDER BY p.number"
+          }
+        ],
+        "options": { "showHeader": true, "cellHeight": "sm" }
+      },
+      {
+        "id": 4,
+        "type": "table",
+        "title": "Recent CI pipelines",
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 21 },
+        "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
+        "targets": [
+          {
+            "refId": "A",
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT display_title AS `Run`, status AS `Status`, conclusion AS `Result`, run_started_at AS `Started (UTC)`, ROUND(TIMESTAMPDIFF(SECOND, run_started_at, github_updated_at) / 60, 1) AS `Minutes`, LEFT(head_sha, 12) AS `Head SHA` FROM _tool_github_runs WHERE github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY ORDER BY github_created_at DESC LIMIT 25"
+          }
+        ],
+        "options": { "showHeader": true, "cellHeight": "sm" }
+      },
+      {
+        "id": 5,
+        "type": "table",
+        "title": "Time to first substantive review (agent-event authority)",
+        "gridPos": { "h": 9, "w": 12, "x": 0, "y": 31 },
+        "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
+        "targets": [
+          {
+            "refId": "A",
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT p.number AS `PR`, MIN(e.occurred_at_utc) AS `First substantive review (UTC)`, ROUND(TIMESTAMPDIFF(MICROSECOND, p.github_created_at, MIN(e.occurred_at_utc)) / 60000000, 2) AS `Minutes from submission`, MIN(e.evidence_kind) AS `Evidence` FROM _tool_github_pull_requests p LEFT JOIN waaseyaa_delivery_agent_events_v1 e ON e.pull_request = p.number AND e.event_type = 'substantive_review_issued' AND e.occurred_at_utc IS NOT NULL WHERE p.github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY GROUP BY p.number, p.github_created_at ORDER BY p.number"
+          }
+        ],
+        "options": { "showHeader": true, "cellHeight": "sm" }
+      },
+      {
+        "id": 6,
+        "type": "table",
+        "title": "Append-only agent events",
+        "gridPos": { "h": 9, "w": 12, "x": 12, "y": 31 },
+        "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
+        "targets": [
+          {
+            "refId": "A",
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT pull_request AS `PR`, event_type AS `Event`, occurred_at_utc AS `Occurred (UTC)`, recorded_at_utc AS `Recorded (UTC)`, actor_kind AS `Actor`, review_depth AS `Depth`, outcome AS `Outcome`, finding_count AS `Findings`, evidence_kind AS `Evidence`, LEFT(head_sha, 12) AS `Head SHA` FROM waaseyaa_delivery_agent_events_v1 ORDER BY source_ordinal DESC LIMIT 50"
+          }
+        ],
+        "options": { "showHeader": true, "cellHeight": "sm" }
+      },
+      {
+        "id": 7,
+        "type": "table",
+        "title": "Verifier findings and adjudication",
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 40 },
+        "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
+        "targets": [
+          {
+            "refId": "A",
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT f.pull_request AS `PR`, f.verifier_id AS `Verifier`, f.check_type AS `Check type`, f.claim_text AS `Claim`, f.observed_text AS `Observed`, COALESCE(a.adjudication_classification, 'pending') AS `Adjudication`, a.candidate_defect_confirmed AS `Candidate defect?`, f.safety_effect AS `Safety effect`, f.elapsed_ms AS `Cost ms`, LEFT(f.head_sha, 12) AS `Head SHA` FROM waaseyaa_delivery_agent_events_v1 f LEFT JOIN waaseyaa_delivery_agent_events_v1 a ON a.causation_event_id = f.event_id AND a.event_type = 'verification_finding_adjudicated' WHERE f.event_type = 'verification_finding_issued' ORDER BY f.source_ordinal DESC LIMIT 50"
+          }
+        ],
+        "options": { "showHeader": true, "cellHeight": "sm" }
+      }
+    ]
+  },
+  "folderUid": "",
+  "overwrite": true
+}

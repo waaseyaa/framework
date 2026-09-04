@@ -1925,6 +1925,7 @@ jobs:
           run_gate check-field-guards
           run_gate check-access-hardening
           run_gate check-openapi
+          run_gate check-delivery-agent-projection
           exit "$fail"
 
       - name: Verify append-only delivery agent events

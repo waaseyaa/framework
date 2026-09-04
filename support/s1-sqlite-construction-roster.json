@@ -117,6 +117,34 @@
             "occurrence": 2
         },
         {
+            "path": "bin/project-delivery-agent-events",
+            "pattern": "pdo_constructor",
+            "class": "tooling-query",
+            "match_sha256": "f7a6a31ceb3e731047498ad455c9eec01768f968967451278610da3fcf5d0f22",
+            "occurrence": 1
+        },
+        {
+            "path": "bin/project-delivery-agent-events",
+            "pattern": "pdo_constructor",
+            "class": "tooling-query",
+            "match_sha256": "f7a6a31ceb3e731047498ad455c9eec01768f968967451278610da3fcf5d0f22",
+            "occurrence": 2
+        },
+        {
+            "path": "bin/project-delivery-agent-events",
+            "pattern": "sqlite_dsn_token",
+            "class": "tooling-query",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
+            "path": "bin/project-delivery-agent-events",
+            "pattern": "sqlite_dsn_token",
+            "class": "tooling-query",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 2
+        },
+        {
             "path": "bin/test-quality-inventory",
             "pattern": "sqlite_dsn_token",
             "class": "tooling-query",

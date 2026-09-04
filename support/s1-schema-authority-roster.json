@@ -28,6 +28,20 @@
             "occurrence": 1
         },
         {
+            "path": "bin/project-delivery-agent-events",
+            "pattern": "ddl_sql",
+            "class": "tooling-query",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 1
+        },
+        {
+            "path": "bin/project-delivery-agent-events",
+            "pattern": "ddl_sql",
+            "class": "tooling-query",
+            "match_sha256": "f095a0558e19a2c644b8185a03b97f8bb174810f5712c04be480c73f9f80b063",
+            "occurrence": 2
+        },
+        {
             "path": "packages/admin-surface/tests/Integration/Host/GenericAdminSurfaceHostFieldAccessPaginationTest.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",

@@ -242,6 +242,14 @@
             "enforced_by": "workflow:ci.yml#check-delivery-agent-events --base"
         },
         {
+            "id": "check-delivery-agent-projection",
+            "alias": "check-delivery-agent-projection",
+            "run": "php bin/project-delivery-agent-events --self-test",
+            "repair": "restore immutable-source validation, exact-set transaction, rollback, and row-level verification",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#run_gate check-delivery-agent-projection"
+        },
+        {
             "id": "check-s1-schema-authority",
             "alias": "check-s1-schema-authority",
             "run": "php bin/check-s1-schema-authority",
