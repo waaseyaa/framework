@@ -14,6 +14,7 @@ use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\Content\ContentOperationTool;
 use Waaseyaa\AI\Tools\Content\ContentToolSet;
 use Waaseyaa\AI\Tools\Content\MediaAssetStore;
+use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -437,4 +438,43 @@ final class ContentToolSetTest extends TestCase
         self::assertStringNotContainsString('secret', strtolower((string) $text));
         self::assertStringNotContainsString('password', strtolower((string) $text));
     }
+
+    #[Test]
+    public function the_advertised_nullable_and_reference_list_constraints_are_enforced_by_the_shared_validator(): void
+    {
+        // #2737: `tools/list` advertises anyOf (nullable), oneOf (reference
+        // items) and uniqueItems; the shared validator that guards dispatch
+        // must hold callers to exactly those constraints.
+        $schema = $this->tools['article.createDraft']->inputSchema;
+        $fields = static fn(array $values): array => array_map(
+            static fn(array $v): string => $v['field'],
+            ToolInputSchemaValidator::validate($schema, ['values' => $values, 'idempotency_key' => 'schema-probe-key']),
+        );
+        $base = ['slug' => 'probe', 'title' => 'Probe'];
+
+        // Valid nulls, strings, alternatives and partial values stay valid.
+        self::assertSame([], $fields($base + ['publish_on' => null]));
+        self::assertSame([], $fields($base + ['publish_on' => '2026-09-04']));
+        self::assertSame([], $fields($base + ['related' => [1, 'b']]));
+        self::assertSame([], $fields($base + ['related' => []]));
+        self::assertSame([], $fields(['title' => 'partial']));
+
+        // Malformed union / duplicate input is refused at the advertised path.
+        self::assertSame(['values.publish_on'], $fields($base + ['publish_on' => false]));
+        self::assertSame(['values.related.0'], $fields($base + ['related' => [0]]));
+        self::assertSame(['values.related.0'], $fields($base + ['related' => ['']]));
+        self::assertSame(['values.related.0'], $fields($base + ['related' => [false]]));
+        self::assertSame(['values.related.1'], $fields($base + ['related' => ['a', 'a']]));
+        self::assertSame(['values.related'], $fields($base + ['related' => [1, 2, 3, 4]]));
+
+        // The draft tools' acknowledgement list is uniqueItems too.
+        $digest = str_repeat('a', 64);
+        $ack = ToolInputSchemaValidator::validate($schema, [
+            'values' => $base,
+            'idempotency_key' => 'schema-probe-key',
+            'save_advisory_acknowledgements' => [$digest, $digest],
+        ]);
+        self::assertSame(['save_advisory_acknowledgements.1'], array_column($ack, 'field'));
+    }
+
 }

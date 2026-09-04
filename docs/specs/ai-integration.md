@@ -1061,13 +1061,32 @@ reports `(arguments)`.
 
 **Supported keywords:** `type` (single or list), `properties`, `required`,
 `additionalProperties` (`false` or a subschema), `enum`, `const`, `items`,
-`min`/`maxItems`, `min`/`maxLength`, `pattern`, `minimum`, `maximum`,
-`exclusiveMinimum`, `exclusiveMaximum`. Unrecognised keywords (`default`,
-`description`, `$schema`, `x-*`) are **ignored** — a schema is never rejected
-for vocabulary the validator does not police. Composition keywords
-(`allOf`/`anyOf`/`oneOf`/`$ref`) are **deliberately unimplemented**: no
-first-party tool declares them, and silently accepting them would be worse
-than not offering them; add support alongside the first tool that needs it.
+`min`/`maxItems`, `uniqueItems`, `min`/`maxLength`, `pattern`, `minimum`,
+`maximum`, `exclusiveMinimum`, `exclusiveMaximum`, and the in-place applicators
+`allOf`, `anyOf`, `oneOf` (#2737). Unrecognised keywords (`default`,
+`description`, `format`, `$schema`, `x-*`) are **ignored** — a schema is never
+rejected for vocabulary the validator does not police. That list is the
+complete enforced vocabulary — a documented subset, not full draft 2020-12
+conformance; `$ref` is not implemented.
+
+**Applicator semantics:** `allOf` applies every subschema and reports their
+violations as-is. `anyOf` passes when at least one alternative accepts the
+value. `oneOf` passes when exactly one alternative accepts the value; matching
+more than one is a violation (`Matches 2 of the 2 allowed alternatives; exactly
+one is required.`). When no alternative accepts the value and exactly one
+alternative fits the value's *type* — `anyOf [{string, maxLength}, {null}]`
+given an over-long string, or the reference-list item `oneOf [{integer,
+minimum: 1}, {string, minLength: 1}]` given `0` — that alternative's own
+violations are reported at their real path (`values.related.0`), so an agent
+sees the concrete constraint rather than a generic union failure; otherwise a
+single `Does not match any of the N allowed alternatives.` lands on the field.
+`uniqueItems` compares decoded-JSON items with strict equality like
+`enum`/`const` (`1` ≠ `"1"`, `1` ≠ `1.0`) and reports the later duplicate's
+index. Applicators run after the value's own keywords, so a `type` mismatch
+beside `anyOf` still yields one violation. The same validator guards
+`outputSchema` on the way back (`AgentToolDispatcher`), so `ContentToolSet`'s
+`id: oneOf [integer, string]` is now enforced there too — `ContentPublisher`
+returns the persisted entity's `int|string` id, which satisfies it.
 
 **Value model:** arguments arrive as `json_decode($body, true)` produces them,
 so a JSON object is an associative array and the empty array satisfies both

@@ -376,4 +376,80 @@ final class AgentToolDispatcherTest extends TestCase
             outputSchema: $outputSchema,
         );
     }
+
+    #[Test]
+    public function nullable_and_reference_list_composition_keywords_are_enforced_before_the_handler_runs(): void
+    {
+        // #2737: the first-party ContentToolSet shape — anyOf (nullable),
+        // items.oneOf (reference alternatives) and uniqueItems — is part of the
+        // advertised contract, so it must refuse before dispatch exactly like
+        // `type` or `required` do.
+        /** @var \ArrayObject<int, string> $order */
+        $order = new \ArrayObject();
+        $registry = new ArrayToolRegistry([
+            $this->tool(
+                'probe',
+                schema: [
+                    'type' => 'object',
+                    'properties' => [
+                        'publish_on' => ['anyOf' => [['type' => 'string', 'format' => 'date'], ['type' => 'null']]],
+                        'related' => [
+                            'type' => 'array',
+                            'items' => ['oneOf' => [['type' => 'integer', 'minimum' => 1], ['type' => 'string', 'minLength' => 1]]],
+                            'uniqueItems' => true,
+                            'maxItems' => 3,
+                        ],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                order: $order,
+            ),
+        ]);
+        $dispatcher = $this->dispatcher($registry);
+
+        foreach ([
+            ['publish_on' => false],
+            ['related' => [0]],
+            ['related' => ['a', 'a']],
+        ] as $arguments) {
+            $outcome = $dispatcher->dispatch('probe', $arguments);
+            self::assertSame(AuditStage::InputValidationRefused, $outcome->stage, json_encode($arguments));
+            self::assertSame('VALIDATION_FAILED', $this->body($outcome)['code']);
+        }
+        self::assertSame([], $order->getArrayCopy(), 'The handler must never see malformed input.');
+
+        $outcome = $dispatcher->dispatch('probe', ['publish_on' => null, 'related' => [1, 'b']]);
+        self::assertSame(AuditStage::ExecutionSucceeded, $outcome->stage);
+        self::assertCount(1, $order);
+    }
+
+    #[Test]
+    public function an_output_schema_one_of_is_enforced_on_the_way_back(): void
+    {
+        // The ContentToolSet entity output shape: id is oneOf [integer, string].
+        $outputSchema = [
+            'type' => 'object',
+            'properties' => ['id' => ['oneOf' => [['type' => 'integer'], ['type' => 'string']]]],
+            'required' => ['id'],
+        ];
+        $withId = fn(mixed $id): ArrayToolRegistry => new ArrayToolRegistry([
+            $this->tool(
+                'probe',
+                handler: static fn(array $a): AgentToolResult => AgentToolResult::success(
+                    [['type' => 'text', 'text' => 'ok']],
+                    structuredContent: ['id' => $id],
+                ),
+                outputSchema: $outputSchema,
+            ),
+        ]);
+
+        self::assertSame(AuditStage::ExecutionSucceeded, $this->dispatcher($withId(7))->dispatch('probe', [])->stage);
+        self::assertSame(AuditStage::ExecutionSucceeded, $this->dispatcher($withId('7'))->dispatch('probe', [])->stage);
+
+        $logger = new RecordingLogger();
+        $outcome = $this->dispatcher($withId(null), $logger)->dispatch('probe', []);
+        self::assertSame(AuditStage::ExecutionFailed, $outcome->stage);
+        self::assertSame('tool_dispatch.tool_output_schema_violation', $logger->withLevel('error')[0]['message']);
+    }
+
 }
