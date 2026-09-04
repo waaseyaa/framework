@@ -71,6 +71,14 @@ For every governed recorded artifact, one command knows how to repair it:
   php-coverage baseline. Refresh does **not** rewrite these; it detects staleness and prints the
   exact regeneration or hand-edit instruction for each.
 
+- **Policy authority** (the value is the policy, not a recording of code): `support/s1-v1.json`.
+  `bin/check-support-contract` owns the contract's schema and invariants and derives every
+  runtime, packaging, CI, and documentation expectation from the parsed contract (#2852); it
+  carries no policy values of its own, so a support-policy change is one contract edit plus the
+  real-surface change. Refresh prints that instruction; it never rewrites policy. The gate takes
+  `--root=DIR` and `--contract=PATH` so `tests/Architecture/CheckSupportContractGateTest.php` can
+  prove drift, malformed contracts, widening, and stale evidence fail closed against fixtures.
+
 Refresh only touches artifacts whose gate currently fails — a clean tree is a no-op.
 
 ### 3. Worktree-inclusive local checks

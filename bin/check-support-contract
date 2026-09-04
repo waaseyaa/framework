@@ -581,30 +581,84 @@ try {
         $errors,
     );
 
+    // --- Real surfaces, each compared against a value READ FROM the contract ---
+
+    /** @param list<string> $errors */
+    $requireRangeSurface = static function (mixed $declared, ?array $expected, string $path, array &$errors): void {
+        if ($expected === null) {
+            return;
+        }
+        $actual = parseVersionRange($declared);
+        if ($actual === null) {
+            $errors[] = sprintf('%s must be a bounded >=MIN <MAX range, got %s', $path, json_encode($declared));
+        } elseif ($actual !== $expected) {
+            $errors[] = sprintf('%s %s must express the contract constraint %s', $path, json_encode($declared), describeRange($expected));
+        }
+    };
+    /** @param list<string> $errors */
+    $requireWithinRange = static function (mixed $version, ?array $range, string $path, array &$errors): void {
+        if ($range === null) {
+            return;
+        }
+        if (!is_string($version) || $version === '') {
+            $errors[] = "Unable to resolve the {$path} version";
+            return;
+        }
+        requireVersionRange(ltrim($version, 'v'), $range['min'], $range['max'], $path, $errors);
+    };
+
     $composer = readJsonObject($root . '/composer.json');
-    requireSame($composer['require']['php'] ?? null, '>=8.5 <8.6', 'composer.json require.php', $errors);
-    requireSame($composer['require']['ext-pdo_sqlite'] ?? null, '*', 'composer.json require.ext-pdo_sqlite', $errors);
-    requireSame($composer['require']['ext-sqlite3'] ?? null, '*', 'composer.json require.ext-sqlite3', $errors);
+    $requireRangeSurface($composer['require']['php'] ?? null, $phpRange, 'composer.json require.php', $errors);
+    foreach (['ext-pdo_sqlite', 'ext-sqlite3'] as $sqliteExtension) {
+        if (!isset($composer['require'][$sqliteExtension])) {
+            $errors[] = "composer.json must require {$sqliteExtension} for the declared platform.sqlite runtime";
+        }
+    }
     $composerLock = readJsonObject($root . '/composer.lock');
     requireSame($composerLock['platform']['php'] ?? null, $composer['require']['php'] ?? null, 'composer.lock platform.php', $errors);
 
-    $adminPackage = readJsonObject($root . '/packages/admin/package.json');
-    requireSame(trim((string) file_get_contents($root . '/.nvmrc')), '24', '.nvmrc', $errors);
-    requireSame($adminPackage['engines']['node'] ?? null, '>=24 <25', 'packages/admin/package.json engines.node', $errors);
+    $nvmrc = trim((string) file_get_contents($root . '/.nvmrc'));
+    if ($nodeRange !== null) {
+        $nodeMajor = explode('.', $nodeRange['min'])[0];
+        $nextMajor = ((int) $nodeMajor + 1) . '.0.0';
+        if ($nvmrc !== $nodeMajor || version_compare($nodeRange['max'], $nextMajor, '>')) {
+            $errors[] = sprintf('.nvmrc pins Node %s but the contract constraint is %s; the pin must be the single major line the constraint bounds', json_encode($nvmrc), describeRange($nodeRange));
+        }
+    }
+    $adminDirectory = $revisionAuthority !== null ? dirname($revisionAuthority) : 'packages/admin';
+    $adminPackage = readJsonObject($root . '/' . $adminDirectory . '/package.json');
+    $requireRangeSurface($adminPackage['engines']['node'] ?? null, $nodeRange, $adminDirectory . '/package.json engines.node', $errors);
     $devRuntime = DevRuntime::loadManifest($root . '/tools/dev-runtime-manifest.json', $root);
-    requireSame($devRuntime['resolved_tools']['node']['version'] ?? null, 'v24.20.0', 'managed Node version', $errors);
-    requireSame($devRuntime['resolved_tools']['composer']['version'] ?? null, '2.10.2', 'managed Composer version', $errors);
-    requireSame($devRuntime['tools']['frankenphp']['pin'] ?? null, 'tools/frankenphp-runtime-pin.json', 'managed FrankenPHP pin authority', $errors);
+    $requireWithinRange($devRuntime['resolved_tools']['node']['version'] ?? null, $nodeRange, 'managed Node', $errors);
+    $managedComposer = $devRuntime['resolved_tools']['composer']['version'] ?? null;
+    $requireWithinRange($managedComposer, $composerRange, 'managed Composer', $errors);
+    if (is_string($managedComposer) && $composerFeatureLine !== null) {
+        requireSame(implode('.', array_slice(explode('.', $managedComposer), 0, 2)), $composerFeatureLine, 'managed Composer feature line', $errors);
+    }
+    if (!is_string($devRuntime['tools']['frankenphp']['pin'] ?? null)) {
+        $errors[] = 'managed FrankenPHP pin authority is missing from tools/dev-runtime-manifest.json';
+    }
 
-    $adminLock = readJsonObject($root . '/packages/admin/package-lock.json');
-    $lockedPlaywright = $adminLock['packages']['node_modules/@playwright/test']['version'] ?? null;
-    requireSame($lockedPlaywright, $playwrightVersion, 'locked Playwright version', $errors);
-    requireSame($adminLock['packages']['node_modules/playwright-core']['version'] ?? null, $lockedPlaywright, 'locked playwright-core version', $errors);
+    if ($revisionAuthority !== null) {
+        $adminLock = readJsonObject($root . '/' . $revisionAuthority);
+        $lockedPlaywright = $adminLock['packages']['node_modules/@playwright/test']['version'] ?? null;
+        requireSame($lockedPlaywright, $playwrightVersion, $revisionAuthority . ' locked Playwright version', $errors);
+        requireSame($adminLock['packages']['node_modules/playwright-core']['version'] ?? null, $lockedPlaywright, $revisionAuthority . ' locked playwright-core version', $errors);
+    }
 
-    $playwrightConfig = (string) file_get_contents($root . '/packages/admin/playwright.config.ts');
+    $playwrightConfigPath = $adminDirectory . '/playwright.config.ts';
+    $playwrightConfig = (string) file_get_contents($root . '/' . $playwrightConfigPath);
     preg_match_all("/name:\\s*'([^']+)'/", $playwrightConfig, $projectMatches);
-    $configuredProjects = array_values(array_intersect($projectMatches[1] ?? [], ['chromium', 'firefox', 'webkit']));
-    requireSame($configuredProjects, ['chromium', 'firefox'], 'Playwright project matrix', $errors);
+    $configuredProjects = array_values(array_unique($projectMatches[1] ?? []));
+    sort($configuredProjects);
+    $expectedProjects = $browserProjects;
+    sort($expectedProjects);
+    if ($browserProjects !== [] && $configuredProjects !== $expectedProjects) {
+        $errors[] = sprintf('%s project matrix [%s] must equal platform.browsers.projects [%s]', $playwrightConfigPath, implode(', ', $configuredProjects), implode(', ', $expectedProjects));
+    }
+    foreach (array_intersect($configuredProjects, $unsupportedBrowsers) as $unsupportedProject) {
+        $errors[] = "{$playwrightConfigPath} configures unsupported browser {$unsupportedProject}";
+    }
 
     foreach (['docs/specs/s1-support-lifecycle.md', 'SECURITY.md'] as $requiredDocument) {
         if (!is_file($root . '/' . $requiredDocument)) {
@@ -613,20 +667,45 @@ try {
     }
     if (is_file($root . '/SECURITY.md')) {
         $securityPolicy = (string) file_get_contents($root . '/SECURITY.md');
-        foreach (['private vulnerability reporting', 'no response-time SLA', 'Authentication is not authorization', 'No additional accepted risk'] as $requiredPolicyText) {
+        // Document-conformance markers: not contract values, the human policy must state them.
+        foreach (['private vulnerability reporting', 'Authentication is not authorization', 'No additional accepted risk'] as $requiredPolicyText) {
             if (stripos($securityPolicy, $requiredPolicyText) === false) {
                 $errors[] = "SECURITY.md omits required policy text: {$requiredPolicyText}";
             }
         }
+        if ($responseTimeSla === false && stripos($securityPolicy, 'no response-time SLA') === false) {
+            $errors[] = 'SECURITY.md must state that there is no response-time SLA (lifecycle.response_time_sla is false)';
+        }
+        if ($responseTimeSla === true && stripos($securityPolicy, 'no response-time SLA') !== false) {
+            $errors[] = 'SECURITY.md denies a response-time SLA that lifecycle.response_time_sla declares';
+        }
     }
 
     $readme = (string) file_get_contents($root . '/README.md');
-    if (str_contains($readme, 'PHP 8.5 or later') || str_contains($readme, 'SQLite 3 (default) or MySQL/PostgreSQL')) {
-        $errors[] = 'README still contains an unbounded legacy platform claim';
+    if (preg_match('/\bPHP \d+(?:\.\d+)? or later\b/i', $readme, $floatingClaim) === 1) {
+        $errors[] = "README still contains an unbounded platform claim: {$floatingClaim[0]}";
     }
-    foreach (['S1 consumer certification is still pending', 'H1', 'MySQL/PostgreSQL', 'WebKit/Safari'] as $requiredBoundary) {
-        if (!str_contains($readme, $requiredBoundary)) {
-            $errors[] = "README omits support boundary: {$requiredBoundary}";
+    foreach ($unsupportedDatabases as $database) {
+        if (preg_match('/\bor\s+(?:[a-z0-9]+\/)*' . preg_quote($database, '/') . '\b/i', $readme, $databaseClaim) === 1) {
+            $errors[] = "README presents unsupported database {$database} as an option: {$databaseClaim[0]}";
+        }
+    }
+    if ($consumerStatus === 'pending' && stripos($readme, 'consumer certification is still pending') === false) {
+        $errors[] = 'README omits support boundary: S1 consumer certification is still pending (evidence.consumer.status is pending)';
+    }
+    if ($consumerStatus === 'verified' && stripos($readme, 'certification is still pending') !== false) {
+        $errors[] = 'README still calls consumer certification pending after evidence.consumer.status became verified';
+    }
+    foreach ($unsupportedProfiles as $unsupportedProfile) {
+        if (preg_match('/\b' . preg_quote($unsupportedProfile, '/') . '\b/', $readme) !== 1) {
+            $errors[] = "README omits support boundary: unsupported profile {$unsupportedProfile}";
+        }
+    }
+    foreach (['databases' => $unsupportedDatabases, 'browsers' => $unsupportedBrowsers] as $family => $tokens) {
+        foreach ($tokens as $token) {
+            if (preg_match('/^[a-z0-9]+$/D', $token) === 1 && preg_match('/\b' . preg_quote($token, '/') . '\b/i', $readme) !== 1) {
+                $errors[] = "README omits support boundary: unsupported {$family} entry {$token}";
+            }
         }
     }
 
@@ -637,32 +716,40 @@ try {
     } else {
         $supportJob = $jobMatch['job'];
     }
+    $phpTestPoint = $phpRange !== null ? implode('.', array_slice(explode('.', $phpRange['min']), 0, 2)) : null;
     $workflowChecks = [
-        '/^    runs-on: ubuntu-24\.04$/m' => 'explicit ubuntu-24.04 runner',
         '/uses: actions\/checkout@[0-9a-f]{40}\s+# v7\.0\.1/' => 'immutable checkout action',
         '/uses: shivammathur\/setup-php@[0-9a-f]{40}\s+# v2\.37\.2/' => 'immutable PHP setup action',
         '/uses: actions\/setup-node@[0-9a-f]{40}\s+# v7\.0\.0/' => 'immutable Node setup action',
-        "/php-version: '8\.5'/" => 'PHP 8.5 test point',
         "/node-version-file: '\.nvmrc'/" => 'Node test point',
-        '/php bin\/check-support-contract --ci --evidence=support-contract-evidence\.json/' => 'CI contract execution and evidence',
         '/uses: actions\/upload-artifact@[0-9a-f]{40}\s+# v7\.0\.1/' => 'immutable evidence upload action',
         '/retention-days: 30/' => 'evidence retention',
     ];
+    if ($osRunner !== null) {
+        $workflowChecks['/^    runs-on: ' . preg_quote($osRunner, '/') . '$/m'] = "explicit {$osRunner} runner (platform.framework_os.runner)";
+    }
+    if ($phpTestPoint !== null) {
+        $workflowChecks["/php-version: '" . preg_quote($phpTestPoint, '/') . "'/"] = "PHP {$phpTestPoint} test point (platform.php.constraint)";
+    }
+    if ($frameworkCommand !== null) {
+        $workflowChecks['/' . preg_quote($frameworkCommand, '/') . ' --evidence=support-contract-evidence\.json/'] = "contract execution `{$frameworkCommand}` with evidence (evidence.framework.command)";
+    }
     foreach ($workflowChecks as $pattern => $label) {
         if (preg_match($pattern, $supportJob) !== 1) {
             $errors[] = "CI support-contract job omits {$label}";
         }
     }
-    if (str_contains($workflow, 'runs-on: ubuntu-latest')) {
-        $errors[] = 'CI contains a floating ubuntu-latest runner';
+    if (preg_match('/runs-on:\s*\S+-latest\b/', $workflow, $floatingRunner) === 1) {
+        $errors[] = "CI contains a floating runner label: {$floatingRunner[0]}";
     }
-    foreach (['ci-unit-tests', 'ci-playwright-smoke', 'verify-gates'] as $requiredJob) {
-        if (preg_match('/^  ' . preg_quote($requiredJob, '/') . ':\R(?<job>.*?)(?=^  [a-z0-9_-]+:\R|\z)/ms', $workflow, $suiteMatch) !== 1
-            || preg_match('/^    runs-on: ubuntu-24\.04$/m', $suiteMatch['job']) !== 1) {
-            $errors[] = "CI {$requiredJob} is not pinned to ubuntu-24.04";
+    if ($osRunner !== null) {
+        foreach (['ci-unit-tests', 'ci-playwright-smoke', 'verify-gates'] as $requiredJob) {
+            if (preg_match('/^  ' . preg_quote($requiredJob, '/') . ':\R(?<job>.*?)(?=^  [a-z0-9_-]+:\R|\z)/ms', $workflow, $suiteMatch) !== 1
+                || preg_match('/^    runs-on: ' . preg_quote($osRunner, '/') . '$/m', $suiteMatch['job']) !== 1) {
+                $errors[] = "CI {$requiredJob} is not pinned to {$osRunner}";
+            }
         }
     }
-
     $capturedRuntime = DevRuntime::captureSystem();
     $runtime = array_intersect_key($capturedRuntime, array_flip([
         'php', 'composer', 'node', 'npm', 'frankenphp', 'sqlite', 'os',
@@ -670,33 +757,27 @@ try {
     ]));
 
     if ($ci) {
-        requireVersionRange(PHP_VERSION, '8.5.0', '8.6.0', 'runtime PHP', $errors);
+        $requireWithinRange(PHP_VERSION, $phpRange, 'runtime PHP', $errors);
         if (!class_exists(SQLite3::class) || !is_string($runtime['sqlite'])) {
             $errors[] = 'CI runtime lacks ext-sqlite3';
         } else {
-            requireVersionRange($runtime['sqlite'], '3.40.0', '4.0.0', 'runtime SQLite', $errors);
+            $requireWithinRange($runtime['sqlite'], $sqliteRange, 'runtime SQLite', $errors);
         }
 
-        if (!is_string($runtime['composer'])) {
-            $errors[] = 'Unable to resolve the CI Composer version';
-        } else {
-            requireVersionRange($runtime['composer'], '2.10.0', '3.0.0', 'runtime Composer', $errors);
-            requireSame(implode('.', array_slice(explode('.', $runtime['composer']), 0, 2)), $composerPlatform['feature_line'] ?? null, 'runtime Composer feature line', $errors);
+        $requireWithinRange($runtime['composer'], $composerRange, 'runtime Composer', $errors);
+        if (is_string($runtime['composer']) && $composerFeatureLine !== null) {
+            requireSame(implode('.', array_slice(explode('.', $runtime['composer']), 0, 2)), $composerFeatureLine, 'runtime Composer feature line', $errors);
         }
 
-        foreach (['node', 'npm'] as $name) {
-            if (!is_string($runtime[$name])) {
-                $errors[] = "Unable to resolve the CI {$name} version";
-            }
+        if (!is_string($runtime['npm'])) {
+            $errors[] = 'Unable to resolve the runtime npm version';
         }
-        if (is_string($runtime['node'])) {
-            requireVersionRange($runtime['node'], '24.0.0', '25.0.0', 'runtime Node', $errors);
-        }
+        $requireWithinRange($runtime['node'], $nodeRange, 'runtime Node', $errors);
 
         $osRelease = is_file('/etc/os-release') ? parse_ini_file('/etc/os-release') : false;
         $runtime['os'] = is_array($osRelease) ? ($osRelease['VERSION_ID'] ?? null) : null;
-        requireSame($runtime['os'], '24.04', 'runtime OS version', $errors);
-        requireSame($runtime['architecture'], 'x86_64', 'runtime architecture', $errors);
+        requireSame($runtime['os'], $osVersion, 'runtime OS version (platform.framework_os.version)', $errors);
+        requireSame($runtime['architecture'], $osArchitecture, 'runtime architecture (platform.framework_os.architecture)', $errors);
     }
 
     $evidenceRecord = [

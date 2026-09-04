@@ -429,6 +429,208 @@ final class CheckSupportContractGateTest extends TestCase
         ];
     }
 
+    /**
+     * The acceptance test for "one policy edit": a representative policy change
+     * (older PHP and Node lines, a different runner, one browser project, a
+     * different Playwright pin) with surfaces that follow it passes with NO
+     * checker change — every expected value was derived from the contract.
+     */
+    #[Test]
+    public function a_representative_policy_change_with_matching_surfaces_passes(): void
+    {
+        $this->writeFixture($this->alternativePolicyContract());
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, "Matching surfaces for a different policy must pass.\n{$out}");
+    }
+
+    /**
+     * @param callable(array<string, mixed>): array<string, mixed> $mutateContract
+     * @param array<string, string> $surfaceOverrides
+     */
+    #[Test]
+    #[DataProvider('surfaceDrift')]
+    public function a_surface_that_drifts_from_the_contract_fails_closed(callable $mutateContract, array $surfaceOverrides, string $expectedError): void
+    {
+        $contract = $mutateContract($this->baseContract());
+        $this->writeFixture($contract, $surfaceOverrides);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "Surface drift must fail: {$expectedError}\n{$out}");
+        self::assertStringContainsString($expectedError, $out);
+    }
+
+    /** @return iterable<string, array{0: callable(array<string, mixed>): array<string, mixed>, 1: array<string, string>, 2: string}> */
+    public static function surfaceDrift(): iterable
+    {
+        $unchanged = static fn(array $c): array => $c;
+        $json = static fn(array $v): string => json_encode($v, JSON_THROW_ON_ERROR);
+        // The CI surface as the BASE contract shapes it, held still while the contract moves.
+        $baseWorkflow = self::workflow('ubuntu-24.04', '8.5', 'php bin/check-support-contract --ci');
+
+        yield 'composer.json widened past the contract' => [
+            $unchanged,
+            ['composer.json' => $json(['require' => ['php' => '>=8.5 <9.0', 'ext-pdo_sqlite' => '*', 'ext-sqlite3' => '*']])],
+            'composer.json require.php ">=8.5 <9.0" must express the contract constraint >=8.5.0 <8.6.0',
+        ];
+        yield 'composer.json unbounded' => [
+            $unchanged,
+            ['composer.json' => $json(['require' => ['php' => '>=8.5', 'ext-pdo_sqlite' => '*', 'ext-sqlite3' => '*']])],
+            'composer.json require.php must be a bounded >=MIN <MAX range',
+        ];
+        yield 'composer.json drops the sqlite extension' => [
+            $unchanged,
+            ['composer.json' => $json(['require' => ['php' => '>=8.5 <8.6', 'ext-pdo_sqlite' => '*']])],
+            'composer.json must require ext-sqlite3 for the declared platform.sqlite runtime',
+        ];
+        yield 'contract narrowed but composer.json left behind' => [
+            static function (array $c): array {
+                $c['platform']['php']['constraint'] = '>=8.5.3 <8.6.0';
+                return $c;
+            },
+            ['composer.json' => $json(['require' => ['php' => '>=8.5 <8.6', 'ext-pdo_sqlite' => '*', 'ext-sqlite3' => '*']])],
+            'composer.json require.php ">=8.5 <8.6" must express the contract constraint >=8.5.3 <8.6.0',
+        ];
+        yield '.nvmrc pinning another major' => [
+            $unchanged,
+            ['.nvmrc' => "22\n"],
+            '.nvmrc pins Node "22" but the contract constraint is >=24.0.0 <25.0.0',
+        ];
+        yield 'engines.node widened' => [
+            $unchanged,
+            ['packages/admin/package.json' => $json(['engines' => ['node' => '>=24 <27']])],
+            'packages/admin/package.json engines.node ">=24 <27" must express the contract constraint >=24.0.0 <25.0.0',
+        ];
+        yield 'playwright config adds an unsupported browser' => [
+            $unchanged,
+            ['packages/admin/playwright.config.ts' => "projects: [\n { name: 'chromium' },\n { name: 'firefox' },\n { name: 'webkit' },\n]\n"],
+            'packages/admin/playwright.config.ts configures unsupported browser webkit',
+        ];
+        yield 'playwright config drops a declared project' => [
+            $unchanged,
+            ['packages/admin/playwright.config.ts' => "projects: [\n { name: 'chromium' },\n]\n"],
+            'packages/admin/playwright.config.ts project matrix [chromium] must equal platform.browsers.projects [chromium, firefox]',
+        ];
+        yield 'locked Playwright drifts from the contract pin' => [
+            $unchanged,
+            ['packages/admin/package-lock.json' => $json(['packages' => [
+                'node_modules/@playwright/test' => ['version' => '1.61.0'],
+                'node_modules/playwright-core' => ['version' => '1.61.0'],
+            ]])],
+            'packages/admin/package-lock.json locked Playwright version differs: expected "1.60.0", got "1.61.0"',
+        ];
+        yield 'README floats the PHP claim' => [
+            $unchanged,
+            ['README.md' => "Requires PHP 8.5 or later. S1 consumer certification is still pending. H1, MySQL/PostgreSQL, WebKit/Safari are not supported.\n"],
+            'README still contains an unbounded platform claim: PHP 8.5 or later',
+        ];
+        yield 'README offers an unsupported database' => [
+            $unchanged,
+            ['README.md' => "Databases: SQLite 3 (default) or MySQL/PostgreSQL. S1 consumer certification is still pending. H1, WebKit/Safari are not supported.\n"],
+            'README presents unsupported database mysql as an option: or MySQL',
+        ];
+        yield 'README omits an unsupported profile' => [
+            $unchanged,
+            ['README.md' => "S1 consumer certification is still pending. MySQL/PostgreSQL, WebKit/Safari are not supported.\n"],
+            'README omits support boundary: unsupported profile H1',
+        ];
+        yield 'README omits the pending certification while evidence is pending' => [
+            $unchanged,
+            ['README.md' => "H1, MySQL/PostgreSQL, WebKit/Safari are not supported.\n"],
+            'README omits support boundary: S1 consumer certification is still pending',
+        ];
+        yield 'SECURITY.md contradicts the declared absence of an SLA' => [
+            $unchanged,
+            ['SECURITY.md' => "Use private vulnerability reporting. Authentication is not authorization. No additional accepted risk.\n"],
+            'SECURITY.md must state that there is no response-time SLA',
+        ];
+        yield 'CI job on a floating runner' => [
+            $unchanged,
+            ['.github/workflows/ci.yml' => "jobs:\n  support-contract:\n    runs-on: ubuntu-latest\n    steps: []\n"],
+            'CI contains a floating runner label: runs-on: ubuntu-latest',
+        ];
+        yield 'CI job testing another PHP line' => [
+            static function (array $c): array {
+                $c['platform']['php']['constraint'] = '>=8.4.0 <8.5.0';
+                return $c;
+            },
+            ['.github/workflows/ci.yml' => $baseWorkflow],
+            'CI support-contract job omits PHP 8.4 test point (platform.php.constraint)',
+        ];
+        yield 'CI suite job off the declared runner' => [
+            static function (array $c): array {
+                $c['platform']['framework_os']['runner'] = 'ubuntu-22.04';
+                $c['platform']['framework_os']['version'] = '22.04';
+                $c['evidence']['framework']['test_point'] = 'ubuntu-22.04-x86_64';
+                $c['evidence']['consumer']['test_point'] = 'ubuntu-22.04-x86_64-ext4-apache-2.4-php-fpm-8.5';
+
+                return $c;
+            },
+            ['.github/workflows/ci.yml' => $baseWorkflow],
+            'CI ci-unit-tests is not pinned to ubuntu-22.04',
+        ];
+        yield 'managed toolchain outside the contract' => [
+            static function (array $c): array {
+                $c['platform']['node']['constraint'] = '>=24.21.0 <25.0.0';
+                return $c;
+            },
+            ['tools/dev-runtime-manifest.json' => (string) file_get_contents(dirname(__DIR__, 2) . '/tools/dev-runtime-manifest.json')],
+            'managed Node version 24.20.0 is outside >= 24.21.0 and < 25.0.0',
+        ];
+    }
+
+    #[Test]
+    public function ci_mode_probes_the_running_runtime_against_the_contract_constraint(): void
+    {
+        // A contract whose PHP constraint excludes the PHP running this test:
+        // the --ci probe must derive the expected range from the contract.
+        $contract = $this->baseContract();
+        $contract['platform']['php']['constraint'] = '>=7.4.0 <8.0.0';
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate(['--ci']);
+
+        self::assertSame(1, $exit, "--ci must reject a runtime outside the contract constraint.\n{$out}");
+        self::assertStringContainsString('runtime PHP version ' . PHP_VERSION . ' is outside >= 7.4.0 and < 8.0.0', $out);
+    }
+
+    #[Test]
+    public function contract_override_selects_another_contract_file(): void
+    {
+        $this->writeFixture($this->baseContract());
+        $successor = $this->baseContract();
+        $successor['contract_version'] = 's1-v2';
+        file_put_contents($this->tmpRoot . '/support/s1-v2.json', $this->json($successor));
+        file_put_contents($this->tmpRoot . '/support/mislabelled.json', $this->json($successor));
+
+        [$exit, $out] = $this->runGate(['--contract=support/s1-v2.json']);
+        self::assertSame(0, $exit, "A root-relative --contract override must be honoured.\n{$out}");
+
+        [$exit, $out] = $this->runGate(['--contract=' . $this->tmpRoot . '/support/mislabelled.json']);
+        self::assertSame(1, $exit, "A contract file not named after its contract_version must fail.\n{$out}");
+        self::assertStringContainsString('contract file mislabelled.json must be named after contract_version (s1-v2.json)', $out);
+    }
+
+    /** @return array<string, mixed> */
+    private function alternativePolicyContract(): array
+    {
+        $contract = $this->baseContract();
+        $contract['platform']['php']['constraint'] = '>=8.4.0 <8.5.0';
+        $contract['platform']['node']['constraint'] = '>=22.0.0 <23.0.0';
+        $contract['platform']['framework_os']['runner'] = 'ubuntu-22.04';
+        $contract['platform']['framework_os']['version'] = '22.04';
+        $contract['platform']['browsers']['playwright_version'] = '1.58.2';
+        $contract['platform']['browsers']['projects'] = ['chromium'];
+        $contract['evidence']['framework']['test_point'] = 'ubuntu-22.04-x86_64';
+        $contract['evidence']['consumer']['test_point'] = 'ubuntu-22.04-x86_64-ext4-apache-2.4-php-fpm-8.4';
+        $contract['unsupported']['browsers'] = ['firefox', 'webkit', 'safari'];
+        $contract['unsupported']['web_runtimes'] = ['non-apache-2.4', 'non-php-fpm-8.4'];
+
+        return $contract;
+    }
+
     /** @return array<string, string> */
     private function acknowledgement(string $transition, string $date, string $reviewBy, ?string $acknowledgedOn = null): array
     {
@@ -598,7 +800,7 @@ final class CheckSupportContractGateTest extends TestCase
             'docs/specs/s1-support-lifecycle.md' => "# S1 support and lifecycle\n\nFixture policy document.\n",
             'SECURITY.md' => $this->securityPolicy($lifecycle['response_time_sla']),
             'README.md' => $this->readme($phpMinor, $unsupported, $evidence['consumer']['status']),
-            '.github/workflows/ci.yml' => $this->workflow($os['runner'], $phpMinor, $evidence['framework']['command']),
+            '.github/workflows/ci.yml' => self::workflow($os['runner'], $phpMinor, $evidence['framework']['command']),
         ];
 
         foreach ($surfaceOverrides + $files as $relative => $content) {
@@ -676,7 +878,7 @@ final class CheckSupportContractGateTest extends TestCase
     private function readme(string $phpMinor, array $unsupported, string $consumerStatus): string
     {
         $pending = $consumerStatus === 'pending' ? 'S1 consumer certification is still pending its named downstream evidence.' : 'S1 consumer certification is verified.';
-        $display = static fn(string $token): string => ['mysql' => 'MySQL', 'postgresql' => 'PostgreSQL', 'webkit' => 'WebKit', 'safari' => 'Safari'][$token] ?? $token;
+        $display = static fn(string $token): string => ['mysql' => 'MySQL', 'postgresql' => 'PostgreSQL', 'webkit' => 'WebKit', 'safari' => 'Safari', 'firefox' => 'Firefox'][$token] ?? $token;
         $plain = static fn(array $tokens): array => array_values(array_filter($tokens, static fn(string $t): bool => preg_match('/^[a-z0-9]+$/i', $t) === 1));
         $boundary = implode(', ', [
             implode(', ', $unsupported['profiles']),
@@ -689,7 +891,7 @@ final class CheckSupportContractGateTest extends TestCase
             . "and unlisted web runtimes are not supported claims.\n";
     }
 
-    private function workflow(string $runner, string $phpMinor, string $command): string
+    private static function workflow(string $runner, string $phpMinor, string $command): string
     {
         $pinned = static fn(string $name): string => "  {$name}:\n    runs-on: {$runner}\n    steps:\n      - run: true\n";
 
