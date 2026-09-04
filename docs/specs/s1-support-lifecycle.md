@@ -73,9 +73,23 @@ The current upstream planning horizons recorded in `support/s1-v1.json` are:
 
 These dates are planning inputs, not evidence that an arbitrary patch is safe.
 They must be reviewed at least quarterly, at every tagged release, and no later
-than 90 days before the earliest recorded support-reducing or end-of-life
-transition. A move from active to maintenance support that does not reduce the
-declared S1 point is still recorded, but is not itself the notice deadline.
+than `lifecycle.next_transition_notice_days` (90) days before **every** recorded
+support-reducing transition — PHP active-support end, PHP security-support end,
+Node maintenance start, Node end-of-life, and the Ubuntu standard-security
+horizon alike. `bin/check-support-contract` interprets all of them through one
+shared computation; no transition is date-validated and then dropped from the
+notice set (#2862 found Node 24's 2026-10-20 maintenance start had been).
+
+When a transition's notice window is entered before the next scheduled review,
+the checker neither passes silently nor becomes permanently unsatisfiable: the
+contract must carry a `transition_acknowledgements` entry naming the
+transition path, its exact date, the `acknowledged_on` date, a pre-transition
+`review_by` date, and the change record. The entry is honoured once the
+contract schedules `review_by` on or before that date or records a
+`last_reviewed` on or after it. An entry whose date no longer matches the
+declared transition, or whose review date is not before the transition, fails.
+A terminal transition (security-support end, end-of-life) that has already
+passed always fails: the declared point must be revised, not tolerated.
 
 ## Machine-readable authority and fail-closed parity
 

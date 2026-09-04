@@ -62,6 +62,186 @@ final class CheckSupportContractGateTest extends TestCase
         self::assertStringContainsString('OK: S1 support contract', $out);
     }
 
+    #[Test]
+    public function node_maintenance_start_inside_an_entered_notice_window_fails_without_acknowledgement(): void
+    {
+        // The #2862 defect shape: Node maintenance begins 30 days from now, so
+        // its 90-day notice window opened 60 days ago; the contract was last
+        // reviewed inside that window and the next review is 20 days out.
+        // Today this exits 0 because maintenance_start is date-validated and
+        // then dropped from the notice set.
+        $contract = $this->baseContract();
+        $contract['last_reviewed'] = $this->day(-10);
+        $contract['review_by'] = $this->day(20);
+        $contract['platform']['node']['maintenance_start'] = $this->day(30);
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "An entered notice window without acknowledgement must fail.\n{$out}");
+        self::assertStringContainsString('platform.node.maintenance_start', $out);
+    }
+
+    #[Test]
+    public function node_eol_inside_the_notice_window_fails(): void
+    {
+        // The window has not opened yet (it opens in 10 days) but the next
+        // scheduled review already falls inside it.
+        $contract = $this->baseContract();
+        $contract['review_by'] = $this->day(20);
+        $contract['platform']['node']['eol'] = $this->day(100);
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "A review scheduled inside the eol notice window must fail.\n{$out}");
+        self::assertStringContainsString('platform.node.eol', $out);
+        self::assertStringContainsString('enters its 90-day notice window', $out);
+    }
+
+    #[Test]
+    public function php_active_support_end_inside_the_notice_window_fails(): void
+    {
+        $contract = $this->baseContract();
+        $contract['review_by'] = $this->day(20);
+        $contract['platform']['php']['active_support_end'] = $this->day(100);
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "A review scheduled inside the PHP notice window must fail.\n{$out}");
+        self::assertStringContainsString('platform.php.active_support_end', $out);
+    }
+
+    #[Test]
+    public function a_transition_whose_window_was_already_entered_fails_without_acknowledgement(): void
+    {
+        $contract = $this->baseContract();
+        $contract['last_reviewed'] = $this->day(-10);
+        $contract['review_by'] = $this->day(20);
+        $contract['platform']['node']['eol'] = $this->day(30);
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "An entered window without acknowledgement must fail.\n{$out}");
+        self::assertStringContainsString('platform.node.eol', $out);
+        self::assertStringContainsString('entered its 90-day notice window', $out);
+        self::assertStringContainsString('transition_acknowledgements', $out);
+    }
+
+    #[Test]
+    public function an_entered_window_passes_with_an_explicit_acknowledgement_and_pre_transition_review(): void
+    {
+        $contract = $this->baseContract();
+        $contract['last_reviewed'] = $this->day(-10);
+        $contract['review_by'] = $this->day(20);
+        $contract['platform']['node']['maintenance_start'] = $this->day(30);
+        $contract['transition_acknowledgements'] = [$this->acknowledgement('platform.node.maintenance_start', $this->day(30), $this->day(20))];
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, "An acknowledged window with a pre-transition review must pass.\n{$out}");
+    }
+
+    #[Test]
+    public function an_acknowledgement_is_satisfied_by_a_recorded_review_on_or_after_its_review_date(): void
+    {
+        // The pre-transition review happened (last_reviewed >= the acknowledged
+        // review_by); the next routine review may now land after the transition.
+        $contract = $this->baseContract();
+        $contract['last_reviewed'] = $this->day(-2);
+        $contract['review_by'] = $this->day(60);
+        $contract['platform']['node']['maintenance_start'] = $this->day(5);
+        $contract['transition_acknowledgements'] = [$this->acknowledgement('platform.node.maintenance_start', $this->day(5), $this->day(-3), acknowledgedOn: $this->day(-20))];
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, "A held pre-transition review must satisfy the acknowledgement.\n{$out}");
+    }
+
+    #[Test]
+    public function an_acknowledgement_whose_review_date_is_not_before_the_transition_fails(): void
+    {
+        $contract = $this->baseContract();
+        $contract['last_reviewed'] = $this->day(-10);
+        $contract['review_by'] = $this->day(20);
+        $contract['platform']['node']['maintenance_start'] = $this->day(30);
+        $contract['transition_acknowledgements'] = [$this->acknowledgement('platform.node.maintenance_start', $this->day(30), $this->day(30))];
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "An acknowledgement must commit to a review BEFORE the transition.\n{$out}");
+        self::assertStringContainsString('pre-transition review date', $out);
+    }
+
+    #[Test]
+    public function an_acknowledgement_that_the_contract_does_not_honour_fails(): void
+    {
+        // Acknowledged review_by is in 20 days, but the contract schedules its
+        // review 25 days out and records no review since — a faked acknowledgement.
+        $contract = $this->baseContract();
+        $contract['last_reviewed'] = $this->day(-10);
+        $contract['review_by'] = $this->day(25);
+        $contract['platform']['node']['maintenance_start'] = $this->day(30);
+        $contract['transition_acknowledgements'] = [$this->acknowledgement('platform.node.maintenance_start', $this->day(30), $this->day(20))];
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "The contract must honour the acknowledged review date.\n{$out}");
+        self::assertStringContainsString('acknowledgement commits to a pre-transition review', $out);
+    }
+
+    #[Test]
+    public function an_acknowledgement_for_a_moved_or_unknown_transition_fails(): void
+    {
+        $contract = $this->baseContract();
+        $contract['last_reviewed'] = $this->day(-10);
+        $contract['review_by'] = $this->day(20);
+        $contract['platform']['node']['maintenance_start'] = $this->day(30);
+        $contract['transition_acknowledgements'] = [
+            $this->acknowledgement('platform.node.maintenance_start', $this->day(31), $this->day(20)),
+            $this->acknowledgement('platform.composer.eol', $this->day(30), $this->day(20)),
+        ];
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "Stale or unknown acknowledgements must fail.\n{$out}");
+        self::assertStringContainsString('transition_acknowledgements[0].date must equal the declared platform.node.maintenance_start date', $out);
+        self::assertStringContainsString('transition_acknowledgements[1].transition must name a declared support-reducing transition', $out);
+    }
+
+    #[Test]
+    public function a_terminal_transition_that_has_passed_fails_closed(): void
+    {
+        $contract = $this->baseContract();
+        $contract['platform']['php']['security_support_end'] = $this->day(-1);
+        $this->writeFixture($contract);
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "A passed end-of-security-support date must fail closed.\n{$out}");
+        self::assertStringContainsString('platform.php.security_support_end', $out);
+        self::assertStringContainsString('has passed', $out);
+    }
+
+    /** @return array<string, string> */
+    private function acknowledgement(string $transition, string $date, string $reviewBy, ?string $acknowledgedOn = null): array
+    {
+        return [
+            'transition' => $transition,
+            'date' => $date,
+            'acknowledged_on' => $acknowledgedOn ?? $this->day(-1),
+            'review_by' => $reviewBy,
+            'record' => '#2862 fixture acknowledgement',
+        ];
+    }
+
     /**
      * A conforming contract whose transition dates sit far outside every
      * notice window, expressed relative to today so the fixture never expires.
@@ -75,6 +255,7 @@ final class CheckSupportContractGateTest extends TestCase
             'contract_version' => 's1-v1',
             'last_reviewed' => $this->day(-1),
             'review_by' => $this->day(30),
+            'transition_acknowledgements' => [],
             'profile' => ['name' => 'S1', 'status' => 'candidate', 'scope' => 'single-node SQLite'],
             'platform' => [
                 'php' => [

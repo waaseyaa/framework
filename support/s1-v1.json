@@ -3,6 +3,15 @@
   "contract_version": "s1-v1",
   "last_reviewed": "2026-09-03",
   "review_by": "2026-10-15",
+  "transition_acknowledgements": [
+    {
+      "transition": "platform.node.maintenance_start",
+      "date": "2026-10-20",
+      "acknowledged_on": "2026-09-03",
+      "review_by": "2026-10-15",
+      "record": "#2862: the 2026-09-03 S1 review found the 90-day notice window (opened 2026-07-22) already entered; review_by 2026-10-15 is the bounded pre-transition review, not retroactive compliance"
+    }
+  ],
   "profile": {
     "name": "S1",
     "status": "candidate",

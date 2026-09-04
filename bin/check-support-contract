@@ -93,6 +93,139 @@ function requireDate(mixed $value, string $path, array &$errors): ?DateTimeImmut
     return $date;
 }
 
+/**
+ * Parse a `YYYY-MM` planning horizon to the last calendar day of that month.
+ *
+ * @param list<string> $errors
+ */
+function requireMonth(mixed $value, string $path, array &$errors): ?DateTimeImmutable
+{
+    if (!is_string($value) || preg_match('/^\d{4}-\d{2}$/D', $value) !== 1) {
+        $errors[] = "{$path} must be a YYYY-MM month";
+        return null;
+    }
+
+    $date = requireDate($value . '-01', $path, $errors);
+
+    return $date?->modify('last day of this month');
+}
+
+/**
+ * The single notice-window computation for every declared support-reducing
+ * transition (#2852, #2862). A transition is date-validated by its caller and
+ * handed here; nothing is validated and then dropped from the notice set.
+ *
+ * For each future transition D with notice window W = D - notice days:
+ *  - review_by on or before W: a review is scheduled before the window opens.
+ *  - review_by after W: the window is (or will be) entered before the next
+ *    review. That never passes silently — the contract must carry an explicit
+ *    `transition_acknowledgements` entry for (transition, date) that names a
+ *    pre-transition review date and a change record — and it is never
+ *    permanently impossible: the acknowledgement is satisfied once the
+ *    contract schedules review_by on or before that date, or records a
+ *    last_reviewed on or after it.
+ * A terminal transition (end of security support, end of life) that has
+ * already passed fails closed: the declared support point must be revised.
+ *
+ * @param list<array{path: string, date: ?DateTimeImmutable, terminal: bool}> $transitions
+ * @param list<mixed> $acknowledgements
+ * @param list<string> $errors
+ */
+function evaluateSupportTransitions(
+    array $transitions,
+    array $acknowledgements,
+    ?DateTimeImmutable $lastReviewed,
+    ?DateTimeImmutable $reviewBy,
+    int $noticeDays,
+    DateTimeImmutable $today,
+    array &$errors,
+): void {
+    $declared = [];
+    foreach ($transitions as $transition) {
+        if ($transition['date'] instanceof DateTimeImmutable) {
+            $declared[$transition['path']] = $transition;
+        }
+    }
+
+    /** @var array<string, ?DateTimeImmutable> $acknowledgedReviewBy */
+    $acknowledgedReviewBy = [];
+    foreach ($acknowledgements as $index => $acknowledgement) {
+        $label = "transition_acknowledgements[{$index}]";
+        if (!is_array($acknowledgement) || array_is_list($acknowledgement)) {
+            $errors[] = "{$label} must be an object";
+            continue;
+        }
+        requireExactKeys($acknowledgement, ['transition', 'date', 'acknowledged_on', 'review_by', 'record'], $label, $errors);
+        $path = $acknowledgement['transition'] ?? null;
+        if (!is_string($path) || !isset($declared[$path])) {
+            $errors[] = "{$label}.transition must name a declared support-reducing transition";
+            continue;
+        }
+        if (array_key_exists($path, $acknowledgedReviewBy)) {
+            $errors[] = "{$label} duplicates the acknowledgement for {$path}";
+            continue;
+        }
+        $transitionDate = $declared[$path]['date'];
+        $date = requireDate($acknowledgement['date'] ?? null, "{$label}.date", $errors);
+        if ($date && $transitionDate && $date != $transitionDate) {
+            $errors[] = sprintf('%s.date must equal the declared %s date %s', $label, $path, $transitionDate->format('Y-m-d'));
+        }
+        $acknowledgedOn = requireDate($acknowledgement['acknowledged_on'] ?? null, "{$label}.acknowledged_on", $errors);
+        if ($acknowledgedOn && $acknowledgedOn > $today) {
+            $errors[] = "{$label}.acknowledged_on cannot be in the future";
+        }
+        $ackReviewBy = requireDate($acknowledgement['review_by'] ?? null, "{$label}.review_by", $errors);
+        if ($ackReviewBy && $transitionDate && $ackReviewBy >= $transitionDate) {
+            $errors[] = sprintf('%s.review_by must be a pre-transition review date before %s', $label, $transitionDate->format('Y-m-d'));
+        }
+        if ($ackReviewBy && $acknowledgedOn && $ackReviewBy < $acknowledgedOn) {
+            $errors[] = "{$label}.review_by must not precede acknowledged_on";
+        }
+        if (!is_string($acknowledgement['record'] ?? null) || trim($acknowledgement['record']) === '') {
+            $errors[] = "{$label}.record must name the change record that acknowledged the transition";
+        }
+        $acknowledgedReviewBy[$path] = $ackReviewBy;
+    }
+
+    foreach ($declared as $path => $transition) {
+        $date = $transition['date'];
+        if ($date < $today) {
+            if ($transition['terminal']) {
+                $errors[] = sprintf('%s (%s) has passed; the declared support point must be revised before it moves', $path, $date->format('Y-m-d'));
+            }
+            continue;
+        }
+        if ($reviewBy === null) {
+            continue;
+        }
+        $windowOpens = $date->modify("-{$noticeDays} days");
+        if ($reviewBy <= $windowOpens) {
+            continue;
+        }
+        if (!array_key_exists($path, $acknowledgedReviewBy)) {
+            $errors[] = sprintf(
+                '%s (%s) %s its %d-day notice window on %s but review_by %s falls after it; record a transition_acknowledgements entry with a pre-transition review date',
+                $path,
+                $date->format('Y-m-d'),
+                $windowOpens <= $today ? 'entered' : 'enters',
+                $noticeDays,
+                $windowOpens->format('Y-m-d'),
+                $reviewBy->format('Y-m-d'),
+            );
+            continue;
+        }
+        $ackReviewBy = $acknowledgedReviewBy[$path];
+        if ($ackReviewBy && $reviewBy > $ackReviewBy && !($lastReviewed && $lastReviewed >= $ackReviewBy)) {
+            $errors[] = sprintf(
+                '%s acknowledgement commits to a pre-transition review by %s, but review_by %s is later and no last_reviewed on or after it is recorded',
+                $path,
+                $ackReviewBy->format('Y-m-d'),
+                $reviewBy->format('Y-m-d'),
+            );
+        }
+    }
+}
+
 /** @param list<string> $errors */
 function requireVersionRange(string $version, string $minimum, string $maximum, string $path, array &$errors): void
 {
@@ -112,7 +245,7 @@ function runVersionCommand(string $command): array
 
 try {
     $contract = readJsonObject($contractPath);
-    requireExactKeys($contract, ['schema_version', 'contract_version', 'last_reviewed', 'review_by', 'profile', 'platform', 'lifecycle', 'evidence', 'unsupported'], 'contract', $errors);
+    requireExactKeys($contract, ['schema_version', 'contract_version', 'last_reviewed', 'review_by', 'transition_acknowledgements', 'profile', 'platform', 'lifecycle', 'evidence', 'unsupported'], 'contract', $errors);
     requireSame($contract['schema_version'] ?? null, 1, 'schema_version', $errors);
     requireSame($contract['contract_version'] ?? null, 's1-v1', 'contract_version', $errors);
 
@@ -128,7 +261,7 @@ try {
     requireSame($php['constraint'] ?? null, '>=8.5.0 <8.6.0', 'platform.php.constraint', $errors);
     requireSame($php['role'] ?? null, 'serving-and-cli-runtime', 'platform.php.role', $errors);
     $phpActiveEnd = requireDate($php['active_support_end'] ?? null, 'platform.php.active_support_end', $errors);
-    requireDate($php['security_support_end'] ?? null, 'platform.php.security_support_end', $errors);
+    $phpSecurityEnd = requireDate($php['security_support_end'] ?? null, 'platform.php.security_support_end', $errors);
     requireSame($php['source'] ?? null, 'https://www.php.net/supported-versions.php', 'platform.php.source', $errors);
 
     $composerPlatform = is_array($platform['composer'] ?? null) ? $platform['composer'] : [];
@@ -142,7 +275,7 @@ try {
     requireExactKeys($node, ['constraint', 'role', 'maintenance_start', 'eol', 'source'], 'platform.node', $errors);
     requireSame($node['constraint'] ?? null, '>=24.0.0 <25.0.0', 'platform.node.constraint', $errors);
     requireSame($node['role'] ?? null, 'admin-build-and-test-tool', 'platform.node.role', $errors);
-    requireDate($node['maintenance_start'] ?? null, 'platform.node.maintenance_start', $errors);
+    $nodeMaintenanceStart = requireDate($node['maintenance_start'] ?? null, 'platform.node.maintenance_start', $errors);
     $nodeEol = requireDate($node['eol'] ?? null, 'platform.node.eol', $errors);
     requireSame($node['source'] ?? null, 'https://github.com/nodejs/Release#release-schedule', 'platform.node.source', $errors);
 
@@ -152,6 +285,7 @@ try {
 
     $os = is_array($platform['framework_os'] ?? null) ? $platform['framework_os'] : [];
     requireExactKeys($os, ['runner', 'version', 'architecture', 'standard_security_maintenance_end', 'source'], 'platform.framework_os', $errors);
+    $osSecurityEnd = requireMonth($os['standard_security_maintenance_end'] ?? null, 'platform.framework_os.standard_security_maintenance_end', $errors);
     requireSame($os, ['runner' => 'ubuntu-24.04', 'version' => '24.04', 'architecture' => 'x86_64', 'standard_security_maintenance_end' => '2029-05', 'source' => 'https://ubuntu.com/about/release-cycle'], 'platform.framework_os', $errors);
 
     $browsers = is_array($platform['browsers'] ?? null) ? $platform['browsers'] : [];
@@ -208,15 +342,27 @@ try {
     if ($reviewBy && $reviewBy < $today) {
         $errors[] = 'support contract review_by date has expired';
     }
-    $supportReductions = array_values(array_filter([$phpActiveEnd, $nodeEol]));
-    if ($reviewBy && $supportReductions !== []) {
-        usort($supportReductions, static fn (DateTimeImmutable $a, DateTimeImmutable $b): int => $a <=> $b);
-        $noticeDays = is_int($lifecycle['next_transition_notice_days'] ?? null) ? $lifecycle['next_transition_notice_days'] : 0;
-        $noticeDeadline = $supportReductions[0]->modify("-{$noticeDays} days");
-        if ($reviewBy > $noticeDeadline) {
-            $errors[] = 'contract review must occur at least 90 days before the next support-reducing transition';
-        }
+    $acknowledgements = $contract['transition_acknowledgements'] ?? null;
+    if (!is_array($acknowledgements) || !array_is_list($acknowledgements)) {
+        $errors[] = 'transition_acknowledgements must be a list';
+        $acknowledgements = [];
     }
+    $noticeDays = is_int($lifecycle['next_transition_notice_days'] ?? null) ? $lifecycle['next_transition_notice_days'] : 0;
+    evaluateSupportTransitions(
+        [
+            ['path' => 'platform.php.active_support_end', 'date' => $phpActiveEnd, 'terminal' => false],
+            ['path' => 'platform.php.security_support_end', 'date' => $phpSecurityEnd, 'terminal' => true],
+            ['path' => 'platform.node.maintenance_start', 'date' => $nodeMaintenanceStart, 'terminal' => false],
+            ['path' => 'platform.node.eol', 'date' => $nodeEol, 'terminal' => true],
+            ['path' => 'platform.framework_os.standard_security_maintenance_end', 'date' => $osSecurityEnd, 'terminal' => true],
+        ],
+        $acknowledgements,
+        $lastReviewed,
+        $reviewBy,
+        $noticeDays,
+        $today,
+        $errors,
+    );
 
     $composer = readJsonObject($root . '/composer.json');
     requireSame($composer['require']['php'] ?? null, '>=8.5 <8.6', 'composer.json require.php', $errors);
