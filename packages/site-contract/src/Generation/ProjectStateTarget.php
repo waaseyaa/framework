@@ -29,6 +29,16 @@ final readonly class ProjectStateTarget
         if (preg_match('/^[a-f0-9]{64}$/D', $sha256) !== 1) {
             throw new \InvalidArgumentException('Project state target sha256 must be 64 lowercase hex characters.');
         }
+        $isAbsentDigest = $sha256 === ProjectStateIdentity::ABSENT_DIGEST;
+        $isConsistent = match ($state) {
+            ObservedTargetState::Absent => $isAbsentDigest && $mode === ObservedTargetMode::Unknown,
+            ObservedTargetState::File => !$isAbsentDigest,
+            ObservedTargetState::Other => $isAbsentDigest
+                && in_array($mode, [ObservedTargetMode::Other, ObservedTargetMode::Unknown], true),
+        };
+        if (!$isConsistent) {
+            throw new \InvalidArgumentException('Project state target observation is inconsistent.');
+        }
     }
 
     /** @return array<string, string> */

@@ -15,11 +15,10 @@ use Waaseyaa\SiteContract\CanonicalJson;
  * authority observes a project, so only the execution authority constructs this
  * type — which is what keeps the plan contract a pure function of compiler input.
  *
- * Its digest is formed exactly as the plan digest is (D-6.3): sha256 over the
- * canonical encoding of the closed document plus one trailing newline. The ADR
- * fixes that formula for the plan and names `project_state_digest` without
- * restating it; the identical formula is used deliberately, because a later
- * variation would silently break every stale-plan binding computed under this one.
+ * Its digest is formed exactly as D-6.2 specifies: sha256 over the canonical
+ * encoding of the closed document plus one trailing newline. It deliberately
+ * matches D-6.3's plan-digest rule so both stale-plan identities share one
+ * canonicalization protocol.
  *
  * @api
  */

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\SiteContract\Tests\Unit\Generation;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\SiteContract\CanonicalJson;
@@ -140,6 +141,34 @@ final class ProjectStateIdentityTest extends TestCase
         $this->expectExceptionMessage('Project state target sha256 must be 64 lowercase hex characters.');
 
         new ProjectStateTarget('src/Entity/Story.php', ObservedTargetState::File, 'not-a-digest', ObservedTargetMode::Mode0644);
+    }
+
+    /**
+     * @param ObservedTargetState $state
+     * @param string $sha256
+     * @param ObservedTargetMode $mode
+     */
+    #[Test]
+    #[DataProvider('impossibleTargetObservations')]
+    public function itRefusesImpossibleTargetObservations(
+        ObservedTargetState $state,
+        string $sha256,
+        ObservedTargetMode $mode,
+    ): void {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Project state target observation is inconsistent.');
+
+        new ProjectStateTarget('src/Entity/Story.php', $state, $sha256, $mode);
+    }
+
+    /** @return iterable<string, array{ObservedTargetState, string, ObservedTargetMode}> */
+    public static function impossibleTargetObservations(): iterable
+    {
+        yield 'absent target with file bytes' => [ObservedTargetState::Absent, self::SHA_A, ObservedTargetMode::Unknown];
+        yield 'absent target with a file mode' => [ObservedTargetState::Absent, self::ABSENT, ObservedTargetMode::Mode0644];
+        yield 'file target with the absent sentinel' => [ObservedTargetState::File, self::ABSENT, ObservedTargetMode::Mode0644];
+        yield 'other target with file bytes' => [ObservedTargetState::Other, self::SHA_A, ObservedTargetMode::Other];
+        yield 'other target with a file mode' => [ObservedTargetState::Other, self::ABSENT, ObservedTargetMode::Mode0755];
     }
 
     #[Test]
