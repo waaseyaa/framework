@@ -1,0 +1,405 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+const PROJECTION_LEDGER = 'ops/observability/delivery-agent-events-v1.jsonl';
+const PROJECTION_SCHEMA = 'ops/observability/delivery-agent-event-v1.schema.json';
+const PROJECTION_EVENTS_TABLE = 'waaseyaa_delivery_agent_events_v1';
+const PROJECTION_STATE_TABLE = 'waaseyaa_delivery_projection_state';
+const PROJECTION_ID = 'delivery-agent-events/v1';
+const PROJECTOR_VERSION = 1;
+
+/** @return array{exit: int, stdout: string, stderr: string} */
+function projectionRun(array $command, ?string $cwd = null): array
+{
+    $pipes = [];
+    $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $cwd);
+    if (!is_resource($process)) {
+        return ['exit' => 1, 'stdout' => '', 'stderr' => 'could not start subprocess'];
+    }
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    return ['exit' => proc_close($process), 'stdout' => $stdout, 'stderr' => $stderr];
+}
+
+/** @return array{commit: string, ledger: string, schema: string, ledger_sha256: string, schema_sha256: string, events: list<array{ordinal: int, raw: string, hash: string, value: array<string, mixed>}>} */
+function projectionLoadSource(string $root, string $sourceRef): array
+{
+    $git = $root . '/bin/git';
+    $resolved = projectionRun([$git, 'rev-parse', '--verify', $sourceRef . '^{commit}'], $root);
+    $commit = strtolower(trim($resolved['stdout']));
+    if ($resolved['exit'] !== 0 || preg_match('/^[0-9a-f]{40}$/D', $commit) !== 1) {
+        throw new InvalidArgumentException('source ref must resolve to one full commit');
+    }
+    $ledgerResult = projectionRun([$git, 'show', $commit . ':' . PROJECTION_LEDGER], $root);
+    $schemaResult = projectionRun([$git, 'show', $commit . ':' . PROJECTION_SCHEMA], $root);
+    if ($ledgerResult['exit'] !== 0 || $schemaResult['exit'] !== 0) {
+        throw new RuntimeException('source commit does not contain the governed schema and ledger');
+    }
+    $ledger = $ledgerResult['stdout'];
+    $schema = $schemaResult['stdout'];
+    if ($ledger === '' || !str_ends_with($ledger, "\n") || $schema === '') {
+        throw new RuntimeException('source commit contains an empty or non-newline-terminated contract');
+    }
+    $temporary = sys_get_temp_dir() . '/waaseyaa-delivery-projection-' . bin2hex(random_bytes(8));
+    if (!mkdir($temporary, 0700) || file_put_contents($temporary . '/ledger.jsonl', $ledger) === false || file_put_contents($temporary . '/schema.json', $schema) === false) {
+        throw new RuntimeException('could not stage immutable source for validation');
+    }
+    try {
+        $validation = projectionRun([PHP_BINARY, $root . '/bin/check-delivery-agent-events', '--ledger=' . $temporary . '/ledger.jsonl', '--schema=' . $temporary . '/schema.json'], $root);
+        if ($validation['exit'] !== 0) {
+            throw new RuntimeException('source validation failed: ' . trim($validation['stderr'] . $validation['stdout']));
+        }
+    } finally {
+        @unlink($temporary . '/ledger.jsonl');
+        @unlink($temporary . '/schema.json');
+        @rmdir($temporary);
+    }
+    $events = [];
+    foreach (explode("\n", substr($ledger, 0, -1)) as $index => $line) {
+        $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+        if (!is_array($event) || array_is_list($event)) {
+            throw new RuntimeException('validated event was not an object');
+        }
+        $events[] = ['ordinal' => $index + 1, 'raw' => $line, 'hash' => hash('sha256', $line), 'value' => $event];
+    }
+    return ['commit' => $commit, 'ledger' => $ledger, 'schema' => $schema, 'ledger_sha256' => hash('sha256', $ledger), 'schema_sha256' => hash('sha256', $schema), 'events' => $events];
+}
+
+function projectionAssertDsn(string $dsn): void
+{
+    if (str_starts_with($dsn, 'sqlite:')) {
+        return;
+    }
+    if (!str_starts_with($dsn, 'mysql:')) {
+        throw new InvalidArgumentException('DSN must use sqlite or mysql');
+    }
+    if (preg_match('/(?:^|;)host=([^;]+)/i', substr($dsn, 6), $matches) !== 1) {
+        throw new InvalidArgumentException('MySQL DSN must declare a host');
+    }
+    if (!in_array(strtolower(trim($matches[1], '[]')), ['localhost', '127.0.0.1', '::1'], true)) {
+        throw new InvalidArgumentException('MySQL projection is local-only; host must be loopback');
+    }
+}
+
+function projectionConnect(): PDO
+{
+    $dsn = getenv('WAASEYAA_DELIVERY_TELEMETRY_DSN');
+    if (!is_string($dsn) || $dsn === '') {
+        throw new InvalidArgumentException('WAASEYAA_DELIVERY_TELEMETRY_DSN is required');
+    }
+    projectionAssertDsn($dsn);
+    $user = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER');
+    $password = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD');
+    $pdo = new PDO($dsn, is_string($user) && $user !== '' ? $user : null, is_string($password) ? $password : null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]);
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $pdo->exec("SET SESSION sql_mode = 'STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
+    }
+    return $pdo;
+}
+
+function projectionInstall(PDO $pdo): void
+{
+    $mysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
+    $text = $mysql ? 'LONGTEXT' : 'TEXT';
+    $integer = $mysql ? 'BIGINT' : 'INTEGER';
+    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . PROJECTION_EVENTS_TABLE . " (
+        event_id VARCHAR(36) PRIMARY KEY, source_ordinal {$integer} NOT NULL UNIQUE,
+        raw_event_json {$text} NOT NULL, event_sha256 VARCHAR(64) NOT NULL,
+        schema_version VARCHAR(64) NOT NULL, event_type VARCHAR(64) NOT NULL,
+        recorded_at_raw VARCHAR(64) NOT NULL, recorded_at_utc VARCHAR(32) NOT NULL,
+        occurred_at_raw VARCHAR(64) NULL, occurred_at_utc VARCHAR(32) NULL,
+        repository VARCHAR(255) NOT NULL, pull_request {$integer} NOT NULL,
+        head_sha VARCHAR(40) NOT NULL, actor_kind VARCHAR(32) NOT NULL,
+        actor_name VARCHAR(255) NOT NULL, actor_model VARCHAR(255) NULL,
+        evidence_kind VARCHAR(32) NOT NULL, causation_event_id VARCHAR(36) NULL,
+        review_depth VARCHAR(32) NULL, outcome VARCHAR(32) NULL,
+        finding_count {$integer} NULL, token_count {$integer} NULL, elapsed_ms {$integer} NULL,
+        source_url {$text} NULL, notes {$text} NULL,
+        verifier_id VARCHAR(255) NULL, check_type VARCHAR(32) NULL,
+        claim_text {$text} NULL, observed_text {$text} NULL,
+        candidate_defect_claimed INTEGER NULL, safety_effect VARCHAR(32) NULL,
+        adjudication_classification VARCHAR(32) NULL, candidate_defect_confirmed INTEGER NULL
+    )");
+    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . PROJECTION_STATE_TABLE . " (
+        projection_id VARCHAR(64) PRIMARY KEY, contract_version VARCHAR(64) NOT NULL,
+        source_commit_sha VARCHAR(40) NOT NULL, schema_sha256 VARCHAR(64) NOT NULL,
+        ledger_sha256 VARCHAR(64) NOT NULL, ledger_bytes {$integer} NOT NULL,
+        event_count {$integer} NOT NULL, first_event_id VARCHAR(36) NULL,
+        last_event_id VARCHAR(36) NULL, generation {$integer} NOT NULL,
+        projector_version {$integer} NOT NULL, projected_at VARCHAR(32) NOT NULL
+    )");
+}
+
+function projectionAssertInstalled(PDO $pdo): void
+{
+    try {
+        $pdo->query('SELECT event_id,source_ordinal,raw_event_json,event_sha256 FROM ' . PROJECTION_EVENTS_TABLE . ' WHERE 1 = 0');
+        $pdo->query('SELECT projection_id,source_commit_sha,ledger_sha256,generation FROM ' . PROJECTION_STATE_TABLE . ' WHERE 1 = 0');
+    } catch (PDOException $exception) {
+        throw new RuntimeException('projection schema is absent or incompatible; run install explicitly', 0, $exception);
+    }
+}
+
+function projectionUtc(?string $timestamp): ?string
+{
+    return $timestamp === null ? null : (new DateTimeImmutable($timestamp))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
+}
+
+/** @param array<string, mixed> $row @return list<mixed> */
+function projectionValues(array $row): array
+{
+    $event = $row['value'];
+    $verification = is_array($event['verification']) ? $event['verification'] : [];
+    $adjudication = is_array($event['adjudication']) ? $event['adjudication'] : [];
+    return [
+        $event['event_id'], $row['ordinal'], $row['raw'], $row['hash'], $event['schema_version'], $event['event_type'],
+        $event['recorded_at'], projectionUtc($event['recorded_at']), $event['occurred_at'], projectionUtc($event['occurred_at']),
+        $event['repository'], $event['pull_request'], $event['head_sha'], $event['actor']['kind'], $event['actor']['name'], $event['actor']['model'],
+        $event['evidence_kind'], $event['causation_event_id'], $event['review_depth'], $event['outcome'], $event['finding_count'], $event['token_count'], $event['elapsed_ms'],
+        $event['source_url'], $event['notes'], $verification['verifier_id'] ?? null, $verification['check_type'] ?? null,
+        $verification['claim'] ?? null, $verification['observed'] ?? null,
+        isset($verification['candidate_defect_claimed']) ? (int) $verification['candidate_defect_claimed'] : null,
+        $verification['safety_effect'] ?? null, $adjudication['classification'] ?? null,
+        array_key_exists('candidate_defect_confirmed', $adjudication) && $adjudication['candidate_defect_confirmed'] !== null ? (int) $adjudication['candidate_defect_confirmed'] : null,
+    ];
+}
+
+/** @return array<string, mixed>|null */
+function projectionState(PDO $pdo): ?array
+{
+    $statement = $pdo->prepare('SELECT * FROM ' . PROJECTION_STATE_TABLE . ' WHERE projection_id = ?');
+    $statement->execute([PROJECTION_ID]);
+    $state = $statement->fetch(PDO::FETCH_ASSOC);
+    return is_array($state) ? $state : null;
+}
+
+/** @return array{valid: bool, reason: string, state: array<string, mixed>|null} */
+function projectionVerify(PDO $pdo, array $source): array
+{
+    projectionAssertInstalled($pdo);
+    $state = projectionState($pdo);
+    if ($state === null) {
+        return ['valid' => false, 'reason' => 'projection state is absent', 'state' => null];
+    }
+    $rows = $pdo->query('SELECT event_id,source_ordinal,raw_event_json,event_sha256 FROM ' . PROJECTION_EVENTS_TABLE . ' ORDER BY source_ordinal')->fetchAll(PDO::FETCH_ASSOC);
+    $ledger = '';
+    foreach ($rows as $index => $row) {
+        if ((int) $row['source_ordinal'] !== $index + 1 || hash('sha256', $row['raw_event_json']) !== $row['event_sha256']) {
+            return ['valid' => false, 'reason' => 'projected row order or line hash is corrupt', 'state' => $state];
+        }
+        $ledger .= $row['raw_event_json'] . "\n";
+    }
+    $valid = hash('sha256', $ledger) === $source['ledger_sha256'] && $ledger === $source['ledger']
+        && count($rows) === count($source['events']) && $state['source_commit_sha'] === $source['commit']
+        && $state['schema_sha256'] === $source['schema_sha256'] && $state['ledger_sha256'] === $source['ledger_sha256']
+        && (int) $state['event_count'] === count($source['events']);
+    return ['valid' => $valid, 'reason' => $valid ? 'exact source set verified' : 'projection differs from source', 'state' => $state];
+}
+
+/** @return array{added: int, replaced: int, removed: int} */
+function projectionDelta(PDO $pdo, array $source): array
+{
+    $existing = [];
+    foreach ($pdo->query('SELECT event_id,raw_event_json FROM ' . PROJECTION_EVENTS_TABLE)->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $existing[$row['event_id']] = $row['raw_event_json'];
+    }
+    $added = $replaced = 0;
+    foreach ($source['events'] as $row) {
+        $id = $row['value']['event_id'];
+        if (!array_key_exists($id, $existing)) {
+            ++$added;
+        } elseif ($existing[$id] !== $row['raw']) {
+            ++$replaced;
+        }
+        unset($existing[$id]);
+    }
+    return ['added' => $added, 'replaced' => $replaced, 'removed' => count($existing)];
+}
+
+function projectionAssertNoRegression(string $root, ?array $state, array $source): void
+{
+    if ($state === null || $state['source_commit_sha'] === $source['commit'] || $state['source_commit_sha'] === str_repeat('0', 40)) {
+        return;
+    }
+    $result = projectionRun([$root . '/bin/git', 'merge-base', '--is-ancestor', $state['source_commit_sha'], $source['commit']], $root);
+    if ($result['exit'] !== 0) {
+        throw new RuntimeException('source commit does not descend from the currently projected source');
+    }
+    $prior = projectionRun([$root . '/bin/git', 'show', $state['source_commit_sha'] . ':' . PROJECTION_LEDGER], $root);
+    if ($prior['exit'] !== 0 || !str_starts_with($source['ledger'], $prior['stdout'])) {
+        throw new RuntimeException('source commit rewrites the append-only ledger prefix');
+    }
+}
+
+/** @return array<string, mixed> */
+function projectionReceipt(string $operation, string $outcome, array $source, int $generation, array $delta): array
+{
+    return ['operation' => $operation, 'outcome' => $outcome, 'source_commit_sha' => $source['commit'], 'schema_sha256' => $source['schema_sha256'], 'ledger_sha256' => $source['ledger_sha256'], 'event_count' => count($source['events']), 'generation' => $generation, 'added' => $delta['added'], 'replaced' => $delta['replaced'], 'removed' => $delta['removed']];
+}
+
+/** @return array<string, mixed> */
+function projectionApply(PDO $pdo, array $source, string $root, ?string $failpoint = null): array
+{
+    projectionAssertInstalled($pdo);
+    $mysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
+    if ($mysql && (int) $pdo->query("SELECT GET_LOCK('waaseyaa_delivery_agent_events_v1', 10)")->fetchColumn() !== 1) {
+        throw new RuntimeException('could not acquire projection lock');
+    }
+    try {
+        $before = projectionState($pdo);
+        projectionAssertNoRegression($root, $before, $source);
+        $verified = projectionVerify($pdo, $source);
+        $delta = projectionDelta($pdo, $source);
+        if ($verified['valid']) {
+            return projectionReceipt('apply', 'no_op', $source, (int) $before['generation'], $delta);
+        }
+        $generation = (int) ($before['generation'] ?? 0) + 1;
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec('DELETE FROM ' . PROJECTION_EVENTS_TABLE);
+            if ($failpoint === 'after_delete') {
+                throw new RuntimeException('injected projection failure');
+            }
+            $columns = 'event_id,source_ordinal,raw_event_json,event_sha256,schema_version,event_type,recorded_at_raw,recorded_at_utc,occurred_at_raw,occurred_at_utc,repository,pull_request,head_sha,actor_kind,actor_name,actor_model,evidence_kind,causation_event_id,review_depth,outcome,finding_count,token_count,elapsed_ms,source_url,notes,verifier_id,check_type,claim_text,observed_text,candidate_defect_claimed,safety_effect,adjudication_classification,candidate_defect_confirmed';
+            $insert = $pdo->prepare('INSERT INTO ' . PROJECTION_EVENTS_TABLE . " ({$columns}) VALUES (" . implode(',', array_fill(0, 33, '?')) . ')');
+            foreach ($source['events'] as $row) {
+                $insert->execute(projectionValues($row));
+            }
+            if ($failpoint === 'after_insert') {
+                throw new RuntimeException('injected projection failure');
+            }
+            $pdo->exec('DELETE FROM ' . PROJECTION_STATE_TABLE . " WHERE projection_id = '" . PROJECTION_ID . "'");
+            $state = $pdo->prepare('INSERT INTO ' . PROJECTION_STATE_TABLE . ' (projection_id,contract_version,source_commit_sha,schema_sha256,ledger_sha256,ledger_bytes,event_count,first_event_id,last_event_id,generation,projector_version,projected_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+            $events = $source['events'];
+            $state->execute([PROJECTION_ID, 'delivery-agent-event/v1', $source['commit'], $source['schema_sha256'], $source['ledger_sha256'], strlen($source['ledger']), count($events), $events[0]['value']['event_id'] ?? null, $events[count($events) - 1]['value']['event_id'] ?? null, $generation, PROJECTOR_VERSION, gmdate('Y-m-d\TH:i:s\Z')]);
+            if ($failpoint === 'after_state_update_before_commit') {
+                throw new RuntimeException('injected projection failure');
+            }
+            $inside = projectionVerify($pdo, $source);
+            if (!$inside['valid']) {
+                throw new RuntimeException('exact-set verification failed inside transaction: ' . $inside['reason']);
+            }
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+        $after = projectionVerify($pdo, $source);
+        if (!$after['valid']) {
+            throw new RuntimeException('committed projection could not be verified: ' . $after['reason']);
+        }
+        return projectionReceipt('apply', 'applied', $source, $generation, $delta);
+    } finally {
+        if ($mysql) {
+            $pdo->query("SELECT RELEASE_LOCK('waaseyaa_delivery_agent_events_v1')");
+        }
+    }
+}
+
+function projectionSelfTest(string $root): int
+{
+    $source = projectionLoadSource($root, 'HEAD');
+    $source['commit'] = str_repeat('0', 40);
+    $pdo = new PDO('sqlite::memory:', options: [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    projectionInstall($pdo);
+    $first = projectionApply($pdo, $source, $root);
+    $state = projectionState($pdo);
+    $again = projectionApply($pdo, $source, $root);
+    if ($first['outcome'] !== 'applied' || $again['outcome'] !== 'no_op' || $state !== projectionState($pdo)) {
+        throw new RuntimeException('self-test failed: identical replay was not a true no-op');
+    }
+    $pdo->exec("INSERT INTO " . PROJECTION_EVENTS_TABLE . " (event_id,source_ordinal,raw_event_json,event_sha256,schema_version,event_type,recorded_at_raw,recorded_at_utc,repository,pull_request,head_sha,actor_kind,actor_name,evidence_kind) VALUES ('foreign',999,'{}','" . hash('sha256', '{}') . "','v1','probe','x','x','x',1,'" . str_repeat('0', 40) . "','agent','probe','observed')");
+    $repaired = projectionApply($pdo, $source, $root);
+    if ($repaired['removed'] !== 1 || !projectionVerify($pdo, $source)['valid']) {
+        throw new RuntimeException('self-test failed: contaminated row was not removed');
+    }
+    $beforeRows = $pdo->query('SELECT raw_event_json FROM ' . PROJECTION_EVENTS_TABLE . ' ORDER BY source_ordinal')->fetchAll(PDO::FETCH_COLUMN);
+    $beforeState = projectionState($pdo);
+    $changed = $source;
+    $changed['events'] = array_slice($source['events'], 0, -1);
+    $changed['ledger'] = implode("\n", array_column($changed['events'], 'raw')) . "\n";
+    $changed['ledger_sha256'] = hash('sha256', $changed['ledger']);
+    try {
+        projectionApply($pdo, $changed, $root, 'after_insert');
+        throw new RuntimeException('self-test failed: injected failure committed');
+    } catch (RuntimeException $exception) {
+        if ($exception->getMessage() !== 'injected projection failure') {
+            throw $exception;
+        }
+    }
+    $afterRows = $pdo->query('SELECT raw_event_json FROM ' . PROJECTION_EVENTS_TABLE . ' ORDER BY source_ordinal')->fetchAll(PDO::FETCH_COLUMN);
+    if ($beforeRows !== $afterRows || $beforeState !== projectionState($pdo)) {
+        throw new RuntimeException('self-test failed: rollback did not preserve the prior exact set');
+    }
+    $pdo->exec("UPDATE " . PROJECTION_EVENTS_TABLE . " SET raw_event_json = '{}' WHERE source_ordinal = 1");
+    if (projectionVerify($pdo, $source)['valid']) {
+        throw new RuntimeException('self-test failed: row corruption was hidden by state digest');
+    }
+    fwrite(STDOUT, "delivery agent projection self-test: PASS\n");
+    return 0;
+}
+
+function projectionUsage(string $message): never
+{
+    fwrite(STDERR, 'delivery agent projection: ' . $message . "\n");
+    exit(2);
+}
+
+$root = dirname(__DIR__);
+try {
+    $arguments = array_slice($argv, 1);
+    if ($arguments === ['--self-test']) {
+        exit(projectionSelfTest($root));
+    }
+    $operation = array_shift($arguments);
+    if (!in_array($operation, ['install', 'plan', 'apply', 'verify'], true)) {
+        projectionUsage('unknown operation or option');
+    }
+    $sourceRef = null;
+    foreach ($arguments as $argument) {
+        if (!str_starts_with($argument, '--source-ref=') || $sourceRef !== null || strlen($argument) === 13) {
+            projectionUsage('unknown, empty, or duplicate option ' . $argument);
+        }
+        $sourceRef = substr($argument, 13);
+    }
+    if ($operation !== 'install' && $sourceRef === null) {
+        projectionUsage('--source-ref is required for durable operations');
+    }
+    if ($operation === 'install' && $sourceRef !== null) {
+        projectionUsage('install does not accept --source-ref');
+    }
+    $pdo = projectionConnect();
+    if ($operation === 'install') {
+        projectionInstall($pdo);
+        fwrite(STDOUT, json_encode(['operation' => 'install', 'outcome' => 'applied', 'projection_id' => PROJECTION_ID], JSON_THROW_ON_ERROR) . "\n");
+        exit(0);
+    }
+    $source = projectionLoadSource($root, $sourceRef);
+    projectionAssertInstalled($pdo);
+    $state = projectionState($pdo);
+    projectionAssertNoRegression($root, $state, $source);
+    if ($operation === 'verify') {
+        $verified = projectionVerify($pdo, $source);
+        $receipt = projectionReceipt('verify', $verified['valid'] ? 'no_op' : 'drift', $source, (int) ($state['generation'] ?? 0), projectionDelta($pdo, $source));
+        $receipt['reason'] = $verified['reason'];
+        fwrite(STDOUT, json_encode($receipt, JSON_THROW_ON_ERROR) . "\n");
+        exit($verified['valid'] ? 0 : 1);
+    }
+    if ($operation === 'plan') {
+        $verified = projectionVerify($pdo, $source);
+        fwrite(STDOUT, json_encode(projectionReceipt('plan', $verified['valid'] ? 'no_op' : 'drift', $source, (int) ($state['generation'] ?? 0), projectionDelta($pdo, $source)), JSON_THROW_ON_ERROR) . "\n");
+        exit(0);
+    }
+    fwrite(STDOUT, json_encode(projectionApply($pdo, $source, $root), JSON_THROW_ON_ERROR) . "\n");
+} catch (InvalidArgumentException $exception) {
+    projectionUsage($exception->getMessage());
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'delivery agent projection: ' . $exception->getMessage() . "\n");
+    exit(1);
+}
