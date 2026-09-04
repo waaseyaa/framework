@@ -13,23 +13,9 @@ use PHPUnit\Framework\TestCase;
  * handler, no `GEN0xx` code is emitted by a path that cannot honour it, and no
  * entrypoint reaches a half-built engine."
  *
- * Slice 3 proved that with a whole-production assertion that named its own
- * retirement condition. Slice 4 met that condition for one of the two carriers
- * it covered -- `GenerationViolation` is now a real member of the evaluation
- * and result types -- but retiring the assertion outright would have thrown
- * away the half slice 4 does NOT activate, and would have left the seam slice 4
- * introduces with no ratchet of its own.
- *
- * So the proof is narrowed rather than dropped, on two axes that both survive to
- * the activation slice:
- *
- * - the still-unwired throwing carrier keeps a whole-production guard;
- * - the staged engine surface gets an ENTRYPOINT guard, which is the axis that
- *   matches what constraint 1 actually forbids and is therefore the one that
- *   stays true once slice 8 wires the engine into `site:init`'s own internals.
- *
- * Slice 8 is where these are inverted and retired. Until then a slice that
- * reaches the engine from an entrypoint turns this red, which is the point.
+ * Slice 5 completes coded unit refusals inside the dormant execution
+ * authority. The production reference is pinned to that single service;
+ * entrypoints still cannot reach the generation seams until slice 8.
  */
 #[CoversNothing]
 final class GenerationStagedActivationBoundaryTest extends TestCase
@@ -86,7 +72,7 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
             // enough. `evaluate` is an ordinary English verb that unrelated
             // scripts use, so it only counts inside a file that also names the
             // service -- precision here, not an allowlist.
-            $entersSeam = preg_match('/->\s*receiptFor\s*\(/', $code) === 1
+            $entersSeam = preg_match('/->\s*(?:receiptFor|inspectUnits|readUnitMetadata|prepareUnitPlan)\s*\(/', $code) === 1
                 || (str_contains($code, 'SiteInitializationService') && preg_match('/->\s*evaluate\s*\(/', $code) === 1);
             if ($entersSeam) {
                 $offenders[] = $relative;
@@ -97,12 +83,10 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
     }
 
     #[Test]
-    public function theThrowingRefusalCarrierStillHasNoProductionCallerAnywhere(): void
+    public function theThrowingRefusalCarrierIsConfinedToTheDormantExecutionAuthority(): void
     {
-        // Slice 4 activates GenerationViolation as a member of the evaluation
-        // and result types. It does NOT throw a coded refusal from anywhere, so
-        // this half of slice 3's proof is retained verbatim rather than retired
-        // alongside the half that genuinely completed.
+        // Slice 5 completes typed unit refusals within the same dormant
+        // authority. A second production caller is still an activation leak.
         $offenders = [];
         foreach ($this->productionPhpCodeFiles() as $relative => $code) {
             if (str_starts_with($relative, self::REFUSAL_FAMILY_DIR)) {
@@ -114,9 +98,9 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         }
 
         self::assertSame(
-            [],
+            ['packages/cli/src/Site/SiteInitializationService.php'],
             $offenders,
-            'The slice that first raises a coded generation refusal retires this assertion; until then nothing throws one.',
+            'Coded generation refusals must stay in the completed dormant execution authority.',
         );
     }
 

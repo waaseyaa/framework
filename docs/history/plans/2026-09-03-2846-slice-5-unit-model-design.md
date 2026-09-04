@@ -1,3 +1,5 @@
+> Superseded implementation proposal: the 2026-09-04 review below rejects the live-path changes proposed here. See `docs/change-records/FW-GENERATION-UNITS-05.md` for the execution contract.
+
 # #2846 slice 5 — the generation-unit model and the `site:doctor` split
 
 - **Date:** 2026-09-03
