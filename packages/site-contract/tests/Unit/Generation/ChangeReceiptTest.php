@@ -119,6 +119,22 @@ final class ChangeReceiptTest extends TestCase
     }
 
     #[Test]
+    public function authorityIdentityIsNamespacedAndVersioned(): void
+    {
+        foreach ([
+            ['authority' => 'generation'],
+            ['authorityVersion' => 0],
+        ] as $override) {
+            try {
+                $this->receipt(...$override);
+                self::fail('An invalid authority identity must be refused.');
+            } catch (\InvalidArgumentException $exception) {
+                self::assertStringContainsString('A change receipt authority', $exception->getMessage());
+            }
+        }
+    }
+
+    #[Test]
     public function theOutcomeVocabularyIsTheDecisionsFive(): void
     {
         self::assertSame(
@@ -160,6 +176,7 @@ final class ChangeReceiptTest extends TestCase
         ?string $authority = null,
         ?string $operation = null,
         ?string $correlationId = null,
+        ?int $authorityVersion = null,
         ?ChangeOutcome $outcome = null,
         ?string $causationReceiptId = null,
         ?string $decisionReceiptId = null,
@@ -168,7 +185,7 @@ final class ChangeReceiptTest extends TestCase
         return new ChangeReceipt(
             $receiptId ?? 'rcpt-1',
             $authority ?? 'waaseyaa.generation',
-            7,
+            $authorityVersion ?? 7,
             $operation ?? 'site.init',
             self::PLAN_DIGEST,
             $outcome ?? ChangeOutcome::Applied,

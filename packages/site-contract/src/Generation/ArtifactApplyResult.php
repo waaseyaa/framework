@@ -40,6 +40,8 @@ final readonly class ArtifactApplyResult
         public bool $cleanupPending = false,
         public array $errors = [],
     ) {
+        self::assertList($changed, 'changed');
+        self::assertList($errors, 'errors');
         foreach (['plan_digest' => $planDigest, 'project_state_digest' => $projectStateDigest] as $member => $digest) {
             if (preg_match('/^[a-f0-9]{64}$/D', $digest) !== 1) {
                 throw new \InvalidArgumentException("Artifact apply result {$member} must be 64 lowercase hex characters.");
@@ -95,5 +97,13 @@ final readonly class ArtifactApplyResult
     public function canonicalJson(): string
     {
         return CanonicalJson::encode($this->toArray());
+    }
+
+    /** @param array<array-key, mixed> $values */
+    private static function assertList(array $values, string $member): void
+    {
+        if (!array_is_list($values)) {
+            throw new \InvalidArgumentException("Artifact apply result {$member} must be a list.");
+        }
     }
 }

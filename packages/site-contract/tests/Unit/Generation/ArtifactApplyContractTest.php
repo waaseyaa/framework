@@ -29,7 +29,7 @@ final class ArtifactApplyContractTest extends TestCase
     public function theRequestCarriesThePlanBytesNotOnlyItsDigest(): void
     {
         $plan = $this->plan();
-        $request = new ArtifactApplyRequest($plan, self::STATE_DIGEST);
+        $request = new ArtifactApplyRequest($plan, $plan->digest, self::STATE_DIGEST);
         $document = $request->toArray();
 
         self::assertSame(['schema', 'version', 'plan', 'plan_digest', 'project_state_digest'], array_keys($document));
@@ -46,11 +46,13 @@ final class ArtifactApplyContractTest extends TestCase
     }
 
     #[Test]
-    public function theRequestDerivesThePlanDigestSoTransportCannotDisagreeWithItself(): void
+    public function theRequestCarriesTheIndependentlyReviewedPlanDigest(): void
     {
-        $request = new ArtifactApplyRequest($this->plan(), self::STATE_DIGEST);
+        $reviewedDigest = str_repeat('c', 64);
+        $request = new ArtifactApplyRequest($this->plan(), $reviewedDigest, self::STATE_DIGEST);
 
-        self::assertSame($this->plan()->digest, $request->planDigest);
+        self::assertSame($reviewedDigest, $request->planDigest);
+        self::assertNotSame($request->plan->digest, $request->planDigest, 'A mismatch must survive transport so apply can refuse it as GEN005 under the lock.');
     }
 
     #[Test]
@@ -59,7 +61,16 @@ final class ArtifactApplyContractTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Artifact apply request project_state_digest must be 64 lowercase hex characters.');
 
-        new ArtifactApplyRequest($this->plan(), strtoupper(self::STATE_DIGEST));
+        new ArtifactApplyRequest($this->plan(), $this->plan()->digest, strtoupper(self::STATE_DIGEST));
+    }
+
+    #[Test]
+    public function theRequestRefusesAPlanDigestThatIsNotLowercaseSha256(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Artifact apply request plan_digest must be 64 lowercase hex characters.');
+
+        new ArtifactApplyRequest($this->plan(), strtoupper($this->plan()->digest), self::STATE_DIGEST);
     }
 
     #[Test]
@@ -194,9 +205,29 @@ final class ArtifactApplyContractTest extends TestCase
     }
 
     #[Test]
+    public function theResultRefusesKeyedListMembers(): void
+    {
+        foreach (['changed', 'errors'] as $member) {
+            try {
+                new ArtifactApplyResult(
+                    ArtifactApplyOutcome::Planned,
+                    $this->plan()->digest,
+                    self::STATE_DIGEST,
+                    [],
+                    $member === 'changed' ? [2 => 'src/Entity/Story.php'] : [],
+                    errors: $member === 'errors' ? [2 => new GenerationViolation(GenerationErrorCode::Locked, 'Refused.')] : [],
+                );
+                self::fail("A keyed {$member} member must be refused.");
+            } catch (\InvalidArgumentException $exception) {
+                self::assertSame("Artifact apply result {$member} must be a list.", $exception->getMessage());
+            }
+        }
+    }
+
+    #[Test]
     public function bothDocumentsEncodeCanonically(): void
     {
-        $request = new ArtifactApplyRequest($this->plan(), self::STATE_DIGEST);
+        $request = new ArtifactApplyRequest($this->plan(), $this->plan()->digest, self::STATE_DIGEST);
         $result = new ArtifactApplyResult(ArtifactApplyOutcome::NoChanges, $this->plan()->digest, self::STATE_DIGEST, [], []);
 
         self::assertSame(CanonicalJson::encode($request->toArray()), $request->canonicalJson());

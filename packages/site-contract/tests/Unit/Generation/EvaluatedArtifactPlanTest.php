@@ -87,6 +87,23 @@ final class EvaluatedArtifactPlanTest extends TestCase
     }
 
     #[Test]
+    public function itsListMembersMustRemainJsonLists(): void
+    {
+        foreach (['adds', 'drops', 'refusals'] as $member) {
+            try {
+                new EvaluatedArtifactPlan($this->plan(), $this->projectState(), $this->statusMap(), ...[
+                    $member => [2 => $member === 'refusals'
+                        ? new GenerationViolation(GenerationErrorCode::Locked, 'Refused.')
+                        : 'src/Entity/Extra.php'],
+                ]);
+                self::fail("A keyed {$member} member must be refused.");
+            } catch (\InvalidArgumentException $exception) {
+                self::assertSame("Evaluated plan {$member} must be a list.", $exception->getMessage());
+            }
+        }
+    }
+
+    #[Test]
     public function itsStatusMapIsClosedOverThePlansArtifactPaths(): void
     {
         try {

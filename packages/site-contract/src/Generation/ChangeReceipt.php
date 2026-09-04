@@ -61,6 +61,12 @@ final readonly class ChangeReceipt
         if (preg_match('/^[a-f0-9]{64}$/D', $planDigest) !== 1) {
             throw new \InvalidArgumentException('A change receipt plan_digest must be 64 lowercase hex characters.');
         }
+        if ($authorityVersion < 1) {
+            throw new \InvalidArgumentException('A change receipt authority_version must be a positive integer.');
+        }
+        if (preg_match('/^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+$/D', $authority) !== 1) {
+            throw new \InvalidArgumentException('A change receipt authority must be namespaced.');
+        }
         if ($causationReceiptId === '' || $decisionReceiptId === '') {
             throw new \InvalidArgumentException('A change receipt chain reference must not be empty when declared.');
         }

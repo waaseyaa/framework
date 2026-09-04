@@ -44,8 +44,11 @@ final readonly class EvaluatedArtifactPlan
         public array $drops = [],
         public array $refusals = [],
     ) {
+        foreach (['adds' => $adds, 'drops' => $drops, 'refusals' => $refusals] as $member => $values) {
+            self::assertList($values, $member);
+        }
         $planned = array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $plan->artifacts);
-        foreach (array_keys($status) as $path) {
+        foreach ($status as $path => $outcome) {
             if (!in_array($path, $planned, true)) {
                 throw new \InvalidArgumentException("Evaluated plan status names a path the plan does not carry: {$path}");
             }
@@ -106,6 +109,14 @@ final readonly class EvaluatedArtifactPlan
                 throw new \InvalidArgumentException("Evaluated plan {$member} must be sorted and unique.");
             }
             $previous = $value;
+        }
+    }
+
+    /** @param array<array-key, mixed> $values */
+    private static function assertList(array $values, string $member): void
+    {
+        if (!array_is_list($values)) {
+            throw new \InvalidArgumentException("Evaluated plan {$member} must be a list.");
         }
     }
 }
