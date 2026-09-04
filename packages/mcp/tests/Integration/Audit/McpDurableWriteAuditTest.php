@@ -29,6 +29,7 @@ use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpErrorCode;
+use Waaseyaa\Mcp\Tests\Support\ThrowingLogger;
 
 /**
  * The F4 durability guarantee, end to end through the real JSON-RPC boundary
@@ -156,11 +157,13 @@ final class McpDurableWriteAuditTest extends TestCase
         ?\Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface $ledger = null,
         bool $durable = true,
         bool $hasCapability = true,
+        ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
     ): McpEndpoint {
         return new McpEndpoint(
             auth: new BearerTokenAuth([self::TOKEN => $this->account(7, $hasCapability)]),
             agentRegistry: new CapabilityScopedToolRegistry($this->registry(), [self::WRITE_CAP]),
             rateLimitTier: 'write',
+            logger: $logger,
             auditLedger: $ledger ?? new DatabaseStrictAuditLedger($this->db),
             durableAudit: $durable,
         );
@@ -409,6 +412,57 @@ final class McpDurableWriteAuditTest extends TestCase
             ['fin' => 'finalized', 'res' => 'reserved'],
         ));
         self::assertCount(1, $dangling, 'A dangling reservation must be findable by query.');
+    }
+
+    /**
+     * The containment guarantee for the same crash window (#2780).
+     *
+     * `tools/call` is dispatched directly from {@see McpEndpoint::handle()},
+     * so nothing downstream catches for it: when the post-execution finalize
+     * fails AND the injected logger is itself broken, an unguarded
+     * `critical()` throw escapes to the HTTP client — after the mutation has
+     * already committed. The caller would then see a transport-level failure
+     * for a write that succeeded, and could retry an action that already
+     * happened. The completed result must still be returned.
+     */
+    #[Test]
+    public function a_finalize_failure_reported_to_a_broken_logger_never_escapes_the_tools_call_response(): void
+    {
+        $realLedger = new DatabaseStrictAuditLedger($this->db);
+
+        $ledger = new class ($realLedger) implements \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface {
+            public function __construct(private readonly \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface $inner) {}
+
+            public function reserve(StrictAuditReservation $reservation): StrictAuditReceipt
+            {
+                return $this->inner->reserve($reservation);
+            }
+
+            public function finalize(StrictAuditReceipt $receipt, AuditStage $stage, array $metadata = []): void
+            {
+                throw new StrictAuditLedgerException('simulated crash before finalize');
+            }
+
+            public function record(StrictAuditReservation $reservation, AuditStage $stage): void
+            {
+                $this->inner->record($reservation, $stage);
+            }
+        };
+
+        $response = $this->callTool($this->endpoint($ledger, logger: new ThrowingLogger()));
+
+        // The mutation committed exactly once — and the broken logger did not
+        // convert that completed write into a caller-visible crash.
+        self::assertSame(1, self::$mutations);
+
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertArrayHasKey('result', $body, 'The completed tool result must still reach the caller.');
+        self::assertArrayNotHasKey('error', $body);
+
+        // The audit gap is still detectable: reserved with no finalized.
+        $rows = $this->ledger();
+        self::assertCount(1, $rows);
+        self::assertSame('reserved', $rows[0]['event_type']);
     }
 
     #[Test]

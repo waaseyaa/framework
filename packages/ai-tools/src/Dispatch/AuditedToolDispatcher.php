@@ -303,7 +303,7 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
             // that a caller-caused failure never throws — and the answer to
             // "the attempt could not be made durable" is the same whichever
             // half failed: refuse, loudly.
-            $this->logger?->critical('agent_tool.audit_reservation_failed', [
+            $this->reportAuditFailure('agent_tool.audit_reservation_failed', [
                 'correlation_id' => $this->correlationId,
                 'surface' => $this->surface,
                 'tool' => $operation,
@@ -456,7 +456,7 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
 
             return true;
         } catch (\Throwable $e) {
-            $this->logger?->critical('agent_tool.audit_terminal_record_failed', [
+            $this->reportAuditFailure('agent_tool.audit_terminal_record_failed', [
                 'correlation_id' => $this->correlationId,
                 'surface' => $this->surface,
                 'operation' => $operation,
@@ -490,7 +490,7 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
         try {
             $this->ledger->finalize($receipt, $stage, $this->metadata);
         } catch (\Throwable $e) {
-            $this->logger?->critical('agent_tool.audit_finalize_failed', [
+            $this->reportAuditFailure('agent_tool.audit_finalize_failed', [
                 'correlation_id' => $this->correlationId,
                 'surface' => $this->surface,
                 'receipt_id' => $receipt->id,
@@ -499,6 +499,29 @@ final class AuditedToolDispatcher implements ToolDispatcherInterface
                 'exception' => $e::class,
                 'note' => 'Dangling reservation: outcome unknown, side effect may have committed.',
             ]);
+        }
+    }
+
+    /**
+     * Best-effort report of an audit failure to the configured logger.
+     *
+     * Every callsite here is reporting AFTER its own caller-visible outcome is
+     * already decided (a refusal, or — in {@see finalizeQuietly()} — a
+     * completed tool call that cannot be un-run). A logging failure must never
+     * be allowed to overwrite that outcome with an unrelated crash, so the
+     * logger call itself is wrapped. The failure is deliberately not re-logged:
+     * there is no framework `LoggerInterface` convention for logging a logging
+     * failure, recursing into a broken sink risks looping, and `error_log()` is
+     * reserved for the logging infrastructure itself, not its callers.
+     *
+     * @param array<string, mixed> $context
+     */
+    private function reportAuditFailure(string $event, array $context): void
+    {
+        try {
+            $this->logger?->critical($event, $context);
+        } catch (\Throwable) {
+            // Deliberately empty — see method doc.
         }
     }
 
