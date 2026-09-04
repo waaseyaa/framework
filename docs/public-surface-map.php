@@ -269,6 +269,13 @@ return [
     // and the backing strings are what a plan reader switches on and an
     // operator quotes, so the vocabulary is public from its first release.
     'Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode' => 'public',
+    // #2846 slice 4, ADR-025 D-6.2/D-6.4/D-14.4: the closed vocabularies of the
+    // evaluation and apply half. A plan reader switches on the per-path status
+    // and the apply outcome; the change outcome is the governed-change
+    // protocol's own terminal vocabulary, which a second binding must speak.
+    'Waaseyaa\SiteContract\Generation\ArtifactApplyOutcome' => 'public',
+    'Waaseyaa\SiteContract\Generation\ArtifactStatus' => 'public',
+    'Waaseyaa\SiteContract\Generation\ChangeOutcome' => 'public',
     // Internal shared parsing helper, not an extension point — invoked only
     // by the package's own structural parsers.
     'Waaseyaa\SiteContract\ManifestShapeReader' => 'internal',

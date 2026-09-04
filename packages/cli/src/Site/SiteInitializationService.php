@@ -7,13 +7,30 @@ namespace Waaseyaa\CLI\Site;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Generation\ArtifactApplyResult;
+use Waaseyaa\SiteContract\Generation\ArtifactPlan;
+use Waaseyaa\SiteContract\Generation\ArtifactStatus;
+use Waaseyaa\SiteContract\Generation\ChangeOutcome;
+use Waaseyaa\SiteContract\Generation\ChangeReceipt;
+use Waaseyaa\SiteContract\Generation\EvaluatedArtifactPlan;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\Generation\GeneratedSite;
+use Waaseyaa\SiteContract\Generation\ObservedTargetMode;
+use Waaseyaa\SiteContract\Generation\ObservedTargetState;
+use Waaseyaa\SiteContract\Generation\ProjectStateIdentity;
+use Waaseyaa\SiteContract\Generation\ProjectStateTarget;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /** @api */
 final class SiteInitializationService
 {
+    /**
+     * The sole machine-readable declaration of this authority's contract
+     * version (ADR-025 D-14.9). Receipts, tests, fixtures and documentation
+     * read it; none of them restate its value.
+     */
+    public const int CONTRACT_VERSION = 1;
+
     private const string METADATA = '.waaseyaa/generated.json';
     private const string JOURNAL = '.waaseyaa/site-init.transaction.json';
     private const string LOCK = '.waaseyaa/site-init.lock';
@@ -169,11 +186,181 @@ final class SiteInitializationService
             }
         }
 
+        return $this->evaluateTargets($site->artifacts, $hasMetadata, $priorRows)['prepared'];
+    }
+
+    /**
+     * Evaluate one immutable plan against this project (ADR-025 D-6.2).
+     *
+     * Observes and writes nothing -- not even the control directory -- because
+     * a preview that mutates is not a preview. It enters the same target
+     * evaluator dry-run and apply enter, so no check can differ between them.
+     *
+     * Unreachable in this slice: no compiler emits an `ArtifactPlan` yet, so
+     * nothing can call this. Two deliberate deferrals, neither hidden: the
+     * root-binding admission block is not run here, because binding a plan to a
+     * manifest authority is the unit model's job; and a collision still throws
+     * rather than returning a `refused` status, because converting a live
+     * refusal into a status would change behaviour a non-activating slice must
+     * preserve exactly.
+     */
+    public function evaluate(ArtifactPlan $plan): EvaluatedArtifactPlan
+    {
+        if (is_file($this->absolute(self::JOURNAL))) {
+            throw new SiteInitializationCollisionException('An interrupted site initialization must be recovered before a plan is evaluated.');
+        }
+        $metadataPath = $this->absolute(self::METADATA);
+        $hasMetadata = is_file($metadataPath);
+        $priorRows = [];
+        if ($hasMetadata) {
+            foreach ($this->readMetadata($metadataPath)['artifacts'] as $row) {
+                $priorRows[$row['path']] = $row;
+            }
+        }
+        $artifacts = [];
+        foreach ($plan->artifacts as $artifact) {
+            $artifacts[$artifact->path] = $artifact;
+        }
+        ksort($artifacts, SORT_STRING);
+
+        return new EvaluatedArtifactPlan(
+            $plan,
+            $this->captureProjectState($artifacts, $priorRows),
+            $this->evaluateTargets($artifacts, $hasMetadata, $priorRows)['status'],
+        );
+    }
+
+    /**
+     * The change receipt for one terminated apply (ADR-025 D-14.7).
+     *
+     * Returns null for the two outcomes that terminate before controlled apply:
+     * a preview yields its evaluation and nothing more, and an operator who
+     * declines at confirmation does so before a byte is staged. Neither is a
+     * `no_op`, which means apply ran and found the end state already satisfied.
+     *
+     * v1 emits the receipt and retains none. This method returns a value; it
+     * opens no file, appends to no log, and writes no record anywhere.
+     */
+    public function receiptFor(
+        ArtifactApplyResult $result,
+        string $operation,
+        ?string $correlationId = null,
+        ?string $causationReceiptId = null,
+        ?string $decisionReceiptId = null,
+        ?\DateTimeImmutable $issuedAt = null,
+    ): ?ChangeReceipt {
+        $outcome = ChangeOutcome::forApplyOutcome($result->outcome);
+        if ($outcome === null) {
+            return null;
+        }
+        $payload = $result->toArray();
+        unset($payload['schema'], $payload['version'], $payload['outcome'], $payload['plan_digest']);
+
+        return new ChangeReceipt(
+            $this->mintIdentifier('rcpt'),
+            ChangeReceipt::GENERATION_AUTHORITY,
+            self::CONTRACT_VERSION,
+            $operation,
+            $result->planDigest,
+            $outcome,
+            $correlationId ?? $this->mintIdentifier('corr'),
+            $issuedAt ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+            ['version' => 1] + $payload,
+            $causationReceiptId,
+            $decisionReceiptId,
+        );
+    }
+
+    private function mintIdentifier(string $prefix): string
+    {
+        return $prefix . '-' . bin2hex(random_bytes(16));
+    }
+
+    /**
+     * The captured precondition identity (ADR-025 D-6.2): the union of the
+     * plan's artifact paths and every path recorded to a unit it supplies,
+     * which is precisely the set evaluation reads.
+     *
+     * @param array<string, GeneratedArtifact> $artifacts
+     * @param array<string, array<string, mixed>> $priorRows
+     */
+    private function captureProjectState(array $artifacts, array $priorRows): ProjectStateIdentity
+    {
+        $paths = array_values(array_unique([...array_keys($artifacts), ...array_keys($priorRows)]));
+        sort($paths, SORT_STRING);
+
+        $targets = [];
+        foreach ($paths as $path) {
+            $targets[] = $this->observeTarget($path);
+        }
+
+        return new ProjectStateIdentity(
+            $this->observeDocument(self::METADATA),
+            $this->observeDocument('.waaseyaa/site.yaml'),
+            $this->observeDocument('composer.json'),
+            $targets,
+        );
+    }
+
+    private function observeTarget(string $path): ProjectStateTarget
+    {
+        $absolute = $this->absolute($path);
+        if (is_link($absolute)) {
+            return new ProjectStateTarget($path, ObservedTargetState::Other, ProjectStateIdentity::ABSENT_DIGEST, ObservedTargetMode::Other);
+        }
+        if (!file_exists($absolute)) {
+            return new ProjectStateTarget($path, ObservedTargetState::Absent);
+        }
+        if (!is_file($absolute)) {
+            return new ProjectStateTarget($path, ObservedTargetState::Other, ProjectStateIdentity::ABSENT_DIGEST, ObservedTargetMode::Other);
+        }
+
+        return new ProjectStateTarget($path, ObservedTargetState::File, $this->digestFile($absolute), $this->observeMode($absolute));
+    }
+
+    private function observeMode(string $absolute): ObservedTargetMode
+    {
+        if (!$this->platform->enforcesPermissionBits()) {
+            return ObservedTargetMode::Unknown;
+        }
+        $bits = fileperms($absolute);
+
+        return $bits === false
+            ? ObservedTargetMode::Other
+            : ObservedTargetMode::tryFrom(sprintf('%04o', $bits & 0o777)) ?? ObservedTargetMode::Other;
+    }
+
+    private function observeDocument(string $path): string
+    {
+        $absolute = $this->absolute($path);
+
+        return is_file($absolute) ? $this->digestFile($absolute) : ProjectStateIdentity::ABSENT_DIGEST;
+    }
+
+    /**
+     * Target evaluation, extracted from `prepare()` so that dry-run, apply and
+     * plan evaluation enter one implementation rather than three (ADR-025 D-6.2,
+     * and D-13's prohibition on a second collision, containment or
+     * symlink-safety check).
+     *
+     * It stays physically below the prior-state admission block on purpose. The
+     * managed-byte freeze must run BEFORE this loop: a row whose recorded digest
+     * was corrupted satisfies both refusals at once, so only statement order
+     * decides which message an operator sees, and that message is frozen.
+     *
+     * @param array<string, GeneratedArtifact> $artifacts
+     * @param array<string, array<string, mixed>> $priorRows
+     * @return array{prepared: array<string, GeneratedArtifact>, status: array<string, ArtifactStatus>}
+     */
+    private function evaluateTargets(array $artifacts, bool $hasMetadata, array $priorRows): array
+    {
         $prepared = [];
-        foreach ($site->artifacts as $path => $artifact) {
+        $status = [];
+        foreach ($artifacts as $path => $artifact) {
             $this->assertSafeTarget($path);
             $absolute = $this->absolute($path);
-            if (file_exists($absolute) || is_link($absolute)) {
+            $existed = file_exists($absolute) || is_link($absolute);
+            if ($existed) {
                 $bootstrapControlIgnore = !$hasMetadata
                     && $path === '.waaseyaa/.gitignore'
                     && is_file($absolute)
@@ -203,14 +390,17 @@ final class SiteInitializationService
                     }
                 }
                 if (hash_equals(hash('sha256', $existing), hash('sha256', $artifact->content)) && $this->modeMatches($absolute, $artifact->mode)) {
+                    $status[$path] = ArtifactStatus::Unchanged;
                     continue;
                 }
             }
+            $status[$path] = $existed ? ArtifactStatus::Changed : ArtifactStatus::Created;
             $prepared[$path] = $artifact;
         }
         ksort($prepared, SORT_STRING);
+        ksort($status, SORT_STRING);
 
-        return $prepared;
+        return ['prepared' => $prepared, 'status' => $status];
     }
 
     /** @param array<string, GeneratedArtifact> $artifacts */
