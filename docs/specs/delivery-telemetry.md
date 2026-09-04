@@ -72,6 +72,38 @@ history corruptions and must fail each one.
 The v1 schema is closed. A vocabulary or shape change requires a new schema
 version and an explicit migration; projections do not widen the contract.
 
-This first delivery slice establishes source authority only. Projection
-idempotence, GitHub ingestion recovery, metric calculations, required-check
-parity, and dashboards remain later parts of #2869.
+## Projection
+
+`php bin/project-delivery-agent-events plan|apply|verify --source-ref=<ref>` is
+the governed source-to-analytics boundary. Durable operations resolve the ref to
+a full commit and read the tracked schema and ledger from that commit; dirty
+working-tree bytes are not an input. It validates the complete source before
+database mutation and replaces
+event rows, projection identity, and row count in one transaction. A failure
+rolls back to the prior complete projection; retry is recovery. Success is based
+on committed row count and source hashes rather than parsed input count.
+
+The projection is an exact set, not an append-only authority. Rows absent from
+the governed source are removed from the projection. Replaying an already
+verified source is a true no-op and advances neither generation nor projection
+time. A singleton state row binds the projection to the resolved source commit,
+ledger SHA-256, schema SHA-256, source row count, generation, and projection time
+so dashboards can display freshness and source identity. Ordered rows preserve
+each JSONL line verbatim and carry an individual line hash; verification
+reconstructs the complete ledger bytes and cannot accept a matching state digest
+over corrupted rows.
+
+Connection secrets are environment-only and are never included in output or
+tracked dashboard exports. MySQL projection is local-operator tooling and
+refuses non-loopback hosts. SQLite is permitted for disposable analysis and the
+credential-free hostile self-test. Table names and SQL are closed by the tool;
+no operator-supplied identifier or statement is accepted.
+
+The tracked Grafana definition is a rebuildable view of GitHub-owned DevLake
+facts and the governed projection. A missing finding adjudication is displayed
+as `pending`; only an explicit `unresolved` adjudication may display unresolved.
+Recent GitHub delivery panels must not exclude a PR merely because no
+off-platform event exists for it.
+
+GitHub ingestion recovery, metric calculations, required-check parity, and the
+remaining dashboard families remain later parts of #2869.
