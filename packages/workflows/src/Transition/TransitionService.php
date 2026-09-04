@@ -520,16 +520,23 @@ final class TransitionService
         }
 
         try {
-            return $this->entityTypeManager
-                ->getRepository($entity->getEntityTypeId())
-                ->loadWorkingCopy((string) $id);
-        } catch (\RuntimeException) {
-            // No repository is configured for this entity type. Execution
-            // has already resolved one before it gets here, so only the read
-            // side can reach this arm: degrade to the passed object rather
-            // than turning "what may I offer?" into a failure.
+            $repository = $this->entityTypeManager->getRepository($entity->getEntityTypeId());
+        } catch (\RuntimeException | \InvalidArgumentException) {
+            // No repository (or no registered definition) for this entity
+            // type. {@see doTransition()} has already resolved one before it
+            // gets here, so only the read side can reach this arm: degrade
+            // to the passed object rather than turning "what may I offer?"
+            // into a failure.
             return null;
         }
+
+        // Deliberately UNGUARDED: a working-copy LOAD failure must keep
+        // propagating exactly as it did before #2836. Swallowing it would
+        // fail the enforcement door open — {@see doTransition()} would then
+        // judge the edge from the caller's own snapshot and skip the
+        // stale-caller {@see RevisionConflictException} check, which is the
+        // opposite of what the working-copy basis exists to guarantee.
+        return $repository->loadWorkingCopy((string) $id);
     }
 
     private function currentState(EntityInterface $entity, Workflow $workflow): string

@@ -823,6 +823,75 @@ final class TransitionServiceTest extends TestCase
         $this->assertSame('draft', $result->toState);
     }
 
+    #[Test]
+    public function get_available_transitions_degrades_when_no_repository_is_configured(): void
+    {
+        // The read side must answer "what may I offer?" even for an entity
+        // type the manager cannot build a repository for; only the write
+        // side insists on one (it resolves the repository itself, first).
+        $service = $this->serviceWithoutFixtureRepository($this->editorialWorkflow());
+        $account = $this->account(7, ['use editorial transition submit_for_review']);
+
+        $available = \array_map(static fn($t) => $t->id, $service->getAvailableTransitions($this->entity('draft'), $account));
+
+        $this->assertSame(['submit_for_review'], $available);
+    }
+
+    #[Test]
+    public function a_failing_working_copy_load_propagates_instead_of_trusting_the_passed_entity(): void
+    {
+        // The enforcement door must never fail OPEN: if the working copy
+        // cannot be loaded, transition() may not silently fall back to
+        // judging the edge from the caller's own (possibly stale) snapshot,
+        // which would also skip the RevisionConflictException check.
+        $repository = new WorkingCopyAwareSpyRepository(null, new \RuntimeException('storage unavailable'));
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition publish']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('storage unavailable');
+
+        $service->transition($this->revisionableEntity('draft'), 'publish', $account);
+    }
+
+    /**
+     * A service whose EntityTypeManager cannot build a repository for the
+     * fixture entity type (it still serves the workflow config repository).
+     */
+    private function serviceWithoutFixtureRepository(Workflow $workflow): TransitionService
+    {
+        $workflowRepository = new WorkflowLookupRepository($workflow);
+        $entityTypeManager = new class ($workflowRepository) implements EntityTypeManagerInterface {
+            public function __construct(private readonly EntityRepositoryInterface $workflowRepository) {}
+
+            public function getDefinition(string $entityTypeId): EntityTypeInterface
+            {
+                return new EntityType(id: 'fixture', label: 'Fixture', class: \stdClass::class, keys: ['id' => 'id', 'revision' => 'revision_id'], revisionable: true);
+            }
+
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+            public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function registerCoreEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function getDefinitions(): array { return []; }
+            public function hasDefinition(string $entityTypeId): bool { return true; }
+            public function getStorage(string $entityTypeId): EntityStorageInterface { throw new \LogicException('not needed'); }
+
+            public function getRepository(string $entityTypeId): EntityRepositoryInterface
+            {
+                if ($entityTypeId === 'workflow') {
+                    return $this->workflowRepository;
+                }
+
+                throw new \RuntimeException('No repository factory configured for EntityTypeManager.');
+            }
+        };
+
+        return new TransitionService(
+            bindings: $this->bindings($workflow, $entityTypeManager),
+            entityTypeManager: $entityTypeManager,
+        );
+    }
+
     /**
      * Builds a minimal EntityTypeManagerInterface serving `$repository` for
      * the fixture entity type and a plain WorkflowLookupRepository for
@@ -1161,11 +1230,21 @@ final class WorkingCopyAwareSpyRepository implements EntityRepositoryInterface
 
     private int $nextRevisionId = 100;
 
-    public function __construct(private readonly ?EntityInterface $workingCopy) {}
+    public function __construct(
+        private readonly ?EntityInterface $workingCopy,
+        private readonly ?\Throwable $workingCopyFailure = null,
+    ) {}
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
     public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workingCopy; }
-    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->workingCopy; }
+    public function loadWorkingCopy(int|string $id): ?EntityInterface
+    {
+        if ($this->workingCopyFailure !== null) {
+            throw $this->workingCopyFailure;
+        }
+
+        return $this->workingCopy;
+    }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
