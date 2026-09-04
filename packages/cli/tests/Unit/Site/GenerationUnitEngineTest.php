@@ -223,10 +223,10 @@ final class GenerationUnitEngineTest extends TestCase
     public function registrationStateStillFailsClosed(): void
     {
         $metadata = $this->metadata();
-        $metadata['registrations'] = [['fqcn' => 'ExampleProvider']];
+        $metadata['registrations'] = [];
         $this->writeMetadata($metadata);
-        $this->expectException(SiteInitializationCollisionException::class);
-        $this->expectExceptionMessage('unsupported shape');
+        $this->expectException(GenerationRefusalException::class);
+        $this->expectExceptionMessage('GEN015');
         new SiteInitializationService($this->root)->readUnitMetadata();
     }
 

@@ -31,7 +31,7 @@ final class GenerationUnitActivationBoundaryTest extends TestCase
                 if (!is_array($token) || in_array($token[0], [T_COMMENT, T_DOC_COMMENT, T_WHITESPACE], true)) {
                     continue;
                 }
-                foreach (['inspectUnits', 'readUnitMetadata', 'prepareUnitPlan'] as $seam) {
+                foreach (['inspectUnits', 'readUnitMetadata', 'readComposerProviderState', 'prepareUnitPlan'] as $seam) {
                     if ($seam === trim($token[1], "'\"")) {
                         $callers[] = $file->getPathname() . ':' . $seam;
                     }

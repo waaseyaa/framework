@@ -61,7 +61,7 @@ final readonly class SiteDoctorReport
     }
 
     /**
-     * Dormant generation-unit report policy (ADR-025 D-2.7).
+     * Dormant generation-unit report policy (ADR-025 D-2.7 and D-2.1a).
      *
      * No command uses this before the activation slice. The legacy strict
      * factory remains unchanged; no unrelated warning earns an exception.
@@ -80,7 +80,7 @@ final readonly class SiteDoctorReport
     ): self {
         $report = self::strict($manifestDigest, $sourceDigest, $findings, $suppressed, $composerLockDigest, $generatedMetadataDigest);
         $blocking = array_filter($report->findings, static fn(SiteDoctorFinding $finding): bool =>
-            $finding->id !== 'SITE013_SEEDED_ARTIFACT_MODIFIED'
+            !in_array($finding->id, ['SITE013_SEEDED_ARTIFACT_MODIFIED', 'SITE016_SEEDED_REGISTRATION_MISSING'], true)
             || $finding->severity !== FindingSeverity::Warning);
         if ($blocking !== [] || $report->findings === []) {
             return $report;
