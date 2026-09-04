@@ -16,7 +16,10 @@ consumer="$work/consumer"
 version="1.0.0-alpha.1"
 
 cleanup() {
-    rm -rf -- "$work"
+    # Cleanup is best-effort and must never change this script's exit
+    # status; report a leak on stderr instead of letting a failed rm
+    # corrupt the proof under test (#2870).
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
 }
 trap cleanup EXIT
 

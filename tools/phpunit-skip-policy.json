@@ -320,6 +320,14 @@
             "rationale": "Representative signing-key custody requires libsodium."
         },
         {
+            "path": "tests/Architecture/PackagedFormCleanupExitStatusTest.php",
+            "reason": "This proof requires a non-root user; permission checks are bypassed as root.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_getuid() !== 0",
+            "rationale": "The #2870 negative controls build a subdirectory whose permissions are stripped so rm -rf genuinely fails; root bypasses that permission check, so the premise would not hold."
+        },
+        {
             "path": "tests/Architecture/SkeletonDockerSecretExclusionTest.php",
             "reason": "Requires a reachable Docker daemon; `docker info` did not answer. ",
             "occurrence": 1,
