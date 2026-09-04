@@ -19,6 +19,8 @@ namespace Waaseyaa\SiteContract\Generation\Exception;
  * decision requires: the code is the closed {@see GenerationErrorCode} rather
  * than a bare string, and the location is optional, because an execution
  * refusal such as a held lock has no address.
+ *
+ * @api
  */
 final readonly class GenerationViolation
 {
@@ -34,8 +36,8 @@ final readonly class GenerationViolation
         if ($path === '') {
             throw new \InvalidArgumentException('Generation violation path must not be empty when declared.');
         }
-        if ($pointer === '') {
-            throw new \InvalidArgumentException('Generation violation pointer must not be empty when declared.');
+        if ($pointer !== null && preg_match('#^(?:/(?:[^~]|~[01])*)*$#uD', $pointer) !== 1) {
+            throw new \InvalidArgumentException('Generation violation pointer must be a valid JSON Pointer when declared.');
         }
     }
 

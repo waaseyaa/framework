@@ -10,14 +10,16 @@ namespace Waaseyaa\SiteContract\Generation\Exception;
  * One exception carries a list of violations rather than one class per code,
  * for the reason ADR-025 D-6.4 already fixes: refusals are modelled as data in
  * a result envelope -- `errors` is a list -- so an exception carrying that same
- * list maps onto the envelope without translation. Fifteen exception classes
- * distinguished only by a constant would not.
+ * list maps onto the envelope without translation. One exception class per
+ * code, distinguished only by a constant, would not.
  *
  * It extends `\RuntimeException` because this is an execution-boundary failure,
  * matching the uncoded `SiteInitializationCollisionException` and
  * `SiteInitializationLockedException` that D-5 names as today's equivalents for
  * two of these codes. The GEN0xx id is the code; the native integer code is
  * left at zero, exactly as the manifest-content family leaves it.
+ *
+ * @api
  */
 final class GenerationRefusalException extends \RuntimeException
 {
@@ -29,6 +31,16 @@ final class GenerationRefusalException extends \RuntimeException
     ) {
         if ($source === '') {
             throw new \InvalidArgumentException('Generation refusal source must not be empty.');
+        }
+        // @phpstan-ignore function.alreadyNarrowedType (runtime public API boundary)
+        if (!array_is_list($violations)) {
+            throw new \InvalidArgumentException('Generation refusal violations must be a list.');
+        }
+        foreach ($violations as $violation) {
+            // @phpstan-ignore instanceof.alwaysTrue (runtime public API boundary)
+            if (!$violation instanceof GenerationViolation) {
+                throw new \InvalidArgumentException('Generation refusal violations must contain only GenerationViolation values.');
+            }
         }
         $first = $violations[0] ?? null;
         if ($first === null) {

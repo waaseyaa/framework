@@ -69,7 +69,7 @@ enum GenerationErrorCode: string
     /** Declaration evolution: a plan changes a seeded unit's registration set after creation. */
     case SeededRegistrationRedeclared = 'GEN013_SEEDED_REGISTRATION_REDECLARED';
 
-    /** Existing Composer state: the declared provider list is absent-shaped, malformed, or duplicated. Refused at read. */
+    /** Existing Composer state: the declared provider list is present but not a list, malformed, or duplicated. Refused at read. */
     case InvalidComposerProviderState = 'GEN014_INVALID_COMPOSER_PROVIDER_STATE';
 
     /** Persisted roster shape and order: a malformed row, an unknown member, an empty string, or a roster out of canonical order. Refused at read. */

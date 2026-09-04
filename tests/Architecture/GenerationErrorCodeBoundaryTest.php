@@ -20,14 +20,10 @@ use PHPUnit\Framework\TestCase;
  * the family in one namespace buys.
  *
  * The TRANSIENT half -- that nothing in production constructs these types yet
- * -- is deliberately NOT asserted here. A hand-listed roster of permitted
- * callers would have to be edited by every following slice, with no guidance
- * and nothing forcing its removal once it stopped being true. That claim is
- * instead carried by `phpstan-dead-code-baseline.neon`: PHPStan's default
- * `reportUnmatchedIgnoredErrors` turns a baseline row whose finding has
- * disappeared into a hard, non-suppressible error, so the slice that wires the
- * first caller is told by CI to delete the row. The proof retires itself at
- * exactly the right moment instead of accumulating.
+ * -- is asserted explicitly by the slice-three-only test below. Slice 4 must
+ * delete that test when it introduces the first caller. This visible staged
+ * assertion is intentionally not encoded as growth in the repository's
+ * shrink-only dead-code baseline.
  */
 #[CoversNothing]
 final class GenerationErrorCodeBoundaryTest extends TestCase
@@ -35,6 +31,8 @@ final class GenerationErrorCodeBoundaryTest extends TestCase
     private const string FAMILY_DIR = 'packages/site-contract/src/Generation/Exception/';
 
     private const string SURFACE_MAP = 'docs/public-surface-map.php';
+
+    private const string AUTHORITY = 'docs/adr/025-unified-artifact-generation-authority.md';
 
     private string $root = '';
 
@@ -71,6 +69,25 @@ final class GenerationErrorCodeBoundaryTest extends TestCase
     }
 
     #[Test]
+    public function theClosedVocabularyMatchesTheDecisionTableWithoutASecondHandMaintainedEnumeration(): void
+    {
+        $adr = file_get_contents($this->root . '/' . self::AUTHORITY);
+        self::assertIsString($adr);
+        self::assertSame(1, preg_match('/^### D-5\..*?(?=^### D-6\.)/ms', $adr, $section));
+        self::assertGreaterThan(0, preg_match_all('/^\s*\|\s*`(GEN[0-9]{3}_[A-Z][A-Z_]*)`\s*\|/m', $section[0], $matches));
+
+        $decisionIds = $matches[1];
+        $enumIds = array_map(static fn(\Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode $code): string => $code->value, \Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode::cases());
+        $sortedDecisionIds = $decisionIds;
+        $sortedEnumIds = $enumIds;
+        sort($sortedDecisionIds, SORT_STRING);
+        sort($sortedEnumIds, SORT_STRING);
+
+        self::assertSame($sortedDecisionIds, $sortedEnumIds, 'ADR-025 D-5 is the closed GEN0xx authority; code must not add or omit an id.');
+        self::assertSame($sortedEnumIds, $enumIds, 'Enum cases stay in numeric order even if the decision table is edited out of order.');
+    }
+
+    #[Test]
     public function theClosedCodeVocabularyIsTrackedAsPublicSurfaceAndItsCarriersAreNot(): void
     {
         $map = require $this->root . '/' . self::SURFACE_MAP;
@@ -93,12 +110,45 @@ final class GenerationErrorCodeBoundaryTest extends TestCase
         }
     }
 
+    #[Test]
+    public function sliceThreeHasNoProductionCallerOfTheRefusalCarriers(): void
+    {
+        $offenders = [];
+        foreach ($this->productionPhpCodeFiles() as $relative => $code) {
+            if (str_starts_with($relative, self::FAMILY_DIR)) {
+                continue;
+            }
+            if (preg_match('/\b(?:GenerationRefusalException|GenerationViolation)\b/', $code) === 1) {
+                $offenders[] = $relative;
+            }
+        }
+
+        self::assertSame(
+            [],
+            $offenders,
+            'Slice 3 is non-activating. Delete this slice-only assertion when slice 4 introduces the first typed refusal caller.',
+        );
+    }
+
     /** @return array<string, string> */
     private function productionPhpCodeFiles(): array
     {
         $files = [];
         $sourceRoots = glob($this->root . '/packages/*/src', GLOB_ONLYDIR) ?: [];
-        foreach (['/bin', '/public', '/skeleton/bin', '/skeleton/public', '/skeleton/src', '/tools'] as $relativeRoot) {
+        foreach (['migrations', 'recipe'] as $packageRuntimeDirectory) {
+            array_push($sourceRoots, ...(glob($this->root . '/packages/*/' . $packageRuntimeDirectory, GLOB_ONLYDIR) ?: []));
+        }
+        foreach ([
+            '/bin',
+            '/config',
+            '/public',
+            '/skeleton/.ci',
+            '/skeleton/bin',
+            '/skeleton/config',
+            '/skeleton/public',
+            '/skeleton/src',
+            '/tools',
+        ] as $relativeRoot) {
             if (is_dir($this->root . $relativeRoot)) {
                 $sourceRoots[] = $this->root . $relativeRoot;
             }

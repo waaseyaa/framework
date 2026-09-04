@@ -12,39 +12,6 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
 #[CoversClass(GenerationErrorCode::class)]
 final class GenerationErrorCodeTest extends TestCase
 {
-    /**
-     * ADR-025 D-5's table is the enumeration, and the ADR is explicit that
-     * "Any additional id is an amendment to this ADR, not a silent addition".
-     * This list is that table, in numeric order.
-     */
-    private const array RESERVED_IDS = [
-        'GEN001_UNSAFE_PATH',
-        'GEN002_SYMLINK_REJECTED',
-        'GEN003_COLLISION_REFUSED',
-        'GEN004_AMBIGUOUS_EXTENSION_REGION',
-        'GEN005_STALE_PLAN',
-        'GEN006_MALICIOUS_IDENTIFIER',
-        'GEN007_UNSUPPORTED_DECLARATION',
-        'GEN008_LOCKED',
-        'GEN009_UNDECLARED_UNIT_RETIREMENT',
-        'GEN010_UNIT_PATH_CONFLICT',
-        'GEN011_UNAUTHORIZED_SET_DELTA',
-        'GEN012_REGISTRATION_OWNERSHIP_CONFLICT',
-        'GEN013_SEEDED_REGISTRATION_REDECLARED',
-        'GEN014_INVALID_COMPOSER_PROVIDER_STATE',
-        'GEN015_INVALID_REGISTRATION_ROSTER',
-    ];
-
-    #[Test]
-    public function itReservesExactlyTheIdsTheDecisionTableEnumerates(): void
-    {
-        self::assertSame(
-            self::RESERVED_IDS,
-            array_map(static fn(GenerationErrorCode $case): string => $case->value, GenerationErrorCode::cases()),
-            'The GEN0xx family is closed by ADR-025 D-5; adding an id is an amendment, not a code change.',
-        );
-    }
-
     #[Test]
     public function everyIdIsWellFormedAndNumberedOnce(): void
     {
@@ -61,7 +28,8 @@ final class GenerationErrorCodeTest extends TestCase
     #[Test]
     public function eachIdResolvesFromItsBackingString(): void
     {
-        foreach (self::RESERVED_IDS as $id) {
+        foreach (GenerationErrorCode::cases() as $case) {
+            $id = $case->value;
             self::assertSame($id, GenerationErrorCode::from($id)->value);
         }
     }

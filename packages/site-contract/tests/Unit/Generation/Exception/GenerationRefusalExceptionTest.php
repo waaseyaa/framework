@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\SiteContract\Tests\Unit\Generation\Exception;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
@@ -59,19 +60,43 @@ final class GenerationRefusalExceptionTest extends TestCase
     }
 
     #[Test]
-    public function aViolationRefusesAnEmptyPathOrPointerRatherThanTreatingItAsAbsent(): void
+    public function aViolationRefusesAnEmptyPathRatherThanTreatingItAsAbsent(): void
     {
-        try {
-            new GenerationViolation(GenerationErrorCode::Locked, 'Refused.', path: '');
-            self::fail('An empty path must be refused.');
-        } catch (\InvalidArgumentException $exception) {
-            self::assertSame('Generation violation path must not be empty when declared.', $exception->getMessage());
-        }
-
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Generation violation pointer must not be empty when declared.');
+        $this->expectExceptionMessage('Generation violation path must not be empty when declared.');
 
-        new GenerationViolation(GenerationErrorCode::Locked, 'Refused.', pointer: '');
+        new GenerationViolation(GenerationErrorCode::Locked, 'Refused.', path: '');
+    }
+
+    #[Test]
+    public function aViolationAcceptsTheRootJsonPointerAndEscapedTokens(): void
+    {
+        self::assertSame(
+            ['code' => 'GEN008_LOCKED', 'message' => 'Root.', 'pointer' => ''],
+            (new GenerationViolation(GenerationErrorCode::Locked, 'Root.', pointer: ''))->toArray(),
+        );
+        self::assertSame(
+            ['code' => 'GEN008_LOCKED', 'message' => 'Escaped.', 'pointer' => '/a~1b/~0c'],
+            (new GenerationViolation(GenerationErrorCode::Locked, 'Escaped.', pointer: '/a~1b/~0c'))->toArray(),
+        );
+    }
+
+    #[Test]
+    #[DataProvider('invalidJsonPointers')]
+    public function aViolationRefusesAPointerThatIsNotJsonPointerSyntax(string $pointer): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Generation violation pointer must be a valid JSON Pointer when declared.');
+
+        new GenerationViolation(GenerationErrorCode::Locked, 'Refused.', pointer: $pointer);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function invalidJsonPointers(): iterable
+    {
+        yield 'missing root slash' => ['artifacts/0/path'];
+        yield 'invalid tilde escape' => ['/artifacts/~2/path'];
+        yield 'dangling tilde' => ['/artifacts/~'];
     }
 
     #[Test]
@@ -138,6 +163,38 @@ final class GenerationRefusalExceptionTest extends TestCase
         $this->expectExceptionMessage('Generation refusal must carry at least one violation.');
 
         new GenerationRefusalException('site', []);
+    }
+
+    #[Test]
+    public function itRefusesASparseViolationListRatherThanSerializingAJsonObject(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Generation refusal violations must be a list.');
+
+        new GenerationRefusalException('site', [
+            0 => new GenerationViolation(GenerationErrorCode::Locked, 'Held.'),
+            2 => new GenerationViolation(GenerationErrorCode::StalePlan, 'Moved.'),
+        ]);
+    }
+
+    #[Test]
+    #[DataProvider('invalidViolationLists')]
+    public function itRefusesNonViolationValuesBeforeReadingOrSerializingThem(array $violations): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Generation refusal violations must contain only GenerationViolation values.');
+
+        new GenerationRefusalException('site', $violations);
+    }
+
+    /** @return iterable<string, array{array<int, mixed>}> */
+    public static function invalidViolationLists(): iterable
+    {
+        yield 'invalid first value' => [[new \stdClass()]];
+        yield 'invalid later value' => [[
+            new GenerationViolation(GenerationErrorCode::Locked, 'Held.'),
+            new \stdClass(),
+        ]];
     }
 
     #[Test]
