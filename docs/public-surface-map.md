@@ -140,6 +140,10 @@ Machine-readable source: `docs/public-surface-map.php`.
 |---------|------|---------|
 | `Capability\CapabilityState` | enum | Closed active, planned, and not-needed vocabulary serialized by the provider-neutral site manifest |
 | `Version\ManifestVersionDisposition` | enum | Closed current, migration-required, and unsupported-future schema-version decision |
+| `Generation\GenerationUnitDisposition` | enum | Closed managed/seeded vocabulary for how a generation unit's artifacts are treated after publication |
+| `Generation\ArtifactSetEvolution` | enum | Closed frozen/additive declaration of whether a compiler may render a superset of its unit's recorded path set |
+| `Generation\ObservedTargetState` | enum | Closed absent/file/other record of what evaluation observed at one target path |
+| `Generation\ObservedTargetMode` | enum | Closed 0644/0755/other/unknown record of the permission bits evaluation observed |
 
 ### state
 

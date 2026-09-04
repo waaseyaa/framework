@@ -253,6 +253,15 @@ return [
     'Waaseyaa\SiteContract\Blueprint\BlueprintOnDelete' => 'public',
     'Waaseyaa\SiteContract\Blueprint\BlueprintOperation' => 'public',
     'Waaseyaa\SiteContract\Blueprint\BlueprintStorage' => 'public',
+    // Artifact-plan contract (#2846, ADR-025 D-6). Closed vocabularies of the
+    // waaseyaa.artifact_plan and waaseyaa.project_state v1 documents: every
+    // compiler that emits a plan, and every reader of a captured project-state
+    // identity, speaks these exact backing strings, and they sit inside the
+    // canonical plan digest an operator reviews.
+    'Waaseyaa\SiteContract\Generation\ArtifactSetEvolution' => 'public',
+    'Waaseyaa\SiteContract\Generation\GenerationUnitDisposition' => 'public',
+    'Waaseyaa\SiteContract\Generation\ObservedTargetMode' => 'public',
+    'Waaseyaa\SiteContract\Generation\ObservedTargetState' => 'public',
     // Internal shared parsing helper, not an extension point — invoked only
     // by the package's own structural parsers.
     'Waaseyaa\SiteContract\ManifestShapeReader' => 'internal',

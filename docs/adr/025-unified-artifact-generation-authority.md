@@ -769,7 +769,7 @@ with its own decision to make.
 | Two dispositions, fixed by compiler kind, with a closed `seeded` allowlist (D-2.2) | The architecture test asserting that allowlist |
 | The `registrations` roster: top-level, `{fqcn, group?, unit?}`, root ownership by absent `unit`, global FQCN exclusivity, deterministic order, omitted when empty, `group` as roster/plan metadata with no Composer representation, the disposition-split evolution matrix, and the exact retirement withdrawal set (D-2.1, D-2.1a, D-2.3 step 6) | Recording and reconciling the roster inside the transaction; the `GEN012`, `GEN013` and `GEN014` refusals; `managed` drift restoration and the `seeded` non-restoration that pairs with it; the seeded transition tests (creation and retirement succeed; addition, removal and `group` change each refuse `GEN013`); the negative fixtures for `GEN014` (`extra.waaseyaa.providers` present but not a list, a non-string member, an empty string, a duplicate entry) and for `GEN015` (a row that is not an object, an unknown row member, a missing `fqcn`, a non-string `fqcn`/`group`/`unit`, an empty string in any of the three, and a roster out of canonical order), each exiting non-zero on its own; `site:doctor`'s registration verification distinguishing unrelated user entries, collisions, and disposition-aware FQCN-absence drift; the `readMetadata()` known-optional widening for `registrations`; and the byte-identity fixture case proving a registration-free document is unchanged |
 | Per-unit frozen set, carry-forward, partition, first-owner-wins, explicit retirement (D-2.3) | Replacing lines 139–145 with per-unit reconciliation and gating 146–169 on the supplied unit |
-| Declared additive successor evolution, digest-bound, with removal still routed to retirement, and a closed eligibility list for `additive` (D-2.3 step 7, D-2.3a) | The `set_evolution` plan member, `EvaluatedArtifactPlan::$setDelta`, `GEN011`, and the architecture test asserting the eligibility list |
+| Declared additive successor evolution, digest-bound, with removal still routed to retirement, and a closed eligibility list for `additive` (D-2.3 step 7, D-2.3a) | Serializing the `set_evolution` plan member in the pure plan type (slice 2); later evaluating eligibility and `EvaluatedArtifactPlan::$setDelta`, emitting `GEN011`, and asserting the eligibility list (slice 7) |
 | Metadata composition moves to the transaction authority (D-2.6) | The composition itself, the service-level re-derivation check, and the byte-identity fixture test that must land **before** the relocation |
 | Retirement is a new journal verb with its own rollback and directory-cleanup semantics | The journal item kind, the rollback branch that restores a deleted file from backup, and its failure-injection coverage |
 | `site:doctor` splits into root-projection compare plus disposition-aware row loop (D-2.7) | The split itself and its new non-blocking finding id |
@@ -1024,6 +1024,18 @@ file, which evaluation refuses but the identity must still record as
 observed). `sha256` is the file's bytes or 64 zeros. `mode` is `0644`,
 `0755`, `other`, or `unknown` on a host where
 `SiteHostPlatform::enforcesPermissionBits()` is false.
+
+The tuple is closed and internally consistent: `absent` carries the zero
+digest and `unknown` mode; `file` carries a non-zero digest and any declared
+mode; `other` carries the zero digest and mode `other` or `unknown`. A value
+object refuses every other combination rather than allowing an impossible
+observation to become a stale-plan identity.
+
+**`project_state_digest = sha256(CanonicalJson::encode($projectStateDocument) . "\n")`**,
+where `$projectStateDocument` is exactly the D-6.2 document and nothing else.
+It uses the same canonical encoding and trailing-newline rule D-6.3 defines
+for `plan_digest`; this formula is protocol authority, not an implementation
+analogy.
 
 `Waaseyaa\SiteContract\Generation\EvaluatedArtifactPlan` (new,
 `site-contract`, Layer 0) is the result of evaluating one `ArtifactPlan`
@@ -1399,6 +1411,7 @@ evaluated result; the same document is what apply is handed):
     { "fqcn": "App\\Provider\\StoryServiceProvider", "group": "content" }
   ],
   "companion_tests": [],
+  "set_evolution": "frozen",
   "schema_effects": [],
   "config_effects": []
 }
@@ -1645,12 +1658,12 @@ Nothing here relaxes step 1's content. It changes only how that content reaches 
 | # | slice | activating? |
 |---|---|---|
 | 1 | Byte-identity fixture lock for `.waaseyaa/generated.json`, plus the architecture test asserting D-13's mechanically checkable constraints | no |
-| 2 | The pure D-6 types in `site-contract` — `ArtifactPlan`, `ProjectStateIdentity`, `ComposerProviderRegistration` — and the D-6.3 canonical digest. Pure values; nothing observes a project | no |
+| 2 | The pure D-6 types in `site-contract` — `ArtifactPlan`, `ProjectStateIdentity`, `ComposerProviderRegistration` — including serialized `set_evolution`, the D-6.3 canonical plan digest, and D-6.2's canonical project-state digest. Pure values; nothing observes a project | no |
 | 3 | The `GEN0xx` typed exceptions, coded but thrown from no new path | no |
 | 4 | Target evaluation split out of `prepare()`: `EvaluatedArtifactPlan`, `ArtifactApplyRequest`, `ArtifactApplyResult`, **and** the D-14.7 change receipt | no |
 | 5 | The D-2 unit model **and** the D-2.7 `site:doctor` split | no |
 | 6 | The D-2.1 registration roster, D-2.1a's semantics, `GEN012`–`GEN015`, seeded apply-once, and doctor's registration verification | no |
-| 7 | D-2.3a's `set_evolution`/`setDelta`/`GEN011` and the closed-eligibility architecture test | no |
+| 7 | D-2.3a's eligibility enforcement, `setDelta`, `GEN011`, and the closed-eligibility architecture test for the `set_evolution` member serialized since slice 2 | no |
 | 8 | **Activation.** Wires the engine into `site:init`'s existing surface | **yes** |
 
 **Substitute constraints, one per reason step 1 gave for the mandate.** Each is named rather than
@@ -2118,9 +2131,10 @@ Costs and one-way doors, recorded here rather than discovered later:
   a required machine-readable deliverable a consistent, versioned home
   beside the decision that requires them, distinct from `docs/audits/`'s
   independently-triggered, SHA-pinned census artifacts.
-- The `GEN0xx` family gives #2846 a fixed namespace and ten pre-assigned ids
-  to implement against, rather than inventing codes ad hoc per PR the way
-  `SITE0xx` grew organically before ADR-023 closed its vocabulary.
+- The `GEN0xx` family gives #2846 a fixed namespace and the pre-assigned ids
+  the D-5 table enumerates to implement against, rather than inventing codes
+  ad hoc per PR the way `SITE0xx` grew organically before ADR-023 closed its
+  vocabulary.
 
 ## Non-goals
 
