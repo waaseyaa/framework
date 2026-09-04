@@ -1,5 +1,7 @@
 # CLI Console
 
+<!-- #2846 slice 7 / FW-GENERATION-UNITS-07: dormant additive eligibility is closed to the managed manifest-render root binding. Sorted set deltas reuse existing project-state identity and publication; no handler activation occurs before slice 8. -->
+
 <!-- #2846 slice 6 / FW-GENERATION-UNITS-06: dormant registration roster reconciliation, transactional Composer provider edits and disposition-aware registration doctor ship together. The existing publisher preserves unrelated Composer bytes and original modes; registrations never confer whole-file ownership. Command activation and stale-plan enforcement remain slice 8. -->
 
 <!-- #2846 slice 5 / FW-GENERATION-UNITS-05: dormant unit reconciliation and unit-aware doctor seams are implemented together under ADR-025 D-12.1. No handler calls these seams before slice 8. The live initialization, metadata/journal acceptance, strict-doctor report, and generated-byte contracts below remain unchanged. -->
