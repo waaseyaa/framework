@@ -12,10 +12,10 @@ use Symfony\Component\Process\Process;
 
 /**
  * Locks #2870's teardown acceptance criterion: an EXIT trap's best-effort
- * `rm -rf -- "$work"` must never change a tests/PackagedForm/check-* script's
- * exit status, even though the removal itself can genuinely fail (a lingering
- * process, a read-only subdirectory, a filesystem race against something the
- * proof itself just created).
+ * `rm -rf -- "$work"` must never change a check-* script's exit status, even
+ * though the removal itself can genuinely fail (a lingering process, a
+ * read-only subdirectory, a filesystem race against something the proof
+ * itself just created).
  *
  * The defect: `set -euo pipefail` plus
  *
@@ -31,10 +31,10 @@ use Symfony\Component\Process\Process;
  * exact shape verbatim and proves it really does happen, so this guard cannot
  * later be deleted as redundant.
  *
- * Every script under tests/PackagedForm/ that installs a `trap cleanup EXIT`
- * must therefore be on the roster below. A script with the same trap shape
- * that is not on the roster fails this test -- the defect is in the pattern,
- * not in any one file (#2870).
+ * Every script under tests/PackagedForm/ or tests/ReferenceConsumer/ that
+ * installs a `trap cleanup EXIT` must therefore be on the roster below. A
+ * script with the same trap shape that is not on the roster fails this test
+ * -- the defect is in the pattern, not in any one file (#2870).
  */
 #[CoversNothing]
 final class PackagedFormCleanupExitStatusTest extends TestCase
@@ -61,18 +61,35 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
         'check-verified-config-import',
     ];
 
+    /**
+     * Every tests/ReferenceConsumer/check-* script that installs `trap
+     * cleanup EXIT`. This is the required `site-reference-consumer` CI job
+     * (.github/workflows/ci.yml) and, because its cleanup fires after a
+     * `git init` against the work directory, the most exposed instance of
+     * the #2870 shape in the repository.
+     *
+     * @var list<string>
+     */
+    private const REFERENCE_CONSUMER_SCRIPTS_WITH_EXIT_TRAP = [
+        'check-reference-consumer',
+    ];
+
     #[Test]
     public function every_check_script_with_an_exit_trap_is_on_the_roster(): void
     {
-        $found = self::scanForExitTrapScripts();
-
         self::assertSame(
             self::SCRIPTS_WITH_EXIT_TRAP,
-            $found,
+            self::scanForExitTrapScripts('tests/PackagedForm'),
             "A tests/PackagedForm/check-* script installed (or removed) a `trap cleanup EXIT`.\n"
             . "Add it to self::SCRIPTS_WITH_EXIT_TRAP above and give its cleanup() the exit-status-neutral\n"
-            . "shape this test enforces (#2870) -- the defect is in the pattern, not in any one file.\n"
-            . 'Found: ' . json_encode($found, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            . 'shape this test enforces (#2870) -- the defect is in the pattern, not in any one file.',
+        );
+        self::assertSame(
+            self::REFERENCE_CONSUMER_SCRIPTS_WITH_EXIT_TRAP,
+            self::scanForExitTrapScripts('tests/ReferenceConsumer'),
+            "A tests/ReferenceConsumer/check-* script installed (or removed) a `trap cleanup EXIT`.\n"
+            . "Add it to self::REFERENCE_CONSUMER_SCRIPTS_WITH_EXIT_TRAP above and give its cleanup() the\n"
+            . 'exit-status-neutral shape this test enforces (#2870).',
         );
     }
 
@@ -80,40 +97,48 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
     public function every_rostered_script_neutralizes_its_cleanup_exit_status(): void
     {
         $root = self::repositoryRoot();
+        $rosters = [
+            'tests/PackagedForm' => self::SCRIPTS_WITH_EXIT_TRAP,
+            'tests/ReferenceConsumer' => self::REFERENCE_CONSUMER_SCRIPTS_WITH_EXIT_TRAP,
+        ];
 
-        foreach (self::SCRIPTS_WITH_EXIT_TRAP as $name) {
-            $path = $root . '/tests/PackagedForm/' . $name;
-            $source = (string) file_get_contents($path);
+        foreach ($rosters as $relativeDir => $scripts) {
+            foreach ($scripts as $name) {
+                $path = $root . '/' . $relativeDir . '/' . $name;
+                $source = (string) file_get_contents($path);
 
-            $body = self::cleanupBody($source);
-            self::assertNotNull($body, "{$name}: could not locate a cleanup() function body.");
+                $body = self::cleanupBody($source);
+                self::assertNotNull($body, "{$name}: could not locate a cleanup() function body.");
 
-            // The removal must be wired with `||` so a failing `rm` cannot
-            // trip `set -e` and overwrite the script's real exit status.
-            self::assertMatchesRegularExpression(
-                '/rm\s+-rf\s+--\s+"\$work"\s*\|\|/',
-                $body,
-                "{$name}: cleanup() must guard its `rm -rf -- \"\$work\"` with `||` so a failed removal "
-                . 'cannot change the script exit status (#2870).',
-            );
+                // The removal must be wired with `||` so a failing `rm` cannot
+                // trip `set -e` and overwrite the script's real exit status.
+                // The work-directory variable name varies by script (`$work`,
+                // `$work_root`, ...), so match any bare `"$identifier"`.
+                self::assertMatchesRegularExpression(
+                    '/rm\s+-rf\s+--\s+"\$\w+"\s*\|\|/',
+                    $body,
+                    "{$name}: cleanup() must guard its `rm -rf -- \"\$...\"` with `||` so a failed removal "
+                    . 'cannot change the script exit status (#2870).',
+                );
 
-            // A leak must still be visible -- on stderr, not swallowed.
-            self::assertMatchesRegularExpression(
-                '/\|\|[^\n]*>&2/',
-                $body,
-                "{$name}: cleanup() neutralizes the exit status but must still report a leaked directory "
-                . 'on stderr rather than silently discarding it (#2870).',
-            );
+                // A leak must still be visible -- on stderr, not swallowed.
+                self::assertMatchesRegularExpression(
+                    '/\|\|[^\n]*>&2/',
+                    $body,
+                    "{$name}: cleanup() neutralizes the exit status but must still report a leaked directory "
+                    . 'on stderr rather than silently discarding it (#2870).',
+                );
 
-            // The invariant must be stated in prose next to the code, so a
-            // future editor cannot "simplify" the guard back into the bug.
-            // Allows the comment to wrap across lines (still `#`-prefixed).
-            self::assertMatchesRegularExpression(
-                '/#[^\n]*exit[\s#]*status/i',
-                $body,
-                "{$name}: cleanup() must carry a comment stating that teardown must never change the "
-                . 'script exit status (#2870).',
-            );
+                // The invariant must be stated in prose next to the code, so a
+                // future editor cannot "simplify" the guard back into the bug.
+                // Allows the comment to wrap across lines (still `#`-prefixed).
+                self::assertMatchesRegularExpression(
+                    '/#[^\n]*exit[\s#]*status/i',
+                    $body,
+                    "{$name}: cleanup() must carry a comment stating that teardown must never change the "
+                    . 'script exit status (#2870).',
+                );
+            }
         }
     }
 
@@ -278,9 +303,9 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
     }
 
     /** @return list<string> */
-    private static function scanForExitTrapScripts(): array
+    private static function scanForExitTrapScripts(string $relativeDir): array
     {
-        $dir = self::repositoryRoot() . '/tests/PackagedForm';
+        $dir = self::repositoryRoot() . '/' . $relativeDir;
         $found = [];
 
         foreach (scandir($dir) ?: [] as $entry) {

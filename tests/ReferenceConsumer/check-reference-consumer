@@ -16,7 +16,10 @@ fi
 
 cleanup() {
   if [[ "$keep" != "1" ]]; then
-    rm -rf -- "$work_root"
+    # Cleanup is best-effort and must never change this script's exit
+    # status; report a leak on stderr instead of letting a failed rm
+    # corrupt the proof under test (#2870).
+    rm -rf -- "$work_root" || echo "warning: failed to remove $work_root" >&2
   fi
 }
 trap cleanup EXIT
