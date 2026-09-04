@@ -83,6 +83,7 @@ packages/site-contract/tests/Fixtures/** text eol=lf
 *.ttf     -text diff
 *.woff    -text diff
 *.woff2   -text diff
+*.jsonl   text eol=lf
 kitty-specs/**/status.json linguist-generated=true
 kitty-specs/**/status.events.jsonl linguist-generated=true
 kitty-specs/**/lanes.json linguist-generated=true

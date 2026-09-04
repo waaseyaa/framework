@@ -536,6 +536,7 @@
         "check-s1-schema-authority": "php bin/check-s1-schema-authority",
         "check-s1-configuration-authority": "php bin/check-s1-configuration-authority",
         "check-s1-configuration-activation": "php bin/check-s1-configuration-activation",
+        "check-delivery-agent-events": "php bin/check-delivery-agent-events --base=origin/main",
         "test": [
             "Composer\\Config::disableProcessTimeout",
             "vendor/bin/phpunit --no-coverage"
@@ -558,6 +559,7 @@
             "@check-s1-schema-authority",
             "@check-s1-configuration-authority",
             "@check-s1-configuration-activation",
+            "@check-delivery-agent-events",
             "@check-composer-policy",
             "@check-package-layers",
             "@check-package-layers-pl008-self-test",
