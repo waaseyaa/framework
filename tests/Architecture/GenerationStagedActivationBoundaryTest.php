@@ -26,6 +26,8 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         'packages/cli/src/Command/',
         'packages/cli/src/Provider/',
         'bin/',
+        'config/',
+        'tools/',
         'public/',
         'skeleton/',
     ];
@@ -104,8 +106,41 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         );
     }
 
+    #[Test]
+    public function stagedProofScansExecutableSurfacesOutsidePackageSource(): void
+    {
+        $fixture = sys_get_temp_dir() . '/waaseyaa-staged-inventory-' . bin2hex(random_bytes(8));
+        $paths = [
+            'packages/example/migrations/probe.php',
+            'packages/example/recipe/probe.php',
+            'config/probe.php',
+            'skeleton/.ci/probe.php',
+            'skeleton/config/probe.php',
+        ];
+        $priorRoot = $this->root;
+        try {
+            foreach ($paths as $path) {
+                mkdir(dirname($fixture . '/' . $path), 0o700, true);
+                file_put_contents($fixture . '/' . $path, '<?php $service->inspectUnits();');
+            }
+            $this->root = $fixture;
+            $found = array_keys($this->productionPhpCodeFiles());
+            sort($paths, SORT_STRING);
+            self::assertSame($paths, $found, 'Executable runtime scripts must participate in the staged proof.');
+            foreach ($paths as $path) {
+                self::assertTrue($this->isEntrypoint($path), $path . ' must be subject to the entrypoint seam ban.');
+            }
+        } finally {
+            $this->root = $priorRoot;
+            new \Symfony\Component\Filesystem\Filesystem()->remove($fixture);
+        }
+    }
+
     private function isEntrypoint(string $relative): bool
     {
+        if (preg_match('~^packages/[^/]+/(?:migrations|recipe)/~', $relative) === 1) {
+            return true;
+        }
         foreach (self::ENTRYPOINT_ROOTS as $root) {
             if (str_starts_with($relative, $root)) {
                 return true;
@@ -120,7 +155,10 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
     {
         $files = [];
         $sourceRoots = glob($this->root . '/packages/*/src', GLOB_ONLYDIR) ?: [];
-        foreach (['/bin', '/public', '/skeleton/bin', '/skeleton/public', '/skeleton/src', '/tools'] as $relativeRoot) {
+        foreach (['migrations', 'recipe'] as $packageRuntimeDirectory) {
+            array_push($sourceRoots, ...(glob($this->root . '/packages/*/' . $packageRuntimeDirectory, GLOB_ONLYDIR) ?: []));
+        }
+        foreach (['/bin', '/config', '/public', '/skeleton/.ci', '/skeleton/bin', '/skeleton/config', '/skeleton/public', '/skeleton/src', '/tools'] as $relativeRoot) {
             if (is_dir($this->root . $relativeRoot)) {
                 $sourceRoots[] = $this->root . $relativeRoot;
             }
