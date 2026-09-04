@@ -743,6 +743,86 @@ final class TransitionServiceTest extends TestCase
         $this->assertSame([], $dispatcher->firedNames(), 'A conflict must be detected before PRE_TRANSITION dispatch.');
     }
 
+    // ------------------------------------------------------------------
+    // #2836: discovery shares execution's working-copy basis.
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function get_available_transitions_resolves_the_from_state_from_the_working_copy(): void
+    {
+        // The served snapshot is the PUBLISHED pointer; the real working
+        // copy is a forward draft sitting in 'review'. Discovery must offer
+        // the edges leaving 'review', not the ones leaving the stale
+        // snapshot's 'published' (of which there are none).
+        $workingCopy = $this->revisionableEntity('review', status: 0);
+        $workingCopy->set('revision_id', 5);
+        $repository = new WorkingCopyAwareSpyRepository($workingCopy);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition reject']);
+
+        $servedSnapshot = $this->revisionableEntity('published', status: 1);
+        $servedSnapshot->set('revision_id', 5);
+
+        $available = \array_map(static fn($t) => $t->id, $service->getAvailableTransitions($servedSnapshot, $account));
+
+        $this->assertSame(['reject'], $available, 'Discovery must judge from the working copy, not the served snapshot.');
+    }
+
+    #[Test]
+    public function get_available_transitions_matches_when_the_working_copy_itself_is_passed(): void
+    {
+        // Callers that already pre-load the tip (WorkflowTransitionController,
+        // WorkflowAuthorityVisibility) must see exactly the list above.
+        $workingCopy = $this->revisionableEntity('review', status: 0);
+        $workingCopy->set('revision_id', 5);
+        $repository = new WorkingCopyAwareSpyRepository($workingCopy);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition reject']);
+
+        $available = \array_map(static fn($t) => $t->id, $service->getAvailableTransitions($workingCopy, $account));
+
+        $this->assertSame(['reject'], $available);
+    }
+
+    #[Test]
+    public function get_available_transitions_falls_back_to_the_passed_object_when_no_working_copy_exists(): void
+    {
+        // No working copy resolvable (unmodeled fixture, or the row vanished):
+        // discovery degrades to the passed object, exactly like execution.
+        $repository = new WorkingCopyAwareSpyRepository(null);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition submit_for_review']);
+
+        $entity = $this->revisionableEntity('draft', status: 0);
+
+        $available = \array_map(static fn($t) => $t->id, $service->getAvailableTransitions($entity, $account));
+
+        $this->assertSame(['submit_for_review'], $available);
+    }
+
+    #[Test]
+    public function a_transition_offered_by_discovery_is_accepted_by_execution(): void
+    {
+        // The contract this issue defends: what the sanctioned read side
+        // offers, the write side must not refuse as REASON_ILLEGAL_EDGE.
+        $workingCopy = $this->revisionableEntity('review', status: 0);
+        $workingCopy->set('revision_id', 5);
+        $repository = new WorkingCopyAwareSpyRepository($workingCopy);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition reject']);
+
+        $servedSnapshot = $this->revisionableEntity('published', status: 1);
+        $servedSnapshot->set('revision_id', 5);
+
+        $offered = $service->getAvailableTransitions($servedSnapshot, $account);
+        $this->assertCount(1, $offered, 'Discovery must offer the working copy\'s outgoing edge.');
+
+        $result = $service->transition($servedSnapshot, $offered[0]->id, $account);
+
+        $this->assertSame('review', $result->fromState);
+        $this->assertSame('draft', $result->toState);
+    }
+
     /**
      * Builds a minimal EntityTypeManagerInterface serving `$repository` for
      * the fixture entity type and a plain WorkflowLookupRepository for
