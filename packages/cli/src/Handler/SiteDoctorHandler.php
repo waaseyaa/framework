@@ -28,7 +28,7 @@ final readonly class SiteDoctorHandler
             return 2;
         }
         try {
-            $report = new SiteDoctorService()->inspect($root);
+            $report = new SiteDoctorService()->inspectUnits($root);
         } catch (SiteManifestValidationException $exception) {
             $violation = $exception->violations[0];
             $io->error(sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message));

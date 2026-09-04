@@ -1,8 +1,6 @@
 # Fresh-site golden path
 
-<!-- #2846 slice 6 / FW-GENERATION-UNITS-06: dormant registration roster reconciliation, transactional Composer provider edits and disposition-aware registration doctor ship together. The existing publisher preserves unrelated Composer bytes and original modes; registrations never confer whole-file ownership. Command activation and stale-plan enforcement remain slice 8. -->
-
-<!-- #2846 slice 5 / FW-GENERATION-UNITS-05: dormant unit reconciliation and unit-aware doctor seams are implemented together under ADR-025 D-12.1. No handler calls these seams before slice 8. The live initialization, metadata/journal acceptance, strict-doctor report, and generated-byte contracts below remain unchanged. -->
+<!-- #2846 slice 8 / FW-GENERATION-UNITS-08: site:init and site:doctor activate the shared unit authority; controlled apply binds the transported plan and reviewed state before staging. Other compiler migrations remain closed. -->
 
 <!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented, and its non-interactive input is the closed, versioned `waaseyaa.site-seed` v1 document. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. Presets land the declarative half only - activating a declared capability in the canonical lifecycle is the pre-existing gap tracked by #2857, decided by #2845/#2846. -->
 <!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
@@ -326,14 +324,22 @@ complete answer document and refuses omitted required decisions.
 
 Initialization is transactional:
 
-1. inspect the project and existing artifacts without writing;
-2. validate the complete proposed manifest;
-3. render all generated artifacts into a temporary directory;
-4. run syntax, schema, and collision checks there;
-5. show or emit the proposed changes; and
-6. acquire the project initialization lock and publish through a durable
-   transaction journal, installing `.waaseyaa/generated.json` last and marking
-   the journal committed only after every target is durable.
+1. validate and render the proposed manifest into one immutable in-memory plan;
+2. inspect existing state without staging artifacts (dry-run stops at evaluation);
+3. for a live invocation, acquire the existing project lock and recover any prior transaction;
+4. evaluate through the shared unit authority and request confirmation;
+5. verify the reviewed plan and state identities again through controlled apply; and
+6. stage and publish through the existing durable journal, installing
+   `.waaseyaa/generated.json` last and marking the journal committed only after
+   every target is durable.
+
+The control-ignore artifact is part of this transaction. A fresh cancellation
+or successful rollback leaves no `.waaseyaa/.gitignore`; only the lock/control
+directory may remain. This avoids changing a reviewed target before the stale
+check. Successful default output preserves the historical count (which omitted
+that bootstrap file), while structured `result.changed` reports every actual
+published path, including control-ignore, metadata, Composer and retirements.
+Per-artifact `status` still describes only the plan's artifact paths.
 
 Host portability is explicit rather than assumed (#2644). `SiteHostPlatform` is
 injected into the initializer and declares three capabilities the transaction
@@ -366,18 +372,16 @@ never used to pretend that historical output was produced by a newer version.
 The two kinds of change are not equally recoverable, and the difference is
 load-bearing (#2644):
 
-- **A changed artifact set** — one generated file added or removed — is compared
-  unconditionally, outside the manifest-digest guard, and refuses regeneration
-  on every already-initialized project through the current legacy entrypoint.
-  The dormant ADR-025 D-2.3a successor-plan path admits one named exception:
+- **A changed artifact set** is compared outside the manifest-digest guard.
+  ADR-025 D-2.3a admits one named successor-plan exception:
   the managed root `site` binding using `SiteArtifactRenderer` may declare
   `set_evolution: additive`. It reports sorted additions and no drops; every
   added path still faces the existing ownership, containment and collision
   checks, while carried paths retain managed-byte and extension checks. Other
   bindings remain frozen. Frozen additions refuse `GEN011`, frozen drops
   `GEN009`, and additive drops or ineligible declarations `GEN011`. The future
-  blueprint binding is not admitted. Slice 8 alone activates this behavior;
-  no command reaches the exception before that slice.
+  blueprint binding is not admitted. `site:init` uses this managed root
+  successor path; other commands require their own reviewed migrations.
 - **Changed managed bytes** of an existing artifact refuse only while the
   manifest digest is unchanged, because that is the case regeneration cannot
   distinguish from a substitution. Rebinding

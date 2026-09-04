@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Site;
 
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
+use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Generation\ArtifactApplyOutcome;
+use Waaseyaa\SiteContract\Generation\ArtifactApplyRequest;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyResult;
 use Waaseyaa\SiteContract\Generation\ArtifactPlan;
 use Waaseyaa\SiteContract\Generation\ArtifactSetEvolution;
@@ -61,38 +64,110 @@ final class SiteInitializationService
     /** @param null|\Closure(list<string>): bool $authorize */
     public function initialize(GeneratedSite $site, bool $dryRun = false, ?\Closure $authorize = null): SiteInitializationResult
     {
+        $plan = new ArtifactPlan(
+            SiteArtifactRenderer::class,
+            $site->generatorVersion,
+            'site',
+            GenerationUnitDisposition::Managed,
+            $site->manifestDigest,
+            array_values(array_filter($site->artifacts, static fn(GeneratedArtifact $artifact): bool => $artifact->path !== self::METADATA)),
+            setEvolution: ArtifactSetEvolution::Additive,
+        );
         if ($dryRun) {
             if (is_file($this->absolute(self::JOURNAL))) {
                 throw new \RuntimeException('Site initialization recovery or committed cleanup requires a non-dry run before a new plan can be computed.');
             }
-            $prepared = $this->prepare($site);
+            $prepared = $this->prepareUnitPlan($plan);
+            $evaluation = $prepared['evaluation'];
+            $result = new ArtifactApplyResult(ArtifactApplyOutcome::Planned, $evaluation->planDigest, $evaluation->projectStateDigest, $evaluation->status, []);
 
-            return new SiteInitializationResult(array_keys($prepared), true);
+            return new SiteInitializationResult($this->transactionPaths($prepared), true, applyResult: $result, evaluation: $evaluation);
         }
 
+        // Keep deterministic refusal side-effect-free, including on a fresh
+        // project. Publication still evaluates and gates again under its lock.
+        if (!file_exists($this->absolute(self::JOURNAL)) && !is_link($this->absolute(self::JOURNAL))) {
+            $this->prepareUnitPlan($plan);
+        }
+        $context = $this->invocationContext('site.init');
+        $lock = $this->acquireLock();
+        $receipts = [];
+        try {
+            $recovered = $this->recoverForInvocation($context, $receipts);
+            $prepared = $this->prepareUnitPlan($plan);
+            $evaluation = $prepared['evaluation'];
+            $preview = $this->transactionPaths($prepared);
+            // Legacy apply's count omitted the control-ignore bootstrap file.
+            // Preserve that display only; the actual result reports every write.
+            if (($evaluation->status['.waaseyaa/.gitignore'] ?? null) === ArtifactStatus::Created) {
+                $preview = array_values(array_diff($preview, ['.waaseyaa/.gitignore']));
+            }
+            if ($preview !== [] && $authorize !== null && !$authorize($preview)) {
+                $result = new ArtifactApplyResult(ArtifactApplyOutcome::Cancelled, $evaluation->planDigest, $evaluation->projectStateDigest, $evaluation->status, [], $recovered);
+
+                return new SiteInitializationResult($preview, recoveredInterruptedTransaction: $recovered, cancelled: true, receipts: $receipts, applyResult: $result, evaluation: $evaluation);
+            }
+            $request = new ArtifactApplyRequest($plan, $evaluation->planDigest, $evaluation->projectStateDigest);
+            $invocation = $this->applyUnderLock($request, $context, $receipts, $recovered);
+            if ($invocation->result->outcome === ArtifactApplyOutcome::Refused) {
+                $error = new \RuntimeException($invocation->result->errors[0]->message);
+                throw new SiteInitializationExecutionException($error, $invocation->receipts, $invocation->result);
+            }
+
+            return new SiteInitializationResult(
+                $preview,
+                recoveredInterruptedTransaction: $recovered,
+                cleanupPending: $invocation->result->cleanupPending,
+                receipts: $invocation->receipts,
+                applyResult: $invocation->result,
+                evaluation: $evaluation,
+            );
+        } catch (\Exception $exception) {
+            if ($receipts !== [] && !$exception instanceof SiteInitializationExecutionException) {
+                throw new SiteInitializationExecutionException($exception, $receipts);
+            }
+            throw $exception;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /** Execute exactly the transported plan; compilation never occurs here. */
+    public function apply(
+        ArtifactApplyRequest $request,
+        string $operation = 'site.init',
+        ?string $correlationId = null,
+        ?string $causationReceiptId = null,
+        ?string $decisionReceiptId = null,
+    ): SiteInitializationInvocation {
+        $context = $this->invocationContext($operation, $correlationId, $causationReceiptId, $decisionReceiptId);
+        try {
+            $lock = $this->acquireLock();
+        } catch (SiteInitializationLockedException $exception) {
+            return $this->refusedInvocation($request, [new GenerationViolation(GenerationErrorCode::Locked, $exception->getMessage())], $context);
+        } catch (SiteInitializationCollisionException $exception) {
+            return $this->refusedInvocation($request, [new GenerationViolation(GenerationErrorCode::StalePlan, 'The reviewed project state cannot be safely observed.')], $context);
+        }
+        $receipts = [];
+        try {
+            $recovered = $this->recoverForInvocation($context, $receipts);
+
+            return $this->applyUnderLock($request, $context, $receipts, $recovered);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /** @return resource */
+    private function acquireLock()
+    {
+        $this->assertSafeTarget(self::LOCK, true);
         $controlDirectory = $this->absolute('.waaseyaa');
-        if (!is_file($this->absolute(self::JOURNAL))) {
-            // Refuse deterministic collisions before creating lock/control state.
-            // The same checks run again under the lock before publication.
-            $this->prepare($site);
-        }
         if (!is_dir($controlDirectory) && !mkdir($controlDirectory, 0o700, true) && !is_dir($controlDirectory)) {
             throw new \RuntimeException('Unable to create the site initialization control directory.');
         }
-        if (is_link($controlDirectory)) {
-            throw new SiteInitializationCollisionException('The .waaseyaa control directory must not be a symbolic link.');
-        }
-        $controlIgnore = $site->artifacts['.waaseyaa/.gitignore'] ?? null;
-        if (!$controlIgnore instanceof GeneratedArtifact) {
-            throw new \InvalidArgumentException('Generated site control-ignore authority is required.');
-        }
-        $controlIgnorePath = $this->absolute($controlIgnore->path);
-        if (!is_file($controlIgnorePath)) {
-            $this->writeDurably($controlIgnorePath, $controlIgnore->content, $controlIgnore->mode);
-        } elseif (!hash_equals(hash('sha256', $controlIgnore->content), $this->digestFile($controlIgnorePath))) {
-            throw new SiteInitializationCollisionException('The site initialization control ignore file was substituted.');
-        }
-
         $lockPath = $this->absolute(self::LOCK);
         if (file_exists($lockPath) || is_link($lockPath)) {
             $this->assertRegularOwnedFile($lockPath, self::LOCK);
@@ -106,93 +181,219 @@ final class SiteInitializationService
             throw new SiteInitializationLockedException('Another site initialization transaction owns this project.');
         }
 
-        $recovered = false;
-        try {
-            $recovered = $this->recoverIfRequired();
-            $prepared = $this->prepare($site);
-            if ($prepared === []) {
-                return new SiteInitializationResult([], recoveredInterruptedTransaction: $recovered);
-            }
-            $changedPaths = array_keys($prepared);
-            if ($authorize !== null && !$authorize($changedPaths)) {
-                return new SiteInitializationResult($changedPaths, recoveredInterruptedTransaction: $recovered, cancelled: true);
-            }
-            $cleanupPending = $this->publish($prepared);
+        return $lock;
+    }
 
-            return new SiteInitializationResult($changedPaths, recoveredInterruptedTransaction: $recovered, cleanupPending: $cleanupPending);
-        } finally {
-            flock($lock, LOCK_UN);
-            fclose($lock);
+    /** @return array{operation: string, correlation: string, causation: ?string, decision: ?string} */
+    private function invocationContext(string $operation, ?string $correlation = null, ?string $causation = null, ?string $decision = null): array
+    {
+        if ($operation === '' || $correlation === '' || $causation === '' || $decision === '' || ($causation !== null && $causation === $decision)) {
+            throw new \InvalidArgumentException('The invocation receipt context is invalid.');
+        }
+
+        return ['operation' => $operation, 'correlation' => $correlation ?? $this->mintIdentifier('corr'), 'causation' => $causation, 'decision' => $decision];
+    }
+
+    /** @param array<string, mixed> $context @param list<ChangeReceipt> $receipts */
+    private function applyUnderLock(ArtifactApplyRequest $request, array $context, array $receipts, bool $recovered): SiteInitializationInvocation
+    {
+        try {
+            $this->assertReviewedState($request);
+        } catch (GenerationRefusalException $exception) {
+            return $this->refusedInvocation($request, $exception->violations, $context, $receipts, $recovered);
+        }
+        $this->injectFault('after-apply-state-check', -1, '');
+        try {
+            $prepared = $this->prepareUnitPlan($request->plan);
+        } catch (\Exception $exception) {
+            // A change during preparation must not become an incidental
+            // collision instead of the promised stale-plan refusal.
+            try {
+                $this->assertReviewedState($request);
+            } catch (GenerationRefusalException $stale) {
+                return $this->refusedInvocation($request, $stale->violations, $context, $receipts, $recovered);
+            }
+            $errors = $exception instanceof GenerationRefusalException
+                ? $exception->violations
+                : [new GenerationViolation(str_contains($exception->getMessage(), 'Generated artifact bytes changed without') || str_contains($exception->getMessage(), 'extension region') ? GenerationErrorCode::AmbiguousExtensionRegion : GenerationErrorCode::CollisionRefused, $exception->getMessage())];
+
+            return $this->refusedInvocation($request, $errors, $context, $receipts, $recovered);
+        }
+        if (!hash_equals($request->projectStateDigest, $prepared['evaluation']->projectStateDigest)) {
+            return $this->refusedInvocation($request, [new GenerationViolation(GenerationErrorCode::StalePlan, 'Preparation did not observe the reviewed project state.')], $context, $receipts, $recovered);
+        }
+        try {
+            $state = $this->assertReviewedState($request);
+        } catch (GenerationRefusalException $exception) {
+            return $this->refusedInvocation($request, $exception->violations, $context, $receipts, $recovered);
+        }
+        $changed = $this->transactionPaths($prepared);
+        $evaluation = $prepared['evaluation'];
+        if ($changed === []) {
+            $result = new ArtifactApplyResult(ArtifactApplyOutcome::NoChanges, $request->planDigest, $request->projectStateDigest, $evaluation->status, [], $recovered);
+            if (!$recovered) {
+                $receipts[] = $this->receiptFor($result, $context['operation'], $context['correlation'], $this->receiptCause($receipts, $context), $context['decision']);
+            }
+
+            return new SiteInitializationInvocation($result, $receipts);
+        }
+        $priorReceiptCount = count($receipts);
+        $reportRecovery = function (array $journal, bool $success) use (&$receipts, $request, $context): void {
+            $receipts[] = $this->recoveryReceipt($journal, $success ? ChangeOutcome::Recovered : ChangeOutcome::Failed, $request->projectStateDigest, $context, $this->receiptCause($receipts, $context));
+        };
+        $reportResidue = function (array $instructions, bool $success) use (&$receipts, $request, $context): void {
+            $receipts[] = $this->residueReceipt($instructions, $success, $request->projectStateDigest, $context, $this->receiptCause($receipts, $context));
+        };
+        try {
+            $cleanupPending = $this->publish($prepared['prepared'], $prepared['retirements'], $prepared['composerMerge'], $reportRecovery, $state, fn(): ProjectStateIdentity => $this->assertReviewedState($request), $reportResidue);
+        } catch (\Exception $exception) {
+            if (count($receipts) === $priorReceiptCount) {
+                $receipts[] = $this->terminalReceipt(ChangeOutcome::Failed, $request->planDigest, $request->projectStateDigest, $context, $this->receiptCause($receipts, $context));
+            }
+            throw new SiteInitializationExecutionException($exception, $receipts);
+        }
+        $result = new ArtifactApplyResult(ArtifactApplyOutcome::Applied, $request->planDigest, $request->projectStateDigest, $evaluation->status, $changed, $recovered, $cleanupPending);
+        $receipts[] = $this->receiptFor($result, $context['operation'], $context['correlation'], $this->receiptCause($receipts, $context), $context['decision']);
+
+        return new SiteInitializationInvocation($result, $receipts);
+    }
+
+    private function assertReviewedState(ArtifactApplyRequest $request): ProjectStateIdentity
+    {
+        if (!hash_equals($request->planDigest, hash('sha256', CanonicalJson::encode($request->plan->toArray()) . "\n"))) {
+            $this->unitRefusal(GenerationErrorCode::StalePlan, 'The transported plan does not match the reviewed plan digest.');
+        }
+        try {
+            $state = $this->captureCurrentPlanState($request->plan);
+        } catch (\Throwable $exception) {
+            $this->unitRefusal(GenerationErrorCode::StalePlan, 'The reviewed project state cannot be safely observed.');
+        }
+        if (!hash_equals($request->projectStateDigest, $state->digest)) {
+            $this->unitRefusal(GenerationErrorCode::StalePlan, 'The project state no longer matches the reviewed evaluation.');
+        }
+
+        return $state;
+    }
+
+    private function captureCurrentPlanState(ArtifactPlan $plan): ProjectStateIdentity
+    {
+        $this->assertSafeTarget(self::METADATA, true);
+        $metadataPath = $this->absolute(self::METADATA);
+        $metadataObservation = file_exists($metadataPath) || is_link($metadataPath) ? $this->readUnitMetadataObservation() : null;
+        $metadata = $metadataObservation['metadata'] ?? null;
+        $rows = [];
+        foreach ($metadata['artifacts'] ?? [] as $row) {
+            if (($row['unit'] ?? 'site') === $plan->unitId || in_array($row['unit'] ?? 'site', $plan->retires, true)) {
+                $rows[$row['path']] = $row;
+            }
+        }
+        $artifacts = [];
+        foreach ($plan->artifacts as $artifact) {
+            $this->assertSafeTarget($artifact->path, true);
+            $artifacts[$artifact->path] = $artifact;
+        }
+        foreach (['.waaseyaa/site.yaml', 'composer.json'] as $path) {
+            $this->assertSafeTarget($path, true);
+            $absolute = $this->absolute($path);
+            if (file_exists($absolute) || is_link($absolute)) {
+                $this->assertRegularOwnedFile($absolute, $path);
+            }
+        }
+        foreach (array_keys($artifacts + $rows) as $path) {
+            $path = (string) $path;
+            $absolute = $this->absolute($path);
+            $this->assertSafeTarget($path, true);
+            if (is_file($absolute)) {
+                $this->assertRegularOwnedFile($absolute, $path);
+            }
+        }
+
+        return $this->captureProjectState($artifacts, $rows, metadataDigest: $metadataObservation['sha256'] ?? ProjectStateIdentity::ABSENT_DIGEST);
+    }
+
+    /** @param array{prepared: array<string, GeneratedArtifact>, retirements: array<string, array<string, mixed>>, composerMerge: array<string, mixed>|null, evaluation: EvaluatedArtifactPlan} $prepared @return list<string> */
+    private function transactionPaths(array $prepared): array
+    {
+        $paths = array_keys($prepared['prepared'] + $prepared['retirements']);
+        if ($prepared['composerMerge'] !== null) {
+            $paths[] = 'composer.json';
+        }
+        sort($paths, SORT_STRING);
+
+        return $paths;
+    }
+
+    /** @param list<ChangeReceipt> $receipts @param array<string, mixed> $context */
+    private function receiptCause(array $receipts, array $context): ?string
+    {
+        return $receipts === [] ? $context['causation'] : $receipts[array_key_last($receipts)]->receiptId;
+    }
+
+    /** @param list<GenerationViolation> $errors @param array<string, mixed> $context @param list<ChangeReceipt> $receipts */
+    private function refusedInvocation(ArtifactApplyRequest $request, array $errors, array $context, array $receipts = [], bool $recovered = false): SiteInitializationInvocation
+    {
+        $result = new ArtifactApplyResult(ArtifactApplyOutcome::Refused, $request->planDigest, $request->projectStateDigest, [], [], $recovered, errors: $errors);
+        $receipts[] = $this->receiptFor($result, $context['operation'], $context['correlation'], $this->receiptCause($receipts, $context), $context['decision']);
+
+        return new SiteInitializationInvocation($result, $receipts);
+    }
+
+    /** @param array<string, mixed> $context @param list<ChangeReceipt> $receipts */
+    private function recoverForInvocation(array $context, array &$receipts): bool
+    {
+        try {
+            return $this->recoverIfRequired(true, function (array $journal, bool $success) use (&$receipts, $context): void {
+                $receipts[] = $this->recoveryReceipt($journal, $success ? ChangeOutcome::Recovered : ChangeOutcome::Failed, ProjectStateIdentity::ABSENT_DIGEST, $context, $this->receiptCause($receipts, $context));
+            }, function (array $instructions, bool $success) use (&$receipts, $context): void {
+                $receipts[] = $this->residueReceipt($instructions, $success, ProjectStateIdentity::ABSENT_DIGEST, $context, $this->receiptCause($receipts, $context));
+            });
+        } catch (\Exception $exception) {
+            throw new SiteInitializationExecutionException($exception, $receipts);
         }
     }
 
-    /** @return array<string, GeneratedArtifact> */
-    private function prepare(GeneratedSite $site): array
+    /** @param array<string, mixed> $instructions @param array<string, mixed> $context */
+    private function residueReceipt(array $instructions, bool $success, string $projectStateDigest, array $context, ?string $cause): ChangeReceipt
     {
-        $metadataPath = $this->absolute(self::METADATA);
-        $hasMetadata = is_file($metadataPath);
-        $prior = $hasMetadata ? $this->readMetadata($metadataPath) : null;
-        $priorRows = [];
-        if ($prior !== null) {
-            $priorManifestPath = $this->absolute('.waaseyaa/site.yaml');
-            if (!is_file($priorManifestPath)) {
-                throw new SiteInitializationCollisionException('Generated ownership metadata exists without its manifest authority.');
-            }
-            try {
-                $priorManifest = new SiteManifestParser()->parse((string) file_get_contents($priorManifestPath), '.waaseyaa/site.yaml');
-            } catch (\Throwable $exception) {
-                throw new SiteInitializationCollisionException('The previously generated site authority is not reproducible.', previous: $exception);
-            }
-            if (!hash_equals($priorManifest->digest, $prior['manifest_digest']) || $priorManifest->generatorVersion !== $prior['generator_version']) {
-                throw new SiteInitializationCollisionException('Generated ownership metadata does not bind the current manifest authority.');
-            }
-            if ($prior['generator_version'] !== $site->generatorVersion) {
-                throw new SiteInitializationCollisionException(sprintf(
-                    'Generated artifact migration from version %d to %d is required before regeneration.',
-                    $prior['generator_version'],
-                    $site->generatorVersion,
-                ));
-            }
-            foreach ($prior['artifacts'] as $row) {
-                if (isset($priorRows[$row['path']])) {
-                    throw new SiteInitializationCollisionException("Generated ownership metadata repeats {$row['path']}.");
-                }
-                $priorRows[$row['path']] = $row;
-            }
-            $expectedOwnedPaths = array_values(array_filter(array_keys($site->artifacts), static fn(string $path): bool => $path !== self::METADATA));
-            $recordedPaths = array_keys($priorRows);
-            sort($expectedOwnedPaths, SORT_STRING);
-            sort($recordedPaths, SORT_STRING);
-            if ($expectedOwnedPaths !== $recordedPaths) {
-                throw new SiteInitializationCollisionException('Generated ownership metadata does not match this generator version.');
-            }
-            if (hash_equals($prior['manifest_digest'], $site->manifestDigest)) {
-                foreach ($site->artifacts as $path => $artifact) {
-                    if ($path === self::METADATA) {
-                        continue;
-                    }
-                    if (!hash_equals($priorRows[$path]['managed_sha256'], $artifact->managedDigest())) {
-                        // #2644: this fires when the framework's renderer has
-                        // changed but the manifest still binds the previous
-                        // dependency lock — the manifest digest is unchanged, so
-                        // regeneration cannot tell an upgrade from a
-                        // substitution. Naming only a migration that does not
-                        // exist as a command left the operator with no move.
-                        // Rebinding the lock is the sanctioned one: it changes
-                        // the manifest digest, which is precisely the signal
-                        // that this is a reviewed upgrade.
-                        throw new SiteInitializationCollisionException(sprintf(
-                            'Generated artifact bytes changed without a generator-version migration: %s. '
-                            . 'If this followed a framework upgrade, rebind framework.observed_lock_sha256 in '
-                            . '.waaseyaa/site.yaml to the sha256 of the current composer.lock and re-run site:init.',
-                            $path,
-                        ));
-                    }
-                }
-            }
-        }
+        $context['operation'] = 'site.recover';
 
-        return $this->evaluateTargets($site->artifacts, $hasMetadata, $priorRows)['prepared'];
+        return $this->terminalReceipt(
+            $success ? ChangeOutcome::Recovered : ChangeOutcome::Failed,
+            hash('sha256', CanonicalJson::encode($instructions) . "\n"),
+            $projectStateDigest,
+            $context,
+            $cause,
+        );
+    }
+
+    /** @param array<string, mixed> $journal @param array<string, mixed> $context */
+    private function recoveryReceipt(array $journal, ChangeOutcome $outcome, string $projectStateDigest, array $context, ?string $cause): ChangeReceipt
+    {
+        // This identifies these validated recovery instructions, never the
+        // unavailable original publication plan. No extra durable record exists.
+        $this->validateJournal($journal, true);
+        $digest = hash('sha256', CanonicalJson::encode($journal) . "\n");
+        $context['operation'] = 'site.recover';
+
+        return $this->terminalReceipt($outcome, $digest, $projectStateDigest, $context, $cause);
+    }
+
+    /** @param array<string, mixed> $context */
+    private function terminalReceipt(ChangeOutcome $outcome, string $planDigest, string $projectStateDigest, array $context, ?string $cause): ChangeReceipt
+    {
+        return new ChangeReceipt(
+            $this->mintIdentifier('rcpt'),
+            ChangeReceipt::GENERATION_AUTHORITY,
+            self::CONTRACT_VERSION,
+            $context['operation'],
+            $planDigest,
+            $outcome,
+            $context['correlation'],
+            new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+            ['version' => 1, 'project_state_digest' => $projectStateDigest, 'status' => new \stdClass(), 'changed' => [], 'errors' => [], 'recovered_interrupted_transaction' => $outcome === ChangeOutcome::Recovered, 'cleanup_pending' => false],
+            $cause,
+            $context['decision'],
+        );
     }
 
     /**
@@ -202,10 +403,8 @@ final class SiteInitializationService
      * a preview that mutates is not a preview. It enters the same target
      * evaluator dry-run and apply enter, so no check can differ between them.
      *
-     * No handler reaches this dormant boundary. The unit reader and root
-     * binding are complete here; public apply and its stale-plan check remain
-     * unwired until slice 8. Collisions still throw rather than becoming
-     * refused-status return values.
+     * Collisions throw rather than fabricating a partially evaluated preview.
+     * Controlled apply converts refusals to its typed result after its stale gate.
      */
     public function evaluate(ArtifactPlan $plan): EvaluatedArtifactPlan
     {
@@ -236,16 +435,24 @@ final class SiteInitializationService
      */
     public function readUnitMetadata(): array
     {
+        return $this->readUnitMetadataObservation()['metadata'];
+    }
+
+    /** @return array{metadata: array<string, mixed>, sha256: string} */
+    private function readUnitMetadataObservation(): array
+    {
         $path = $this->absolute(self::METADATA);
         $this->assertSafeTarget(self::METADATA);
         $this->assertRegularOwnedFile($path, self::METADATA);
+        $sha256 = null;
+        $metadata = $this->readMetadata($path, true, $sha256);
 
-        return $this->readMetadata($path, true);
+        return ['metadata' => $metadata, 'sha256' => $sha256];
     }
 
     /**
      * Prepare the complete ownership transition without staging a byte.
-     * Handler activation, stale-plan checking and public apply are slice 8.
+     * Both preview and controlled apply use this ownership transition.
      *
      * @return array{prepared: array<string, GeneratedArtifact>, retirements: array<string, array<string, mixed>>, composerMerge: array{content: string, mode: int, before_sha256: string}|null, evaluation: EvaluatedArtifactPlan}
      */
@@ -268,7 +475,8 @@ final class SiteInitializationService
         }
         $metadataPath = $this->absolute(self::METADATA);
         $hasMetadata = file_exists($metadataPath) || is_link($metadataPath);
-        $prior = $hasMetadata ? $this->readUnitMetadata() : null;
+        $priorObservation = $hasMetadata ? $this->readUnitMetadataObservation() : null;
+        $prior = $priorObservation['metadata'] ?? null;
         if ($prior === null && $plan->unitId !== 'site') {
             $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'A non-root unit requires an initialized site.');
         }
@@ -355,6 +563,14 @@ final class SiteInitializationService
                     continue;
                 }
                 if (!hash_equals($suppliedRows[$path]['managed_sha256'], $artifact->managedDigest())) {
+                    if ($plan->unitId === 'site') {
+                        throw new SiteInitializationCollisionException(sprintf(
+                            'Generated artifact bytes changed without a generator-version migration: %s. '
+                            . 'If this followed a framework upgrade, rebind framework.observed_lock_sha256 in '
+                            . '.waaseyaa/site.yaml to the sha256 of the current composer.lock and re-run site:init.',
+                            $path,
+                        ));
+                    }
                     $this->unitRefusal(GenerationErrorCode::AmbiguousExtensionRegion, 'Generated bytes changed without a changed input identity.', $path);
                 }
             }
@@ -482,7 +698,7 @@ final class SiteInitializationService
             'prepared' => $prepared,
             'retirements' => $retirements,
             'composerMerge' => $registrationEffects['composerMerge'],
-            'evaluation' => new EvaluatedArtifactPlan($plan, $this->captureProjectState($artifacts, $observedRows, $composerState['sha256']), $targets['status'], $adds, $drops),
+            'evaluation' => new EvaluatedArtifactPlan($plan, $this->captureProjectState($artifacts, $observedRows, $composerState['sha256'], $priorObservation['sha256'] ?? ProjectStateIdentity::ABSENT_DIGEST), $targets['status'], $adds, $drops),
         ];
     }
 
@@ -863,7 +1079,7 @@ final class SiteInitializationService
      * @param array<string, GeneratedArtifact> $artifacts
      * @param array<string, array<string, mixed>> $priorRows
      */
-    private function captureProjectState(array $artifacts, array $priorRows, ?string $composerDigest = null): ProjectStateIdentity
+    private function captureProjectState(array $artifacts, array $priorRows, ?string $composerDigest = null, ?string $metadataDigest = null): ProjectStateIdentity
     {
         $paths = array_values(array_unique([...array_keys($artifacts), ...array_keys($priorRows)]));
         sort($paths, SORT_STRING);
@@ -874,7 +1090,7 @@ final class SiteInitializationService
         }
 
         return new ProjectStateIdentity(
-            $this->observeDocument(self::METADATA),
+            $metadataDigest ?? $this->observeDocument(self::METADATA),
             $this->observeDocument('.waaseyaa/site.yaml'),
             $composerDigest ?? $this->observeDocument('composer.json'),
             $targets,
@@ -987,83 +1203,148 @@ final class SiteInitializationService
      * @param array<string, array<string, mixed>> $retirements
      * @param array{content: string, mode: int, before_sha256: string}|null $composerMerge
      */
-    private function publish(array $artifacts, array $retirements = [], ?array $composerMerge = null): bool
+    private function publish(array $artifacts, array $retirements = [], ?array $composerMerge = null, ?\Closure $reportRecovery = null, ?ProjectStateIdentity $expectedState = null, ?\Closure $assertBeforeInstall = null, ?\Closure $reportResidue = null): bool
     {
         $transactionId = bin2hex(random_bytes(12));
         $stageRelative = '.waaseyaa/site-init-stage-' . $transactionId;
         $backupRelative = '.waaseyaa/site-init-backup-' . $transactionId;
         $stage = $this->absolute($stageRelative);
         $backup = $this->absolute($backupRelative);
-        $this->makePrivateDirectory($stage);
-        $this->makePrivateDirectory($backup);
-
-        $publishOrder = array_keys($artifacts + $retirements);
-        if ($composerMerge !== null) {
-            $publishOrder[] = 'composer.json';
-        }
-        if ($retirements !== [] || $composerMerge !== null) {
-            sort($publishOrder, SORT_STRING);
-        }
-        $publishOrder = array_values(array_filter($publishOrder, static fn(string $path): bool => $path !== self::METADATA));
-        if (isset($artifacts[self::METADATA])) {
-            $publishOrder[] = self::METADATA;
-        }
-        $items = [];
-        foreach ($publishOrder as $index => $path) {
-            $removing = isset($retirements[$path]);
-            $merging = $path === 'composer.json' && $composerMerge !== null;
-            $artifact = $artifacts[$path] ?? null;
-            $mode = $merging ? $composerMerge['mode'] : ($removing ? intval($retirements[$path]['mode'], 8) : $artifact->mode);
-            $stageFile = $stage . '/' . sprintf('%04d.artifact', $index);
-            if (!$removing) {
-                $this->writeDurably($stageFile, $merging ? $composerMerge['content'] : $artifact->content, $mode);
-                $this->injectFault('after-stage', $index, $path);
+        $stageCreated = false;
+        $backupCreated = false;
+        try {
+            $this->makePrivateDirectory($stage, static function () use (&$stageCreated): void {
+                $stageCreated = true;
+            });
+            $this->makePrivateDirectory($backup, static function () use (&$backupCreated): void {
+                $backupCreated = true;
+            });
+        } catch (\Exception $exception) {
+            if ($reportRecovery !== null) {
+                // Never remove a path that mkdir did not create for this run,
+                // including an identifier collision or a failed mkdir.
+                $paths = [];
+                if ($stageCreated) {
+                    $paths[] = ['path' => $stageRelative, 'kind' => 'tree'];
+                }
+                if ($backupCreated) {
+                    $paths[] = ['path' => $backupRelative, 'kind' => 'tree'];
+                }
+                usort($paths, static fn(array $left, array $right): int => strcmp($left['path'], $right['path']));
+                if ($paths !== []) {
+                    $instructions = ['kind' => 'control-residue', 'paths' => $paths];
+                    try {
+                        foreach ($paths as $path) {
+                            $this->removeControlTree($this->absolute($path['path']));
+                        }
+                    } catch (\Exception $cleanupException) {
+                        if ($reportResidue !== null) {
+                            $reportResidue($instructions, false);
+                        }
+                        throw new \RuntimeException($exception->getMessage() . ' Staging cleanup failed: ' . $cleanupException->getMessage(), previous: $exception);
+                    }
+                    if ($reportResidue !== null) {
+                        $reportResidue($instructions, true);
+                    }
+                }
             }
-            $target = $this->absolute($path);
-            if ($removing || $merging) {
-                $this->assertSafeTarget($path);
-                $this->assertRegularOwnedFile($target, $path);
-            }
-            $existed = is_file($target);
-            $backupFile = null;
-            $backupMode = null;
-            if ($existed) {
-                $backupFile = $backup . '/' . sprintf('%04d.backup', $index);
-                // A host without permission bits has no observed mode to preserve, so the
-                // journal records the declared one and rollback stays reproducible.
-                $backupMode = $this->platform->enforcesPermissionBits() ? fileperms($target) & 0o777 : $mode;
-                $this->copyDurably($target, $backupFile, $backupMode);
-                $this->injectFault('after-backup', $index, $path);
-            }
-            $items[] = [
-                'path' => $path,
-                'stage' => $removing ? null : $this->relative($stageFile),
-                'installed_sha256' => $removing ? null : $this->digestFile($stageFile),
-                'backup' => $backupFile === null ? null : $this->relative($backupFile),
-                'backup_sha256' => $backupFile === null ? null : $this->digestFile($backupFile),
-                'backup_mode' => $backupMode,
-                'existed' => $existed,
-                'mode' => $mode,
-                'state' => 'pending',
-            ];
-            if ($removing || $merging) {
-                $items[array_key_last($items)]['kind'] = $merging ? 'composer-merge' : 'remove';
-            }
+            throw $exception;
         }
-        $journal = [
-            'schema' => 'waaseyaa.site-init-transaction',
-            'version' => 1,
-            'id' => $transactionId,
-            'state' => 'prepared',
-            'stage' => $stageRelative,
-            'backup' => $backupRelative,
-            'created_directories' => $this->missingTargetDirectories(array_keys($artifacts)),
-            'items' => $items,
+        $draftJournal = [
+            'schema' => 'waaseyaa.site-init-transaction', 'version' => 1,
+            'id' => $transactionId, 'state' => 'prepared',
+            'stage' => $stageRelative, 'backup' => $backupRelative,
+            'created_directories' => [], 'items' => [],
         ];
-        if ($retirements !== []) {
-            $journal['removed_directories'] = $this->retirementDirectories(array_keys($retirements));
+        try {
+            $publishOrder = array_keys($artifacts + $retirements);
+            if ($composerMerge !== null) {
+                $publishOrder[] = 'composer.json';
+            }
+            if ($retirements !== [] || $composerMerge !== null) {
+                sort($publishOrder, SORT_STRING);
+            }
+            $publishOrder = array_values(array_filter($publishOrder, static fn(string $path): bool => $path !== self::METADATA));
+            if (isset($artifacts[self::METADATA])) {
+                $publishOrder[] = self::METADATA;
+            }
+            $items = [];
+            foreach ($publishOrder as $index => $path) {
+                $removing = isset($retirements[$path]);
+                $merging = $path === 'composer.json' && $composerMerge !== null;
+                $artifact = $artifacts[$path] ?? null;
+                $mode = $merging ? $composerMerge['mode'] : ($removing ? intval($retirements[$path]['mode'], 8) : $artifact->mode);
+                $stageFile = $stage . '/' . sprintf('%04d.artifact', $index);
+                if (!$removing) {
+                    $this->writeDurably($stageFile, $merging ? $composerMerge['content'] : $artifact->content, $mode);
+                    $this->injectFault('after-stage', $index, $path);
+                }
+                if ($expectedState !== null) {
+                    $this->assertPublicationObservation($path, $expectedState, $composerMerge);
+                }
+                $target = $this->absolute($path);
+                if ($removing || $merging) {
+                    $this->assertSafeTarget($path);
+                    $this->assertRegularOwnedFile($target, $path);
+                }
+                $existed = is_file($target);
+                $backupFile = null;
+                $backupMode = null;
+                if ($existed) {
+                    $backupFile = $backup . '/' . sprintf('%04d.backup', $index);
+                    // A host without permission bits has no observed mode to preserve, so the
+                    // journal records the declared one and rollback stays reproducible.
+                    $backupMode = $this->platform->enforcesPermissionBits() ? fileperms($target) & 0o777 : $mode;
+                    $this->copyDurably($target, $backupFile, $backupMode);
+                    $this->injectFault('after-backup', $index, $path);
+                }
+                $items[] = [
+                    'path' => $path,
+                    'stage' => $removing ? null : $this->relative($stageFile),
+                    'installed_sha256' => $removing ? null : $this->digestFile($stageFile),
+                    'backup' => $backupFile === null ? null : $this->relative($backupFile),
+                    'backup_sha256' => $backupFile === null ? null : $this->digestFile($backupFile),
+                    'backup_mode' => $backupMode,
+                    'existed' => $existed,
+                    'mode' => $mode,
+                    'state' => 'pending',
+                ];
+                if ($removing || $merging) {
+                    $items[array_key_last($items)]['kind'] = $merging ? 'composer-merge' : 'remove';
+                }
+            }
+            $journal = [
+                'schema' => 'waaseyaa.site-init-transaction',
+                'version' => 1,
+                'id' => $transactionId,
+                'state' => 'prepared',
+                'stage' => $stageRelative,
+                'backup' => $backupRelative,
+                'created_directories' => $this->missingTargetDirectories(array_keys($artifacts)),
+                'items' => $items,
+            ];
+            if ($retirements !== []) {
+                $journal['removed_directories'] = $this->retirementDirectories(array_keys($retirements));
+            }
+            if ($assertBeforeInstall !== null) {
+                $assertBeforeInstall();
+            }
+            $this->writeJournal($journal);
+        } catch (\Exception $exception) {
+            if ($reportRecovery !== null) {
+                // No target publication began. These validated empty-item
+                // instructions can only clean this invocation's control trees.
+                $this->validateJournal($draftJournal, true);
+                try {
+                    $this->rollback($draftJournal, true);
+                } catch (\Exception $cleanupException) {
+                    $reportRecovery($draftJournal, false);
+                    throw new \RuntimeException($exception->getMessage() . ' Staging cleanup failed: ' . $cleanupException->getMessage(), previous: $exception);
+                }
+                $reportRecovery($draftJournal, true);
+            }
+            throw $exception;
         }
-        $this->writeJournal($journal);
 
         try {
             foreach ($journal['items'] as $index => &$item) {
@@ -1071,6 +1352,9 @@ final class SiteInitializationService
                 $this->writeJournal($journal);
                 if (($item['kind'] ?? null) === 'remove') {
                     $this->injectFault('before-remove', $index, $item['path']);
+                    if ($expectedState !== null) {
+                        $this->assertPublicationPriorTuple($item);
+                    }
                     $target = $this->absolute($item['path']);
                     $this->assertSafeTarget($item['path']);
                     $this->assertRegularOwnedFile($target, $item['path']);
@@ -1087,6 +1371,12 @@ final class SiteInitializationService
                     continue;
                 }
                 $this->injectFault('before-replace', $index, $item['path']);
+                if ($expectedState !== null) {
+                    $this->assertPublicationPriorTuple($item);
+                    if ($item['path'] === self::METADATA) {
+                        $this->assertPublicationProgress($journal, $expectedState);
+                    }
+                }
                 $target = $this->absolute($item['path']);
                 $this->ensureTargetDirectory(dirname($target));
                 if (!rename($this->absolute($item['stage']), $target)) {
@@ -1122,11 +1412,25 @@ final class SiteInitializationService
                 }
                 unset($directory);
             }
+            if ($expectedState !== null) {
+                $this->assertPublicationProgress($journal, $expectedState);
+            }
             $journal['state'] = 'committed';
             $this->writeJournal($journal);
         } catch (\Exception $exception) {
             unset($item);
-            $this->rollback($journal, $retirements !== [] || $composerMerge !== null);
+            try {
+                $this->rollback($journal, $reportRecovery !== null || $retirements !== [] || $composerMerge !== null);
+            } catch (\Exception $rollbackException) {
+                if ($reportRecovery !== null) {
+                    $reportRecovery($journal, false);
+                    throw new \RuntimeException($exception->getMessage() . ' Rollback failed: ' . $rollbackException->getMessage(), previous: $exception);
+                }
+                throw $rollbackException;
+            }
+            if ($reportRecovery !== null) {
+                $reportRecovery($journal, true);
+            }
             throw $exception;
         }
         try {
@@ -1139,11 +1443,11 @@ final class SiteInitializationService
         return false;
     }
 
-    private function recoverIfRequired(bool $unitAware = false): bool
+    private function recoverIfRequired(bool $unitAware = false, ?\Closure $reportRecovery = null, ?\Closure $reportResidue = null): bool
     {
         $path = $this->absolute(self::JOURNAL);
         if (!is_file($path)) {
-            return $this->cleanupOrphanControlResidue();
+            return $this->cleanupOrphanControlResidue($reportResidue);
         }
         $this->assertRegularOwnedFile($path, self::JOURNAL);
         try {
@@ -1155,21 +1459,135 @@ final class SiteInitializationService
             throw new \RuntimeException('The interrupted site initialization journal is invalid.');
         }
         $this->validateJournal($journal, $unitAware);
-        if ($journal['state'] === 'committed') {
-            $this->cleanupTransaction($journal);
-        } elseif ($unitAware && $this->hasMissingRollbackBackup($journal)) {
-            // Cleanup can be interrupted after backups disappear but before
-            // the prepared journal is unlinked. Only a complete proof of the
-            // prior state permits finishing that cleanup without those backups.
-            $this->assertFullyRestoredTransaction($journal);
-            $this->cleanupTransaction($journal);
-        } else {
-            $this->rollback($journal, $unitAware);
-        }
+        try {
+            if ($journal['state'] === 'committed') {
+                $this->cleanupTransaction($journal);
+            } elseif ($unitAware && $this->hasMissingRollbackBackup($journal)) {
+                // Cleanup can be interrupted after backups disappear but before
+                // the prepared journal is unlinked. Only a complete proof of the
+                // prior state permits finishing that cleanup without those backups.
+                $this->assertFullyRestoredTransaction($journal);
+                $this->cleanupTransaction($journal);
+            } else {
+                $this->rollback($journal, $unitAware);
+            }
 
-        $this->cleanupOrphanControlResidue();
+        } catch (\Exception $exception) {
+            if ($reportRecovery !== null) {
+                $reportRecovery($journal, false);
+            }
+            throw $exception;
+        }
+        if ($reportRecovery !== null) {
+            $reportRecovery($journal, true);
+        }
+        $this->cleanupOrphanControlResidue($reportResidue);
 
         return true;
+    }
+
+    /** @param array{content: string, mode: int, before_sha256: string}|null $composerMerge */
+    private function assertPublicationObservation(string $path, ProjectStateIdentity $state, ?array $composerMerge): void
+    {
+        $this->assertSafeTarget($path, true);
+        if ($path === self::METADATA || $path === 'composer.json') {
+            $expected = $path === self::METADATA ? $state->generatedMetadataSha256 : $state->composerJsonSha256;
+            $absolute = $this->absolute($path);
+            if (file_exists($absolute) || is_link($absolute)) {
+                $this->assertRegularOwnedFile($absolute, $path);
+            }
+            if (!hash_equals($expected, $this->observeDocument($path))
+                || ($path === 'composer.json' && $composerMerge !== null && !$this->modeMatches($absolute, $composerMerge['mode']))) {
+                $this->unitRefusal(GenerationErrorCode::StalePlan, 'A publication target changed after evaluation.', $path);
+            }
+            return;
+        }
+        foreach ($state->targets as $target) {
+            if ($target->path === $path) {
+                if ($target->toArray() !== $this->observeTarget($path)->toArray()) {
+                    $this->unitRefusal(GenerationErrorCode::StalePlan, 'A publication target changed after evaluation.', $path);
+                }
+                return;
+            }
+        }
+        $this->unitRefusal(GenerationErrorCode::StalePlan, 'A publication target was not captured in the reviewed state.', $path);
+    }
+
+    /** @param array<string, mixed> $journal */
+    private function assertPublicationProgress(array $journal, ProjectStateIdentity $reviewed): void
+    {
+        $installed = [];
+        foreach ($journal['items'] as $item) {
+            if ($item['state'] === 'applied') {
+                $installed[$item['path']] = $item;
+            }
+        }
+        foreach ($reviewed->targets as $target) {
+            $this->assertSafeTarget($target->path, true);
+            if (isset($installed[$target->path])) {
+                $this->assertInstalledTuple($installed[$target->path]);
+                continue;
+            }
+            $absolute = $this->absolute($target->path);
+            if (is_file($absolute)) {
+                $this->assertRegularOwnedFile($absolute, $target->path);
+            }
+            if ($target->toArray() !== $this->observeTarget($target->path)->toArray()) {
+                $this->unitRefusal(GenerationErrorCode::StalePlan, 'An unchanged reviewed target moved during publication.', $target->path);
+            }
+        }
+        foreach ([
+            self::METADATA => $reviewed->generatedMetadataSha256,
+            '.waaseyaa/site.yaml' => $reviewed->manifestSha256,
+            'composer.json' => $reviewed->composerJsonSha256,
+        ] as $path => $digest) {
+            $this->assertSafeTarget($path, true);
+            if (isset($installed[$path])) {
+                $this->assertInstalledTuple($installed[$path]);
+                continue;
+            }
+            $absolute = $this->absolute($path);
+            if (file_exists($absolute) || is_link($absolute)) {
+                $this->assertRegularOwnedFile($absolute, $path);
+            }
+            if (!hash_equals($digest, $this->observeDocument($path))) {
+                $this->unitRefusal(GenerationErrorCode::StalePlan, 'A reviewed document moved during publication.', $path);
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $item */
+    private function assertInstalledTuple(array $item): void
+    {
+        $absolute = $this->absolute($item['path']);
+        if (($item['kind'] ?? null) === 'remove') {
+            if (file_exists($absolute) || is_link($absolute)) {
+                $this->unitRefusal(GenerationErrorCode::StalePlan, 'A retired target reappeared during publication.', $item['path']);
+            }
+            return;
+        }
+        $this->assertRegularOwnedFile($absolute, $item['path']);
+        if (!hash_equals($item['installed_sha256'], $this->digestFile($absolute)) || !$this->modeMatches($absolute, $item['mode'])) {
+            $this->unitRefusal(GenerationErrorCode::StalePlan, 'An installed target moved during publication.', $item['path']);
+        }
+    }
+
+    /** @param array<string, mixed> $item */
+    private function assertPublicationPriorTuple(array $item): void
+    {
+        $this->assertSafeTarget($item['path'], true);
+        $absolute = $this->absolute($item['path']);
+        $present = file_exists($absolute) || is_link($absolute);
+        if ($item['existed'] === false) {
+            if ($present) {
+                $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'Refusing to overwrite a newly present unowned artifact.', $item['path']);
+            }
+            return;
+        }
+        $this->assertRegularOwnedFile($absolute, $item['path']);
+        if (!hash_equals($item['backup_sha256'], $this->digestFile($absolute)) || !$this->modeMatches($absolute, $item['backup_mode'])) {
+            $this->unitRefusal(GenerationErrorCode::StalePlan, 'A publication target changed before replacement.', $item['path']);
+        }
     }
 
     /** @param array<string, mixed> $journal */
@@ -1436,10 +1854,14 @@ final class SiteInitializationService
         }
     }
 
-    /** @return array<string, mixed> */
-    private function readMetadata(string $path, bool $unitAware = false): array
+    /**
+     * @return array<string, mixed>
+     * @param-out string $observedDigest
+     */
+    private function readMetadata(string $path, bool $unitAware = false, ?string &$observedDigest = null): array
     {
         $raw = (string) file_get_contents($path);
+        $observedDigest = hash('sha256', $raw);
         try {
             $metadata = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
@@ -1652,10 +2074,13 @@ final class SiteInitializationService
         fclose($handle);
     }
 
-    private function makePrivateDirectory(string $directory): void
+    private function makePrivateDirectory(string $directory, ?\Closure $created = null): void
     {
         if (!mkdir($directory, 0o700) || is_link($directory)) {
             throw new \RuntimeException("Unable to create transaction directory {$directory}.");
+        }
+        if ($created !== null) {
+            $created();
         }
         $this->syncDirectory(dirname($directory));
     }
@@ -1900,33 +2325,58 @@ final class SiteInitializationService
         }
     }
 
-    private function cleanupOrphanControlResidue(): bool
+    private function cleanupOrphanControlResidue(?\Closure $reportRecovery = null): bool
     {
         $directory = $this->absolute('.waaseyaa');
         $entries = scandir($directory);
         if ($entries === false) {
             throw new \RuntimeException('Unable to inspect site initialization control state.');
         }
-        $cleaned = false;
+        $paths = [];
         foreach ($entries as $entry) {
             $path = $directory . '/' . $entry;
             if (preg_match('/^site-init-(?:stage|backup)-[a-f0-9]{24}$/D', $entry) === 1) {
                 if (is_link($path) || !is_dir($path)) {
                     throw new SiteInitializationCollisionException("Unsafe site initialization residue: .waaseyaa/{$entry}");
                 }
-                $this->removeControlTree($path);
-                $cleaned = true;
+                $paths[] = ['path' => '.waaseyaa/' . $entry, 'kind' => 'tree'];
             } elseif (preg_match('/^site-init\.transaction\.json\.tmp-[a-f0-9]{12}$/D', $entry) === 1) {
                 $this->assertRegularOwnedFile($path, '.waaseyaa/' . $entry);
-                if (!unlink($path)) {
-                    throw new \RuntimeException("Unable to remove site initialization residue: .waaseyaa/{$entry}");
-                }
-                $this->syncDirectory($directory);
-                $cleaned = true;
+                $paths[] = ['path' => '.waaseyaa/' . $entry, 'kind' => 'file'];
             }
         }
+        if ($paths === []) {
+            return false;
+        }
+        usort($paths, static fn(array $left, array $right): int => strcmp($left['path'], $right['path']));
+        // The existing reserved-name cleanup policy owns these actions. This
+        // transient identity binds the sorted instructions, not a data snapshot
+        // or an invented original publication plan; no new journal is written.
+        $instructions = ['kind' => 'control-residue', 'paths' => $paths];
+        try {
+            foreach ($paths as $instruction) {
+                $path = $this->absolute($instruction['path']);
+                if ($instruction['kind'] === 'tree') {
+                    $this->removeControlTree($path);
+                } else {
+                    $this->assertRegularOwnedFile($path, $instruction['path']);
+                    if (!unlink($path)) {
+                        throw new \RuntimeException("Unable to remove site initialization residue: {$instruction['path']}");
+                    }
+                    $this->syncDirectory($directory);
+                }
+            }
+        } catch (\Exception $exception) {
+            if ($reportRecovery !== null) {
+                $reportRecovery($instructions, false);
+            }
+            throw $exception;
+        }
+        if ($reportRecovery !== null) {
+            $reportRecovery($instructions, true);
+        }
 
-        return $cleaned;
+        return true;
     }
 
     private function removeControlTree(string $path): void

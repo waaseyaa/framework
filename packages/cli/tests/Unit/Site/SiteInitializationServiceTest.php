@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
+use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteInitializationResult;
@@ -176,7 +177,7 @@ final class SiteInitializationServiceTest extends TestCase
             self::assertSame('injected publish failure', $exception->getMessage());
         }
 
-        self::assertSame(['.waaseyaa/.gitignore'], array_keys($this->snapshot($root)));
+        self::assertSame($before, $this->snapshot($root), 'The control-ignore artifact rolls back with the reviewed transaction.');
     }
 
     #[Test]
@@ -317,9 +318,17 @@ final class SiteInitializationServiceTest extends TestCase
         $target = $root . '/' . $journal['items'][0]['path'];
         file_put_contents($target, "externally substituted\n");
 
-        $this->expectException(SiteInitializationCollisionException::class);
-        $this->expectExceptionMessage('substituted generated target');
-        new SiteInitializationService($root)->initialize($this->site());
+        try {
+            new SiteInitializationService($root)->initialize($this->site());
+            self::fail('Expected substituted recovery state to be refused.');
+        } catch (SiteInitializationExecutionException $exception) {
+            self::assertInstanceOf(SiteInitializationCollisionException::class, $exception->getPrevious());
+            self::assertStringContainsString('substituted generated target', $exception->getMessage());
+            self::assertCount(1, $exception->receipts);
+            self::assertSame('failed', $exception->receipts[0]->outcome->value);
+        }
+        self::assertSame("externally substituted\n", file_get_contents($target));
+        self::assertFileExists($root . '/.waaseyaa/site-init.transaction.json');
     }
 
     #[Test]
@@ -348,7 +357,7 @@ final class SiteInitializationServiceTest extends TestCase
     }
 
     #[Test]
-    public function cancellationAndRollbackAlwaysLeaveRuntimeControlStateIgnored(): void
+    public function cancellationAndRollbackDoNotLeaveAnUnpublishedControlIgnoreArtifact(): void
     {
         foreach (['cancel', 'rollback'] as $mode) {
             $root = $this->root();
@@ -370,8 +379,10 @@ final class SiteInitializationServiceTest extends TestCase
             }
 
             self::assertFileExists($root . '/.waaseyaa/site-init.lock');
-            self::assertFileExists($root . '/.waaseyaa/.gitignore');
-            self::assertStringContainsString('site-init.lock', (string) file_get_contents($root . '/.waaseyaa/.gitignore'));
+            self::assertFileDoesNotExist($root . '/.waaseyaa/.gitignore');
+            self::assertFileDoesNotExist($root . '/.waaseyaa/site-init.transaction.json');
+            self::assertSame([], glob($root . '/.waaseyaa/site-init-stage-*'));
+            self::assertSame([], glob($root . '/.waaseyaa/site-init-backup-*'));
         }
     }
 

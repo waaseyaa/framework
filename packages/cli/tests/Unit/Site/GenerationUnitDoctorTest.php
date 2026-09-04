@@ -34,16 +34,18 @@ final class GenerationUnitDoctorTest extends TestCase
     {
         $root = $this->fixture(false);
         $doctor = new SiteDoctorService();
+        self::assertSame(rtrim((string) file_get_contents(__DIR__ . '/../../Fixtures/Site/root-doctor-report.json'), "\n"), $doctor->inspect($root)->canonicalJson(), 'The pre-activation root-only report stays byte-identical.');
         self::assertSame($doctor->inspect($root)->canonicalJson(), $doctor->inspectUnits($root)->canonicalJson());
     }
 
-    public function testMultiUnitMetadataIsHealthyOnlyOnDormantPath(): void
+    public function testMultiUnitMetadataIsHealthyThroughBothPublicEntrypoints(): void
     {
         $root = $this->fixture();
         $before = file_get_contents($root . '/.waaseyaa/generated.json');
         $doctor = new SiteDoctorService();
         self::assertTrue($doctor->inspectUnits($root)->passed);
-        self::assertFalse($doctor->inspect($root)->passed, 'The live reader must still refuse future metadata.');
+        self::assertTrue($doctor->inspect($root)->passed);
+        self::assertSame($doctor->inspect($root)->canonicalJson(), $doctor->inspectUnits($root)->canonicalJson());
         self::assertSame($before, file_get_contents($root . '/.waaseyaa/generated.json'));
     }
 

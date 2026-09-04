@@ -275,11 +275,17 @@ final class GenerationAdditiveEvolutionTest extends TestCase
     }
 
     #[Test]
-    public function legacyInitializeStillRefusesRootGrowth(): void
+    public function initializeActivatesTheManagedRootSuccessorPath(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Generated ownership metadata does not match this generator version.');
-        new SiteInitializationService($this->root)->initialize($this->site(['page', 'story']));
+        $result = new SiteInitializationService($this->root)->initialize($this->site(['page', 'story']));
+
+        self::assertSame('applied', $result->applyResult?->outcome->value);
+        self::assertNotEmpty($result->evaluation?->adds);
+        self::assertSame([], $result->evaluation?->drops);
+        foreach ($result->evaluation->adds as $path) {
+            self::assertFileExists($this->root . '/' . $path);
+        }
+        self::assertTrue(new SiteDoctorService()->inspectUnits($this->root)->passed);
     }
 
     private function expectRefusal(string $code): void

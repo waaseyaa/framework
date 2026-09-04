@@ -37,7 +37,8 @@ final class GenerationRegistrationDoctorTest extends TestCase
         $before = file_get_contents($root . '/.waaseyaa/generated.json');
         $composer = file_get_contents($root . '/composer.json');
         self::assertTrue(new SiteDoctorService()->inspectUnits($root)->passed);
-        self::assertFalse(new SiteDoctorService()->inspect($root)->passed);
+        self::assertTrue(new SiteDoctorService()->inspect($root)->passed);
+        self::assertSame(new SiteDoctorService()->inspect($root)->canonicalJson(), new SiteDoctorService()->inspectUnits($root)->canonicalJson());
         self::assertSame($before, file_get_contents($root . '/.waaseyaa/generated.json'));
         self::assertSame($composer, file_get_contents($root . '/composer.json'));
     }

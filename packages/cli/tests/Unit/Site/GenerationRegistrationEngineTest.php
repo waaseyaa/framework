@@ -272,12 +272,18 @@ final class GenerationRegistrationEngineTest extends TestCase
     }
 
     #[Test]
-    public function legacyMetadataReaderStillRejectsRegistrations(): void
+    public function initializePreviewsRootRegistrationWithdrawalWithoutWriting(): void
     {
         $this->publish($this->plan(['App\\Root' => null], 'site'));
-        $this->expectException(SiteInitializationCollisionException::class);
-        $this->expectExceptionMessage('unsupported shape');
-        new SiteInitializationService($this->root)->initialize($this->site(), true);
+        $metadata = file_get_contents($this->root . '/.waaseyaa/generated.json');
+        $composer = file_get_contents($this->root . '/composer.json');
+
+        $result = new SiteInitializationService($this->root)->initialize($this->site(), true);
+
+        self::assertContains('composer.json', $result->changedPaths);
+        self::assertContains('.waaseyaa/generated.json', $result->changedPaths);
+        self::assertSame($metadata, file_get_contents($this->root . '/.waaseyaa/generated.json'));
+        self::assertSame($composer, file_get_contents($this->root . '/composer.json'));
     }
 
     #[Test]
