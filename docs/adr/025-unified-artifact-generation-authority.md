@@ -1411,6 +1411,7 @@ evaluated result; the same document is what apply is handed):
     { "fqcn": "App\\Provider\\StoryServiceProvider", "group": "content" }
   ],
   "companion_tests": [],
+  "set_evolution": "frozen",
   "schema_effects": [],
   "config_effects": []
 }
@@ -2130,9 +2131,10 @@ Costs and one-way doors, recorded here rather than discovered later:
   a required machine-readable deliverable a consistent, versioned home
   beside the decision that requires them, distinct from `docs/audits/`'s
   independently-triggered, SHA-pinned census artifacts.
-- The `GEN0xx` family gives #2846 a fixed namespace and ten pre-assigned ids
-  to implement against, rather than inventing codes ad hoc per PR the way
-  `SITE0xx` grew organically before ADR-023 closed its vocabulary.
+- The `GEN0xx` family gives #2846 a fixed namespace and the pre-assigned ids
+  the D-5 table enumerates to implement against, rather than inventing codes
+  ad hoc per PR the way `SITE0xx` grew organically before ADR-023 closed its
+  vocabulary.
 
 ## Non-goals
 
