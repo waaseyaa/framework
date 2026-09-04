@@ -29,6 +29,8 @@
       "constraint": ">=2.10.0 <3.0.0",
       "feature_line": "2.10",
       "role": "dependency-resolution-and-build-tool",
+      "support_model": "bug-and-security-fixes-until-next-minor-release",
+      "dated_eol": false,
       "source": "https://getcomposer.org/download/"
     },
     "node": {

@@ -10,6 +10,14 @@ require_once dirname(__DIR__) . '/tools/lib/DevRuntime.php';
 /**
  * Fail-closed parity gate for the versioned S1 platform/lifecycle contract.
  *
+ * support/s1-v1.json is the sole machine-readable support-policy authority
+ * (#2852). This script owns schema and invariant validation — closed key sets,
+ * value types, allowed relationships, calendar dates, safety invariants — and
+ * then compares real runtime, packaging, CI, and evidence surfaces against
+ * values READ FROM the parsed contract. It deliberately carries no expected
+ * policy values of its own: a support-policy change is one contract edit plus
+ * the corresponding real-surface change, never a synchronized edit here.
+ *
  * Repository mode validates declared sources. --ci additionally validates the
  * running test point and can write a machine-readable evidence record.
  *
@@ -73,6 +81,147 @@ function requireSame(mixed $actual, mixed $expected, string $path, array &$error
     if ($actual !== $expected) {
         $errors[] = sprintf('%s differs: expected %s, got %s', $path, json_encode($expected), json_encode($actual));
     }
+}
+
+/** The contract schema this checker validates; a contract on another schema fails closed. */
+const SUPPORTED_SCHEMA_VERSION = 1;
+
+/** Lower-case dotted/hyphenated identifier tokens (`serving-and-cli-runtime`, `ubuntu-24.04`). */
+const TOKEN_PATTERN = '/^[a-z0-9][a-z0-9._-]*$/D';
+
+/** Profile identifiers (`S1`, `H1`) as they appear in profile.name and unsupported.profiles. */
+const PROFILE_PATTERN = '/^[A-Z][A-Z0-9]*$/D';
+
+/** @param list<string> $errors */
+function requireNonEmptyString(mixed $value, string $path, array &$errors): ?string
+{
+    if (!is_string($value) || trim($value) === '') {
+        $errors[] = "{$path} must be a non-empty string";
+        return null;
+    }
+
+    return $value;
+}
+
+/** @param list<string> $errors */
+function requireToken(mixed $value, string $path, array &$errors, string $pattern = TOKEN_PATTERN): ?string
+{
+    if (!is_string($value) || preg_match($pattern, $value) !== 1) {
+        $errors[] = "{$path} must be an identifier token matching {$pattern}";
+        return null;
+    }
+
+    return $value;
+}
+
+/** @param list<string> $allowed @param list<string> $errors */
+function requireEnum(mixed $value, array $allowed, string $path, array &$errors): ?string
+{
+    if (!is_string($value) || !in_array($value, $allowed, true)) {
+        $errors[] = sprintf('%s must be one of [%s]', $path, implode(', ', $allowed));
+        return null;
+    }
+
+    return $value;
+}
+
+/** @param list<string> $errors */
+function requireBool(mixed $value, string $path, array &$errors): ?bool
+{
+    if (!is_bool($value)) {
+        $errors[] = "{$path} must be a boolean";
+        return null;
+    }
+
+    return $value;
+}
+
+/** @param list<string> $errors */
+function requireIntBetween(mixed $value, int $minimum, int $maximum, string $path, array &$errors): ?int
+{
+    if (!is_int($value) || $value < $minimum || $value > $maximum) {
+        $errors[] = "{$path} must be an integer between {$minimum} and {$maximum}";
+        return null;
+    }
+
+    return $value;
+}
+
+/** @param list<string> $errors */
+function requireHttpsUrl(mixed $value, string $path, array &$errors): void
+{
+    if (!is_string($value) || !str_starts_with($value, 'https://') || filter_var($value, FILTER_VALIDATE_URL) === false) {
+        $errors[] = "{$path} must be an https URL";
+    }
+}
+
+/**
+ * Non-empty list of distinct identifier tokens.
+ *
+ * @param list<string> $errors
+ * @return list<string>
+ */
+function requireTokenList(mixed $value, string $path, array &$errors, string $pattern = TOKEN_PATTERN): array
+{
+    if (!is_array($value) || !array_is_list($value) || $value === []) {
+        $errors[] = "{$path} must be a non-empty list";
+        return [];
+    }
+    $tokens = [];
+    foreach ($value as $index => $entry) {
+        $token = requireToken($entry, "{$path}[{$index}]", $errors, $pattern);
+        if ($token === null) {
+            continue;
+        }
+        if (in_array($token, $tokens, true)) {
+            $errors[] = "{$path} repeats {$token}";
+            continue;
+        }
+        $tokens[] = $token;
+    }
+
+    return $tokens;
+}
+
+/**
+ * Parse a bounded version range `>=MIN <MAX`. Components may be 1..3 deep and
+ * are padded to MAJOR.MINOR.PATCH so `>=8.5 <8.6` and `>=8.5.0 <8.6.0` agree.
+ *
+ * @return array{min: string, max: string}|null
+ */
+function parseVersionRange(mixed $value): ?array
+{
+    if (!is_string($value) || preg_match('/^>=(?<min>\d+(?:\.\d+){0,2}) <(?<max>\d+(?:\.\d+){0,2})$/D', $value, $match) !== 1) {
+        return null;
+    }
+    $pad = static fn (string $version): string => implode('.', array_pad(explode('.', $version), 3, '0'));
+    $range = ['min' => $pad($match['min']), 'max' => $pad($match['max'])];
+
+    return version_compare($range['min'], $range['max'], '<') ? $range : null;
+}
+
+/**
+ * A contract constraint must be a fully-qualified, bounded range: both bounds
+ * MAJOR.MINOR.PATCH and MIN strictly below MAX.
+ *
+ * @param list<string> $errors
+ * @return array{min: string, max: string}|null
+ */
+function requireConstraint(mixed $value, string $path, array &$errors): ?array
+{
+    $range = is_string($value) && preg_match('/^>=\d+\.\d+\.\d+ <\d+\.\d+\.\d+$/D', $value) === 1 ? parseVersionRange($value) : null;
+    if ($range === null) {
+        $errors[] = "{$path} must be a bounded range of the form >=MAJOR.MINOR.PATCH <MAJOR.MINOR.PATCH with the lower bound below the upper";
+        return null;
+    }
+
+    return $range;
+}
+
+/** @param array{min: string, max: string} $range */
+function describeRange(array $range): string
+{
+    return sprintf('>=%s <%s', $range['min'], $range['max']);
 }
 
 /** @param list<string> $errors */
@@ -246,90 +395,158 @@ function runVersionCommand(string $command): array
 try {
     $contract = readJsonObject($contractPath);
     requireExactKeys($contract, ['schema_version', 'contract_version', 'last_reviewed', 'review_by', 'transition_acknowledgements', 'profile', 'platform', 'lifecycle', 'evidence', 'unsupported'], 'contract', $errors);
-    requireSame($contract['schema_version'] ?? null, 1, 'schema_version', $errors);
-    requireSame($contract['contract_version'] ?? null, 's1-v1', 'contract_version', $errors);
+    if (($contract['schema_version'] ?? null) !== SUPPORTED_SCHEMA_VERSION) {
+        $errors[] = sprintf('schema_version must be %d, the contract schema this checker validates', SUPPORTED_SCHEMA_VERSION);
+    }
+    $contractVersion = $contract['contract_version'] ?? null;
+    $versionProfile = null;
+    if (!is_string($contractVersion) || preg_match('/^(?<profile>[a-z][a-z0-9]*)-v(?<revision>[1-9]\d*)$/D', $contractVersion, $versionMatch) !== 1) {
+        $errors[] = 'contract_version must be <profile>-v<revision>, for example s1-v1';
+    } else {
+        $versionProfile = strtoupper($versionMatch['profile']);
+        if (basename($contractPath) !== $contractVersion . '.json') {
+            $errors[] = sprintf('contract file %s must be named after contract_version (%s.json)', basename($contractPath), $contractVersion);
+        }
+    }
 
     $profile = is_array($contract['profile'] ?? null) ? $contract['profile'] : [];
     requireExactKeys($profile, ['name', 'status', 'scope'], 'profile', $errors);
-    requireSame($profile, ['name' => 'S1', 'status' => 'candidate', 'scope' => 'single-node SQLite'], 'profile', $errors);
+    $profileName = requireToken($profile['name'] ?? null, 'profile.name', $errors, PROFILE_PATTERN);
+    if ($profileName !== null && $versionProfile !== null && $profileName !== $versionProfile) {
+        $errors[] = "profile.name {$profileName} must be the profile that contract_version {$contractVersion} versions";
+    }
+    $profileStatus = requireEnum($profile['status'] ?? null, ['candidate', 'supported'], 'profile.status', $errors);
+    requireNonEmptyString($profile['scope'] ?? null, 'profile.scope', $errors);
 
     $platform = is_array($contract['platform'] ?? null) ? $contract['platform'] : [];
     requireExactKeys($platform, ['php', 'composer', 'node', 'sqlite', 'framework_os', 'browsers'], 'platform', $errors);
 
     $php = is_array($platform['php'] ?? null) ? $platform['php'] : [];
     requireExactKeys($php, ['constraint', 'role', 'active_support_end', 'security_support_end', 'source'], 'platform.php', $errors);
-    requireSame($php['constraint'] ?? null, '>=8.5.0 <8.6.0', 'platform.php.constraint', $errors);
-    requireSame($php['role'] ?? null, 'serving-and-cli-runtime', 'platform.php.role', $errors);
+    $phpRange = requireConstraint($php['constraint'] ?? null, 'platform.php.constraint', $errors);
+    requireToken($php['role'] ?? null, 'platform.php.role', $errors);
     $phpActiveEnd = requireDate($php['active_support_end'] ?? null, 'platform.php.active_support_end', $errors);
     $phpSecurityEnd = requireDate($php['security_support_end'] ?? null, 'platform.php.security_support_end', $errors);
-    requireSame($php['source'] ?? null, 'https://www.php.net/supported-versions.php', 'platform.php.source', $errors);
+    if ($phpActiveEnd && $phpSecurityEnd && $phpActiveEnd >= $phpSecurityEnd) {
+        $errors[] = 'platform.php.active_support_end must precede platform.php.security_support_end';
+    }
+    requireHttpsUrl($php['source'] ?? null, 'platform.php.source', $errors);
 
     $composerPlatform = is_array($platform['composer'] ?? null) ? $platform['composer'] : [];
-    requireExactKeys($composerPlatform, ['constraint', 'feature_line', 'role', 'source'], 'platform.composer', $errors);
-    requireSame($composerPlatform['constraint'] ?? null, '>=2.10.0 <3.0.0', 'platform.composer.constraint', $errors);
-    requireSame($composerPlatform['feature_line'] ?? null, '2.10', 'platform.composer.feature_line', $errors);
-    requireSame($composerPlatform['role'] ?? null, 'dependency-resolution-and-build-tool', 'platform.composer.role', $errors);
-    requireSame($composerPlatform['source'] ?? null, 'https://getcomposer.org/download/', 'platform.composer.source', $errors);
+    requireExactKeys($composerPlatform, ['constraint', 'feature_line', 'role', 'support_model', 'dated_eol', 'source'], 'platform.composer', $errors);
+    $composerRange = requireConstraint($composerPlatform['constraint'] ?? null, 'platform.composer.constraint', $errors);
+    $composerFeatureLine = requireToken($composerPlatform['feature_line'] ?? null, 'platform.composer.feature_line', $errors, '/^\d+\.\d+$/D');
+    if ($composerRange !== null && $composerFeatureLine !== null && $composerFeatureLine !== implode('.', array_slice(explode('.', $composerRange['min']), 0, 2))) {
+        $errors[] = "platform.composer.feature_line {$composerFeatureLine} must be the MAJOR.MINOR line of the constraint lower bound {$composerRange['min']}";
+    }
+    requireToken($composerPlatform['role'] ?? null, 'platform.composer.role', $errors);
+    requireToken($composerPlatform['support_model'] ?? null, 'platform.composer.support_model', $errors);
+    if (($composerPlatform['dated_eol'] ?? null) !== false) {
+        $errors[] = 'platform.composer.dated_eol must be false: Composer publishes a relative support model and no dated end-of-life, and one must not be invented';
+    }
+    requireHttpsUrl($composerPlatform['source'] ?? null, 'platform.composer.source', $errors);
 
     $node = is_array($platform['node'] ?? null) ? $platform['node'] : [];
     requireExactKeys($node, ['constraint', 'role', 'maintenance_start', 'eol', 'source'], 'platform.node', $errors);
-    requireSame($node['constraint'] ?? null, '>=24.0.0 <25.0.0', 'platform.node.constraint', $errors);
-    requireSame($node['role'] ?? null, 'admin-build-and-test-tool', 'platform.node.role', $errors);
+    $nodeRange = requireConstraint($node['constraint'] ?? null, 'platform.node.constraint', $errors);
+    requireToken($node['role'] ?? null, 'platform.node.role', $errors);
     $nodeMaintenanceStart = requireDate($node['maintenance_start'] ?? null, 'platform.node.maintenance_start', $errors);
     $nodeEol = requireDate($node['eol'] ?? null, 'platform.node.eol', $errors);
-    requireSame($node['source'] ?? null, 'https://github.com/nodejs/Release#release-schedule', 'platform.node.source', $errors);
+    if ($nodeMaintenanceStart && $nodeEol && $nodeMaintenanceStart >= $nodeEol) {
+        $errors[] = 'platform.node.maintenance_start must precede platform.node.eol';
+    }
+    requireHttpsUrl($node['source'] ?? null, 'platform.node.source', $errors);
 
     $sqlite = is_array($platform['sqlite'] ?? null) ? $platform['sqlite'] : [];
     requireExactKeys($sqlite, ['constraint', 'role', 'security_source', 'source'], 'platform.sqlite', $errors);
-    requireSame($sqlite, ['constraint' => '>=3.40.0 <4.0.0', 'role' => 's1-database-runtime', 'security_source' => 'ubuntu-24.04-package-source', 'source' => 'https://packages.ubuntu.com/noble/sqlite3'], 'platform.sqlite', $errors);
+    $sqliteRange = requireConstraint($sqlite['constraint'] ?? null, 'platform.sqlite.constraint', $errors);
+    requireToken($sqlite['role'] ?? null, 'platform.sqlite.role', $errors);
+    requireToken($sqlite['security_source'] ?? null, 'platform.sqlite.security_source', $errors);
+    requireHttpsUrl($sqlite['source'] ?? null, 'platform.sqlite.source', $errors);
 
     $os = is_array($platform['framework_os'] ?? null) ? $platform['framework_os'] : [];
     requireExactKeys($os, ['runner', 'version', 'architecture', 'standard_security_maintenance_end', 'source'], 'platform.framework_os', $errors);
+    $osRunner = requireToken($os['runner'] ?? null, 'platform.framework_os.runner', $errors);
+    $osVersion = requireToken($os['version'] ?? null, 'platform.framework_os.version', $errors, '/^\d+\.\d+$/D');
+    if ($osRunner !== null && str_ends_with($osRunner, '-latest')) {
+        $errors[] = "platform.framework_os.runner {$osRunner} is a floating label; the runner must name an exact OS release";
+    }
+    if ($osRunner !== null && $osVersion !== null && !str_ends_with($osRunner, '-' . $osVersion)) {
+        $errors[] = "platform.framework_os.runner {$osRunner} must end with the declared version {$osVersion}";
+    }
+    $osArchitecture = requireToken($os['architecture'] ?? null, 'platform.framework_os.architecture', $errors);
     $osSecurityEnd = requireMonth($os['standard_security_maintenance_end'] ?? null, 'platform.framework_os.standard_security_maintenance_end', $errors);
-    requireSame($os, ['runner' => 'ubuntu-24.04', 'version' => '24.04', 'architecture' => 'x86_64', 'standard_security_maintenance_end' => '2029-05', 'source' => 'https://ubuntu.com/about/release-cycle'], 'platform.framework_os', $errors);
+    requireHttpsUrl($os['source'] ?? null, 'platform.framework_os.source', $errors);
+    $frameworkTestPoint = $osRunner !== null && $osArchitecture !== null ? $osRunner . '-' . $osArchitecture : null;
 
     $browsers = is_array($platform['browsers'] ?? null) ? $platform['browsers'] : [];
     requireExactKeys($browsers, ['playwright_version', 'projects', 'revision_authority', 'source'], 'platform.browsers', $errors);
-    requireSame($browsers['projects'] ?? null, ['chromium', 'firefox'], 'platform.browsers.projects', $errors);
-    requireSame($browsers['revision_authority'] ?? null, 'packages/admin/package-lock.json', 'platform.browsers.revision_authority', $errors);
-    requireSame($browsers['source'] ?? null, 'https://playwright.dev/docs/browsers', 'platform.browsers.source', $errors);
+    $playwrightVersion = requireToken($browsers['playwright_version'] ?? null, 'platform.browsers.playwright_version', $errors, '/^\d+\.\d+\.\d+$/D');
+    $browserProjects = requireTokenList($browsers['projects'] ?? null, 'platform.browsers.projects', $errors);
+    $revisionAuthority = $browsers['revision_authority'] ?? null;
+    if (!is_string($revisionAuthority) || preg_match('#^(?:[a-z0-9._-]+/)+package-lock\.json$#D', $revisionAuthority) !== 1) {
+        $errors[] = 'platform.browsers.revision_authority must be a root-relative package-lock.json path';
+        $revisionAuthority = null;
+    }
+    requireHttpsUrl($browsers['source'] ?? null, 'platform.browsers.source', $errors);
 
     $lifecycle = is_array($contract['lifecycle'] ?? null) ? $contract['lifecycle'] : [];
     requireExactKeys($lifecycle, ['release_model', 'fixed_train', 'upgrade_treatment_trains', 'backports', 'security_fix_delivery', 'response_time_sla', 'review_frequency', 'next_transition_notice_days'], 'lifecycle', $errors);
-    requireSame($lifecycle, [
-        'release_model' => 'forward-only-immutable-alpha-tags',
-        'fixed_train' => 'latest-tagged-alpha',
-        'upgrade_treatment_trains' => 3,
-        'backports' => false,
-        'security_fix_delivery' => 'newest-tagged-alpha',
-        'response_time_sla' => false,
-        'review_frequency' => 'quarterly-and-every-tagged-release',
-        'next_transition_notice_days' => 90,
-    ], 'lifecycle', $errors);
+    foreach (['release_model', 'fixed_train', 'security_fix_delivery', 'review_frequency'] as $lifecycleToken) {
+        requireToken($lifecycle[$lifecycleToken] ?? null, "lifecycle.{$lifecycleToken}", $errors);
+    }
+    requireIntBetween($lifecycle['upgrade_treatment_trains'] ?? null, 1, 12, 'lifecycle.upgrade_treatment_trains', $errors);
+    requireBool($lifecycle['backports'] ?? null, 'lifecycle.backports', $errors);
+    $responseTimeSla = requireBool($lifecycle['response_time_sla'] ?? null, 'lifecycle.response_time_sla', $errors);
+    requireIntBetween($lifecycle['next_transition_notice_days'] ?? null, 1, 365, 'lifecycle.next_transition_notice_days', $errors);
 
     $evidence = is_array($contract['evidence'] ?? null) ? $contract['evidence'] : [];
     requireExactKeys($evidence, ['framework', 'consumer'], 'evidence', $errors);
     $frameworkEvidence = is_array($evidence['framework'] ?? null) ? $evidence['framework'] : [];
     requireExactKeys($frameworkEvidence, ['status', 'owner', 'test_point', 'command'], 'evidence.framework', $errors);
-    requireSame($frameworkEvidence, ['status' => 'verified', 'owner' => 'waaseyaa/framework', 'test_point' => 'ubuntu-24.04-x86_64', 'command' => 'php bin/check-support-contract --ci'], 'evidence.framework', $errors);
+    $frameworkStatus = requireEnum($frameworkEvidence['status'] ?? null, ['pending', 'verified'], 'evidence.framework.status', $errors);
+    requireToken($frameworkEvidence['owner'] ?? null, 'evidence.framework.owner', $errors, '/^[a-z0-9._-]+\/[a-z0-9._-]+$/D');
+    $frameworkEvidenceTestPoint = requireToken($frameworkEvidence['test_point'] ?? null, 'evidence.framework.test_point', $errors);
+    if ($frameworkEvidenceTestPoint !== null && $frameworkTestPoint !== null && $frameworkEvidenceTestPoint !== $frameworkTestPoint) {
+        $errors[] = "evidence.framework.test_point {$frameworkEvidenceTestPoint} must be the declared platform.framework_os runner and architecture {$frameworkTestPoint}";
+    }
+    $frameworkCommand = requireNonEmptyString($frameworkEvidence['command'] ?? null, 'evidence.framework.command', $errors);
     $consumerEvidence = is_array($evidence['consumer'] ?? null) ? $evidence['consumer'] : [];
     requireExactKeys($consumerEvidence, ['status', 'owner', 'work_package', 'test_point', 'proof'], 'evidence.consumer', $errors);
-    requireSame($consumerEvidence, [
-        'status' => 'pending',
-        'owner' => 'jonesrussell/sheguiandah-waaseyaa',
-        'work_package' => 'S0-SHEG-02',
-        'test_point' => 'ubuntu-24.04-x86_64-ext4-apache-2.4-php-fpm-8.5',
-        'proof' => null,
-    ], 'evidence.consumer', $errors);
+    $consumerStatus = requireEnum($consumerEvidence['status'] ?? null, ['pending', 'verified'], 'evidence.consumer.status', $errors);
+    requireToken($consumerEvidence['owner'] ?? null, 'evidence.consumer.owner', $errors, '/^[a-z0-9._-]+\/[a-z0-9._-]+$/D');
+    requireNonEmptyString($consumerEvidence['work_package'] ?? null, 'evidence.consumer.work_package', $errors);
+    $consumerTestPoint = requireToken($consumerEvidence['test_point'] ?? null, 'evidence.consumer.test_point', $errors);
+    if ($consumerTestPoint !== null && $frameworkTestPoint !== null && !str_starts_with($consumerTestPoint, $frameworkTestPoint . '-')) {
+        $errors[] = "evidence.consumer.test_point {$consumerTestPoint} must refine the declared framework test point {$frameworkTestPoint}";
+    }
+    $consumerProof = $consumerEvidence['proof'] ?? null;
+    if ($consumerProof !== null && (!is_string($consumerProof) || trim($consumerProof) === '')) {
+        $errors[] = 'evidence.consumer.proof must be null or a non-empty evidence reference';
+    }
+    if ($consumerStatus === 'verified' && !is_string($consumerProof)) {
+        $errors[] = 'evidence.consumer.status cannot be verified before evidence.consumer.proof is populated';
+    }
+    if ($profileStatus === 'supported' && ($frameworkStatus !== 'verified' || $consumerStatus !== 'verified')) {
+        $errors[] = 'profile.status cannot be supported until both evidence.framework and evidence.consumer are verified';
+    }
 
     $unsupported = is_array($contract['unsupported'] ?? null) ? $contract['unsupported'] : [];
     requireExactKeys($unsupported, ['profiles', 'databases', 'filesystems', 'web_runtimes', 'browsers'], 'unsupported', $errors);
-    requireSame($unsupported['profiles'] ?? null, ['H1'], 'unsupported.profiles', $errors);
-    requireSame($unsupported['databases'] ?? null, ['mysql', 'postgresql'], 'unsupported.databases', $errors);
-    requireSame($unsupported['filesystems'] ?? null, ['nfs', 'smb', 'object-mounted', 'clustered'], 'unsupported.filesystems', $errors);
-    requireSame($unsupported['web_runtimes'] ?? null, ['non-apache-2.4', 'non-php-fpm-8.5'], 'unsupported.web_runtimes', $errors);
-    requireSame($unsupported['browsers'] ?? null, ['webkit', 'safari', 'branded-browser-specific-behavior'], 'unsupported.browsers', $errors);
-
+    $unsupportedProfiles = requireTokenList($unsupported['profiles'] ?? null, 'unsupported.profiles', $errors, PROFILE_PATTERN);
+    if ($profileName !== null && in_array($profileName, $unsupportedProfiles, true)) {
+        $errors[] = "unsupported.profiles cannot list the contract's own profile {$profileName}";
+    }
+    $unsupportedDatabases = requireTokenList($unsupported['databases'] ?? null, 'unsupported.databases', $errors);
+    foreach (array_intersect($unsupportedDatabases, array_keys($platform)) as $declaredPlatform) {
+        $errors[] = "unsupported.databases cannot list {$declaredPlatform}, which platform declares as a supported runtime";
+    }
+    requireTokenList($unsupported['filesystems'] ?? null, 'unsupported.filesystems', $errors);
+    requireTokenList($unsupported['web_runtimes'] ?? null, 'unsupported.web_runtimes', $errors);
+    $unsupportedBrowsers = requireTokenList($unsupported['browsers'] ?? null, 'unsupported.browsers', $errors);
+    foreach (array_intersect($unsupportedBrowsers, $browserProjects) as $contradiction) {
+        $errors[] = "platform.browsers.projects and unsupported.browsers both list {$contradiction}";
+    }
     $lastReviewed = requireDate($contract['last_reviewed'] ?? null, 'last_reviewed', $errors);
     $reviewBy = requireDate($contract['review_by'] ?? null, 'review_by', $errors);
     $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
@@ -381,7 +598,7 @@ try {
 
     $adminLock = readJsonObject($root . '/packages/admin/package-lock.json');
     $lockedPlaywright = $adminLock['packages']['node_modules/@playwright/test']['version'] ?? null;
-    requireSame($lockedPlaywright, $browsers['playwright_version'] ?? null, 'locked Playwright version', $errors);
+    requireSame($lockedPlaywright, $playwrightVersion, 'locked Playwright version', $errors);
     requireSame($adminLock['packages']['node_modules/playwright-core']['version'] ?? null, $lockedPlaywright, 'locked playwright-core version', $errors);
 
     $playwrightConfig = (string) file_get_contents($root . '/packages/admin/playwright.config.ts');

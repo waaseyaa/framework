@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Architecture;
 use DateTimeImmutable;
 use DateTimeZone;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -230,6 +231,204 @@ final class CheckSupportContractGateTest extends TestCase
         self::assertStringContainsString('has passed', $out);
     }
 
+    /**
+     * One case per invariant class the checker owns instead of a policy literal:
+     * schema/closed keys, value types, relationships, and safety invariants.
+     *
+     * @param callable(array<string, mixed>): array<string, mixed> $mutate
+     */
+    #[Test]
+    #[DataProvider('contractInvariantViolations')]
+    public function a_contract_that_breaks_an_invariant_fails_closed(callable $mutate, string $expectedError): void
+    {
+        $this->writeFixture($mutate($this->baseContract()), surfaceSource: $this->baseContract());
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(1, $exit, "Invariant violation must fail: {$expectedError}\n{$out}");
+        self::assertStringContainsString($expectedError, $out);
+    }
+
+    /** @return iterable<string, array{0: callable(array<string, mixed>): array<string, mixed>, 1: string}> */
+    public static function contractInvariantViolations(): iterable
+    {
+        yield 'unknown top-level key (closed schema)' => [
+            static function (array $c): array {
+                $c['extra'] = true;
+                return $c;
+            },
+            'contract keys differ',
+        ];
+        yield 'schema_version the checker does not validate' => [
+            static function (array $c): array {
+                $c['schema_version'] = 2;
+                return $c;
+            },
+            'schema_version must be 1',
+        ];
+        yield 'contract_version grammar' => [
+            static function (array $c): array {
+                $c['contract_version'] = 'v1';
+                return $c;
+            },
+            'contract_version must be <profile>-v<revision>',
+        ];
+        yield 'profile.name must be the versioned profile' => [
+            static function (array $c): array {
+                $c['profile']['name'] = 'H1';
+                return $c;
+            },
+            'profile.name H1 must be the profile that contract_version s1-v1 versions',
+        ];
+        yield 'profile.status outside the enum' => [
+            static function (array $c): array {
+                $c['profile']['status'] = 'production';
+                return $c;
+            },
+            'profile.status must be one of [candidate, supported]',
+        ];
+        yield 'profile.status supported without verified evidence' => [
+            static function (array $c): array {
+                $c['profile']['status'] = 'supported';
+                return $c;
+            },
+            'profile.status cannot be supported until both evidence.framework and evidence.consumer are verified',
+        ];
+        yield 'unbounded php constraint' => [
+            static function (array $c): array {
+                $c['platform']['php']['constraint'] = '>=8.5.0';
+                return $c;
+            },
+            'platform.php.constraint must be a bounded range',
+        ];
+        yield 'inverted node constraint' => [
+            static function (array $c): array {
+                $c['platform']['node']['constraint'] = '>=25.0.0 <24.0.0';
+                return $c;
+            },
+            'platform.node.constraint must be a bounded range',
+        ];
+        yield 'php active support ending after security support' => [
+            static function (array $c): array {
+                $c['platform']['php']['active_support_end'] = $c['platform']['php']['security_support_end'];
+                return $c;
+            },
+            'platform.php.active_support_end must precede platform.php.security_support_end',
+        ];
+        yield 'node maintenance starting after eol' => [
+            static function (array $c): array {
+                $c['platform']['node']['maintenance_start'] = '2099-01-01';
+                return $c;
+            },
+            'platform.node.maintenance_start must precede platform.node.eol',
+        ];
+        yield 'impossible calendar date' => [
+            static function (array $c): array {
+                $c['platform']['node']['eol'] = '2028-02-30';
+                return $c;
+            },
+            'platform.node.eol is not a real calendar date',
+        ];
+        yield 'composer feature line off its constraint' => [
+            static function (array $c): array {
+                $c['platform']['composer']['feature_line'] = '2.9';
+                return $c;
+            },
+            'platform.composer.feature_line 2.9 must be the MAJOR.MINOR line of the constraint lower bound 2.10.0',
+        ];
+        yield 'invented composer eol' => [
+            static function (array $c): array {
+                $c['platform']['composer']['dated_eol'] = true;
+                return $c;
+            },
+            'platform.composer.dated_eol must be false',
+        ];
+        yield 'floating runner label' => [
+            static function (array $c): array {
+                $c['platform']['framework_os']['runner'] = 'ubuntu-latest';
+                return $c;
+            },
+            'platform.framework_os.runner ubuntu-latest is a floating label',
+        ];
+        yield 'runner not naming the declared version' => [
+            static function (array $c): array {
+                $c['platform']['framework_os']['version'] = '22.04';
+                return $c;
+            },
+            'platform.framework_os.runner ubuntu-24.04 must end with the declared version 22.04',
+        ];
+        yield 'non-https source' => [
+            static function (array $c): array {
+                $c['platform']['sqlite']['source'] = 'http://packages.ubuntu.com/noble/sqlite3';
+                return $c;
+            },
+            'platform.sqlite.source must be an https URL',
+        ];
+        yield 'notice window out of bounds' => [
+            static function (array $c): array {
+                $c['lifecycle']['next_transition_notice_days'] = 0;
+                return $c;
+            },
+            'lifecycle.next_transition_notice_days must be an integer between 1 and 365',
+        ];
+        yield 'backports must be boolean' => [
+            static function (array $c): array {
+                $c['lifecycle']['backports'] = 'no';
+                return $c;
+            },
+            'lifecycle.backports must be a boolean',
+        ];
+        yield 'framework test point off the declared runner' => [
+            static function (array $c): array {
+                $c['evidence']['framework']['test_point'] = 'ubuntu-22.04-x86_64';
+                return $c;
+            },
+            'evidence.framework.test_point ubuntu-22.04-x86_64 must be the declared platform.framework_os runner and architecture ubuntu-24.04-x86_64',
+        ];
+        yield 'consumer certification presented as complete without proof' => [
+            static function (array $c): array {
+                $c['evidence']['consumer']['status'] = 'verified';
+                return $c;
+            },
+            'evidence.consumer.status cannot be verified before evidence.consumer.proof is populated',
+        ];
+        yield 'own profile listed as unsupported' => [
+            static function (array $c): array {
+                $c['unsupported']['profiles'][] = 'S1';
+                return $c;
+            },
+            "unsupported.profiles cannot list the contract's own profile S1",
+        ];
+        yield 'declared runtime listed as unsupported database' => [
+            static function (array $c): array {
+                $c['unsupported']['databases'][] = 'sqlite';
+                return $c;
+            },
+            'unsupported.databases cannot list sqlite, which platform declares as a supported runtime',
+        ];
+        yield 'browser both supported and unsupported' => [
+            static function (array $c): array {
+                $c['platform']['browsers']['projects'][] = 'webkit';
+                return $c;
+            },
+            'platform.browsers.projects and unsupported.browsers both list webkit',
+        ];
+        yield 'empty unsupported list' => [
+            static function (array $c): array {
+                $c['unsupported']['databases'] = [];
+                return $c;
+            },
+            'unsupported.databases must be a non-empty list',
+        ];
+        yield 'duplicate unsupported entry' => [
+            static function (array $c): array {
+                $c['unsupported']['filesystems'][] = 'nfs';
+                return $c;
+            },
+            'unsupported.filesystems repeats nfs',
+        ];
+    }
+
     /** @return array<string, string> */
     private function acknowledgement(string $transition, string $date, string $reviewBy, ?string $acknowledgedOn = null): array
     {
@@ -269,6 +468,8 @@ final class CheckSupportContractGateTest extends TestCase
                     'constraint' => '>=2.10.0 <3.0.0',
                     'feature_line' => '2.10',
                     'role' => 'dependency-resolution-and-build-tool',
+                    'support_model' => 'bug-and-security-fixes-until-next-minor-release',
+                    'dated_eol' => false,
                     'source' => 'https://getcomposer.org/download/',
                 ],
                 'node' => [
@@ -345,20 +546,22 @@ final class CheckSupportContractGateTest extends TestCase
      * DERIVED from the contract so the tree conforms by construction. Callers
      * then drift a single surface (or the contract) to prove fail-closed.
      *
-     * @param array<string, mixed> $contract
+     * @param array<string, mixed> $contract the contract file to write
      * @param array<string, string> $surfaceOverrides relative path => verbatim content
+     * @param array<string, mixed>|null $surfaceSource contract to derive surfaces from when $contract is deliberately malformed
      */
-    private function writeFixture(array $contract, array $surfaceOverrides = []): void
+    private function writeFixture(array $contract, array $surfaceOverrides = [], ?array $surfaceSource = null): void
     {
-        $platform = $contract['platform'];
+        $source = $surfaceSource ?? $contract;
+        $platform = $source['platform'];
         $php = $platform['php'];
         $node = $platform['node'];
         $composer = $platform['composer'];
         $browsers = $platform['browsers'];
         $os = $platform['framework_os'];
-        $unsupported = $contract['unsupported'];
-        $lifecycle = $contract['lifecycle'];
-        $evidence = $contract['evidence'];
+        $unsupported = $source['unsupported'];
+        $lifecycle = $source['lifecycle'];
+        $evidence = $source['evidence'];
 
         [$phpMin] = $this->bounds($php['constraint']);
         [$nodeMin] = $this->bounds($node['constraint']);

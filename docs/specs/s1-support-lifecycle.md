@@ -68,6 +68,11 @@ The current upstream planning horizons recorded in `support/s1-v1.json` are:
   2029-12-31.
 - Node.js 24 maintenance begins 2026-10-20 and reaches end-of-life 2028-04-30.
 - Ubuntu 24.04 standard security maintenance runs through 2029-05.
+- Composer's 2.10 feature line carries a *relative* support model — bug and
+  security fixes until the next minor release — and no dated end-of-life
+  (`platform.composer.support_model`, `dated_eol: false`). The absence of
+  Composer dates is recorded fact, not an omission; dated lifecycles must not be
+  invented for Composer, SQLite, or browser projects, none of which publish one.
 - SQLite security servicing is supplied through the supported Ubuntu package
   source; upstream SQLite does not publish an equivalent fixed LTS window.
 
