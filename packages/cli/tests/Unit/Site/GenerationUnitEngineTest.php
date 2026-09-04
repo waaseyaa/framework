@@ -52,13 +52,17 @@ final class GenerationUnitEngineTest extends TestCase
     }
 
     #[Test]
-    public function legacyReaderStillRefusesFutureMetadata(): void
+    public function initializeReadsUnitMetadataWithoutRewritingOtherUnits(): void
     {
         $service = new SiteInitializationService($this->root);
         $this->publish($service, $this->plan());
-        $this->expectException(SiteInitializationCollisionException::class);
-        $this->expectExceptionMessage('Generated ownership metadata has an unsupported shape.');
-        $service->initialize($this->site(), true);
+        $before = file_get_contents($this->root . '/.waaseyaa/generated.json');
+
+        $result = $service->initialize($this->site(), true);
+
+        self::assertSame([], $result->changedPaths);
+        self::assertSame('planned', $result->applyResult?->outcome->value);
+        self::assertSame($before, file_get_contents($this->root . '/.waaseyaa/generated.json'));
     }
 
     #[Test]

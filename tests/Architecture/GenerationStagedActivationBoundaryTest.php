@@ -13,9 +13,9 @@ use PHPUnit\Framework\TestCase;
  * handler, no `GEN0xx` code is emitted by a path that cannot honour it, and no
  * entrypoint reaches a half-built engine."
  *
- * Slice 5 completes coded unit refusals inside the dormant execution
- * authority. The production reference is pinned to that single service;
- * entrypoints still cannot reach the generation seams until slice 8.
+ * Slice 8 activates site:init and site:doctor only. Other entrypoints
+ * remain barred until their command-specific migrations; preparation and
+ * ownership readers remain inside the execution authority.
  */
 #[CoversNothing]
 final class GenerationStagedActivationBoundaryTest extends TestCase
@@ -42,7 +42,7 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
     }
 
     #[Test]
-    public function noEntrypointReferencesTheStagedEngineSurface(): void
+    public function onlySiteInitTransportsGenerationResults(): void
     {
         $staged = '/\b(?:EvaluatedArtifactPlan|ArtifactApplyRequest|ArtifactApplyResult|ArtifactPlan|ChangeReceipt)\b/';
         $offenders = [];
@@ -56,14 +56,14 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         }
 
         self::assertSame(
-            [],
+            ['packages/cli/src/Handler/SiteInitHandler.php'],
             $offenders,
-            'A staged generation type reached an entrypoint before the activation slice.',
+            'Generation result transport requires a separately reviewed command migration.',
         );
     }
 
     #[Test]
-    public function noEntrypointEntersTheEvaluationOrReceiptSeam(): void
+    public function onlySiteDoctorEntersUnitInspection(): void
     {
         $offenders = [];
         foreach ($this->productionPhpCodeFiles() as $relative => $code) {
@@ -75,20 +75,20 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
             // scripts use, so it only counts inside a file that also names the
             // service -- precision here, not an allowlist.
             $entersSeam = preg_match('/->\s*(?:receiptFor|inspectUnits|readUnitMetadata|readComposerProviderState|prepareUnitPlan)\s*\(/', $code) === 1
-                || (str_contains($code, 'SiteInitializationService') && preg_match('/->\s*evaluate\s*\(/', $code) === 1);
+                || (str_contains($code, 'SiteInitializationService') && preg_match('/->\s*(?:evaluate|apply)\s*\(/', $code) === 1);
             if ($entersSeam) {
                 $offenders[] = $relative;
             }
         }
 
-        self::assertSame([], $offenders, 'An entrypoint called the half-built engine seam.');
+        self::assertSame(['packages/cli/src/Handler/SiteDoctorHandler.php'], $offenders, 'Only migrated doctor inspection may enter these seams.');
     }
 
     #[Test]
-    public function theThrowingRefusalCarrierIsConfinedToTheDormantExecutionAuthority(): void
+    public function theThrowingRefusalCarrierIsConfinedToTheExecutionAuthority(): void
     {
-        // Slice 5 completes typed unit refusals within the same dormant
-        // authority. A second production caller is still an activation leak.
+        // Typed generation refusals belong to the existing authority.
+        // Command transport does not become a second admission engine.
         $offenders = [];
         foreach ($this->productionPhpCodeFiles() as $relative => $code) {
             if (str_starts_with($relative, self::REFUSAL_FAMILY_DIR)) {
@@ -102,7 +102,7 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         self::assertSame(
             ['packages/cli/src/Site/SiteInitializationService.php'],
             $offenders,
-            'Coded generation refusals must stay in the completed dormant execution authority.',
+            'Coded generation refusals must stay in the execution authority.',
         );
     }
 

@@ -61,10 +61,10 @@ final readonly class SiteDoctorReport
     }
 
     /**
-     * Dormant generation-unit report policy (ADR-025 D-2.7 and D-2.1a).
+     * Generation-unit report policy (ADR-025 D-2.7 and D-2.1a).
      *
-     * No command uses this before the activation slice. The legacy strict
-     * factory remains unchanged; no unrelated warning earns an exception.
+     * Used by unit-aware site:doctor. The legacy strict factory remains
+     * unchanged; no unrelated warning earns an exception.
      *
      * @internal
      * @param list<SiteDoctorFinding> $findings

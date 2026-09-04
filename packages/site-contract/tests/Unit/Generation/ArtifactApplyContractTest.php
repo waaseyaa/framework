@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\SiteContract\Tests\Unit\Generation;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\SiteContract\CanonicalJson;
@@ -150,12 +151,13 @@ final class ArtifactApplyContractTest extends TestCase
             self::STATE_DIGEST,
             ['src/Entity/Story.php' => ArtifactStatus::Refused],
             [],
-            errors: [new GenerationViolation(GenerationErrorCode::StalePlan, 'The captured project state moved.', pointer: '/plan_digest')],
+            errors: [new GenerationViolation(GenerationErrorCode::StalePlan, 'The captured project state moved.')],
         );
 
         self::assertSame([
-            ['code' => 'GEN005_STALE_PLAN', 'message' => 'The captured project state moved.', 'pointer' => '/plan_digest'],
+            ['code' => 'GEN005_STALE_PLAN', 'message' => 'The captured project state moved.'],
         ], $result->toArray()['errors']);
+        self::assertArrayNotHasKey('pointer', $result->toArray()['errors'][0]);
     }
 
     #[Test]
@@ -175,18 +177,28 @@ final class ArtifactApplyContractTest extends TestCase
     }
 
     #[Test]
-    public function theResultRefusesAPublishedPathItReportsNoStatusFor(): void
+    #[DataProvider('publishedOnlyChanges')]
+    public function publishedChangesRoundTripWhenStatusCoversOnlyPlanArtifacts(string $label, array $changed): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Artifact apply result changed a path it reports no status for: src/Entity/Story.php');
-
-        new ArtifactApplyResult(
+        $result = new ArtifactApplyResult(
             ArtifactApplyOutcome::Applied,
             $this->plan()->digest,
             self::STATE_DIGEST,
-            [],
-            ['src/Entity/Story.php'],
+            ['src/Entity/Story.php' => ArtifactStatus::Unchanged],
+            $changed,
         );
+
+        self::assertSame($changed, $result->toArray()['changed'], $label);
+        self::assertSame(['src/Entity/Story.php' => 'unchanged'], $result->toArray()['status']);
+        self::assertSame(CanonicalJson::encode($result->toArray()), $result->canonicalJson());
+        self::assertSame($result->canonicalJson(), CanonicalJson::encode(json_decode($result->canonicalJson(), true, flags: JSON_THROW_ON_ERROR)));
+    }
+
+    public static function publishedOnlyChanges(): iterable
+    {
+        yield 'metadata only' => ['metadata only', ['.waaseyaa/generated.json']];
+        yield 'registration only' => ['registration only', ['composer.json']];
+        yield 'retirement only' => ['retirement only', ['src/Entity/OldStory.php']];
     }
 
     #[Test]

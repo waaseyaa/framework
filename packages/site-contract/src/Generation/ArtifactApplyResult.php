@@ -54,11 +54,6 @@ final readonly class ArtifactApplyResult
             }
             $previous = $path;
         }
-        foreach ($changed as $path) {
-            if (!array_key_exists($path, $status)) {
-                throw new \InvalidArgumentException("Artifact apply result changed a path it reports no status for: {$path}");
-            }
-        }
         if ($outcome !== ArtifactApplyOutcome::Refused && $errors !== []) {
             throw new \InvalidArgumentException('Artifact apply result errors are empty unless the outcome is refused.');
         }

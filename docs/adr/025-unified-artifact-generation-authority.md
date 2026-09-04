@@ -1109,6 +1109,11 @@ times digest-identical, and what makes the digest a stable review handle.
 change-receipt envelope; D-14.7 fixes how these members map onto it and
 where the receipt is durably recorded.
 
+`status` describes only the plan's artifact paths. `changed` also includes
+published ownership metadata, Composer merge effects and retired paths;
+it need not be a subset of `status`. A retirement is not given an invented
+artifact status. Both identities keep the meanings fixed in D-6.3/D-6.5.
+
 This is a strict superset of today's `SiteInitializationResult`
 (`changedPaths`, `dryRun`, `recoveredInterruptedTransaction`,
 `cleanupPending`, `cancelled`), so no information available today is lost;
@@ -1142,10 +1147,20 @@ lock, before any byte is staged, apply:
 
 1. recomputes `plan_digest` over the plan document it was handed, and
    refuses `GEN005` if it differs from the request's `plan_digest`;
-2. recomputes the `ProjectStateIdentity` over the same target set the
-   evaluation used, and refuses `GEN005` if its digest differs from the
-   request's `project_state_digest`, naming the first differing member or
-   target path in the error's `pointer`/`path`.
+2. reconstructs the current target union from the supplied plan and the
+   current validated ownership roster, then recomputes `ProjectStateIdentity`.
+   It refuses `GEN005` if that identity cannot be verified or its digest
+   differs from the request's `project_state_digest`.
+
+The closed request carries an aggregate state digest, not the reviewed
+state snapshot. It cannot reveal the old value or the first differing
+member. A stale refusal therefore omits `path` and `pointer` unless a
+location is independently provable; `pointer` remains a pointer into the
+plan document. Unchanged metadata preserves the reviewed ownership roster;
+changed metadata itself changes the state identity. Apply does not claim to
+reconstruct the old target union from its hash, retain a snapshot, or add a
+second state authority. This clarification was accepted for slice 8 on
+2026-09-04.
 
 Only then does it re-run evaluation and publish. So a `composer.json` edited
 by a human between dry-run and apply, a target file created or modified in
@@ -1925,6 +1940,32 @@ resolves an interrupted transaction and then publishes, it emits a
 with the second naming the first as its `causation_receipt_id`. An outcome
 enum cannot express two durable effects, and collapsing them would make the
 recovery invisible to anyone reading receipts rather than logs.
+
+**Recovery has its own operation identity.** A recovery receipt uses
+`operation: site.recover`. Its `plan_digest` is the deterministic digest of
+the validated recovery instructions derived from the existing transaction
+journal, using canonical JSON and a trailing newline. It identifies the
+recovery operation, not the original publication plan: legacy journals do
+not contain that original plan's digest. The validated journal state used
+to choose recovery actions is included in these instructions. No extra
+snapshot, receipt file or recovery authority is introduced. This
+recovery-specific interpretation was accepted for slice 8 on 2026-09-04.
+
+The existing reserved control-residue cleanup may also run without a journal
+(for example after interruption while staging). Its recovery digest binds a
+sorted, closed instruction list naming only the tree/file entries already
+admitted by that cleanup policy. Journal recovery still derives instructions
+from the validated journal. This distinguishes two existing recovery effects;
+it does not admit new residue names, broaden deletion, create a record, or
+claim an original publication identity. Each completed effect emits its own
+ordered recovery receipt before any later apply receipt.
+
+Successful rollback of an interrupted publication is a recovery effect,
+including when it completes synchronously in the invocation that attempted
+publication. The original publication error still propagates with a
+nonzero command exit; its recovery receipt does not claim apply succeeded.
+If rollback cannot restore the prior state, the terminal receipt is
+`failed` and recovery control state remains available for operator action.
 
 #### D-14.5 Correlation and causation
 

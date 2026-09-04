@@ -27,7 +27,7 @@ final class GenerationUnitActivationBoundaryTest extends TestCase
         );
     }
 
-    public function testHandlersDoNotReachDormantGenerationUnitSeams(): void
+    public function testOnlySiteDoctorReachesUnitInspection(): void
     {
         $root = dirname(__DIR__, 2);
         $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root . '/packages/cli/src/Handler', \FilesystemIterator::SKIP_DOTS));
@@ -49,6 +49,10 @@ final class GenerationUnitActivationBoundaryTest extends TestCase
                 }
             }
         }
-        self::assertSame([], $callers, 'Unit behavior activates only in slice 8.');
+        self::assertSame(
+            [$root . '/packages/cli/src/Handler/SiteDoctorHandler.php:inspectUnits'],
+            $callers,
+            'Only the migrated doctor may inspect unit state; handlers never own metadata, Composer reconciliation or preparation.',
+        );
     }
 }

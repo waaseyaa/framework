@@ -1,10 +1,6 @@
 # CLI Console
 
-<!-- #2846 slice 7 / FW-GENERATION-UNITS-07: dormant additive eligibility is closed to the managed manifest-render root binding. Sorted set deltas reuse existing project-state identity and publication; no handler activation occurs before slice 8. -->
-
-<!-- #2846 slice 6 / FW-GENERATION-UNITS-06: dormant registration roster reconciliation, transactional Composer provider edits and disposition-aware registration doctor ship together. The existing publisher preserves unrelated Composer bytes and original modes; registrations never confer whole-file ownership. Command activation and stale-plan enforcement remain slice 8. -->
-
-<!-- #2846 slice 5 / FW-GENERATION-UNITS-05: dormant unit reconciliation and unit-aware doctor seams are implemented together under ADR-025 D-12.1. No handler calls these seams before slice 8. The live initialization, metadata/journal acceptance, strict-doctor report, and generated-byte contracts below remain unchanged. -->
+<!-- #2846 slice 8 / FW-GENERATION-UNITS-08: site:init and site:doctor activate the shared unit authority; controlled apply binds the transported plan and reviewed state before staging. Other compiler migrations remain closed. -->
 
 <!-- Spec reviewed 2026-09-03 - #2659: `mcp:serve` remains the optional,
 local-development-only stdio command described below. Each `tools/call` now
@@ -424,7 +420,7 @@ verification while being an invalid installation.
 ## Site initialization
 
 `SiteServiceProvider` registers `site:init [--answers=PATH] [--preset=minimal|editorial]
-[--project-root=PATH] [--dry-run] [--yes]`. It runs on the boot-free command
+[--project-root=PATH] [--dry-run] [--yes] [--json]`. It runs on the boot-free command
 seam, alongside `site:doctor` and `db:init`, and composes the Layer-0
 site-contract package. `SiteInitHandler` takes only a project root and
 `SiteArtifactRendererFactory::create()` composes its recipes with `new`, so no
@@ -435,6 +431,25 @@ requires a complete answer document and explicit `--yes`; `--dry-run` performs
 no writes. Publication is serialized by the project initialization lock and
 delegates collision refusal, durable journaling, rollback, crash recovery, and
 generated ownership to `SiteInitializationService`.
+
+`--json` is opt-in and emits one invocation object: `evaluation` (the plan,
+observed project state, both identities, per-artifact statuses, set delta and
+refusals), `result` (the versioned artifact-result document), and `receipts`
+(the ordered change receipts). Failure output also carries an `errors` list;
+when evaluation or a normal apply result is unavailable its member is null.
+JSON mode requires `--answers`, and publication also requires `--yes`; plain output and existing exit codes remain
+unchanged. Preview and pre-apply cancellation emit no apply receipt. Recovery
+receipts use `site.recover` and a digest of validated recovery instructions;
+they never claim the lost original plan identity. Receipts are returned and
+emitted, with no receipt file or retention sink.
+
+The public `apply(ArtifactApplyRequest)` service seam accepts the transported
+plan without recompiling it. Under the existing lock it recovers first,
+compares plan and project-state digests, evaluates through the same authority,
+and publishes only the reviewed state. A mismatched or unverifiable state
+refuses `GEN005`; an aggregate state hash cannot identify a changed location,
+so the refusal is location-free unless independently provable. Default
+initialization uses the same gate after confirmation.
 
 `--preset` (#2442) is an init-time-only shortcut, resolved once by
 `SitePresetResolver` into an ordinary answer document before it ever reaches

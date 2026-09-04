@@ -63,6 +63,7 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
                 new HandlerOption('preset', mode: HandlerOptionMode::Required, description: "Init-time preset resolving deterministically to a manifest: 'minimal' or 'editorial'. Not persisted; see docs/specs/site-golden-path.md"),
                 new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Application project root'),
                 new HandlerOption('dry-run', mode: HandlerOptionMode::None, description: 'Inspect and report the complete change set without writing'),
+                new HandlerOption('json', mode: HandlerOptionMode::None, description: 'Emit the evaluated plan, apply result and change receipts as JSON'),
                 new HandlerOption('yes', shortcut: 'y', mode: HandlerOptionMode::None, description: 'Publish the reviewed transaction non-interactively'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
