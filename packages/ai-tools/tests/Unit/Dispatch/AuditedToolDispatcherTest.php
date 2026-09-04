@@ -20,6 +20,7 @@ use Waaseyaa\AI\Tools\Tests\Support\Dispatch\RecordFailingStrictAuditLedger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\RecordingLogger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\RecordingStrictAuditLedger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\ScriptedTool;
+use Waaseyaa\AI\Tools\Tests\Support\Dispatch\ThrowingLogger;
 use Waaseyaa\AI\Tools\Tests\Support\Dispatch\UnavailableStrictAuditLedger;
 use Waaseyaa\Foundation\Audit\AuditStage;
 use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
@@ -309,6 +310,26 @@ final class AuditedToolDispatcherTest extends TestCase
         self::assertCount(1, $critical);
         self::assertSame('agent_tool.audit_finalize_failed', $critical[0]['message']);
         self::assertStringContainsString('Dangling reservation', (string) $critical[0]['context']['note']);
+    }
+
+    #[Test]
+    public function a_finalize_failure_reported_to_a_broken_logger_never_escapes_dispatch(): void
+    {
+        // The tool has already run and the ledger has already failed to
+        // finalize; the LOGGER also failing must not turn a completed call
+        // into an uncaught exception the caller could mistake for a failed
+        // attempt and retry.
+        $order = new \ArrayObject();
+        $outcome = new AuditedToolDispatcher(
+            $this->inner(order: $order),
+            new FinalizeFailingStrictAuditLedger(),
+            'local.stdio',
+            'corr-1',
+            logger: new ThrowingLogger(),
+        )->dispatch('probe', []);
+
+        self::assertSame(AuditStage::ExecutionSucceeded, $outcome->stage);
+        self::assertSame(['execute'], $order->getArrayCopy());
     }
 
     #[Test]
