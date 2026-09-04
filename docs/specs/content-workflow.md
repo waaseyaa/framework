@@ -169,6 +169,8 @@ Revision/publication selectors used only to preserve persistence invariants rema
   3. **Announce:** dispatch `WorkflowTransitionEvent` (pre + post, Symfony `Event` subclasses like the live `EntityEvent` lifecycle events); write a transition audit entry (see Integration).
 - `getAvailableTransitions(ContentEntityInterface $entity, AccountInterface $account): array<TransitionDefinition>` — the read-side the admin UI renders buttons from. This resurrects the *concept* behind the retired dry-run/guards controllers as a real engine method.
 
+**One state basis for both doors (#2836).** `transition()` and `getAvailableTransitions()` resolve the workflow position from the SAME place: the repository working copy (`loadWorkingCopy()`), never the passed object's own `workflow_state`. Under default-revision discipline a caller may hold a served `find()` snapshot reporting the PUBLISHED pointer while a forward draft tip sits in another state — judging discovery on that snapshot would offer edges execution then refuses as `REASON_ILLEGAL_EDGE`, breaking the "never offer a button the write side would refuse" rule below. Both paths share one private helper that guards a null/empty entity id and degrades to the passed object when no repository or no working copy resolves, matching `WorkflowStateGuard::workingCopyBasis()`'s fallback. Callers that already pre-load the tip (`WorkflowTransitionController`, `WorkflowAuthorityVisibility`, `ContentPublisher`) are unaffected; the public `WorkflowContentPublicationTransitioner` bridge, which passes its argument through untouched, now agrees with execution without caller-side compensation.
+
 ## Save-path guard
 
 An entity pre-save subscriber makes the raw write path equivalent to the service:
