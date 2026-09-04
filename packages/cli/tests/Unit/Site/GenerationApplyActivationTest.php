@@ -469,6 +469,56 @@ final class GenerationApplyActivationTest extends TestCase
     }
 
     #[Test]
+    public function initializeRecoveryReceiptSurvivesAFollowingPreparationException(): void
+    {
+        $site = $this->site();
+        $plan = $this->rootPlan($site);
+        $composerPath = $this->root . '/composer.json';
+        $composer = "{\n    \"name\": \"example/site\"\n}\n";
+        file_put_contents($composerPath, $composer);
+        chmod($composerPath, 0o640);
+        $this->interrupt($plan);
+        $journalPath = $this->root . '/.waaseyaa/site-init.transaction.json';
+        self::assertFileExists($journalPath);
+
+        $sentinel = new \RuntimeException('preparation failed after recovery');
+        $hookCalls = 0;
+        $journalExistedAtHook = null;
+        $service = new SiteInitializationService(
+            $this->root,
+            static function (string $stage, int $index, string $path) use ($sentinel, $journalPath, &$hookCalls, &$journalExistedAtHook): void {
+                if ($stage !== 'after-composer-read') {
+                    return;
+                }
+                $hookCalls++;
+                $journalExistedAtHook = file_exists($journalPath);
+
+                throw $sentinel;
+            },
+        );
+
+        try {
+            $service->initialize($site);
+            self::fail('Expected preparation to fail after recovery.');
+        } catch (SiteInitializationExecutionException $exception) {
+            self::assertSame($sentinel, $exception->getPrevious());
+            self::assertNull($exception->applyResult);
+            self::assertCount(1, $exception->receipts);
+            $this->assertReceipt($exception->receipts[0], ChangeOutcome::Recovered, 'site.recover');
+        }
+
+        self::assertSame(1, $hookCalls);
+        self::assertFalse($journalExistedAtHook, 'Recovery must complete before preparation reaches the Composer observation seam.');
+        self::assertSame($composer, file_get_contents($composerPath));
+        self::assertSame(0o640, fileperms($composerPath) & 0o777);
+        foreach ($site->artifacts as $artifact) {
+            self::assertFileDoesNotExist($this->root . '/' . $artifact->path, $artifact->path);
+        }
+        self::assertFileDoesNotExist($this->root . '/.waaseyaa/.gitignore');
+        $this->assertNoTransactionResidue();
+    }
+
+    #[Test]
     public function recognizedOrphanResidueCleanupEmitsTheOnlyReceiptOnANoOpRetry(): void
     {
         $plan = $this->rootPlan($this->site());
