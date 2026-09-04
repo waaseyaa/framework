@@ -1,0 +1,43 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\Tests\Architecture;
+
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\TestCase;
+
+#[CoversNothing]
+final class GenerationUnitActivationBoundaryTest extends TestCase
+{
+    public function testSeededCompilerAdmissionIsClosedUntilMigration(): void
+    {
+        $authority = new \ReflectionClass(\Waaseyaa\CLI\Site\SiteInitializationService::class);
+        self::assertSame([], $authority->getConstant('SEEDED_COMPILERS'));
+    }
+
+    public function testHandlersDoNotReachDormantGenerationUnitSeams(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root . '/packages/cli/src/Handler', \FilesystemIterator::SKIP_DOTS));
+        $callers = [];
+        foreach ($files as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $source = file_get_contents($file->getPathname());
+            self::assertIsString($source);
+            foreach (token_get_all($source) as $token) {
+                if (!is_array($token) || in_array($token[0], [T_COMMENT, T_DOC_COMMENT, T_WHITESPACE], true)) {
+                    continue;
+                }
+                foreach (['inspectUnits', 'readUnitMetadata', 'prepareUnitPlan'] as $seam) {
+                    if ($seam === trim($token[1], "'\"")) {
+                        $callers[] = $file->getPathname() . ':' . $seam;
+                    }
+                }
+            }
+        }
+        self::assertSame([], $callers, 'Unit behavior activates only in slice 8.');
+    }
+}

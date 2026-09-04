@@ -9,16 +9,22 @@ use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
 use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyResult;
 use Waaseyaa\SiteContract\Generation\ArtifactPlan;
+use Waaseyaa\SiteContract\Generation\ArtifactSetEvolution;
 use Waaseyaa\SiteContract\Generation\ArtifactStatus;
 use Waaseyaa\SiteContract\Generation\ChangeOutcome;
 use Waaseyaa\SiteContract\Generation\ChangeReceipt;
 use Waaseyaa\SiteContract\Generation\EvaluatedArtifactPlan;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\Generation\GeneratedSite;
+use Waaseyaa\SiteContract\Generation\GenerationUnitDisposition;
 use Waaseyaa\SiteContract\Generation\ObservedTargetMode;
 use Waaseyaa\SiteContract\Generation\ObservedTargetState;
 use Waaseyaa\SiteContract\Generation\ProjectStateIdentity;
 use Waaseyaa\SiteContract\Generation\ProjectStateTarget;
+use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /** @api */
@@ -192,42 +198,254 @@ final class SiteInitializationService
     /**
      * Evaluate one immutable plan against this project (ADR-025 D-6.2).
      *
-     * Observes and writes nothing -- not even the control directory -- because
+     * Observes the project and writes nothing -- not even the control directory -- because
      * a preview that mutates is not a preview. It enters the same target
      * evaluator dry-run and apply enter, so no check can differ between them.
      *
-     * Unreachable in this slice: no compiler emits an `ArtifactPlan` yet, so
-     * nothing can call this. Two deliberate deferrals, neither hidden: the
-     * root-binding admission block is not run here, because binding a plan to a
-     * manifest authority is the unit model's job; and a collision still throws
-     * rather than returning a `refused` status, because converting a live
-     * refusal into a status would change behaviour a non-activating slice must
-     * preserve exactly.
+     * No handler reaches this dormant boundary. The unit reader and root
+     * binding are complete here; public apply and its stale-plan check remain
+     * unwired until slice 8. Collisions still throw rather than becoming
+     * refused-status return values.
      */
     public function evaluate(ArtifactPlan $plan): EvaluatedArtifactPlan
     {
         if (is_file($this->absolute(self::JOURNAL))) {
             throw new SiteInitializationCollisionException('An interrupted site initialization must be recovered before a plan is evaluated.');
         }
+        return $this->prepareUnitPlan($plan)['evaluation'];
+    }
+
+    /**
+     * The closed compiler admission list. No seeded compiler has migrated yet.
+     * Persisted provenance is readable independently of new-plan eligibility.
+     *
+     * @var list<string>
+     */
+    private const array SEEDED_COMPILERS = [];
+
+    /** @internal The shared validated reader for the dormant unit-aware doctor.
+     * @return array<string, mixed>
+     */
+    public function readUnitMetadata(): array
+    {
+        $path = $this->absolute(self::METADATA);
+        $this->assertSafeTarget(self::METADATA);
+        $this->assertRegularOwnedFile($path, self::METADATA);
+
+        return $this->readMetadata($path, true);
+    }
+
+    /**
+     * Prepare the complete ownership transition without staging a byte.
+     * Handler activation, stale-plan checking and public apply are slice 8.
+     *
+     * @return array{prepared: array<string, GeneratedArtifact>, retirements: array<string, array<string, mixed>>, evaluation: EvaluatedArtifactPlan}
+     */
+    private function prepareUnitPlan(ArtifactPlan $plan): array
+    {
+        if ($plan->registrations !== [] || $plan->schemaEffects !== [] || $plan->configEffects !== []) {
+            $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'Registration and reserved effects are not active.');
+        }
+        if ($plan->setEvolution !== ArtifactSetEvolution::Frozen) {
+            $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'Additive evolution is not active.');
+        }
+        if (in_array('site', $plan->retires, true)) {
+            $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'The root generation unit is not retirable.');
+        }
+        if ($plan->unitId === 'site' && ($plan->generatorFqcn !== SiteArtifactRenderer::class || $plan->disposition !== GenerationUnitDisposition::Managed)) {
+            $this->unitRefusal(GenerationErrorCode::MaliciousIdentifier, 'The site unit is reserved for the managed root compiler.');
+        }
         $metadataPath = $this->absolute(self::METADATA);
-        $hasMetadata = is_file($metadataPath);
+        $hasMetadata = file_exists($metadataPath) || is_link($metadataPath);
+        $prior = $hasMetadata ? $this->readUnitMetadata() : null;
+        if ($prior === null && $plan->unitId !== 'site') {
+            $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'A non-root unit requires an initialized site.');
+        }
+        if ($prior !== null) {
+            $this->assertSafeTarget('.waaseyaa/site.yaml');
+            $manifestPath = $this->absolute('.waaseyaa/site.yaml');
+            if (!file_exists($manifestPath) && !is_link($manifestPath)) {
+                $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'Generated ownership metadata exists without its manifest authority.');
+            }
+            $this->assertRegularOwnedFile($manifestPath, '.waaseyaa/site.yaml');
+            try {
+                $manifest = new SiteManifestParser()->parse((string) file_get_contents($manifestPath), '.waaseyaa/site.yaml');
+            } catch (\Throwable $exception) {
+                throw new SiteInitializationCollisionException('The previously generated site authority is not reproducible.', previous: $exception);
+            }
+            if (!hash_equals($manifest->digest, $prior['manifest_digest']) || $manifest->generatorVersion !== $prior['generator_version']) {
+                throw new SiteInitializationCollisionException('Generated ownership metadata does not bind the current manifest authority.');
+            }
+        }
+        $units = [];
+        foreach ($prior['units'] ?? [] as $unit) {
+            $units[$unit['id']] = $unit;
+        }
+        $existing = $plan->unitId === 'site'
+            ? ($prior === null ? null : ['generator' => ['fqcn' => SiteArtifactRenderer::class, 'version' => $prior['generator_version']], 'disposition' => 'managed', 'input_digest' => $prior['manifest_digest']])
+            : ($units[$plan->unitId] ?? null);
+        if ($existing === null && $plan->unitId !== 'site' && $plan->artifacts === []) {
+            $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'A new non-root unit must own state.');
+        }
+        if ($existing !== null && ($existing['generator']['fqcn'] !== $plan->generatorFqcn || $existing['generator']['version'] !== $plan->generatorVersion || $existing['disposition'] !== $plan->disposition->value)) {
+            $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'A recorded unit cannot change compiler identity or disposition.');
+        }
+        // @phpstan-ignore function.impossibleType (the reviewed compiler allowlist is intentionally empty before migrations)
+        if ($existing === null && $plan->disposition === GenerationUnitDisposition::Seeded && !in_array($plan->generatorFqcn, self::SEEDED_COMPILERS, true)) {
+            $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'The compiler is not permitted to create seeded units.');
+        }
+        /** @var array<string, array<string, mixed>> $priorRows */
         $priorRows = [];
-        if ($hasMetadata) {
-            foreach ($this->readMetadata($metadataPath)['artifacts'] as $row) {
-                $priorRows[$row['path']] = $row;
+        /** @var array<string, array<string, mixed>> $suppliedRows */
+        $suppliedRows = [];
+        /** @var array<string, array<string, mixed>> $observedRows */
+        $observedRows = [];
+        foreach ($prior['artifacts'] ?? [] as $row) {
+            $priorRows[$row['path']] = $row;
+            $owner = $row['unit'] ?? 'site';
+            if ($owner === $plan->unitId) {
+                $suppliedRows[$row['path']] = $row;
+            }
+            if ($owner === $plan->unitId || in_array($owner, $plan->retires, true)) {
+                $observedRows[$row['path']] = $row;
             }
         }
         $artifacts = [];
         foreach ($plan->artifacts as $artifact) {
+            $this->assertUnitOwnershipPath($artifact->path);
+            if ($artifact->path === self::METADATA) {
+                $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'A compiler cannot own the composed metadata.', $artifact->path);
+            }
+            if (isset($priorRows[$artifact->path]) && ($priorRows[$artifact->path]['unit'] ?? 'site') !== $plan->unitId) {
+                $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'The path belongs to another generation unit.', $artifact->path);
+            }
             $artifacts[$artifact->path] = $artifact;
         }
-        ksort($artifacts, SORT_STRING);
+        $adds = $existing === null ? [] : array_values(array_diff(array_keys($artifacts), array_keys($suppliedRows)));
+        $drops = $existing === null ? [] : array_values(array_diff(array_keys($suppliedRows), array_keys($artifacts)));
+        if ($drops !== []) {
+            $this->unitRefusal(GenerationErrorCode::UndeclaredUnitRetirement, 'A supplied unit cannot drop recorded paths.', (string) $drops[0]);
+        }
+        if ($adds !== []) {
+            throw new SiteInitializationCollisionException('Generated ownership metadata does not match this generator version.');
+        }
+        if ($existing !== null && $plan->disposition === GenerationUnitDisposition::Managed && hash_equals($existing['input_digest'], $plan->inputDigest)) {
+            foreach ($artifacts as $path => $artifact) {
+                if (!hash_equals($suppliedRows[$path]['managed_sha256'], $artifact->managedDigest())) {
+                    $this->unitRefusal(GenerationErrorCode::AmbiguousExtensionRegion, 'Generated bytes changed without a changed input identity.', $path);
+                }
+            }
+        }
+        if ($plan->unitId === 'site') {
+            $rootManifest = $artifacts['.waaseyaa/site.yaml'] ?? null;
+            if (!$rootManifest instanceof GeneratedArtifact) {
+                $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'A root plan requires its manifest authority.');
+            }
+            $renderedManifest = new SiteManifestParser()->parse($rootManifest->content, '.waaseyaa/site.yaml');
+            if (!hash_equals($renderedManifest->digest, $plan->inputDigest) || $renderedManifest->generatorVersion !== $plan->generatorVersion) {
+                $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'The root plan does not bind its manifest authority.');
+            }
+        }
+        $retirements = [];
+        foreach ($observedRows as $path => $row) {
+            $path = (string) $path;
+            if (!in_array($row['unit'] ?? 'site', $plan->retires, true)) {
+                continue;
+            }
+            $this->assertSafeTarget($path);
+            $absolute = $this->absolute($path);
+            if (!file_exists($absolute) && !is_link($absolute)) {
+                $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'A retired artifact is missing.', $path);
+            }
+            $this->assertRegularOwnedFile($absolute, $path);
+            try {
+                $artifact = new GeneratedArtifact($path, (string) file_get_contents($absolute), intval($row['mode'], 8), $row['extension_region'] ?? null);
+                $matches = hash_equals($row['managed_sha256'], $artifact->managedDigest());
+            } catch (\InvalidArgumentException) {
+                $matches = false;
+            }
+            if (!$matches || !$this->modeMatches($absolute, intval($row['mode'], 8))) {
+                $this->unitRefusal(GenerationErrorCode::AmbiguousExtensionRegion, 'Retirement refuses modified generated content or mode.', $path);
+            }
+            $retirements[$path] = $row;
+        }
+        if ($existing !== null && $plan->disposition === GenerationUnitDisposition::Seeded) {
+            $targets = ['prepared' => [], 'status' => array_fill_keys(array_keys($artifacts), ArtifactStatus::Unchanged)];
+        } else {
+            // New, unowned files must retain the same collision polarity as a
+            // pristine publish; an initialized project's existence is no grant.
+            foreach ($artifacts as $path => $artifact) {
+                if (!isset($priorRows[$path]) && (file_exists($this->absolute($path)) || is_link($this->absolute($path)))) {
+                    $this->evaluateTargets([$path => $artifact], false, []);
+                }
+            }
+            $targets = $this->evaluateTargets($artifacts, $hasMetadata, $suppliedRows);
+        }
+        $document = $prior ?? [
+            'schema' => 'waaseyaa.generated', 'version' => 1,
+            'generator_version' => $plan->generatorVersion, 'manifest_digest' => $plan->inputDigest,
+            'artifacts' => [],
+        ];
+        $rows = [];
+        foreach ($priorRows as $path => $row) {
+            $owner = $row['unit'] ?? 'site';
+            if (!in_array($owner, $plan->retires, true) && ($owner !== $plan->unitId || $plan->disposition === GenerationUnitDisposition::Seeded)) {
+                $rows[$path] = $row;
+            }
+        }
+        if ($existing === null || $plan->disposition === GenerationUnitDisposition::Managed) {
+            foreach ($artifacts as $path => $artifact) {
+                $row = ['path' => $path, 'mode' => sprintf('%04o', $artifact->mode), 'managed_sha256' => $artifact->managedDigest()];
+                if ($artifact->extensionRegion !== null) {
+                    $row['extension_region'] = $artifact->extensionRegion;
+                }
+                if ($plan->unitId !== 'site') {
+                    $row['unit'] = $plan->unitId;
+                }
+                $rows[$path] = $row;
+            }
+            if ($plan->unitId === 'site') {
+                $document['generator_version'] = $plan->generatorVersion;
+                $document['manifest_digest'] = $plan->inputDigest;
+            } else {
+                $units[$plan->unitId] = ['id' => $plan->unitId, 'disposition' => $plan->disposition->value, 'generator' => ['fqcn' => $plan->generatorFqcn, 'version' => $plan->generatorVersion], 'input_digest' => $plan->inputDigest];
+            }
+        }
+        foreach ($plan->retires as $retired) {
+            unset($units[$retired]);
+        }
+        ksort($rows, SORT_STRING);
+        ksort($units, SORT_STRING);
+        $document['artifacts'] = array_values($rows);
+        unset($document['units']);
+        if ($units !== []) {
+            $document['units'] = array_values($units);
+        }
+        // Re-derive every supplied managed row from the actual admitted artifact
+        // (including preserved extension bytes), before metadata can be staged.
+        foreach ($artifacts as $path => $artifact) {
+            if ($plan->disposition === GenerationUnitDisposition::Managed) {
+                $admitted = $targets['prepared'][$path] ?? $artifact;
+                if (!hash_equals($rows[$path]['managed_sha256'], $admitted->managedDigest())) {
+                    $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'Composed ownership does not certify the admitted artifact.', $path);
+                }
+            }
+        }
+        $metadata = new GeneratedArtifact(self::METADATA, CanonicalJson::encode($document) . "\n");
+        $metadataTarget = $this->evaluateTargets([self::METADATA => $metadata], $hasMetadata, []);
+        $prepared = $targets['prepared'] + $metadataTarget['prepared'];
+        ksort($prepared, SORT_STRING);
 
-        return new EvaluatedArtifactPlan(
-            $plan,
-            $this->captureProjectState($artifacts, $priorRows),
-            $this->evaluateTargets($artifacts, $hasMetadata, $priorRows)['status'],
-        );
+        return [
+            'prepared' => $prepared,
+            'retirements' => $retirements,
+            'evaluation' => new EvaluatedArtifactPlan($plan, $this->captureProjectState($artifacts, $observedRows), $targets['status'], $adds, $drops),
+        ];
+    }
+
+    private function unitRefusal(GenerationErrorCode $code, string $message, ?string $path = null): never
+    {
+        throw new GenerationRefusalException('generation', [new GenerationViolation($code, $message, $path)]);
     }
 
     /**
@@ -403,8 +621,11 @@ final class SiteInitializationService
         return ['prepared' => $prepared, 'status' => $status];
     }
 
-    /** @param array<string, GeneratedArtifact> $artifacts */
-    private function publish(array $artifacts): bool
+    /**
+     * @param array<string, GeneratedArtifact> $artifacts
+     * @param array<string, array<string, mixed>> $retirements
+     */
+    private function publish(array $artifacts, array $retirements = []): bool
     {
         $transactionId = bin2hex(random_bytes(12));
         $stageRelative = '.waaseyaa/site-init-stage-' . $transactionId;
@@ -414,18 +635,29 @@ final class SiteInitializationService
         $this->makePrivateDirectory($stage);
         $this->makePrivateDirectory($backup);
 
-        $publishOrder = array_keys($artifacts);
+        $publishOrder = array_keys($artifacts + $retirements);
+        if ($retirements !== []) {
+            sort($publishOrder, SORT_STRING);
+        }
         $publishOrder = array_values(array_filter($publishOrder, static fn(string $path): bool => $path !== self::METADATA));
         if (isset($artifacts[self::METADATA])) {
             $publishOrder[] = self::METADATA;
         }
         $items = [];
         foreach ($publishOrder as $index => $path) {
-            $artifact = $artifacts[$path];
+            $removing = isset($retirements[$path]);
+            $artifact = $artifacts[$path] ?? null;
+            $mode = $removing ? intval($retirements[$path]['mode'], 8) : $artifact->mode;
             $stageFile = $stage . '/' . sprintf('%04d.artifact', $index);
-            $this->writeDurably($stageFile, $artifact->content, $artifact->mode);
-            $this->injectFault('after-stage', $index, $path);
+            if (!$removing) {
+                $this->writeDurably($stageFile, $artifact->content, $mode);
+                $this->injectFault('after-stage', $index, $path);
+            }
             $target = $this->absolute($path);
+            if ($removing) {
+                $this->assertSafeTarget($path);
+                $this->assertRegularOwnedFile($target, $path);
+            }
             $existed = is_file($target);
             $backupFile = null;
             $backupMode = null;
@@ -433,21 +665,24 @@ final class SiteInitializationService
                 $backupFile = $backup . '/' . sprintf('%04d.backup', $index);
                 // A host without permission bits has no observed mode to preserve, so the
                 // journal records the declared one and rollback stays reproducible.
-                $backupMode = $this->platform->enforcesPermissionBits() ? fileperms($target) & 0o777 : $artifact->mode;
+                $backupMode = $this->platform->enforcesPermissionBits() ? fileperms($target) & 0o777 : $mode;
                 $this->copyDurably($target, $backupFile, $backupMode);
                 $this->injectFault('after-backup', $index, $path);
             }
             $items[] = [
                 'path' => $path,
-                'stage' => $this->relative($stageFile),
-                'installed_sha256' => $this->digestFile($stageFile),
+                'stage' => $removing ? null : $this->relative($stageFile),
+                'installed_sha256' => $removing ? null : $this->digestFile($stageFile),
                 'backup' => $backupFile === null ? null : $this->relative($backupFile),
                 'backup_sha256' => $backupFile === null ? null : $this->digestFile($backupFile),
                 'backup_mode' => $backupMode,
                 'existed' => $existed,
-                'mode' => $artifact->mode,
+                'mode' => $mode,
                 'state' => 'pending',
             ];
+            if ($removing) {
+                $items[array_key_last($items)]['kind'] = 'remove';
+            }
         }
         $journal = [
             'schema' => 'waaseyaa.site-init-transaction',
@@ -459,12 +694,32 @@ final class SiteInitializationService
             'created_directories' => $this->missingTargetDirectories(array_keys($artifacts)),
             'items' => $items,
         ];
+        if ($retirements !== []) {
+            $journal['removed_directories'] = $this->retirementDirectories(array_keys($retirements));
+        }
         $this->writeJournal($journal);
 
         try {
             foreach ($journal['items'] as $index => &$item) {
                 $item['state'] = 'installing';
                 $this->writeJournal($journal);
+                if (($item['kind'] ?? null) === 'remove') {
+                    $this->injectFault('before-remove', $index, $item['path']);
+                    $target = $this->absolute($item['path']);
+                    $this->assertSafeTarget($item['path']);
+                    $this->assertRegularOwnedFile($target, $item['path']);
+                    if (!hash_equals($item['backup_sha256'], $this->digestFile($target))) {
+                        throw new SiteInitializationCollisionException("Cannot retire a changed generated target: {$item['path']}");
+                    }
+                    if (!unlink($target)) {
+                        throw new \RuntimeException("Unable to retire {$item['path']}.");
+                    }
+                    $this->syncDirectory(dirname($target));
+                    $this->injectFault('after-remove', $index, $item['path']);
+                    $item['state'] = 'applied';
+                    $this->writeJournal($journal);
+                    continue;
+                }
                 $this->injectFault('before-replace', $index, $item['path']);
                 $target = $this->absolute($item['path']);
                 $this->ensureTargetDirectory(dirname($target));
@@ -481,11 +736,31 @@ final class SiteInitializationService
                 $this->writeJournal($journal);
             }
             unset($item);
+            if (isset($journal['removed_directories'])) {
+                foreach ($journal['removed_directories'] as $index => &$directory) {
+                    $absolute = $this->absolute($directory['path']);
+                    $this->assertSafeTarget($directory['path'] . '/placeholder', true);
+                    if (!is_dir($absolute) || is_link($absolute) || !$this->directoryIsEmpty($absolute)) {
+                        continue;
+                    }
+                    $directory['state'] = 'removing';
+                    $this->writeJournal($journal);
+                    $this->injectFault('before-remove-directory', (int) $index, $directory['path']);
+                    if (!rmdir($absolute)) {
+                        throw new \RuntimeException("Unable to remove retired directory {$directory['path']}.");
+                    }
+                    $this->syncDirectory(dirname($absolute));
+                    $this->injectFault('after-remove-directory', (int) $index, $directory['path']);
+                    $directory['state'] = 'applied';
+                    $this->writeJournal($journal);
+                }
+                unset($directory);
+            }
             $journal['state'] = 'committed';
             $this->writeJournal($journal);
         } catch (\Exception $exception) {
             unset($item);
-            $this->rollback($journal);
+            $this->rollback($journal, $retirements !== []);
             throw $exception;
         }
         try {
@@ -498,7 +773,7 @@ final class SiteInitializationService
         return false;
     }
 
-    private function recoverIfRequired(): bool
+    private function recoverIfRequired(bool $unitAware = false): bool
     {
         $path = $this->absolute(self::JOURNAL);
         if (!is_file($path)) {
@@ -513,11 +788,17 @@ final class SiteInitializationService
         if (!is_array($journal)) {
             throw new \RuntimeException('The interrupted site initialization journal is invalid.');
         }
-        $this->validateJournal($journal);
+        $this->validateJournal($journal, $unitAware);
         if ($journal['state'] === 'committed') {
             $this->cleanupTransaction($journal);
+        } elseif ($unitAware && $this->hasMissingRollbackBackup($journal)) {
+            // Cleanup can be interrupted after backups disappear but before
+            // the prepared journal is unlinked. Only a complete proof of the
+            // prior state permits finishing that cleanup without those backups.
+            $this->assertFullyRestoredTransaction($journal);
+            $this->cleanupTransaction($journal);
         } else {
-            $this->rollback($journal);
+            $this->rollback($journal, $unitAware);
         }
 
         $this->cleanupOrphanControlResidue();
@@ -526,8 +807,36 @@ final class SiteInitializationService
     }
 
     /** @param array<string, mixed> $journal */
-    private function rollback(array $journal): void
+    private function rollback(array $journal, bool $unitAware = false): void
     {
+        if ($unitAware) {
+            // Prove every removal before restoring any item or deleting its
+            // recovery evidence. Already-restored exact tuples are valid after
+            // an interruption; merely matching bytes are not enough.
+            $this->validateRetirementRecoveryState($journal);
+            foreach (array_reverse($journal['removed_directories'] ?? []) as $directory) {
+                if ($directory['state'] === 'pending') {
+                    continue;
+                }
+                $this->assertSafeTarget($directory['path'] . '/placeholder', true);
+                $absolute = $this->absolute($directory['path']);
+                if (is_link($absolute) || (file_exists($absolute) && !is_dir($absolute))) {
+                    throw new SiteInitializationCollisionException("Cannot recover a changed target directory: {$directory['path']}");
+                }
+                if (!is_dir($absolute)) {
+                    if (!mkdir($absolute, $directory['mode'])) {
+                        throw new \RuntimeException("Cannot restore target directory {$directory['path']}.");
+                    }
+                    if ($this->platform->enforcesPermissionBits() && !chmod($absolute, $directory['mode'])) {
+                        throw new \RuntimeException("Cannot restore target directory mode {$directory['path']}.");
+                    }
+                    $this->syncDirectory(dirname($absolute));
+                    $this->injectFault('after-rollback-directory', -1, $directory['path']);
+                } elseif ($this->platform->enforcesPermissionBits() && (fileperms($absolute) & 0o777) !== $directory['mode']) {
+                    throw new SiteInitializationCollisionException("Cannot recover a changed target directory mode: {$directory['path']}");
+                }
+            }
+        }
         foreach (array_reverse($journal['items'], true) as $index => $item) {
             if (!in_array($item['state'], ['installing', 'applied'], true)) {
                 continue;
@@ -542,6 +851,20 @@ final class SiteInitializationService
                 if (!hash_equals($item['backup_sha256'], $this->digestFile($backup))) {
                     throw new \RuntimeException("Cannot recover {$item['path']}: its backup was substituted.");
                 }
+                if ($unitAware && ($item['kind'] ?? null) === 'remove' && !file_exists($target) && !is_link($target)) {
+                    $this->assertSafeTarget($item['path']);
+                    $this->assertPathWithinRoot(dirname($target));
+                    $temp = dirname($backup) . '/restore-' . sprintf('%04d', $index) . '-' . bin2hex(random_bytes(6));
+                    $this->copyDurably($backup, $temp, $item['backup_mode']);
+                    $this->injectFault('after-rollback-copy', (int) $index, $item['path']);
+                    if (!rename($temp, $target)) {
+                        @unlink($temp);
+                        throw new \RuntimeException("Cannot restore {$item['path']}.");
+                    }
+                    $this->syncDirectory(dirname($target));
+                    $this->injectFault('after-rollback-restore', (int) $index, $item['path']);
+                    continue;
+                }
                 if (!is_file($target) || is_link($target)) {
                     throw new SiteInitializationCollisionException("Cannot recover a changed generated target: {$item['path']}");
                 }
@@ -554,7 +877,7 @@ final class SiteInitializationService
                     $this->syncFile($target);
                     continue;
                 }
-                if (!hash_equals($item['installed_sha256'], $currentDigest)) {
+                if (($unitAware && ($item['kind'] ?? null) === 'remove') || !hash_equals($item['installed_sha256'], $currentDigest)) {
                     throw new SiteInitializationCollisionException("Cannot recover a substituted generated target: {$item['path']}");
                 }
                 $temp = dirname($backup) . '/restore-' . sprintf('%04d', $index) . '-' . bin2hex(random_bytes(6));
@@ -585,7 +908,121 @@ final class SiteInitializationService
                 $this->syncDirectory(dirname($directory));
             }
         }
+        if ($unitAware) {
+            $this->injectFault('before-rollback-cleanup', -1, '');
+        }
         $this->cleanupTransaction($journal);
+    }
+
+    /** @param array<string, mixed> $journal */
+    private function hasMissingRollbackBackup(array $journal): bool
+    {
+        foreach ($journal['items'] as $item) {
+            if ($item['existed'] === true && !is_file($this->absolute($item['backup']))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param array<string, mixed> $journal */
+    private function assertFullyRestoredTransaction(array $journal): void
+    {
+        foreach ($journal['items'] as $item) {
+            $this->assertSafeTarget($item['path'], true);
+            $absolute = $this->absolute($item['path']);
+            $present = file_exists($absolute) || is_link($absolute);
+            if ($item['existed'] === false) {
+                if ($present) {
+                    throw new SiteInitializationCollisionException("Cannot finish recovery cleanup with a newly present target: {$item['path']}");
+                }
+                continue;
+            }
+            if (!$present) {
+                throw new SiteInitializationCollisionException("Cannot finish recovery cleanup with a missing prior target: {$item['path']}");
+            }
+            $this->assertRegularOwnedFile($absolute, $item['path']);
+            if (!hash_equals($item['backup_sha256'], $this->digestFile($absolute)) || !$this->modeMatches($absolute, $item['backup_mode'])) {
+                throw new SiteInitializationCollisionException("Cannot finish recovery cleanup with a changed prior target: {$item['path']}");
+            }
+        }
+        foreach ($journal['created_directories'] as $relative) {
+            $this->assertSafeTarget($relative . '/placeholder', true);
+            if (file_exists($this->absolute($relative)) || is_link($this->absolute($relative))) {
+                throw new SiteInitializationCollisionException("Cannot finish recovery cleanup with a newly present directory: {$relative}");
+            }
+        }
+        foreach ($journal['removed_directories'] ?? [] as $directory) {
+            $this->assertSafeTarget($directory['path'] . '/placeholder', true);
+            $absolute = $this->absolute($directory['path']);
+            if (!is_dir($absolute) || is_link($absolute) || !$this->modeMatches($absolute, $directory['mode'])) {
+                throw new SiteInitializationCollisionException("Cannot finish recovery cleanup with an unrestored prior directory: {$directory['path']}");
+            }
+        }
+        $this->validateRetirementRecoveryState($journal);
+    }
+
+    /** @param array<string, mixed> $journal */
+    private function validateRetirementRecoveryState(array $journal): void
+    {
+        $removals = [];
+        foreach ($journal['items'] as $item) {
+            if (($item['kind'] ?? null) !== 'remove') {
+                continue;
+            }
+            $removals[$item['path']] = $item;
+            $this->assertUnitOwnershipPath($item['path']);
+            $target = $this->absolute($item['path']);
+            $present = file_exists($target) || is_link($target);
+            if (!$present) {
+                if ($item['state'] === 'pending') {
+                    throw new SiteInitializationCollisionException("Cannot recover a missing pending retirement target: {$item['path']}");
+                }
+                continue;
+            }
+            $this->assertRegularOwnedFile($target, $item['path']);
+            if (!hash_equals($item['backup_sha256'], $this->digestFile($target)) || !$this->modeMatches($target, $item['backup_mode'])) {
+                throw new SiteInitializationCollisionException("Cannot recover a changed retirement target: {$item['path']}");
+            }
+        }
+        $directories = [];
+        foreach ($journal['removed_directories'] ?? [] as $directory) {
+            $directories[$directory['path']] = $directory;
+        }
+        foreach ($directories as $directory) {
+            if ($directory['state'] === 'pending') {
+                continue;
+            }
+            $this->assertSafeTarget($directory['path'] . '/placeholder', true);
+            $absolute = $this->absolute($directory['path']);
+            if (!file_exists($absolute) && !is_link($absolute)) {
+                continue;
+            }
+            if (!is_dir($absolute) || is_link($absolute) || !$this->modeMatches($absolute, $directory['mode'])) {
+                throw new SiteInitializationCollisionException("Cannot recover a changed retirement directory: {$directory['path']}");
+            }
+            $entries = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($absolute, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST,
+            );
+            foreach ($entries as $entry) {
+                $relative = $this->relative($entry->getPathname());
+                $this->assertSafeTarget($relative, true);
+                if ($entry->isLink()) {
+                    throw new SiteInitializationCollisionException("Cannot recover a linked retirement directory entry: {$relative}");
+                }
+                if ($entry->isDir()) {
+                    if (!isset($directories[$relative]) || !$this->modeMatches($entry->getPathname(), $directories[$relative]['mode'])) {
+                        throw new SiteInitializationCollisionException("Cannot recover an unknown retirement directory entry: {$relative}");
+                    }
+                } elseif (!isset($removals[$relative])) {
+                    throw new SiteInitializationCollisionException("Cannot recover an unknown retirement directory entry: {$relative}");
+                }
+                // Every recognized file was proven against its original
+                // digest, private-file identity and mode in the first loop.
+            }
+        }
     }
 
     /** @param array<string, mixed> $journal */
@@ -603,7 +1040,7 @@ final class SiteInitializationService
     }
 
     /** @return array<string, mixed> */
-    private function readMetadata(string $path): array
+    private function readMetadata(string $path, bool $unitAware = false): array
     {
         $raw = (string) file_get_contents($path);
         try {
@@ -614,9 +1051,17 @@ final class SiteInitializationService
         if (!is_array($metadata)) {
             throw new SiteInitializationCollisionException('Generated ownership metadata has an unsupported shape.');
         }
+        if ($unitAware && (!is_string($metadata['manifest_digest'] ?? null))) {
+            $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'The root digest must be a string.');
+        }
         $metadataKeys = array_keys($metadata);
         sort($metadataKeys, SORT_STRING);
-        if ($metadataKeys !== ['artifacts', 'generator_version', 'manifest_digest', 'schema', 'version']
+        $allowedMetadataKeys = ['artifacts', 'generator_version', 'manifest_digest', 'schema', 'version'];
+        if ($unitAware && array_key_exists('units', $metadata)) {
+            $allowedMetadataKeys[] = 'units';
+            sort($allowedMetadataKeys, SORT_STRING);
+        }
+        if ($metadataKeys !== $allowedMetadataKeys
             || ($metadata['schema'] ?? null) !== 'waaseyaa.generated'
             || ($metadata['version'] ?? null) !== 1
             || !is_int($metadata['generator_version'] ?? null)
@@ -626,18 +1071,78 @@ final class SiteInitializationService
             || !hash_equals(CanonicalJson::encode($metadata) . "\n", $raw)) {
             throw new SiteInitializationCollisionException('Generated ownership metadata has an unsupported shape.');
         }
+        $unitIds = [];
+        if ($unitAware) {
+            if (!array_is_list($metadata['artifacts'])) {
+                $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'Artifact records must be a list.');
+            }
+            $unitRows = $metadata['units'] ?? [];
+            if (!is_array($unitRows) || !array_is_list($unitRows) || (array_key_exists('units', $metadata) && $unitRows === [])) {
+                $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'The unit roster must be a nonempty list when present.');
+            }
+            $previousId = null;
+            foreach ($unitRows as $unit) {
+                if (!is_array($unit)) {
+                    $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'A unit record must be an object.');
+                }
+                $keys = array_keys($unit);
+                sort($keys, SORT_STRING);
+                $generator = $unit['generator'] ?? null;
+                $generatorKeys = is_array($generator) ? array_keys($generator) : [];
+                sort($generatorKeys, SORT_STRING);
+                if ($keys !== ['disposition', 'generator', 'id', 'input_digest']
+                    || !is_string($unit['id']) || !is_string($unit['input_digest'])
+                    || !in_array($unit['disposition'], ['managed', 'seeded'], true)
+                    || $generatorKeys !== ['fqcn', 'version']
+                    || !is_string($generator['fqcn']) || $generator['fqcn'] === ''
+                    || !is_int($generator['version']) || $generator['version'] < 1
+                    || preg_match('/^[a-f0-9]{64}$/D', $unit['input_digest']) !== 1) {
+                    $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'The unit record has an unsupported shape.');
+                }
+                $id = $unit['id'];
+                if (strlen($id) > 128 || preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*(?::[a-z0-9]+(?:-[a-z0-9]+)*)*$/D', $id) !== 1) {
+                    $this->unitRefusal(GenerationErrorCode::MaliciousIdentifier, 'The unit id is invalid.');
+                }
+                if ($id === 'site' || ($previousId !== null && strcmp($previousId, $id) >= 0)) {
+                    $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'Unit ids must be unique, non-root and sorted.');
+                }
+                $previousId = $id;
+                $unitIds[$id] = true;
+            }
+        }
         $paths = [];
         foreach ($metadata['artifacts'] as $row) {
+            if ($unitAware && (!is_array($row) || !is_string($row['path'] ?? null) || !is_string($row['managed_sha256'] ?? null) || !is_string($row['mode'] ?? null)
+                || (array_key_exists('extension_region', $row) && !is_string($row['extension_region'])))) {
+                $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'An artifact record has invalid member types.');
+            }
+            if ($unitAware && is_array($row) && is_string($row['path'] ?? null) && isset($paths[$row['path']])) {
+                $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'A path is owned more than once.', $row['path']);
+            }
             if (!is_array($row) || !is_string($row['path'] ?? null) || isset($paths[$row['path']]) || preg_match('/^[a-f0-9]{64}$/D', $row['managed_sha256'] ?? '') !== 1) {
                 throw new SiteInitializationCollisionException('Generated ownership metadata contains an invalid artifact record.');
             }
             $allowed = isset($row['extension_region'])
                 ? ['extension_region', 'managed_sha256', 'mode', 'path']
                 : ['managed_sha256', 'mode', 'path'];
+            if ($unitAware && array_key_exists('unit', $row)) {
+                if (!is_string($row['unit']) || !isset($unitIds[$row['unit']])) {
+                    $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'An artifact names an unknown unit.', $row['path']);
+                }
+                $allowed[] = 'unit';
+                sort($allowed, SORT_STRING);
+            }
             $keys = array_keys($row);
             sort($keys, SORT_STRING);
             if ($keys !== $allowed || preg_match('/^0(?:644|755)$/D', $row['mode'] ?? '') !== 1) {
                 throw new SiteInitializationCollisionException('Generated ownership metadata contains an unsupported artifact record.');
+            }
+            if ($unitAware) {
+                $this->assertUnitOwnershipPath($row['path']);
+                $absolute = $this->absolute($row['path']);
+                if (file_exists($absolute) || is_link($absolute)) {
+                    $this->assertRegularOwnedFile($absolute, $row['path']);
+                }
             }
             $paths[$row['path']] = true;
         }
@@ -774,8 +1279,49 @@ final class SiteInitializationService
         return array_keys($directories);
     }
 
-    private function assertSafeTarget(string $relative): void
+    /** @param list<string> $paths @return list<array{path: string, mode: int, state: string}> */
+    private function retirementDirectories(array $paths): array
     {
+        $directories = [];
+        foreach ($paths as $path) {
+            $relative = dirname($path);
+            while ($relative !== '.' && $relative !== '.waaseyaa') {
+                $this->assertSafeTarget($relative . '/placeholder');
+                $absolute = $this->absolute($relative);
+                if (is_dir($absolute)) {
+                    $directories[$relative] = [
+                        'path' => $relative,
+                        'mode' => $this->platform->enforcesPermissionBits() ? fileperms($absolute) & 0o777 : 0o755,
+                        'state' => 'pending',
+                    ];
+                }
+                $relative = dirname($relative);
+            }
+        }
+        uksort($directories, static function (string $left, string $right): int {
+            $depth = substr_count($right, '/') <=> substr_count($left, '/');
+
+            return $depth !== 0 ? $depth : strcmp($left, $right);
+        });
+
+        return array_values($directories);
+    }
+
+    private function assertUnitOwnershipPath(string $path): void
+    {
+        $this->assertSafeTarget($path, true);
+        if ($path === self::METADATA || $path === self::LOCK || $path === self::JOURNAL
+            || str_starts_with($path, '.waaseyaa/site-init-')
+            || str_starts_with($path, self::JOURNAL . '.')) {
+            $this->unitRefusal(GenerationErrorCode::CollisionRefused, 'Transaction control state cannot be owned by a generation unit.', $path);
+        }
+    }
+
+    private function assertSafeTarget(string $relative, bool $canonical = false): void
+    {
+        if ($canonical && (in_array('', explode('/', $relative), true) || in_array('.', explode('/', $relative), true))) {
+            $this->unitRefusal(GenerationErrorCode::UnsafePath, 'Unit-owned paths must have canonical nonempty segments.', $relative);
+        }
         if ($relative === '' || str_starts_with($relative, '/') || str_contains($relative, '\\') || str_contains("/{$relative}/", '/../') || str_contains($relative, "\0")) {
             throw new SiteInitializationCollisionException("Unsafe generated target: {$relative}");
         }
@@ -841,11 +1387,16 @@ final class SiteInitializationService
     }
 
     /** @param array<string, mixed> $journal */
-    private function validateJournal(array $journal): void
+    private function validateJournal(array $journal, bool $unitAware = false): void
     {
         $keys = array_keys($journal);
         sort($keys, SORT_STRING);
-        if ($keys !== ['backup', 'created_directories', 'id', 'items', 'schema', 'stage', 'state', 'version']
+        $expectedKeys = ['backup', 'created_directories', 'id', 'items', 'schema', 'stage', 'state', 'version'];
+        if ($unitAware && array_key_exists('removed_directories', $journal)) {
+            $expectedKeys[] = 'removed_directories';
+            sort($expectedKeys, SORT_STRING);
+        }
+        if ($keys !== $expectedKeys
             || ($journal['schema'] ?? null) !== 'waaseyaa.site-init-transaction'
             || ($journal['version'] ?? null) !== 1
             || preg_match('/^[a-f0-9]{24}$/D', $journal['id'] ?? '') !== 1
@@ -863,20 +1414,61 @@ final class SiteInitializationService
             }
             $itemKeys = array_keys($item);
             sort($itemKeys, SORT_STRING);
-            if ($itemKeys !== ['backup', 'backup_mode', 'backup_sha256', 'existed', 'installed_sha256', 'mode', 'path', 'stage', 'state']
+            $removing = $unitAware && ($item['kind'] ?? null) === 'remove';
+            $expectedItemKeys = ['backup', 'backup_mode', 'backup_sha256', 'existed', 'installed_sha256', 'mode', 'path', 'stage', 'state'];
+            if ($removing) {
+                $expectedItemKeys[] = 'kind';
+                sort($expectedItemKeys, SORT_STRING);
+            }
+            if ($itemKeys !== $expectedItemKeys
                 || !is_string($item['path'] ?? null)
                 || isset($paths[$item['path']])
                 || !is_bool($item['existed'] ?? null)
                 || !in_array($item['mode'] ?? null, [0o644, 0o755], true)
                 || !in_array($item['state'] ?? null, ['pending', 'installing', 'applied'], true)
-                || preg_match('/^[a-f0-9]{64}$/D', $item['installed_sha256'] ?? '') !== 1
-                || ($item['stage'] ?? null) !== $journal['stage'] . '/' . sprintf('%04d.artifact', $index)
+                || ($removing
+                    ? ($item['installed_sha256'] !== null || $item['stage'] !== null || $item['existed'] !== true || !array_key_exists('removed_directories', $journal))
+                    : (preg_match('/^[a-f0-9]{64}$/D', $item['installed_sha256'] ?? '') !== 1
+                        || ($item['stage'] ?? null) !== $journal['stage'] . '/' . sprintf('%04d.artifact', $index)))
                 || ($item['existed'] === true && (($item['backup'] ?? null) !== $journal['backup'] . '/' . sprintf('%04d.backup', $index) || preg_match('/^[a-f0-9]{64}$/D', $item['backup_sha256'] ?? '') !== 1 || !is_int($item['backup_mode'] ?? null) || $item['backup_mode'] < 0 || $item['backup_mode'] > 0o777))
                 || ($item['existed'] === false && (($item['backup'] ?? null) !== null || ($item['backup_sha256'] ?? null) !== null || ($item['backup_mode'] ?? null) !== null))) {
                 throw new \RuntimeException('The interrupted site initialization journal contains an invalid item.');
             }
+            if ($removing) {
+                $this->assertUnitOwnershipPath($item['path']);
+            }
             $this->assertSafeTarget($item['path']);
             $paths[$item['path']] = true;
+        }
+        if ($unitAware && array_key_exists('removed_directories', $journal)) {
+            if (!is_array($journal['removed_directories']) || !array_is_list($journal['removed_directories'])) {
+                throw new \RuntimeException('The interrupted site initialization journal contains invalid retired directories.');
+            }
+            $seenDirectories = [];
+            foreach ($journal['removed_directories'] as $directory) {
+                if (!is_array($directory)) {
+                    throw new \RuntimeException('The interrupted site initialization journal contains an invalid retired directory.');
+                }
+                $directoryKeys = array_keys($directory);
+                sort($directoryKeys, SORT_STRING);
+                if ($directoryKeys !== ['mode', 'path', 'state'] || !is_string($directory['path'])
+                    || in_array($directory['path'], ['', '.', '.waaseyaa'], true) || isset($seenDirectories[$directory['path']])
+                    || !is_int($directory['mode']) || $directory['mode'] < 0 || $directory['mode'] > 0o777
+                    || !in_array($directory['state'], ['pending', 'removing', 'applied'], true)) {
+                    throw new \RuntimeException('The interrupted site initialization journal contains an invalid retired directory.');
+                }
+                $this->assertSafeTarget($directory['path'] . '/placeholder', true);
+                $ownsRemoval = false;
+                foreach ($journal['items'] as $item) {
+                    if (($item['kind'] ?? null) === 'remove' && str_starts_with($item['path'], $directory['path'] . '/')) {
+                        $ownsRemoval = true;
+                    }
+                }
+                if (!$ownsRemoval) {
+                    throw new \RuntimeException('The interrupted site initialization journal contains an unowned retired directory.');
+                }
+                $seenDirectories[$directory['path']] = true;
+            }
         }
         $directories = [];
         foreach ($journal['created_directories'] as $directory) {

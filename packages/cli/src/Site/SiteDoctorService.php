@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Site;
 
+use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\SiteContract\Doctor\ArchitectureScanner;
 use Waaseyaa\SiteContract\Doctor\DoctorSuppressionSet;
 use Waaseyaa\SiteContract\Doctor\FindingSeverity;
@@ -17,6 +18,17 @@ final class SiteDoctorService
 {
     public function inspect(string $projectRoot, ?\DateTimeImmutable $today = null): SiteDoctorReport
     {
+        return $this->inspectProject($projectRoot, $today, false);
+    }
+
+    /** @internal Dormant until ADR-025 slice 8; no command calls this seam. */
+    public function inspectUnits(string $projectRoot, ?\DateTimeImmutable $today = null): SiteDoctorReport
+    {
+        return $this->inspectProject($projectRoot, $today, true);
+    }
+
+    private function inspectProject(string $projectRoot, ?\DateTimeImmutable $today, bool $unitAware): SiteDoctorReport
+    {
         $root = realpath($projectRoot);
         if ($root === false || !is_dir($root)) {
             throw new \InvalidArgumentException('Site doctor requires an existing project root.');
@@ -26,7 +38,7 @@ final class SiteDoctorService
         $manifest = new SiteManifestParser()->parse($manifestBytes, '.waaseyaa/site.yaml');
         $snapshot = new ProjectSourceDiscovery()->discover($root);
         $findings = new ArchitectureScanner()->scan($snapshot->sources);
-        $findings = [...$findings, ...$this->provenanceFindings($root, $manifest->framework->observedLockSha256), ...$this->generatedArtifactFindings($root, $manifest)];
+        $findings = [...$findings, ...$this->provenanceFindings($root, $manifest->framework->observedLockSha256), ...($unitAware ? $this->generatedUnitArtifactFindings($root, $manifest) : $this->generatedArtifactFindings($root, $manifest))];
         $suppressed = [];
         $suppressionPath = $root . '/.waaseyaa/site-doctor-suppressions.yaml';
         if (is_file($suppressionPath)) {
@@ -38,7 +50,9 @@ final class SiteDoctorService
         $lockDigest = is_file($root . '/composer.lock') ? hash_file('sha256', $root . '/composer.lock') : false;
         $metadataDigest = is_file($root . '/.waaseyaa/generated.json') ? hash_file('sha256', $root . '/.waaseyaa/generated.json') : false;
 
-        return SiteDoctorReport::strict(
+        $reportFactory = $unitAware ? SiteDoctorReport::generation(...) : SiteDoctorReport::strict(...);
+
+        return $reportFactory(
             $manifest->digest,
             $snapshot->digest,
             $findings,
@@ -103,6 +117,60 @@ final class SiteDoctorService
             $fileMode = is_file($path) && DIRECTORY_SEPARATOR === '/' ? fileperms($path) : null;
             if ($fileMode !== null && ($fileMode === false || sprintf('%04o', $fileMode & 0o777) !== $row['mode'])) {
                 $findings[] = $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', $row['path'], 1, 'Managed generated artifact mode was substituted.', 'Restore the declared mode through site:init.', is_int($fileMode) ? sprintf('%04o', $fileMode & 0o777) : 'unreadable');
+            }
+        }
+
+        return $findings;
+    }
+
+    /** @return list<SiteDoctorFinding> */
+    private function generatedUnitArtifactFindings(string $root, \Waaseyaa\SiteContract\SiteManifest $manifest): array
+    {
+        try {
+            // Reading and target admission belong to the existing execution
+            // authority, including every carried path; doctor owns no parser.
+            $metadata = new SiteInitializationService($root)->readUnitMetadata();
+        } catch (\Throwable) {
+            return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated unit ownership metadata is missing or invalid.', 'Restore the governed ownership metadata.', 'invalid-units')];
+        }
+        $projection = $metadata;
+        unset($projection['units']);
+        $projection['artifacts'] = array_values(array_filter($metadata['artifacts'], static fn(array $row): bool => !array_key_exists('unit', $row)));
+        $expected = SiteArtifactRendererFactory::create()->render($manifest)->artifacts['.waaseyaa/generated.json']->content;
+        if (!hash_equals($expected, CanonicalJson::encode($projection) . "\n")) {
+            return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, '[unit site; disposition managed] Generated root ownership was substituted or does not match its manifest.', 'Restore the root generated artifact set.', CanonicalJson::encode($projection))];
+        }
+        $units = [];
+        foreach ($metadata['units'] ?? [] as $unit) {
+            $units[$unit['id']] = $unit['disposition'];
+        }
+        $findings = [];
+        foreach ($metadata['artifacts'] as $row) {
+            $unit = $row['unit'] ?? 'site';
+            $disposition = $units[$unit] ?? 'managed';
+            $context = "[unit {$unit}; disposition {$disposition}] ";
+            $path = $root . '/' . $row['path'];
+            $content = is_file($path) ? file_get_contents($path) : false;
+            if (!is_string($content)) {
+                $findings[] = $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', $row['path'], 1, $context . 'Recorded artifact is missing or unreadable.', 'Restore the recorded artifact.', 'missing');
+                continue;
+            }
+            try {
+                $actual = new GeneratedArtifact($row['path'], $content, intval($row['mode'], 8), $row['extension_region'] ?? null)->managedDigest();
+            } catch (\Throwable) {
+                $actual = '';
+            }
+            if (!hash_equals($row['managed_sha256'], $actual)) {
+                if ($disposition === 'seeded') {
+                    $id = 'SITE013_SEEDED_ARTIFACT_MODIFIED';
+                    $findings[] = new SiteDoctorFinding($id, FindingSeverity::Warning, $row['path'], 1, $context . 'Seeded artifact was modified since generation.', 'Review the developer-owned changes; regeneration does not overwrite them.', hash('sha256', $id . "\0" . $row['path'] . "\0" . $content));
+                } else {
+                    $findings[] = $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', $row['path'], 1, $context . 'Managed artifact bytes were substituted.', 'Restore the generated artifact; use only declared extension regions for local changes.', $actual);
+                }
+            }
+            $mode = DIRECTORY_SEPARATOR === '/' ? fileperms($path) : null;
+            if ($mode !== null && ($mode === false || sprintf('%04o', $mode & 0o777) !== $row['mode'])) {
+                $findings[] = $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', $row['path'], 1, $context . 'Recorded artifact mode was substituted.', 'Restore the recorded mode.', is_int($mode) ? sprintf('%04o', $mode & 0o777) : 'unreadable');
             }
         }
 

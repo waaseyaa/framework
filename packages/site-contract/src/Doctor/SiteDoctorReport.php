@@ -60,6 +60,44 @@ final readonly class SiteDoctorReport
         return new self($manifestDigest, $sourceDigest, $composerLockDigest, $generatedMetadataDigest, $findings, $suppressed, $passed, $passed ? 'OK' : 'FAILED');
     }
 
+    /**
+     * Dormant generation-unit report policy (ADR-025 D-2.7).
+     *
+     * No command uses this before the activation slice. The legacy strict
+     * factory remains unchanged; no unrelated warning earns an exception.
+     *
+     * @internal
+     * @param list<SiteDoctorFinding> $findings
+     * @param list<SiteDoctorFinding> $suppressed
+     */
+    public static function generation(
+        string $manifestDigest,
+        string $sourceDigest,
+        array $findings,
+        array $suppressed = [],
+        ?string $composerLockDigest = null,
+        ?string $generatedMetadataDigest = null,
+    ): self {
+        $report = self::strict($manifestDigest, $sourceDigest, $findings, $suppressed, $composerLockDigest, $generatedMetadataDigest);
+        $blocking = array_filter($report->findings, static fn(SiteDoctorFinding $finding): bool =>
+            $finding->id !== 'SITE013_SEEDED_ARTIFACT_MODIFIED'
+            || $finding->severity !== FindingSeverity::Warning);
+        if ($blocking !== [] || $report->findings === []) {
+            return $report;
+        }
+
+        return new self(
+            $report->manifestDigest,
+            $report->sourceDigest,
+            $report->composerLockDigest,
+            $report->generatedMetadataDigest,
+            $report->findings,
+            $report->suppressed,
+            true,
+            'PASSED_WITH_NOTICES',
+        );
+    }
+
     public function exitCode(): int
     {
         return $this->passed ? 0 : 1;

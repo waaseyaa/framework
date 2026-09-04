@@ -47,11 +47,9 @@ final class SiteInitializationEvaluationTest extends TestCase
         $plan = $this->plan();
         $evaluated = new SiteInitializationService($this->root)->evaluate($plan);
 
-        self::assertSame([
-            'src/Entity/Story.php' => ArtifactStatus::Created,
-            'tests/Entity/StoryTest.php' => ArtifactStatus::Created,
-        ], $evaluated->status);
-        self::assertSame(['src/Entity/Story.php', 'tests/Entity/StoryTest.php'], $evaluated->changed());
+        $paths = array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $plan->artifacts);
+        self::assertSame(array_fill_keys($paths, ArtifactStatus::Created), $evaluated->status);
+        self::assertSame($paths, $evaluated->changed());
         self::assertSame([], $evaluated->refusals);
         self::assertSame($plan->digest, $evaluated->planDigest);
         self::assertSame($evaluated->projectState->digest, $evaluated->projectStateDigest);
@@ -83,7 +81,6 @@ final class SiteInitializationEvaluationTest extends TestCase
     public function theCapturedIdentityRecordsExactlyWhatWasObserved(): void
     {
         mkdir($this->root . '/.waaseyaa', 0o700, true);
-        file_put_contents($this->root . '/.waaseyaa/site.yaml', "schema: waaseyaa.site\n");
         file_put_contents($this->root . '/composer.json', "{}\n");
 
         $state = new SiteInitializationService($this->root)->evaluate($this->plan())->projectState;
@@ -92,13 +89,13 @@ final class SiteInitializationEvaluationTest extends TestCase
             $targets[$target->path] = $target;
         }
 
-        self::assertSame(['src/Entity/Story.php', 'tests/Entity/StoryTest.php'], array_keys($targets));
+        self::assertSame(array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $this->plan()->artifacts), array_keys($targets));
         foreach ($targets as $target) {
             self::assertSame(ObservedTargetState::Absent, $target->state);
             self::assertSame(ProjectStateIdentity::ABSENT_DIGEST, $target->sha256);
             self::assertSame(ObservedTargetMode::Unknown, $target->mode);
         }
-        self::assertSame(hash('sha256', "schema: waaseyaa.site\n"), $state->manifestSha256);
+        self::assertSame(ProjectStateIdentity::ABSENT_DIGEST, $state->manifestSha256);
         self::assertSame(hash('sha256', "{}\n"), $state->composerJsonSha256);
         self::assertSame(ProjectStateIdentity::ABSENT_DIGEST, $state->generatedMetadataSha256);
     }
@@ -110,10 +107,10 @@ final class SiteInitializationEvaluationTest extends TestCase
         // refuses an existing unowned file with the message site:init already
         // emits, rather than inventing a second one.
         mkdir($this->root . '/src/Entity', 0o755, true);
-        file_put_contents($this->root . '/src/Entity/Story.php', "<?php\n// mine\n");
+        file_put_contents($this->root . '/AGENTS.md', "<?php\n// mine\n");
 
         $this->expectException(SiteInitializationCollisionException::class);
-        $this->expectExceptionMessage('Refusing to overwrite unowned artifact: src/Entity/Story.php');
+        $this->expectExceptionMessage('Refusing to overwrite unowned artifact: AGENTS.md');
 
         new SiteInitializationService($this->root)->evaluate($this->plan());
     }
@@ -168,7 +165,9 @@ final class SiteInitializationEvaluationTest extends TestCase
 
             $site = new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($this->manifest()));
             $plan = $this->planWith(array_values(array_filter(
-                iterator_to_array((function () use ($site) { yield from $site->artifacts; })()),
+                iterator_to_array((function () use ($site) {
+                    yield from $site->artifacts;
+                })()),
                 static fn(GeneratedArtifact $a): bool => $a->path !== '.waaseyaa/generated.json',
             )));
 
@@ -248,7 +247,6 @@ final class SiteInitializationEvaluationTest extends TestCase
         // The honest predicate is effect, not a filename allowlist: snapshot
         // the whole root and assert the file set and every byte are unchanged.
         mkdir($this->root . '/.waaseyaa', 0o700, true);
-        file_put_contents($this->root . '/.waaseyaa/site.yaml', "schema: waaseyaa.site\n");
         $before = $this->snapshot();
 
         $service = new SiteInitializationService($this->root);
@@ -296,23 +294,25 @@ final class SiteInitializationEvaluationTest extends TestCase
 
     private function plan(): ArtifactPlan
     {
-        return $this->planWith([
-            new GeneratedArtifact('src/Entity/Story.php', "<?php\n\nfinal class Story {}\n"),
-            new GeneratedArtifact('tests/Entity/StoryTest.php', "<?php\n\nfinal class StoryTest {}\n"),
-        ]);
+        $site = new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($this->manifest()));
+
+        return $this->planWith(array_values(array_filter($site->artifacts, static fn(GeneratedArtifact $artifact): bool => $artifact->path !== '.waaseyaa/generated.json')));
     }
 
     /** @param list<GeneratedArtifact> $artifacts */
     private function planWith(array $artifacts): ArtifactPlan
     {
         usort($artifacts, static fn(GeneratedArtifact $a, GeneratedArtifact $b): int => strcmp($a->path, $b->path));
+        $manifest = new SiteManifestParser()->parse($this->manifest());
 
+        // Slice 4's seeded scaffold placeholder had no lawful compiler
+        // admission or root binding. Slice 5 completes that dormant boundary.
         return new ArtifactPlan(
-            'Example\\Generation\\StoryScaffoldCompiler',
-            1,
-            'scaffold:content-type:story',
-            GenerationUnitDisposition::Seeded,
-            self::INPUT_DIGEST,
+            SiteArtifactRenderer::class,
+            $manifest->generatorVersion,
+            'site',
+            GenerationUnitDisposition::Managed,
+            $manifest->digest,
             $artifacts,
         );
     }

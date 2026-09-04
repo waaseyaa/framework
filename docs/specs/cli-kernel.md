@@ -1,5 +1,7 @@
 # CLI Console
 
+<!-- #2846 slice 5 / FW-GENERATION-UNITS-05: dormant unit reconciliation and unit-aware doctor seams are implemented together under ADR-025 D-12.1. No handler calls these seams before slice 8. The live initialization, metadata/journal acceptance, strict-doctor report, and generated-byte contracts below remain unchanged. -->
+
 <!-- Spec reviewed 2026-09-03 - #2659: `mcp:serve` remains the optional,
 local-development-only stdio command described below. Each `tools/call` now
 binds its transport-owned correlation id into the inner AgentToolDispatcher as

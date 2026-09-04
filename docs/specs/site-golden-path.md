@@ -1,5 +1,7 @@
 # Fresh-site golden path
 
+<!-- #2846 slice 5 / FW-GENERATION-UNITS-05: dormant unit reconciliation and unit-aware doctor seams are implemented together under ADR-025 D-12.1. No handler calls these seams before slice 8. The live initialization, metadata/journal acceptance, strict-doctor report, and generated-byte contracts below remain unchanged. -->
+
 <!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented, and its non-interactive input is the closed, versioned `waaseyaa.site-seed` v1 document. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. Presets land the declarative half only - activating a declared capability in the canonical lifecycle is the pre-existing gap tracked by #2857, decided by #2845/#2846. -->
 <!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
 
