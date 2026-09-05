@@ -22,10 +22,10 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->directory . '/*') ?: [] as $path) {
-            unlink($path);
+        if ($this->directory === '' || !is_dir($this->directory)) {
+            return;
         }
-        rmdir($this->directory);
+        new \Symfony\Component\Filesystem\Filesystem()->remove($this->directory);
     }
 
     #[Test]
@@ -44,6 +44,202 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
 
         self::assertSame(1, $result['exit_code']);
         self::assertStringContainsString('60.00%', $result['output']);
+        self::assertStringContainsString('uncovered:', $result['output']);
+        self::assertStringContainsString('packages/demo/src/Example.php:4', $result['output']);
+        self::assertStringContainsString('packages/demo/src/Example.php:5', $result['output']);
+    }
+
+    #[Test]
+    public function it_reports_clover_absent_changed_executable_lines_as_uninstrumented_without_inflating_the_percentage(): void
+    {
+        $source = <<<'PHP'
+            <?php
+            namespace Waaseyaa\Demo;
+            final class ChildOnly
+            {
+                public function run(): int
+                {
+                    return 1;
+                }
+            }
+            PHP;
+        mkdir($this->directory . '/packages/demo/src', 0o755, true);
+        file_put_contents($this->directory . '/packages/demo/src/ChildOnly.php', $source);
+
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -1 +1 @@\n"
+            . "diff --git a/packages/demo/src/ChildOnly.php b/packages/demo/src/ChildOnly.php\n"
+            . "+++ b/packages/demo/src/ChildOnly.php\n@@ -6,0 +6,2 @@\n";
+
+        $result = $this->runRatchetFixture(
+            $diff,
+            ['packages/demo/src/Example.php' => [1 => 1]],
+            80,
+            $this->directory,
+        );
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('1/1 executable changed lines covered (100.00%', $result['output']);
+        self::assertStringContainsString('uninstrumented:', $result['output']);
+        self::assertStringContainsString('packages/demo/src/ChildOnly.php:7', $result['output']);
+        self::assertStringNotContainsString('packages/demo/src/ChildOnly.php:6', $result['output']);
+        self::assertStringContainsString('denominator excludes uninstrumented lines', $result['output']);
+    }
+
+    #[Test]
+    public function it_labels_covers_nothing_only_uncovered_lines_as_excluded_attribution(): void
+    {
+        $source = <<<'PHP'
+            <?php
+            namespace Waaseyaa\Demo;
+            final class Example
+            {
+                public function answer(bool $allowed): int
+                {
+                    if (!$allowed) {
+                        return 403;
+                    }
+                    return 200;
+                }
+            }
+            PHP;
+        mkdir($this->directory . '/packages/demo/src', 0o755, true);
+        mkdir($this->directory . '/tests/Integration', 0o755, true);
+        file_put_contents($this->directory . '/packages/demo/src/Example.php', $source);
+        file_put_contents(
+            $this->directory . '/tests/Integration/ExampleFlowTest.php',
+            "<?php\nuse PHPUnit\\Framework\\Attributes\\CoversNothing;\nuse Waaseyaa\\Demo\\Example;\n#[CoversNothing]\nfinal class ExampleFlowTest {}\n",
+        );
+
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -7,0 +7,2 @@\n"
+            . "diff --git a/tests/Integration/ExampleFlowTest.php b/tests/Integration/ExampleFlowTest.php\n"
+            . "+++ b/tests/Integration/ExampleFlowTest.php\n@@ -0,0 +1,5 @@\n";
+
+        $result = $this->runRatchetFixture(
+            $diff,
+            ['packages/demo/src/Example.php' => [7 => 0, 8 => 0]],
+            80,
+            $this->directory,
+        );
+
+        self::assertSame(1, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('excluded-attribution:', $result['output']);
+        self::assertStringContainsString('packages/demo/src/Example.php:7', $result['output']);
+        self::assertStringContainsString('#[CoversNothing]', $result['output']);
+        self::assertStringContainsString('tests/Integration/ExampleFlowTest.php', $result['output']);
+    }
+
+    #[Test]
+    public function vendor_less_ci_coverage_job_keeps_the_eighty_percent_ratchet(): void
+    {
+        $result = $this->runRatchetFixture(
+            "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -1,5 +1,5 @@\n",
+            ['packages/demo/src/Example.php' => [1 => 1, 2 => 1, 3 => 1, 4 => 1, 5 => 0]],
+            80,
+            skipAutoload: true,
+        );
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('4/5 executable changed lines covered (80.00%', $result['output']);
+        self::assertStringContainsString('vendor autoload unavailable', $result['output']);
+    }
+
+    #[Test]
+    public function comment_only_change_on_a_clover_present_file_is_not_labelled_absent(): void
+    {
+        $source = <<<'PHP'
+            <?php
+            namespace Waaseyaa\Demo;
+            final class Example
+            {
+                // comment-only touch target
+                public function answer(): int
+                {
+                    return 200;
+                }
+            }
+            PHP;
+        mkdir($this->directory . '/packages/demo/src', 0o755, true);
+        file_put_contents($this->directory . '/packages/demo/src/Example.php', $source);
+
+        // Diff touches only the comment line; Clover still lists other stmts in
+        // the same file — vendor-less mode must not claim the file is absent.
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -5 +5 @@\n";
+
+        $result = $this->runRatchetFixture(
+            $diff,
+            ['packages/demo/src/Example.php' => [8 => 1]],
+            80,
+            $this->directory,
+            skipAutoload: true,
+        );
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('no executable Clover lines', $result['output']);
+        self::assertStringNotContainsString('absent from Clover', $result['output']);
+    }
+
+    #[Test]
+    public function clover_statement_counts_match_with_and_without_static_analysis(): void
+    {
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -1,5 +1,5 @@\n";
+        $files = ['packages/demo/src/Example.php' => [1 => 1, 2 => 1, 3 => 1, 4 => 1, 5 => 0]];
+
+        $withAnalysis = $this->runRatchetFixture($diff, $files, 80);
+        $withoutAnalysis = $this->runRatchetFixture($diff, $files, 80, skipAutoload: true);
+
+        self::assertSame(0, $withAnalysis['exit_code'], $withAnalysis['output']);
+        self::assertSame(0, $withoutAnalysis['exit_code'], $withoutAnalysis['output']);
+        self::assertStringContainsString('4/5 executable changed lines covered (80.00%', $withAnalysis['output']);
+        self::assertStringContainsString('4/5 executable changed lines covered (80.00%', $withoutAnalysis['output']);
+    }
+
+    #[Test]
+    public function excluded_attribution_does_not_claim_execution_from_test_text_alone(): void
+    {
+        $source = <<<'PHP'
+            <?php
+            namespace Waaseyaa\Demo;
+            final class Example
+            {
+                public function answer(bool $allowed): int
+                {
+                    if (!$allowed) {
+                        return 403;
+                    }
+                    return 200;
+                }
+            }
+            PHP;
+        mkdir($this->directory . '/packages/demo/src', 0o755, true);
+        mkdir($this->directory . '/tests/Integration', 0o755, true);
+        file_put_contents($this->directory . '/packages/demo/src/Example.php', $source);
+        file_put_contents(
+            $this->directory . '/tests/Integration/ExampleFlowTest.php',
+            "<?php\nuse PHPUnit\\Framework\\Attributes\\CoversNothing;\nuse Waaseyaa\\Demo\\Example;\n#[CoversNothing]\nfinal class ExampleFlowTest {}\n",
+        );
+
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -7,0 +7,2 @@\n"
+            . "diff --git a/tests/Integration/ExampleFlowTest.php b/tests/Integration/ExampleFlowTest.php\n"
+            . "+++ b/tests/Integration/ExampleFlowTest.php\n@@ -0,0 +1,5 @@\n";
+
+        $result = $this->runRatchetFixture(
+            $diff,
+            ['packages/demo/src/Example.php' => [7 => 0, 8 => 0]],
+            80,
+            $this->directory,
+        );
+
+        self::assertSame(1, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('excluded-attribution:', $result['output']);
+        self::assertStringNotContainsString('were executed', $result['output']);
+        self::assertStringNotContainsString('was executed', $result['output']);
+        self::assertStringContainsString('not proof of execution', $result['output']);
     }
 
     #[Test]
@@ -189,8 +385,13 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
      * @param array<string, array<int, int>> $files
      * @return array{exit_code: int, output: string}
      */
-    private function runRatchetFixture(string $diff, array $files, int $threshold): array
-    {
+    private function runRatchetFixture(
+        string $diff,
+        array $files,
+        int $threshold,
+        ?string $sourceRoot = null,
+        bool $skipAutoload = false,
+    ): array {
         file_put_contents($this->directory . '/change.diff', $diff);
 
         $cloverFiles = '';
@@ -213,6 +414,13 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
             '--diff-file=' . $this->directory . '/change.diff',
             '--threshold=' . $threshold,
         ];
+        if ($sourceRoot !== null) {
+            $command[] = '--root=' . $sourceRoot;
+        }
+        if ($skipAutoload) {
+            $command[] = '--skip-autoload';
+        }
+
         return $this->runProcess($command);
     }
 

@@ -58,6 +58,35 @@ skip only the changed-line comparison.
 Local tests remain coverage-free by default. Developers opt into coverage only
 when investigating a gap, which keeps the normal feedback loop proportionate.
 
+### Attribution classes (changed-line gate)
+
+`bin/check-changed-php-coverage` still blocks on the same 80 percent formula —
+covered ÷ (covered + uncovered) among **changed executable lines that appear as
+Clover statements**. Beside that percentage it always prints a classification
+so operators can see when the number is incomplete:
+
+| Class | Meaning |
+| --- | --- |
+| **covered** | Changed executable Clover stmt with `count > 0` (attributed by a coverage-bearing test). |
+| **uncovered** | Changed executable Clover stmt with `count = 0`. |
+| **uninstrumented** | Changed executable line (static analysis ∩ diff) absent from Clover — for example a path never loaded in the instrumented process, or outside the coverage include set. These lines are **not** in the 80 percent denominator; the gate prints them and warns that a green percentage can inflate when they exist. |
+| **excluded-attribution** | Uncovered changed lines whose only changed test companions carry `#[CoversNothing]` and name the type. That is an **attribution-risk** signal from the diff text — it is **not** proof the production path ran. Fix with a `#[CoversClass]` / `#[CoversMethod]` Unit or Contract companion through a real public boundary — not by deleting intentional `#[CoversNothing]` orchestration tests. |
+
+Reproduced under PCOV 1.0.12 (PHP 8.5): an in-process `#[CoversNothing]` test left
+all `Greeter` stmts at `count="0"`; a `#[CoversClass]` companion attributed them;
+a subprocess child execution also left stmts at `count="0"` despite a green
+parent assertion. Change record: `docs/change-records/FW-DELIVERY-COVERAGE-01.md`
+(#2904).
+
+The hosted `ci/coverage` job merges shard Clover without installing Composer
+dependencies. The 80% ratchet always counts the same clover ∩ changed-line
+intersection and must not require `vendor/autoload.php`; optional static
+analysis must not change that count. When autoload is present, static analysis
+only refines **uninstrumented** line lists. When it is absent, the gate still
+prints covered/uncovered and may note whole files that never appear in Clover
+— never “absent” merely because a comment-only (or other non-stmt) change did
+not intersect Clover statements on a file that is otherwise present.
+
 Integration tests continue to use `#[CoversNothing]`: they prove composition
 and wire behavior without claiming class-level coverage. When a change adds a
 branch that is reached only through such an integration test, add or extend a
