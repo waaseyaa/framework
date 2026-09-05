@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\CoordinatedEntitySchemaExecutor;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
@@ -134,10 +135,15 @@ final class BundleScopedUniqueKeyTest extends TestCase
         $this->registerMeetingDateKey();
         $handler = $this->handler();
         $handler->ensureTable();
-        $this->database->getConnection()->executeStatement('DROP INDEX "media_members_document_meeting_date"');
-        $this->database->getConnection()->executeStatement(
-            'CREATE INDEX "media_members_document_meeting_date" ON "media__members_document" ("meeting_date")',
-        );
+        // A same-named index of the wrong shape, introduced by a coordinated
+        // transition (as a migration would), so the sync's own shape check —
+        // not the coordinator's drift refusal — is what fires (#2730).
+        new CoordinatedEntitySchemaExecutor($this->database)->execute(function (): void {
+            $this->database->getConnection()->executeStatement('DROP INDEX "media_members_document_meeting_date"');
+            $this->database->getConnection()->executeStatement(
+                'CREATE INDEX "media_members_document_meeting_date" ON "media__members_document" ("meeting_date")',
+            );
+        });
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('does not match declared unique fields');
@@ -184,7 +190,11 @@ final class BundleScopedUniqueKeyTest extends TestCase
     {
         $this->registerMeetingDateKey();
         $this->handler()->ensureTable();
-        $this->database->getConnection()->executeStatement('DROP TABLE "media__members_document"');
+        // Dropped by a coordinated transition, so repository construction is
+        // not refused as drift before the save's own check can fire (#2730).
+        new CoordinatedEntitySchemaExecutor($this->database)->execute(
+            fn() => $this->database->getConnection()->executeStatement('DROP TABLE "media__members_document"'),
+        );
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('[S1-DB106]');

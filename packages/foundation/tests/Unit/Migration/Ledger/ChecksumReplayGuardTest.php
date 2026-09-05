@@ -12,8 +12,11 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
+use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\MigrationCatalogFingerprint;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
 use Waaseyaa\Foundation\Schema\Diff\AddColumn;
 use Waaseyaa\Foundation\Schema\Diff\ColumnSpec;
@@ -82,7 +85,183 @@ final class ChecksumReplayGuardTest extends TestCase
         [$connection, $repo] = self::createConnectionAndRepo();
         $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
 
-        $logger = new class implements LoggerInterface {
+        $logger = self::recordingLogger();
+
+        $migrator = self::migrator($connection, $repo, isProduction: false, logger: $logger);
+
+        $original = self::v2('waaseyaa/test:v2:foo', new CompositeDiff([
+            new AddColumn('widgets', 'archived_at', new ColumnSpec(type: 'int', nullable: true)),
+        ]));
+        $migrator->run([], [$original]);
+
+        $drifted = self::v2('waaseyaa/test:v2:foo', new CompositeDiff([
+            new AddColumn('widgets', 'deleted_at', new ColumnSpec(type: 'int', nullable: true)),
+        ]));
+
+        // Should NOT throw in dev mode.
+        $result = $migrator->run([], [$drifted]);
+        self::assertSame(0, $result->count);
+
+        // Warning was logged.
+        self::assertNotEmpty($logger->records);
+        $warnings = array_filter($logger->records, static fn(array $r): bool => $r['level'] === LogLevel::WARNING);
+        self::assertNotEmpty($warnings);
+        $messages = array_column($warnings, 'message');
+        self::assertStringContainsString('waaseyaa/test:v2:foo', implode("\n", $messages));
+    }
+
+
+    /**
+     * #2730: a legacy node skipped on `hasRun()` alone let a changed body under
+     * the same id replay as a count-zero success that rewrote the catalogue
+     * authority. Replay rechecks the stored source checksum for both kinds.
+     */
+    #[Test]
+    public function productionThrowsWhenAnAppliedLegacySourceChangesUnderTheSameId(): void
+    {
+        [$connection, $repo] = self::createConnectionAndRepo();
+        $migrator = self::migrator($connection, $repo, isProduction: true);
+        $original = ['waaseyaa/test' => ['waaseyaa/test:legacy' => self::legacyCreating('legacy_widgets')]];
+        $migrator->run($original);
+        $recorded = $repo->schemaAuthorityManifest();
+        self::assertNotNull($recorded);
+        self::assertSame(MigrationCatalogFingerprint::capture($original, []), $recorded->sourceCatalogFingerprint);
+
+        $changed = ['waaseyaa/test' => ['waaseyaa/test:legacy' => new class extends Migration {
+            public function up(SchemaBuilder $schema): void
+            {
+                $schema->create('legacy_widgets', static function ($table): void {
+                    $table->id();
+                    $table->string('rewritten');
+                });
+            }
+        }]];
+
+        $thrown = null;
+        try {
+            $migrator->run($changed);
+        } catch (ChecksumMismatchException $e) {
+            $thrown = $e;
+        }
+
+        self::assertNotNull($thrown);
+        self::assertSame('waaseyaa/test:legacy', $thrown->migration);
+        self::assertSame(
+            MigrationCatalogFingerprint::capture($original, []),
+            $repo->schemaAuthorityManifest()?->sourceCatalogFingerprint,
+            'a refused replay must not rewrite the catalogue authority',
+        );
+    }
+
+    #[Test]
+    public function developmentWarnsWhenAnAppliedLegacySourceChangesUnderTheSameId(): void
+    {
+        [$connection, $repo] = self::createConnectionAndRepo();
+        $logger = self::recordingLogger();
+        $migrator = self::migrator($connection, $repo, isProduction: false, logger: $logger);
+        $migrator->run(['waaseyaa/test' => ['waaseyaa/test:legacy' => self::legacyCreating('legacy_widgets')]]);
+
+        $result = $migrator->run(['waaseyaa/test' => ['waaseyaa/test:legacy' => new class extends Migration {
+            public function up(SchemaBuilder $schema): void
+            {
+                $schema->create('legacy_widgets', static function ($table): void {
+                    $table->id();
+                    $table->string('rewritten_in_dev');
+                });
+            }
+        }]]);
+
+        self::assertSame(0, $result->count);
+        $warnings = array_filter($logger->records, static fn(array $r): bool => $r['level'] === LogLevel::WARNING);
+        self::assertStringContainsString('waaseyaa/test:legacy', implode("\n", array_column($warnings, 'message')));
+    }
+
+    #[Test]
+    public function productionRefusesAReplayWhoseLedgerPackageDiffers(): void
+    {
+        [$connection, $repo] = self::createConnectionAndRepo();
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+        $v2 = self::v2('waaseyaa/test:v2:foo', new CompositeDiff([
+            new AddColumn('widgets', 'archived_at', new ColumnSpec(type: 'int', nullable: true)),
+        ]));
+        $compiled = SqliteCompiler::forVersion('3.40.0')->compile($v2->plan()->root)->diffHash();
+        $repo->record('waaseyaa/test:v2:foo', 'waaseyaa/other-package', 1, $v2->plan()->checksum(), $compiled);
+
+        $thrown = null;
+        try {
+            self::migrator($connection, $repo, isProduction: true)->run([], [$v2]);
+        } catch (\RuntimeException $e) {
+            $thrown = $e;
+        }
+
+        self::assertNotNull($thrown);
+        self::assertStringContainsString('[S1-DB112]', $thrown->getMessage());
+        self::assertStringContainsString('waaseyaa/other-package', $thrown->getMessage());
+    }
+
+    #[Test]
+    public function productionRefusesAReplayWhoseCompiledPlanDiffers(): void
+    {
+        [$connection, $repo] = self::createConnectionAndRepo();
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+        $v2 = self::v2('waaseyaa/test:v2:foo', new CompositeDiff([
+            new AddColumn('widgets', 'archived_at', new ColumnSpec(type: 'int', nullable: true)),
+        ]));
+        $repo->record('waaseyaa/test:v2:foo', 'waaseyaa/test', 1, $v2->plan()->checksum(), str_repeat('0', 64));
+
+        $thrown = null;
+        try {
+            self::migrator($connection, $repo, isProduction: true)->run([], [$v2]);
+        } catch (\RuntimeException $e) {
+            $thrown = $e;
+        }
+
+        self::assertNotNull($thrown);
+        self::assertStringContainsString('[S1-DB112]', $thrown->getMessage());
+        self::assertStringContainsString('compiled plan', $thrown->getMessage());
+    }
+
+    #[Test]
+    public function developmentWarnsInsteadOfRefusingAPackageOrPlanMismatch(): void
+    {
+        [$connection, $repo] = self::createConnectionAndRepo();
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+        $v2 = self::v2('waaseyaa/test:v2:foo', new CompositeDiff([
+            new AddColumn('widgets', 'archived_at', new ColumnSpec(type: 'int', nullable: true)),
+        ]));
+        $repo->record('waaseyaa/test:v2:foo', 'waaseyaa/other-package', 1, $v2->plan()->checksum(), str_repeat('0', 64));
+        $logger = self::recordingLogger();
+
+        $result = self::migrator($connection, $repo, isProduction: false, logger: $logger)->run([], [$v2]);
+
+        self::assertSame(0, $result->count);
+        $warnings = array_column(
+            array_filter($logger->records, static fn(array $r): bool => $r['level'] === LogLevel::WARNING),
+            'message',
+        );
+        self::assertStringContainsString('[S1-DB112]', implode("\n", $warnings));
+    }
+
+    private static function legacyCreating(string $table): Migration
+    {
+        return new class ($table) extends Migration {
+            public function __construct(private readonly string $table) {}
+
+            public function up(SchemaBuilder $schema): void
+            {
+                $schema->create($this->table, static function ($table): void {
+                    $table->id();
+                });
+            }
+        };
+    }
+
+    /**
+     * @return LoggerInterface&object{records: list<array{level: LogLevel, message: string}>}
+     */
+    private static function recordingLogger(): LoggerInterface
+    {
+        return new class implements LoggerInterface {
             /** @var list<array{level: LogLevel, message: string}> */
             public array $records = [];
             public function debug(string|\Stringable $message, array $context = []): void
@@ -122,30 +301,7 @@ final class ChecksumReplayGuardTest extends TestCase
                 $this->records[] = ['level' => $level, 'message' => (string) $message];
             }
         };
-
-        $migrator = self::migrator($connection, $repo, isProduction: false, logger: $logger);
-
-        $original = self::v2('waaseyaa/test:v2:foo', new CompositeDiff([
-            new AddColumn('widgets', 'archived_at', new ColumnSpec(type: 'int', nullable: true)),
-        ]));
-        $migrator->run([], [$original]);
-
-        $drifted = self::v2('waaseyaa/test:v2:foo', new CompositeDiff([
-            new AddColumn('widgets', 'deleted_at', new ColumnSpec(type: 'int', nullable: true)),
-        ]));
-
-        // Should NOT throw in dev mode.
-        $result = $migrator->run([], [$drifted]);
-        self::assertSame(0, $result->count);
-
-        // Warning was logged.
-        self::assertNotEmpty($logger->records);
-        $warnings = array_filter($logger->records, static fn(array $r): bool => $r['level'] === LogLevel::WARNING);
-        self::assertNotEmpty($warnings);
-        $messages = array_column($warnings, 'message');
-        self::assertStringContainsString('waaseyaa/test:v2:foo', implode("\n", $messages));
     }
-
     /**
      * @return array{0: \Doctrine\DBAL\Connection, 1: MigrationRepository}
      */

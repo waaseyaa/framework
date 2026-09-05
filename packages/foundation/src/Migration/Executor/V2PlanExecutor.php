@@ -96,4 +96,16 @@ final readonly class V2PlanExecutor
             $materialized,
         );
     }
+    /**
+     * The `diff_hash` this executor would record for an authored plan.
+     *
+     * Used by the Migrator's replay guard to recheck an already-applied node's
+     * stored compiled-plan identity (#2730). Compiled permissively, as strict
+     * verification does: identity is a property of the plan, not of the policy
+     * that gated its first apply.
+     */
+    public function compiledDiffHash(MigrationPlan $plan): string
+    {
+        return $this->compiler->compile($plan->root, new PlanPolicy(allowDestructive: true))->diffHash();
+    }
 }

@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\CoordinatedEntitySchemaExecutor;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -314,7 +315,10 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             revisionDefault: true,
         );
 
-        $this->db->schema()->createTable('test_revisionable_legacy_restore', [
+        // A pre-WP-2 table pre-dates the coordinator. Create it inside the
+        // boundary so the recorded manifest still describes the database;
+        // otherwise the next coordinated transition refuses it as drift (#2730).
+        new CoordinatedEntitySchemaExecutor($this->db)->execute(fn() => $this->db->schema()->createTable('test_revisionable_legacy_restore', [
             'fields' => [
                 'id' => ['type' => 'serial', 'not null' => true],
                 'uuid' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
@@ -328,7 +332,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             'primary key' => ['id'],
             'indexes' => ['test_revisionable_legacy_restore_bundle' => ['bundle']],
             'unique keys' => ['test_revisionable_legacy_restore_uuid' => ['uuid']],
-        ]);
+        ]));
 
         $handler = new SqlSchemaHandler($legacyType, $this->db);
         $handler->ensureRevisionTable();
@@ -454,7 +458,10 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             revisionDefault: true,
         );
 
-        $this->db->schema()->createTable('test_revisionable_legacy_prune', [
+        // A pre-WP-2 table pre-dates the coordinator. Create it inside the
+        // boundary so the recorded manifest still describes the database;
+        // otherwise the next coordinated transition refuses it as drift (#2730).
+        new CoordinatedEntitySchemaExecutor($this->db)->execute(fn() => $this->db->schema()->createTable('test_revisionable_legacy_prune', [
             'fields' => [
                 'id' => ['type' => 'serial', 'not null' => true],
                 'uuid' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
@@ -468,7 +475,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             'primary key' => ['id'],
             'indexes' => ['test_revisionable_legacy_prune_bundle' => ['bundle']],
             'unique keys' => ['test_revisionable_legacy_prune_uuid' => ['uuid']],
-        ]);
+        ]));
 
         $handler = new SqlSchemaHandler($legacyType, $this->db);
         $handler->ensureRevisionTable();

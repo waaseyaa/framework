@@ -167,6 +167,39 @@ final class MigrationRepository
         );
     }
 
+    /**
+     * Prove the live schema and ledger still match the recorded manifest.
+     *
+     * Runs under the writer lock {@see acquireSchemaAuthority()} took and
+     * before {@see installOrUpgradeLedger()}, so a governed ledger upgrade is
+     * never mistaken for drift. An install without a fingerprinted manifest is
+     * a fresh install or a #2452 adoption and passes: the transition that
+     * follows records the first proof. A fingerprinted manifest that no longer
+     * describes what is live is refused (#2730); the coordinator's transaction
+     * then rolls back the authority claim, so schema, data, ledger, catalogue,
+     * manifest and generation are left exactly as found. The comparison uses
+     * the same fingerprints strict verification reads, so refusal and
+     * `migrate --verify` always agree.
+     */
+    public function assertSchemaAuthorityPreState(): void
+    {
+        $manifest = $this->schemaAuthorityManifest();
+        if ($manifest === null || $manifest->schemaFingerprint === null || $manifest->ledgerFingerprint === null) {
+            return;
+        }
+
+        if ($manifest->schemaFingerprint !== $this->currentLogicalSchemaFingerprint()) {
+            throw new \RuntimeException(
+                '[S1-DB109] Schema transition refused: the live schema differs from the recorded authority manifest; schema, ledger and manifest remain unchanged. Run `migrate --verify` to inspect the drift.',
+            );
+        }
+        if ($manifest->ledgerFingerprint !== $this->currentLedgerFingerprint()) {
+            throw new \RuntimeException(
+                '[S1-DB109] Schema transition refused: the migration ledger differs from the recorded authority manifest; schema, ledger and manifest remain unchanged. Run `migrate --verify` to inspect the drift.',
+            );
+        }
+    }
+
     /** Record the exact loaded migration catalogue inside the active transition. */
     public function recordSourceCatalogFingerprint(string $fingerprint): void
     {

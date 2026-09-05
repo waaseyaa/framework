@@ -31,6 +31,8 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Kernel\EntityTypeManagerFactory;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\MigrationRepository;
+use Waaseyaa\Foundation\Migration\SchemaMutationCoordinator;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
@@ -119,8 +121,16 @@ final class AiServiceProviderResolutionTest extends TestCase
             . '/ai-agent/migrations/2026_09_01_000001_add_entity_base_columns.php';
         \assert($migration instanceof Migration);
         \assert($baseColumnsMigration instanceof Migration);
-        $migration->up(new SchemaBuilder($database->getConnection()));
-        $baseColumnsMigration->up(new SchemaBuilder($database->getConnection()));
+        // Applied through the coordinator, as the Migrator would, so the
+        // manifest the factory boot recorded still describes the database and
+        // the schema synchronization below is not refused as drift (#2730).
+        $connection = $database->getConnection();
+        new SchemaMutationCoordinator($connection, new MigrationRepository($connection))->execute(
+            static function () use ($migration, $baseColumnsMigration, $connection): void {
+                $migration->up(new SchemaBuilder($connection));
+                $baseColumnsMigration->up(new SchemaBuilder($connection));
+            },
+        );
         new EntitySchemaSyncRunner($database, $fieldRegistry, $logger)
             ->run($manager->getDefinitions());
         EntityMutationAuthoritySchema::ensure($database);

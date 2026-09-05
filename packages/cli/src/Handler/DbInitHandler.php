@@ -98,8 +98,11 @@ final class DbInitHandler
                 $io->writeln(sprintf('Adopting the empty bootstrap database at %s left by an earlier boot.', $dbPath));
             }
 
+            // The Migrator's coordinator installs or upgrades the ledger under
+            // the writer lock, after validating the recorded manifest. Doing it
+            // here first would alter the ledger outside that boundary and make
+            // a pre-#2701 upgrade look like schema drift (#2730).
             $repository = new MigrationRepository($connection);
-            $repository->installOrUpgradeLedger();
             $logger = $this->logger ?? LogManager::fromConfig($config['logging'] ?? []);
 
             $manifest = new PackageManifestCompiler(

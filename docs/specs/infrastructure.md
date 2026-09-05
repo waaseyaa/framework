@@ -1433,6 +1433,18 @@ rather than converges. Regression coverage is
 `SchemaAuthorityConcurrencyTest` exercises only first install, where the
 `CREATE` genuinely creates and so takes the lock on its own.
 
+#### Prior-state validation (#2730)
+
+The order inside the coordinator transaction is fixed: `acquireSchemaAuthority()`
+(writer claim first, as above), then `assertSchemaAuthorityPreState()`, then
+`installOrUpgradeLedger()`, then the transition, then the manifest. The
+validation reads the live logical-schema and ledger fingerprints under the held
+writer lock — never before it — and refuses with `[S1-DB109]` when a recorded
+manifest no longer describes the database; an install without a fingerprinted
+manifest adopts. Running the ledger upgrade after the check keeps a pre-#2701
+manifest from reading as drift. Contract and the governed re-adoption step:
+`docs/specs/s1-schema-authority.md` "Prior-state validation and replay rechecks".
+
 #### Read-only entity-schema plan (SQLite, #2446)
 
 `EntitySchemaSync::syncAll()` must not enter `SchemaMutationCoordinator` merely

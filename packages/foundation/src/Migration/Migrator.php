@@ -27,17 +27,26 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  * functions of the authored plan alone, so they are identical whether the
  * node executed SQL or found the schema already satisfied (FW-2701); the
  * nullable `apply_mode` column carries that distinction as audit evidence
- * and is never consulted here. Re-runs compare the computed checksum
- * against the stored one:
+ * and is never consulted here. Re-runs recheck every already-applied node —
+ * legacy and v2 alike — against its ledger row (#2730):
  *
- * - **Match:** node already applied, skip silently.
- * - **Mismatch + `isProduction: true`:** throw {@see ChecksumMismatchException}
+ * - **Package identity** must match the row's `package`, and the stored
+ *   `diff_hash` must match the plan this run would record (the compiled plan
+ *   for v2, the domain-separated procedural hash for legacy). A mismatch is
+ *   refused with `[S1-DB112]` in production and logged as a warning in dev.
+ * - **Source checksum match:** node already applied, skip silently.
+ * - **Checksum mismatch + `isProduction: true`:** throw {@see ChecksumMismatchException}
  *   (`CHECKSUM_MISMATCH`). The same migration_id cannot mean two
  *   different structural intents.
- * - **Mismatch + `isProduction: false`:** log a warning via the
+ * - **Checksum mismatch + `isProduction: false`:** log a warning via the
  *   optional {@see LoggerInterface} and skip the apply.
  * - **Stored checksum is null** (pre-WP09 row): the apply path does not invent
  *   historical evidence; strict verify reports the row as unverifiable.
+ *
+ * The loaded catalogue fingerprint is recorded only after every replay check
+ * has passed, so a refused replay cannot rewrite the catalogue authority.
+ * Live schema and ledger pre-state are validated by the coordinator before
+ * any of this runs.
  *
  * **S1-FW-DB-02 failure semantics:** the repository acquires SQLite writer
  * authority before reading ledger state, and a SQL/compile/verification
@@ -82,24 +91,28 @@ final class Migrator
         }
 
         return $this->coordinator->execute(function () use ($migrations, $v2Migrations, $nodes, $policy): MigrationResult {
-            $this->repository->recordSourceCatalogFingerprint(
-                MigrationCatalogFingerprint::capture($migrations, $v2Migrations),
-            );
             $ordered = MigrationGraph::build($nodes)->topologicalOrder();
             $batch = $this->repository->getLastBatchNumber() + 1;
+            $applied = [];
+            foreach ($this->repository->allWithChecksums() as $row) {
+                $applied[$row->migration] = $row;
+            }
             $ran = [];
 
             foreach ($ordered as $node) {
-                if ($this->repository->hasRun($node->id)) {
-                    if ($node->kind === MigrationKind::V2) {
-                        $this->guardV2Replay($node);
-                    }
+                $row = $applied[$node->id] ?? null;
+                if ($row !== null) {
+                    $this->guardReplay($node, $row);
                     continue;
                 }
 
                 $this->applyNode($node, $batch, $policy);
                 $ran[] = $node->id;
             }
+
+            $this->repository->recordSourceCatalogFingerprint(
+                MigrationCatalogFingerprint::capture($migrations, $v2Migrations),
+            );
 
             return new MigrationResult(count($ran), $ran);
         });
@@ -259,37 +272,96 @@ final class Migrator
     }
 
     /**
-     * Drift check for an already-applied v2 node: if the stored
-     * checksum exists and differs from the computed one, throw in
-     * production / warn in dev.
+     * Recheck an already-applied node against its ledger row (#2730).
+     *
+     * Package identity and compiled-plan identity are refused with
+     * `[S1-DB112]`; a source-checksum mismatch keeps its established
+     * `CHECKSUM_MISMATCH` refusal. Both throw in production and warn in dev.
+     * A null stored hash is a pre-WP09 row: nothing is invented, and strict
+     * verification keeps reporting it as unverifiable.
      */
-    private function guardV2Replay(MigrationNode $node): void
+    private function guardReplay(MigrationNode $node, LedgerRow $row): void
+    {
+        if ($row->package !== $node->package) {
+            $this->refuseReplay($node, sprintf(
+                '[S1-DB112] Migration "%s" was applied by package "%s" but the loaded catalogue declares it under "%s".',
+                $node->id,
+                $row->package,
+                $node->package,
+            ));
+
+            return;
+        }
+
+        if ($row->checksum === null) {
+            return;
+        }
+
+        [$computedChecksum, $computedPlanHash] = match ($node->kind) {
+            MigrationKind::Legacy => $this->legacyIdentity($node),
+            MigrationKind::V2 => $this->v2Identity($node),
+        };
+
+        if ($row->checksum !== $computedChecksum) {
+            if ($this->isProduction) {
+                throw new ChecksumMismatchException($node->id, $row->checksum, $computedChecksum);
+            }
+
+            $this->logger?->warning(sprintf(
+                'Migration "%s" stored checksum %s differs from computed %s. Skipping re-apply (dev mode). Set isProduction=true for strict refusal.',
+                $node->id,
+                $row->checksum,
+                $computedChecksum,
+            ));
+
+            return;
+        }
+
+        if ($row->diffHash !== null && $row->diffHash !== $computedPlanHash) {
+            $this->refuseReplay($node, sprintf(
+                '[S1-DB112] Migration "%s" has stored compiled plan %s but the current source compiles to %s.',
+                $node->id,
+                $row->diffHash,
+                $computedPlanHash,
+            ));
+        }
+    }
+
+    /** @return array{0: string, 1: string} source checksum and plan hash this run would record */
+    private function legacyIdentity(MigrationNode $node): array
+    {
+        $migration = $node->legacy;
+        if ($migration === null) {
+            throw new \LogicException(sprintf('Legacy node "%s" has no source migration.', $node->id));
+        }
+        $checksum = MigrationCatalogFingerprint::legacySourceChecksum($migration);
+
+        return [$checksum, MigrationCatalogFingerprint::legacyPlanHash($checksum)];
+    }
+
+    /** @return array{0: string, 1: string} source checksum and plan hash this run would record */
+    private function v2Identity(MigrationNode $node): array
     {
         $migration = $node->v2;
-        if ($migration === null) {
-            return;
+        $executor = $this->v2Executor;
+        if ($migration === null || $executor === null) {
+            throw new \LogicException(sprintf('V2 node "%s" cannot be rechecked: missing source or executor.', $node->id));
         }
+        $plan = $migration->plan();
 
-        $stored = $this->repository->getStoredChecksum($node->id);
-        if ($stored === null) {
-            // Pre-WP09 row or legacy migration — nothing to verify.
-            return;
-        }
+        return [$plan->checksum(), $executor->compiledDiffHash($plan)];
+    }
 
-        $computed = $migration->plan()->checksum();
-        if ($stored === $computed) {
-            return;
-        }
-
+    private function refuseReplay(MigrationNode $node, string $message): void
+    {
         if ($this->isProduction) {
-            throw new ChecksumMismatchException($node->id, $stored, $computed);
+            throw new \RuntimeException($message . ' Re-apply is refused in production; schema, ledger and catalogue remain unchanged.');
         }
 
         $this->logger?->warning(sprintf(
-            'Migration "%s" stored checksum %s differs from computed %s. Skipping re-apply (dev mode). Set isProduction=true for strict refusal.',
+            '%s Skipping re-apply of "%s" (dev mode). Set isProduction=true for strict refusal.',
+            $message,
             $node->id,
-            $stored,
-            $computed,
         ));
     }
 

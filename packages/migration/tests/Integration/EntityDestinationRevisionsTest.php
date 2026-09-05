@@ -69,7 +69,10 @@ final class EntityDestinationRevisionsTest extends TestCase
         $handler->ensureTable();
         $handler->ensureRevisionTable();
 
-        $conn->executeStatement(MigrationIdMapSchema::createTableSql());
+        // ETL table DDL is coordinator-owned; declare it inside the boundary so
+        // the manifest the handler recorded still describes the database (#2730).
+        new \Waaseyaa\Foundation\Migration\SchemaMutationCoordinator($conn, new \Waaseyaa\Foundation\Migration\MigrationRepository($conn))
+            ->execute(static fn(): int|string => $conn->executeStatement(MigrationIdMapSchema::createTableSql()));
 
         $this->typeManager = new EntityTypeManager(new EventDispatcher());
         $this->typeManager->registerEntityType($entityType);
