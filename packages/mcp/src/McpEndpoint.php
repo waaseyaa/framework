@@ -322,7 +322,7 @@ final readonly class McpEndpoint
                     $this->rateLimitWindowSeconds,
                 );
             } catch (\Throwable $e) {
-                $this->logger?->error('MCP rate limiter could not make a durable decision.', [
+                $this->reportOperationalFailure('MCP rate limiter could not make a durable decision.', [
                     'exception_class' => $e::class,
                     'tier' => $this->rateLimitTier,
                 ]);
@@ -648,7 +648,7 @@ final readonly class McpEndpoint
         try {
             $response = $handler();
         } catch (\Throwable $e) {
-            $this->logger?->error('mcp.protocol_execution_failed', [
+            $this->reportOperationalFailure('mcp.protocol_execution_failed', [
                 'correlation_id' => $correlationId,
                 'method' => $method,
                 'exception' => $e::class,
@@ -690,7 +690,7 @@ final readonly class McpEndpoint
             );
 
             if ($errorCode === null) {
-                $this->logger?->error('mcp.protocol_response_malformed', [
+                $this->reportOperationalFailure('mcp.protocol_response_malformed', [
                     'correlation_id' => $correlationId,
                     'method' => $method,
                 ]);
@@ -764,7 +764,7 @@ final readonly class McpEndpoint
         try {
             $response = $handler();
         } catch (\Throwable $e) {
-            $this->logger?->error('mcp.resource_execution_failed', [
+            $this->reportOperationalFailure('mcp.resource_execution_failed', [
                 'correlation_id' => $correlationId,
                 'method' => $method,
                 'exception' => $e::class,
@@ -819,7 +819,7 @@ final readonly class McpEndpoint
             );
 
             if ($errorCode === null) {
-                $this->logger?->error('mcp.resource_response_malformed', [
+                $this->reportOperationalFailure('mcp.resource_response_malformed', [
                     'correlation_id' => $correlationId,
                     'method' => $method,
                 ]);
@@ -1112,7 +1112,7 @@ final readonly class McpEndpoint
 
             return $this->jsonRpcError(-32602, 'Invalid resources/read params', $id);
         } catch (\Throwable $e) {
-            $this->logger?->error('mcp.resource_execution_failed', [
+            $this->reportOperationalFailure('mcp.resource_execution_failed', [
                 'correlation_id' => $correlationId,
                 'method' => $method,
                 'exception' => $e::class,
@@ -1805,6 +1805,32 @@ final readonly class McpEndpoint
     {
         try {
             $this->logger?->critical($event, $context);
+        } catch (\Throwable) {
+            // Deliberately empty — see method doc.
+        }
+    }
+
+    /**
+     * Best-effort report of an OPERATIONAL failure — protocol/resource
+     * dispatch and rate-limiter unavailability — to the configured logger.
+     *
+     * A sibling of {@see reportAuditFailure()}, same shape, `error` rather
+     * than `critical`: this family (#2886) has no committed side effect
+     * behind it, unlike the post-decision audit-infrastructure family above.
+     * But four of its six callsites report BEFORE their own
+     * `auditTerminal()` call, so an unguarded throw here would both crash the
+     * request AND suppress that terminal audit record — a strictly worse
+     * outcome than an unguarded `reportAuditFailure()` site, which at least
+     * reports after the outcome is already decided. The failure is
+     * deliberately not re-logged, for the same reason as
+     * `reportAuditFailure()`.
+     *
+     * @param array<string, mixed> $context
+     */
+    private function reportOperationalFailure(string $event, array $context): void
+    {
+        try {
+            $this->logger?->error($event, $context);
         } catch (\Throwable) {
             // Deliberately empty — see method doc.
         }

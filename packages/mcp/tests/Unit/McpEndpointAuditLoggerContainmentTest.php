@@ -14,8 +14,12 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
+use Waaseyaa\AI\Tools\Resource\ContentResourceContent;
+use Waaseyaa\AI\Tools\Resource\ContentResourceProviderInterface;
+use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalRequest;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalRequestPage;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStatus;
@@ -32,6 +36,7 @@ use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpErrorCode;
+use Waaseyaa\Mcp\McpResponse;
 use Waaseyaa\Mcp\Tests\Support\RecordingLogger;
 use Waaseyaa\Mcp\Tests\Support\ThrowingLogger;
 
@@ -57,6 +62,17 @@ use Waaseyaa\Mcp\Tests\Support\ThrowingLogger;
  * throwing-logger test is the containment proof. A future refactor that
  * un-guards the helper fails the second while the first still passes, which is
  * exactly the signal #2780 needs.
+ *
+ * #2886 extends the same proof to a second, sibling family: the six
+ * `logger?->error(...)` sites in {@see McpEndpoint} that report
+ * protocol/resource dispatch failures and rate-limiter unavailability (no
+ * committed side effect, unlike the `critical()` family above) — routed
+ * through the private `reportOperationalFailure()` helper. Four of the six sit
+ * BEFORE their own `auditTerminal()` call, so an unguarded throw there would
+ * both crash the request and suppress that terminal audit record — a strictly
+ * worse outcome than #2780 fixed. Each of those four is proven here against a
+ * ledger fixture that records every stage it is asked to persist, so the test
+ * can assert the terminal record was written even though the logger threw.
  */
 #[CoversClass(McpEndpoint::class)]
 final class McpEndpointAuditLoggerContainmentTest extends TestCase
@@ -224,6 +240,248 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
         self::assertStringNotContainsString('ledger offline', (string) $contained->getContent());
     }
 
+    /**
+     * #2886 site 1/6 — `McpEndpoint::serve()`, rate-limiter durability check.
+     *
+     * This report sits BEFORE its `auditTerminal(RateLimiterUnavailable)`
+     * call: a broken logger must not suppress that terminal record on top of
+     * crashing the request.
+     */
+    #[Test]
+    public function a_rate_limiter_outage_is_reported_and_the_terminal_record_survives_a_broken_logger(): void
+    {
+        $ledger = $this->ledger();
+        $logger = new RecordingLogger();
+        $reported = $this->callMethod(
+            $this->endpoint($ledger, $logger, rateLimiter: $this->rateLimiterThatThrows(), rateLimitMaxRequests: 5),
+            'ping',
+        );
+
+        self::assertSame(
+            McpErrorCode::RATE_LIMITER_UNAVAILABLE,
+            $this->decode($reported)['error']['code'],
+        );
+        self::assertSame(
+            ['MCP rate limiter could not make a durable decision.'],
+            $this->reportedErrorEvents($logger),
+        );
+        self::assertSame([AuditStage::RateLimiterUnavailable->value], $ledger->recordedStages);
+
+        $containedLedger = $this->ledger();
+        $contained = $this->callMethod(
+            $this->endpoint(
+                $containedLedger,
+                new ThrowingLogger(),
+                rateLimiter: $this->rateLimiterThatThrows(),
+                rateLimitMaxRequests: 5,
+            ),
+            'ping',
+        );
+
+        self::assertSame($this->outcome($reported), $this->outcome($contained));
+        self::assertSame(
+            [AuditStage::RateLimiterUnavailable->value],
+            $containedLedger->recordedStages,
+            'The terminal audit record must still be written even though the logger threw.',
+        );
+        self::assertStringNotContainsString('logger offline', (string) $contained->getContent());
+    }
+
+    /**
+     * #2886 site 2/6 — `protocolExecute()`'s handler-threw branch, reached via
+     * `tools/list` against a registry whose enumeration itself is broken.
+     *
+     * This report sits BEFORE its `auditTerminal(ExecutionFailed)` call.
+     */
+    #[Test]
+    public function a_protocol_handler_failure_is_reported_and_the_terminal_record_survives_a_broken_logger(): void
+    {
+        $ledger = $this->ledger();
+        $logger = new RecordingLogger();
+        $reported = $this->callMethod(
+            $this->endpoint($ledger, $logger, registry: $this->registryThatThrowsOnAll()),
+            'tools/list',
+        );
+
+        self::assertSame(-32603, $this->decode($reported)['error']['code']);
+        self::assertSame(['mcp.protocol_execution_failed'], $this->reportedErrorEvents($logger));
+        self::assertSame([AuditStage::ExecutionFailed->value], $ledger->recordedStages);
+
+        $containedLedger = $this->ledger();
+        $contained = $this->callMethod(
+            $this->endpoint($containedLedger, new ThrowingLogger(), registry: $this->registryThatThrowsOnAll()),
+            'tools/list',
+        );
+
+        self::assertSame($this->outcome($reported), $this->outcome($contained));
+        self::assertSame(
+            [AuditStage::ExecutionFailed->value],
+            $containedLedger->recordedStages,
+            'The terminal audit record must still be written even though the logger threw.',
+        );
+        self::assertStringNotContainsString('logger offline', (string) $contained->getContent());
+    }
+
+    /**
+     * #2886 site 3/6 — `protocolExecute()`'s malformed-internal-response
+     * branch. Unlike sites 1, 2, 4 and 6, this report sits AFTER its
+     * `auditTerminal(ExecutionFailed)` call (already emitted the moment the
+     * response was classified malformed), so containment here is about the
+     * response the caller gets, not about a record being lost.
+     *
+     * No legitimate handler ever returns a body with neither `result` nor
+     * `error`, so this is driven directly on the private method — the same
+     * technique {@see McpEndpointDispatchEventTest} already uses for this
+     * exact branch.
+     */
+    #[Test]
+    public function a_malformed_protocol_response_is_reported_and_survives_a_broken_logger(): void
+    {
+        $ledger = $this->ledger();
+        $logger = new RecordingLogger();
+        $endpoint = $this->endpoint($ledger, $logger);
+        $execute = new \ReflectionMethod($endpoint, 'protocolExecute');
+        $malformed = static fn(): McpResponse => new McpResponse('not-json sk-internal-response-secret');
+
+        $reported = $execute->invoke($endpoint, $malformed, 1, 'correlation-malformed', 7, 'ping');
+        self::assertInstanceOf(McpResponse::class, $reported);
+
+        self::assertSame(-32603, $this->decodeMcp($reported)['error']['code']);
+        self::assertSame(['mcp.protocol_response_malformed'], $this->reportedErrorEvents($logger));
+        self::assertSame([AuditStage::ExecutionFailed->value], $ledger->recordedStages);
+        self::assertStringNotContainsString('sk-internal-response-secret', $reported->body);
+
+        $containedEndpoint = $this->endpoint($this->ledger(), new ThrowingLogger());
+        $containedExecute = new \ReflectionMethod($containedEndpoint, 'protocolExecute');
+        $contained = $containedExecute->invoke($containedEndpoint, $malformed, 1, 'correlation-malformed', 7, 'ping');
+        self::assertInstanceOf(McpResponse::class, $contained);
+
+        self::assertSame(-32603, $this->decodeMcp($contained)['error']['code']);
+        self::assertStringNotContainsString('logger offline', $contained->body);
+        self::assertStringNotContainsString('sk-internal-response-secret', $contained->body);
+    }
+
+    /**
+     * #2886 site 4/6 — `resourceProtocolExecute()`'s handler-threw branch,
+     * reached via `resources/list` against a provider whose enumeration
+     * itself is broken.
+     *
+     * This report sits BEFORE its `auditTerminal(ExecutionFailed)` call.
+     */
+    #[Test]
+    public function a_resource_list_failure_is_reported_and_the_terminal_record_survives_a_broken_logger(): void
+    {
+        $ledger = $this->ledger();
+        $logger = new RecordingLogger();
+        $reported = $this->callMethod(
+            $this->endpoint($ledger, $logger, contentResources: $this->contentResourcesThatThrowOnList()),
+            'resources/list',
+        );
+
+        self::assertSame(-32603, $this->decode($reported)['error']['code']);
+        self::assertSame(['mcp.resource_execution_failed'], $this->reportedErrorEvents($logger));
+        self::assertSame([AuditStage::ExecutionFailed->value], $ledger->recordedStages);
+
+        $containedLedger = $this->ledger();
+        $contained = $this->callMethod(
+            $this->endpoint(
+                $containedLedger,
+                new ThrowingLogger(),
+                contentResources: $this->contentResourcesThatThrowOnList(),
+            ),
+            'resources/list',
+        );
+
+        self::assertSame($this->outcome($reported), $this->outcome($contained));
+        self::assertSame(
+            [AuditStage::ExecutionFailed->value],
+            $containedLedger->recordedStages,
+            'The terminal audit record must still be written even though the logger threw.',
+        );
+        self::assertStringNotContainsString('logger offline', (string) $contained->getContent());
+    }
+
+    /**
+     * #2886 site 5/6 — `resourceProtocolExecute()`'s malformed-internal-
+     * response branch. Like site 3, this report sits AFTER its
+     * `auditTerminal()` call and is unreachable through any legitimate
+     * handler, so it is driven directly on the private method.
+     */
+    #[Test]
+    public function a_malformed_resource_response_is_reported_and_survives_a_broken_logger(): void
+    {
+        $ledger = $this->ledger();
+        $logger = new RecordingLogger();
+        $endpoint = $this->endpoint($ledger, $logger);
+        $execute = new \ReflectionMethod($endpoint, 'resourceProtocolExecute');
+        $malformed = static fn(): McpResponse => new McpResponse('not-json sk-internal-response-secret');
+
+        $reported = $execute->invoke($endpoint, $malformed, 1, 'correlation-malformed', 7, 'resources/list');
+        self::assertInstanceOf(McpResponse::class, $reported);
+
+        self::assertSame(-32603, $this->decodeMcp($reported)['error']['code']);
+        self::assertSame(['mcp.resource_response_malformed'], $this->reportedErrorEvents($logger));
+        self::assertSame([AuditStage::ExecutionFailed->value], $ledger->recordedStages);
+        self::assertStringNotContainsString('sk-internal-response-secret', $reported->body);
+
+        $containedEndpoint = $this->endpoint($this->ledger(), new ThrowingLogger());
+        $containedExecute = new \ReflectionMethod($containedEndpoint, 'resourceProtocolExecute');
+        $contained = $containedExecute->invoke(
+            $containedEndpoint,
+            $malformed,
+            1,
+            'correlation-malformed',
+            7,
+            'resources/list',
+        );
+        self::assertInstanceOf(McpResponse::class, $contained);
+
+        self::assertSame(-32603, $this->decodeMcp($contained)['error']['code']);
+        self::assertStringNotContainsString('logger offline', $contained->body);
+        self::assertStringNotContainsString('sk-internal-response-secret', $contained->body);
+    }
+
+    /**
+     * #2886 site 6/6 — `executeResourceRead()`'s handler-threw branch, reached
+     * via `resources/read` against a provider whose read itself is broken.
+     *
+     * This report sits BEFORE its `auditTerminal(ExecutionFailed)` call.
+     */
+    #[Test]
+    public function a_resource_read_failure_is_reported_and_the_terminal_record_survives_a_broken_logger(): void
+    {
+        $ledger = $this->ledger();
+        $logger = new RecordingLogger();
+        $reported = $this->callMethod(
+            $this->endpoint($ledger, $logger, contentResources: $this->contentResourcesThatThrowOnRead()),
+            'resources/read',
+            ['uri' => 'res://a'],
+        );
+
+        self::assertSame(-32603, $this->decode($reported)['error']['code']);
+        self::assertSame(['mcp.resource_execution_failed'], $this->reportedErrorEvents($logger));
+        self::assertSame([AuditStage::ExecutionFailed->value], $ledger->recordedStages);
+
+        $containedLedger = $this->ledger();
+        $contained = $this->callMethod(
+            $this->endpoint(
+                $containedLedger,
+                new ThrowingLogger(),
+                contentResources: $this->contentResourcesThatThrowOnRead(),
+            ),
+            'resources/read',
+            ['uri' => 'res://a'],
+        );
+
+        self::assertSame($this->outcome($reported), $this->outcome($contained));
+        self::assertSame(
+            [AuditStage::ExecutionFailed->value],
+            $containedLedger->recordedStages,
+            'The terminal audit record must still be written even though the logger threw.',
+        );
+        self::assertStringNotContainsString('logger offline', (string) $contained->getContent());
+    }
+
     // ------------------------------------------------------------- fixtures
 
     private function ledger(
@@ -232,6 +490,16 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
         bool $recordThrows = false,
     ): StrictAuditLedgerInterface {
         return new class ($reserveThrows, $finalizeThrows, $recordThrows) implements StrictAuditLedgerInterface {
+            /**
+             * Every stage this fixture was asked to persist via {@see record()},
+             * in order — the #2886 proof that `auditTerminal()` reached its
+             * durable write even when the logger call immediately before it
+             * threw.
+             *
+             * @var list<string>
+             */
+            public array $recordedStages = [];
+
             public function __construct(
                 private readonly bool $reserveThrows,
                 private readonly bool $finalizeThrows,
@@ -259,6 +527,8 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
                 if ($this->recordThrows) {
                     throw new StrictAuditLedgerException('ledger offline');
                 }
+
+                $this->recordedStages[] = $stage->value;
             }
         };
     }
@@ -267,16 +537,24 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
         StrictAuditLedgerInterface $ledger,
         ?LoggerInterface $logger = null,
         ?OperationApprovalStoreInterface $approvalStore = null,
+        ?ToolRegistryInterface $registry = null,
+        ?AtomicRateLimiterInterface $rateLimiter = null,
+        int $rateLimitMaxRequests = 0,
+        ?ContentResourceRegistry $contentResources = null,
     ): McpEndpoint {
         return new McpEndpoint(
             auth: new BearerTokenAuth([self::TOKEN => $this->account(self::PRINCIPAL_UID)]),
-            agentRegistry: new CapabilityScopedToolRegistry($this->registry(), [self::WRITE_CAP]),
+            agentRegistry: new CapabilityScopedToolRegistry($registry ?? $this->registry(), [self::WRITE_CAP]),
+            rateLimiter: $rateLimiter,
+            rateLimitMaxRequests: $rateLimitMaxRequests,
             rateLimitTier: 'write',
             logger: $logger ?? new ThrowingLogger(),
             auditLedger: $ledger,
             durableAudit: true,
             approvalStore: $approvalStore,
             approvalGate: $approvalStore instanceof OperationApprovalStoreInterface,
+            contentResources: $contentResources,
+            contentResourcesEnabled: $contentResources instanceof ContentResourceRegistry,
         );
     }
 
@@ -339,6 +617,142 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
             static fn(array $record): string => $record[1],
             array_filter($logger->records, static fn(array $record): bool => $record[0] === 'critical'),
         ));
+    }
+
+    /**
+     * Every event name ever reported at `error` — the #2886 sibling family,
+     * routed through `reportOperationalFailure()` rather than
+     * `reportAuditFailure()`.
+     *
+     * @return list<string>
+     */
+    private function reportedErrorEvents(RecordingLogger $logger): array
+    {
+        return array_values(array_map(
+            static fn(array $record): string => $record[1],
+            array_filter($logger->records, static fn(array $record): bool => $record[0] === 'error'),
+        ));
+    }
+
+    /** @return array<string, mixed> */
+    private function decodeMcp(McpResponse $response): array
+    {
+        return json_decode($response->body, true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * A per-principal atomic rate limiter whose decision itself is broken —
+     * standing in for the durable-decision outage {@see McpEndpoint} treats as
+     * `AuditStage::RateLimiterUnavailable`. Only `consume()` is on any path
+     * under test.
+     */
+    private function rateLimiterThatThrows(): AtomicRateLimiterInterface
+    {
+        return new class implements AtomicRateLimiterInterface {
+            public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+            {
+                throw new \RuntimeException('rate limiter offline');
+            }
+
+            public function hit(string $key, int $decaySeconds): void
+            {
+                throw new \LogicException('hit() is not on any path under test.');
+            }
+
+            public function tooManyAttempts(string $key, int $maxAttempts): bool
+            {
+                throw new \LogicException('tooManyAttempts() is not on any path under test.');
+            }
+
+            public function attempts(string $key): int
+            {
+                throw new \LogicException('attempts() is not on any path under test.');
+            }
+
+            public function remaining(string $key, int $maxAttempts): int
+            {
+                throw new \LogicException('remaining() is not on any path under test.');
+            }
+
+            public function clear(string $key): void
+            {
+                throw new \LogicException('clear() is not on any path under test.');
+            }
+        };
+    }
+
+    /** A tool registry whose enumeration itself is broken — drives `tools/list` into `protocolExecute()`'s catch. */
+    private function registryThatThrowsOnAll(): ToolRegistryInterface
+    {
+        return new class implements ToolRegistryInterface {
+            public function register(AgentTool $tool): void
+            {
+                throw new \LogicException('register() is not on any path under test.');
+            }
+
+            public function get(string $name): AgentTool
+            {
+                throw new \LogicException('get() is not on any path under test.');
+            }
+
+            public function has(string $name): bool
+            {
+                throw new \LogicException('has() is not on any path under test.');
+            }
+
+            public function all(): iterable
+            {
+                throw new \RuntimeException('tool registry offline');
+            }
+        };
+    }
+
+    /** A content-resource registry whose sole provider breaks on `list()` — drives `resources/list`. */
+    private function contentResourcesThatThrowOnList(): ContentResourceRegistry
+    {
+        $registry = new ContentResourceRegistry();
+        $registry->register('throwing', new class implements ContentResourceProviderInterface {
+            public function list(\Waaseyaa\Access\AuthorizationPrincipalInterface $principal): array
+            {
+                throw new \RuntimeException('resource provider offline');
+            }
+
+            public function templates(): array
+            {
+                throw new \LogicException('templates() is not on any path under test.');
+            }
+
+            public function read(string $uri, \Waaseyaa\Access\AuthorizationPrincipalInterface $principal): ?ContentResourceContent
+            {
+                throw new \LogicException('read() is not on any path under test.');
+            }
+        });
+
+        return $registry;
+    }
+
+    /** A content-resource registry whose sole provider breaks on `read()` — drives `resources/read`. */
+    private function contentResourcesThatThrowOnRead(): ContentResourceRegistry
+    {
+        $registry = new ContentResourceRegistry();
+        $registry->register('throwing', new class implements ContentResourceProviderInterface {
+            public function list(\Waaseyaa\Access\AuthorizationPrincipalInterface $principal): array
+            {
+                throw new \LogicException('list() is not on any path under test.');
+            }
+
+            public function templates(): array
+            {
+                throw new \LogicException('templates() is not on any path under test.');
+            }
+
+            public function read(string $uri, \Waaseyaa\Access\AuthorizationPrincipalInterface $principal): ?ContentResourceContent
+            {
+                throw new \RuntimeException('resource provider offline');
+            }
+        });
+
+        return $registry;
     }
 
     /**
@@ -426,7 +840,10 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
         $account->method('id')->willReturn($id);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('hasPermission')->willReturnCallback(
-            static fn(string $p): bool => $p === self::WRITE_CAP,
+            // 'resource.content.read' is also granted here (rather than on a
+            // second principal fixture) so the #2886 resources/list and
+            // resources/read reachability tests can share this account.
+            static fn(string $p): bool => $p === self::WRITE_CAP || $p === 'resource.content.read',
         );
 
         return $account;
