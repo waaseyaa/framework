@@ -45,7 +45,21 @@ final class ContentResourceRegistry
      */
     public function list(AuthorizationPrincipalInterface $principal): array
     {
-        return $this->listPage($principal)->resources;
+        $resources = [];
+        foreach ($this->providers as $providerName => $provider) {
+            foreach ($provider->list($principal)->resources as $resource) {
+                if (isset($resources[$resource->uri])) {
+                    $this->logger->warning('Duplicate content resource URI omitted.', ['provider' => $providerName]);
+                    continue;
+                }
+                $resources[$resource->uri] = $resource;
+                if (count($resources) === self::MAX_RESOURCES) {
+                    break 2;
+                }
+            }
+        }
+
+        return array_values($resources);
     }
 
     public function listPage(
