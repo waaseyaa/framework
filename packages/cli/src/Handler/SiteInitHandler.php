@@ -40,6 +40,7 @@ final readonly class SiteInitHandler
         $dryRun = (bool) $io->option('dry-run');
         $yes = (bool) $io->option('yes');
         $json = (bool) $io->option('json');
+        $blueprintInvocation = false;
 
         if ($json && $answers === '') {
             $this->writeError($io, 'site:init --json requires an --answers document.', true);
@@ -77,6 +78,7 @@ final readonly class SiteInitHandler
             }
 
             $manifest = new SiteManifestParser()->parse($yaml, $answers !== '' ? $answers : '<interactive>');
+            $blueprintInvocation = $manifest->applicationBlueprint !== null;
             GeneratorFeatureNegotiation::assert($manifest, SiteArtifactRendererFactory::advertisedGeneratorFeatures(), 'site:init');
             $decisionPath = trim((string) ($io->option('decision-receipt') ?? ''));
             $decisionReceipt = $decisionPath === '' ? null : $this->readDecisionReceipt($decisionPath, $projectRoot);
@@ -137,16 +139,10 @@ final readonly class SiteInitHandler
             $violation = $exception->violations[0];
             $this->writeError($io, sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message), $json, code: $violation->code === 'SITE050_DECISION_RECEIPT_INVALID' ? $violation->code : null, pointer: $violation->path);
         } catch (GenerationRefusalException $exception) {
-            // R2-3: only the negotiation refusal this handler itself raises
-            // (source 'site:init', immediately above) gets the widened coded
-            // envelope. `SiteInitializationService`'s own GEN0xx refusals
-            // (source 'generation', e.g. GEN010_UNIT_PATH_CONFLICT from
-            // `prepareUnitPlan()`) are a `GenerationRefusalException` too —
-            // it extends `\RuntimeException` — and fall through to the
-            // uncoded `writeError()` path below unchanged, so a blueprint-
-            // free manifest's existing engine-refusal envelope stays exactly
-            // as it was before this handler learned about negotiation.
-            if ($exception->source === 'site:init') {
+            // Blueprint activation makes compiler and approval refusals part
+            // of the coded public contract. A blueprint-free engine refusal
+            // retains the legacy message-only JSON envelope.
+            if ($exception->source === 'site:init' || $blueprintInvocation) {
                 $this->writeCodedError($io, $exception, $json);
             } else {
                 $this->writeError($io, $exception->getMessage(), $json);
