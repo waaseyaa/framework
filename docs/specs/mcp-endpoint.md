@@ -650,16 +650,24 @@ Dependency-free, no `justinrainbow/json-schema` or `opis/json-schema` added:
 | `type` | Single or list. `object` accepts any array that is not a non-empty list; `array` accepts any list; `integer` accepts integral floats (JSON has one number type, so `2.0` is a valid integer); `boolean` never satisfies `string`/`number` |
 | `properties`, `required`, `additionalProperties` | `additionalProperties` honours both `false` (unexpected argument → violation) and a subschema (each extra member validated against it, e.g. `EntityListTool`'s `sort` → `{enum: [ASC, DESC]}`) |
 | `enum`, `const` | Strict comparison |
-| `items`, `minItems`, `maxItems` | Item violations carry the index (`tags.1`) |
+| `items`, `minItems`, `maxItems`, `uniqueItems` | Item violations carry the index (`tags.1`); `uniqueItems` compares decoded-JSON items with strict equality like `enum`/`const` (`1` ≠ `"1"`, `1` ≠ `1.0`) and reports the later duplicate's index |
 | `minLength`, `maxLength`, `pattern` | Length is `mb_strlen`; an invalid schema regex yields no verdict rather than failing the caller's input |
 | `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` | |
+| `allOf`, `anyOf`, `oneOf` | In-place applicators (#2737). `allOf` applies every subschema and reports their violations as-is; `anyOf` passes when at least one alternative accepts the value; `oneOf` passes when exactly one does (more than one match is a violation too). When no alternative accepts the value and exactly one alternative fits the value's *type*, that alternative's own violations are reported at their real path (`values.related.0` → `Must be >= 1`); otherwise a single `Does not match any of the N allowed alternatives.` violation lands on the field. Applicators run after the value's own keywords, so a `type` mismatch beside `anyOf` still yields one violation |
 
-**Unrecognised keywords are ignored** (`default`, `description`, `$schema`,
-`x-*`) — a schema is never *rejected* for vocabulary the validator does not
-police, so `inputSchema` stays declarative documentation first. **Composition
-keywords (`allOf`/`anyOf`/`oneOf`/`$ref`) are deliberately unimplemented**: no
-first-party tool declares them, and silently accepting them would be worse
-than not offering them. Add support alongside the first tool that needs it.
+**Unrecognised keywords are ignored** (`default`, `description`, `format`,
+`$schema`, `x-*`) — a schema is never *rejected* for vocabulary the validator
+does not police, so `inputSchema` stays declarative documentation first. The
+table above is the **complete enforced vocabulary**; it is a documented subset,
+not a claim of full draft 2020-12 conformance, and `$ref` is not implemented.
+The applicators exist because first-party tools advertise them: #2737 measured
+`ContentToolSet`'s nullable `anyOf`, reference-list `items.oneOf` and
+`uniqueItems` being advertised by `tools/list` yet ignored at admission, so
+schema-invalid nullable/reference input reached the handler and was refused
+only by publishing's domain validator (`execution_failed`, not
+`input_validation_refused`). Every keyword a descriptor advertises must be
+enforced by this validator — never by a transport- or tool-local guard — so a
+new keyword in a first-party schema is added here first.
 
 **Decoded-JSON value model:** arguments arrive as `json_decode($body, true)`
 produces them, so a JSON object is an associative PHP array and the empty

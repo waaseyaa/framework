@@ -9,7 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AgentTool;
+use Waaseyaa\AI\Tools\AgentToolInterface;
+use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Content\ContentToolSet;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
@@ -60,6 +63,9 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
 
     /** @var array<string, AgentTool> */
     private array $tools = [];
+
+    /** @var array<string, int> Handler invocations per tool name, counted around the real handler. */
+    private array $handlerCalls = [];
     private AuthenticatedMcpEndpoint $writeTier;
     private ContentPublisher $publisher;
     private PublisherAccount $actor;
@@ -96,6 +102,11 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
                 'slug' => new FieldSpec(type: 'string', required: true),
                 'title' => new FieldSpec(type: 'string', required: true),
                 'body_html' => new FieldSpec(type: 'text', html: true),
+                // #2737: the two first-party shapes whose advertised constraints
+                // use composition keywords (anyOf nullable, items.oneOf +
+                // uniqueItems reference list).
+                'publish_on' => new FieldSpec(type: 'date', nullable: true),
+                'related' => new FieldSpec(type: 'reference_list', maxItems: 3),
             ],
             htmlSanitizer: new SymfonyTestSanitizer(['p']),
             validators: [],
@@ -123,13 +134,63 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
 
     private function collectingRegistry(): ToolRegistryInterface
     {
-        return new class ($this->tools) implements ToolRegistryInterface {
-            /** @param array<string, AgentTool> $sink */
-            public function __construct(private array &$sink) {}
+        return new class ($this->tools, $this->handlerCalls) implements ToolRegistryInterface {
+            /**
+             * @param array<string, AgentTool> $sink
+             * @param array<string, int> $calls
+             */
+            public function __construct(private array &$sink, private array &$calls) {}
 
             public function register(AgentTool $tool): void
             {
-                $this->sink[$tool->name] = $tool;
+                // Forwarding observer: counts handler entries without
+                // substituting the handler, so "zero handler calls" is a
+                // measured fact rather than an inference from the envelope.
+                $calls = &$this->calls;
+                $counting = new class ($tool->impl, $tool->name, $calls) implements AgentToolInterface {
+                    /** @param array<string, int> $calls */
+                    public function __construct(private AgentToolInterface $inner, private string $name, private array &$calls) {}
+
+                    public function execute(array $arguments, AuthorizationPrincipalInterface $account): AgentToolResult
+                    {
+                        $this->calls[$this->name] = ($this->calls[$this->name] ?? 0) + 1;
+
+                        return $this->inner->execute($arguments, $account);
+                    }
+
+                    public function dryRun(array $arguments, AuthorizationPrincipalInterface $account): AgentToolResult
+                    {
+                        return $this->inner->dryRun($arguments, $account);
+                    }
+
+                    public function argumentsForAudit(array $arguments): array
+                    {
+                        return $this->inner->argumentsForAudit($arguments);
+                    }
+
+                    public function inputSchema(): array
+                    {
+                        return $this->inner->inputSchema();
+                    }
+
+                    public function description(): string
+                    {
+                        return $this->inner->description();
+                    }
+                };
+                $this->sink[$tool->name] = new AgentTool(
+                    name: $tool->name,
+                    capability: $tool->capability,
+                    destructive: $tool->destructive,
+                    dryRunSupported: $tool->dryRunSupported,
+                    category: $tool->category,
+                    inputSchema: $tool->inputSchema,
+                    impl: $counting,
+                    title: $tool->title,
+                    outputSchema: $tool->outputSchema,
+                    idempotent: $tool->idempotent,
+                    openWorld: $tool->openWorld,
+                );
             }
 
             public function get(string $name): AgentTool
@@ -489,4 +550,56 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
             self::assertFalse($tool->inputSchema['additionalProperties'] ?? true, "$name must be closed.");
         }
     }
+
+    #[Test]
+    public function advertised_nullable_and_reference_list_constraints_refuse_before_dispatch(): void
+    {
+        // #2737: `tools/list` advertises anyOf (nullable), items.oneOf
+        // (reference alternatives) and uniqueItems for these fields. Each
+        // malformed family must be an input-validation refusal with ZERO
+        // handler calls — not a domain VALIDATION_FAILED that happened to
+        // fail safely after the handler ran.
+        $malformed = [
+            'values.publish_on' => ['publish_on' => false],
+            'values.related.0' => ['related' => [0]],
+            'values.related.0 (empty string)' => ['related' => ['']],
+            'values.related.0 (boolean)' => ['related' => [false]],
+            'values.related.1' => ['related' => ['dup', 'dup']],
+            'values.related' => ['related' => [1, 2, 3, 4]],
+        ];
+        $seq = 0;
+        foreach ($malformed as $expectedField => $values) {
+            $envelope = $this->errorEnvelope($this->rpc('article.createDraft', [
+                'values' => ['slug' => 'union-' . $seq, 'title' => 'Union'] + $values,
+                'idempotency_key' => 'union-malformed-' . $seq++,
+            ]));
+            $expectedField = explode(' ', $expectedField)[0];
+
+            self::assertSame('VALIDATION_FAILED', $envelope['code'], $expectedField);
+            self::assertSame(
+                [$expectedField],
+                array_map(static fn(array $e): string => $e['field'], $envelope['errors']),
+                $expectedField,
+            );
+        }
+        self::assertSame([], $this->handlerCalls, 'Schema-invalid input must never enter a handler.');
+
+        // Nothing was persisted for any of the refused calls.
+        $listing = $this->successPayload($this->rpc('article.list', []));
+        self::assertSame([], $listing['items']);
+
+        // Positive controls: a valid null and a valid reference list are
+        // admitted, reach the handler, and persist a draft (sql-blob layout —
+        // the sql-column layout has no array column encoding and refuses
+        // structured values, which is a storage limitation, not admission).
+        $draft = $this->successPayload($this->rpc('article.createDraft', [
+            'values' => ['slug' => 'union-valid', 'title' => 'Union', 'publish_on' => null, 'related' => [1, 'b']],
+            'idempotency_key' => 'union-valid-key',
+        ]));
+        self::assertSame(1, $this->handlerCalls['article.createDraft'] ?? 0);
+        self::assertSame([1, 'b'], $draft['related']);
+        $persisted = $this->successPayload($this->rpc('article.get', ['id' => (string) $draft['id']]));
+        self::assertSame([1, 'b'], $persisted['related']);
+    }
+
 }
