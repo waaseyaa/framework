@@ -158,3 +158,11 @@ analytics tables, or change Grafana or CI.
 
 GitHub ingestion recovery, metric calculations, required-check parity, and the
 remaining dashboard families remain later parts of #2869.
+
+The adapter admits only the known `jonesrussell/waaseyaa-infra` producer, with
+run URL/repository/ID agreement, completed status, positive run and attempt IDs,
+and valid ordered UTC timestamps. It counts distinct successful attempts,
+deduplicates identical copies, and excludes conflicting copies. Output names the
+revision `infra_sha`; application and Framework pins are not inferred.
+`source_updated_at` is a source update-time proxy, explicitly labeled by
+`completion_time_basis`, and must not be used as exact job completion time.

@@ -45,14 +45,16 @@ final class ConsumerPromotionAdapterTest extends TestCase
         self::assertTrue($promotion['sample_eligible']);
         self::assertSame('northway', $promotion['target']);
         self::assertSame('production', $promotion['environment']);
-        self::assertSame(self::REVISION, $promotion['revision']);
+        self::assertSame(self::REVISION, $promotion['infra_sha']);
         self::assertSame('Deploy bounded retention and persistence health', $promotion['reason']);
         self::assertSame('success', $promotion['conclusion']);
+        self::assertSame(1, $promotion['run_attempt']);
+        self::assertSame('workflow_run_updated_at_proxy', $promotion['completion_time_basis']);
         self::assertSame('.github/workflows/promote.yml', $promotion['workflow_path']);
         self::assertSame('workflow_dispatch', $promotion['event']);
         self::assertSame(33474562592, $promotion['run_id']);
         self::assertSame('2026-09-01T05:41:22Z', $promotion['started_at']);
-        self::assertSame('2026-09-01T05:45:28Z', $promotion['finished_at']);
+        self::assertSame('2026-09-01T05:45:28Z', $promotion['source_updated_at']);
         $this->assertNoSecrets($result);
     }
 
@@ -111,6 +113,76 @@ final class ConsumerPromotionAdapterTest extends TestCase
         self::assertContains('revision_not_exact_sha', $codes);
         self::assertContains('revision_mismatch_head_sha', $codes);
         $this->assertNoSecrets($result);
+    }
+
+    #[Test]
+    public function duplicate_runs_count_once(): void
+    {
+        $run = $this->promoteRun();
+        $decoded = $this->decode($this->adapt($this->document([$run, $run])));
+        self::assertSame(1, $decoded['sample_size']);
+        self::assertCount(1, $decoded['promotions']);
+        self::assertSame('duplicate_run', $decoded['rejected'][0]['code']);
+    }
+
+    #[Test]
+    public function attempts_are_distinct_and_conflicting_duplicates_are_excluded(): void
+    {
+        $run = $this->promoteRun();
+        $retry = array_replace($run, ['run_attempt' => 2]);
+        $decoded = $this->decode($this->adapt($this->document([$run, $retry])));
+        self::assertSame(2, $decoded['sample_size']);
+        self::assertSame([1, 2], array_column($decoded['promotions'], 'run_attempt'));
+        $failed = array_replace($run, ['conclusion' => 'failure']);
+        foreach ([[$run, $failed], [$failed, $run]] as $runs) {
+            $decoded = $this->decode($this->adapt($this->document($runs)));
+            self::assertSame(0, $decoded['sample_size']);
+            self::assertSame([], $decoded['promotions']);
+            self::assertSame('conflicting_run', $decoded['rejected'][0]['code']);
+        }
+    }
+
+    #[Test]
+    public function incomplete_or_invalid_completion_evidence_is_rejected(): void
+    {
+        foreach ([
+            ['updated_at' => null],
+            ['updated_at' => 'not-a-time'],
+            ['updated_at' => '2026-02-30T05:45:28Z'],
+            ['updated_at' => '2026-09-01T05:40:00Z'],
+            ['run_started_at' => 'not-a-time'],
+            ['status' => 'in_progress'],
+            ['status' => null],
+            ['id' => 0],
+            ['run_attempt' => null],
+            ['run_attempt' => 0],
+            ['id' => '999999999999999999999999999999'],
+        ] as $override) {
+            $decoded = $this->decode($this->adapt($this->document([array_replace($this->promoteRun(), $override)])));
+            self::assertSame(0, $decoded['sample_size'], json_encode($override));
+            self::assertSame([], $decoded['promotions']);
+            self::assertCount(1, $decoded['rejected']);
+        }
+    }
+
+    #[Test]
+    public function run_url_must_bind_repository_and_run_identity(): void
+    {
+        foreach ([
+            'https://github.com/unrelated/repository/actions/runs/33474562592',
+            'https://github.com/jonesrussell/waaseyaa-infra/actions/runs/123',
+            'https://example.com/jonesrussell/waaseyaa-infra/actions/runs/33474562592',
+        ] as $url) {
+            $run = array_replace($this->promoteRun(), ['html_url' => $url]);
+            $decoded = $this->decode($this->adapt($this->document([$run])));
+            self::assertSame(0, $decoded['sample_size']);
+            self::assertSame('source_identity_mismatch', $decoded['rejected'][0]['code']);
+        }
+        $document = $this->document([$this->promoteRun()]);
+        $document['repository'] = 'unrelated/repository';
+        $decoded = $this->decode($this->adapt($document));
+        self::assertSame(0, $decoded['sample_size']);
+        self::assertSame('source_identity_mismatch', $decoded['rejected'][0]['code']);
     }
 
     #[Test]
@@ -213,6 +285,7 @@ final class ConsumerPromotionAdapterTest extends TestCase
         $title ??= 'Promote northway to production at ' . $titleRevision . ' — Deploy bounded retention and persistence health';
 
         return [
+            'run_attempt' => 1,
             'id' => 33474562592,
             'path' => '.github/workflows/promote.yml',
             'event' => 'workflow_dispatch',
@@ -233,6 +306,7 @@ final class ConsumerPromotionAdapterTest extends TestCase
     private function pushDeployRun(): array
     {
         return [
+            'run_attempt' => 1,
             'id' => 1,
             'path' => '.github/workflows/deploy-oiatc.yml',
             'event' => 'push',
@@ -251,6 +325,7 @@ final class ConsumerPromotionAdapterTest extends TestCase
     private function prMergeRun(): array
     {
         return [
+            'run_attempt' => 1,
             'id' => 5827240642,
             'path' => '.github/workflows/release.yml',
             'event' => 'push',
