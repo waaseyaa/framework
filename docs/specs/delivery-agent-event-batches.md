@@ -41,7 +41,19 @@ stable**.
 
 ## Publication readiness
 
-Gate enforcement for batches is implemented in `bin/check-delivery-agent-events`.
-Operator batch publication is live only when this enforcement and the #2869
-projection reader are ready together. Shared CI/preflight roster edits remain a
-Codex integration patch.
+Gate enforcement for batches is implemented in
+`bin/check-delivery-agent-events`, and the existing local preflight plus
+immutable PR/push/dispatch CI paths already invoke that command. No separate
+batch gate or shared-roster command is required.
+
+Operator batch publication remains pending until all of the following are
+qualified together:
+
+1. the accepted v1 freeze manifest matches the final accepted ledger bytes;
+2. complete-set validation and deterministic topological replay pass on the
+   immutable candidate; and
+3. the #2869 projector reads and verifies the same freeze, batch manifest,
+   schemas, and replay identity.
+
+This specification records the activation contract; it does not claim that
+operational cutover or publication has occurred.

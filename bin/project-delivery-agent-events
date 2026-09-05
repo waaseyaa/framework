@@ -7,8 +7,12 @@ const PROJECTION_LEDGER = 'ops/observability/delivery-agent-events-v1.jsonl';
 const PROJECTION_SCHEMA = 'ops/observability/delivery-agent-event-v1.schema.json';
 const PROJECTION_EVENTS_TABLE = 'waaseyaa_delivery_agent_events_v1';
 const PROJECTION_STATE_TABLE = 'waaseyaa_delivery_projection_state';
+const PROJECTION_IDENTITY_TABLE = 'waaseyaa_delivery_projection_identity_v2';
 const PROJECTION_ID = 'delivery-agent-events/v1';
-const PROJECTOR_VERSION = 1;
+const PROJECTOR_VERSION = 2;
+
+require_once __DIR__ . '/lib/delivery-agent-event-set.php';
+require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 /** @return array{exit: int, stdout: string, stderr: string} */
 function projectionRun(array $command, ?string $cwd = null): array
@@ -25,7 +29,7 @@ function projectionRun(array $command, ?string $cwd = null): array
     return ['exit' => proc_close($process), 'stdout' => $stdout, 'stderr' => $stderr];
 }
 
-/** @return array{commit: string, ledger: string, schema: string, ledger_sha256: string, schema_sha256: string, events: list<array{ordinal: int, raw: string, hash: string, value: array<string, mixed>}>} */
+/** @return array<string, mixed> */
 function projectionLoadSource(string $root, string $sourceRef): array
 {
     $git = $root . '/bin/git';
@@ -44,12 +48,37 @@ function projectionLoadSource(string $root, string $sourceRef): array
     if ($ledger === '' || !str_ends_with($ledger, "\n") || $schema === '') {
         throw new RuntimeException('source commit contains an empty or non-newline-terminated contract');
     }
+    $show = static function (string $path) use ($git, $root, $commit): array {
+        $result = projectionRun([$git, 'show', $commit . ':' . $path], $root);
+        return ['exit' => $result['exit'], 'output' => $result['stdout'] . $result['stderr']];
+    };
+    $tree = static function (string $path) use ($git, $root, $commit): array {
+        $result = projectionRun([$git, 'ls-tree', '-r', '--name-only', $commit, '--', $path], $root);
+        return ['exit' => $result['exit'], 'output' => $result['stdout'] . $result['stderr']];
+    };
+    $batchSchemaResult = $show(DELIVERY_AGENT_BATCH_SCHEMA);
+    $freezeResult = $show(DELIVERY_AGENT_V1_FREEZE);
+    $loadedBatches = delivery_agent_load_batch_files_from_commit($show, $tree);
+    if ($loadedBatches['errors'] !== []) {
+        throw new RuntimeException('could not load immutable batch authority: ' . implode('; ', $loadedBatches['errors']));
+    }
+    $hasBatchAuthority = $batchSchemaResult['exit'] === 0 || $freezeResult['exit'] === 0 || $loadedBatches['batches'] !== [];
+
     $temporary = sys_get_temp_dir() . '/waaseyaa-delivery-projection-' . bin2hex(random_bytes(8));
     if (!mkdir($temporary, 0700) || file_put_contents($temporary . '/ledger.jsonl', $ledger) === false || file_put_contents($temporary . '/schema.json', $schema) === false) {
         throw new RuntimeException('could not stage immutable source for validation');
     }
     try {
-        $validation = projectionRun([PHP_BINARY, $root . '/bin/check-delivery-agent-events', '--ledger=' . $temporary . '/ledger.jsonl', '--schema=' . $temporary . '/schema.json'], $root);
+        if ($hasBatchAuthority) {
+            $parent = projectionRun([$git, 'rev-parse', '--verify', $commit . '^1'], $root);
+            $parentCommit = strtolower(trim($parent['stdout']));
+            if ($parent['exit'] !== 0 || preg_match('/^[0-9a-f]{40}$/D', $parentCommit) !== 1) {
+                throw new RuntimeException('batch source commit must have an immutable first parent for complete-set validation');
+            }
+            $validation = projectionRun([PHP_BINARY, $root . '/bin/check-delivery-agent-events', '--candidate=' . $commit, '--base=' . $parentCommit], $root);
+        } else {
+            $validation = projectionRun([PHP_BINARY, $root . '/bin/check-delivery-agent-events', '--ledger=' . $temporary . '/ledger.jsonl', '--schema=' . $temporary . '/schema.json'], $root);
+        }
         if ($validation['exit'] !== 0) {
             throw new RuntimeException('source validation failed: ' . trim($validation['stderr'] . $validation['stdout']));
         }
@@ -58,15 +87,44 @@ function projectionLoadSource(string $root, string $sourceRef): array
         @unlink($temporary . '/schema.json');
         @rmdir($temporary);
     }
+    $v1Events = [];
     $events = [];
     foreach (explode("\n", substr($ledger, 0, -1)) as $index => $line) {
         $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
         if (!is_array($event) || array_is_list($event)) {
             throw new RuntimeException('validated event was not an object');
         }
+        $v1Events[] = $event;
         $events[] = ['ordinal' => $index + 1, 'raw' => $line, 'hash' => hash('sha256', $line), 'value' => $event];
     }
-    return ['commit' => $commit, 'ledger' => $ledger, 'schema' => $schema, 'ledger_sha256' => hash('sha256', $ledger), 'schema_sha256' => hash('sha256', $schema), 'events' => $events];
+    $batchSchema = $batchSchemaResult['exit'] === 0 ? $batchSchemaResult['output'] : '';
+    $freeze = $freezeResult['exit'] === 0 ? $freezeResult['output'] : '';
+    $batchEvents = [];
+    if ($hasBatchAuthority) {
+        if ($batchSchema === '' || $freeze === '') {
+            throw new RuntimeException('batch authority requires the batch schema and v1 freeze manifest');
+        }
+        $parsed = delivery_agent_parse_batch_files($loadedBatches['batches'], json_decode($batchSchema, flags: JSON_THROW_ON_ERROR), json_decode($schema, flags: JSON_THROW_ON_ERROR));
+        if ($parsed['errors'] !== []) {
+            throw new RuntimeException('validated batch source could not be replayed: ' . implode('; ', $parsed['errors']));
+        }
+        $batchEvents = $parsed['events'];
+    }
+    $replay = delivery_agent_replay_events($v1Events, $batchEvents);
+    if ($replay['errors'] !== []) {
+        throw new RuntimeException('batch replay failed: ' . implode('; ', $replay['errors']));
+    }
+    foreach (array_slice($replay['events'], count($v1Events)) as $event) {
+        $raw = json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $events[] = ['ordinal' => count($events) + 1, 'raw' => $raw, 'hash' => hash('sha256', $raw), 'value' => $event];
+    }
+    $manifest = [];
+    foreach ($loadedBatches['batches'] as $path => $bytes) {
+        $manifest[] = ['batch_id' => substr(basename($path), 0, -5), 'sha256' => hash('sha256', $bytes)];
+    }
+    $manifestJson = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    $replayBytes = implode("\n", array_column($events, 'raw')) . "\n";
+    return ['commit' => $commit, 'ledger' => $ledger, 'schema' => $schema, 'ledger_sha256' => hash('sha256', $ledger), 'schema_sha256' => hash('sha256', $schema), 'events' => $events, 'batch_manifest' => $manifestJson, 'batch_manifest_sha256' => hash('sha256', $manifestJson), 'batch_schema_sha256' => $batchSchema === '' ? null : hash('sha256', $batchSchema), 'freeze_sha256' => $freeze === '' ? null : hash('sha256', $freeze), 'replay_sha256' => hash('sha256', $replayBytes)];
 }
 
 function projectionAssertDsn(string $dsn): void
@@ -132,6 +190,12 @@ function projectionInstall(PDO $pdo): void
         last_event_id VARCHAR(36) NULL, generation {$integer} NOT NULL,
         projector_version {$integer} NOT NULL, projected_at VARCHAR(32) NOT NULL
     )");
+    $pdo->exec('CREATE TABLE IF NOT EXISTS ' . PROJECTION_IDENTITY_TABLE . " (
+        projection_id VARCHAR(64) PRIMARY KEY, batch_manifest {$text} NOT NULL,
+        batch_manifest_sha256 VARCHAR(64) NOT NULL, event_schema_sha256 VARCHAR(64) NOT NULL,
+        batch_schema_sha256 VARCHAR(64) NULL, freeze_sha256 VARCHAR(64) NULL,
+        replay_sha256 VARCHAR(64) NOT NULL
+    )");
 }
 
 function projectionAssertInstalled(PDO $pdo): void
@@ -139,6 +203,7 @@ function projectionAssertInstalled(PDO $pdo): void
     try {
         $pdo->query('SELECT event_id,source_ordinal,raw_event_json,event_sha256 FROM ' . PROJECTION_EVENTS_TABLE . ' WHERE 1 = 0');
         $pdo->query('SELECT projection_id,source_commit_sha,ledger_sha256,generation FROM ' . PROJECTION_STATE_TABLE . ' WHERE 1 = 0');
+        $pdo->query('SELECT projection_id,batch_manifest_sha256,replay_sha256 FROM ' . PROJECTION_IDENTITY_TABLE . ' WHERE 1 = 0');
     } catch (PDOException $exception) {
         throw new RuntimeException('projection schema is absent or incompatible; run install explicitly', 0, $exception);
     }
@@ -177,6 +242,15 @@ function projectionState(PDO $pdo): ?array
     return is_array($state) ? $state : null;
 }
 
+/** @return array<string, mixed>|null */
+function projectionIdentity(PDO $pdo): ?array
+{
+    $statement = $pdo->prepare('SELECT * FROM ' . PROJECTION_IDENTITY_TABLE . ' WHERE projection_id = ?');
+    $statement->execute([PROJECTION_ID]);
+    $identity = $statement->fetch(PDO::FETCH_ASSOC);
+    return is_array($identity) ? $identity : null;
+}
+
 /** @return array{valid: bool, reason: string, state: array<string, mixed>|null} */
 function projectionVerify(PDO $pdo, array $source): array
 {
@@ -186,17 +260,25 @@ function projectionVerify(PDO $pdo, array $source): array
         return ['valid' => false, 'reason' => 'projection state is absent', 'state' => null];
     }
     $rows = $pdo->query('SELECT event_id,source_ordinal,raw_event_json,event_sha256 FROM ' . PROJECTION_EVENTS_TABLE . ' ORDER BY source_ordinal')->fetchAll(PDO::FETCH_ASSOC);
-    $ledger = '';
+    $replay = '';
     foreach ($rows as $index => $row) {
         if ((int) $row['source_ordinal'] !== $index + 1 || hash('sha256', $row['raw_event_json']) !== $row['event_sha256']) {
             return ['valid' => false, 'reason' => 'projected row order or line hash is corrupt', 'state' => $state];
         }
-        $ledger .= $row['raw_event_json'] . "\n";
+        $replay .= $row['raw_event_json'] . "\n";
     }
-    $valid = hash('sha256', $ledger) === $source['ledger_sha256'] && $ledger === $source['ledger']
+    $identity = projectionIdentity($pdo);
+    $expectedReplay = implode("\n", array_column($source['events'], 'raw')) . "\n";
+    $valid = $replay === $expectedReplay && hash('sha256', $replay) === $source['replay_sha256']
         && count($rows) === count($source['events']) && $state['source_commit_sha'] === $source['commit']
         && $state['schema_sha256'] === $source['schema_sha256'] && $state['ledger_sha256'] === $source['ledger_sha256']
-        && (int) $state['event_count'] === count($source['events']);
+        && (int) $state['event_count'] === count($source['events']) && is_array($identity)
+        && $identity['batch_manifest'] === $source['batch_manifest']
+        && $identity['batch_manifest_sha256'] === $source['batch_manifest_sha256']
+        && $identity['event_schema_sha256'] === $source['schema_sha256']
+        && $identity['batch_schema_sha256'] === $source['batch_schema_sha256']
+        && $identity['freeze_sha256'] === $source['freeze_sha256']
+        && $identity['replay_sha256'] === $source['replay_sha256'];
     return ['valid' => $valid, 'reason' => $valid ? 'exact source set verified' : 'projection differs from source', 'state' => $state];
 }
 
@@ -233,12 +315,35 @@ function projectionAssertNoRegression(string $root, ?array $state, array $source
     if ($prior['exit'] !== 0 || !str_starts_with($source['ledger'], $prior['stdout'])) {
         throw new RuntimeException('source commit rewrites the append-only ledger prefix');
     }
+    $git = $root . '/bin/git';
+    $priorCommit = $state['source_commit_sha'];
+    $priorBatches = delivery_agent_load_batch_files_from_commit(
+        static function (string $path) use ($git, $root, $priorCommit): array {
+            $result = projectionRun([$git, 'show', $priorCommit . ':' . $path], $root);
+            return ['exit' => $result['exit'], 'output' => $result['stdout'] . $result['stderr']];
+        },
+        static function (string $path) use ($git, $root, $priorCommit): array {
+            $result = projectionRun([$git, 'ls-tree', '-r', '--name-only', $priorCommit, '--', $path], $root);
+            return ['exit' => $result['exit'], 'output' => $result['stdout'] . $result['stderr']];
+        },
+    );
+    if ($priorBatches['errors'] !== []) {
+        throw new RuntimeException('could not read prior immutable batch authority: ' . implode('; ', $priorBatches['errors']));
+    }
+    $currentManifest = json_decode($source['batch_manifest'], true, flags: JSON_THROW_ON_ERROR);
+    $currentById = array_column($currentManifest, 'sha256', 'batch_id');
+    foreach ($priorBatches['batches'] as $path => $bytes) {
+        $batchId = substr(basename($path), 0, -5);
+        if (($currentById[$batchId] ?? null) !== hash('sha256', $bytes)) {
+            throw new RuntimeException('source commit deletes or modifies a previously projected batch');
+        }
+    }
 }
 
 /** @return array<string, mixed> */
 function projectionReceipt(string $operation, string $outcome, array $source, int $generation, array $delta): array
 {
-    return ['operation' => $operation, 'outcome' => $outcome, 'source_commit_sha' => $source['commit'], 'schema_sha256' => $source['schema_sha256'], 'ledger_sha256' => $source['ledger_sha256'], 'event_count' => count($source['events']), 'generation' => $generation, 'added' => $delta['added'], 'replaced' => $delta['replaced'], 'removed' => $delta['removed']];
+    return ['operation' => $operation, 'outcome' => $outcome, 'source_commit_sha' => $source['commit'], 'schema_sha256' => $source['schema_sha256'], 'ledger_sha256' => $source['ledger_sha256'], 'batch_manifest_sha256' => $source['batch_manifest_sha256'], 'batch_schema_sha256' => $source['batch_schema_sha256'], 'freeze_sha256' => $source['freeze_sha256'], 'replay_sha256' => $source['replay_sha256'], 'event_count' => count($source['events']), 'generation' => $generation, 'projector_version' => PROJECTOR_VERSION, 'added' => $delta['added'], 'replaced' => $delta['replaced'], 'removed' => $delta['removed']];
 }
 
 /** @return array<string, mixed> */
@@ -276,6 +381,9 @@ function projectionApply(PDO $pdo, array $source, string $root, ?string $failpoi
             $state = $pdo->prepare('INSERT INTO ' . PROJECTION_STATE_TABLE . ' (projection_id,contract_version,source_commit_sha,schema_sha256,ledger_sha256,ledger_bytes,event_count,first_event_id,last_event_id,generation,projector_version,projected_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
             $events = $source['events'];
             $state->execute([PROJECTION_ID, 'delivery-agent-event/v1', $source['commit'], $source['schema_sha256'], $source['ledger_sha256'], strlen($source['ledger']), count($events), $events[0]['value']['event_id'] ?? null, $events[count($events) - 1]['value']['event_id'] ?? null, $generation, PROJECTOR_VERSION, gmdate('Y-m-d\TH:i:s\Z')]);
+            $pdo->exec('DELETE FROM ' . PROJECTION_IDENTITY_TABLE . " WHERE projection_id = '" . PROJECTION_ID . "'");
+            $identity = $pdo->prepare('INSERT INTO ' . PROJECTION_IDENTITY_TABLE . ' (projection_id,batch_manifest,batch_manifest_sha256,event_schema_sha256,batch_schema_sha256,freeze_sha256,replay_sha256) VALUES (?,?,?,?,?,?,?)');
+            $identity->execute([PROJECTION_ID, $source['batch_manifest'], $source['batch_manifest_sha256'], $source['schema_sha256'], $source['batch_schema_sha256'], $source['freeze_sha256'], $source['replay_sha256']]);
             if ($failpoint === 'after_state_update_before_commit') {
                 throw new RuntimeException('injected projection failure');
             }
@@ -306,6 +414,16 @@ function projectionSelfTest(string $root): int
 {
     $source = projectionLoadSource($root, 'HEAD');
     $source['commit'] = str_repeat('0', 40);
+    $batchEvent = $source['events'][count($source['events']) - 1]['value'];
+    $batchEvent['event_id'] = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    $batchEvent['causation_event_id'] = null;
+    $batchEvent['recorded_at'] = '2099-01-01T00:00:00+00:00';
+    $batchEvent['occurred_at'] = null;
+    $batchRaw = json_encode($batchEvent, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $source['events'][] = ['ordinal' => count($source['events']) + 1, 'raw' => $batchRaw, 'hash' => hash('sha256', $batchRaw), 'value' => $batchEvent];
+    $source['batch_manifest'] = json_encode([['batch_id' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'sha256' => hash('sha256', $batchRaw)]], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    $source['batch_manifest_sha256'] = hash('sha256', $source['batch_manifest']);
+    $source['replay_sha256'] = hash('sha256', implode("\n", array_column($source['events'], 'raw')) . "\n");
     $pdo = new PDO('sqlite::memory:', options: [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
     projectionInstall($pdo);
     $first = projectionApply($pdo, $source, $root);
@@ -314,6 +432,16 @@ function projectionSelfTest(string $root): int
     if ($first['outcome'] !== 'applied' || $again['outcome'] !== 'no_op' || $state !== projectionState($pdo)) {
         throw new RuntimeException('self-test failed: identical replay was not a true no-op');
     }
+    $pdo->exec('DELETE FROM ' . PROJECTION_EVENTS_TABLE . ' WHERE source_ordinal = ' . count($source['events']));
+    if (projectionVerify($pdo, $source)['valid']) {
+        throw new RuntimeException('self-test failed: omitted batch replay row was accepted');
+    }
+    projectionApply($pdo, $source, $root);
+    $pdo->exec("UPDATE " . PROJECTION_IDENTITY_TABLE . " SET batch_manifest = '[]' WHERE projection_id = '" . PROJECTION_ID . "'");
+    if (projectionVerify($pdo, $source)['valid']) {
+        throw new RuntimeException('self-test failed: batch manifest drift was accepted');
+    }
+    projectionApply($pdo, $source, $root);
     $pdo->exec("INSERT INTO " . PROJECTION_EVENTS_TABLE . " (event_id,source_ordinal,raw_event_json,event_sha256,schema_version,event_type,recorded_at_raw,recorded_at_utc,repository,pull_request,head_sha,actor_kind,actor_name,evidence_kind) VALUES ('foreign',999,'{}','" . hash('sha256', '{}') . "','v1','probe','x','x','x',1,'" . str_repeat('0', 40) . "','agent','probe','observed')");
     $repaired = projectionApply($pdo, $source, $root);
     if ($repaired['removed'] !== 1 || !projectionVerify($pdo, $source)['valid']) {
@@ -325,6 +453,9 @@ function projectionSelfTest(string $root): int
     $changed['events'] = array_slice($source['events'], 0, -1);
     $changed['ledger'] = implode("\n", array_column($changed['events'], 'raw')) . "\n";
     $changed['ledger_sha256'] = hash('sha256', $changed['ledger']);
+    $changed['batch_manifest'] = '[]';
+    $changed['batch_manifest_sha256'] = hash('sha256', '[]');
+    $changed['replay_sha256'] = hash('sha256', $changed['ledger']);
     try {
         projectionApply($pdo, $changed, $root, 'after_insert');
         throw new RuntimeException('self-test failed: injected failure committed');
@@ -337,6 +468,10 @@ function projectionSelfTest(string $root): int
     if ($beforeRows !== $afterRows || $beforeState !== projectionState($pdo)) {
         throw new RuntimeException('self-test failed: rollback did not preserve the prior exact set');
     }
+    if (projectionApply($pdo, $changed, $root)['outcome'] !== 'applied' || !projectionVerify($pdo, $changed)['valid']) {
+        throw new RuntimeException('self-test failed: retry after rollback did not apply the same source');
+    }
+    projectionApply($pdo, $source, $root);
     $pdo->exec("UPDATE " . PROJECTION_EVENTS_TABLE . " SET raw_event_json = '{}' WHERE source_ordinal = 1");
     if (projectionVerify($pdo, $source)['valid']) {
         throw new RuntimeException('self-test failed: row corruption was hidden by state digest');
