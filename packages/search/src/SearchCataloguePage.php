@@ -16,20 +16,27 @@ namespace Waaseyaa\Search;
  */
 final readonly class SearchCataloguePage
 {
+    /** @var list<SearchCandidateProjection> */
+    public array $projections;
+
     /**
-     * @param list<SearchCandidateProjection> $projections
+     * @param array<mixed> $projections
      */
     public function __construct(
-        public array $projections,
+        array $projections,
         public ?SearchCatalogueScanPosition $next = null,
     ) {
         if (!array_is_list($projections)) {
             throw new \InvalidArgumentException('Search catalogue pages require a list of projections.');
         }
+        $validated = [];
         foreach ($projections as $projection) {
             if (!$projection instanceof SearchCandidateProjection) {
                 throw new \InvalidArgumentException('Search catalogue pages require SearchCandidateProjection members.');
             }
+            $validated[] = $projection;
         }
+
+        $this->projections = $validated;
     }
 }

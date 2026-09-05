@@ -999,6 +999,9 @@ final readonly class McpEndpoint
         if (!$this->resourceCapabilityAllowed($principal, $tokenScopes)) {
             return $this->jsonRpcResult($id, ['resources' => []]);
         }
+        if ($this->contentResources === null) {
+            return $this->jsonRpcResult($id, ['resources' => []]);
+        }
 
         $resume = null;
         if ($cursor !== null) {
@@ -1016,17 +1019,17 @@ final readonly class McpEndpoint
         }
 
         try {
-            $page = $this->contentResources?->listPage($principal, $resume);
+            $page = $this->contentResources->listPage($principal, $resume);
         } catch (\InvalidArgumentException) {
             return $this->jsonRpcError(-32602, 'Invalid resources/list params', $id);
         }
 
         $resources = array_map(
             static fn(\Waaseyaa\AI\Tools\Resource\ContentResourceDescriptor $resource): array => $resource->toArray(),
-            $page?->resources ?? [],
+            $page->resources,
         );
         $result = ['resources' => $resources];
-        if ($page?->next !== null && $this->contentResourceListCursors !== null) {
+        if ($page->next !== null && $this->contentResourceListCursors !== null) {
             $result['nextCursor'] = $this->contentResourceListCursors->seal(
                 $page->next,
                 ContentResourceListCursorCodec::principalBinding($principal),
