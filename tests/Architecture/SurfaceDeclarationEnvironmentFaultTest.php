@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Architecture;
 
+use Composer\Autoload\ClassLoader;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -203,16 +204,43 @@ final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
     public function locate_definition_ignores_a_real_package_autoload_dev_root_the_root_autoloader_never_honours(): void
     {
         // The exact #2926 review probe: this test class exists on disk under
-        // packages/notification's autoload-dev, the root composer.json maps
-        // no `Waaseyaa\Notification\Tests\` prefix, so class_exists() is
-        // false with a FRESH vendor/ — and locateDefinition must not call
-        // that an environment fault.
+        // packages/notification's autoload-dev, but the root composer.json
+        // maps no `Waaseyaa\Notification\Tests\` prefix, so the ROOT
+        // autoloader can never resolve it — and locateDefinition must not
+        // call that an environment fault.
+        //
+        // The precondition is stated against the Composer ClassLoader's PSR-4
+        // map, NOT class_exists(): PHPUnit includes test files directly, so
+        // whenever packages/notification's tests ran earlier in this process
+        // (a whole-configuration --filter run, or a shard that carries them)
+        // the class IS declared even though the autoloader never mapped it.
         $declarations = SurfaceDeclarations::load($this->repoRoot);
         $scanner = SurfaceScanner::scan($this->repoRoot);
         $fqcn = 'Waaseyaa\\Notification\\Tests\\Unit\\DefaultNotifiableTest';
+        $definition = $this->repoRoot . '/packages/notification/tests/Unit/DefaultNotifiableTest.php';
 
-        self::assertFileExists($this->repoRoot . '/packages/notification/tests/Unit/DefaultNotifiableTest.php');
-        self::assertFalse(class_exists($fqcn), 'Precondition of this proof: the root autoloader does not map the package autoload-dev prefix.');
+        self::assertFileExists($definition);
+
+        $loader = require $this->repoRoot . '/vendor/autoload.php';
+        self::assertInstanceOf(ClassLoader::class, $loader, 'vendor/autoload.php must return the root Composer ClassLoader.');
+        self::assertArrayNotHasKey(
+            'Waaseyaa\\Notification\\Tests\\',
+            $loader->getPrefixesPsr4(),
+            'Precondition of this proof: the root autoloader does not map the package autoload-dev prefix.',
+        );
+        self::assertFalse(
+            $loader->findFile($fqcn),
+            'Precondition of this proof: the root autoloader cannot resolve the FQCN to any file.',
+        );
+
+        // Declare the class deliberately so the proof below is demonstrably
+        // independent of whether PHPUnit already included the file.
+        if (!class_exists($fqcn, false)) {
+            require_once $definition;
+        }
+        self::assertTrue(class_exists($fqcn, false));
+        self::assertFalse($loader->findFile($fqcn), 'Loading the class must not change what the root autoloader maps.');
+
         self::assertNull($declarations->locateDefinition($fqcn, $scanner));
     }
 
