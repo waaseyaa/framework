@@ -104,7 +104,15 @@ runtime-negotiation roster separate from authored `capabilities` and recipe
 capability references. An older closed parser rejects the unknown section, and
 a newer parser refuses dry-run rendering or publication when the installed
 generator cohort does not advertise that exact feature. No cohort may silently
-ignore a blueprint.
+ignore a blueprint. Negotiation is `site:init`'s first act after parsing:
+`GeneratorFeatureNegotiation::assert()` compares the manifest's required
+tokens with the roster the installed root compilers advertise
+(`SiteArtifactRendererFactory::advertisedGeneratorFeatures()`), and a missing
+token is `GEN007_UNSUPPORTED_DECLARATION` at `/application_blueprint`
+(ADR-025 D-5) before any render, lock, journal or write, identically in
+dry-run and apply, with no change receipt. Until 01D-2 wires the blueprint
+compiler that roster is empty, so every blueprint-bearing manifest is refused
+there (#2787 01D-1).
 
 The manifest document remains byte/digest stable when the section is absent,
 but the generated `.waaseyaa/site.schema.json` necessarily changes when the
@@ -114,8 +122,8 @@ changed-managed-bytes upgrade path: rebind
 `site:init`. This is not the unrecoverable changed-artifact-set case. Until the
 rebind, strict doctor, generated verification, and the generated architecture
 test are red; today's `SITE010_GENERATED_ARTIFACT_DRIFT` wording classifies the
-mismatch as substitution. #2787 owns the decision and test for distinguishing
-this reviewed schema-upgrade case.
+mismatch as substitution. #2787 (01D-2) owns the decision and test for
+distinguishing this reviewed schema-upgrade case.
 
 Authored YAML contains the proposal, never mutation authority. The canonical
 blueprint digest covers its fixed schema id, contract version, and complete
@@ -123,8 +131,14 @@ payload; the section also participates in the full site-manifest digest. An
 approval or rejection receipt is separate request evidence that binds the
 decision and claimed actor identifier to both exact digests. That binding
 prevents transfer after proposal/context drift; actor authenticity is only as
-strong as the higher-layer decision mechanism. Only a matching approval may
-enter apply. A proposal needs no approval to validate or dry-run.
+strong as the higher-layer decision mechanism. Parsing, validation,
+negotiation and pure compilation need no approval: the compiled plan is the
+approval-free review surface. Engine evaluation of a plan under the blueprint
+compiler — `site:init --dry-run` and apply alike — requires an `approved`
+receipt matching the manifest re-parsed from the plan's own
+`.waaseyaa/site.yaml` row and is otherwise `GEN011_UNAUTHORIZED_SET_DELTA`
+(ADR-025 D-13 item 5). The receipt is a separate `--decision-receipt` input
+on every invocation, never a member of the apply request (#2787 01D-2).
 
 Lifecycle is derived rather than trusted from an authored state field:
 `proposed` has no matching decision, `approved` is the request-scoped state of a
@@ -135,12 +149,12 @@ unless a higher layer retains its matching rejection, and
 supplied with the request, for different bytes. The
 initializer extends the existing generated metadata and installs it last in
 the existing transaction; it does not create another generated artifact,
-approval authority, or transaction log. Receipt-aware rendering and strict
-verification are explicit #2787 changes: current generated metadata is a pure
-function of the manifest, while blueprint application makes the canonical
-approval receipt a second input. Blueprint-free output remains byte-identical.
-Strict verification re-derives state and fails closed on missing or mismatched
-evidence.
+approval authority, or transaction log. Receipt-aware evidence and strict
+verification are #2787 01D-2 changes: artifact bytes stay a pure function of
+the manifest, and the transaction authority composes the canonical approval
+receipt into the metadata it installs last (ADR-025 D-2.6, D-10.1).
+Blueprint-free output remains byte-identical. Strict verification re-derives
+state and fails closed on missing or mismatched evidence.
 
 `waaseyaa.generated` remains version 1. Its optional
 `application_blueprint` evidence member is emitted only for an applied
@@ -152,6 +166,18 @@ AI systems are untrusted proposal producers. Provider names, prompts,
 transcripts, confidence, and repair metadata remain outside the contract. A
 human-authored proposal and an AI-proposed one pass through the same parser,
 validator, exact-digest decision boundary, initializer, and verifier.
+
+The blueprint compiler is
+`Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler`: a distinct root
+compiler with its own `generator.fqcn` that composes
+`SiteArtifactRenderer::render()` and pure emitters into the root `site`
+unit's `ArtifactPlan`, declaring `set_evolution: additive` purely (#2787
+01D-1; design in `docs/change-records/FW-SITE-BLUEPRINT-01.md`). 01D-2 still
+owns: its admission to `ADDITIVE_COMPILERS` under the D-13 gate, the
+root-unit identity transition rules, `--decision-receipt`, receipt
+verification in evaluation, the `application_blueprint` evidence member with
+its compatible reader, strict doctor re-derivation, and the CLI wiring.
+Fixtures, checks and seeding are a later slice.
 
 ### Closed vocabulary (#2785)
 

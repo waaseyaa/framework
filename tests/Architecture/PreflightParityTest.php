@@ -84,7 +84,7 @@ final class PreflightParityTest extends TestCase
         $byId = $this->gatesById();
         foreach ([
             // composer-policy CI job
-            'check-composer-policy', 'check-package-layers',
+            'check-composer-policy', 'check-package-layers', 'check-repo-root-hygiene',
             // support/s1-contract CI job + the remaining S1 roster gates
             'check-support-contract', 'check-s1-sqlite-contract',
             'check-s1-configuration-activation', 'check-s1-configuration-authority',

@@ -19,6 +19,14 @@
             "enforced_by": "workflow:ci.yml#run_gate check-portable-paths"
         },
         {
+            "id": "check-repo-root-hygiene",
+            "alias": "check-repo-root-hygiene",
+            "run": "php bin/check-repo-root-hygiene",
+            "repair": "remove the stray root entries (rm -rf <entry>); only a genuinely expected local artifact may be added to EXPECTED_LOCAL_ENTRIES in bin/check-repo-root-hygiene with its .gitignore/ci.yml source",
+            "profile": "default",
+            "enforced_by": "workflow:ci.yml#php bin/check-repo-root-hygiene"
+        },
+        {
             "id": "check-package-layers",
             "alias": "check-package-layers",
             "run": "php bin/check-package-layers",
