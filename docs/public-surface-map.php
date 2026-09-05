@@ -172,6 +172,7 @@ return [
     'Waaseyaa\CLI\Handler\MutationAuthorityBackfillHandler' => 'public',
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
     'Waaseyaa\CLI\Provider\MakeStorageMigrationServiceProvider' => 'public',
+    'Waaseyaa\CLI\Scaffold\CliInstallPathResolverInterface' => 'internal',
     'Waaseyaa\CLI\Security\CliFieldReadCapabilityDeclaration' => 'public',
     'Waaseyaa\CLI\Security\CliFieldReadCapabilityIssuer' => 'public',
     'Waaseyaa\CLI\Site\SiteHostPlatform' => 'internal',

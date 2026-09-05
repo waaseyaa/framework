@@ -31,6 +31,7 @@ return [
         ['fqcn' => 'Waaseyaa\\CLI\\Handler\\MutationAuthorityBackfillHandler', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\CLI\\Io\\StdinSource', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\CLI\\Provider\\MakeStorageMigrationServiceProvider', 'disposition' => 'public'],
+        ['fqcn' => 'Waaseyaa\\CLI\\Scaffold\\CliInstallPathResolverInterface', 'disposition' => 'internal', 'ref' => '#2833'],
         ['fqcn' => 'Waaseyaa\\CLI\\Security\\CliFieldReadCapabilityDeclaration', 'disposition' => 'public', 'purpose' => 'Exact command scope and closed CLI-valid privileged-read reason'],
         ['fqcn' => 'Waaseyaa\\CLI\\Security\\CliFieldReadCapabilityIssuer', 'disposition' => 'public', 'purpose' => 'Issues null-actor NoActingContext capabilities from command metadata'],
         ['fqcn' => 'Waaseyaa\\CLI\\Site\\SiteHostPlatform', 'disposition' => 'internal'],

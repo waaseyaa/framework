@@ -1011,6 +1011,7 @@ Machine-readable derived view: `docs/public-surface-map.php`.
 | `Handler\MutationAuthorityBackfillHandler` | final readonly class | public | — |
 | `Io\StdinSource` | interface | public | — |
 | `Provider\MakeStorageMigrationServiceProvider` | final class | public | — |
+| `Scaffold\CliInstallPathResolverInterface` | interface | internal | — |
 | `Security\CliFieldReadCapabilityDeclaration` | final readonly class | public | Exact command scope and closed CLI-valid privileged-read reason |
 | `Security\CliFieldReadCapabilityIssuer` | final readonly class | public | Issues null-actor NoActingContext capabilities from command metadata |
 | `Site\SiteHostPlatform` | enum | internal | — |

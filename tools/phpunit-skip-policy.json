@@ -382,6 +382,14 @@
             "classification": "optional-package-form",
             "predicate": "fixture repository has a semver tag",
             "rationale": "The legacy version-sync fallback requires an available semver tag."
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/ScaffoldAuthHandlerTest.php",
+            "reason": "Cannot exercise an unreadable-file failure while running as root.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_geteuid() !== 0",
+            "rationale": "The #2833 package-owned resource digest failure proof chmod(0000)s a fixture file and expects AuthUiScaffoldManager::publish() to fail closed with 'Unable to copy auth UI file'; root ignores the permission bit and would read the file successfully, so the negative cannot be reproduced there."
         }
     ]
 }
