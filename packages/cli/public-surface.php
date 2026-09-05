@@ -39,7 +39,7 @@ return [
         ['fqcn' => 'Waaseyaa\\CLI\\Site\\Blueprint\\Emitter\\BlueprintEmission', 'disposition' => 'public', 'purpose' => 'Immutable output of one blueprint artifact emitter', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\CLI\\Site\\Blueprint\\Emitter\\EntityClassEmitter', 'disposition' => 'public', 'purpose' => 'Emits one content entity class per blueprint entity', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\CLI\\Site\\Blueprint\\Emitter\\ProviderRegistrationEmitter', 'disposition' => 'public', 'purpose' => 'Emits the generated application blueprint service provider and its Composer registration', 'ref' => '#2787'],
-        ['fqcn' => 'Waaseyaa\\CLI\\Site\\Blueprint\\Emitter\\RelationshipEmitter', 'disposition' => 'public', 'purpose' => 'Emits the deterministic blueprint relationship registry consumed for referential integrity', 'ref' => '#2787'],
+        ['fqcn' => 'Waaseyaa\\CLI\\Site\\Blueprint\\Emitter\\RelationshipEmitter', 'disposition' => 'public', 'purpose' => 'Emits the deterministic blueprint relationship registry for a later consumer; not loaded by the generated provider today', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\CLI\\Site\\SiteHostPlatform', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\CLI\\Site\\SitePathContainment', 'disposition' => 'internal'],
         ['fqcn' => 'Waaseyaa\\CLI\\Site\\SitePreset', 'disposition' => 'internal', 'ref' => '#2442'],
