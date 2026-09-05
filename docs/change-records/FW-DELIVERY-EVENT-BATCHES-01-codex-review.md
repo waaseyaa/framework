@@ -1,6 +1,11 @@
 # Codex review ask — FW-DELIVERY-EVENT-BATCHES-01 / #2902
 
-## Please review before implementation
+> Historical design-review request. The accepted design and current integration
+> are recorded in `FW-DELIVERY-EVENT-BATCHES-01.md` and
+> `FW-DELIVERY-BATCH-PROJECTION-01.md`. The original request below is retained
+> as history; it does not describe the current implementation state.
+
+## Original request before implementation
 
 Cursor leased worktree
 `/home/fsd42/dev/waaseyaa-worktrees/fw-2902-event-batches`

@@ -9,8 +9,8 @@
   `/home/fsd42/dev/waaseyaa-worktrees/fw-2902-event-batches`
 - Design-start head: `a0dbd5353dfc3ef6aaf38d61afb6a969f54c0485`
 - Cutover freeze ledger SHA-256 (actual accepted bytes):
-  `0c8be52156201fa1f3c35d0261fdc91446ba8a49e491020bdba106a2f011c38f`
-  (design-start hash was illustrative; freeze binds the cutover ledger)
+  `662c662ebb10ee49189540b74144abbfdf91dc2a9e0762cda84efcccc032a4ed`
+  (111 accepted events, 117888 bytes; freeze binds the cutover ledger)
 
 ## Intent
 
@@ -26,7 +26,7 @@ byte and event ID intact.
    match; keep closed v1 event schema and all causal/adjudication checks.
 3. Freeze: hard-freeze actual accepted ledger at cutover; no rewrite exception.
 4. Integration: schema/loading/validation/replay/immutability in-lane; shared
-   CI/preflight deferred to Codex; batch publication live only with #2869
+   CI/preflight uses the existing commands, as reviewed by Codex; batch publication live only with #2869
    projection reader.
 5. Proofs: both merge orders through the real gate, equal-time causal chains,
    timezone-equivalent timestamps, cross-batch adjudication, #2900 history
@@ -44,7 +44,7 @@ byte and event ID intact.
 | `docs/specs/delivery-agent-event-batches.md` | LIVE contract |
 | Architecture fixtures | Contention, adversarial, gate proofs |
 
-## Out of this candidate
+## Codex integration
 
-- Edits to `.github/workflows/ci.yml` / `tools/preflight-gates.json` (Codex patch)
-- Batch-aware `bin/project-delivery-agent-events` (#2869 coordination)
+- Existing `.github/workflows/ci.yml` and `tools/preflight-gates.json` commands already invoke the batch-aware gate; no duplicate gate or command change is needed.
+- Batch-aware `bin/project-delivery-agent-events` is included under `FW-DELIVERY-BATCH-PROJECTION-01`, with upgrade/rollback fixtures and `docs/cookbook/delivery-batch-cutover.md`. Operational activation follows qualification and acceptance of the complete candidate.

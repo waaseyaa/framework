@@ -23,7 +23,7 @@ exception. The design-start SHA was illustrative only.
 JSON batch envelopes; duplicate event IDs refused even when payloads match;
 closed v1 event schema preserved; all causal/adjudication checks retained.
 
-## Deferred
+## Integration boundary
 
-Shared CI/preflight integration (Codex). Batch publication operator-live only
+Codex reviewed the existing CI/preflight commands; no command change is required. Batch publication is operator-live only
 with the #2869 projection reader.
