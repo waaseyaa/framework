@@ -15,9 +15,12 @@ namespace Waaseyaa\Bimaaji\Install\Client;
  *
  * Upstream convention:
  * <https://learn.chatgpt.com/docs/agent-configuration/agents-md>,
- * <https://agents.md> (verified 2026-08-29). Per-skill layout follows the
- * Agent Skills directory convention shared with Claude Code and Codex CLI
- * tooling (verified in packaged-consumer acceptance, #2660).
+ * <https://agents.md> (verified 2026-08-29). Per-skill layout: Codex scans
+ * `.agents/skills` in every directory from the current working directory up
+ * to the repository root; each skill is a directory whose `SKILL.md` carries
+ * `name` and `description` metadata
+ * (<https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills>,
+ * verified 2026-09-05).
  *
  * @api
  */

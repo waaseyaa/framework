@@ -125,6 +125,12 @@ while IFS= read -r skill_id; do
     head -1 "$codex" | grep -qx -- '---' || fail "$codex must open with YAML frontmatter."
     grep -qx -- "name: waaseyaa-$skill_id" "$claude" || fail "$claude frontmatter name mismatch."
     grep -qx -- "name: waaseyaa-$skill_id" "$codex" || fail "$codex frontmatter name mismatch."
+
+    claude_hash="$(sha256sum "$claude" | awk '{print $1}')"
+    codex_hash="$(sha256sum "$codex" | awk '{print $1}')"
+    [[ "$claude_hash" == "$codex_hash" ]] \
+        || fail "Claude and Codex SKILL.md bytes differ for $skill_id ($claude_hash vs $codex_hash)."
+    cmp -s "$claude" "$codex" || fail "Claude and Codex SKILL.md content differs for $skill_id."
 done < <(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
 
 if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,codex --verify ) \

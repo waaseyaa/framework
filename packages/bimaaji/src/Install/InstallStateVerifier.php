@@ -27,20 +27,35 @@ final class InstallStateVerifier
 
         foreach ($expected as $file) {
             $absolute = $projectRoot . DIRECTORY_SEPARATOR . $file->path;
+            $isRecorded = array_key_exists($file->path, $recorded);
+
             if (!is_file($absolute)) {
-                $issues[] = sprintf('Missing expected target %s.', $file->path);
+                $issues[] = $isRecorded
+                    ? sprintf('Missing owned target %s.', $file->path)
+                    : sprintf('Missing expected target %s (not yet installed).', $file->path);
                 continue;
             }
 
-            $contents = file_get_contents($absolute);
+            $contents = @file_get_contents($absolute);
             if ($contents === false) {
                 $issues[] = sprintf('Cannot read expected target %s.', $file->path);
                 continue;
             }
 
+            if (ManagedRegion::extract($contents) === null) {
+                $issues[] = $isRecorded
+                    ? sprintf('Owned target %s lacks a managed region.', $file->path)
+                    : sprintf('Target %s is unmanaged (hand-authored file at path).', $file->path);
+                continue;
+            }
+
             $merged = ManagedRegion::splice($contents, $file->content);
-            $payload = $merged ?? $file->content;
-            if (sha1($contents) !== sha1($payload)) {
+            if ($merged === null) {
+                $issues[] = sprintf('Cannot verify managed region of %s.', $file->path);
+                continue;
+            }
+
+            if (sha1($contents) !== sha1($merged)) {
                 $issues[] = sprintf('Drift in managed region of %s.', $file->path);
             }
         }

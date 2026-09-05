@@ -11,6 +11,7 @@ use Psr\Container\ContainerInterface;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Bimaaji\BimaajiServiceProvider;
 use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
+use Waaseyaa\Bimaaji\Install\Client\CodexClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\CursorClientTransformer;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\InstalledManifest;
@@ -413,6 +414,94 @@ final class BimaajiInstallCommandTest extends TestCase
         self::assertStringContainsString('alpha/SKILL.md', $tester->getOutput());
     }
 
+    #[Test]
+    public function verifyReportsCleanStateAfterInstall(): void
+    {
+        $tester = $this->tester([new CodexClientTransformer()]);
+        $tester->execute(['--client=codex', '--force']);
+        self::assertSame(0, $tester->getExitCode(), $tester->getOutput());
+
+        $verify = $this->tester([new CodexClientTransformer()]);
+        $verify->execute(['--client=codex', '--verify']);
+
+        self::assertSame(0, $verify->getExitCode(), $verify->getOutput());
+        self::assertStringContainsString('Client codex: verified (no drift).', $verify->getOutput());
+    }
+
+    #[Test]
+    public function verifyReportsManagedRegionDriftWithoutWriting(): void
+    {
+        $tester = $this->tester([new CodexClientTransformer()]);
+        $tester->execute(['--client=codex', '--force']);
+
+        $target = $this->tempDir . '/AGENTS.md';
+        $contents = (string) file_get_contents($target);
+        $inner = ManagedRegion::extract($contents);
+        self::assertNotNull($inner);
+        file_put_contents($target, str_replace($inner, $inner . "\nDrifted guidance.", $contents));
+
+        $verify = $this->tester([new CodexClientTransformer()]);
+        $verify->execute(['--client=codex', '--verify']);
+
+        self::assertSame(1, $verify->getExitCode(), $verify->getOutput());
+        self::assertStringContainsString('Drift in managed region of AGENTS.md.', $verify->getOutput());
+        self::assertStringContainsString('Drifted guidance.', (string) file_get_contents($target));
+    }
+
+    #[Test]
+    public function verifyReportsMissingTargetsAsNotYetInstalled(): void
+    {
+        $verify = $this->tester([new CodexClientTransformer()]);
+        $verify->execute(['--client=codex', '--verify']);
+
+        self::assertSame(1, $verify->getExitCode(), $verify->getOutput());
+        self::assertStringContainsString('not yet installed', $verify->getOutput());
+        self::assertStringNotContainsString('Drift in managed region', $verify->getOutput());
+    }
+
+    #[Test]
+    public function verifyReportsUnmanagedMarkerlessFilesWithoutCallingItDrift(): void
+    {
+        file_put_contents($this->tempDir . '/AGENTS.md', "Hand-authored AGENTS.md without markers.\n");
+
+        $verify = $this->tester([new CodexClientTransformer()]);
+        $verify->execute(['--client=codex', '--verify']);
+
+        self::assertSame(1, $verify->getExitCode(), $verify->getOutput());
+        self::assertStringContainsString('unmanaged (hand-authored file at path)', $verify->getOutput());
+        self::assertStringNotContainsString('Drift in managed region of AGENTS.md', $verify->getOutput());
+    }
+
+    #[Test]
+    public function verifyReportsStaleOwnedTargets(): void
+    {
+        $tester = $this->tester([new CodexClientTransformer()]);
+        $tester->execute(['--client=codex', '--force']);
+
+        $manifestPath = $this->tempDir . '/' . InstalledManifest::RELATIVE_PATH;
+        $manifest = InstalledManifest::load($this->tempDir);
+        $stalePath = '.agents/skills/waaseyaa-skill-beta/SKILL.md';
+        $manifest = $manifest->withClient('codex', array_merge(
+            $manifest->targetsFor('codex'),
+            [$stalePath => sha1('stale bytes')],
+        ));
+        $directory = dirname($manifestPath);
+        if (!is_dir($directory)) {
+            mkdir($directory, 0o755, true);
+        }
+        file_put_contents($manifestPath, $manifest->toJson());
+        $this->writeRelativeSkillDir($stalePath, ManagedRegion::wrap('Stale owned skill still present.'));
+
+        $verify = $this->tester([new CodexClientTransformer()]);
+        $verify->execute(['--client=codex', '--verify']);
+
+        self::assertSame(1, $verify->getExitCode(), $verify->getOutput());
+        self::assertStringContainsString(
+            sprintf('Stale owned target %s is still on disk.', $stalePath),
+            $verify->getOutput(),
+        );
+    }
+
     private function writeSkill(string $id, string $contents): void
     {
         $dir = $this->tempDir . '/skills/' . $id;
@@ -420,6 +509,16 @@ final class BimaajiInstallCommandTest extends TestCase
             mkdir($dir, 0o755, true);
         }
         file_put_contents($dir . '/SKILL.md', $contents);
+    }
+
+    private function writeRelativeSkillDir(string $relativePath, string $content): void
+    {
+        $absolute = $this->tempDir . '/' . $relativePath;
+        $directory = dirname($absolute);
+        if (!is_dir($directory)) {
+            mkdir($directory, 0o755, true);
+        }
+        file_put_contents($absolute, $content);
     }
 
     /**

@@ -12,6 +12,8 @@ use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\SkillDeliveryMode;
+use Waaseyaa\Bimaaji\Install\SkillInventory;
+use Waaseyaa\Bimaaji\Install\SkillSourceProvenance;
 use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
 
 #[CoversClass(ClaudeClientTransformer::class)]
@@ -191,9 +193,16 @@ final class ClaudeClientTransformerTest extends TestCase
         self::assertNotNull($alpha);
         self::assertStringStartsNotWith('---', $alpha->content);
         self::assertStringNotContainsString('name: waaseyaa-skill-alpha', $alpha->content);
-        self::assertStringContainsString('# Skill Alpha', $alpha->content);
-        self::assertStringContainsString('waaseyaa:bimaaji:source-inventory sha256=', $alpha->content);
-        self::assertStringContainsString(ManagedRegion::BEGIN, $alpha->content);
+        $provenance = SkillSourceProvenance::fromInventory(
+            SkillInventory::fromSkills([InstallSkillFixtures::alpha()]),
+        );
+        self::assertSame(
+            ManagedRegion::wrap(
+                trim(InstallSkillFixtures::alpha()->body) . "\n\n" . $provenance->managedRegionFooter(),
+            ),
+            $alpha->content,
+            'With the capability off, the per-skill file is exactly the managed body plus provenance footer.',
+        );
     }
 
     #[Test]

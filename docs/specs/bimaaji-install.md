@@ -228,7 +228,7 @@ when a downstream operator integrates a new MCP client).
 |---|---|---|---|
 | `claude` | `ClaudeClientTransformer` | `.claude/skills/waaseyaa-<id>/SKILL.md` — one **directory** per skill — plus concise `.claude/CLAUDE-WAASEYAA.md` guidance | <https://code.claude.com/docs/en/skills> (verified 2026-08-29) |
 | `cursor` | `CursorClientTransformer` | `.cursorrules` (single file) — **legacy, see Convention drift** | <https://cursor.com/help/customization/rules> (verified 2026-08-29) |
-| `codex` | `CodexClientTransformer` | concise root `AGENTS.md` plus `.agents/skills/waaseyaa-<id>/SKILL.md` per skill | <https://learn.chatgpt.com/docs/agent-configuration/agents-md>, <https://agents.md> (verified 2026-08-29) |
+| `codex` | `CodexClientTransformer` | concise root `AGENTS.md` plus `.agents/skills/waaseyaa-<id>/SKILL.md` per skill | <https://learn.chatgpt.com/docs/agent-configuration/agents-md>, <https://agents.md> (verified 2026-08-29); per-skill discovery at <https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills> (verified 2026-09-05) |
 | `copilot` | `CopilotClientTransformer` | `.github/copilot-instructions.md` (single file) | <https://docs.github.com/en/copilot/how-tos/configure-custom-instructions-in-your-ide/add-repository-instructions-in-your-ide> (verified 2026-08-29) |
 | `gemini` | `GeminiClientTransformer` | `GEMINI.md` (single file) | <https://geminicli.com/docs/cli/gemini-md/> (verified 2026-08-29) |
 | `windsurf` | `WindsurfClientTransformer` | `.windsurfrules` (single file) — **legacy, see Convention drift** | <https://docs.devin.ai/desktop/devin-desktop-faq> (verified 2026-08-29) |
@@ -268,6 +268,20 @@ skill set regenerates identical output byte-for-byte.
 
 `--verify` compares on-disk installed files against the current transformer
 output without writing. Use it after install or update to detect drift.
+Diagnostics distinguish:
+
+- **Missing / not yet installed** — the expected path is absent and not
+  recorded in `.waaseyaa/bimaaji-install.json`.
+- **Unmanaged** — a markerless, hand-authored file already occupies the
+  expected path and is not recorded in the manifest.
+- **Unreadable** — the expected path exists but cannot be read.
+- **Managed drift** — a well-formed managed region is present but its bytes
+  differ from the canonical inventory after a splice-preserving compare.
+- **Stale owned target** — the manifest records a path this client no longer
+  emits and the file is still on disk.
+
+Exits non-zero when any of the above issues (except a wholly clean verify) are
+detected.
 
 ### Convention drift
 
@@ -337,10 +351,9 @@ shape with its own `DIRECTORY_PREFIX` constant. `AbstractSingleFileClientTransfo
 and `ClaudeClientTransformer` now read `ClientCapabilityRegistry::default()->for($this->clientId())`
 instead. `ClientCapabilityRegistry::default()` mirrors the **currently
 shipped** convention in the "Supported clients" table above — it is not an
-aspirational target, and it intentionally does not encode the `.agents/skills/`-style
-Codex layout, an unsupported-capability diagnostic, or a guidance/skill-body
-split for single-file clients. Those three remain maintainer-owned open
-questions; see
+aspirational target. Unsupported-capability diagnostics and the
+guidance/skill-body split for single-file clients remain maintainer-owned
+open questions recorded in
 [docs/adr/026-client-guidance-and-skill-conventions.md](../adr/026-client-guidance-and-skill-conventions.md)
 for the options, tradeoffs, and recommendation on each, and #2660 for
 tracking.
@@ -356,15 +369,17 @@ every field drives output, so a contradictory instance is a silently wrong
 install rather than an unread field.
 
 `requiresFrontmatterAtByteZero` is one of those output-driving fields:
-`ClaudeClientTransformer::renderSkillFile()` **derives** the leading
+`AbstractPerSkillClientTransformer::renderSkillFile()` **derives** the leading
 `---\nname: …\ndescription: …\n---` block from it, and emits the managed
-body alone when a per-skill client does not require it. The transformer
-accepts an optional `ClientCapabilities` through its constructor (production
-resolves the registered entry; an override declaring another client id is a
-`\LogicException`) so that derivation is provable: with the flag cleared the
-per-skill file is exactly `ManagedRegion::wrap($skill->body)`, and with the
-shipped registry entry it opens at byte 0 with frontmatter. The registry and
-the shipped bytes therefore cannot silently disagree.
+body alone when a per-skill client does not require it. Both
+`ClaudeClientTransformer` and `CodexClientTransformer` share that renderer.
+The transformer accepts an optional `ClientCapabilities` through its
+constructor (production resolves the registered entry; an override declaring
+another client id is a `\LogicException`) so that derivation is provable: with
+the flag cleared the per-skill file is exactly
+`ManagedRegion::wrap(trim($skill->body) . "\n\n" . $provenanceFooter)`, and
+with the shipped registry entry it opens at byte 0 with frontmatter. The
+registry and the shipped bytes therefore cannot silently disagree.
 
 **`Waaseyaa\Bimaaji\Install\SkillInventory`** is a typed collection over
 `SkillSetParser::parse()`'s result (`fromParser()` calls `parse()` exactly
@@ -393,7 +408,7 @@ authority — #2664 owns the single generated-state hash/version engine.
 | `--client=<id>` | `Array_` (repeatable, accepts comma-separated values) | (none) | Clients to install for. Comma-separated values are split (`--client=cursor,codex`); repetition accumulates (`--client=cursor --client=codex`). When omitted on an interactive TTY, the command asks `"Install for which client(s)? (comma-separated; available: ...)"`. When omitted on a non-TTY stdin, the command errors with `--client is required when stdin is non-TTY` and exits non-zero. |
 | `--features=<csv>` | Required value | `guidelines,skills` | Comma-separated feature filter. `ClientCapabilityDiagnostics` warns when a requested surface cannot be represented (e.g. per-skill delivery on single-file clients, or MCP configuration here). |
 | `--dry-run` | Boolean | off | Print the would-be write set as `[DRY-RUN] would write <path> (<bytes> bytes from skill=<source>)` lines without touching the filesystem. Returns exit 0. Per-client summary still reports `written` (would-write count), `unchanged` (sha1 matches existing), `skipped` (sandbox-rejected). |
-| `--verify` | Boolean | off | Compare installed files to the canonical inventory the transformers would emit today; writes nothing. Exits non-zero when drift or stale owned targets are detected. |
+| `--verify` | Boolean | off | Compare installed files to the canonical inventory the transformers would emit today; writes nothing. Exits non-zero when drift, stale owned targets, missing/not-yet-installed targets, unreadable targets, or unmanaged markerless files at expected paths are detected. |
 | `--force` | Boolean | off | Skip every confirmation prompt and overwrite existing files unconditionally. Required when running non-interactively against a project that has a diverging existing target file — without `--force` on non-TTY stdin, the command errors and exits non-zero rather than silently overwriting. |
 
 Exit codes:
