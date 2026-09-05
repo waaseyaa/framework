@@ -3,13 +3,31 @@
 
 declare(strict_types=1);
 
+use Waaseyaa\HttpClient\StreamHttpClient;
+
 const K1_CUTOVER_DASHBOARD = 'ops/observability/grafana/waaseyaa-k1-delivery-flow.json';
 const K1_CUTOVER_PANEL_ID = 8;
 const K1_CUTOVER_PROJECTION_ID = 'delivery-agent-events/v1';
-const K1_CUTOVER_IDENTITY_SQL = "SELECT s.source_commit_sha, s.projector_version, s.generation, s.event_count, s.ledger_sha256, i.replay_sha256, i.batch_manifest_sha256 FROM waaseyaa_delivery_projection_state AS s LEFT JOIN waaseyaa_delivery_projection_identity_v2 AS i ON i.projection_id = s.projection_id WHERE s.projection_id = 'delivery-agent-events/v1'";
+const K1_CUTOVER_MAX_JSON_BYTES = 1024 * 1024;
+const K1_CUTOVER_IDENTITY_SQL = "SELECT s.source_commit_sha, s.projector_version, s.generation, s.event_count, s.schema_sha256, s.ledger_sha256, i.event_schema_sha256, i.batch_schema_sha256, i.freeze_sha256, i.replay_sha256, i.batch_manifest_sha256 FROM (SELECT 'delivery-agent-events/v1' AS projection_id) AS p LEFT JOIN waaseyaa_delivery_projection_state AS s ON s.projection_id = p.projection_id LEFT JOIN waaseyaa_delivery_projection_identity_v2 AS i ON i.projection_id = p.projection_id";
+
+/** @var array<string, array{column: string, receipt: string}> */
+const K1_CUTOVER_PROJECTION_FIELDS = [
+    'Source commit' => ['column' => 'source_commit_sha', 'receipt' => 'source_commit_sha'],
+    'Projector version' => ['column' => 'projector_version', 'receipt' => 'projector_version'],
+    'Generation' => ['column' => 'generation', 'receipt' => 'generation'],
+    'Events' => ['column' => 'event_count', 'receipt' => 'event_count'],
+    'Schema SHA-256' => ['column' => 'schema_sha256', 'receipt' => 'schema_sha256'],
+    'Frozen v1 ledger SHA-256' => ['column' => 'ledger_sha256', 'receipt' => 'ledger_sha256'],
+    'Event schema SHA-256' => ['column' => 'event_schema_sha256', 'receipt' => 'schema_sha256'],
+    'Batch schema SHA-256' => ['column' => 'batch_schema_sha256', 'receipt' => 'batch_schema_sha256'],
+    'Freeze SHA-256' => ['column' => 'freeze_sha256', 'receipt' => 'freeze_sha256'],
+    'Complete replay SHA-256' => ['column' => 'replay_sha256', 'receipt' => 'replay_sha256'],
+    'Batch manifest SHA-256' => ['column' => 'batch_manifest_sha256', 'receipt' => 'batch_manifest_sha256'],
+];
 
 /** @var array<string, string> */
-const K1_CUTOVER_FIELDS = [
+const K1_CUTOVER_GRAFANA_FIELDS = [
     'Source commit' => 'source_commit_sha',
     'Projector version' => 'projector_version',
     'Generation' => 'generation',
@@ -19,23 +37,28 @@ const K1_CUTOVER_FIELDS = [
     'Batch manifest SHA-256' => 'batch_manifest_sha256',
 ];
 
+require_once dirname(__DIR__) . '/vendor/autoload.php';
+
 $root = dirname(__DIR__);
 try {
-    $arguments = array_slice($argv, 1);
+    $arguments = array_slice($_SERVER['argv'] ?? [], 1);
     if ($arguments === ['--self-test']) {
         exit(k1CutoverSelfTest());
     }
-    $dashboard = $root . '/' . K1_CUTOVER_DASHBOARD;
-    foreach ($arguments as $argument) {
-        if (!str_starts_with($argument, '--dashboard=') || strlen($argument) === 12) {
-            k1CutoverUsage('unknown, empty, or duplicate option ' . $argument);
-        }
-        if ($dashboard !== $root . '/' . K1_CUTOVER_DASHBOARD) {
-            k1CutoverUsage('unknown, empty, or duplicate option ' . $argument);
-        }
-        $dashboard = substr($argument, 12);
+    if (count($arguments) !== 1 || !str_starts_with($arguments[0], '--receipt=') || strlen($arguments[0]) === 10) {
+        k1CutoverUsage('normal verification requires exactly --receipt=/absolute/path.json');
     }
-    $report = k1CutoverVerify(projectionConnect(), $dashboard);
+    $receiptPath = substr($arguments[0], 10);
+    $receipt = k1CutoverReceipt($receiptPath);
+    $tracked = k1CutoverDashboard((string) file_get_contents($root . '/' . K1_CUTOVER_DASHBOARD));
+    $grafana = k1CutoverGrafanaConfiguration();
+    $client = new StreamHttpClient(timeout: 5.0, maxResponseBytes: K1_CUTOVER_MAX_JSON_BYTES);
+    $http = static function (string $method, string $url, array $headers, ?array $body) use ($client): array {
+        $response = $client->request($method, $url, $headers, $body);
+
+        return ['status' => $response->statusCode, 'body' => $response->body];
+    };
+    $report = k1CutoverVerify(projectionConnect(), $receipt, $tracked, $grafana, $http);
     fwrite(STDOUT, k1CutoverFormat($report));
     exit($report['ok'] ? 0 : 1);
 } catch (InvalidArgumentException $exception) {
@@ -54,6 +77,11 @@ function k1CutoverUsage(string $message): never
 function projectionAssertDsn(string $dsn): void
 {
     if (str_starts_with($dsn, 'sqlite:')) {
+        $path = substr($dsn, 7);
+        if ($path === '' || $path[0] !== '/' || str_contains($path, '?') || !is_file($path)) {
+            throw new InvalidArgumentException('SQLite projection database must already exist at an absolute path');
+        }
+
         return;
     }
     if (!str_starts_with($dsn, 'mysql:')) {
@@ -77,12 +105,17 @@ function projectionConnect(): PDO
     $user = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER');
     $password = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD');
     try {
-        $pdo = new PDO($dsn, is_string($user) && $user !== '' ? $user : null, is_string($password) ? $password : null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]);
-    } catch (PDOException $exception) {
-        throw new RuntimeException('projection connection failed');
-    }
-    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
-        $pdo->exec("SET SESSION sql_mode = 'STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
+        $pdo = new PDO($dsn, is_string($user) && $user !== '' ? $user : null, is_string($password) ? $password : null, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $pdo->exec('SET SESSION TRANSACTION READ ONLY');
+        } else {
+            $pdo->exec('PRAGMA query_only = ON');
+        }
+    } catch (Throwable) {
+        throw new RuntimeException('projection read-only connection failed');
     }
 
     return $pdo;
@@ -90,10 +123,16 @@ function projectionConnect(): PDO
 
 function k1CutoverSafeMessage(string $message): string
 {
-    $dsn = getenv('WAASEYAA_DELIVERY_TELEMETRY_DSN');
-    $user = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER');
-    $password = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD');
-    foreach ([$password, $user, $dsn] as $secret) {
+    $secrets = [
+        getenv('WAASEYAA_DELIVERY_TELEMETRY_DSN'),
+        getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER'),
+        getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD'),
+        getenv('WAASEYAA_GRAFANA_URL'),
+        getenv('WAASEYAA_GRAFANA_TOKEN'),
+        getenv('WAASEYAA_GRAFANA_USER'),
+        getenv('WAASEYAA_GRAFANA_PASSWORD'),
+    ];
+    foreach ($secrets as $secret) {
         if (is_string($secret) && $secret !== '') {
             $message = str_replace($secret, '[redacted]', $message);
         }
@@ -102,54 +141,225 @@ function k1CutoverSafeMessage(string $message): string
     return $message;
 }
 
-/** @return array{ok: bool, lines: list<string>} */
-function k1CutoverVerify(PDO $pdo, string $dashboard): array
+/** @return array<string, mixed> */
+function k1CutoverReceipt(string $path): array
 {
-    $sql = k1CutoverPanelSql($dashboard);
-    k1CutoverAssertSelectOnly($sql);
-    $identity = k1CutoverIdentity($pdo);
-    $grafana = k1CutoverGrafanaRow($pdo, $sql);
+    if (!k1CutoverAbsolutePath($path) || !is_file($path) || is_link($path)) {
+        throw new InvalidArgumentException('accepted receipt must be an existing regular file at an absolute path');
+    }
+    $size = filesize($path);
+    if (!is_int($size) || $size < 2 || $size > 65536) {
+        throw new InvalidArgumentException('accepted receipt exceeds the bounded JSON size');
+    }
+    $receipt = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($receipt) || array_is_list($receipt)) {
+        throw new InvalidArgumentException('accepted receipt must be a JSON object');
+    }
+    $operation = $receipt['operation'] ?? null;
+    $outcome = $receipt['outcome'] ?? null;
+    $accepted = ($operation === 'apply' && in_array($outcome, ['applied', 'no_op'], true))
+        || ($operation === 'verify' && $outcome === 'no_op');
+    if (!$accepted) {
+        throw new InvalidArgumentException('accepted apply or verify receipt is required');
+    }
+    if (!is_string($receipt['source_commit_sha'] ?? null) || preg_match('/^[0-9a-f]{40}$/D', $receipt['source_commit_sha']) !== 1) {
+        throw new InvalidArgumentException('accepted receipt source commit must be one full SHA');
+    }
+    foreach (['schema_sha256', 'ledger_sha256', 'batch_manifest_sha256', 'batch_schema_sha256', 'freeze_sha256', 'replay_sha256'] as $field) {
+        if (!is_string($receipt[$field] ?? null) || preg_match('/^[0-9a-f]{64}$/D', $receipt[$field]) !== 1) {
+            throw new InvalidArgumentException('accepted receipt is missing ' . $field);
+        }
+    }
+    foreach (['event_count', 'generation', 'projector_version'] as $field) {
+        if (!is_int($receipt[$field] ?? null) || $receipt[$field] < ($field === 'event_count' ? 0 : 1)) {
+            throw new InvalidArgumentException('accepted receipt has invalid ' . $field);
+        }
+    }
 
-    return k1CutoverCompare($grafana, $identity);
+    return $receipt;
 }
 
-function k1CutoverPanelSql(string $dashboard): string
+function k1CutoverAbsolutePath(string $path): bool
 {
-    $decoded = json_decode((string) file_get_contents($dashboard), true, flags: JSON_THROW_ON_ERROR);
-    if (!is_array($decoded)) {
-        throw new RuntimeException('dashboard definition is invalid');
-    }
-    $panels = $decoded['dashboard']['panels'] ?? $decoded['panels'] ?? [];
-    if (!is_array($panels)) {
-        throw new RuntimeException('dashboard panels are missing');
-    }
-    foreach ($panels as $panel) {
-        if (!is_array($panel) || ($panel['id'] ?? null) !== K1_CUTOVER_PANEL_ID) {
-            continue;
-        }
-        $sql = $panel['targets'][0]['rawSql'] ?? null;
-        if (!is_string($sql) || trim($sql) === '') {
-            throw new RuntimeException('panel 8 SQL is missing');
-        }
-
-        return $sql;
-    }
-
-    throw new RuntimeException('panel 8 is missing from the dashboard definition');
+    return str_starts_with($path, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/D', $path) === 1;
 }
 
-function k1CutoverAssertSelectOnly(string $sql): void
+/** @return array{base_url: string, headers: array<string, string>} */
+function k1CutoverGrafanaConfiguration(): array
 {
-    $normalized = trim($sql);
-    if (preg_match('/^(with\b|select\b)/i', $normalized) !== 1) {
-        throw new RuntimeException('panel 8 SQL must be a read-only SELECT');
+    $url = getenv('WAASEYAA_GRAFANA_URL');
+    if (!is_string($url) || $url === '' || preg_match('/[\x00-\x20\x7f]/', $url) === 1) {
+        throw new InvalidArgumentException('WAASEYAA_GRAFANA_URL is required');
     }
-    if (preg_match('/;\s*\S/', $normalized) === 1) {
-        throw new RuntimeException('panel 8 SQL must be a single read-only statement');
+    $parts = parse_url($url);
+    $scheme = strtolower($parts['scheme'] ?? '');
+    $host = strtolower($parts['host'] ?? '');
+    if (!in_array($scheme, ['http', 'https'], true) || !in_array(trim($host, '[]'), ['localhost', '127.0.0.1', '::1'], true)) {
+        throw new InvalidArgumentException('Grafana URL must use http or https on a loopback host');
     }
-    if (preg_match('/\b(insert|update|delete|replace|drop|alter|create|truncate|grant|revoke)\b/i', $normalized) === 1) {
-        throw new RuntimeException('panel 8 SQL must be a read-only SELECT');
+    if (isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
+        throw new InvalidArgumentException('Grafana URL must not contain credentials, query, or fragment');
     }
+
+    $token = getenv('WAASEYAA_GRAFANA_TOKEN');
+    $user = getenv('WAASEYAA_GRAFANA_USER');
+    $password = getenv('WAASEYAA_GRAFANA_PASSWORD');
+    $hasToken = is_string($token) && $token !== '';
+    $hasUser = is_string($user) && $user !== '';
+    $hasPassword = is_string($password) && $password !== '';
+    if ($hasToken && ($hasUser || $hasPassword)) {
+        throw new InvalidArgumentException('configure either Grafana token or basic authentication');
+    }
+    if ($hasToken) {
+        $authorization = 'Bearer ' . $token;
+    } elseif ($hasUser && $hasPassword) {
+        $authorization = 'Basic ' . base64_encode($user . ':' . $password);
+    } else {
+        throw new InvalidArgumentException('Grafana token or complete basic authentication is required');
+    }
+
+    return [
+        'base_url' => rtrim($url, '/'),
+        'headers' => ['Accept' => 'application/json', 'Authorization' => $authorization],
+    ];
+}
+
+/** @return array{uid: string, sql: string, datasource_uid: string, datasource_type: string, target: array<string, mixed>} */
+function k1CutoverPanel(array $document): array
+{
+    $dashboard = isset($document['dashboard']) && is_array($document['dashboard']) ? $document['dashboard'] : $document;
+    if (($dashboard['uid'] ?? null) !== 'waaseyaa-k1-flow' || !is_array($dashboard['panels'] ?? null)) {
+        throw new RuntimeException('Grafana dashboard identity or panels are invalid');
+    }
+    $matches = array_values(array_filter(
+        $dashboard['panels'],
+        static fn(mixed $panel): bool => is_array($panel) && ($panel['id'] ?? null) === K1_CUTOVER_PANEL_ID,
+    ));
+    if (count($matches) !== 1) {
+        throw new RuntimeException('dashboard must contain exactly one panel 8');
+    }
+    $panel = $matches[0];
+    $targets = $panel['targets'] ?? null;
+    $datasource = $panel['datasource'] ?? null;
+    if (!is_array($targets) || count($targets) !== 1 || !is_array($targets[0]) || !is_array($datasource)) {
+        throw new RuntimeException('panel 8 target or datasource is invalid');
+    }
+    $target = $targets[0];
+    $sql = $target['rawSql'] ?? null;
+    $uid = $datasource['uid'] ?? null;
+    $type = $datasource['type'] ?? null;
+    if (!is_string($sql) || $sql === '' || !is_string($uid) || $uid === '' || !is_string($type) || $type === '') {
+        throw new RuntimeException('panel 8 SQL or datasource identity is missing');
+    }
+
+    return ['uid' => $dashboard['uid'], 'sql' => $sql, 'datasource_uid' => $uid, 'datasource_type' => $type, 'target' => $target];
+}
+
+/** @return array<string, mixed> */
+function k1CutoverDashboard(string $json): array
+{
+    if ($json === '' || strlen($json) > K1_CUTOVER_MAX_JSON_BYTES) {
+        throw new RuntimeException('tracked Grafana dashboard is empty or too large');
+    }
+    $decoded = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || array_is_list($decoded)) {
+        throw new RuntimeException('Grafana dashboard must be a JSON object');
+    }
+
+    return $decoded;
+}
+
+/**
+ * @param array<string, mixed> $receipt
+ * @param array<string, mixed> $trackedDashboard
+ * @param array{base_url: string, headers: array<string, string>} $grafana
+ * @param callable(string, string, array<string, string>, ?array<string, mixed>): array{status: int, body: string} $http
+ * @return array{ok: bool, lines: list<string>}
+ */
+function k1CutoverVerify(PDO $pdo, array $receipt, array $trackedDashboard, array $grafana, callable $http): array
+{
+    $tracked = k1CutoverPanel($trackedDashboard);
+    $deployedDocument = k1CutoverHttpJson(
+        $http,
+        'GET',
+        $grafana['base_url'] . '/api/dashboards/uid/' . rawurlencode($tracked['uid']),
+        $grafana['headers'],
+        null,
+        'Grafana dashboard',
+    );
+    $deployed = k1CutoverPanel($deployedDocument);
+    if (!hash_equals($tracked['sql'], $deployed['sql'])) {
+        throw new RuntimeException('deployed panel 8 SQL does not match tracked SQL');
+    }
+    if (!hash_equals($tracked['datasource_uid'], $deployed['datasource_uid'])
+        || !hash_equals($tracked['datasource_type'], $deployed['datasource_type'])) {
+        throw new RuntimeException('deployed panel 8 datasource does not match tracked datasource');
+    }
+
+    $query = $deployed['target'];
+    $query['refId'] = 'A';
+    $query['datasource'] = ['type' => $deployed['datasource_type'], 'uid' => $deployed['datasource_uid']];
+    $queryDocument = k1CutoverHttpJson(
+        $http,
+        'POST',
+        $grafana['base_url'] . '/api/ds/query',
+        $grafana['headers'],
+        ['queries' => [$query], 'from' => '0', 'to' => '0'],
+        'Grafana panel query',
+    );
+    $grafanaRow = k1CutoverGrafanaRow($queryDocument);
+    $projection = k1CutoverIdentity($pdo);
+
+    return k1CutoverCompare($grafanaRow, $projection, $receipt);
+}
+
+/**
+ * @param callable(string, string, array<string, string>, ?array<string, mixed>): array{status: int, body: string} $http
+ * @param array<string, string> $headers
+ * @param array<string, mixed>|null $body
+ * @return array<string, mixed>
+ */
+function k1CutoverHttpJson(callable $http, string $method, string $url, array $headers, ?array $body, string $label): array
+{
+    $response = $http($method, $url, $headers, $body);
+    if ($response['status'] !== 200) {
+        throw new RuntimeException($label . ' request failed');
+    }
+    $decoded = json_decode($response['body'], true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || array_is_list($decoded)) {
+        throw new RuntimeException($label . ' response must be a JSON object');
+    }
+
+    return $decoded;
+}
+
+/** @return array<string, string|null> */
+function k1CutoverGrafanaRow(array $document): array
+{
+    $result = $document['results']['A'] ?? null;
+    if (!is_array($result) || isset($result['error']) || (isset($result['status']) && $result['status'] !== 200)) {
+        throw new RuntimeException('Grafana panel query result failed');
+    }
+    $frames = $result['frames'] ?? null;
+    if (!is_array($frames) || count($frames) !== 1 || !is_array($frames[0])) {
+        throw new RuntimeException('Grafana panel query must return exactly one frame');
+    }
+    $fields = $frames[0]['schema']['fields'] ?? null;
+    $values = $frames[0]['data']['values'] ?? null;
+    if (!is_array($fields) || !is_array($values) || count($fields) !== count($values)) {
+        throw new RuntimeException('Grafana panel query frame is malformed');
+    }
+    $row = [];
+    foreach ($fields as $index => $field) {
+        $name = is_array($field) ? ($field['name'] ?? null) : null;
+        $column = $values[$index] ?? null;
+        if (!is_string($name) || $name === '' || array_key_exists($name, $row) || !is_array($column) || count($column) !== 1) {
+            throw new RuntimeException('Grafana panel query must return exactly one unambiguous row');
+        }
+        $row[$name] = k1CutoverScalar($column[0]);
+    }
+
+    return $row;
 }
 
 /** @return array<string, string|null> */
@@ -157,43 +367,20 @@ function k1CutoverIdentity(PDO $pdo): array
 {
     try {
         $statement = $pdo->query(K1_CUTOVER_IDENTITY_SQL);
-        $row = $statement === false ? false : $statement->fetch(PDO::FETCH_ASSOC);
+        $rows = $statement === false ? [] : $statement->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException) {
-        return array_fill_keys(array_values(K1_CUTOVER_FIELDS), null);
+        throw new RuntimeException('projection identity query failed');
     }
-    if (!is_array($row)) {
-        return array_fill_keys(array_values(K1_CUTOVER_FIELDS), null);
+    if (count($rows) !== 1) {
+        return array_fill_keys(array_column(K1_CUTOVER_PROJECTION_FIELDS, 'column'), null);
     }
     $identity = [];
-    foreach (K1_CUTOVER_FIELDS as $column) {
-        $identity[$column] = array_key_exists($column, $row) ? k1CutoverScalar($row[$column]) : null;
+    foreach (K1_CUTOVER_PROJECTION_FIELDS as $field) {
+        $column = $field['column'];
+        $identity[$column] = array_key_exists($column, $rows[0]) ? k1CutoverScalar($rows[0][$column]) : null;
     }
 
     return $identity;
-}
-
-/** @return array<string, string|null> */
-function k1CutoverGrafanaRow(PDO $pdo, string $sql): array
-{
-    try {
-        $statement = $pdo->query($sql);
-        $rows = $statement === false ? [] : $statement->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException) {
-        throw new RuntimeException('panel 8 query failed');
-    }
-    if ($rows === []) {
-        return array_fill_keys(array_keys(K1_CUTOVER_FIELDS), null);
-    }
-    if (count($rows) !== 1) {
-        throw new RuntimeException('panel 8 must return exactly one identity row');
-    }
-    $row = $rows[0];
-    $grafana = [];
-    foreach (K1_CUTOVER_FIELDS as $label => $column) {
-        $grafana[$column] = array_key_exists($label, $row) ? k1CutoverScalar($row[$label]) : null;
-    }
-
-    return $grafana;
 }
 
 function k1CutoverScalar(mixed $value): ?string
@@ -216,19 +403,29 @@ function k1CutoverMissing(?string $value): bool
     return $value === null || trim($value) === '' || strcasecmp(trim($value), 'unknown') === 0;
 }
 
-/** @param array<string, string|null> $grafana @param array<string, string|null> $identity @return array{ok: bool, lines: list<string>} */
-function k1CutoverCompare(array $grafana, array $identity): array
+/**
+ * @param array<string, string|null> $grafana
+ * @param array<string, string|null> $projection
+ * @param array<string, mixed> $receipt
+ * @return array{ok: bool, lines: list<string>}
+ */
+function k1CutoverCompare(array $grafana, array $projection, array $receipt): array
 {
     $lines = [];
-    foreach (K1_CUTOVER_FIELDS as $label => $column) {
-        $grafanaValue = $grafana[$column] ?? null;
-        $identityValue = $identity[$column] ?? null;
-        if (k1CutoverMissing($grafanaValue) || k1CutoverMissing($identityValue)) {
-            $lines[] = 'missing provenance: ' . $label;
-            continue;
+    foreach (K1_CUTOVER_PROJECTION_FIELDS as $label => $field) {
+        $actual = $projection[$field['column']] ?? null;
+        if (k1CutoverMissing($actual)) {
+            $lines[] = 'missing provenance: projection ' . $label;
+        } elseif ($actual !== (string) $receipt[$field['receipt']]) {
+            $lines[] = 'mismatch: projection ' . $label;
         }
-        if ($grafanaValue !== $identityValue) {
-            $lines[] = 'mismatch: ' . $label;
+    }
+    foreach (K1_CUTOVER_GRAFANA_FIELDS as $label => $receiptField) {
+        $actual = $grafana[$label] ?? null;
+        if (k1CutoverMissing($actual)) {
+            $lines[] = 'missing provenance: Grafana ' . $label;
+        } elseif ($actual !== (string) $receipt[$receiptField]) {
+            $lines[] = 'mismatch: Grafana ' . $label;
         }
     }
     if ($lines === []) {
@@ -252,4 +449,3 @@ function k1CutoverSelfTest(): int
 
     return k1CutoverRunSelfTest();
 }
-

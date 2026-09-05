@@ -1,33 +1,51 @@
-# FW-K1-CUTOVER-VERIFY-01 — read-only K1 cutover verification
+# FW-K1-CUTOVER-VERIFY-01 -- read-only K1 cutover verification
 
 - Issue: `#2869`
 - Contract: `docs/specs/delivery-telemetry.md`
-- Worktree lease: `da54610503f7ff14849c6fa0fa459154` at
-  `/home/fsd42/dev/waaseyaa-worktrees/fw-2869-k1-cutover-verify`
+- Worktree lease: `4b19e7847bfb058220d8690cd48e299b` at
+  `/home/fsd42/dev/waaseyaa-worktrees/fw-2916-codex-integration`
 - Authority: repository-tracked verifier; forge-neutral
 
 ## Outcome
 
-Give operators a concrete acceptance check that Panel 8's Grafana query results
-match the governed projection identity after the live cutover, without making
-Grafana or the projection database an authority.
+Give operators a concrete acceptance check that the deployed Panel 8 result,
+read-only projection identity, and accepted projector receipt describe the same
+cutover. Grafana and the projection database remain rebuildable views rather
+than event authorities.
 
 ## Design
 
-`php bin/verify-k1-delivery-cutover` reuses the projector's connection helpers
-(`projectionAssertDsn` / `projectionConnect`) and the same environment
-variables. The live path is SELECT-only: it
-executes Panel 8 SQL from the tracked dashboard and independently reads
-`waaseyaa_delivery_projection_state` plus
-`waaseyaa_delivery_projection_identity_v2`. Missing identity, Grafana
-`unknown` values, or mismatched source SHA, projector version, generation,
-event count, or hashes fail closed.
+`php bin/verify-k1-delivery-cutover --receipt=/absolute/path.json` requires a
+successful `apply` or `verify` receipt. The receipt pins the expected source
+commit, generation, projector version, event count, and every projection
+identity hash.
 
-`--self-test` and Architecture fixtures cover matching, missing, and mismatched
-disposable SQLite cases without touching live state.
+The verifier fetches the deployed dashboard from the loopback Grafana API,
+requires Panel 8's SQL and datasource UID to match the tracked definition
+exactly, and obtains the actual panel row through `/api/ds/query`. It then
+reads the projection tables through a query-only database connection. Each
+Grafana field and each database identity field is compared independently with
+the receipt. Missing, `unknown`, stale, malformed, or mismatched evidence
+fails closed.
+
+Grafana credentials and database credentials remain environment-only. HTTP
+requests have a five-second timeout, bounded response bodies, and no redirect
+following. The Grafana base URL and MySQL host must be loopback. A SQLite
+database must already exist at an absolute path, preventing a verification typo
+from creating a new database. The public arbitrary-dashboard SQL seam is
+removed.
+
+The Architecture fixture uses a disposable loopback HTTP server and SQLite
+database. It covers token and basic authentication, exact deployed
+SQL/datasource matching, receipt staleness, every comparison field separately,
+unknown values, row cardinality, redirect refusal, missing SQLite, and
+credential redaction. The credential-free self-test keeps a small comparison
+smoke with in-memory SQLite and no external HTTP or persistent database.
 
 ## Scope boundary
 
-This slice owns the verifier, its tests, this record, the operator guide, and
-the changelog fragment. It does not change the dashboard, projector, validator,
-CI, or live Grafana/projection state.
+This slice owns the verifier, its focused fixtures and tests, this record, the
+operator guide, and the changelog fragment. It does not change the dashboard,
+projector, validator, CI, or live Grafana/projection state. The final
+default-dashboard proof depends on integrating the batch-aware Panel 8 change
+from `#2915`.
