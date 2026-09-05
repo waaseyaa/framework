@@ -24,6 +24,7 @@
         "id": 8,
         "type": "table",
         "title": "Governed projection identity",
+        "description": "Current singleton identity and freshness state for the governed delivery-agent-event projection; the dashboard time range does not filter this state view.",
         "gridPos": { "h": 5, "w": 24, "x": 0, "y": 6 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
@@ -40,6 +41,7 @@
         "id": 2,
         "type": "table",
         "title": "K1 pull-request timeline",
+        "description": "Pull requests in the selected pull-request creation-time cohort for waaseyaa/framework.",
         "gridPos": { "h": 10, "w": 24, "x": 0, "y": 11 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
@@ -47,7 +49,7 @@
             "refId": "A",
             "format": "table",
             "rawQuery": true,
-            "rawSql": "SELECT number AS `PR`, state AS `Status`, github_created_at AS `Submitted (UTC)`, merged_at AS `Merged (UTC)`, ROUND(TIMESTAMPDIFF(SECOND, github_created_at, COALESCE(merged_at, UTC_TIMESTAMP())) / 3600, 2) AS `Open hours`, LEFT(head_commit_sha, 12) AS `Head SHA` FROM _tool_github_pull_requests WHERE github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY ORDER BY number"
+            "rawSql": "SELECT p.number AS `PR`, p.state AS `Status`, p.github_created_at AS `Submitted (UTC)`, p.merged_at AS `Merged (UTC)`, ROUND(TIMESTAMPDIFF(SECOND, p.github_created_at, COALESCE(p.merged_at, UTC_TIMESTAMP())) / 3600, 2) AS `Open hours`, LEFT(p.head_commit_sha, 12) AS `Head SHA` FROM _tool_github_pull_requests p INNER JOIN _tool_github_repos repo ON repo.connection_id = p.connection_id AND repo.github_id = p.repo_id WHERE repo.full_name = 'waaseyaa/framework' AND $__timeFilter(p.github_created_at) ORDER BY p.number"
           }
         ],
         "options": { "showHeader": true, "cellHeight": "sm" }
@@ -56,6 +58,7 @@
         "id": 3,
         "type": "table",
         "title": "GitHub-native review evidence by exact head",
+        "description": "GitHub-native review evidence for waaseyaa/framework pull requests in the selected pull-request creation-time cohort.",
         "gridPos": { "h": 10, "w": 12, "x": 0, "y": 21 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
@@ -63,7 +66,7 @@
             "refId": "A",
             "format": "table",
             "rawQuery": true,
-            "rawSql": "SELECT p.number AS `PR`, SUM(CASE WHEN r.commit_sha = p.head_commit_sha THEN 1 ELSE 0 END) AS `Current-head reviews`, SUM(CASE WHEN r.github_id IS NOT NULL AND r.commit_sha <> p.head_commit_sha THEN 1 ELSE 0 END) AS `Superseded-head reviews`, MIN(CASE WHEN r.commit_sha = p.head_commit_sha THEN r.github_submit_at END) AS `First current-head review (UTC)`, LEFT(p.head_commit_sha, 12) AS `Current head` FROM _tool_github_pull_requests p LEFT JOIN _tool_github_pull_request_reviews r ON r.connection_id = p.connection_id AND r.pull_request_id = p.github_id WHERE p.github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY GROUP BY p.number, p.head_commit_sha ORDER BY p.number"
+            "rawSql": "SELECT p.number AS `PR`, SUM(CASE WHEN r.commit_sha = p.head_commit_sha THEN 1 ELSE 0 END) AS `Current-head reviews`, SUM(CASE WHEN r.github_id IS NOT NULL AND r.commit_sha <> p.head_commit_sha THEN 1 ELSE 0 END) AS `Superseded-head reviews`, MIN(CASE WHEN r.commit_sha = p.head_commit_sha THEN r.github_submit_at END) AS `First current-head review (UTC)`, LEFT(p.head_commit_sha, 12) AS `Current head` FROM _tool_github_pull_requests p INNER JOIN _tool_github_repos repo ON repo.connection_id = p.connection_id AND repo.github_id = p.repo_id LEFT JOIN _tool_github_pull_request_reviews r ON r.connection_id = p.connection_id AND r.pull_request_id = p.github_id WHERE repo.full_name = 'waaseyaa/framework' AND $__timeFilter(p.github_created_at) GROUP BY p.number, p.head_commit_sha ORDER BY p.number"
           }
         ],
         "options": { "showHeader": true, "cellHeight": "sm" }
@@ -72,6 +75,7 @@
         "id": 4,
         "type": "table",
         "title": "Recent CI pipelines",
+        "description": "CI runs in the selected run creation-time cohort for waaseyaa/framework.",
         "gridPos": { "h": 10, "w": 12, "x": 12, "y": 21 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
@@ -79,7 +83,7 @@
             "refId": "A",
             "format": "table",
             "rawQuery": true,
-            "rawSql": "SELECT display_title AS `Run`, status AS `Status`, conclusion AS `Result`, run_started_at AS `Started (UTC)`, ROUND(TIMESTAMPDIFF(SECOND, run_started_at, github_updated_at) / 60, 1) AS `Minutes`, LEFT(head_sha, 12) AS `Head SHA` FROM _tool_github_runs WHERE github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY ORDER BY github_created_at DESC LIMIT 25"
+            "rawSql": "SELECT run.display_title AS `Run`, run.status AS `Status`, run.conclusion AS `Result`, run.run_started_at AS `Started (UTC)`, ROUND(TIMESTAMPDIFF(SECOND, run.run_started_at, run.github_updated_at) / 60, 1) AS `Minutes`, LEFT(run.head_sha, 12) AS `Head SHA` FROM _tool_github_runs run INNER JOIN _tool_github_repos repo ON repo.connection_id = run.connection_id AND repo.github_id = run.repo_id WHERE repo.full_name = 'waaseyaa/framework' AND $__timeFilter(run.github_created_at) ORDER BY run.github_created_at DESC LIMIT 25"
           }
         ],
         "options": { "showHeader": true, "cellHeight": "sm" }
@@ -88,6 +92,7 @@
         "id": 5,
         "type": "table",
         "title": "Time to first substantive review (agent-event authority)",
+        "description": "First known timed substantive review for each waaseyaa/framework pull request in the selected pull-request creation-time cohort. The earliest review may occur outside the selected pull-request creation window.",
         "gridPos": { "h": 9, "w": 12, "x": 0, "y": 31 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
@@ -95,7 +100,7 @@
             "refId": "A",
             "format": "table",
             "rawQuery": true,
-            "rawSql": "SELECT p.number AS `PR`, MIN(e.occurred_at_utc) AS `First substantive review (UTC)`, ROUND(TIMESTAMPDIFF(MICROSECOND, p.github_created_at, MIN(e.occurred_at_utc)) / 60000000, 2) AS `Minutes from submission`, MIN(e.evidence_kind) AS `Evidence` FROM _tool_github_pull_requests p LEFT JOIN waaseyaa_delivery_agent_events_v1 e ON e.pull_request = p.number AND e.event_type = 'substantive_review_issued' AND e.occurred_at_utc IS NOT NULL WHERE p.github_created_at >= UTC_TIMESTAMP() - INTERVAL 7 DAY GROUP BY p.number, p.github_created_at ORDER BY p.number"
+            "rawSql": "SELECT p.number AS `PR`, MIN(e.occurred_at_utc) AS `First substantive review (UTC)`, ROUND(TIMESTAMPDIFF(MICROSECOND, p.github_created_at, MIN(e.occurred_at_utc)) / 60000000, 2) AS `Minutes from submission`, SUBSTRING_INDEX(GROUP_CONCAT(e.evidence_kind ORDER BY e.occurred_at_utc, e.source_ordinal SEPARATOR ','), ',', 1) AS `Evidence` FROM _tool_github_pull_requests p INNER JOIN _tool_github_repos repo ON repo.connection_id = p.connection_id AND repo.github_id = p.repo_id LEFT JOIN waaseyaa_delivery_agent_events_v1 e ON e.repository = repo.full_name AND e.pull_request = p.number AND e.event_type = 'substantive_review_issued' AND e.occurred_at_utc IS NOT NULL WHERE repo.full_name = 'waaseyaa/framework' AND $__timeFilter(p.github_created_at) GROUP BY p.number, p.github_created_at ORDER BY p.number"
           }
         ],
         "options": { "showHeader": true, "cellHeight": "sm" }
@@ -104,6 +109,7 @@
         "id": 6,
         "type": "table",
         "title": "Append-only agent events",
+        "description": "Latest 50 governed agent events by source order across the complete projection; the dashboard time range does not filter this current evidence view.",
         "gridPos": { "h": 9, "w": 12, "x": 12, "y": 31 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
@@ -120,6 +126,7 @@
         "id": 7,
         "type": "table",
         "title": "Verifier findings and adjudication",
+        "description": "Latest 50 governed verifier findings by source order with their current adjudication state; the dashboard time range does not filter this current evidence view.",
         "gridPos": { "h": 10, "w": 24, "x": 0, "y": 40 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
