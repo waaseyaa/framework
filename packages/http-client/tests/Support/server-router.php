@@ -51,7 +51,20 @@ switch ($path) {
 
     case '/big':
         $n = (int) ($_GET['n'] ?? 1_000_000);
+        header('Content-Length: ' . $n);
         echo str_repeat('x', max(0, $n));
+        break;
+
+    case '/error-big':
+        $n = (int) ($_GET['n'] ?? 100_000);
+        http_response_code(500);
+        header('Content-Length: ' . $n);
+        echo str_repeat('e', max(0, $n));
+        break;
+
+    case '/not-found':
+        header('HTTP/1.0 404 Not Found');
+        echo 'NOT FOUND';
         break;
 
     default:

@@ -1,0 +1,381 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+const CONSUMER_PROMOTION_REPOSITORY = 'jonesrussell/waaseyaa-infra';
+const CONSUMER_PROMOTION_SCHEMA = 'waaseyaa.consumer-promotion-adapter.v1';
+const CONSUMER_PROMOTION_WORKFLOW = '.github/workflows/promote.yml';
+const CONSUMER_PROMOTION_EVENT = 'workflow_dispatch';
+const CONSUMER_PROMOTION_ENVIRONMENT = 'production';
+/** @var list<string> */
+const CONSUMER_PROMOTION_TARGETS = [
+    'fnpi',
+    'giiken',
+    'goformx',
+    'jgs',
+    'minoo',
+    'northway',
+    'oiatc',
+    'rhtcircle',
+    'sagamokstrong',
+    'spot-the-ai',
+];
+
+$root = dirname(__DIR__);
+try {
+    $arguments = array_slice($argv, 1);
+    if ($arguments === ['--self-test']) {
+        exit(consumerPromotionSelfTest());
+    }
+    $input = null;
+    foreach ($arguments as $argument) {
+        if (!str_starts_with($argument, '--input=') || strlen($argument) === 8) {
+            consumerPromotionUsage('unknown, empty, or duplicate option ' . $argument);
+        }
+        if ($input !== null) {
+            consumerPromotionUsage('unknown, empty, or duplicate option ' . $argument);
+        }
+        $input = substr($argument, 8);
+    }
+    if ($input === null) {
+        consumerPromotionUsage('--input is required');
+    }
+    $report = consumerPromotionAdaptFile($input);
+    fwrite(STDOUT, json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");
+    exit(0);
+} catch (InvalidArgumentException $exception) {
+    consumerPromotionUsage($exception->getMessage());
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'consumer promotions: ' . consumerPromotionSafeMessage($exception->getMessage()) . "\n");
+    exit(1);
+}
+
+function consumerPromotionUsage(string $message): never
+{
+    fwrite(STDERR, 'consumer promotions: ' . consumerPromotionSafeMessage($message) . "\n");
+    exit(2);
+}
+
+function consumerPromotionSafeMessage(string $message): string
+{
+    foreach (['GH_TOKEN', 'GITHUB_TOKEN'] as $name) {
+        $secret = getenv($name);
+        if (is_string($secret) && $secret !== '') {
+            $message = str_replace($secret, '[redacted]', $message);
+        }
+    }
+
+    return $message;
+}
+
+/**
+ * @return array{
+ *     schema: string,
+ *     sample_size: int,
+ *     promotions: list<array<string, mixed>>,
+ *     rejected: list<array<string, mixed>>
+ * }
+ */
+function consumerPromotionAdaptFile(string $path): array
+{
+    $bytes = @file_get_contents($path);
+    if ($bytes === false) {
+        throw new RuntimeException('could not read input');
+    }
+
+    return consumerPromotionAdapt($bytes);
+}
+
+/**
+ * @return array{
+ *     schema: string,
+ *     sample_size: int,
+ *     promotions: list<array<string, mixed>>,
+ *     rejected: list<array<string, mixed>>
+ * }
+ */
+function consumerPromotionAdapt(string $bytes): array
+{
+    $document = json_decode($bytes, true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($document)) {
+        throw new RuntimeException('input document must be a JSON object');
+    }
+    $repository = $document['repository'] ?? null;
+    $runs = $document['runs'] ?? null;
+    if (!is_string($repository) || preg_match('/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/D', $repository) !== 1) {
+        throw new RuntimeException('repository must be owner/name');
+    }
+    if (!is_array($runs) || !array_is_list($runs)) {
+        throw new RuntimeException('runs must be a JSON array');
+    }
+
+    $promotions = [];
+    $rejected = [];
+    $seen = [];
+    $conflicted = [];
+    foreach ($runs as $index => $run) {
+        if (!is_array($run)) {
+            $rejected[] = consumerPromotionRejection(null, 'incomplete_source', ['index' => $index]);
+            continue;
+        }
+        $outcome = consumerPromotionClassify($repository, $run);
+        if ($outcome['kind'] === 'promotion') {
+            $record = $outcome['record'];
+            $key = $record['run_id'] . ':' . $record['run_attempt'];
+            if (isset($seen[$key])) {
+                $conflict = isset($conflicted[$key]) || $seen[$key] !== $record;
+                if ($conflict) {
+                    unset($promotions[$key]);
+                    $conflicted[$key] = true;
+                }
+                $rejected[] = consumerPromotionRejection($record['run_id'], $conflict ? 'conflicting_run' : 'duplicate_run', ['run_attempt' => $record['run_attempt']]);
+                continue;
+            }
+            $seen[$key] = $record;
+            $promotions[$key] = $record;
+            continue;
+        }
+        $rejected[] = $outcome['record'];
+    }
+
+    $sampleSize = 0;
+    foreach ($promotions as $promotion) {
+        if ($promotion['sample_eligible'] === true) {
+            $sampleSize++;
+        }
+    }
+
+    return [
+        'schema' => CONSUMER_PROMOTION_SCHEMA,
+        'sample_size' => $sampleSize,
+        'promotions' => array_values($promotions),
+        'rejected' => $rejected,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $run
+ * @return array{kind: 'promotion'|'rejected', record: array<string, mixed>}
+ */
+function consumerPromotionClassify(string $repository, array $run): array
+{
+    $runId = consumerPromotionInt($run['id'] ?? null);
+    $attempt = consumerPromotionInt($run['run_attempt'] ?? null);
+    $status = consumerPromotionString($run['status'] ?? null);
+    $path = consumerPromotionString($run['path'] ?? null);
+    $event = consumerPromotionString($run['event'] ?? null);
+    $headSha = consumerPromotionString($run['head_sha'] ?? null);
+    $conclusion = consumerPromotionString($run['conclusion'] ?? null);
+    $title = consumerPromotionString($run['display_title'] ?? null) ?? consumerPromotionString($run['name'] ?? null);
+    $startedAt = consumerPromotionString($run['run_started_at'] ?? null) ?? consumerPromotionString($run['created_at'] ?? null);
+    $updatedAt = consumerPromotionString($run['updated_at'] ?? null);
+    $url = consumerPromotionString($run['html_url'] ?? null);
+    $actor = consumerPromotionActor($run['triggering_actor'] ?? null);
+
+    if ($runId === null || $attempt === null || $path === null || $event === null || $headSha === null || $title === null || $startedAt === null || $url === null) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'incomplete_source', ['path' => $path, 'event' => $event])];
+    }
+    if ($path !== CONSUMER_PROMOTION_WORKFLOW) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'workflow_path_not_promote', ['path' => $path])];
+    }
+    if ($event !== CONSUMER_PROMOTION_EVENT) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'event_not_workflow_dispatch', ['event' => $event])];
+    }
+
+    if ($repository !== CONSUMER_PROMOTION_REPOSITORY || $url !== 'https://github.com/' . $repository . '/actions/runs/' . $runId) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'source_identity_mismatch', [])];
+    }
+    if ($status !== 'completed' || $conclusion === null || !consumerPromotionTimestamp($startedAt) || !consumerPromotionTimestamp($updatedAt) || $updatedAt < $startedAt) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'incomplete_source', [])];
+    }
+
+    $parsed = consumerPromotionParseTitle($title);
+    if ($parsed === null) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'display_title_unparseable', ['display_title' => $title])];
+    }
+    if (preg_match('/^[0-9a-f]{40}$/D', $parsed['revision']) !== 1) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'revision_not_exact_sha', ['revision' => $parsed['revision']])];
+    }
+    if ($parsed['revision'] !== $headSha) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'revision_mismatch_head_sha', ['revision' => $parsed['revision'], 'head_sha' => $headSha])];
+    }
+    if ($parsed['environment'] !== CONSUMER_PROMOTION_ENVIRONMENT) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'environment_not_production', ['environment' => $parsed['environment']])];
+    }
+    if (!in_array($parsed['target'], CONSUMER_PROMOTION_TARGETS, true)) {
+        return ['kind' => 'rejected', 'record' => consumerPromotionRejection($runId, 'target_unknown', ['target' => $parsed['target']])];
+    }
+
+    return [
+        'kind' => 'promotion',
+        'record' => [
+            'schema' => 'waaseyaa.consumer-promotion.v1',
+            'source_kind' => 'github_workflow_run',
+            'repository' => $repository,
+            'workflow_path' => $path,
+            'run_id' => $runId,
+            'run_attempt' => $attempt,
+            'run_url' => $url,
+            'event' => $event,
+            'target' => $parsed['target'],
+            'environment' => $parsed['environment'],
+            'infra_sha' => $parsed['revision'],
+            'reason' => $parsed['reason'],
+            'conclusion' => $conclusion,
+            'started_at' => $startedAt,
+            'source_updated_at' => $updatedAt,
+            'completion_time_basis' => 'workflow_run_updated_at_proxy',
+            'actor' => $actor,
+            'sample_eligible' => $conclusion === 'success',
+        ],
+    ];
+}
+
+/**
+ * @return array{target: string, environment: string, revision: string, reason: string}|null
+ */
+function consumerPromotionParseTitle(string $title): ?array
+{
+    if (preg_match('/^Promote ([a-z0-9-]+) to ([a-z]+) at (\S+) — (.+)$/uD', $title, $matches) !== 1) {
+        return null;
+    }
+
+    return [
+        'target' => $matches[1],
+        'environment' => $matches[2],
+        'revision' => $matches[3],
+        'reason' => $matches[4],
+    ];
+}
+
+/**
+ * @param array<string, mixed> $details
+ * @return array{run_id: int|null, code: string, details: array<string, mixed>}
+ */
+function consumerPromotionRejection(?int $runId, string $code, array $details): array
+{
+    return [
+        'run_id' => $runId,
+        'code' => $code,
+        'details' => $details,
+    ];
+}
+
+function consumerPromotionInt(mixed $value): ?int
+{
+    if (!is_int($value) && (!is_string($value) || preg_match('/^[1-9][0-9]*$/D', $value) !== 1)) {
+        return null;
+    }
+    $number = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+    return $number === false ? null : $number;
+}
+
+function consumerPromotionTimestamp(?string $value): bool
+{
+    if ($value === null) {
+        return false;
+    }
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value, new DateTimeZone('UTC'));
+
+    return $parsed !== false && $parsed->format('Y-m-d\TH:i:s\Z') === $value;
+}
+
+function consumerPromotionString(mixed $value): ?string
+{
+    return is_string($value) && $value !== '' ? $value : null;
+}
+
+function consumerPromotionActor(mixed $value): ?string
+{
+    if (is_string($value) && $value !== '') {
+        return $value;
+    }
+    if (is_array($value) && is_string($value['login'] ?? null) && $value['login'] !== '') {
+        return $value['login'];
+    }
+
+    return null;
+}
+
+function consumerPromotionSelfTest(): int
+{
+    $revision = '0888d56e011483b84aacf8c3fc84de8b231b0b79';
+    $promote = consumerPromotionAdapt(json_encode([
+        'repository' => 'jonesrussell/waaseyaa-infra',
+        'runs' => [consumerPromotionSelfTestRun($revision, 'success')],
+    ], JSON_THROW_ON_ERROR));
+    $reject = consumerPromotionAdapt(json_encode([
+        'repository' => 'jonesrussell/waaseyaa-infra',
+        'runs' => [
+            [
+                'id' => 1,
+                'run_attempt' => 1,
+                'path' => '.github/workflows/deploy-oiatc.yml',
+                'event' => 'push',
+                'name' => 'Deploy oiatc-app',
+                'display_title' => 'Deploy oiatc-app',
+                'head_sha' => $revision,
+                'conclusion' => 'success',
+                'html_url' => 'https://github.com/jonesrussell/waaseyaa-infra/actions/runs/1',
+                'created_at' => '2026-04-20T12:00:00Z',
+                'updated_at' => '2026-04-20T12:05:00Z',
+            ],
+            [
+                'id' => 2,
+                'run_attempt' => 1,
+                'path' => '.github/workflows/release.yml',
+                'event' => 'push',
+                'name' => 'Merge pull request #2331',
+                'display_title' => 'Merge pull request #2331',
+                'head_sha' => $revision,
+                'conclusion' => 'success',
+                'html_url' => 'https://github.com/waaseyaa/framework/actions/runs/2',
+                'created_at' => '2026-08-10T06:21:00Z',
+                'updated_at' => '2026-08-10T06:22:00Z',
+            ],
+        ],
+    ], JSON_THROW_ON_ERROR));
+    $ineligible = consumerPromotionAdapt(json_encode([
+        'repository' => 'jonesrussell/waaseyaa-infra',
+        'runs' => [consumerPromotionSelfTestRun($revision, 'failure')],
+    ], JSON_THROW_ON_ERROR));
+
+    if ($promote['sample_size'] !== 1 || $promote['promotions'][0]['target'] !== 'northway') {
+        throw new RuntimeException('self-test failed: matching promote was not accepted');
+    }
+    if ($reject['sample_size'] !== 0 || count($reject['rejected']) !== 2) {
+        throw new RuntimeException('self-test failed: push deploy and PR merge were not rejected');
+    }
+    if ($ineligible['sample_size'] !== 0 || $ineligible['promotions'][0]['sample_eligible'] !== false) {
+        throw new RuntimeException('self-test failed: failed promote was treated as sample-eligible');
+    }
+
+    fwrite(STDOUT, "matching promote: PASS\npush and merge reject: PASS\nfailed promote ineligible: PASS\nconsumer promotion adapter self-test: PASS\n");
+
+    return 0;
+}
+
+/** @return array<string, mixed> */
+function consumerPromotionSelfTestRun(string $revision, string $conclusion): array
+{
+    $title = 'Promote northway to production at ' . $revision . ' — Deploy bounded retention and persistence health';
+
+    return [
+        'id' => 33474562592,
+        'run_attempt' => 1,
+        'status' => 'completed',
+        'path' => CONSUMER_PROMOTION_WORKFLOW,
+        'event' => CONSUMER_PROMOTION_EVENT,
+        'name' => $title,
+        'display_title' => $title,
+        'head_sha' => $revision,
+        'conclusion' => $conclusion,
+        'html_url' => 'https://github.com/jonesrussell/waaseyaa-infra/actions/runs/33474562592',
+        'created_at' => '2026-09-01T05:41:22Z',
+        'updated_at' => '2026-09-01T05:45:28Z',
+        'run_started_at' => '2026-09-01T05:41:22Z',
+        'triggering_actor' => ['login' => 'jonesrussell'],
+    ];
+}
