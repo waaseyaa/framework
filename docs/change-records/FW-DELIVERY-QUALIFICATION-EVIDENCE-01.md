@@ -122,6 +122,61 @@ exit 3, `qualification: false`); dirty refusal; `--only` partial; `--jobs=2`
 concurrency binding both children to one head. The red state of this test
 before the runner exists is the required pre-fix evidence.
 
+### Red, before the runner existed
+
+```
+There were 11 failures:
+1) …a_fully_passing_plan_is_a_qualification_with_numeric_evidence
+bin/qualify-candidate must exist (FW-DELIVERY-QUALIFICATION-EVIDENCE-01).
+Failed asserting that file ".../bin/qualify-candidate" exists.
+… (all 11 cases fail the same way — the runner does not exist yet)
+FAILURES!
+Tests: 11, Assertions: 11, Failures: 11.
+```
+
+### Green: fixture proof and split suites
+
+`QualifyCandidateRunnerTest` (all 11 cases): `OK (11 tests, 77 assertions)`.
+`composer test`, run split: Unit `OK (14316 tests, 241336 assertions)`,
+Integration `OK (2313 tests, 11778 assertions)`, Architecture
+`OK (704 tests, 33544 assertions)` — the last count includes
+`TestQualityInventoryTest`'s and `PhpUnitSkipPolicyTest`'s recorded-inventory
+assertions updated for this change (two new classified skips; one new
+classified, bounded, fixed-delay wait inside a disposable fixture child).
+
+### Dogfood: the runner qualifying its own tip
+
+`php bin/qualify-candidate --jobs=1` run from the worktree against its own
+committed HEAD (`43263a20ff57`, clean tree, `feat/2913-qualification-evidence-runner`):
+
+```
+passed preflight    exit=0 tests=-     failures=- errors=- skipped=- (26.04s)
+passed unit          exit=0 tests=14316 failures=0 errors=0 skipped=0 (231.43s)
+passed integration   exit=0 tests=2313  failures=0 errors=0 skipped=0 (205.74s)
+passed architecture  exit=0 tests=704   failures=0 errors=0 skipped=0 (359.83s)
+verdict: qualified
+receipt: build/qualification/43263a20ff57-20260905T135719Z/receipt.json
+```
+
+`receipt.json`: `candidate.head`/`tree` match the exact committed SHA and
+tree; `source_check.drifted: false`, `changes: []`; every component
+`termination: "exit"` with a real numeric `exit_code`; `qualification: true`
+only because `verdict: "qualified"`, the default plan's `qualifies: true`,
+and `dirty_at_start: []` all held at once. Exit code observed: `0`.
+
+An earlier dogfood attempt against a prior tip caught a real defect in the
+runner's own lane: `bin/test-quality-inventory`'s git-aware determinism scan
+matched the fixed-delay `usleep` token that exists only as a string literal
+inside `QualifyCandidateRunnerTest`'s `--jobs=3` fixture children, landing it
+in the scanner's `unclassified` bucket once the test file was committed (this
+does not run inside `check-pr-preflight`, only inside the full Architecture
+suite — exactly the gap this runner exists to close). That single real
+`architecture` failure (`exit=1`, `tests=704 failures=1`) is preserved as
+evidence that the runner reports a genuine failure faithfully rather than
+inferring success; it was fixed by classifying the file (`bin/test-quality-inventory`)
+and updating the recorded count (`tests/Architecture/TestQualityInventoryTest.php`,
+8 → 9), and the fix is included in this change's second commit.
+
 ## Operator text for shared guidance (Codex integrates)
 
 ```
