@@ -40,6 +40,7 @@ final readonly class SiteInitHandler
         $dryRun = (bool) $io->option('dry-run');
         $yes = (bool) $io->option('yes');
         $json = (bool) $io->option('json');
+        $blueprintInvocation = false;
 
         if ($json && $answers === '') {
             $this->writeError($io, 'site:init --json requires an --answers document.', true);
@@ -77,6 +78,7 @@ final readonly class SiteInitHandler
             }
 
             $manifest = new SiteManifestParser()->parse($yaml, $answers !== '' ? $answers : '<interactive>');
+            $blueprintInvocation = $manifest->applicationBlueprint !== null;
             GeneratorFeatureNegotiation::assert($manifest, SiteArtifactRendererFactory::advertisedGeneratorFeatures(), 'site:init');
             $decisionPath = trim((string) ($io->option('decision-receipt') ?? ''));
             $decisionReceipt = $decisionPath === '' ? null : $this->readDecisionReceipt($decisionPath, $projectRoot);
@@ -137,7 +139,14 @@ final readonly class SiteInitHandler
             $violation = $exception->violations[0];
             $this->writeError($io, sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message), $json, code: $violation->code === 'SITE050_DECISION_RECEIPT_INVALID' ? $violation->code : null, pointer: $violation->path);
         } catch (GenerationRefusalException $exception) {
-            $this->writeCodedError($io, $exception, $json);
+            // Blueprint activation makes compiler and approval refusals part
+            // of the coded public contract. A blueprint-free engine refusal
+            // retains the legacy message-only JSON envelope.
+            if ($exception->source === 'site:init' || $blueprintInvocation) {
+                $this->writeCodedError($io, $exception, $json);
+            } else {
+                $this->writeError($io, $exception->getMessage(), $json);
+            }
         } catch (SiteInitializationExecutionException $exception) {
             $this->writeError($io, $exception->getMessage(), $json, $exception->receipts, $exception->applyResult);
         } catch (SiteInitializationCollisionException|SiteInitializationLockedException|\InvalidArgumentException|\RuntimeException $exception) {
