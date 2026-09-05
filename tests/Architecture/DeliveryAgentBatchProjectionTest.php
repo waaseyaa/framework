@@ -107,6 +107,110 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
         }
     }
 
+    #[Test]
+    public function explicit_install_upgrades_a_populated_v1_projection_without_losing_atomicity(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $fixture = sys_get_temp_dir() . '/waaseyaa_batch_projection_upgrade_' . uniqid('', true);
+        $fs = new Filesystem();
+        try {
+            $clone = new Process([$root . '/bin/git', 'clone', '--shared', $root, $fixture]);
+            self::assertSame(0, $clone->run(), $clone->getErrorOutput());
+            $fs->remove($fixture . '/.git');
+            $this->git($fixture, ['init']);
+            $this->git($fixture, ['config', 'user.name', 'Projection Upgrade Fixture']);
+            $this->git($fixture, ['config', 'user.email', 'projection-upgrade@example.invalid']);
+            $this->git($fixture, ['add', '--all']);
+            $this->git($fixture, ['commit', '-m', 'fixture: projection source baseline']);
+            $this->git($fixture, ['commit', '--allow-empty', '-m', 'fixture: legacy accepted source']);
+            self::assertSame('false', trim($this->git($fixture, ['rev-parse', '--is-shallow-repository'])));
+            $fs->copy($root . '/bin/project-delivery-agent-events', $fixture . '/bin/project-delivery-agent-events', true);
+            $fs->mkdir($fixture . '/vendor');
+            $fs->dumpFile($fixture . '/vendor/autoload.php', '<?php require ' . var_export($root . '/vendor/autoload.php', true) . ";\n");
+
+            $legacySource = trim($this->git($fixture, ['rev-parse', 'HEAD']));
+            $database = $fixture . '/projection.sqlite';
+            $environment = ['WAASEYAA_DELIVERY_TELEMETRY_DSN' => 'sqlite:' . $database];
+            self::assertSame(0, $this->project($fixture, $environment, ['install'])->getExitCode());
+            $legacyApply = $this->project($fixture, $environment, ['apply', '--source-ref=' . $legacySource]);
+            self::assertSame(0, $legacyApply->getExitCode(), $legacyApply->getErrorOutput());
+
+            $pdo = new \PDO('sqlite:' . $database, options: [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+            $pdo->exec('DROP TABLE waaseyaa_delivery_projection_identity_v2');
+            $pdo->exec('UPDATE waaseyaa_delivery_projection_state SET projector_version = 1');
+            $legacyRows = $pdo->query('SELECT * FROM waaseyaa_delivery_agent_events_v1 ORDER BY source_ordinal')->fetchAll(\PDO::FETCH_ASSOC);
+            $legacyState = $pdo->query('SELECT * FROM waaseyaa_delivery_projection_state')->fetch(\PDO::FETCH_ASSOC);
+            self::assertNotEmpty($legacyRows);
+            self::assertIsArray($legacyState);
+            self::assertSame(1, (int) $legacyState['projector_version']);
+
+            $ledgerLines = file($fixture . '/ops/observability/delivery-agent-events-v1.jsonl', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            self::assertIsArray($ledgerLines);
+            $event = json_decode($ledgerLines[0], true, flags: JSON_THROW_ON_ERROR);
+            $event['event_id'] = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+            $event['causation_event_id'] = null;
+            $event['recorded_at'] = '2099-02-01T00:00:00+00:00';
+            $event['occurred_at'] = null;
+            $batchId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+            $batch = [
+                'schema_version' => 'delivery-agent-batch/v1',
+                'batch_id' => $batchId,
+                'created_at' => '2099-02-01T00:00:01+00:00',
+                'producer' => ['kind' => 'test', 'name' => 'projection upgrade fixture', 'model' => null],
+                'events' => [$event],
+            ];
+            $batchPath = $fixture . '/ops/observability/delivery-agent-batches-v1/' . $batchId . '.json';
+            $fs->dumpFile($batchPath, json_encode($batch, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+            $this->git($fixture, ['add', 'ops/observability/delivery-agent-batches-v1']);
+            $this->git($fixture, ['commit', '-m', 'fixture: accepted post-v1 batch']);
+            $source = trim($this->git($fixture, ['rev-parse', 'HEAD']));
+
+            $verifyBeforeInstall = $this->project($fixture, $environment, ['verify', '--source-ref=' . $source]);
+            self::assertSame(1, $verifyBeforeInstall->getExitCode());
+            self::assertStringContainsString('projection schema is absent or incompatible; run install explicitly', $verifyBeforeInstall->getErrorOutput());
+            self::assertSame($legacyRows, $pdo->query('SELECT * FROM waaseyaa_delivery_agent_events_v1 ORDER BY source_ordinal')->fetchAll(\PDO::FETCH_ASSOC));
+            self::assertSame($legacyState, $pdo->query('SELECT * FROM waaseyaa_delivery_projection_state')->fetch(\PDO::FETCH_ASSOC));
+
+            self::assertSame(0, $this->project($fixture, $environment, ['install'])->getExitCode());
+            self::assertSame($legacyRows, $pdo->query('SELECT * FROM waaseyaa_delivery_agent_events_v1 ORDER BY source_ordinal')->fetchAll(\PDO::FETCH_ASSOC));
+            self::assertSame($legacyState, $pdo->query('SELECT * FROM waaseyaa_delivery_projection_state')->fetch(\PDO::FETCH_ASSOC));
+            self::assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM waaseyaa_delivery_projection_identity_v2')->fetchColumn());
+
+            $pdo->exec("CREATE TRIGGER interrupt_upgrade BEFORE INSERT ON waaseyaa_delivery_agent_events_v1 WHEN NEW.event_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' BEGIN SELECT RAISE(ABORT, 'injected upgrade interruption'); END");
+            $interrupted = $this->project($fixture, $environment, ['apply', '--source-ref=' . $source]);
+            self::assertSame(1, $interrupted->getExitCode());
+            self::assertStringContainsString('injected upgrade interruption', $interrupted->getErrorOutput());
+            self::assertSame($legacyRows, $pdo->query('SELECT * FROM waaseyaa_delivery_agent_events_v1 ORDER BY source_ordinal')->fetchAll(\PDO::FETCH_ASSOC));
+            self::assertSame($legacyState, $pdo->query('SELECT * FROM waaseyaa_delivery_projection_state')->fetch(\PDO::FETCH_ASSOC));
+            self::assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM waaseyaa_delivery_projection_identity_v2')->fetchColumn());
+            $pdo->exec('DROP TRIGGER interrupt_upgrade');
+
+            $applied = $this->project($fixture, $environment, ['apply', '--source-ref=' . $source]);
+            self::assertSame(0, $applied->getExitCode(), $applied->getErrorOutput());
+            $receipt = json_decode($applied->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame('applied', $receipt['outcome']);
+            self::assertSame(2, $receipt['projector_version']);
+            self::assertSame(1, (int) $pdo->query("SELECT COUNT(*) FROM waaseyaa_delivery_agent_events_v1 WHERE event_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'")->fetchColumn());
+            $identity = $pdo->query('SELECT * FROM waaseyaa_delivery_projection_identity_v2')->fetch(\PDO::FETCH_ASSOC);
+            self::assertIsArray($identity);
+            foreach (['batch_manifest_sha256', 'batch_schema_sha256', 'freeze_sha256', 'replay_sha256'] as $field) {
+                self::assertSame($identity[$field], $receipt[$field]);
+            }
+            self::assertSame(0, $this->project($fixture, $environment, ['verify', '--source-ref=' . $source])->getExitCode());
+            $upgradedRows = $pdo->query('SELECT * FROM waaseyaa_delivery_agent_events_v1 ORDER BY source_ordinal')->fetchAll(\PDO::FETCH_ASSOC);
+            $upgradedState = $pdo->query('SELECT * FROM waaseyaa_delivery_projection_state')->fetch(\PDO::FETCH_ASSOC);
+            $upgradedIdentity = $pdo->query('SELECT * FROM waaseyaa_delivery_projection_identity_v2')->fetch(\PDO::FETCH_ASSOC);
+            $again = $this->project($fixture, $environment, ['apply', '--source-ref=' . $source]);
+            self::assertSame(0, $again->getExitCode(), $again->getErrorOutput());
+            self::assertSame('no_op', json_decode($again->getOutput(), true, flags: JSON_THROW_ON_ERROR)['outcome']);
+            self::assertSame($upgradedRows, $pdo->query('SELECT * FROM waaseyaa_delivery_agent_events_v1 ORDER BY source_ordinal')->fetchAll(\PDO::FETCH_ASSOC));
+            self::assertSame($upgradedState, $pdo->query('SELECT * FROM waaseyaa_delivery_projection_state')->fetch(\PDO::FETCH_ASSOC));
+            self::assertSame($upgradedIdentity, $pdo->query('SELECT * FROM waaseyaa_delivery_projection_identity_v2')->fetch(\PDO::FETCH_ASSOC));
+        } finally {
+            $fs->remove($fixture);
+        }
+    }
+
     /** @param list<string> $arguments */
     private function git(string $root, array $arguments): string
     {

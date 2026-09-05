@@ -32,8 +32,16 @@ and both identities together; retrying the same immutable source is recovery.
 The committed-batch fixture proves that a poisoned working-tree batch does not
 change immutable source replay, that a batch row is projected, and that manifest
 and row corruption are refused by verify and repaired by replay. Receipt hashes
-are derived independently and matched to the persisted identity. Focused
-projection coverage passed 7 tests and 57 assertions after the receipt repair.
+are derived independently and matched to the persisted identity. The upgrade fixture
+materializes populated legacy rows and the exact v1 state shape in disposable SQLite,
+then removes the v2 identity table and restores projector version 1. It proves that
+verify refuses the pre-install database without mutation, install retains legacy
+rows, an injected insert failure rolls back the first replay to that legacy state, successful replay
+binds the complete identity, and a second apply is a true no-op. The fixture does
+not load historical Git objects at runtime, so it remains valid in shallow CI; its
+explicit limitation is that legacy state is faithfully established from the current
+row and state DDL rather than executed by an archived projector binary. Focused
+projection coverage passed 8 tests and 104 assertions after the upgrade verification.
 
 This is the Codex-owned projection integration for
 `FW-DELIVERY-EVENT-BATCHES-01`. Operational activation remains pending acceptance
@@ -41,3 +49,8 @@ of the corrected freeze/batch-schema immutability contract and qualification of
 the combined candidate. No live projection database has been upgraded by this
 change record. The schema inventory records the additive identity-table DDL as
 a tooling query; it does not add an application schema authority.
+
+The operator sequence is documented in `docs/cookbook/delivery-batch-cutover.md`.
+It pins one accepted commit, captures receipts and stderr separately, and requires
+a verified repeat-apply no-op. The Bash example passed syntax validation; live
+activation remains pending the combined candidate's acceptance.
