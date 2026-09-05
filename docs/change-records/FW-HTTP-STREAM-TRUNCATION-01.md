@@ -7,8 +7,8 @@ Parent candidate: `origin/main`
 ## Intent
 
 Stop `StreamHttpClient` from returning a truncated response body as HTTP
-success. The memory ceiling remains; a prefix of an over-limit or incomplete
-body is no longer a successful `HttpResponse`.
+success. The memory ceiling remains; a prefix of an over-limit body or a body shorter than its declared length is no
+longer a successful `HttpResponse`.
 
 ## Defect
 
@@ -18,7 +18,7 @@ any non-`false` string as a complete body. Hitting the cap produced
 
 ## Decisions
 
-1. Over-limit, Content-Length mismatch, premature EOF, and mid-body timeout
+1. Over-limit, Content-Length mismatch, EOF before the declared length, and mid-body timeout
    throw typed `HttpRequestException` with `$response === null`.
 2. A complete body whose size equals `maxResponseBytes` still succeeds,
    including chunked and connection-close bodies with no `Content-Length`.
@@ -34,3 +34,16 @@ any non-`false` string as a complete body. Hitting the cap produced
 below / exact / above limit, chunked transfer, absent `Content-Length`,
 mismatched `Content-Length`, mid-body timeout, over-limit 5xx, and complete
 404. Existing TLS, redirect, CRLF, and scheme tests remain.
+
+## Response framing boundary
+
+HEAD, 1xx, 204, and 304 responses have an empty body regardless of metadata
+Content-Length. Other length-delimited bodies stop at that length without
+waiting for the peer to close the connection. EOF before the declared length
+and timeouts while reading that body fail closed.
+
+PHP's HTTP wrapper dechunks responses and removes Transfer-Encoding before
+exposing the stream. The byte ceiling still applies to decoded chunked bodies,
+but this transport cannot independently detect a missing chunk terminator. For
+connection-close bodies, EOF defines completion; no independent expected length
+is available. This change does not claim to validate those hidden framing cases.

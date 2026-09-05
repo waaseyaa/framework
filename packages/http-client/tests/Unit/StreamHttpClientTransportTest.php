@@ -240,6 +240,38 @@ final class StreamHttpClientTransportTest extends TestCase
     }
 
     #[Test]
+    public function acceptsHeadMetadataWithoutReadingAResponseBody(): void
+    {
+        $server = $this->startRaw("HTTP/1.1 200 OK\r\nContent-Length: 1200\r\nConnection: close\r\n\r\n");
+        $response = (new StreamHttpClient(maxResponseBytes: 8))->request('HEAD', $server->baseUrl());
+        self::assertSame(200, $response->statusCode);
+        self::assertSame('', $response->body);
+        self::assertSame('1200', $response->headers['content-length']);
+    }
+
+    #[Test]
+    public function acceptsBodylessStatusMetadata(): void
+    {
+        foreach ([204, 304] as $status) {
+            $server = $this->startRaw("HTTP/1.1 {$status} No Body\r\nContent-Length: 1200\r\nConnection: close\r\n\r\n");
+            $response = (new StreamHttpClient(maxResponseBytes: 8))->get($server->baseUrl());
+            self::assertSame($status, $response->statusCode);
+            self::assertSame('', $response->body);
+        }
+    }
+
+    #[Test]
+    public function acceptsDeclaredLengthWithoutWaitingForPeerClose(): void
+    {
+        $payload = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: keep-alive\r\n\r\nhello";
+        // The existing split-delay seam leaves the socket open after the entire body.
+        $server = $this->startRaw($payload . 'x', strlen($payload), 2_500_000);
+        $response = (new StreamHttpClient(timeout: 1.0, maxResponseBytes: 5))->get($server->baseUrl());
+        self::assertSame(200, $response->statusCode);
+        self::assertSame('hello', $response->body);
+    }
+
+    #[Test]
     public function rejectsAChunkedBodyThatExceedsTheLimit(): void
     {
         $chunk = str_repeat('x', 32);

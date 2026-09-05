@@ -112,8 +112,8 @@ final class StreamHttpClient implements HttpClientInterface
     }
 
     /**
-     * Open the URL and read a complete body of at most {@see $maxResponseBytes},
-     * with a bounded connect phase. Truncated or over-limit bodies fail closed.
+     * Open the URL and read a bounded body of at most {@see $maxResponseBytes},
+     * with a bounded connect phase. Short declared lengths, read timeouts, and over-limit bodies fail closed.
      *
      * @param resource $context
      */
@@ -153,7 +153,12 @@ final class StreamHttpClient implements HttpClientInterface
     private function readCompleteBody($handle, string $method, string $url): string
     {
         $headers = http_get_last_response_headers() ?? [];
-        $contentLength = $this->isChunked($headers) ? null : $this->headerContentLength($headers);
+        $status = $this->parseStatusCode($headers);
+        // HEAD and these status codes carry metadata, never a response body.
+        if (strtoupper($method) === 'HEAD' || ($status >= 100 && $status < 200) || $status === 204 || $status === 304) {
+            return '';
+        }
+        $contentLength = $this->headerContentLength($headers);
         if ($contentLength !== null && $contentLength > $this->maxResponseBytes) {
             throw $this->boundedBodyFailure($method, $url, 'HTTP response body exceeded the configured maximum');
         }
@@ -161,7 +166,13 @@ final class StreamHttpClient implements HttpClientInterface
         $body = '';
         while (!feof($handle)) {
             $remaining = $this->maxResponseBytes - strlen($body);
-            $chunk = @fread($handle, max(1, min(8192, $remaining + 1)));
+            if ($contentLength !== null && strlen($body) === $contentLength) {
+                break;
+            }
+            // Content-Length frames this message; bytes after it are not its body.
+            // Without a declared length, read one extra byte to detect overflow.
+            $readBytes = $contentLength !== null ? $contentLength - strlen($body) : $remaining + 1;
+            $chunk = @fread($handle, max(1, min(8192, $readBytes)));
             $meta = stream_get_meta_data($handle);
             if ($meta['timed_out'] === true) {
                 throw $this->boundedBodyFailure($method, $url, 'HTTP response body was incomplete');
@@ -183,20 +194,6 @@ final class StreamHttpClient implements HttpClientInterface
         }
 
         return $body;
-    }
-
-    /**
-     * @param list<string> $rawHeaders
-     */
-    private function isChunked(array $rawHeaders): bool
-    {
-        foreach ($rawHeaders as $header) {
-            if (preg_match('/^Transfer-Encoding:\s*chunked\s*$/i', $header) === 1) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
