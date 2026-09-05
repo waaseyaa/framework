@@ -7,7 +7,7 @@
 
 ## Problem
 
-`docs/public-surface-map.php` (704 dispositions across 53 packages) and its
+`docs/public-surface-map.php` (719 dispositions across 53 packages) and its
 companion `docs/public-surface-map.md` are edited by every package that adds a
 contract shape. Two independent package changes therefore collide on the same
 aggregate file, and each rebase re-imports the other's rows. The map is
@@ -47,9 +47,10 @@ commitment.
    directive as before (`SurfaceChangeAuthorization`). Historical changelog
    entries still authorize nothing. `extract` and `remove` remain valid
    dispositions with zero current uses.
-7. **No broadening.** The migration carries the 704 dispositions verbatim.
-   The 38 md rows that were never dispositioned (31 concrete classes, 7 prose
-   rows) are carried as package `notes`, not as new dispositions.
+7. **No broadening.** The migration carries the 719 dispositions verbatim.
+   The 33 md rows that were never dispositioned (27 concrete/interface
+   elements, 6 prose rows) are carried as package `notes`, not as new
+   dispositions.
 
 ## Slice
 
@@ -79,7 +80,9 @@ owning packages verbatim; `SurfaceMigrationFidelityTest` pins that fidelity
 against the exact pre-migration commit. `bin/generate-surface-map --check`
 passes on the migrated tree; two consecutive `--stdout=php` generations
 hashed identically (sha256
-`11901b25f921a2f3369b26430fc2f9cbf899da78999593361cebf38edddf9d92`) —
+`11901b25f921a2f3369b26430fc2f9cbf899da78999593361cebf38edddf9d92` at the
+candidate head; `8d3250150e26ab989ec6473ae802fe19b4d737067ae93874eeaafad189b44f39`
+after the review repairs below, which write FQCNs with single backslashes) —
 determinism proof. The rewritten `tools/check-surface-parity.php` was
 exercised against a hand-edited `docs/public-surface-map.php` (rejected,
 naming the file, §6 boundary) and an emptied `packages/analytics/public-surface.php`
@@ -99,117 +102,153 @@ a recount against the actual files and is superseded by these verified
 figures; see `designDeviations` in the delivery report for the full
 accounting.
 
+## Review repairs (adversarial review of the candidate)
+
+The independent review ran the real gate against hand-built fixtures in a
+disposable clone of the candidate head and found one authority-boundary
+regression plus three deliverable defects, all repaired on the candidate:
+
+1. **Empty merge-base map (blocking, fixed).** `tools/check-surface-parity.php`
+   composed the merge base's declarations; a merge base that predates the
+   plane (no `packages/*/public-surface.php` — including this candidate's own
+   base `5bac44286`) composed to an *empty* map, so removal/downgrade
+   authorization compared against nothing. Observed before the fix: removing
+   the governed `public` entry `Waaseyaa\AI\Agent\AgentDefinitionRegistry`
+   from `packages/ai-agent/public-surface.php` and running
+   `bin/generate-surface-map --write` passed `--base=origin/main` with exit 0
+   ("OK — public-surface parity verified"); the same tree against a
+   post-migration base failed correctly. The pre-migration gate read the
+   base's tracked `docs/public-surface-map.php` and would have caught it.
+   Fix: when the merge base carries no declaration files the gate loads and
+   validates the base's tracked aggregate instead (`loadBaseAggregate`), and
+   a base with neither is exit 2. Observed after the fix: the same mutation
+   against `origin/main` fails with "1 governed declaration(s) were removed
+   without a newly-added exact-FQCN changelog-fragment authorization"; a base
+   with neither declarations nor aggregate exits 2 naming the base; the clean
+   candidate still passes. Spec §7 step 3 records the rule.
+2. **Human view hid the disposition (fixed).** The generated
+   `docs/public-surface-map.md` rendered all 719 entries — 79 of them
+   `internal` — in one `Element | Type | Purpose` table under a header that
+   said everything listed was public. Rows now carry a `Disposition` column
+   and the header states that only `public` rows are commitments;
+   `SurfaceDeclarationCompositionTest` asserts both a `public` and an
+   `internal` row. Spec §6 records the column.
+3. **Integration patch did not apply (fixed).** The fenced diff below failed
+   `git apply --check` ("corrupt patch": hunk line counts and offsets were
+   hand-written). It is now produced from real edits in a clone of the
+   candidate and verified with `git apply --check` from the extracted fence.
+   It also no longer flips `surface-parity` to `refresh.mode: auto`:
+   `bin/refresh-governance-artifacts` runs a gate's `run` command without
+   substituting `{base}`, so an `auto` surface-parity would always report
+   "regenerated but the gate STILL fails", and
+   `tests/Architecture/RefreshGovernanceArtifactsTest.php` asserts the gate is
+   `manual` — the earlier patch would have broken the Architecture suite on
+   landing. The gate stays `manual` with an instruction naming
+   `php bin/generate-surface-map --write`; the roster-reading Architecture
+   tests were run with the patch applied (75 tests, OK).
+4. **Figures.** Spec §2/§10 said 704 entries and 38 note rows (31 + 7); the
+   verified counts are 719 (640 `public`, 79 `internal`) and 33 (27 + 6),
+   now stated consistently here and in the spec.
+5. **Generated PHP view escaping (fixed).** The generated
+   `docs/public-surface-map.php` wrote every key through `addslashes`
+   (`'Waaseyaa\\Foundation\\…'`), so a line-level comparison with the
+   hand-authored map at `5bac44286` differed on every row, and regex readers
+   of the tracked view (`docs/audits/FW-ARCH-2026-08/tools/a0-inventory.mjs`)
+   would capture doubled separators. Keys are now written with single
+   backslashes as before; after stripping comments and blank lines and
+   sorting, the regenerated map is line-for-line identical to the
+   pre-migration map, and `require` of both yields the same array.
+
+Every other fixture behaved as the contract requires (exit code, offending
+message): remove a public entry → unauthorized removal; downgrade
+public→internal → unauthorized downgrade, and passes only with a
+newly-added `- Public surface deprecation:` line in a `.deprecated.md`
+fragment (wrong FQCN case, wrong fragment type, and a directive already
+committed on the base all still fail); hand-edited `docs/public-surface-map.php`
+→ boundary failure naming the file; regenerated → pass; declaration added
+with the aggregate left at merge-base bytes → pass; contract shape with no
+declaration → `missing`; wrong-package declaration → `orphaned`; declared by
+two packages → `contradictory`; duplicate within one file → `duplicate`;
+an FQCN placed in `notes` → still `missing` (a note is never a disposition);
+keyed `entries`, unknown key, non-array return → `invalid`;
+public→`extract` without a directive → unauthorized downgrade; deleted
+aggregate → failure naming the file.
+
 ## Integration patch (Codex)
 
 Codex owns `tools/preflight-gates.json`, `.github/workflows/release-cut.yml`,
 and `docs/specs/governed-gates.md` for this wave. This candidate does not
-edit them; the following is the exact change this candidate needs landed in
-each, once the shared-file lane picks it up. `.github/workflows/surface-parity.yml`
-is surface-specific (not one of the three shared files above) and IS edited
-directly by this candidate — its diff is not repeated here.
-
-### `tools/preflight-gates.json` — surface-parity refresh becomes mechanical
-
-The migration makes `docs/public-surface-map.php`/`.md` regeneration a pure
-function of the tracked declarations (`bin/generate-surface-map --write`),
-with no human judgment left in the loop — the same "mechanical artifact"
-shape as the S1 rosters, not the "judgment artifact" shape the gate carried
-before this PR.
+edit them; the diff below is generated from real edits to those three files
+at the candidate head and verified with `git apply --check` (extract the
+fence to a file and apply it at the repository root). `surface-parity` keeps
+`refresh.mode: manual` (see "Review repairs" §3 for why `auto` is wrong for
+a base-dependent gate); its instruction now names the regeneration command.
+The release cut regenerates both aggregates and stages them with the release
+commit, exactly as it compiles `CHANGELOG.md`. `docs/specs/governed-gates.md`
+keeps the public-surface entry under judgment artifacts and explains the
+declaration/aggregate split. `.github/workflows/surface-parity.yml` is
+surface-specific and is edited directly by this candidate.
 
 ```diff
---- a/tools/preflight-gates.json
-+++ b/tools/preflight-gates.json
-@@ -348,8 +348,8 @@
-             "profile": "default",
-             "enforced_by": "workflow:surface-parity.yml#check-surface-parity.php",
-             "refresh": {
--                "mode": "manual",
--                "instruction": "record each new public element's disposition in docs/public-surface-map.php; authorize a removal, rename, or public downgrade only with the exact current-change CHANGELOG grammar in stability-charter.md §8.1"
-+                "mode": "auto",
-+                "write": "php bin/generate-surface-map --write"
-             }
-         },
-```
-
-The gate's `repair` line stays accurate as written (it already talks about
-map entries loadable and the CHANGELOG directive, which is still how you fix
-an actual `check-surface-parity.php` failure — `refresh` is a different
-concern: repairing a *stale but otherwise valid* aggregate, which `--write`
-now does unattended).
-
-### `.github/workflows/release-cut.yml` — regenerate the aggregates in the release commit
-
-Insert a step that runs `bin/generate-surface-map --write` after the
-internal-version sweep (declarations do not change during the sweep, so
-ordering relative to it does not matter, but it must run before the release
-commit is staged) and extend the `git add -A --` list so the regenerated
-files are part of the release commit, exactly like the S1 dependency-byte
-authority already is.
-
-```diff
+diff --git a/.github/workflows/release-cut.yml b/.github/workflows/release-cut.yml
+index c9e2720c9..e56e7142c 100644
 --- a/.github/workflows/release-cut.yml
 +++ b/.github/workflows/release-cut.yml
-@@ -272,6 +272,12 @@
+@@ -284,6 +284,16 @@ jobs:
+         # fails a different way. See the git add list below.
          run: bash tests/PackagedForm/check-s1-sqlite-artifact --write-dependency-authority
  
 +      - name: Regenerate the public-surface-map aggregates
-+        # Package-local packages/<pkg>/public-surface.php declarations are the
-+        # editable authority (FW-DELIVERY-SURFACE-01 / #2901); the tracked
++        # packages/<pkg>/public-surface.php declarations are the editable
++        # authority (FW-DELIVERY-SURFACE-01 / #2901); the tracked
 +        # docs/public-surface-map.{php,md} aggregates are derived views the
 +        # release cut regenerates and commits, exactly like CHANGELOG.md is
-+        # compiled from changes/unreleased/ in this same job.
++        # compiled from changes/unreleased/ in this same job. Declarations do
++        # not change during the version sweep, so ordering relative to it is
++        # immaterial; it must simply run before the release commit is staged.
 +        run: php bin/generate-surface-map --write
 +
        - name: Commit release and push the gate branch
          id: relcommit
          env:
-           VERSION: ${{ inputs.version }}
-         run: |
-           git config user.name "github-actions[bot]"
-           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-           # CRITICAL: stage every file mutated by the internal-version sync:
-           # package manifests, the create-project skeleton, and copied path-
-           # package metadata in the root lock. Omitting any one creates a tag
+@@ -297,7 +307,7 @@ jobs:
            # whose manifests disagree with its install or consumer metadata.
            # See alpha.178 (unstaged packages) and alpha.287 gate attempt 1
            # (unstaged skeleton and stale root-lock metadata).
 -          git add -A -- CHANGELOG.md changes/unreleased changes/released VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json
 +          git add -A -- CHANGELOG.md changes/unreleased changes/released VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json docs/public-surface-map.php docs/public-surface-map.md
            git commit -m "chore: release ${VERSION}"
-```
-
-### `docs/specs/governed-gates.md` — move "public surface map" to the mechanical bullet
-
-§2's artifact classification lists "public surface map" under **Judgment
-artifacts** ("Refresh does not rewrite these; it detects staleness and prints
-the exact regeneration or hand-edit instruction"). After this PR it belongs
-under **Mechanical artifacts** instead — `bin/generate-surface-map --write`
-is deterministic and needs no human-authored rationale, the same as the S1
-rosters and the dispatcher-key baseline.
-
-```diff
+           # The release commit goes to a throwaway gate branch FIRST. Main is
+           # only fast-forwarded after Gate 2 proves CI green on this exact SHA.
+diff --git a/docs/specs/governed-gates.md b/docs/specs/governed-gates.md
+index 3f8bf5cd3..587c0186f 100644
 --- a/docs/specs/governed-gates.md
 +++ b/docs/specs/governed-gates.md
-@@ -63,13 +63,13 @@
- - **Mechanical artifacts** (regenerable with no human judgment): the four S1 rosters
-   (`support/s1-*-roster.json`) and the dispatcher-key baseline. Refresh regenerates them via the
--  verifiers' own write modes, then prints the resulting `git diff --stat` so the operator reviews
--  what changed before committing.
-+  verifiers' own write modes, then prints the resulting `git diff --stat` so the operator reviews
-+  what changed before committing. The public-surface-map aggregates
-+  (`docs/public-surface-map.php`/`.md`, composed by `bin/generate-surface-map` from
-+  `packages/<pkg>/public-surface.php` declarations — FW-DELIVERY-SURFACE-01 / #2901) are also
-+  mechanical: `--write` is a pure function of the tracked declarations, with no
-+  human-authored rationale involved.
+@@ -67,7 +67,12 @@ For every governed recorded artifact, one command knows how to repair it:
+   what changed before committing.
  - **Judgment artifacts** (entries need human-authored rationale): getquery-bindings baseline
    (entries require `# reason` comments), dead-code baseline (policy: shrink-only), public surface
 -  map, symfony-import allowlist, access-hardening, governed-secret-access and runtime-policy-custody baselines,
-+  symfony-import allowlist, access-hardening, governed-secret-access and runtime-policy-custody baselines,
++  declarations (`packages/<pkg>/public-surface.php` — a `surface-parity` failure means a missing
++  declaration or an unauthorized removal/downgrade, which only a human can settle; the tracked
++  `docs/public-surface-map.php`/`.md` aggregates those declarations compose into are mechanical,
++  regenerated by `bin/generate-surface-map --write` at the release cut, and the refresh instruction
++  names that command — FW-DELIVERY-SURFACE-01 / #2901), symfony-import allowlist, access-hardening,
++  governed-secret-access and runtime-policy-custody baselines,
    php-coverage baseline. Refresh does **not** rewrite these; it detects staleness and prints the
    exact regeneration or hand-edit instruction for each.
+ 
+diff --git a/tools/preflight-gates.json b/tools/preflight-gates.json
+index 591759d8c..7c111e7bc 100644
+--- a/tools/preflight-gates.json
++++ b/tools/preflight-gates.json
+@@ -349,7 +349,7 @@
+             "enforced_by": "workflow:surface-parity.yml#check-surface-parity.php",
+             "refresh": {
+                 "mode": "manual",
+-                "instruction": "record each new public element's disposition in docs/public-surface-map.php; authorize a removal, rename, or public downgrade only with the exact current-change CHANGELOG grammar in stability-charter.md §8.1"
++                "instruction": "declare each new contract shape in its owning packages/<pkg>/public-surface.php; authorize a removal, rename, or public downgrade only with the exact current-change CHANGELOG grammar in stability-charter.md §8.1; the tracked docs/public-surface-map.{php,md} aggregates are derived views — regenerate them with `php bin/generate-surface-map --write` (the release cut does this), never by hand"
+             }
+         },
+         {
 ```
-
-This candidate carries a lowercase `spec-reviewed: docs/specs/governed-gates.md
-- refresh classification for public-surface-map moves to mechanical, patch
-above pending Codex's shared-file landing` trailer on its slice-3 commit so
-the drift detector does not flag this spec as silently stale in the meantime.

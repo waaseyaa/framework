@@ -81,7 +81,11 @@ final class SurfaceMapView
         $phpLines[] = '';
         $phpLines[] = 'return [';
         foreach ($composedMap as $fqcn => $disposition) {
-            $phpLines[] = sprintf("    '%s' => '%s',", addslashes($fqcn), $disposition);
+            // Single backslashes, as the hand-authored map wrote them: a
+            // single-quoted PHP string needs no escaping for `\F`, and regex
+            // readers of the tracked view (audit inventories) then see real
+            // FQCNs rather than doubled separators. FQCNs cannot contain quotes.
+            $phpLines[] = sprintf("    '%s' => '%s',", str_replace("'", "\\'", $fqcn), $disposition);
         }
         $phpLines[] = '];';
         $phpLines[] = '';
@@ -103,8 +107,9 @@ final class SurfaceMapView
         $mdLines[] = '';
         $mdLines[] = 'GENERATED FILE — DO NOT EDIT BY HAND.';
         $mdLines[] = '';
-        $mdLines[] = 'This document lists every intentionally public API element in the Waaseyaa framework.';
-        $mdLines[] = 'Elements not listed here are `@internal` and may change without notice.';
+        $mdLines[] = 'This document lists every governed API element in the Waaseyaa framework with its';
+        $mdLines[] = 'declared disposition. Only `public` rows are stability commitments; `internal` rows,';
+        $mdLines[] = 'and any element not listed here, are `@internal` and may change without notice.';
         $mdLines[] = '';
         $mdLines[] = 'Single editable authority: `packages/<pkg>/public-surface.php` (contract:';
         $mdLines[] = '`docs/specs/public-surface-declarations.md`). Composed by `bin/generate-surface-map`.';
@@ -123,8 +128,8 @@ final class SurfaceMapView
                 usort($entries, static fn(array $a, array $b): int => strcmp($a['fqcn'], $b['fqcn']));
                 if ($entries !== []) {
                     $mdLines[] = '';
-                    $mdLines[] = '| Element | Type | Purpose |';
-                    $mdLines[] = '|---------|------|---------|';
+                    $mdLines[] = '| Element | Type | Disposition | Purpose |';
+                    $mdLines[] = '|---------|------|-------------|---------|';
                     foreach ($entries as $entry) {
                         $element = $entry['fqcn'];
                         foreach ($package['prefixes'] as $prefix) {
@@ -135,7 +140,7 @@ final class SurfaceMapView
                         }
                         $type = $scanner->shape($entry['fqcn']) ?? 'unknown';
                         $purpose = $entry['purpose'] ?? '—';
-                        $mdLines[] = sprintf('| `%s` | %s | %s |', $element, $type, $purpose);
+                        $mdLines[] = sprintf('| `%s` | %s | %s | %s |', $element, $type, $entry['disposition'], $purpose);
                     }
                 }
                 if ($package['notes'] !== []) {

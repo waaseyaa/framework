@@ -52,8 +52,9 @@ Rules:
 - A package with no contract shapes may omit the file. A package that has
   contract shapes must declare each one (§4 *missing*).
 - Ownership: an FQCN may be declared only by the package whose Composer
-  `autoload.psr-4` prefix is the longest prefix of that FQCN. The 704 entries
-  migrated from the previous aggregate all have exactly one owner.
+  `autoload.psr-4` prefix is the longest prefix of that FQCN. The 719 entries
+  (640 `public`, 79 `internal`) migrated from the previous aggregate all have
+  exactly one owner.
 
 ## 3. Composition
 
@@ -115,7 +116,11 @@ Charter §8.1's directive grammar is unchanged.
 
 Determinism: entries sorted by FQCN; packages grouped by the layer table in
 `bin/check-package-layers` then by package name; LF line endings; a generated
-header naming this spec. Generating twice yields identical bytes.
+header naming this spec. Generating twice yields identical bytes. Each md row
+carries `Element | Type | Disposition | Purpose`: the human view lists
+`internal` entries too, so the disposition column is what distinguishes a
+commitment from a non-commitment — a row is never a commitment by presence
+alone.
 
 **Boundary rule.** A pull request does not commit the aggregates. The parity
 gate accepts each tracked aggregate only when it is byte-identical to either
@@ -123,7 +128,11 @@ gate accepts each tracked aggregate only when it is byte-identical to either
 generation from HEAD's declarations. Any other content is a hand edit and
 fails. The governed release cut runs `bin/generate-surface-map --write` and
 commits both files alongside `CHANGELOG.md`, so every release ships current
-views. `bin/refresh-governance-artifacts` regenerates them locally on demand.
+views. `bin/refresh-governance-artifacts` keeps `surface-parity` a *manual*
+(judgment) gate — its failures are missing declarations or unauthorized
+removals, which no write mode can repair — and its instruction names
+`php bin/generate-surface-map --write` as the only way to refresh a stale
+aggregate locally.
 
 Consequence for readers: between releases `docs/public-surface-map.md` may be
 behind main by at most one release train, exactly like `CHANGELOG.md`.
@@ -135,7 +144,12 @@ and `.github/workflows/surface-parity.yml` keep their references):
 
 1. load and validate HEAD's declarations (§4);
 2. scan source; report *missing* and *orphaned*;
-3. load the merge base's declarations; apply §5 to the two composed maps;
+3. load the merge base's declarations; apply §5 to the two composed maps.
+   A merge base that carries no `packages/*/public-surface.php` at all (one
+   that predates this plane) contributes its tracked
+   `docs/public-surface-map.php` instead — the authority it actually held —
+   so the comparison base is never an empty map. A base with neither is an
+   infrastructure failure (exit 2), never a silent pass;
 4. apply the §6 boundary rule to both tracked aggregates.
 
 Exit codes are unchanged: `0` parity, `1` drift or unauthorized change, `2`
@@ -169,8 +183,9 @@ For maintainers:
    `docs/public-surface-map.md` (purpose text, where a row named a governed
    FQCN) and wrote one declaration file per owning package. Rationale comments
    in the old PHP map became `ref` fields where they cited an issue or ADR.
-2. The 38 md rows that named no governed FQCN (31 concrete classes, 7
-   method/argument rows) became package `notes`. They govern nothing and
+2. The 33 md rows that named no governed FQCN (27 concrete/interface
+   elements the prior map never dispositioned, 6 method/argument rows)
+   became package `notes`. They govern nothing and
    broaden nothing; an owner who wants one governed declares it with a
    `public` or `internal` entry and the ordinary review.
 3. `docs/public-surface-map.php` / `.md` are now generated. Do not edit them.

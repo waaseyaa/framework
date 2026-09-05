@@ -81,6 +81,10 @@ final class SurfaceDeclarationCompositionTest extends TestCase
         self::assertStringContainsString('AlphaContractInterface', $md);
         self::assertStringContainsString('Alpha seam', $md);
         self::assertStringContainsString('BetaContractInterface', $md);
+        // The human view must carry the disposition: an internal row rendered
+        // indistinguishably from a public one would read as a commitment.
+        self::assertStringContainsString('| `AlphaContractInterface` | interface | public | Alpha seam |', $md);
+        self::assertStringContainsString('| `BetaContractInterface` | interface | internal | — |', $md);
     }
 
     #[Test]

@@ -23,7 +23,10 @@ declare(strict_types=1);
  *      §4's "missing" and "orphaned" checks are exactly those two
  *      directions against the declaration plane instead of the aggregate);
  *   2. composes HEAD's declarations into the FQCN => disposition map;
- *   3. loads the merge base's declarations and composes them the same way,
+ *   3. loads the merge base's declarations and composes them the same way
+ *      (a merge base with no declaration files at all — one that predates
+ *      the plane — contributes its tracked docs/public-surface-map.php
+ *      instead; an empty base map is never compared against, exit 2),
  *      then applies the UNCHANGED SurfaceChangeAuthorization removal/rename/
  *      downgrade rules between the two composed maps — current-change
  *      changelog-fragment authorization only, exactly as before (§5);
@@ -107,6 +110,44 @@ function surfaceGit(string $root, array $arguments): array
     return [(string) $stdout . ($exitCode === 0 ? '' : (string) $stderr), $exitCode];
 }
 
+/**
+ * The merge base's tracked docs/public-surface-map.php as a validated
+ * FQCN => disposition map — the authority a pre-migration base carried.
+ *
+ * @return array<string, string>
+ */
+function loadBaseAggregate(string $root, string $mergeBase): array
+{
+    [$source, $exitCode] = surfaceGit($root, ['show', $mergeBase . ':' . SURFACE_MAP_PHP_REL]);
+    if ($exitCode !== 0 || $source === '') {
+        fail("merge base {$mergeBase} has neither package-local declarations nor a readable " . SURFACE_MAP_PHP_REL . ': ' . trim($source), 2);
+    }
+
+    $temporary = tempnam(sys_get_temp_dir(), 'waaseyaa-surface-map-');
+    if ($temporary === false || file_put_contents($temporary, $source) === false) {
+        fail('could not materialize the merge-base surface map for comparison.', 2);
+    }
+    try {
+        /** @var mixed $map */
+        $map = require $temporary;
+    } finally {
+        @unlink($temporary);
+    }
+    if (!is_array($map) || $map === []) {
+        fail('merge-base ' . SURFACE_MAP_PHP_REL . ' must return a non-empty array.', 2);
+    }
+
+    $validated = [];
+    foreach ($map as $fqcn => $disposition) {
+        if (!is_string($fqcn) || !is_string($disposition) || !in_array($disposition, SurfaceDeclarations::ALLOWED_DISPOSITIONS, true)) {
+            fail('merge-base ' . SURFACE_MAP_PHP_REL . ' carries an invalid entry: ' . var_export($fqcn, true) . ' => ' . var_export($disposition, true), 2);
+        }
+        $validated[$fqcn] = $disposition;
+    }
+
+    return $validated;
+}
+
 /** @return list<string> */
 function addedFragmentFilenames(string $root, string $mergeBase): array
 {
@@ -184,7 +225,23 @@ try {
 } catch (\Throwable $e) {
     fail("cannot load declarations at merge base {$mergeBase}: " . $e->getMessage(), 2);
 }
-$baseMap = $baseDeclarations->compose();
+if ($baseDeclarations->packages() === []) {
+    // A merge base that predates the declaration plane (no
+    // packages/*/public-surface.php at all) still carried its authority in the
+    // tracked docs/public-surface-map.php. Comparing against an EMPTY composed
+    // map would make every removal and downgrade invisible, so read the base's
+    // aggregate instead — the pre-migration gate's own base — and fail closed
+    // (exit 2) when the base has neither. Review-observed regression: removing
+    // a governed public entry and regenerating the aggregate passed against
+    // 5bac44286 before this fallback existed.
+    $baseMap = loadBaseAggregate($root, $mergeBase);
+    info('Merge base carries no package-local declarations; comparing against its tracked ' . SURFACE_MAP_PHP_REL . ' instead.');
+} else {
+    $baseMap = $baseDeclarations->compose();
+}
+if ($baseMap === []) {
+    fail("merge base {$mergeBase} yields an empty disposition map; refusing to authorize against nothing.", 2);
+}
 
 $allFragments = ChangelogFragments::load($root . '/' . FRAGMENT_DIR_REL);
 $addedFilenames = array_fill_keys(addedFragmentFilenames($root, $mergeBase), true);
