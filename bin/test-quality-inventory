@@ -167,6 +167,14 @@ foreach ($phpTestFiles as $path) {
             'packages/foundation/tests/Integration/Migration/SchemaAuthorityConcurrencyTest.php' => 'subprocess_polling',
             'packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php' => 'subprocess_polling',
             'tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php' => 'filesystem_retry',
+            // #2913: the usleep(200000) tokens the regex matches are string
+            // literals inside disposable `php -r` child-process scripts (the
+            // --jobs=3 concurrency proof), not a wait/poll in the test's own
+            // executing code. Each child sleeps a fixed 200ms so bin/qualify-
+            // candidate observes overlapping running children before they all
+            // exit — bounded and deterministic, never a retry loop; closest of
+            // the two available buckets is subprocess_polling.
+            'tests/Architecture/QualifyCandidateRunnerTest.php' => 'subprocess_polling',
             default => 'unclassified',
         };
         $determinism['waits'][$waitCategory][] = $path;
