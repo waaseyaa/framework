@@ -74,6 +74,66 @@ final class ApplicationBlueprintCompilerTest extends TestCase
         self::assertSame($first->digest, $second->digest);
     }
 
+    /**
+     * #2788 (01E): the roster grows from three emitter ids (01D-1) to eight,
+     * all additive — the compiler itself is untouched (pinned below by
+     * {@see self::theCompilerFileIsByteIdenticalToThe01D1Baseline()}). Two
+     * distinct `ComposerProviderRegistration` FQCNs compose without
+     * collision (`ProviderRegistrationEmitter`'s content provider,
+     * `GovernanceProviderEmitter`'s governance provider), and every
+     * governance artifact path lands in the sorted plan.
+     */
+    #[Test]
+    public function theEightEmitterRosterComposesAdditivelyWithTwoDistinctProviderRegistrations(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $plan = ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+
+        $paths = array_map(static fn(GeneratedArtifact $artifact): string => $artifact->path, $plan->artifacts);
+        self::assertContains('src/Access/ApplicationBlueprintPermissions.php', $paths);
+        self::assertContains('src/Access/ArticlePolicy.php', $paths);
+        self::assertContains('src/Workflow/EditorialWorkflowDefinition.php', $paths);
+        self::assertContains('config/sync/workflows.assignments.yml', $paths);
+        self::assertContains('src/Provider/ApplicationBlueprintGovernanceServiceProvider.php', $paths);
+        self::assertContains('tests/Blueprint/GovernanceDefaultDenyTest.php', $paths);
+        self::assertSame($paths, array_unique($paths), 'No two emitters may claim the same path.');
+
+        self::assertCount(2, $plan->registrations);
+        $fqcns = array_map(static fn($registration): string => $registration->fqcn, $plan->registrations);
+        self::assertSame(array_unique($fqcns), $fqcns);
+        self::assertContains('App\\Provider\\ApplicationBlueprintServiceProvider', $fqcns);
+        self::assertContains('App\\Provider\\ApplicationBlueprintGovernanceServiceProvider', $fqcns);
+
+        self::assertSame(
+            [
+                'tests/Blueprint/EntityAccessChecksTest.php',
+                'tests/Blueprint/GovernanceDefaultDenyTest.php',
+                'tests/Blueprint/RolePermissionChecksTest.php',
+                'tests/Blueprint/WorkflowTransitionChecksTest.php',
+            ],
+            $plan->companionTests,
+        );
+    }
+
+    /**
+     * #2788 (01E) is additive-only per its own emitter roster (decision (f)):
+     * it must never edit `ApplicationBlueprintCompiler.php` itself. Pins the
+     * exact byte content the 01D-1 review round left the file in
+     * (commit 58c89ba6b, "fix(#2787): reserve die and eval as emitted class
+     * names") so an accidental edit fails loudly here instead of only
+     * showing up as an unexplained diff in review.
+     */
+    #[Test]
+    public function theCompilerFileIsByteIdenticalToThe01D1Baseline(): void
+    {
+        $path = \dirname(__DIR__, 4) . '/src/Site/Blueprint/ApplicationBlueprintCompiler.php';
+        self::assertSame(
+            '75c2dc34a01d17c290a7e594c7406543bbe29ddb9719cb9938aed410bd5e5b24',
+            hash('sha256', (string) file_get_contents($path)),
+            'ApplicationBlueprintCompiler.php must not be edited by an additive emitter slice.',
+        );
+    }
+
     #[Test]
     public function aBlueprintFreeManifestIsRefused(): void
     {

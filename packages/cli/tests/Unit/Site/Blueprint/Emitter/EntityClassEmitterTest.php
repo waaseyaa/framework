@@ -201,6 +201,92 @@ final class EntityClassEmitterTest extends TestCase
         }
     }
 
+    /**
+     * #2788 (01E), F5/G5 follow-up: the owner relationship field and (for a
+     * workflow-bound entity) `workflow_state` are sealed `Protected` with
+     * `authorizationInput` — every other field is `Public`. Loaded through
+     * the real entity/field-read runtime (`EntityBase::level()`,
+     * `EntityBase::get()`), not asserted only against the generated source
+     * text.
+     */
+    #[Test]
+    public function theOwnerFieldAndWorkflowStateAreSealedProtectedEveryOtherFieldIsPublic(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $emission = new EntityClassEmitter()->emit($manifest->applicationBlueprint, $manifest);
+
+        $namespace = 'Waaseyaa\\CLI\\Tests\\BlueprintReadLevels' . bin2hex(random_bytes(4));
+        $entitySource = str_replace(
+            ['namespace App\\Entity;', 'App\\Entity\\Enum\\ArticleStatus'],
+            ['namespace ' . $namespace . ';', $namespace . '\\Enum\\ArticleStatus'],
+            $this->content($emission->artifacts, 'src/Entity/Article.php'),
+        );
+        $enumSource = str_replace(
+            'namespace App\\Entity\\Enum;',
+            'namespace ' . $namespace . '\\Enum;',
+            $this->content($emission->artifacts, 'src/Entity/Enum/ArticleStatus.php'),
+        );
+
+        $dir = sys_get_temp_dir() . '/waaseyaa_entity_read_levels_' . bin2hex(random_bytes(8));
+        mkdir($dir . '/Enum', 0o700, true);
+        file_put_contents($dir . '/Enum/ArticleStatus.php', $enumSource);
+        file_put_contents($dir . '/Article.php', $entitySource);
+
+        try {
+            require $dir . '/Enum/ArticleStatus.php';
+            require $dir . '/Article.php';
+
+            $class = $namespace . '\\Article';
+            $entity = new $class(['id' => 1, 'title' => 'Welcome', 'author' => 99, 'workflow_state' => 'draft']);
+
+            self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Public, $entity->fieldReadLevel('title'));
+            self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Protected, $entity->fieldReadLevel('author'));
+            self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Protected, $entity->fieldReadLevel('workflow_state'));
+
+            self::assertSame('Welcome', $entity->get('title'));
+            // No read context/guard is installed in this unit test: reading a
+            // Protected field fails closed with "no context to decide against"
+            // rather than silently releasing the value. With a real guard
+            // installed (production, or AuthorizationInputReader's own
+            // reflection-bound bypass) this is a FieldReadDenied instead.
+            $this->expectException(\Waaseyaa\Entity\Exception\MissingFieldReadContext::class);
+            $entity->get('author');
+        } finally {
+            new Filesystem()->remove($dir);
+        }
+    }
+
+    /**
+     * A `person`-shaped entity has no `keys.owner` and is never workflow-
+     * bound: no field on it should be sealed anything but `Public`.
+     */
+    #[Test]
+    public function anEntityWithNoOwnerAndNoWorkflowBindingHasOnlyPublicFields(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $emission = new EntityClassEmitter()->emit($manifest->applicationBlueprint, $manifest);
+
+        $namespace = 'Waaseyaa\\CLI\\Tests\\BlueprintReadLevelsPerson' . bin2hex(random_bytes(4));
+        $entitySource = str_replace(
+            'namespace App\\Entity;',
+            'namespace ' . $namespace . ';',
+            $this->content($emission->artifacts, 'src/Entity/Person.php'),
+        );
+
+        $file = tempnam(sys_get_temp_dir(), 'waaseyaa_person_read_levels_') . '.php';
+        file_put_contents($file, $entitySource);
+        try {
+            require $file;
+            $class = $namespace . '\\Person';
+            $entity = new $class(['id' => 1, 'name' => 'Jane']);
+
+            self::assertSame(\Waaseyaa\Entity\FieldReadLevel::Public, $entity->fieldReadLevel('name'));
+            self::assertSame('Jane', $entity->get('name'));
+        } finally {
+            unlink($file);
+        }
+    }
+
     private function assertLints(string $content): void
     {
         $file = tempnam(sys_get_temp_dir(), 'waaseyaa_lint_') . '.php';
