@@ -296,7 +296,10 @@ final class AuthUiScaffoldManager
         if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/framework')) {
             $installedPath = InstalledVersions::getInstallPath('waaseyaa/framework');
             if (is_string($installedPath) && $installedPath !== '') {
-                $frameworkRoot = realpath($installedPath) ?: $installedPath;
+                $frameworkRoot = realpath($installedPath);
+                if ($frameworkRoot === false) {
+                    $frameworkRoot = $installedPath;
+                }
                 $candidates[] = [
                     'source_base' => rtrim($frameworkRoot, '/\\') . '/packages/admin/app',
                     'version_roots' => [$frameworkRoot],
@@ -305,7 +308,7 @@ final class AuthUiScaffoldManager
         }
 
         $cliFile = new \ReflectionClass(self::class)->getFileName();
-        if (is_string($cliFile) && $cliFile !== '') {
+        if (is_string($cliFile)) {
             $cliRoot = dirname($cliFile, 3);
             $candidates[] = [
                 'source_base' => dirname($cliRoot) . '/admin/app',
@@ -316,7 +319,10 @@ final class AuthUiScaffoldManager
         if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/cli')) {
             $installedPath = InstalledVersions::getInstallPath('waaseyaa/cli');
             if (is_string($installedPath) && $installedPath !== '') {
-                $cliRoot = realpath($installedPath) ?: $installedPath;
+                $cliRoot = realpath($installedPath);
+                if ($cliRoot === false) {
+                    $cliRoot = $installedPath;
+                }
                 $candidates[] = [
                     'source_base' => dirname($cliRoot) . '/admin/app',
                     'version_roots' => [dirname($cliRoot, 2)],
