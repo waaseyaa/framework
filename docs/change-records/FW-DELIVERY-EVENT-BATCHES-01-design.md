@@ -153,7 +153,15 @@ Properties:
 
 ## Commutativity proof obligation (implementation)
 
-Architecture fixture (implementation PR, not this design PR):
+Architecture fixtures already landed (ordering-independent):
+
+- Duplicate event IDs (identical and conflicting payloads)
+- Missing causal references
+- Causal cycles
+- Conflicting double adjudications
+- Modified or deleted accepted batch paths
+
+Additional Architecture fixture (implementation PR, after ordering accept):
 
 1. Fixture tree `S₀` = frozen mini v1 ledger.
 2. Batch `A` and batch `B` with disjoint event IDs, no causal edges between them

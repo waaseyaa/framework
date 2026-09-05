@@ -20,7 +20,7 @@ rebases, and requalification. Replace the hotspot with **independent immutable
 batch files** and a **deterministic complete-set projection**, while keeping
 every accepted v1 byte and event ID intact.
 
-## This candidate (design-only)
+## This candidate
 
 | Deliverable | Path |
 | --- | --- |
@@ -30,11 +30,13 @@ every accepted v1 byte and event ID intact.
 | #2869 projection coordination | `docs/change-records/FW-DELIVERY-EVENT-BATCHES-01-2869-coordination.md` |
 | Deferred CI/preflight patch stub | `docs/change-records/FW-DELIVERY-EVENT-BATCHES-01-ci-patch.md` |
 | Proposed contract sketch (not LIVE) | `docs/specs/delivery-agent-event-batches.md` |
-| Adversarial contention fixture | `tests/Architecture/DeliveryAgentEventBatchContentionFixtureTest.php` |
+| Dual-append contention fixture | `tests/Architecture/DeliveryAgentEventBatchContentionFixtureTest.php` |
+| Ordering-independent adversarial fixtures | `tests/Architecture/DeliveryAgentEventBatchAdversarialFixtureTest.php` |
+| Complete-set helper (no replay order) | `bin/lib/delivery-agent-event-set.php` |
 
-**Out of this candidate:** implementing batch validators, new schemas as
-enforced gates, edits to `ci.yml` / `tools/preflight-gates.json`, or changing
-`bin/project-delivery-agent-events` behaviour.
+**Still deferred until Codex accepts ordering:** freeze enforcement wired into
+`bin/check-delivery-agent-events`, batch schema as a LIVE gate, `ci.yml` /
+`preflight-gates.json`, and `bin/project-delivery-agent-events` changes.
 
 ## Decisions locked for design review
 
