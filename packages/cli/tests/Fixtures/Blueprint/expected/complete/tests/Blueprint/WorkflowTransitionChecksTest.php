@@ -36,12 +36,42 @@ use Waaseyaa\Workflows\Transition\TransitionService;
 final class WorkflowTransitionChecksTest extends TestCase
 {
 
+    public function testEditorCanPublish(): void
+    {
+        $provider = new \App\Provider\ApplicationBlueprintGovernanceServiceProvider();
+        $repository = RoleRepository::fromProviders([$provider]);
+        $role = $repository->get('editor');
+        // A NATIVE assert, not a PHPUnit assertion: an 'allowed'-expecting
+        // method below calls expectNotToPerformAssertions(), which fails the
+        // test (risky: "performed N assertions") if ANY PHPUnit assertion runs
+        // anywhere in the method, including a self::assertNotNull() guard here.
+        \assert($role !== null);
+        $account = AuthorizationPrincipalFactory::authenticated(1, roles: [$role->id], permissions: $role->permissions);
+
+        [$transitionService, $entityRepository, $temporaryDatabase] = $this->bootTransitionService(
+            \App\Entity\Article::class,
+            'article',
+            'editorial',
+            \App\Workflow\EditorialWorkflowDefinition::DEFINITION,
+        );
+        $entity = $entityRepository->create(['id' => 1]);
+        $entity->enforceIsNew();
+        $entityRepository->save($entity, validate: false);
+
+        $this->expectNotToPerformAssertions();
+        $transitionService->transition($entity, 'publish', $account);
+    }
+
     public function testViewerCannotPublish(): void
     {
         $provider = new \App\Provider\ApplicationBlueprintGovernanceServiceProvider();
         $repository = RoleRepository::fromProviders([$provider]);
         $role = $repository->get('viewer');
-        self::assertNotNull($role);
+        // A NATIVE assert, not a PHPUnit assertion: an 'allowed'-expecting
+        // method below calls expectNotToPerformAssertions(), which fails the
+        // test (risky: "performed N assertions") if ANY PHPUnit assertion runs
+        // anywhere in the method, including a self::assertNotNull() guard here.
+        \assert($role !== null);
         $account = AuthorizationPrincipalFactory::authenticated(1, roles: [$role->id], permissions: $role->permissions);
 
         [$transitionService, $entityRepository, $temporaryDatabase] = $this->bootTransitionService(

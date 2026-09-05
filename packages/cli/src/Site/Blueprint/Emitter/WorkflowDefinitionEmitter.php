@@ -9,6 +9,9 @@ use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowBinding;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowState;
 use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowTransition;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\SiteManifest;
 
@@ -16,7 +19,11 @@ use Waaseyaa\SiteContract\SiteManifest;
  * Emits one `src/Workflow/<PascalCase(workflow.id)>WorkflowDefinition.php`
  * per blueprint workflow, plus one aggregate `config/sync/workflows.
  * assignments.yml` binding every declared `<entity.id>.<entity.id> =>
- * <workflow.id>` pair across every workflow (#2788, FW-SITE-BLUEPRINT-01E).
+ * <workflow.id>` pair across every workflow — but ONLY when at least one
+ * binding exists anywhere in the blueprint (#2788 review F9): a blueprint
+ * that declares workflows with zero bindings emits zero `config/sync/*`
+ * artifacts, never an empty `{}` (which would seed a trusted CFG-03 config
+ * entry for a binding nobody authored) — #2788, FW-SITE-BLUEPRINT-01E.
  *
  * `DEFINITION` is the exact `Workflow::__construct()` hydration shape
  * ({@see \Waaseyaa\Workflows\Workflow}), matching
@@ -54,6 +61,8 @@ final class WorkflowDefinitionEmitter implements BlueprintArtifactEmitterInterfa
             return new BlueprintEmission([]);
         }
 
+        self::assertNoWorkflowClassNameCollision($blueprint);
+
         $workflows = array_values($blueprint->workflows);
         usort($workflows, static fn(BlueprintWorkflow $left, BlueprintWorkflow $right): int => strcmp($left->id, $right->id));
 
@@ -74,10 +83,51 @@ final class WorkflowDefinitionEmitter implements BlueprintArtifactEmitterInterfa
         }
         ksort($bindingRows, SORT_STRING);
 
-        $artifacts[] = new GeneratedArtifact(self::ASSIGNMENTS_PATH, $this->renderAssignments($bindingRows));
+        // #2788 review F9: the design says this artifact is emitted only
+        // "when any binding exists" — an empty `{}` seeds a trusted CFG-03
+        // config entry for a binding that was never authored, so a later
+        // legitimately authored assignment becomes an update instead of a
+        // create.
+        if ($bindingRows !== []) {
+            $artifacts[] = new GeneratedArtifact(self::ASSIGNMENTS_PATH, $this->renderAssignments($bindingRows));
+        }
         usort($artifacts, static fn(GeneratedArtifact $left, GeneratedArtifact $right): int => strcmp($left->path, $right->path));
 
         return new BlueprintEmission($artifacts);
+    }
+
+    /**
+     * Two workflow ids that PascalCase to the same string would emit the
+     * same `src/Workflow/<Class>WorkflowDefinition.php` path twice within
+     * this emitter's OWN artifact list — `ApplicationBlueprintCompiler`'s
+     * cross-emitter path-uniqueness check does catch that (a bare
+     * `\InvalidArgumentException`, not a coded refusal), but this refuses
+     * with `GEN006_MALICIOUS_IDENTIFIER` before any artifact is rendered at
+     * all, mirroring `ApplicationBlueprintCompiler::checkClassNameCollision()`
+     * (#2788 review F6).
+     */
+    private static function assertNoWorkflowClassNameCollision(ApplicationBlueprint $blueprint): void
+    {
+        $violations = [];
+        $seen = [];
+        $index = 0;
+        foreach ($blueprint->workflows as $workflow) {
+            $key = strtolower(self::pascalCase($workflow->id));
+            if (isset($seen[$key])) {
+                $violations[] = new GenerationViolation(
+                    GenerationErrorCode::MaliciousIdentifier,
+                    "Blueprint workflow \"{$workflow->id}\" PascalCases to the same generated class name as workflow \"{$seen[$key]}\".",
+                    pointer: "/application_blueprint/workflows/{$index}/id",
+                );
+            } else {
+                $seen[$key] = $workflow->id;
+            }
+            ++$index;
+        }
+
+        if ($violations !== []) {
+            throw new GenerationRefusalException(self::class, $violations);
+        }
     }
 
     private function renderDefinition(BlueprintWorkflow $workflow, string $className): string
@@ -152,13 +202,9 @@ final class WorkflowDefinitionEmitter implements BlueprintArtifactEmitterInterfa
             PHP;
     }
 
-    /** @param array<string, string> $bindingRows "entity.entity" => workflow id, sorted by key */
+    /** @param array<string, string> $bindingRows "entity.entity" => workflow id, sorted by key, always non-empty (see emit()) */
     private function renderAssignments(array $bindingRows): string
     {
-        if ($bindingRows === []) {
-            return "{}\n";
-        }
-
         $lines = [];
         foreach ($bindingRows as $key => $workflowId) {
             $lines[] = "{$key}: {$workflowId}\n";

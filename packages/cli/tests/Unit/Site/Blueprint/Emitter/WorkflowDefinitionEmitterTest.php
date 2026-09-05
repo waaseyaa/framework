@@ -8,6 +8,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\WorkflowDefinitionEmitter;
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
+use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
+use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowState;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 use Waaseyaa\Workflows\Validation\WorkflowValidator;
@@ -89,6 +94,90 @@ final class WorkflowDefinitionEmitterTest extends TestCase
         } finally {
             unlink($file);
         }
+    }
+
+    /**
+     * #2788 review F9: a blueprint declaring a workflow with ZERO bindings
+     * must emit only the definition file, never an empty
+     * `config/sync/workflows.assignments.yml` — an empty `{}` would seed a
+     * trusted CFG-03 config entry for a binding nobody authored, turning a
+     * later legitimately-authored assignment into an update instead of a
+     * create.
+     */
+    #[Test]
+    public function itEmitsNoAssignmentsArtifactWhenTheWorkflowHasZeroBindings(): void
+    {
+        $manifest = $this->manifest('minimal.yaml');
+        $blueprint = $this->blueprintWithOneUnboundWorkflow();
+
+        $emission = new WorkflowDefinitionEmitter()->emit($blueprint, $manifest);
+
+        self::assertSame(
+            ['src/Workflow/UnboundWorkflowDefinition.php'],
+            array_map(static fn($a) => $a->path, $emission->artifacts),
+        );
+    }
+
+    /**
+     * Two workflow ids that PascalCase to the same class name are refused
+     * (`GEN006_MALICIOUS_IDENTIFIER`) before any artifact is emitted, rather
+     * than silently producing a duplicate `src/Workflow/*.php` path within
+     * this emitter's own artifact list (#2788 review F6).
+     */
+    #[Test]
+    public function twoWorkflowIdsPascalCasingToTheSameClassNameAreRefusedGen006(): void
+    {
+        $manifest = $this->manifest('minimal.yaml');
+        $blueprint = new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: $manifest->applicationBlueprint->entities,
+            relationships: [],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: [
+                'a_b' => $this->unboundWorkflow('a_b'),
+                'ab' => $this->unboundWorkflow('ab'),
+            ],
+            fixtures: [],
+            checks: [],
+        );
+
+        try {
+            new WorkflowDefinitionEmitter()->emit($blueprint, $manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+        }
+    }
+
+    private function blueprintWithOneUnboundWorkflow(): ApplicationBlueprint
+    {
+        $manifest = $this->manifest('minimal.yaml');
+
+        return new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: $manifest->applicationBlueprint->entities,
+            relationships: [],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: ['unbound' => $this->unboundWorkflow('unbound')],
+            fixtures: [],
+            checks: [],
+        );
+    }
+
+    private function unboundWorkflow(string $id): BlueprintWorkflow
+    {
+        return new BlueprintWorkflow(
+            id: $id,
+            label: 'Unbound',
+            initialState: 'draft',
+            states: ['draft' => new BlueprintWorkflowState('draft', 'Draft', false)],
+            transitions: [],
+            bindings: [],
+        );
     }
 
     /** @param list<\Waaseyaa\SiteContract\Generation\GeneratedArtifact> $artifacts */

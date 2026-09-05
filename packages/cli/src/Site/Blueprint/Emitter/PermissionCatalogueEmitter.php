@@ -104,7 +104,11 @@ final class PermissionCatalogueEmitter implements BlueprintArtifactEmitterInterf
         $id = self::singleQuoted($permission->id);
         $title = self::singleQuoted($permission->title);
 
-        return "            {$id} => ['title' => {$title}, 'description' => ''],\n";
+        // Decision (d): the blueprint contract has no separate `description`
+        // field for a permission, so the title doubles as the description
+        // (#2788 review F10 — a prior draft rendered '' here, silently
+        // drifting from the recorded design).
+        return "            {$id} => ['title' => {$title}, 'description' => {$title}],\n";
     }
 
     /** @param list<BlueprintPermission> $permissions sorted by id */

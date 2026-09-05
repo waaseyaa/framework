@@ -9,6 +9,9 @@ use Waaseyaa\SiteContract\Blueprint\BlueprintCheck;
 use Waaseyaa\SiteContract\Blueprint\BlueprintCheckKind;
 use Waaseyaa\SiteContract\Blueprint\BlueprintEntity;
 use Waaseyaa\SiteContract\Blueprint\BlueprintFixture;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\SiteManifest;
 
@@ -25,13 +28,14 @@ use Waaseyaa\SiteContract\SiteManifest;
  * fixture as a real persisted row yet, so there is nothing to check its
  * presence against.
  *
- * `BlueprintCheck::$expect` is an unvalidated free-form string (the parser
- * and `ApplicationBlueprintValidator` never constrain its vocabulary): this
- * emitter treats any value starting with `grant` (case-insensitive, so
- * `granted` and a bare `grant`) as "expect allowed" and everything else
- * (`denied`, `deny`, or any other text) as "expect denied" — matching every
- * value the `complete.yaml` fixture actually uses (`granted`, `denied`,
- * `deny`).
+ * `BlueprintCheck::$expect` is validated by
+ * `ApplicationBlueprintParser` per check kind, with a DIFFERENT vocabulary
+ * per kind (`ApplicationBlueprintParser::rolePermissionCheck/
+ * workflowTransitionCheck/entityAccessCheck`): `role_permission` ->
+ * `granted`/`denied`; `workflow_transition` -> `allowed`/`denied`;
+ * `entity_access` -> `allow`/`deny`. This emitter's {@see self::expectAllowed()}
+ * maps all three "allow" spellings (`granted`, `allowed`, `allow`) to "expect
+ * allowed"; every other validated value means "expect denied".
  *
  * `GovernanceDefaultDenyTest` covers every blueprint entity — including one
  * with zero declared policies — with an `EntityAccessHandler` seeded with
@@ -75,6 +79,8 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
 
     public function emit(ApplicationBlueprint $blueprint, SiteManifest $manifest): BlueprintEmission
     {
+        self::assertChecksAreCompileTimeSafe($blueprint);
+
         $policyEntityIds = self::entitiesWithPolicies($blueprint);
 
         $artifacts = [
@@ -126,9 +132,79 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
         return $checks;
     }
 
+    /**
+     * `$expect`'s allowed values differ per check kind (see class docblock),
+     * but only three literal spellings ever mean "expect allowed":
+     * `granted` (role_permission), `allowed` (workflow_transition), and
+     * `allow` (entity_access). Every other validated value (`denied`,
+     * `deny`) means "expect denied" (#2788 review F2 — a prior `stripos`
+     * prefix-match against `'grant'` silently compiled a `deny`-shaped
+     * expectation with `allow`/`allowed` in it as a positive check, and
+     * NEVER matched `allow`/`allowed` themselves).
+     */
     private static function expectAllowed(?string $expect): bool
     {
-        return $expect !== null && stripos($expect, 'grant') === 0;
+        return match ($expect) {
+            'granted', 'allowed', 'allow' => true,
+            default => false,
+        };
+    }
+
+    /**
+     * Two compile-time refusals raised before any artifact is rendered
+     * (#2788 review F5, F6):
+     *
+     *  - F5: a `workflow_transition` check naming a workflow with zero
+     *    declared bindings previously reached an unguarded
+     *    `\assert($binding !== null)` in {@see self::renderWorkflowTransitionMethod()}
+     *    — an `AssertionError` in a dev environment, a `TypeError` in
+     *    production (`zend.assertions=-1` strips the assert, falling
+     *    through to `$blueprint->entities[null]`). Neither is a coded
+     *    refusal with a pointer.
+     *  - F6: two checks of the SAME kind whose ids PascalCase to the same
+     *    string emit a single companion test file with a duplicate method
+     *    declaration (`'test' . self::pascalCase($check->id)`), which fails
+     *    `php -l`. Collision is scoped per kind because each kind renders
+     *    into its own class.
+     */
+    private static function assertChecksAreCompileTimeSafe(ApplicationBlueprint $blueprint): void
+    {
+        $violations = [];
+        $methodNamesSeenByKind = [];
+        $index = 0;
+        foreach ($blueprint->checks as $check) {
+            $path = "/application_blueprint/checks/{$index}";
+
+            $methodName = 'test' . self::pascalCase($check->id);
+            $seenKey = $check->kind->value . ':' . strtolower($methodName);
+            if (isset($methodNamesSeenByKind[$seenKey])) {
+                $violations[] = new GenerationViolation(
+                    GenerationErrorCode::MaliciousIdentifier,
+                    "Blueprint check \"{$check->id}\" PascalCases to the same generated test method name ({$methodName}) as check \"{$methodNamesSeenByKind[$seenKey]}\" within the same '{$check->kind->value}' companion test class.",
+                    pointer: $path . '/id',
+                );
+            } else {
+                $methodNamesSeenByKind[$seenKey] = $check->id;
+            }
+
+            if ($check->kind === BlueprintCheckKind::WorkflowTransition) {
+                \assert($check->workflow !== null);
+                $workflow = $blueprint->workflows[$check->workflow] ?? null;
+                if ($workflow !== null && $workflow->bindings === []) {
+                    $violations[] = new GenerationViolation(
+                        GenerationErrorCode::UnsupportedDeclaration,
+                        "Blueprint check \"{$check->id}\" targets workflow \"{$check->workflow}\", which declares zero bindings; a workflow_transition check requires the workflow to be bound to at least one entity.",
+                        pointer: $path . '/workflow',
+                    );
+                }
+            }
+
+            ++$index;
+        }
+
+        if ($violations !== []) {
+            throw new GenerationRefusalException(self::class, $violations);
+        }
     }
 
     // -- GovernanceDefaultDenyTest -------------------------------------
@@ -144,6 +220,22 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
             $entities,
         ));
 
+        // #2788 review F7: decision (i) assigns this class three more
+        // invariants beyond the per-entity denial loop above, each rendered
+        // only when the blueprint declares the governance it checks.
+        $extraMethods = '';
+        $extraUses = '';
+        if ($blueprint->roles !== []) {
+            $extraUses .= "use Waaseyaa\\User\\RoleRepository;\n";
+            $extraMethods .= $this->renderNoAdministratorRoleMethod();
+        }
+        if ($blueprint->permissions !== []) {
+            $extraMethods .= $this->renderEveryPermissionIsACatalogueConstantMethod($blueprint);
+        }
+        if ($policyEntityIds !== []) {
+            $extraMethods .= $this->renderEveryPolicyIsDiscoverableMethod($policyEntityIds);
+        }
+
         return <<<PHP
             <?php
 
@@ -154,17 +246,99 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
             use PHPUnit\\Framework\\TestCase;
             use Waaseyaa\\Access\\EntityAccessHandler;
             use Waaseyaa\\Testing\\Factory\\AuthorizationPrincipalFactory;
-
+            {$extraUses}
             /**
              * Generated by Waaseyaa\\CLI\\Site\\Blueprint\\ApplicationBlueprintCompiler.
              * Do not edit by hand. Every blueprint entity must deny an anonymous and a
              * permission-less authenticated principal on every operation: no policy grants
              * by default, so absence of a matching condition must never leak into an
-             * accidental Allowed.
+             * accidental Allowed. Also asserts the three companion invariants decision (i)
+             * assigns to this class: no emitted role is ever `administrator`, every
+             * permission a role/transition/policy references is a declared
+             * `ApplicationBlueprintPermissions` constant, and every entity with a
+             * declared policy has a REFLECTABLE `#[PolicyAttribute]` class (the gap that
+             * let a policy compile correctly yet never be discovered at boot — #2788
+             * review F1).
              */
             final class GovernanceDefaultDenyTest extends TestCase
             {
-            {$methods}}
+            {$methods}{$extraMethods}}
+
+            PHP;
+    }
+
+    private function renderNoAdministratorRoleMethod(): string
+    {
+        return <<<'PHP'
+
+                public function testNoEmittedRoleIsAdministrator(): void
+                {
+                    $provider = new \App\Provider\ApplicationBlueprintGovernanceServiceProvider();
+                    $repository = RoleRepository::fromProviders([$provider]);
+                    self::assertNull(
+                        $repository->get('administrator'),
+                        "A blueprint-generated role must never be named 'administrator' (Waaseyaa\\User\\User::hasPermission()'s bypass-all-permissions role).",
+                    );
+                }
+
+            PHP;
+    }
+
+    private function renderEveryPermissionIsACatalogueConstantMethod(ApplicationBlueprint $blueprint): string
+    {
+        $referenced = [];
+        foreach ($blueprint->roles as $role) {
+            foreach ($role->permissions as $permission) {
+                $referenced[$permission] = true;
+            }
+        }
+        foreach ($blueprint->workflows as $workflow) {
+            foreach ($workflow->transitions as $transition) {
+                $referenced[$transition->permission] = true;
+            }
+        }
+        foreach ($blueprint->policies as $policy) {
+            if ($policy->condition->permission !== null) {
+                $referenced[$policy->condition->permission] = true;
+            }
+        }
+        $permissions = array_keys($referenced);
+        sort($permissions, SORT_STRING);
+        $literal = '[' . implode(', ', array_map(self::quoted(...), $permissions)) . ']';
+
+        return <<<PHP
+
+                public function testEveryReferencedPermissionIsACatalogueConstant(): void
+                {
+                    \$catalogue = array_values(new \\ReflectionClass(\\App\\Access\\ApplicationBlueprintPermissions::class)->getConstants());
+                    foreach ({$literal} as \$permission) {
+                        self::assertContains(\$permission, \$catalogue, "Permission '{\$permission}' referenced by a role, transition, or policy is not a declared ApplicationBlueprintPermissions constant.");
+                    }
+                }
+
+            PHP;
+    }
+
+    /** @param array<string, true> $policyEntityIds entity id => true */
+    private function renderEveryPolicyIsDiscoverableMethod(array $policyEntityIds): string
+    {
+        $entityIds = array_keys($policyEntityIds);
+        sort($entityIds, SORT_STRING);
+        $policyClasses = array_map(
+            static fn(string $entityId): string => '\\App\\Access\\' . self::pascalCase($entityId) . 'Policy::class',
+            $entityIds,
+        );
+        $literal = '[' . implode(', ', $policyClasses) . ']';
+
+        return <<<PHP
+
+                public function testEveryEntityWithAPolicyHasADiscoverablePolicyAttribute(): void
+                {
+                    foreach ({$literal} as \$policyClass) {
+                        \$attributes = new \\ReflectionClass(\$policyClass)->getAttributes(\\Waaseyaa\\Access\\Gate\\PolicyAttribute::class);
+                        self::assertNotSame([], \$attributes, "{\$policyClass} must carry #[PolicyAttribute] to be discovered at boot.");
+                    }
+                }
 
             PHP;
     }
@@ -474,6 +648,10 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
     {
         \assert($check->role !== null && $check->workflow !== null && $check->transition !== null);
         $workflow = $blueprint->workflows[$check->workflow];
+        // A workflow with zero bindings is refused by
+        // self::assertChecksAreCompileTimeSafe() (#2788 review F5) before
+        // this method is ever reached — this assert is a defensive
+        // invariant, not the primary refusal path.
         $binding = $workflow->bindings[0] ?? null;
         \assert($binding !== null);
         $entity = $blueprint->entities[$binding->entity];
@@ -493,7 +671,11 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
                     \$provider = new \\App\\Provider\\ApplicationBlueprintGovernanceServiceProvider();
                     \$repository = RoleRepository::fromProviders([\$provider]);
                     \$role = \$repository->get({$this->quoted($check->role)});
-                    self::assertNotNull(\$role);
+                    // A NATIVE assert, not a PHPUnit assertion: an 'allowed'-expecting
+                    // method below calls expectNotToPerformAssertions(), which fails the
+                    // test (risky: "performed N assertions") if ANY PHPUnit assertion runs
+                    // anywhere in the method, including a self::assertNotNull() guard here.
+                    \assert(\$role !== null);
                     \$account = AuthorizationPrincipalFactory::authenticated(1, roles: [\$role->id], permissions: \$role->permissions);
 
                     [\$transitionService, \$entityRepository, \$temporaryDatabase] = \$this->bootTransitionService(

@@ -25,9 +25,24 @@ final class EntityAccessChecksTest extends TestCase
         $account = AuthorizationPrincipalFactory::authenticated(1, roles: [$role->id], permissions: $role->permissions);
 
         $handler = new EntityAccessHandler([new \App\Access\ArticlePolicy()]);
-        $subject = new \App\Entity\Article(['id' => 1, 'title' => 'Welcome', 'status' => 'draft', 'workflow_state' => 'draft']);
+        $subject = new \App\Entity\Article(['id' => 1, 'title' => 'Welcome', 'stage' => 'draft', 'workflow_state' => 'draft']);
         $result = $handler->check($subject, 'update', $account);
 
         self::assertFalse($result->isAllowed());
+    }
+
+    public function testEditorCanUpdateDraft(): void
+    {
+        $provider = new \App\Provider\ApplicationBlueprintGovernanceServiceProvider();
+        $repository = RoleRepository::fromProviders([$provider]);
+        $role = $repository->get('editor');
+        self::assertNotNull($role);
+        $account = AuthorizationPrincipalFactory::authenticated(1, roles: [$role->id], permissions: $role->permissions);
+
+        $handler = new EntityAccessHandler([new \App\Access\ArticlePolicy()]);
+        $subject = new \App\Entity\Article(['id' => 1, 'title' => 'Welcome', 'stage' => 'draft', 'workflow_state' => 'draft']);
+        $result = $handler->check($subject, 'update', $account);
+
+        self::assertTrue($result->isAllowed());
     }
 }

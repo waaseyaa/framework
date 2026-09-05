@@ -98,6 +98,34 @@ final class AccessPolicyEmitterTest extends TestCase
         self::assertTrue(new $policyClass()->createAccess('article', 'article', $viewer)->isNeutral());
     }
 
+    /**
+     * Root-application policies are discovered ONLY by scanning for
+     * `#[PolicyAttribute]` ({@see \Waaseyaa\Foundation\Discovery\PackageManifestCompiler}
+     * and instantiated from the manifest by
+     * {@see \Waaseyaa\Foundation\Kernel\Bootstrap\AccessPolicyRegistry}) —
+     * a generated policy class with no attribute is never wired into
+     * `EntityAccessHandler` at boot, silently denying every grant it
+     * declares. Proves the attribute is present and carries the right
+     * entity type, via reflection on the real loaded class (#2788 review F1).
+     */
+    #[Test]
+    public function theGeneratedPolicyClassCarriesADiscoverablePolicyAttribute(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $emission = new AccessPolicyEmitter()->emit($manifest->applicationBlueprint, $manifest);
+
+        [, , $policyClass] = $this->loadGeneratedPolicyWithEntity(
+            $emission->artifacts[0]->content,
+            $manifest,
+        );
+
+        $attributes = new \ReflectionClass($policyClass)->getAttributes(\Waaseyaa\Access\Gate\PolicyAttribute::class);
+        self::assertNotSame([], $attributes, 'Generated policy class must carry #[PolicyAttribute] to be discovered at boot.');
+
+        $instance = $attributes[0]->newInstance();
+        self::assertSame(['article'], $instance->entityTypes);
+    }
+
     #[Test]
     public function anOwnershipConditionOnCreateIsRefusedGen007BeforeAnyArtifactIsEmitted(): void
     {
@@ -141,13 +169,13 @@ final class AccessPolicyEmitterTest extends TestCase
             \dirname(__DIR__, 4) . '/Fixtures/Blueprint/expected/complete/src/Entity/Article.php',
         );
         $enumSource = (string) file_get_contents(
-            \dirname(__DIR__, 4) . '/Fixtures/Blueprint/expected/complete/src/Entity/Enum/ArticleStatus.php',
+            \dirname(__DIR__, 4) . '/Fixtures/Blueprint/expected/complete/src/Entity/Enum/ArticleStage.php',
         );
 
         $namespace = 'Waaseyaa\\CLI\\Tests\\BlueprintAccessPolicy' . bin2hex(random_bytes(4));
         $entitySource = str_replace(
-            ['namespace App\\Entity;', 'App\\Entity\\Enum\\ArticleStatus'],
-            ['namespace ' . $namespace . '\\Entity;', $namespace . '\\Entity\\Enum\\ArticleStatus'],
+            ['namespace App\\Entity;', 'App\\Entity\\Enum\\ArticleStage'],
+            ['namespace ' . $namespace . '\\Entity;', $namespace . '\\Entity\\Enum\\ArticleStage'],
             $entitySource,
         );
         $enumSource = str_replace('namespace App\\Entity\\Enum;', 'namespace ' . $namespace . '\\Entity\\Enum;', $enumSource);
@@ -159,11 +187,11 @@ final class AccessPolicyEmitterTest extends TestCase
 
         $dir = sys_get_temp_dir() . '/waaseyaa_access_policy_emitter_' . bin2hex(random_bytes(8));
         mkdir($dir . '/Entity/Enum', 0o700, true);
-        file_put_contents($dir . '/Entity/Enum/ArticleStatus.php', $enumSource);
+        file_put_contents($dir . '/Entity/Enum/ArticleStage.php', $enumSource);
         file_put_contents($dir . '/Entity/Article.php', $entitySource);
         file_put_contents($dir . '/ArticlePolicy.php', $policySource);
 
-        require $dir . '/Entity/Enum/ArticleStatus.php';
+        require $dir . '/Entity/Enum/ArticleStage.php';
         require $dir . '/Entity/Article.php';
         require $dir . '/ArticlePolicy.php';
 

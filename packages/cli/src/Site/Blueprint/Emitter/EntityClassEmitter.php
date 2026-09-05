@@ -9,6 +9,9 @@ use Waaseyaa\SiteContract\Blueprint\BlueprintEntity;
 use Waaseyaa\SiteContract\Blueprint\BlueprintField;
 use Waaseyaa\SiteContract\Blueprint\BlueprintFieldType;
 use Waaseyaa\SiteContract\Blueprint\BlueprintRelationship;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\SiteManifest;
 
@@ -66,11 +69,18 @@ use Waaseyaa\SiteContract\SiteManifest;
  * `stored: FieldStorage::Data`) byte-for-byte matching
  * `Node::$workflow_state` (`packages/node/src/Node.php:81-82`) — the raw
  * input a generated `workflow_state` policy condition and `TransitionService`
- * read. This emitter does NOT also emit Node's boolean `status` field: a
- * blueprint entity may already declare its own `status` field for a
- * different purpose (`complete.yaml`'s `article.status` is an author-defined
- * `enum`, not the CW-v1 published flag), and doing so unconditionally would
- * collide with it. See the WP-C session report for this open question.
+ * read. This emitter does NOT also emit Node's boolean `status` field on a
+ * bound entity (#2788 review F3 tracks widening the emitted set to match
+ * `Node` byte-for-byte as a follow-up) — instead, a workflow-bound entity
+ * that itself declares a field OR relationship named `status` or
+ * `workflow_state` is refused at compile time
+ * (`GEN007_UNSUPPORTED_DECLARATION`, {@see self::assertNoWorkflowFieldCollision()})
+ * rather than silently producing an unparseable duplicate-property class
+ * (a bare `workflow_state` collision) or a class whose author-declared field
+ * is silently overwritten by every `TransitionService` transition (a
+ * `status` collision, since CW-v1 unconditionally writes an integer to
+ * `status` on every guarded save — see `TransitionService::transition()`
+ * and `WorkflowStateGuard::applyState()`).
  *
  * @api
  */
@@ -108,6 +118,8 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
 
     public function emit(ApplicationBlueprint $blueprint, SiteManifest $manifest): BlueprintEmission
     {
+        self::assertNoWorkflowFieldCollision($blueprint);
+
         $relationshipsByFromEntity = [];
         foreach ($blueprint->relationships as $relationship) {
             $relationshipsByFromEntity[$relationship->fromEntity][] = $relationship;
@@ -335,6 +347,61 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
             }
 
             PHP;
+    }
+
+    /**
+     * A workflow-bound entity declaring its own field (or relationship)
+     * named `status` or `workflow_state` is refused before any artifact is
+     * emitted (#2788 review F3/F4): `workflow_state` would produce an
+     * unparseable duplicate-property class (this emitter always injects its
+     * own `workflow_state` field on a bound entity — see
+     * {@see self::renderFieldBlock()}), and `status` would compile cleanly
+     * but have its value silently overwritten by every granted
+     * `TransitionService` transition. Both are coded refusals, not
+     * generation-time surprises.
+     */
+    private static function assertNoWorkflowFieldCollision(ApplicationBlueprint $blueprint): void
+    {
+        $boundEntityIds = self::workflowBoundEntityIds($blueprint);
+        $reserved = ['status', 'workflow_state'];
+
+        $violations = [];
+        $entityIndex = 0;
+        foreach ($blueprint->entities as $entity) {
+            if (!isset($boundEntityIds[$entity->id])) {
+                ++$entityIndex;
+                continue;
+            }
+
+            $fieldIndex = 0;
+            foreach ($entity->fields as $field) {
+                if (in_array($field->id, $reserved, true)) {
+                    $violations[] = new GenerationViolation(
+                        GenerationErrorCode::UnsupportedDeclaration,
+                        "Blueprint entity \"{$entity->id}\" is bound to a workflow and declares its own field \"{$field->id}\", which collides with the field the framework's workflow runtime owns on every workflow-bound entity ({$field->id} === 'workflow_state' would produce an unparseable duplicate property; {$field->id} === 'status' would compile but be silently overwritten by every granted transition). Rename the field.",
+                        pointer: "/application_blueprint/entities/{$entityIndex}/fields/{$fieldIndex}/id",
+                    );
+                }
+                ++$fieldIndex;
+            }
+            ++$entityIndex;
+        }
+
+        $relationshipIndex = 0;
+        foreach ($blueprint->relationships as $relationship) {
+            if (isset($boundEntityIds[$relationship->fromEntity]) && in_array($relationship->fromField, $reserved, true)) {
+                $violations[] = new GenerationViolation(
+                    GenerationErrorCode::UnsupportedDeclaration,
+                    "Blueprint relationship \"{$relationship->id}\" declares its from-field \"{$relationship->fromField}\" on workflow-bound entity \"{$relationship->fromEntity}\", which collides with the field the framework's workflow runtime owns on every workflow-bound entity. Rename the relationship's from-field.",
+                    pointer: "/application_blueprint/relationships/{$relationshipIndex}/from/field",
+                );
+            }
+            ++$relationshipIndex;
+        }
+
+        if ($violations !== []) {
+            throw new GenerationRefusalException(self::class, $violations);
+        }
     }
 
     /** @return array<string, true> entity id => true, for every entity bound to some blueprint workflow */

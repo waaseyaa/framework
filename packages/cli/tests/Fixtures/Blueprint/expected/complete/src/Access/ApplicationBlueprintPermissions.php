@@ -22,9 +22,9 @@ final class ApplicationBlueprintPermissions
     public static function seed(): array
     {
         return [
-            'edit article' => ['title' => 'Edit articles', 'description' => ''],
-            'use editorial transition publish' => ['title' => 'Publish articles', 'description' => ''],
-            'view article' => ['title' => 'View articles', 'description' => ''],
+            'edit article' => ['title' => 'Edit articles', 'description' => 'Edit articles'],
+            'use editorial transition publish' => ['title' => 'Publish articles', 'description' => 'Publish articles'],
+            'view article' => ['title' => 'View articles', 'description' => 'View articles'],
         ];
     }
 

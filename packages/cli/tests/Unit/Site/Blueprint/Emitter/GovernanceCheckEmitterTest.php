@@ -8,6 +8,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\GovernanceCheckEmitter;
+use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
+use Waaseyaa\SiteContract\Blueprint\BlueprintCheck;
+use Waaseyaa\SiteContract\Blueprint\BlueprintCheckKind;
+use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
+use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflowState;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
+use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
@@ -94,10 +101,13 @@ final class GovernanceCheckEmitterTest extends TestCase
      * loaded alongside the REAL entity/policy/provider/workflow-definition
      * classes the OTHER governance emitters produce for the same blueprint,
      * and executed as a real PHPUnit run via `proc_open` — not merely
-     * syntax-checked. Covers `GovernanceDefaultDenyTest`,
-     * `RolePermissionChecksTest`, `EntityAccessChecksTest`, and
-     * `WorkflowTransitionChecksTest` (the real `TransitionService` wired
-     * against a `TemporarySqliteDatabase`-backed repository).
+     * syntax-checked. Covers `GovernanceDefaultDenyTest` (2 per-entity denial
+     * methods plus the 3 decision-(i) invariant methods added by #2788
+     * review F7), `RolePermissionChecksTest`, `EntityAccessChecksTest` (one
+     * `deny` and, since #2788 review F2, one genuine `allow` check),
+     * and `WorkflowTransitionChecksTest` (one `denied` and one genuine
+     * `allowed` check — the real `TransitionService` wired against a
+     * `TemporarySqliteDatabase`-backed repository) — 10 methods in total.
      */
     #[Test]
     public function everyGeneratedCompanionTestPassesWhenExecutedAgainstTheFullyMaterializedBlueprint(): void
@@ -133,6 +143,7 @@ final class GovernanceCheckEmitterTest extends TestCase
                 }
             }
             self::assertGreaterThan(0, $phpArtifactCount);
+            $this->assertEveryMaterializedPolicyCarriesADiscoverablePolicyAttribute($dir);
 
             $bootstrap = <<<'PHP'
                 <?php
@@ -181,9 +192,121 @@ final class GovernanceCheckEmitterTest extends TestCase
             $exitCode = proc_close($process);
 
             self::assertSame(0, $exitCode, "Generated companion tests failed:\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}");
-            self::assertStringContainsString('OK (5 tests', (string) $stdout);
+            self::assertStringContainsString('OK (10 tests', (string) $stdout);
         } finally {
             new \Symfony\Component\Filesystem\Filesystem()->remove($dir);
+        }
+    }
+
+    /**
+     * PackageManifestCompiler-style discovery over the materialized `src/`
+     * tree: every generated `src/Access/*Policy.php` class must carry a
+     * reflectable `#[PolicyAttribute]`, otherwise it is never wired into
+     * `EntityAccessHandler` at boot and every grant it declares is dead
+     * (#2788 review F1). This scans the actual materialized files that fed
+     * the real PHPUnit run above, not the golden fixtures.
+     */
+    private function assertEveryMaterializedPolicyCarriesADiscoverablePolicyAttribute(string $dir): void
+    {
+        $policyDir = $dir . '/src/Access';
+        if (!is_dir($policyDir)) {
+            return;
+        }
+
+        $checked = 0;
+        foreach (glob($policyDir . '/*Policy.php') ?: [] as $file) {
+            $source = (string) file_get_contents($file);
+            self::assertMatchesRegularExpression(
+                '/#\[PolicyAttribute\(entityType:\s*\'[a-z0-9_]+\'\)\]\s*\nfinal class/',
+                $source,
+                "Materialized {$file} has no discoverable #[PolicyAttribute] immediately preceding its class declaration.",
+            );
+            self::assertStringContainsString('use Waaseyaa\\Access\\Gate\\PolicyAttribute;', $source);
+            ++$checked;
+        }
+        self::assertGreaterThan(0, $checked, 'Expected at least one generated policy class to scan for #[PolicyAttribute].');
+    }
+
+    /**
+     * #2788 review F5: previously an unguarded `\assert($binding !== null)`
+     * inside `renderWorkflowTransitionMethod()` — an `AssertionError` in a
+     * dev environment, a `TypeError` in production once
+     * `zend.assertions=-1` strips the assert. Refused at compile time,
+     * before any artifact is rendered, with a pointer instead.
+     */
+    #[Test]
+    public function aWorkflowTransitionCheckOnAnUnboundWorkflowIsRefusedGen007(): void
+    {
+        $manifest = $this->manifest('minimal.yaml');
+        $blueprint = new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: $manifest->applicationBlueprint->entities,
+            relationships: [],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: [
+                'editorial' => new BlueprintWorkflow(
+                    id: 'editorial',
+                    label: 'Editorial',
+                    initialState: 'draft',
+                    states: ['draft' => new BlueprintWorkflowState('draft', 'Draft', false)],
+                    transitions: [],
+                    bindings: [],
+                ),
+            ],
+            fixtures: [],
+            checks: [
+                'unbound_check' => new BlueprintCheck(
+                    'unbound_check',
+                    BlueprintCheckKind::WorkflowTransition,
+                    role: 'viewer',
+                    workflow: 'editorial',
+                    transition: 'publish',
+                    expect: 'denied',
+                ),
+            ],
+        );
+
+        try {
+            new GovernanceCheckEmitter()->emit($blueprint, $manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::UnsupportedDeclaration, $exception->violations[0]->code);
+            self::assertStringContainsString('zero bindings', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * #2788 review F6: `pascalCase()` strips `_` and `-` alike, so two check
+     * ids of the same kind can collide on the generated test method name —
+     * previously an unparseable duplicate method declaration in the
+     * companion test file. Refused at compile time instead.
+     */
+    #[Test]
+    public function twoChecksOfTheSameKindPascalCasingToTheSameMethodNameAreRefusedGen006(): void
+    {
+        $manifest = $this->manifest('minimal.yaml');
+        $blueprint = new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: $manifest->applicationBlueprint->entities,
+            relationships: [],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: [],
+            fixtures: [],
+            checks: [
+                'editor_ok' => new BlueprintCheck('editor_ok', BlueprintCheckKind::RolePermission, role: 'editor', permission: 'edit article', expect: 'granted'),
+                'editor-ok' => new BlueprintCheck('editor-ok', BlueprintCheckKind::RolePermission, role: 'editor', permission: 'edit article', expect: 'granted'),
+            ],
+        );
+
+        try {
+            new GovernanceCheckEmitter()->emit($blueprint, $manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
         }
     }
 

@@ -140,6 +140,7 @@ final class AccessPolicyEmitter implements BlueprintArtifactEmitterInterface
             use Waaseyaa\\Access\\AccessPolicyInterface;
             use Waaseyaa\\Access\\AccessResult;
             use Waaseyaa\\Access\\AccountInterface;
+            use Waaseyaa\\Access\\Gate\\PolicyAttribute;
             use Waaseyaa\\Access\\Read\\AuthorizationInputReader;
             use Waaseyaa\\Entity\\EntityInterface;
 
@@ -149,6 +150,7 @@ final class AccessPolicyEmitter implements BlueprintArtifactEmitterInterface
              * AccessResult::allowed() or defers with AccessResult::neutral(); this policy
              * never returns Forbidden and never inspects roles directly.
              */
+            #[PolicyAttribute(entityType: '{$entityId}')]
             final class {$className} implements AccessPolicyInterface
             {
                 public function appliesTo(string \$entityTypeId): bool

@@ -27,7 +27,7 @@ use Waaseyaa\SiteContract\SiteManifest;
  * Implements {@see \Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface}:
  * `roles()` yields one `Waaseyaa\User\Role` per declared blueprint role, its
  * `permissions` list carrying the declared permission id STRINGS verbatim
- * (not `ApplicationBluentPermissions::PERMISSION_*` constant references —
+ * (not `ApplicationBlueprintPermissions::PERMISSION_*` constant references —
  * this emitter is deliberately independent of `PermissionCatalogueEmitter`'s
  * generated class, exactly as `AccessPolicyEmitter` is).
  *

@@ -13,7 +13,13 @@ use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
  * Do not edit by hand. Every blueprint entity must deny an anonymous and a
  * permission-less authenticated principal on every operation: no policy grants
  * by default, so absence of a matching condition must never leak into an
- * accidental Allowed.
+ * accidental Allowed. Also asserts the three companion invariants decision (i)
+ * assigns to this class: no emitted role is ever `administrator`, every
+ * permission a role/transition/policy references is a declared
+ * `ApplicationBlueprintPermissions` constant, and every entity with a
+ * declared policy has a REFLECTABLE `#[PolicyAttribute]` class (the gap that
+ * let a policy compile correctly yet never be discovered at boot — #2788
+ * review F1).
  */
 final class GovernanceDefaultDenyTest extends TestCase
 {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
-use App\Entity\Enum\ArticleStatus;
+use App\Entity\Enum\ArticleStage;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
@@ -18,8 +18,8 @@ use Waaseyaa\Field\FieldStorage;
 )]
 final class Article extends ContentEntityBase
 {
-    #[Field(type: 'enum', label: 'Status', required: false, translatable: false, revisionable: false, settings: ['enum_class' => \App\Entity\Enum\ArticleStatus::class], read: FieldReadLevel::Public)]
-    public ?ArticleStatus $status = null;
+    #[Field(type: 'enum', label: 'Stage', required: false, translatable: false, revisionable: false, settings: ['enum_class' => \App\Entity\Enum\ArticleStage::class], read: FieldReadLevel::Public)]
+    public ?ArticleStage $stage = null;
 
     #[Field(type: 'string', label: 'Title', required: true, translatable: false, revisionable: false, indexed: true, read: FieldReadLevel::Public)]
     public string $title = '';
