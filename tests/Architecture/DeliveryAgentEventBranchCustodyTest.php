@@ -373,7 +373,9 @@ final class DeliveryAgentEventBranchCustodyTest extends TestCase
         self::assertTrue(copy($this->root . '/bin/lib/vendor-freshness.php', $repo . '/bin/lib/vendor-freshness.php'));
         self::assertTrue(copy($this->root . '/bin/git', $repo . '/bin/git'));
         // The gate's vendor/ precondition (#2926) compares these against the
-        // symlinked real vendor/, so the fixture carries the real pair.
+        // symlinked real vendor/, so the fixture carries the real pair. On a
+        // machine whose vendor/ is stale these tests fail with the gate's
+        // exit-3 "run composer install" message — not a fixture bug.
         self::assertTrue(copy($this->root . '/composer.json', $repo . '/composer.json'));
         self::assertTrue(copy($this->root . '/composer.lock', $repo . '/composer.lock'));
         chmod($repo . '/bin/check-delivery-agent-events', 0o755);

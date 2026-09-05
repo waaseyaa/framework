@@ -46,7 +46,8 @@ declare(strict_types=1);
  *   3. package IDENTITY: for every locked package, the installed version and
  *      source/dist reference equal the locked ones                → composer install
  *   4. every PSR-4 namespace the root composer.json declares (autoload +
- *      autoload-dev) is present in vendor/composer/autoload_psr4.php
+ *      autoload-dev), and every PSR-4 namespace a locked package declares
+ *      under autoload, is present in vendor/composer/autoload_psr4.php
  *                                                                  → composer dump-autoload
  */
 
@@ -130,10 +131,16 @@ function vendor_freshness_problem(string $root): ?array
     if (isset($composer['__problem'])) {
         return $composer['__problem'];
     }
-    $declaredNamespaces = array_values(array_filter(array_merge(
-        array_keys(is_array($composer['autoload']['psr-4'] ?? null) ? $composer['autoload']['psr-4'] : []),
-        array_keys(is_array($composer['autoload-dev']['psr-4'] ?? null) ? $composer['autoload-dev']['psr-4'] : []),
-    ), 'is_string'));
+    // The root's autoload + autoload-dev, plus every locked package's
+    // autoload (Composer never dumps a dependency's autoload-dev): the exact
+    // namespace set a freshly dumped autoloader must carry.
+    $declaredNamespaces = array_merge(
+        vendor_freshness_psr4_namespaces($composer, ['autoload', 'autoload-dev'], 'composer.json'),
+        ...array_map(
+            static fn(array $locked): array => vendor_freshness_psr4_namespaces($locked, ['autoload'], (string) $locked['name']),
+            array_values($lockedByName),
+        ),
+    );
 
     $autoloadMapPath = "{$root}/vendor/composer/autoload_psr4.php";
     if (!is_file($autoloadMapPath)) {
@@ -152,15 +159,17 @@ function vendor_freshness_problem(string $root): ?array
             'composer dump-autoload',
         );
     }
-    $missingNamespaces = array_values(array_filter(
-        $declaredNamespaces,
-        static fn(string $namespace): bool => !isset($psr4[$namespace]),
-    ));
+    $missingNamespaces = [];
+    foreach ($declaredNamespaces as [$namespace, $declaredBy]) {
+        if (!isset($psr4[$namespace])) {
+            $missingNamespaces[] = "{$namespace} ({$declaredBy})";
+        }
+    }
     if ($missingNamespaces !== []) {
         return vendor_freshness_stale(
             sprintf('%d declared PSR-4 namespace(s) missing from the autoloader', count($missingNamespaces)),
             sprintf(
-                'e.g. %s — composer.json declares them but the dumped autoloader does not.',
+                'e.g. %s — the manifest declares them but the dumped autoloader does not.',
                 implode(', ', array_slice($missingNamespaces, 0, 5)),
             ),
             'composer dump-autoload',
@@ -168,6 +177,32 @@ function vendor_freshness_problem(string $root): ?array
     }
 
     return null;
+}
+
+/**
+ * The PSR-4 namespaces a composer manifest (root composer.json, or one
+ * package entry of composer.lock) declares under the given sections.
+ *
+ * @param array<string, mixed> $manifest
+ * @param list<string> $sections
+ * @return list<array{string, string}> [namespace, declared-by label]
+ */
+function vendor_freshness_psr4_namespaces(array $manifest, array $sections, string $declaredBy): array
+{
+    $namespaces = [];
+    foreach ($sections as $section) {
+        $psr4 = $manifest[$section]['psr-4'] ?? null;
+        if (!is_array($psr4)) {
+            continue;
+        }
+        foreach (array_keys($psr4) as $namespace) {
+            if (is_string($namespace)) {
+                $namespaces[] = [$namespace, $declaredBy];
+            }
+        }
+    }
+
+    return $namespaces;
 }
 
 /**

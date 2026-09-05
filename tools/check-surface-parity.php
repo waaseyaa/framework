@@ -44,9 +44,10 @@ declare(strict_types=1);
  *       git failure, unparsable layer table)
  *   3 — VENDOR_FRESHNESS_EXIT_CODE (bin/lib/vendor-freshness.php, #2926): the
  *       local vendor/ is stale relative to composer.lock, or a declared FQCN
- *       is defined on disk under a declared PSR-4 root but the autoloader
- *       cannot load it. An environment fault — `composer install` — never a
- *       repository defect, and never the §4 "orphaned" repair.
+ *       is defined on disk under a PSR-4 root the root autoloader honours
+ *       (root autoload/autoload-dev, or a locked package's autoload) but the
+ *       autoloader cannot load it. An environment fault — `composer install`
+ *       — never a repository defect, and never the §4 "orphaned" repair.
  */
 
 use Waaseyaa\Tooling\ChangelogFragments;
@@ -215,11 +216,12 @@ try {
 $validationErrors = $headDeclarations->validate($scanner);
 $environmentErrors = array_values(array_filter($validationErrors, [SurfaceDeclarations::class, 'isEnvironmentError']));
 if ($environmentErrors !== []) {
-    // A declared FQCN is defined on disk under a declared PSR-4 root but the
-    // autoloader cannot load it: the checkout, not the change, is wrong.
-    // Report it with the precondition code so nobody follows the §4 repair.
+    // A declared FQCN is defined on disk under a PSR-4 root the root
+    // autoloader is expected to honour, but the autoloader cannot load it:
+    // the checkout, not the change, is wrong. Report it with the
+    // precondition code so nobody follows the §4 repair.
     fail(
-        "vendor/ is stale relative to composer.lock — run `composer install` (bin/lib/vendor-freshness.php, #2926):\n\n"
+        "the dumped autoloader is stale — run `composer install` (bin/lib/vendor-freshness.php, #2926):\n\n"
         . implode("\n\n", $environmentErrors),
         VENDOR_FRESHNESS_EXIT_CODE,
     );
@@ -237,7 +239,11 @@ foreach (array_keys($headMap) as $fqcn) {
     }
     // validate() already proved every FQCN resolves somewhere (AST or
     // reflection); one the autoloader still cannot load is an environment
-    // fault when its defining file sits under a declared PSR-4 root.
+    // fault only when its defining file sits under a PSR-4 root the root
+    // autoloader is expected to honour (root autoload/autoload-dev, or the
+    // autoload section of a package composer.lock names). Anything else —
+    // a package outside the lock, a dependency's autoload-dev — is
+    // unreachable by design and stays the exit-1 defect below.
     $located = $headDeclarations->locateDefinition($fqcn, $scanner);
     if ($located !== null) {
         $unloadableDefinedOnDisk[] = "{$fqcn} (defined in {$located['file']}, PSR-4 root {$located['prefix']} from {$located['origin']})";
@@ -248,8 +254,8 @@ foreach (array_keys($headMap) as $fqcn) {
 if ($unloadableDefinedOnDisk !== []) {
     sort($unloadableDefinedOnDisk, SORT_STRING);
     fail(
-        "vendor/ is stale relative to composer.lock — run `composer install` (bin/lib/vendor-freshness.php, #2926):\n\n"
-        . count($unloadableDefinedOnDisk) . " declared type(s) are defined on disk under a declared PSR-4 root but do not load through the repository autoloader:\n  "
+        "the dumped autoloader is stale — run `composer install` (bin/lib/vendor-freshness.php, #2926):\n\n"
+        . count($unloadableDefinedOnDisk) . " declared type(s) are defined on disk under a PSR-4 root the repository autoloader honours but do not load through it:\n  "
         . implode("\n  ", $unloadableDefinedOnDisk),
         VENDOR_FRESHNESS_EXIT_CODE,
     );

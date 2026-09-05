@@ -40,7 +40,8 @@ final class SurfaceDeclarations
      *   structuralErrors: list<string>,
      * }> $packages package short name => declaration data
      * @param list<array{prefix: string, dir: string, origin: string}> $rootSourceRoots PSR-4 roots the
-     *   ROOT composer.json declares (autoload + autoload-dev), absolute dirs; empty for a git-ref load
+     *   ROOT composer.json declares (autoload + autoload-dev — the only autoload-dev Composer ever
+     *   dumps), absolute dirs; empty for a git-ref load
      * @param ?string $root the on-disk tree these declarations were read from; null for a git-ref load
      */
     private function __construct(
@@ -53,6 +54,7 @@ final class SurfaceDeclarations
     public static function load(string $root): self
     {
         $root = rtrim(str_replace('\\', '/', $root), '/');
+        $lockedNames = self::readLockedPackageNames($root . '/composer.lock');
         $packages = [];
         $packageDirectories = glob($root . '/packages/*', GLOB_ONLYDIR) ?: [];
         sort($packageDirectories, SORT_STRING);
@@ -66,14 +68,23 @@ final class SurfaceDeclarations
             $relativeFile = 'packages/' . $short . '/' . self::DECLARATION_FILENAME;
             $source = (string) file_get_contents($declarationPath);
             $packages[$short] = self::parseSource($short, $relativeFile, $prefixes, $source);
-            $packages[$short]['sourceRoots'] = self::readPsr4SourceRoots(
-                $pkgDir . '/composer.json',
-                $pkgDir,
-                "packages/{$short}/composer.json",
-            );
+            // Only roots the ROOT autoloader is expected to honour count as
+            // "loadable by design": a dependency's `autoload` section, and
+            // only when composer.lock names that package (so `composer
+            // install` actually dumps it). Composer never dumps a
+            // dependency's `autoload-dev`, so a symbol defined only there is
+            // unreachable by design — a declaration defect, never an
+            // environment fault (#2926 review).
+            $packages[$short]['sourceRoots'] = self::isLockedPackage($pkgDir . '/composer.json', $lockedNames)
+                ? self::readPsr4SourceRoots($pkgDir . '/composer.json', $pkgDir, "packages/{$short}/composer.json", ['autoload'])
+                : [];
         }
 
-        return new self($packages, self::readPsr4SourceRoots($root . '/composer.json', $root, 'composer.json'), $root);
+        return new self(
+            $packages,
+            self::readPsr4SourceRoots($root . '/composer.json', $root, 'composer.json', ['autoload', 'autoload-dev']),
+            $root,
+        );
     }
 
     public static function loadAt(string $root, string $ref): self
@@ -259,7 +270,7 @@ final class SurfaceDeclarations
                     $located = $this->locateDefinition($fqcn, $scanner);
                     if ($located !== null) {
                         $errors[] = sprintf(
-                            '%s %s declared in %s (package %s) is defined as %s in %s (PSR-4 root %s from %s) but the Composer autoloader cannot load it — vendor/ is stale relative to composer.lock. This is an environment fault, not an orphaned declaration: run `composer install` (or `composer dump-autoload`) and re-run the gate.',
+                            '%s %s declared in %s (package %s) is defined as %s in %s (PSR-4 root %s from %s) but the Composer autoloader cannot load it — the dumped autoloader (vendor/composer/autoload_psr4.php) is stale relative to that mapping. This is an environment fault, not an orphaned declaration: run `composer install` (or `composer dump-autoload`) and re-run the gate.',
                             self::ENVIRONMENT_PREFIX,
                             $fqcn,
                             $package['file'],
@@ -311,12 +322,14 @@ final class SurfaceDeclarations
     }
 
     /**
-     * The file on disk that defines $fqcn under a DECLARED PSR-4 root —
-     * every package's composer.json autoload + autoload-dev, and the root
-     * composer.json's autoload + autoload-dev — resolved longest-prefix
-     * first and confirmed by parsing that one file, independently of the
-     * autoloader. Null when nothing on disk defines the symbol (a real
-     * orphan) or when this instance was loaded from a git ref.
+     * The file on disk that defines $fqcn under a PSR-4 root the ROOT
+     * autoloader is expected to honour — the root composer.json's autoload +
+     * autoload-dev, and the `autoload` (never `autoload-dev`) section of
+     * every package composer.lock names — resolved longest-prefix first and
+     * confirmed by parsing that one file, independently of the autoloader.
+     * Null when nothing on disk defines the symbol under such a root: a real
+     * orphan, a file only a dependency's autoload-dev maps, a package the
+     * lock does not name, or an instance loaded from a git ref.
      *
      * @return array{file: string, prefix: string, origin: string, shape: string}|null
      *   file is relative to the loaded root
@@ -390,14 +403,64 @@ final class SurfaceDeclarations
     }
 
     /**
-     * Every PSR-4 root a composer.json declares under autoload AND
-     * autoload-dev, as absolute directories. Ownership (readPsr4Prefixes)
-     * deliberately stays autoload-only; this is the wider set a symbol may
-     * legitimately be DEFINED under (test helpers, testing/ trees).
+     * Package names composer.lock records (packages + packages-dev), or null
+     * when there is no readable lock — a fixture --root, where nothing is
+     * installed and no dependency root is loadable.
      *
+     * @return list<string>|null
+     */
+    private static function readLockedPackageNames(string $lockPath): ?array
+    {
+        if (!is_file($lockPath)) {
+            return null;
+        }
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode((string) file_get_contents($lockPath), true, flags: JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (!is_array($decoded)) {
+            return null;
+        }
+        $names = [];
+        foreach (['packages', 'packages-dev'] as $section) {
+            foreach (is_array($decoded[$section] ?? null) ? $decoded[$section] : [] as $package) {
+                if (is_array($package) && is_string($package['name'] ?? null)) {
+                    $names[] = $package['name'];
+                }
+            }
+        }
+
+        return $names;
+    }
+
+    /** @param list<string>|null $lockedNames */
+    private static function isLockedPackage(string $composerJsonPath, ?array $lockedNames): bool
+    {
+        if ($lockedNames === null || !is_file($composerJsonPath)) {
+            return false;
+        }
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode((string) file_get_contents($composerJsonPath), true, flags: JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return is_array($decoded) && is_string($decoded['name'] ?? null) && in_array($decoded['name'], $lockedNames, true);
+    }
+
+    /**
+     * The PSR-4 roots a composer.json declares under the given sections, as
+     * absolute directories. Ownership (readPsr4Prefixes) deliberately stays
+     * autoload-only; this is the set a symbol may legitimately be DEFINED
+     * under and still be loadable by the root autoloader.
+     *
+     * @param list<string> $sections 'autoload' and/or 'autoload-dev'
      * @return list<array{prefix: string, dir: string, origin: string}>
      */
-    private static function readPsr4SourceRoots(string $composerJsonPath, string $baseDir, string $label): array
+    private static function readPsr4SourceRoots(string $composerJsonPath, string $baseDir, string $label, array $sections): array
     {
         if (!is_file($composerJsonPath)) {
             return [];
@@ -413,7 +476,7 @@ final class SurfaceDeclarations
         }
         $baseDir = rtrim(str_replace('\\', '/', $baseDir), '/');
         $roots = [];
-        foreach (['autoload', 'autoload-dev'] as $section) {
+        foreach ($sections as $section) {
             $psr4 = $decoded[$section]['psr-4'] ?? null;
             if (!is_array($psr4)) {
                 continue;

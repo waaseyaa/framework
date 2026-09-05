@@ -54,8 +54,9 @@ files — so the manifest cannot silently drift from CI.
 Vendor-freshness precondition (#2926): before any gate runs, preflight calls the shared,
 dependency-free `bin/lib/vendor-freshness.php` against the repository root. It compares
 `composer.lock` (packages and packages-dev — by name, version, and source/dist reference)
-with `vendor/composer/installed.json`, and the root `composer.json` PSR-4 map (autoload and
-autoload-dev) with `vendor/composer/autoload_psr4.php`. A stale or missing `vendor/`
+with `vendor/composer/installed.json`, and the PSR-4 namespaces a fresh dump must carry —
+the root `composer.json`'s autoload and autoload-dev plus every locked package's autoload
+(Composer never dumps a dependency's autoload-dev) — with `vendor/composer/autoload_psr4.php`. A stale or missing `vendor/`
 short-circuits with `VENDOR_FRESHNESS_EXIT_CODE` (3 — distinct from 0 pass, 1 defect, 2 gate
 infrastructure, 255 PHP fatal) and one actionable `vendor/ is stale relative to composer.lock —
 run composer install` message; **no gate runs**, because their results against a stale

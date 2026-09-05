@@ -146,6 +146,28 @@ final class VendorFreshnessPreconditionTest extends TestCase
     }
 
     #[Test]
+    public function a_locked_package_psr4_namespace_missing_from_the_dumped_map_is_stale(): void
+    {
+        // Composer dumps every LOCKED package's `autoload` PSR-4 roots (never
+        // its autoload-dev), so a missing one means the map predates the
+        // install — the same fix as a missing root namespace.
+        $locked = self::pkg('waaseyaa/cli', 'dev-main', 'bbbb') + [
+            'autoload' => ['psr-4' => ['Waaseyaa\\CLI\\' => 'src/']],
+            'autoload-dev' => ['psr-4' => ['Waaseyaa\\CLI\\Tests\\' => 'tests/']],
+        ];
+        $root = $this->fixture(locked: [$locked], installed: [$locked], dumpedNamespaces: []);
+
+        $problem = vendor_freshness_problem($root);
+        self::assertNotNull($problem);
+        self::assertSame('composer dump-autoload', $problem['fix']);
+        self::assertStringContainsString('Waaseyaa\\CLI\\ (waaseyaa/cli)', $problem['detail']);
+        self::assertStringNotContainsString('Waaseyaa\\CLI\\Tests\\', $problem['detail'], 'A dependency autoload-dev root is never dumped, so its absence is not staleness.');
+
+        $fresh = $this->fixture(locked: [$locked], installed: [$locked], dumpedNamespaces: ['Waaseyaa\\CLI\\']);
+        self::assertNull(vendor_freshness_problem($fresh));
+    }
+
+    #[Test]
     public function a_missing_vendor_directory_is_reported_not_fatal(): void
     {
         $root = $this->fixture(locked: [self::pkg('waaseyaa/cli', 'dev-main', 'bbbb')], installed: [], withVendor: false);

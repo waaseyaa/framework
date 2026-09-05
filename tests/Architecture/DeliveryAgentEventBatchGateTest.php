@@ -401,6 +401,8 @@ final class DeliveryAgentEventBatchGateTest extends TestCase
             'bin/git',
             // The gate's vendor/ precondition (#2926) compares these against
             // the symlinked real vendor/, so the fixture carries the real pair.
+            // On a machine whose vendor/ is stale these tests fail with the
+            // gate's exit-3 "run composer install" message — not a fixture bug.
             'composer.json',
             'composer.lock',
         ] as $path) {

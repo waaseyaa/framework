@@ -97,13 +97,18 @@ Composition fails, naming every offender, on:
 | **invalid** | unknown disposition, non-list `entries`, non-string fields, a file that does not return an array |
 
 One outcome is deliberately **not** a §4 failure. A declared FQCN that does not load
-but whose defining file exists on disk under a declared PSR-4 root — the declaring
-package's `composer.json` `autoload`/`autoload-dev`, or the root `composer.json`
+but whose defining file exists on disk under a PSR-4 root **the root autoloader is
+expected to honour** is an **environment** fault: the autoloader is stale, not the
+declaration (#2926). Exactly two kinds of root qualify — the root `composer.json`'s
 `autoload`/`autoload-dev` (the `Waaseyaa\CLI\Io\StdinSource` shape:
-`packages/cli/tests/Io/StdinSource.php`, mapped only by the root `autoload-dev`) —
-is an **environment** fault: the autoloader is stale, not the declaration (#2926).
-`SurfaceDeclarations::validate()` resolves the FQCN longest-prefix-first across every
-declared PSR-4 root, parses that one file, and reports
+`packages/cli/tests/Io/StdinSource.php`, mapped only by the root `autoload-dev`), and
+the `autoload` section of a package that `composer.lock` names (so `composer install`
+dumps it). A package's `autoload-dev` never qualifies: Composer dumps `autoload-dev`
+for the root package only, so a symbol defined only under a dependency's `autoload-dev`
+(every `packages/*/tests/` class) cannot load by design, and `composer install` cannot
+change that — it stays a real *orphaned* defect, as does a symbol under a package the
+lock does not name. `SurfaceDeclarations::validate()` resolves the FQCN
+longest-prefix-first across the qualifying roots, parses that one file, and reports
 `environment: <FQCN> ... is defined as <shape> in <file> ... but the Composer autoloader
 cannot load it` instead of `orphaned`. Both `tools/check-surface-parity.php` and
 `bin/generate-surface-map` route such errors to `VENDOR_FRESHNESS_EXIT_CODE` (3, from
@@ -111,8 +116,9 @@ cannot load it` instead of `orphaned`. Both `tools/check-surface-parity.php` and
 exit — so the *orphaned* repair (a CHANGELOG deprecation directive) is never suggested for
 a checkout problem. A file at the resolved path that defines a *different* symbol, or no
 file at all, stays a real *orphaned* failure. `SurfaceDeclarationEnvironmentFaultTest`
-proves both directions against `--root` fixtures, whose trees are never autoloaded and are
-therefore the exact harness for "exists on disk, not autoloadable".
+proves every direction against `--root` fixtures, whose trees are never autoloaded and are
+therefore the exact harness for "exists on disk, not autoloadable", plus the live-repo
+control that a `packages/*/tests/` class is *not* located.
 
 ## 5. Authorization (unchanged semantics)
 
@@ -179,8 +185,8 @@ and `.github/workflows/surface-parity.yml` keep their references):
 Exit codes: `0` parity, `1` drift or unauthorized change, `2` infrastructure
 (parser, git, malformed declaration file), and — since #2926 — `3`
 (`VENDOR_FRESHNESS_EXIT_CODE`) when the local `vendor/` is stale relative to
-`composer.lock` or a declared FQCN is defined on disk under a declared PSR-4 root
-but is not autoloadable (§4 *environment*). The gate runs the shared
+`composer.lock` or a declared FQCN is defined on disk under a PSR-4 root the root
+autoloader honours but is not autoloadable (§4 *environment*). The gate runs the shared
 `bin/lib/vendor-freshness.php` precondition before requiring the autoloader, so a
 missing or stale `vendor/` is one actionable line, never a PHP fatal.
 

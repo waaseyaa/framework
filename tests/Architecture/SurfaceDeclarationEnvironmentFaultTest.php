@@ -30,6 +30,14 @@ require_once __DIR__ . '/../../bin/lib/vendor-freshness.php';
  *
  * Fixture trees are never autoloaded (SurfaceScanner docblock), which makes a
  * `--root` fixture the exact harness for "exists on disk, not autoloadable".
+ *
+ * The classification is deliberately narrow: only a PSR-4 root the ROOT
+ * autoloader is expected to honour counts — the root composer.json's
+ * autoload/autoload-dev, or the `autoload` section of a package composer.lock
+ * names. Composer never dumps a dependency's `autoload-dev`, so a symbol
+ * defined only there can never load by design; calling that an environment
+ * fault would send the contributor into a `composer install` loop that cannot
+ * fix it (the #2926 review finding), so it stays a real orphan.
  */
 #[CoversNothing]
 final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
@@ -72,20 +80,70 @@ final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
     }
 
     #[Test]
-    public function a_symbol_defined_under_a_package_autoload_dev_psr4_root_is_an_environment_fault_not_an_orphan(): void
+    public function a_symbol_defined_only_under_a_package_autoload_dev_psr4_root_stays_a_real_orphan(): void
     {
+        // Composer never dumps a dependency's autoload-dev into the root
+        // autoloader, so this symbol is unreachable BY DESIGN even after a
+        // fresh `composer install`: a declaration defect, not an environment
+        // fault. Even naming the package in composer.lock must not change that.
         $this->writeGamma(
             extraEntries: [['fqcn' => 'Waaseyaa\\Gamma\\Tests\\Support\\HelperInterface', 'disposition' => 'internal']],
             autoloadDev: ['Waaseyaa\\Gamma\\Tests\\' => 'tests/'],
         );
+        $this->writeLock(['waaseyaa/gamma']);
         $this->writeInterface('packages/gamma/tests/Support/HelperInterface.php', 'Waaseyaa\\Gamma\\Tests\\Support', 'HelperInterface');
+
+        [$exit, $out] = $this->generate();
+
+        self::assertSame(1, $exit, "A dependency's autoload-dev root is never loadable; this must be the §4 defect exit, not the precondition code.\n{$out}");
+        self::assertStringContainsString('orphaned', $out);
+        self::assertStringContainsString('Waaseyaa\\Gamma\\Tests\\Support\\HelperInterface', $out);
+        self::assertStringNotContainsString('environment', $out);
+        self::assertStringNotContainsString('composer install', $out);
+    }
+
+    #[Test]
+    public function a_symbol_defined_under_a_locked_package_autoload_psr4_root_is_an_environment_fault_not_an_orphan(): void
+    {
+        // A non-src/ `autoload` root (invisible to the src/-only AST walk) of
+        // a package composer.lock names: `composer install` dumps it, so an
+        // autoloader that cannot load the file is stale — an environment fault.
+        $this->writeGamma(
+            extraEntries: [['fqcn' => 'Waaseyaa\\Gamma\\Testing\\FakeClockInterface', 'disposition' => 'internal']],
+            autoload: ['Waaseyaa\\Gamma\\Testing\\' => 'testing/'],
+        );
+        $this->writeLock(['waaseyaa/gamma']);
+        $this->writeInterface('packages/gamma/testing/FakeClockInterface.php', 'Waaseyaa\\Gamma\\Testing', 'FakeClockInterface');
 
         [$exit, $out] = $this->generate();
 
         self::assertSame(VENDOR_FRESHNESS_EXIT_CODE, $exit, $out);
         self::assertStringContainsString('environment', $out);
-        self::assertStringContainsString('Waaseyaa\\Gamma\\Tests\\Support\\HelperInterface', $out);
+        self::assertStringContainsString('Waaseyaa\\Gamma\\Testing\\FakeClockInterface', $out);
+        self::assertStringContainsString('packages/gamma/composer.json autoload', $out);
+        self::assertStringContainsString('composer install', $out);
         self::assertStringNotContainsString('orphaned:', $out);
+    }
+
+    #[Test]
+    public function a_symbol_defined_under_an_unlocked_package_autoload_psr4_root_stays_a_real_orphan(): void
+    {
+        // Same tree as above, but composer.lock does not name waaseyaa/gamma:
+        // the root autoloader will never dump that root, so `composer
+        // install` cannot make the symbol load — a defect, not an environment
+        // fault.
+        $this->writeGamma(
+            extraEntries: [['fqcn' => 'Waaseyaa\\Gamma\\Testing\\FakeClockInterface', 'disposition' => 'internal']],
+            autoload: ['Waaseyaa\\Gamma\\Testing\\' => 'testing/'],
+        );
+        $this->writeLock(['waaseyaa/other']);
+        $this->writeInterface('packages/gamma/testing/FakeClockInterface.php', 'Waaseyaa\\Gamma\\Testing', 'FakeClockInterface');
+
+        [$exit, $out] = $this->generate();
+
+        self::assertSame(1, $exit, $out);
+        self::assertStringContainsString('orphaned', $out);
+        self::assertStringNotContainsString('environment', $out);
     }
 
     #[Test]
@@ -142,6 +200,23 @@ final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
     }
 
     #[Test]
+    public function locate_definition_ignores_a_real_package_autoload_dev_root_the_root_autoloader_never_honours(): void
+    {
+        // The exact #2926 review probe: this test class exists on disk under
+        // packages/notification's autoload-dev, the root composer.json maps
+        // no `Waaseyaa\Notification\Tests\` prefix, so class_exists() is
+        // false with a FRESH vendor/ — and locateDefinition must not call
+        // that an environment fault.
+        $declarations = SurfaceDeclarations::load($this->repoRoot);
+        $scanner = SurfaceScanner::scan($this->repoRoot);
+        $fqcn = 'Waaseyaa\\Notification\\Tests\\Unit\\DefaultNotifiableTest';
+
+        self::assertFileExists($this->repoRoot . '/packages/notification/tests/Unit/DefaultNotifiableTest.php');
+        self::assertFalse(class_exists($fqcn), 'Precondition of this proof: the root autoloader does not map the package autoload-dev prefix.');
+        self::assertNull($declarations->locateDefinition($fqcn, $scanner));
+    }
+
+    #[Test]
     public function locate_definition_returns_null_when_nothing_on_disk_defines_the_symbol(): void
     {
         $declarations = SurfaceDeclarations::load($this->repoRoot);
@@ -155,8 +230,9 @@ final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
     /**
      * @param list<array<string, string>> $extraEntries
      * @param array<string, string> $autoloadDev
+     * @param array<string, string> $autoload extra `autoload` PSR-4 roots beside the src/ one
      */
-    private function writeGamma(array $extraEntries, array $autoloadDev = []): void
+    private function writeGamma(array $extraEntries, array $autoloadDev = [], array $autoload = []): void
     {
         $fs = new Filesystem();
         $dir = "{$this->tmpRoot}/packages/gamma";
@@ -164,7 +240,7 @@ final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
         $composer = [
             'name' => 'waaseyaa/gamma',
             'type' => 'library',
-            'autoload' => ['psr-4' => ['Waaseyaa\\Gamma\\' => 'src/']],
+            'autoload' => ['psr-4' => ['Waaseyaa\\Gamma\\' => 'src/'] + $autoload],
         ];
         if ($autoloadDev !== []) {
             $composer['autoload-dev'] = ['psr-4' => $autoloadDev];
@@ -187,6 +263,15 @@ final class SurfaceDeclarationEnvironmentFaultTest extends TestCase
         new Filesystem()->dumpFile("{$this->tmpRoot}/composer.json", json_encode([
             'name' => 'waaseyaa/framework',
             'autoload-dev' => ['psr-4' => $autoloadDevPsr4],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+    }
+
+    /** @param list<string> $packageNames */
+    private function writeLock(array $packageNames): void
+    {
+        new Filesystem()->dumpFile("{$this->tmpRoot}/composer.lock", json_encode([
+            'packages' => array_map(static fn(string $name): array => ['name' => $name, 'version' => 'dev-main'], $packageNames),
+            'packages-dev' => [],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
     }
 
