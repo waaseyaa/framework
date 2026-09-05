@@ -342,7 +342,7 @@ which composes the real store and the real `MediaDownloadRouter` over the real
 
 ## Release coordination
 
-New split package `waaseyaa/publishing` needs: root composer + package composer.json, `split.yml` matrix entry, `gh repo create waaseyaa/publishing`, layer-table row (L3), public-surface-map entries. Framework release (alpha.277) is cut ONLY once the rhtcircle branch consuming it passes its full acceptance flow; both land together.
+New split package `waaseyaa/publishing` needs: root composer + package composer.json, `split.yml` matrix entry, `gh repo create waaseyaa/publishing`, layer-table row (L3), `packages/publishing/public-surface.php` declarations. Framework release (alpha.277) is cut ONLY once the rhtcircle branch consuming it passes its full acceptance flow; both land together.
 
 ## Acceptance (local, MCP-only)
 

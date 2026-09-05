@@ -482,7 +482,7 @@ A or B:
 This matrix is reviewed:
 
 - Quarterly, alongside the charter audit (§8.5 of the charter).
-- When a new package enters the public-surface-map (entry added).
+- When a new package adds its first package-local public-surface declaration (and therefore enters the composed surface).
 - When a 📋 item ships (status moves to ✅ or 🟡).
 - When a ❓ becomes ❌ via a decision (entry annotated with decision date).
 
