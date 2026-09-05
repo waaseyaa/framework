@@ -7,117 +7,108 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
+use Waaseyaa\Tooling\SurfaceDeclarations;
+
+require_once __DIR__ . '/../../tools/lib/SurfaceDeclarations.php';
 
 /**
- * §11 acceptance proof for #2901 (FW-DELIVERY-SURFACE-01): "every disposition
- * preserved; no broadening" — as a property that stays true forever, not a
- * one-time equality that the first legitimate surface change would break.
- *
- * The fixture is a verbatim snapshot of the last hand-authored
- * docs/public-surface-map.php (5bac44286). For every symbol it names, the
- * composed declaration plane must either still declare it with the same
- * disposition, or the change must be authorized by a charter §8.1 directive
- * (`- Public surface removal|rename|deprecation:`) somewhere in the compiled
- * CHANGELOG.md or a pending/released fragment. Anything else is a silent loss
- * or reclassification of a governed disposition.
- *
- * At the migration commit the composed plane reproduced the snapshot exactly
- * (719 = 719, no missing, no extra, no value differences); that evidence is
- * recorded in docs/change-records/FW-DELIVERY-SURFACE-01.md. This test reads
- * no git history, so it holds in shallow checkouts and random-order shards.
+ * Migration fidelity is a property of the frozen migration input and the real
+ * migrator. It must not compare that historical input with the live declaration
+ * plane, whose ordinary authorization rules permit later additions and
+ * internal-to-public promotions.
  */
 #[CoversNothing]
 final class SurfaceMigrationFidelityTest extends TestCase
 {
     private const string SNAPSHOT = __DIR__ . '/fixtures/surface/pre-migration-public-surface-map.php';
 
-    private const string DIRECTIVE = '/^- Public surface (?:removal|deprecation): `([A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)+)`$'
-        . '|^- Public surface rename: `([A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)+)` -> `[^`]+`$/m';
+    private string $root;
 
-    #[Test]
-    public function no_pre_migration_disposition_is_silently_lost_or_reclassified(): void
+    protected function setUp(): void
     {
-        $root = dirname(__DIR__, 2);
-
-        /** @var array<string, string> $snapshot */
-        $snapshot = require self::SNAPSHOT;
-        self::assertCount(719, $snapshot, 'The frozen pre-migration snapshot must be intact.');
-
-        /** @var array<string, string> $composed */
-        $composed = require $root . '/tools/lib/compose-public-surface.php';
-
-        $authorized = $this->authorizedSymbols($root);
-
-        $lost = [];
-        $reclassified = [];
-        foreach ($snapshot as $fqcn => $disposition) {
-            if (isset($authorized[$fqcn])) {
-                continue;
-            }
-            if (!array_key_exists($fqcn, $composed)) {
-                $lost[] = $fqcn;
-                continue;
-            }
-            if ($composed[$fqcn] !== $disposition) {
-                $reclassified[] = sprintf('%s: %s -> %s', $fqcn, $disposition, $composed[$fqcn]);
-            }
-        }
-
-        self::assertSame(
-            [],
-            $lost,
-            "Pre-migration disposition(s) no longer declared and not authorized by a public-surface directive:\n"
-            . implode("\n", $lost),
-        );
-        self::assertSame(
-            [],
-            $reclassified,
-            "Pre-migration disposition(s) reclassified without a public-surface deprecation directive:\n"
-            . implode("\n", $reclassified),
-        );
+        $this->root = sys_get_temp_dir() . '/waaseyaa_surface_migration_' . bin2hex(random_bytes(8));
+        new Filesystem()->mkdir([
+            $this->root . '/bin',
+            $this->root . '/docs',
+            $this->root . '/packages/snapshot/src',
+        ]);
     }
 
-    /**
-     * Every FQCN named by a charter §8.1 directive in the compiled changelog or
-     * any fragment, pending or released. Presence here is evidence that a later
-     * change went through the governed authorization path; the parity gate
-     * enforces that the directive was newly added by the change that needed it.
-     *
-     * @return array<string, true>
-     */
-    private function authorizedSymbols(string $root): array
+    protected function tearDown(): void
     {
-        $sources = [$root . '/CHANGELOG.md'];
-        foreach (['changes/unreleased', 'changes/released'] as $directory) {
-            $path = $root . '/' . $directory;
-            if (!is_dir($path)) {
-                continue;
-            }
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            );
-            foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'md') {
-                    $sources[] = $file->getPathname();
-                }
-            }
-        }
+        new Filesystem()->remove($this->root);
+    }
 
-        $authorized = [];
-        foreach ($sources as $source) {
-            if (!is_file($source)) {
-                continue;
-            }
-            $content = (string) file_get_contents($source);
-            if (preg_match_all(self::DIRECTIVE, $content, $matches) > 0) {
-                foreach (array_merge($matches[1], $matches[2]) as $fqcn) {
-                    if ($fqcn !== '') {
-                        $authorized[$fqcn] = true;
-                    }
-                }
-            }
-        }
+    #[Test]
+    public function real_migrator_round_trip_preserves_the_frozen_719_entry_map_exactly(): void
+    {
+        /** @var array<string, string> $snapshot */
+        $snapshot = require self::SNAPSHOT;
+        self::assertCount(719, $snapshot, 'The immutable pre-migration snapshot must remain complete.');
 
-        return $authorized;
+        $namespaces = [];
+        foreach (array_keys($snapshot) as $fqcn) {
+            $parts = explode('\\', $fqcn, 2);
+            $namespaces[$parts[0] . '\\'] = true;
+        }
+        self::assertSame(
+            ['Waaseyaa\\' => true],
+            $namespaces,
+            'The minimal fixture ownership prefix is derived entirely from the frozen snapshot.',
+        );
+
+        $filesystem = new Filesystem();
+        $filesystem->copy(dirname(__DIR__, 2) . '/bin/migrate-surface-map', $this->root . '/bin/migrate-surface-map');
+        $filesystem->copy(self::SNAPSHOT, $this->root . '/docs/public-surface-map.php');
+        $filesystem->dumpFile(
+            $this->root . '/docs/public-surface-map.md',
+            "# Frozen migration disposition fixture\n",
+        );
+        $filesystem->dumpFile(
+            $this->root . '/packages/snapshot/composer.json',
+            json_encode([
+                'name' => 'waaseyaa/frozen-surface-snapshot',
+                'type' => 'library',
+                'autoload' => ['psr-4' => ['Waaseyaa\\' => 'src/']],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+
+        $first = $this->runMigrator();
+        self::assertSame(0, $first['exit'], $first['stderr'] . $first['stdout']);
+        self::assertStringContainsString('1 package file(s), 719 entrie(s) total', $first['stdout']);
+
+        $declarationPath = $this->root . '/packages/snapshot/public-surface.php';
+        self::assertFileExists($declarationPath);
+        $firstDeclaration = (string) file_get_contents($declarationPath);
+        $firstComposition = SurfaceDeclarations::load($this->root)->compose();
+
+        self::assertCount(719, $firstComposition);
+        self::assertSame($snapshot, $firstComposition, 'Migration must preserve every disposition with no missing or extra FQCN.');
+        self::assertSame(
+            'public',
+            $firstComposition['Waaseyaa\\EntityStorage\\Backend\\FieldStorageBackendV2Interface'] ?? null,
+            'FQCNs containing digits must survive parsing and generation unchanged.',
+        );
+
+        $second = $this->runMigrator();
+        self::assertSame(0, $second['exit'], $second['stderr'] . $second['stdout']);
+        self::assertSame($firstDeclaration, (string) file_get_contents($declarationPath));
+        self::assertSame($firstComposition, SurfaceDeclarations::load($this->root)->compose());
+    }
+
+    /** @return array{exit: int, stdout: string, stderr: string} */
+    private function runMigrator(): array
+    {
+        $process = new Process([PHP_BINARY, $this->root . '/bin/migrate-surface-map'], $this->root);
+        $process->setTimeout(30);
+        $process->run();
+
+        return [
+            'exit' => $process->getExitCode() ?? 255,
+            'stdout' => $process->getOutput(),
+            'stderr' => $process->getErrorOutput(),
+        ];
     }
 }

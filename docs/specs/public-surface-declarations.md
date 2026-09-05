@@ -211,7 +211,7 @@ travels with the package and no runtime code reads it.
 
 | Acceptance | Where proven |
 |---|---|
-| every disposition preserved; no broadening | migration-commit evidence in the change record (719 = 719, no missing, no extra, no value differences); permanently, `SurfaceMigrationFidelityTest` proves every symbol in the frozen pre-migration snapshot (`tests/Architecture/fixtures/surface/`) is still declared with the same disposition or is named by a §5 directive — no git history required |
+| every disposition preserved; no broadening | migration-commit evidence in the change record (719 = 719, no missing, no extra, no value differences); `SurfaceMigrationFidelityTest` runs the real migrator twice in a disposable package fixture and proves the immutable 719-entry pre-migration snapshot composes back to the exact same mapping, while later live surface changes remain governed only by §5 |
 | same contract shapes as the AST gate; missing/duplicate/orphaned/contradictory rejected; unauthorized removal/reclassification rejected | `SurfaceDeclarationValidationTest` fixtures against the real gate |
 | stable ordering and bytes; consumers migrated; packaged behaviour preserved | `bin/generate-surface-map --check` in preflight; §8, §9 |
 | current-change authorization only | unchanged `SurfaceChangeAuthorization` + gate fixtures |

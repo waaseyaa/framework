@@ -274,3 +274,17 @@ Independent real-tree probes also confirmed that a public-to-internal downgrade
 without a directive fails, a historical CHANGELOG directive still fails, and a
 newly added correctly typed exact-FQCN directive passes. Those controls exercised
 the pre-migration aggregate fallback against the real candidate merge base.
+
+The final migration regression exercises the real migrator against the in-tree
+719-entry snapshot and compares its composed output exactly, including names
+containing digits. It does not permanently constrain the live declarations to
+that historical map: future internal-to-public promotions remain valid without
+a deprecation directive, while the real parity gate continues to govern actual
+base-to-head removals and downgrades. A second migration proves byte stability.
+The loadability fixture creates its own complete local Git history, so shallow
+CI source checkouts cannot affect its baseline comparison.
+
+Focused integration verification passed 24 tests and 747 assertions, covering
+migration fidelity, actual autoloadability, preflight roster parity, and release
+workflow parity. Full qualification is bound separately to the final candidate
+SHA; earlier-head suite results are not reused.

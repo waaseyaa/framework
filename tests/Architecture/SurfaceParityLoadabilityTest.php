@@ -28,6 +28,13 @@ final class SurfaceParityLoadabilityTest extends TestCase
         self::assertSame(0, $clone->run(), $clone->getErrorOutput());
 
         $fs = new Filesystem();
+        $fs->remove($this->fixtureRoot . '/.git');
+        $this->git(['init']);
+        $this->git(['config', 'user.name', 'Surface Loadability Fixture']);
+        $this->git(['config', 'user.email', 'surface-loadability@example.invalid']);
+        $this->git(['add', '--all']);
+        $this->git(['commit', '-m', 'fixture: surface baseline']);
+        self::assertSame('false', trim($this->git(['rev-parse', '--is-shallow-repository'])));
         $fs->copy(
             $this->repoRoot . '/tools/check-surface-parity.php',
             $this->fixtureRoot . '/tools/check-surface-parity.php',
@@ -111,9 +118,18 @@ final class SurfaceParityLoadabilityTest extends TestCase
     /** @return array{int, string} */
     private function runGate(): array
     {
-        $process = new Process([PHP_BINARY, $this->fixtureRoot . '/tools/check-surface-parity.php', '--base=HEAD^'], $this->fixtureRoot, null, null, 120);
+        $process = new Process([PHP_BINARY, $this->fixtureRoot . '/tools/check-surface-parity.php', '--base=HEAD'], $this->fixtureRoot, null, null, 120);
         $exit = $process->run();
 
         return [$exit, $process->getOutput() . $process->getErrorOutput()];
+    }
+
+    /** @param list<string> $arguments */
+    private function git(array $arguments): string
+    {
+        $process = new Process(array_merge([$this->fixtureRoot . '/bin/git'], $arguments), $this->fixtureRoot);
+        self::assertSame(0, $process->run(), $process->getErrorOutput());
+
+        return $process->getOutput();
     }
 }
