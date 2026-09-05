@@ -51,6 +51,25 @@ command, repair command, profile, and the CI surface that enforces it. A self-te
 command, and (b) every gate names a CI enforcement surface that actually exists in the workflow
 files — so the manifest cannot silently drift from CI.
 
+Vendor-freshness precondition (#2926): before any gate runs, preflight calls the shared,
+dependency-free `bin/lib/vendor-freshness.php` against the repository root. It compares
+`composer.lock` (packages and packages-dev — by name, version, and source/dist reference)
+with `vendor/composer/installed.json`, and the PSR-4 namespaces a fresh dump must carry —
+the root `composer.json`'s autoload and autoload-dev plus every locked package's autoload
+(Composer never dumps a dependency's autoload-dev) — with `vendor/composer/autoload_psr4.php`. A stale or missing `vendor/`
+short-circuits with `VENDOR_FRESHNESS_EXIT_CODE` (3 — distinct from 0 pass, 1 defect, 2 gate
+infrastructure, 255 PHP fatal) and one actionable `vendor/ is stale relative to composer.lock —
+run composer install` message; **no gate runs**, because their results against a stale
+checkout would misreport environment faults as repository defects (an uncaught
+`Opis\JsonSchema\Validator` fatal in the delivery-ledger gate; an "orphaned" public-surface
+declaration whose repair is a CHANGELOG directive). The gates that dereference locked packages
+or the autoloader — `bin/check-delivery-agent-events`, `tools/check-surface-parity.php`,
+`bin/generate-surface-map` — run the same precondition themselves, so they behave identically
+when invoked directly or by CI's `run_gate`. The precondition is deliberately **not** a manifest
+gate: hosted CI installs fresh and can never observe this state, so a manifest entry would be a
+no-op in CI while still needing an `enforced_by` surface; `bin/check-vendor-fresh` remains the
+standalone local guard over the same library. `--list` does not require a fresh `vendor/`.
+
 State semantics: preflight evaluates the committed range against `origin/main` (or
 `WAASEYAA_DRIFT_BASE`) **plus staged, unstaged, and untracked worktree files**. Spec-review
 trailers remain commit metadata: a committed trailer cannot pre-approve a later worktree source
@@ -97,10 +116,29 @@ Refresh only touches artifacts whose gate currently fails — a clean tree is a 
 
 Local gate runs must see what the developer sees:
 
-- The S1 scanners already read the worktree; their scan scopes are corrected so *non-repository*
-  content cannot poison local runs: `.git/`, nested `vendor/`, `node_modules/`, and `storage/`
-  are excluded everywhere (previously the SQLite scanner walked `.git/` — producing permission
-  warnings — and nested `packages/*/vendor`, producing phantom local-only roster entries).
+- The S1 scanners (`bin/lib/s1-roster.php`) and `bin/check-access-hardening` derive their file
+  list from git, not from a filesystem walk: `bin/lib/repository-files.php` runs
+  `git ls-files -z --cached --others --exclude-standard [-- <scan root>...]`, so a scan sees
+  tracked files plus untracked files git would add — and nothing else. The repository's ignore
+  boundary is the exclusion *by construction*: nested git worktrees (`.worktrees/`,
+  `.claude/worktrees/`), `packages/*/vendor/`, `node_modules/`, `storage/`, `tmp/` build caches
+  and `.git/` itself never enter a scan, and git never descends into another repository's work
+  tree, so a nested checkout is invisible whether or not it is ignored. There is no
+  hand-maintained path denylist in any scanner (#2925 replaced the one #2865/#2866 kept
+  extending — a filesystem walk minus a list re-creates the ignore boundary by hand and missed
+  `.worktrees/` outright, producing 24,780 phantom findings in one developer clone). A root git
+  cannot enumerate fails closed with a clear error; the scanners never fall back to a walk.
+  Every git child the gates run drops git's repository-selecting environment
+  (`REPOSITORY_LOCAL_GIT_ENVIRONMENT`: `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
+  `GIT_COMMON_DIR`, ... — git's own `local_repo_env` list), because a pre-push hook run from a
+  linked worktree exports `GIT_DIR=<main>/.git/worktrees/<name>`: without the scrub, `ls-files`
+  would enumerate the hook's repository instead of the scan root, and the access-hardening
+  self-test's fixture `git init` would reinitialise the developer's own gitdir as bare.
+  `--exclude-standard` also honours the developer's global `core.excludesFile`, so a personal
+  ignore can hide an *untracked* new file from a local scan until it is added (tracked files are
+  unaffected; CI has no such file). Consequence for the mechanical rosters: `--write-*-roster`
+  composes the scan, so it cannot record a non-repository path (a nested worktree, a nested
+  `vendor/`, an ignored tree).
 - Drift and changelog discipline combine the committed PR range with staged, unstaged, and
   untracked paths when invoked by preflight. A spec changed in an earlier commit does not cover a
   later uncommitted source edit; the spec must also change in the worktree. This preserves trailer
@@ -217,8 +255,12 @@ the mechanism fails loudly before the first write instead of silently.
    `bin/refresh-governance-artifacts` output.
 3. A gate failure message names its repair command.
 4. Roster identity never binds line numbers or whole-file hashes.
-5. Local scanner scope excludes non-repository content (`.git/`, `vendor/`, `node_modules/`,
-   `storage/`, `tmp/`) so a local run and a CI run of the same gate agree on the same tree.
+5. Local scanner scope is the git repository boundary — tracked plus untracked-not-ignored
+   files, enumerated by `bin/lib/repository-files.php` — so non-repository content (nested
+   worktrees, `packages/*/vendor/`, `node_modules/`, `storage/`, `tmp/`, `.git/`, nested
+   checkouts) can never contribute a finding, and a local run and a CI run of the same gate agree
+   on the same tree. Fixtures: `tests/Integration/Tooling/S1RosterLibraryTest.php`,
+   `tests/Architecture/AccessHardeningGateTest.php`.
 
 ## File map
 
@@ -228,10 +270,12 @@ the mechanism fails loudly before the first write instead of silently.
 | Repository-root hygiene gate | `bin/check-repo-root-hygiene` (§7), `tests/bootstrap.php` + `tests/Support/TempDirGuard.php` (TMPDIR guard), `tests/Architecture/CheckRepoRootHygieneGateTest.php`, `tests/Architecture/PhpunitTempDirGuardTest.php` |
 | PHPUnit skip policy | `bin/check-phpunit-skip-policy`, `tools/phpunit-skip-policy.json`, `docs/specs/phpunit-skip-governance.md` |
 | Gate manifest | `tools/preflight-gates.json` |
+| Vendor-freshness precondition | `bin/lib/vendor-freshness.php` (shared library, `VENDOR_FRESHNESS_EXIT_CODE`), `bin/check-vendor-fresh` (standalone local guard); callers `bin/check-pr-preflight`, `bin/check-delivery-agent-events`, `tools/check-surface-parity.php`, `bin/generate-surface-map`; proofs `tests/Architecture/VendorFreshnessPreconditionTest.php`, `tests/Architecture/SurfaceDeclarationEnvironmentFaultTest.php`, `tests/Integration/Policy/CheckVendorFreshTest.php` |
 | Runtime-policy custody | `bin/check-runtime-policy-custody`, `tools/runtime-policy-custody-baseline.php` |
 | Refresh command | `bin/refresh-governance-artifacts` |
 | Manifest/CI parity test | `tests/Architecture/PreflightParityTest.php` |
 | S1 verifiers (schema v2) | `bin/check-s1-{configuration-activation,configuration-authority,schema-authority,sqlite-contract}` |
+| Scanner file enumeration | `bin/lib/repository-files.php` (`repositoryFiles()`), shared by `bin/lib/s1-roster.php` and `bin/check-access-hardening` |
 | Recorded rosters | `support/s1-*-roster.json` |
 | Hook integration | `bin/project-hooks` (`pre_push`) |
 | CI ordering | `.github/workflows/ci.yml` (`needs: [support-contract, spec-drift]` on the three long jobs) |
