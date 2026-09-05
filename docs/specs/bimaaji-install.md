@@ -246,6 +246,56 @@ with deterministic warnings when `--features=skills` is requested for a
 client whose convention cannot represent per-skill delivery. All outputs are
 marker-bounded; see [Marker-bounded installation](#marker-bounded-installation).
 
+**Per-skill file shape (`AbstractPerSkillClientTransformer::renderSkillFile()`).**
+The managed body is always `trim($skill->body) . "\n\n" . $provenanceFooter`,
+wrapped in `ManagedRegion::wrap(...)`. The provenance footer is a single
+line: `<!-- waaseyaa:bimaaji:source-inventory sha256=<inventorySha256> -->`,
+where `inventorySha256` is derived from every packaged `SKILL.md`'s raw-byte
+`sha256` (`id:sha256` lines sorted by id). When
+`ClientCapabilities::requiresFrontmatterAtByteZero` is true (shipped for
+both `claude` and `codex`), the file opens at byte 0 with:
+
+```text
+---
+name: waaseyaa-<id>
+description: <one-line description from canonical frontmatter>
+---
+
+<managed body + provenance footer>
+```
+
+When the flag is false, the per-skill file is exactly the managed body plus
+provenance footer — no YAML block. The flag is load-bearing: the renderer
+derives frontmatter from it; the registry and emitted bytes cannot silently
+disagree.
+
+**Claude/Codex per-skill parity.** For the same `SkillInventory`, Claude and
+Codex emit **byte-identical** per-skill `SKILL.md` content — same file
+name (`SKILL.md`), same frontmatter `name` (`waaseyaa-<id>`), same managed
+body, same provenance footer, same `sha256` of the installed file. Only the
+parent directory differs (`.claude/skills/waaseyaa-<id>/` vs
+`.agents/skills/waaseyaa-<id>/`). Guidance paths differ by client convention
+(`.claude/CLAUDE-WAASEYAA.md` vs root `AGENTS.md`), but each concise index
+lists every skill with its target path and the **source** `sha256` of the raw
+packaged `SKILL.md` bytes. `InstallStateVerifierTest` and
+`tests/PackagedForm/check-bimaaji-client-capability-parity` prove this parity
+over the real packaged skill set.
+
+**Packaged parity proof (candidate archive binding).**
+`tests/PackagedForm/check-bimaaji-client-capability-parity` archives the
+**exact candidate commit** (`git archive HEAD` from the checkout under test),
+installs `waaseyaa/framework` into a skeleton consumer with path repositories
+(no symlinks), runs `bimaaji:install --client=claude,codex --force`, then for
+every `vendor/waaseyaa/bimaaji/resources/skills/<id>/SKILL.md`:
+
+- asserts Claude and Codex each wrote `.claude/skills/waaseyaa-<id>/SKILL.md`
+  and `.agents/skills/waaseyaa-<id>/SKILL.md`;
+- checks both open with YAML frontmatter and matching `name: waaseyaa-<id>`;
+- `cmp`s the pair and requires matching `sha256` of the installed files;
+- requires both guidance files to list each skill's **source** `sha256` and
+  refuses full skill bodies embedded in `AGENTS.md`;
+- re-runs `--verify` and expects a clean pass.
+
 ### Guidance, skills, and MCP (#2660)
 
 Three adapter surfaces are declared on `ClientCapabilitySurface`:
@@ -352,11 +402,13 @@ and `ClaudeClientTransformer` now read `ClientCapabilityRegistry::default()->for
 instead. `ClientCapabilityRegistry::default()` mirrors the **currently
 shipped** convention in the "Supported clients" table above — it is not an
 aspirational target. Unsupported-capability diagnostics and the
-guidance/skill-body split for single-file clients remain maintainer-owned
-open questions recorded in
+guidance/skill-body split for per-skill clients are **implemented in the
+review candidate** (#2660 Part B): `ClientCapabilityDiagnostics` warns when a requested surface cannot
+be represented; the concise-vs-detail split applies only to `PerSkillFile`
+clients (`claude`, `codex`). Maintainer-owned open questions on the overall
+(a)-(c) decision record remain in
 [docs/adr/026-client-guidance-and-skill-conventions.md](../adr/026-client-guidance-and-skill-conventions.md)
-for the options, tradeoffs, and recommendation on each, and #2660 for
-tracking.
+— Status **Proposed**, pending final root review — not in the install output.
 
 `ClientCapabilities` is a **closed** shape, enforced in its constructor and
 signalled by `ClientCapabilityException`: ids and paths may not be blank,
@@ -500,7 +552,8 @@ The command never:
 | Marker-bounded install | Shipped (#2656) — `Waaseyaa\Bimaaji\Install\ManagedRegion`; a re-run refreshes only the delimited region. |
 | Missing vs corrupt diagnostics | Shipped (#2656) — `SkillResourceException` + `SkillResourceFailure`. |
 | Packaged-form proof | Shipped (#2656) — `tests/PackagedForm/check-bimaaji-skill-resources` (CI job `ci/bimaaji-skill-resources`) drives the command from a consumer built out of the candidate tree with no seeded fixtures, and asserts the exact installed directory structure rather than mere presence. |
-| Client convention audit | Re-verified 2026-08-29 (#2656). `claude` and `codex` were emitting paths their client does not read and were corrected; `cursor`, `windsurf` and `junie` are vendor-documented legacy-but-read and are tracked as follow-up. See [Convention drift](#convention-drift). |
+| Client capability parity (#2660 Part B) | Shipped — `tests/PackagedForm/check-bimaaji-client-capability-parity` archives the candidate commit, installs `claude` + `codex` in a skeleton consumer, and proves per-skill byte/hash equality and source-hash indexing over the real packaged `SKILL.md` set. |
+| Client convention audit | Re-verified 2026-08-29 (#2656). `claude` and `codex` were emitting paths their client does not read and were corrected; `cursor`, `windsurf` and `junie` are vendor-documented legacy-but-read and are tracked as follow-up. Codex per-skill layout verified 2026-09-05 against <https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills>. See [Convention drift](#convention-drift). |
 | Retired-target pruning | Shipped (#2656) — `InstalledManifest` records ownership; see [Ownership and pruning retired targets](#ownership-and-pruning-retired-targets). |
 
 PR provenance: `#1557` (WP02), `#1563` (WP03), `#1564` (WP04), the

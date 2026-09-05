@@ -66,37 +66,44 @@ tradeoffs, and what accepting it unlocks downstream.
 
 ### Current state
 
-Codex receives one consolidated `AGENTS.md` folding every skill body in
-full (~116 KB / 3,089 generated lines in the Claudriel measurement #2660's
-issue cites). `ClientCapabilityRegistry::default()` records this as
-`codex => SingleConsolidatedFile`, matching `CodexClientTransformer`'s
-shipped output.
+**At ADR draft (2026-09-02):** Codex received one consolidated `AGENTS.md`
+folding every skill body in full (~116 KB / 3,089 generated lines in the
+Claudriel measurement #2660's issue cites). `ClientCapabilityRegistry::default()`
+recorded `codex => SingleConsolidatedFile`.
 
-#2660's issue body sketches a target table with Codex receiving
-`.agents/skills/waaseyaa-*/SKILL.md` — the same directory-per-skill shape
-Claude Code uses. The issue's own "Depends on" line for #2656 is satisfied
-(closed), but nothing in #2656's verification, nor in
-`docs/specs/bimaaji-install.md`, establishes that Codex — or the broader
-`agents.md` ecosystem — actually *discovers* a `.agents/skills/` directory
-the way Claude Code discovers `.claude/skills/<name>/SKILL.md`. The Claude
-convention is documented at
-<https://code.claude.com/docs/en/skills> and cited by
-`ClaudeClientTransformer`'s class docblock; no equivalent citation exists
-for a Codex-side `.agents/skills/` discovery mechanism. `AGENTS.md` itself,
-per <https://agents.md> and OpenAI's own
-<https://learn.chatgpt.com/docs/agent-configuration/agents-md>, is
-documented as a single markdown file loaded into context wholesale — not an
-index that triggers on-demand loading of sibling files.
+**On the review candidate (2026-09-05):** Codex now ships
+`PerSkillFile` delivery — concise root `AGENTS.md` plus
+`.agents/skills/waaseyaa-<id>/SKILL.md` per canonical inventory entry,
+implemented via `AbstractPerSkillClientTransformer` alongside Claude.
+`ClientCapabilityRegistry::default()` records `codex => PerSkillFile` to
+match that output. **This ADR's Status remains Proposed**; the registry
+change is a chosen implementation option pending final root review, not
+maintainer sign-off.
+
+#2660's issue body sketched Codex receiving `.agents/skills/waaseyaa-*/SKILL.md`
+— the same directory-per-skill shape Claude Code uses. The issue's own
+"Depends on" line for #2656 is satisfied (closed). When this ADR was drafted,
+no verified Codex-side citation established that layout the way
+<https://code.claude.com/docs/en/skills> does for
+`.claude/skills/<name>/SKILL.md`. That gap is now closed: OpenAI documents
+repository `.agents/skills` discovery from the current working directory
+through the repository root, with each skill directory's `SKILL.md` carrying
+`name` and `description` metadata, at
+<https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills>
+(verified 2026-09-05; the former `developers.openai.com/codex/skills/` URL
+redirects there). `CodexClientTransformer`'s class docblock cites this source.
+Root `AGENTS.md` remains the always-loaded guidance surface per
+<https://learn.chatgpt.com/docs/agent-configuration/agents-md> and
+<https://agents.md> (verified 2026-08-29); per-skill bodies load on demand
+from `.agents/skills/`, not from the guidance file.
 
 Writing files a client's own convention does not discover is exactly the
 defect #2656 fixed twice already: Claude's flat
 `.claude/skills/waaseyaa-<id>.md` and Codex's `.codex/AGENTS.md` were both
 files their respective clients silently never read, and the install command
-reported them as "written" regardless. Shipping `.agents/skills/` for Codex
-on the strength of #2660's issue-body sketch alone, without the same class
-of verification #2656 required, would risk repeating that defect a third
-time — this time for six or seven skills' worth of files per project instead
-of one misplaced guidance file.
+reported them as "written" regardless. The review candidate ships
+`.agents/skills/` only with the same class of first-party citation #2656
+required — not on the issue-body sketch alone.
 
 ### Options
 
@@ -115,18 +122,25 @@ of one misplaced guidance file.
 
 ### Recommendation
 
-**Option 2 (defer), with option 3 as an acceptable fallback if the
-maintainer wants to hedge** — but only if the hedge is documented as
-speculative and `docs/specs/bimaaji-install.md`'s "Supported clients" table
-is not represented as confirmed the way the other six rows are. Writing
-undiscovered files is a defect class this codebase has already paid to fix
-twice; a third instance should not ship on an issue-body sketch alone. If
-the maintainer has out-of-band evidence (a product announcement, a Codex
-CLI changelog entry, direct testing) that `.agents/skills/` is real, that
-evidence should be cited in `CodexClientTransformer`'s docblock exactly as
-every other client's convention already is, and this ADR should be amended
-to Accepted with that citation before Part A's registry gains a
-`PerSkillFile` entry for `codex`.
+**Review-candidate posture (2026-09-05): Option 1 (ship per-skill delivery).**
+The review candidate on `codex/2660-client-skill-adapters` implements Codex
+`PerSkillFile` — concise root `AGENTS.md` plus
+`.agents/skills/waaseyaa-<id>/SKILL.md` — with the verified citation in
+`CodexClientTransformer`'s docblock at
+<https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills>
+(verified 2026-09-05). That satisfies the evidentiary bar the historical
+recommendation below was guarding. **Status remains Proposed** until root
+accepts or supersedes this ADR; implementation on the review candidate is
+not maintainer sign-off.
+
+**Historical recommendation (2026-09-02 draft): Option 2 (defer), with
+option 3 as an acceptable fallback if the maintainer wanted to hedge** —
+recorded because, at draft time, no verified Codex-side discovery citation
+existed and writing undiscovered files is a defect class this codebase had
+already paid to fix twice. That deferral rationale no longer applies once
+the OpenAI citation above is in place; root review must still close (a) by
+editing this ADR's Status to Accepted with the chosen option named, or by
+superseding it.
 
 ### Tradeoffs
 
@@ -250,7 +264,8 @@ for it.
 **Option 1.** The "concise guidance, on-demand detail" split is a real
 capability distinction, not a formatting choice — it depends on the client
 having *any* mechanism to load a skill body only when relevant, which today
-only Claude (and, pending (a), possibly Codex) has. Pretending a
+only Claude and Codex (both `PerSkillFile` on the review candidate) have.
+Pretending a
 single-file client can have both "concise" and "complete" without such a
 mechanism produces either option 2's cosmetic non-fix or option 3's
 silent coverage loss. Codifying option 1 makes `ClientCapabilities`'
@@ -301,10 +316,16 @@ interaction; it does not resolve it.
 
 ## What this ADR does not authorize
 
-Consistent with the constraint that gated #2660 implementation: **no
-`.agents/skills/` layout, no capability diagnostic, and no guidance/body
-split is implemented by the PR that introduces this file.** Part A of that
-PR (the `ClientCapabilityRegistry` / `SkillInventory` foundation) is
-behaviour-preserving by construction and does not depend on any answer
-recorded here. #2846/#2787 (blueprint materialization) remain separately
-gated on #2845 and are untouched by this document.
+**Maintainer acceptance or merge closure.** Status **Proposed** means
+questions (a)-(c) are not closed by this file alone, by landing the review
+candidate, or by the implementation posture named in the header. Root must
+still accept or supersede before this ADR's Status becomes Accepted.
+
+**What the review candidate does implement (pending that acceptance):**
+Part B of #2660 on `codex/2660-client-skill-adapters` ships the chosen (a)-(c)
+options — Codex `PerSkillFile` with the verified `.agents/skills/` citation,
+deterministic unsupported-capability warnings, and the concise-guidance vs
+on-demand-detail split scoped to `PerSkillFile` clients. Part A
+(`ClientCapabilityRegistry` / `SkillInventory` foundation) remains
+behaviour-preserving by construction. #2846/#2787 (blueprint materialization)
+remain separately gated on #2845 and are untouched by this document.
