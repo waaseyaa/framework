@@ -14,11 +14,9 @@ use Waaseyaa\CLI\Provider\SiteServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 
 /**
- * Red at the parent (FW-SITE-BLUEPRINT-01D, 01D-1): `site:init --dry-run`
- * and `site:init --json --yes` against a blueprint-bearing manifest both
- * exit 0 today, publishing `.waaseyaa/site.yaml` with the
- * `application_blueprint` section and zero blueprint artifacts. Fail-closed
- * negotiation refuses both, identically, before any write.
+ * Activation retains fail-closed CLI behavior: feature negotiation now
+ * admits the installed blueprint compiler, but its execution requires
+ * approval in both text and JSON modes before any generated state.
  */
 #[CoversClass(SiteInitHandler::class)]
 final class SiteInitBlueprintNegotiationTest extends TestCase
@@ -34,7 +32,7 @@ final class SiteInitBlueprintNegotiationTest extends TestCase
     }
 
     #[Test]
-    public function dryRunTextRefusesGen007BeforeAnyWrite(): void
+    public function dryRunTextRefusesGen011BeforeAnyWrite(): void
     {
         $root = $this->root();
         $answers = $this->writeAnswers($root);
@@ -43,13 +41,13 @@ final class SiteInitBlueprintNegotiationTest extends TestCase
         $tester->execute(["--answers={$answers}", "--project-root={$root}", '--dry-run']);
 
         self::assertSame(2, $tester->getExitCode());
-        self::assertStringContainsString('GEN007_UNSUPPORTED_DECLARATION', $tester->getStderr());
-        self::assertStringContainsString('/application_blueprint', $tester->getStderr());
+        self::assertStringContainsString('GEN011_UNAUTHORIZED_SET_DELTA', $tester->getStderr());
+        self::assertStringContainsString('matching approved decision receipt', $tester->getStderr());
         self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
     }
 
     #[Test]
-    public function applyYesTextRefusesGen007BeforeAnyWrite(): void
+    public function applyYesTextRefusesGen011BeforeAnyWrite(): void
     {
         $root = $this->root();
         $answers = $this->writeAnswers($root);
@@ -58,8 +56,8 @@ final class SiteInitBlueprintNegotiationTest extends TestCase
         $tester->execute(["--answers={$answers}", "--project-root={$root}", '--yes']);
 
         self::assertSame(2, $tester->getExitCode());
-        self::assertStringContainsString('GEN007_UNSUPPORTED_DECLARATION', $tester->getStderr());
-        self::assertStringContainsString('/application_blueprint', $tester->getStderr());
+        self::assertStringContainsString('GEN011_UNAUTHORIZED_SET_DELTA', $tester->getStderr());
+        self::assertStringContainsString('matching approved decision receipt', $tester->getStderr());
         self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
     }
 
@@ -84,15 +82,15 @@ final class SiteInitBlueprintNegotiationTest extends TestCase
         self::assertNull($dryRunDocument['result']);
         self::assertSame([], $dryRunDocument['receipts']);
         self::assertCount(1, $dryRunDocument['errors']);
-        self::assertSame('GEN007_UNSUPPORTED_DECLARATION', $dryRunDocument['errors'][0]['code']);
-        self::assertSame('/application_blueprint', $dryRunDocument['errors'][0]['pointer']);
-        self::assertStringContainsString('site-application-blueprint-v1', $dryRunDocument['errors'][0]['message']);
+        self::assertSame('GEN011_UNAUTHORIZED_SET_DELTA', $dryRunDocument['errors'][0]['code']);
+        self::assertArrayNotHasKey('pointer', $dryRunDocument['errors'][0]);
+        self::assertStringContainsString('matching approved decision receipt', $dryRunDocument['errors'][0]['message']);
         self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
 
         self::assertSame(
             json_encode($dryRunDocument, \JSON_PRETTY_PRINT | \JSON_THROW_ON_ERROR),
             (string) file_get_contents(
-                \dirname(__DIR__, 2) . '/Fixtures/SiteInit/blueprint-negotiation-refused.json',
+                \dirname(__DIR__, 2) . '/Fixtures/SiteInit/blueprint-approval-refused.json',
             ),
         );
     }

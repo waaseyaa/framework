@@ -6,6 +6,7 @@ namespace Waaseyaa\SiteContract\Tests\Unit\Blueprint;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\SiteContract\Blueprint\BlueprintAppliedEvidence;
 use Waaseyaa\SiteContract\Blueprint\BlueprintDecision;
 use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
 use Waaseyaa\SiteContract\Blueprint\BlueprintLifecycle;
@@ -43,6 +44,9 @@ final class BlueprintDecisionReceiptTest extends TestCase
         // A second receipt built from toArray() must produce the same canonical JSON.
         $roundTripped = BlueprintDecisionReceipt::fromArray($receipt->toArray());
         self::assertSame($receipt->canonicalJson(), $roundTripped->canonicalJson());
+        self::assertSame(hash('sha256', $receipt->canonicalJson()), $receipt->digest());
+        self::assertNotSame(hash('sha256', $receipt->canonicalJson() . "\n"), $receipt->digest());
+        self::assertArrayNotHasKey('digest', $receipt->toArray());
     }
 
     public function test_a_rejection_receipt_never_matches_as_approval(): void
@@ -119,6 +123,50 @@ final class BlueprintDecisionReceiptTest extends TestCase
         $resolver = new BlueprintLifecycleResolver();
 
         self::assertSame(BlueprintLifecycle::Rejected, $resolver->resolve($manifest, $receipt));
+    }
+
+    public function test_matching_applied_evidence_takes_precedence_over_a_request_rejection(): void
+    {
+        $manifest = $this->manifest('valid/minimal.yaml');
+        $approval = BlueprintDecisionReceipt::fromArray($this->receiptData($manifest, 'approved'));
+        $rejection = BlueprintDecisionReceipt::fromArray($this->receiptData($manifest, 'rejected'));
+        $evidence = BlueprintAppliedEvidence::fromDecisionReceipt($approval);
+
+        self::assertSame(BlueprintLifecycle::Applied, new BlueprintLifecycleResolver()->resolve($manifest, $rejection, $evidence));
+    }
+
+    public function test_current_matching_request_decision_takes_precedence_over_stale_applied_evidence(): void
+    {
+        $prior = $this->manifest('valid/minimal.yaml');
+        $priorEvidence = BlueprintAppliedEvidence::fromDecisionReceipt(
+            BlueprintDecisionReceipt::fromArray($this->receiptData($prior, 'approved')),
+        );
+        $current = new SiteManifestParser()->parse(str_replace(
+            'name: Minimal Blueprint Application',
+            'name: Renamed Application',
+            $this->fixture('valid/minimal.yaml'),
+        ));
+        $resolver = new BlueprintLifecycleResolver();
+        foreach (['approved' => BlueprintLifecycle::Approved, 'rejected' => BlueprintLifecycle::Rejected] as $decision => $expected) {
+            $currentReceipt = BlueprintDecisionReceipt::fromArray($this->receiptData($current, $decision));
+            self::assertSame($expected, $resolver->resolve($current, $currentReceipt, $priorEvidence));
+        }
+    }
+
+    public function test_valid_prior_applied_evidence_is_superseded_by_blueprint_or_context_drift(): void
+    {
+        $prior = $this->manifest('valid/minimal.yaml');
+        $evidence = BlueprintAppliedEvidence::fromDecisionReceipt(
+            BlueprintDecisionReceipt::fromArray($this->receiptData($prior, 'approved')),
+        );
+        $resolver = new BlueprintLifecycleResolver();
+        $changedBlueprint = new SiteManifestParser()->parse(str_replace('label: Article', 'label: Articles', $this->fixture('valid/minimal.yaml')));
+        $changedContext = new SiteManifestParser()->parse(str_replace('name: Minimal Blueprint Application', 'name: Renamed Application', $this->fixture('valid/minimal.yaml')));
+        $removedBlueprint = $this->manifest('valid/old-v1-without-blueprint.yaml');
+
+        self::assertSame(BlueprintLifecycle::Superseded, $resolver->resolve($changedBlueprint, null, $evidence));
+        self::assertSame(BlueprintLifecycle::Superseded, $resolver->resolve($changedContext, null, $evidence));
+        self::assertSame(BlueprintLifecycle::Superseded, $resolver->resolve($removedBlueprint, null, $evidence));
     }
 
     public function test_resolver_returns_proposed_when_a_blueprint_byte_changes_after_approval(): void

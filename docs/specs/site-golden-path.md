@@ -110,9 +110,9 @@ tokens with the roster the installed root compilers advertise
 (`SiteArtifactRendererFactory::advertisedGeneratorFeatures()`), and a missing
 token is `GEN007_UNSUPPORTED_DECLARATION` at `/application_blueprint`
 (ADR-025 D-5) before any render, lock, journal or write, identically in
-dry-run and apply, with no change receipt. Until 01D-2 wires the blueprint
-compiler that roster is empty, so every blueprint-bearing manifest is refused
-there (#2787 01D-1).
+dry-run and apply, with no change receipt. In activated 01D-2 the closed
+feature roster advertises the blueprint compiler token; no other additive
+compiler is implied or admitted.
 
 The manifest document remains byte/digest stable when the section is absent,
 but the generated `.waaseyaa/site.schema.json` necessarily changes when the
@@ -122,8 +122,11 @@ changed-managed-bytes upgrade path: rebind
 `site:init`. This is not the unrecoverable changed-artifact-set case. Until the
 rebind, strict doctor, generated verification, and the generated architecture
 test are red; today's `SITE010_GENERATED_ARTIFACT_DRIFT` wording classifies the
-mismatch as substitution. #2787 (01D-2) owns the decision and test for
-distinguishing this reviewed schema-upgrade case.
+mismatch as artifact drift. 01D-2 retains the `SITE010` family for schema
+changes and invalid applied evidence. A dependency upgrade requires review and
+manifest lock rebinding; for a blueprint, the changed manifest digest also
+requires a new matching approval. Strict verification never repairs either
+condition implicitly.
 
 Authored YAML contains the proposal, never mutation authority. The canonical
 blueprint digest covers its fixed schema id, contract version, and complete
@@ -140,21 +143,60 @@ receipt matching the manifest re-parsed from the plan's own
 (ADR-025 D-13 item 5). The receipt is a separate `--decision-receipt` input
 on every invocation, never a member of the apply request (#2787 01D-2).
 
-Lifecycle is derived rather than trusted from an authored state field:
-`proposed` has no matching decision, `approved` is the request-scoped state of a
-matching approval before publication, `applied` has the canonical approval and
-matching evidence in `.waaseyaa/generated.json`, `rejected` is request-scoped
-unless a higher layer retains its matching rejection, and
-`superseded` has applied evidence, or higher-layer retained decision evidence
-supplied with the request, for different bytes. The
-initializer extends the existing generated metadata and installs it last in
-the existing transaction; it does not create another generated artifact,
-approval authority, or transaction log. Receipt-aware evidence and strict
-verification are #2787 01D-2 changes: artifact bytes stay a pure function of
-the manifest, and the transaction authority composes the canonical approval
-receipt into the metadata it installs last (ADR-025 D-2.6, D-10.1).
-Blueprint-free output remains byte-identical. Strict verification re-derives
-state and fails closed on missing or mismatched evidence.
+The engine's closed additive roster admits exactly
+`Waaseyaa\SiteContract\Generation\SiteArtifactRenderer` and
+`Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler`. Both own the
+managed root `site`; no other additive or seeded compiler is enabled. The
+blueprint compiler is separate from the legacy renderer's recipe composition.
+The engine normalizes the typed receipt, checks the declared compiler and the
+embedded manifest's digest/version before lock creation or journal recovery,
+and repeats admission during locked preparation. A legacy renderer plan cannot
+carry blueprint content to bypass that check. Malformed CLI receipt documents
+normalize to `SITE050_DECISION_RECEIPT_INVALID`; structurally invalid engine
+receipts refuse with `GEN011_UNAUTHORIZED_SET_DELTA`.
+
+The existing metadata writer composes optional top-level
+`application_blueprint` evidence in `.waaseyaa/generated.json`: exactly
+`{generator_feature, decision_receipt}`, with the blueprint feature token and
+the canonical closed Approved receipt. A persisted blueprint manifest requires
+matching evidence before any unit update. The root remains implicit, without
+a `units[]` row or stored compiler FQCN. Blueprint-free metadata retains its
+existing bytes. Approved plain-to-blueprint additive growth is supported;
+blueprint-to-plain downgrade is refused, and non-root updates preserve evidence.
+
+Terminal blueprint change receipts identify their validated approval with
+`BlueprintDecisionReceipt::digest()`: SHA-256 of `canonicalJson()` without a
+newline. This identifies content and does not authenticate the claimed actor.
+An apply may supply another valid approval of the same manifest after preview;
+the later invocation records its own approval. Recovery and residue receipts
+have no authority to claim that later blueprint decision, so their decision ID
+is absent. The terminal new blueprint operation carries its validated decision
+and is caused by the preceding recovery receipt when present. Existing plain
+generation receipt context and recovery-only behavior remain compatible.
+
+`BlueprintAppliedEvidence` is the shared closed parser used by the engine and
+doctor. Matching durable evidence projects `Applied`, even when a current
+request rejects the same manifest. Otherwise a matching current decision
+projects `Approved` or `Rejected`; valid stale applied evidence projects
+`Superseded`; without either, the blueprint remains `Proposed`. Invalid evidence
+cannot be passed as proof. Strict doctor recompiles and verifies the complete
+artifact and registration projection using the existing execution authority's
+read-only evaluation. Missing, malformed, rejected, mismatched, or
+success-shaped evidence produces `SITE010_GENERATED_ARTIFACT_DRIFT`.
+
+The process boundary remains `site:init --json --answers <manifest.yaml>
+--decision-receipt <receipt.json> [--dry-run] [--yes]`, followed by
+`site:doctor --strict --format=json`. JSON preserves literal artifact bytes and
+the existing success/error envelopes. The console application retains its
+existing 0/success and 1/failure normalization of command-handler exit codes.
+Committed process fixtures cover planned, applied, no-change, unapproved and
+malformed-receipt outcomes; volatile receipt identifiers and issuance timestamps
+are normalized only in test snapshots, never in process output.
+
+The initializer installs composed evidence last in its existing transaction,
+alongside the artifact and registration changes. Artifact bytes remain a pure
+function of the manifest; approval evidence belongs to transaction-owned
+metadata (ADR-025 D-2.6, D-10.1).
 
 `waaseyaa.generated` remains version 1. Its optional
 `application_blueprint` evidence member is emitted only for an applied
@@ -172,12 +214,10 @@ The blueprint compiler is
 compiler with its own `generator.fqcn` that composes
 `SiteArtifactRenderer::render()` and pure emitters into the root `site`
 unit's `ArtifactPlan`, declaring `set_evolution: additive` purely (#2787
-01D-1; design in `docs/change-records/FW-SITE-BLUEPRINT-01.md`). 01D-2 still
-owns: its admission to `ADDITIVE_COMPILERS` under the D-13 gate, the
-root-unit identity transition rules, `--decision-receipt`, receipt
-verification in evaluation, the `application_blueprint` evidence member with
-its compatible reader, strict doctor re-derivation, and the CLI wiring.
-Fixtures, checks and seeding are a later slice.
+01D-1; design in `docs/change-records/FW-SITE-BLUEPRINT-01.md`). 01D-2
+activates the execution and verification boundaries above under ADR-025 D-13.
+Governance emission, behavioural checks and fixture seeding are subsequent
+work packages.
 
 ### Closed vocabulary (#2785)
 

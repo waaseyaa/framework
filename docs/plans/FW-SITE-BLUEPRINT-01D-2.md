@@ -98,9 +98,11 @@ Doctor reads the canonical approval from generated metadata, validates exact
 bindings, recompiles via the blueprint compiler and verifies the complete root
 artifact and registration projection using the existing ownership authority.
 Missing, malformed, rejected, mismatched or success-shaped evidence cannot
-produce a successful strict report. Existing schema-upgrade diagnostics remain
-distinct from an approval-evidence refusal. A plain manifest with unexpected
-blueprint evidence also fails strict verification.
+produce a successful strict report. Schema artifact drift retains the existing
+SITE010 family and the explicit dependency-lock rebind path; a changed blueprint
+manifest requires a new matching approval. Neither schema drift nor invalid
+applied evidence is repaired by strict verification. A plain manifest with
+unexpected blueprint evidence also fails strict verification.
 
 Extend `BlueprintLifecycleResolver::resolve()` with optional typed applied
 evidence, preserving existing two-argument callers. Matching durable evidence

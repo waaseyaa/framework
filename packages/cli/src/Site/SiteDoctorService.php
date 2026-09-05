@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Site;
 
+use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompilerFactory;
+use Waaseyaa\SiteContract\Blueprint\BlueprintAppliedEvidence;
+use Waaseyaa\SiteContract\Blueprint\BlueprintLifecycle;
+use Waaseyaa\SiteContract\Blueprint\BlueprintLifecycleResolver;
 use Waaseyaa\SiteContract\CanonicalJson;
 use Waaseyaa\SiteContract\Doctor\ArchitectureScanner;
 use Waaseyaa\SiteContract\Doctor\DoctorSuppressionSet;
@@ -83,18 +87,27 @@ final class SiteDoctorService
         } catch (\Throwable) {
             return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated unit ownership metadata is missing or invalid.', 'Restore the governed ownership metadata.', 'invalid-units')];
         }
-        $projection = $metadata;
-        unset($projection['units'], $projection['registrations']);
-        $projection['artifacts'] = array_values(array_filter($metadata['artifacts'], static fn(array $row): bool => !array_key_exists('unit', $row)));
-        $expected = SiteArtifactRendererFactory::create()->render($manifest)->artifacts['.waaseyaa/generated.json']->content;
-        if (!hash_equals($expected, CanonicalJson::encode($projection) . "\n")) {
-            return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, '[unit site; disposition managed] Generated root ownership was substituted or does not match its manifest.', 'Restore the root generated artifact set.', CanonicalJson::encode($projection))];
+
+        $findings = [];
+        if ($manifest->applicationBlueprint !== null || array_key_exists('application_blueprint', $metadata)) {
+            $blueprintFinding = $this->blueprintFinding($authority, $metadata, $manifest);
+            if ($blueprintFinding !== null) {
+                $findings[] = $blueprintFinding;
+            }
+        } else {
+            $projection = $metadata;
+            unset($projection['units'], $projection['registrations']);
+            $projection['artifacts'] = array_values(array_filter($metadata['artifacts'], static fn(array $row): bool => !array_key_exists('unit', $row)));
+            $expected = SiteArtifactRendererFactory::create()->render($manifest)->artifacts['.waaseyaa/generated.json']->content;
+            if (!hash_equals($expected, CanonicalJson::encode($projection) . "\n")) {
+                return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, '[unit site; disposition managed] Generated root ownership was substituted or does not match its manifest.', 'Restore the root generated artifact set.', CanonicalJson::encode($projection))];
+            }
         }
         $units = [];
         foreach ($metadata['units'] ?? [] as $unit) {
             $units[$unit['id']] = $unit['disposition'];
         }
-        $findings = $this->registrationFindings($authority, $metadata, $units);
+        $findings = [...$findings, ...$this->registrationFindings($authority, $metadata, $units)];
         foreach ($metadata['artifacts'] as $row) {
             $unit = $row['unit'] ?? 'site';
             $disposition = $units[$unit] ?? 'managed';
@@ -125,6 +138,36 @@ final class SiteDoctorService
         }
 
         return $findings;
+    }
+
+    /** @param array<string, mixed> $metadata */
+    private function blueprintFinding(SiteInitializationService $authority, array $metadata, \Waaseyaa\SiteContract\SiteManifest $manifest): ?SiteDoctorFinding
+    {
+        if ($manifest->applicationBlueprint === null) {
+            return $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated blueprint approval evidence has no current blueprint authority.', 'Restore the generated root from the current manifest.', CanonicalJson::encode($metadata['application_blueprint']));
+        }
+        if (!array_key_exists('application_blueprint', $metadata) || !is_array($metadata['application_blueprint'])) {
+            return $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated blueprint approval evidence is missing.', 'Restore the governed blueprint approval evidence.', 'missing-blueprint-evidence');
+        }
+
+        try {
+            $evidence = BlueprintAppliedEvidence::fromArray($metadata['application_blueprint'], '.waaseyaa/generated.json');
+            if (new BlueprintLifecycleResolver()->resolve($manifest, null, $evidence) !== BlueprintLifecycle::Applied) {
+                return $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated blueprint approval evidence does not match the current manifest.', 'Restore generation from an approval matching the current blueprint and manifest.', CanonicalJson::encode($metadata['application_blueprint']));
+            }
+            $verification = $authority->initialize(
+                ApplicationBlueprintCompilerFactory::create()->compile($manifest),
+                dryRun: true,
+                decisionReceipt: $evidence->decisionReceipt,
+            );
+        } catch (\Throwable) {
+            return $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated blueprint ownership cannot be verified.', 'Restore the governed blueprint generation.', 'invalid-blueprint-generation');
+        }
+        if ($verification->changedPaths !== [] || $verification->evaluation === null || $verification->evaluation->refusals !== []) {
+            return $this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated blueprint ownership does not match the approved manifest.', 'Restore the complete approved blueprint generation.', CanonicalJson::encode($verification->changedPaths));
+        }
+
+        return null;
     }
 
     /**

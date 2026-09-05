@@ -1,0 +1,1 @@
+{"errors":[{"code":"SITE050_DECISION_RECEIPT_INVALID","message":"SITE050_DECISION_RECEIPT_INVALID at /decision_receipt: Expected a valid closed blueprint decision receipt JSON document.","pointer":"/decision_receipt"}],"evaluation":null,"receipts":[],"result":null}
