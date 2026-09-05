@@ -78,6 +78,13 @@ a subprocess child execution also left stmts at `count="0"` despite a green
 parent assertion. Change record: `docs/change-records/FW-DELIVERY-COVERAGE-01.md`
 (#2904).
 
+The hosted `ci/coverage` job merges shard Clover without installing Composer
+dependencies. The 80% ratchet therefore always uses the clover intersection and
+must not require `vendor/autoload.php`. When autoload is present (developer
+laptops, Architecture fixtures), static analysis refines uninstrumented line
+lists; when it is absent, the gate still prints covered/uncovered and may note
+whole files absent from Clover.
+
 Integration tests continue to use `#[CoversNothing]`: they prove composition
 and wire behavior without claiming class-level coverage. When a change adds a
 branch that is reached only through such an integration test, add or extend a

@@ -131,6 +131,22 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
     }
 
     #[Test]
+    public function vendor_less_ci_coverage_job_keeps_the_eighty_percent_ratchet(): void
+    {
+        $result = $this->runRatchetFixture(
+            "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -1,5 +1,5 @@\n",
+            ['packages/demo/src/Example.php' => [1 => 1, 2 => 1, 3 => 1, 4 => 1, 5 => 0]],
+            80,
+            skipAutoload: true,
+        );
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('4/5 executable changed lines covered (80.00%', $result['output']);
+        self::assertStringContainsString('vendor autoload unavailable', $result['output']);
+    }
+
+    #[Test]
     public function non_source_hunks_do_not_inherit_the_previous_source_path(): void
     {
         $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
@@ -278,6 +294,7 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
         array $files,
         int $threshold,
         ?string $sourceRoot = null,
+        bool $skipAutoload = false,
     ): array {
         file_put_contents($this->directory . '/change.diff', $diff);
 
@@ -303,6 +320,9 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
         ];
         if ($sourceRoot !== null) {
             $command[] = '--root=' . $sourceRoot;
+        }
+        if ($skipAutoload) {
+            $command[] = '--skip-autoload';
         }
 
         return $this->runProcess($command);

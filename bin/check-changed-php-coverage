@@ -3,8 +3,6 @@
 
 declare(strict_types=1);
 
-use SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser;
-
 /**
  * Enforce the changed-line Clover ratchet and report attribution boundaries.
  *
@@ -13,22 +11,36 @@ use SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser;
  * executable lines and CoversNothing-only exclusion risks are reported beside
  * that percentage so the number cannot silently omit clover-absent files or
  * metadata-suppressed execution.
+ *
+ * Hosted `ci/coverage` checks out the tree without Composer vendor. The 80%
+ * ratchet therefore must not require autoload. Optional php-code-coverage
+ * static analysis (when vendor is present) refines uninstrumented line lists
+ * and CoversNothing exclusion labeling; without it the threshold path is
+ * identical to the pre-#2904 clover intersection.
  */
 
 $toolRoot = dirname(__DIR__);
-require $toolRoot . '/vendor/autoload.php';
-
-$options = getopt('', ['clover:', 'base::', 'diff-file::', 'threshold::', 'root::']);
+$options = getopt('', ['clover:', 'base::', 'diff-file::', 'threshold::', 'root::', 'skip-autoload']);
 $rootOption = $options['root'] ?? $toolRoot;
 $root = realpath((string) $rootOption);
 $cloverPath = $options['clover'] ?? '';
 $base = $options['base'] ?? '';
 $diffFile = $options['diff-file'] ?? '';
 $threshold = isset($options['threshold']) ? (float) $options['threshold'] : 80.0;
+$skipAutoload = array_key_exists('skip-autoload', $options);
 
 if ($root === false || !is_string($cloverPath) || $cloverPath === '' || $threshold < 0 || $threshold > 100) {
-    fwrite(STDERR, "Usage: php bin/check-changed-php-coverage --clover=<path> [--base=<sha>|--diff-file=<path>] [--threshold=80] [--root=<path>]\n");
+    fwrite(STDERR, "Usage: php bin/check-changed-php-coverage --clover=<path> [--base=<sha>|--diff-file=<path>] [--threshold=80] [--root=<path>] [--skip-autoload]\n");
     exit(2);
+}
+
+$analyser = null;
+$autoload = $toolRoot . '/vendor/autoload.php';
+if (!$skipAutoload && is_file($autoload)) {
+    require $autoload;
+    if (class_exists(\SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser::class)) {
+        $analyser = new \SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser();
+    }
 }
 
 if ($diffFile !== '') {
@@ -132,7 +144,6 @@ foreach (array_keys($changedTests) as $testPath) {
     }
 }
 
-$analyser = new ParsingSourceAnalyser();
 /** @var list<string> $coveredRefs */
 $coveredRefs = [];
 /** @var list<string> $uncoveredRefs */
@@ -153,7 +164,9 @@ foreach ($changedLines as $sourcePath => $lines) {
     $executableChanged = array_map('intval', array_keys($lines));
     sort($executableChanged);
 
-    if ($contents !== false) {
+    $shortName = null;
+    $fqcn = null;
+    if ($contents !== false && $analyser !== null) {
         $analysis = $analyser->analyse($absolute, $contents, true, false);
         $executableChanged = array_values(array_filter(
             array_map('intval', array_keys($lines)),
@@ -166,33 +179,55 @@ foreach ($changedLines as $sourcePath => $lines) {
             ...array_values($analysis->interfaces()),
             ...array_values($analysis->traits()),
         ];
-        if ($symbols !== [] && $testContents !== []) {
+        if ($symbols !== []) {
             $shortName = $symbols[0]->name();
             $fqcn = $symbols[0]->namespacedName();
-            $coversNothingTests = [];
-            $hasCompanion = false;
-            foreach ($testContents as $testPath => $testContent) {
-                if (!preg_match('/\b' . preg_quote($shortName, '/') . '\b/', $testContent)) {
-                    continue;
-                }
-                if (preg_match('/#\[CoversNothing\b/', $testContent) === 1) {
-                    $coversNothingTests[] = $testPath;
-                    continue;
-                }
-                if (preg_match('/#\[Covers(?:Class|Method)\(\s*(?:\\\\?' . preg_quote($fqcn, '/') . '|' . preg_quote($shortName, '/') . ')::class\b/', $testContent) === 1) {
-                    $hasCompanion = true;
-                }
+        }
+    } elseif ($contents !== false && preg_match('/\b(?:class|interface|trait)\s+(\w+)/', $contents, $classMatch) === 1) {
+        $shortName = $classMatch[1];
+        if (preg_match('/namespace\s+([^;]+);/', $contents, $nsMatch) === 1) {
+            $fqcn = trim($nsMatch[1]) . '\\' . $shortName;
+        } else {
+            $fqcn = $shortName;
+        }
+    }
+
+    if ($shortName !== null && $fqcn !== null && $testContents !== []) {
+        $coversNothingTests = [];
+        $hasCompanion = false;
+        foreach ($testContents as $testPath => $testContent) {
+            if (!preg_match('/\b' . preg_quote($shortName, '/') . '\b/', $testContent)) {
+                continue;
             }
-            if ($coversNothingTests !== [] && !$hasCompanion) {
-                $excludedTestsBySource[$sourcePath] = $coversNothingTests;
+            if (preg_match('/#\[CoversNothing\b/', $testContent) === 1) {
+                $coversNothingTests[] = $testPath;
+                continue;
             }
+            if (preg_match('/#\[Covers(?:Class|Method)\(\s*(?:\\\\?' . preg_quote($fqcn, '/') . '|' . preg_quote($shortName, '/') . ')::class\b/', $testContent) === 1) {
+                $hasCompanion = true;
+            }
+        }
+        if ($coversNothingTests !== [] && !$hasCompanion) {
+            $excludedTestsBySource[$sourcePath] = $coversNothingTests;
         }
     }
 
     foreach ($executableChanged as $number) {
         $ref = $sourcePath . ':' . $number;
         if (!isset($cloverCounts[$sourcePath][$number])) {
-            $uninstrumentedRefs[] = $ref;
+            // Without static analysis, only flag whole-file clover absence to
+            // avoid treating signatures/comments as uninstrumented noise on the
+            // vendor-less ci/coverage job.
+            if ($analyser !== null || ($cloverCounts[$sourcePath] ?? []) === []) {
+                if ($analyser === null) {
+                    $fileRef = $sourcePath . ' (absent from Clover)';
+                    if (!in_array($fileRef, $uninstrumentedRefs, true)) {
+                        $uninstrumentedRefs[] = $fileRef;
+                    }
+                } else {
+                    $uninstrumentedRefs[] = $ref;
+                }
+            }
             continue;
         }
         ++$executable;
@@ -234,6 +269,9 @@ if ($uninstrumentedRefs !== []) {
 }
 if ($excludedRefs !== []) {
     fwrite(STDERR, "changed-php-coverage: excluded-attribution lines were executed only under #[CoversNothing] companions in this diff; add #[CoversClass]/#[CoversMethod] Unit/Contract coverage through a real public boundary.\n");
+}
+if ($analyser === null) {
+    fwrite(STDERR, "changed-php-coverage: vendor autoload unavailable; 80% ratchet used clover intersection only (static-analysis refinement skipped).\n");
 }
 
 exit($percentage + 0.00001 >= $threshold ? 0 : 1);
