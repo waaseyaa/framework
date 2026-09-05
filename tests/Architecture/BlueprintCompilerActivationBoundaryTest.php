@@ -74,7 +74,20 @@ final class BlueprintCompilerActivationBoundaryTest extends TestCase
         foreach ($this->phpFiles($root) as $file) {
             $source = (string) file_get_contents($file);
             foreach ($forbidden as $needle) {
-                if (str_contains($source, $needle)) {
+                // Word-boundary-aware for a bare function-call token (everything
+                // here except the two superglobals): a plain str_contains() on
+                // 'date(' also matches '...validate(' (#2788,
+                // GovernanceProviderEmitter's real WorkflowValidator::validate()
+                // call) — a false positive with no filesystem/clock/environment
+                // access at all. Requiring the character before the token not be
+                // an identifier character keeps every genuine bare call (date(),
+                // time(), rand(), ...) caught while no longer flagging a method
+                // name that merely ends with one of these token strings.
+                $pattern = str_ends_with($needle, '(')
+                    ? '/(?<![A-Za-z0-9_])' . preg_quote($needle, '/') . '/'
+                    : null;
+                $matches = $pattern !== null ? preg_match($pattern, $source) === 1 : str_contains($source, $needle);
+                if ($matches) {
                     $offenders[] = $file . ' -> ' . $needle;
                 }
             }
