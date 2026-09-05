@@ -32,3 +32,55 @@ reintroduction, or relocation of admin SPA sources into the CLI package.
 - Existing metapackage and in-tree fixtures remain green.
 - Content Pipeline direct profile requalifies `scaffold:auth --check` against
   this candidate's CLI package.
+
+## Repair design (2026-09-05, review of candidate 290d064)
+
+Independent review reproduced the #2833 failure against candidate `290d064` under a
+real direct-package install (Composer path repositories with `symlink: false`,
+`waaseyaa/core` + `waaseyaa/cli`, no `waaseyaa/framework`): the candidate resolved
+sources as `dirname(<waaseyaa/cli install path>) . '/admin/app'`, a sibling-directory
+guess that holds only when `vendor/waaseyaa/cli` is a path-repo symlink back into
+this monorepo. `packages/admin` has no `composer.json` and is not split-mirrored,
+so no consumer can install it. The following decisions replace that approach.
+
+1. **Distribution home.** The five auth scaffold inputs named by
+   `AuthUiScaffoldManager::FILE_MAP` ship as package-owned resources of the
+   already-installable `waaseyaa/cli` package at
+   `packages/cli/resources/auth-ui/<FILE_MAP source path>`. No new package,
+   dependency, release, or admin-UI feature.
+2. **One authored authority.** `packages/admin/app` remains the only authored
+   source. `packages/cli/resources/auth-ui/` is a generated mirror:
+   `bin/sync-cli-auth-ui-resources` regenerates it deterministically (exactly the
+   `FILE_MAP` sources, byte-for-byte, nothing else), and
+   `tests/Architecture/CliAuthUiResourceParityTest` fails on any byte or
+   membership difference in either direction, naming the regeneration command.
+   A mirror can therefore never become an independent source.
+3. **Resolution order** in `AuthUiScaffoldManager::sourceContext()`:
+   (a) project-owned `<project>/packages/admin/app` (monorepo development and
+   project-owned overrides — unchanged); (b) aggregate consumer
+   `<project>/vendor/waaseyaa/framework/packages/admin/app` (unchanged);
+   (c) canonical package-owned: `Composer\InstalledVersions::getInstallPath('waaseyaa/cli')`
+   + `/resources/auth-ui`; (d) loaded-package-local fallback
+   `dirname(__DIR__, 2) . '/resources/auth-ui'` relative to the manager's own class
+   file, the same convention `Waaseyaa\Bimaaji\Install\PackagedSkillResources`
+   uses, for runtimes where `InstalledVersions` does not register the package.
+   The sibling `admin/app` guesses are removed. Version resolution keeps its
+   existing semantics (a `VERSION` file in the candidate's version roots, else
+   `InstalledVersions` pretty version of the owning package).
+4. **Packaged proof.** `tests/PackagedForm/check-cli-auth-scaffold` follows
+   `check-cli-sync-rules` exactly: archive the exact candidate HEAD, install every
+   package as a real copy (`symlink: false`) into a direct-profile consumer with no
+   `waaseyaa/framework`, run the real `vendor/bin/waaseyaa scaffold:auth --check`
+   and bind the oracle to the five expected files and exit 0; run the same oracle
+   against an aggregate-consumer control; then negatives — resource directory
+   missing, a resource file missing, a resource file corrupt — must be rejected by
+   the complete oracle, not by exit status alone; and hand-edit preservation
+   (scaffold, edit, re-check without `--force` keeps the edit; `--force` reports the
+   overwrite). Wired into the `packaged-form` CI job beside the existing proofs.
+5. **Coverage.** Changed-line coverage is closed by unit tests that drive the
+   separate consumer branches through an injectable install-path resolver plus the
+   packaged proof; the 80% threshold and coverage configuration are untouched.
+6. **Documentation correction.** The earlier "Proof" text claiming a Content
+   Pipeline direct-profile requalification, and the spec wording that limited the
+   guarantee to "when Composer path-installs monorepo packages", are replaced by
+   the behaviour actually implemented and proven here.
