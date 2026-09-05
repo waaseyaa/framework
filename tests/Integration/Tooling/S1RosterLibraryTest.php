@@ -7,13 +7,23 @@ namespace Waaseyaa\Tests\Integration\Tooling;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 
 /**
  * Unit tests for bin/lib/s1-roster.php — the shared roster scanner whose
  * schema-v2 identity binds semantic content (path, pattern, class, normalized
  * match hash, occurrence index), never line numbers or whole-file hashes
  * (#2400 item 6, docs/specs/governed-gates.md §6).
+ *
+ * The fixture is a real git repository: since #2925 the scanner enumerates
+ * repository files through git (tracked plus untracked-but-not-ignored), so
+ * the ignore boundary — not a hand-maintained path denylist — is what keeps
+ * nested worktrees and nested vendor/ trees out of every scan. Files written
+ * by the individual tests are left untracked on purpose: an untracked,
+ * non-ignored file is exactly the worktree content governed-gates.md §1 says
+ * a local run must see.
  */
 #[CoversNothing]
 final class S1RosterLibraryTest extends TestCase
@@ -29,6 +39,23 @@ final class S1RosterLibraryTest extends TestCase
     {
         $this->tempDir = sys_get_temp_dir() . '/waaseyaa_s1roster_' . uniqid('', true);
         mkdir($this->tempDir . '/packages/demo/src', 0o755, true);
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 's1roster@example.test');
+        $this->git('config', 'user.name', 'S1 Roster Test');
+        // Mirrors the real repository's ignore boundary for the trees that
+        // exist only in developer clones (#2865, #2925).
+        file_put_contents($this->tempDir . '/.gitignore', implode("\n", [
+            'vendor/',
+            'packages/*/vendor/',
+            'node_modules/',
+            'storage/*',
+            '/tmp/',
+            '.worktrees/',
+            '.claude/worktrees/',
+            '',
+        ]));
+        $this->git('add', '.gitignore');
+        $this->git('commit', '-q', '-m', 'fixture ignore boundary');
     }
 
     protected function tearDown(): void
@@ -36,12 +63,21 @@ final class S1RosterLibraryTest extends TestCase
         new Filesystem()->remove($this->tempDir);
     }
 
-    /** @return array<string, mixed> */
-    private function scan(): array
+    private function git(string ...$arguments): void
+    {
+        $process = new Process(['git', '-C', $this->tempDir, ...$arguments]);
+        $process->mustRun();
+    }
+
+    /**
+     * @param list<string> $scanRoots
+     * @return list<array<string, int|string>>
+     */
+    private function scan(array $scanRoots = ['packages']): array
     {
         return s1RosterScan(
             $this->tempDir,
-            ['packages'],
+            $scanRoots,
             ['needle' => '/\bGovernedNeedle\b/'],
             static fn(string $relative, string $contents): bool => str_ends_with($relative, '.php'),
             static fn(string $relative, string $patternId): string => 'demo-class',
@@ -122,35 +158,69 @@ final class S1RosterLibraryTest extends TestCase
     }
 
     #[Test]
-    public function non_repository_content_is_never_scanned(): void
+    public function tracked_and_untracked_repository_files_are_both_scanned(): void
     {
+        // governed-gates.md §1: a local run sees staged, unstaged, AND
+        // untracked worktree files — a new source file a developer has not
+        // yet `git add`ed is still governed content.
+        file_put_contents($this->tempDir . '/packages/demo/src/Tracked.php', "<?php\nGovernedNeedle::run();\n");
+        $this->git('add', 'packages/demo/src/Tracked.php');
+        $this->git('commit', '-q', '-m', 'tracked candidate');
+        file_put_contents($this->tempDir . '/packages/demo/src/Untracked.php', "<?php\nGovernedNeedle::run();\n");
+
+        $paths = array_column($this->scan(), 'path');
+        sort($paths);
+
+        $this->assertSame(['packages/demo/src/Tracked.php', 'packages/demo/src/Untracked.php'], $paths);
+    }
+
+    #[Test]
+    public function nested_worktrees_and_nested_vendor_never_contribute_candidates(): void
+    {
+        // The #2925 fixture: one tracked candidate proves the scan is not
+        // vacuous, and every other match sits in a tree that exists only in a
+        // developer clone — registered nested git worktrees (.worktrees/ and
+        // .claude/worktrees/), a populated packages/<pkg>/vendor/, gitignored
+        // build/runtime dirs, the .git/ directory itself, and a nested
+        // repository that is NOT gitignored (git never descends into another
+        // repository's work tree, so it is excluded by construction too).
+        file_put_contents($this->tempDir . '/packages/demo/src/Real.php', "<?php\nGovernedNeedle::run();\n");
+        $this->git('add', 'packages/demo/src/Real.php');
+        $this->git('commit', '-q', '-m', 'real candidate');
+
+        $this->git('worktree', 'add', '-q', $this->tempDir . '/.worktrees/wf1', '-b', 'wf1');
+        $this->git('worktree', 'add', '-q', $this->tempDir . '/.claude/worktrees/wf2', '-b', 'wf2');
+        mkdir($this->tempDir . '/nested-repo', 0o755, true);
+        new Process(['git', '-C', $this->tempDir . '/nested-repo', 'init', '-q'])->mustRun();
+
         foreach ([
-            '.git/hooks',
+            '.worktrees/wf1/packages/demo/src',
+            '.worktrees/wf1/tmp/phpstan',
+            '.claude/worktrees/wf2/packages/demo/src',
+            'packages/demo/vendor/dep/src',
             'vendor/lib',
-            'packages/demo/vendor/dep',
             'packages/demo/node_modules/dep',
             'storage/cache',
             'tmp/scratch',
-            // #2865: tmp/ at any depth, matching vendor/ and node_modules/.
-            'packages/demo/tmp/cache',
-            // #2865: a nested git worktree is a separate checkout, and its
-            // PHPStan caches were being scanned as production source.
-            '.claude/worktrees/wf_x/tmp/phpstan',
-            '.claude/worktrees/wf_x/packages/demo/src',
+            '.git/hooks',
+            'nested-repo/src',
         ] as $dir) {
-            mkdir($this->tempDir . '/' . $dir, 0o755, true);
+            if (!is_dir($this->tempDir . '/' . $dir)) {
+                mkdir($this->tempDir . '/' . $dir, 0o755, true);
+            }
             file_put_contents($this->tempDir . '/' . $dir . '/Poison.php', "<?php\nGovernedNeedle::run();\n");
         }
 
-        $entries = s1RosterScan(
-            $this->tempDir,
-            [''],
-            ['needle' => '/\bGovernedNeedle\b/'],
-            static fn(string $relative, string $contents): bool => str_ends_with($relative, '.php'),
-            static fn(string $relative, string $patternId): string => 'demo-class',
-        );
+        $entries = $this->scan(['']);
 
-        $this->assertSame([], $entries, 'Excluded trees (.git, vendor/node_modules/tmp at any depth, storage, .claude/worktrees) must not contribute candidates.');
+        $this->assertSame(
+            [['path' => 'packages/demo/src/Real.php']],
+            array_map(static fn(array $entry): array => ['path' => $entry['path']], $entries),
+            'Only repository content may contribute candidates: nested worktrees, nested vendor/, ignored trees, .git/, and nested repositories must all be invisible to the scan.',
+        );
+        // The roster write path is canonicalize(scan), so an untracked path
+        // that never enters the scan can never be recorded (#2925).
+        $this->assertSame(['packages/demo/src/Real.php'], array_column(s1RosterCanonicalize($entries), 'path'));
     }
 
     #[Test]
@@ -163,16 +233,33 @@ final class S1RosterLibraryTest extends TestCase
         mkdir($this->tempDir . '/.claude/rules', 0o755, true);
         file_put_contents($this->tempDir . '/.claude/rules/Tracked.php', "<?php\nGovernedNeedle::run();\n");
 
-        $entries = s1RosterScan(
-            $this->tempDir,
-            [''],
-            ['needle' => '/\bGovernedNeedle\b/'],
-            static fn(string $relative, string $contents): bool => str_ends_with($relative, '.php'),
-            static fn(string $relative, string $patternId): string => 'demo-class',
-        );
+        $entries = $this->scan(['']);
 
         $this->assertCount(1, $entries, 'Tracked .claude/ content must remain scannable.');
         $this->assertSame('.claude/rules/Tracked.php', $entries[0]['path']);
+        $this->assertSame([], $this->scan(['packages']), 'A scan root scopes the enumeration to that subtree.');
+    }
+
+    #[Test]
+    public function scan_fails_closed_when_the_root_is_not_a_git_repository(): void
+    {
+        $plainDir = sys_get_temp_dir() . '/waaseyaa_s1roster_plain_' . uniqid('', true);
+        mkdir($plainDir . '/packages/demo/src', 0o755, true);
+        file_put_contents($plainDir . '/packages/demo/src/A.php', "<?php\nGovernedNeedle::run();\n");
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('git');
+            s1RosterScan(
+                $plainDir,
+                ['packages'],
+                ['needle' => '/\bGovernedNeedle\b/'],
+                static fn(string $relative, string $contents): bool => true,
+                static fn(string $relative, string $patternId): string => 'demo-class',
+            );
+        } finally {
+            new Filesystem()->remove($plainDir);
+        }
     }
 
     #[Test]
@@ -205,5 +292,4 @@ final class S1RosterLibraryTest extends TestCase
         $joined = implode("\n", $lines);
         $this->assertStringContainsString('packages/demo/src/Gone.php', $joined);
     }
-
 }

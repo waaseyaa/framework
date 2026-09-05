@@ -14,6 +14,8 @@ declare(strict_types=1);
  *  AH005  mutable process-level statics require a reviewed lifetime rationale.
  */
 
+require_once __DIR__ . '/lib/repository-files.php';
+
 $root = $argv[1] ?? dirname(__DIR__);
 if ($root === '--self-test') {
     selfTest();
@@ -28,7 +30,14 @@ if (!is_array($baseline)) {
     exit(2);
 }
 
-$violations = scanRoot($root, $baseline);
+try {
+    $violations = scanRoot($root, $baseline);
+} catch (RuntimeException $exception) {
+    // Fail closed: a tree git cannot enumerate is not a tree this gate can
+    // vouch for (#2925).
+    fwrite(STDERR, 'access-hardening: ' . $exception->getMessage() . "\n");
+    exit(2);
+}
 if ($violations !== []) {
     fwrite(STDERR, "access-hardening: FAIL\n" . implode("\n", $violations) . "\n");
     exit(1);
@@ -43,7 +52,7 @@ fwrite(STDOUT, "access-hardening: OK — 5 access and worker-lifetime invariants
 function scanRoot(string $root, array $baseline): array
 {
     $violations = [];
-    $files = phpFiles($root . '/packages');
+    $files = phpFiles($root);
 
     foreach ($files as $file) {
         $relative = relativePath($root, $file);
@@ -149,20 +158,23 @@ function scanRoot(string $root, array $baseline): array
     return array_values(array_unique($violations));
 }
 
-/** @return list<string> */
-function phpFiles(string $directory): array
+/**
+ * PHP source files under packages/<pkg>/src/ that are repository content:
+ * tracked, or untracked and not ignored. Enumerated through git rather than
+ * a filesystem walk so a populated packages/<pkg>/vendor/ (vendor libraries
+ * ship their own src/ directories) or a nested checkout under packages/
+ * cannot produce findings hosted CI never sees (#2925).
+ *
+ * @return list<string> Absolute paths, sorted.
+ *
+ * @throws RuntimeException when git cannot enumerate the repository.
+ */
+function phpFiles(string $root): array
 {
-    if (!is_dir($directory)) {
-        return [];
-    }
     $files = [];
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
-        $directory,
-        FilesystemIterator::SKIP_DOTS,
-    ));
-    foreach ($iterator as $file) {
-        if ($file->isFile() && $file->getExtension() === 'php' && str_contains($file->getPathname(), '/src/')) {
-            $files[] = $file->getPathname();
+    foreach (repositoryFiles($root, ['packages']) as $relative) {
+        if (str_ends_with($relative, '.php') && str_contains($relative, '/src/')) {
+            $files[] = rtrim(str_replace('\\', '/', $root), '/') . '/' . $relative;
         }
     }
     sort($files);
@@ -235,6 +247,10 @@ function selfTest(): void
 {
     $root = sys_get_temp_dir() . '/waaseyaa-access-hardening-' . bin2hex(random_bytes(6));
     mkdir($root . '/packages/ai-tools/src/Entity', 0777, true);
+    // The scanner enumerates repository files through git, so the fixture
+    // must be a repository; its files stay untracked (and unignored), which
+    // is exactly the worktree content a local run must see.
+    initRepository($root);
     mkdir($root . '/packages/routing/src', 0777, true);
     mkdir($root . '/packages/graphql/src', 0777, true);
     mkdir($root . '/packages/graphql/src/Resolver', 0777, true);
@@ -344,4 +360,18 @@ function selfTest(): void
     }
 
     fwrite(STDOUT, "access-hardening: self-test passed (unsafe fixtures fail; reviewed fixtures pass).\n");
+}
+
+function initRepository(string $root): void
+{
+    $process = proc_open(['git', '-C', $root, 'init', '-q'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    if (!is_resource($process)) {
+        throw new RuntimeException('self-test could not start git to initialise the fixture repository');
+    }
+    fclose($pipes[1]);
+    $error = trim((string) stream_get_contents($pipes[2]));
+    fclose($pipes[2]);
+    if (proc_close($process) !== 0) {
+        throw new RuntimeException('self-test could not initialise the fixture repository: ' . $error);
+    }
 }
