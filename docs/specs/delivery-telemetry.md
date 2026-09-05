@@ -66,6 +66,27 @@ boundary.
 
 `php bin/check-delivery-agent-events` executes the JSON Schema and the causal
 rules. With `--base=<ref>` it also proves exact-prefix append-only history.
+Local Composer and preflight checks use `--branch-base=<ref>`: resolve the ref
+and HEAD once, require a unique merge-base, then check current worktree bytes
+against that common ancestor. An unrelated append on main does not invalidate
+a source-only branch. Existing `--base` retains its exact-prefix meaning.
+
+Required CI uses immutable `--candidate=<40-SHA> --base=<40-SHA>`. PR checks
+also pass `--head=<40-SHA>` and require the candidate's two ordered parents to
+match the event's base and head. Push checks retain `event.before` across the
+entire push; explicit dispatches qualify the candidate against its first parent.
+Candidate mode reads committed schema and ledger bytes, refuses fixture path
+overrides, and rejects missing or incompatible ancestry. Normal schema, causal,
+ID-uniqueness, and accepted-prefix rules apply in every mode. Both new history
+modes require a complete (non-shallow) repository; truncated history cannot prove
+uniqueness or ancestry.
+
+The governed merge adapter pins the PR head and requires main's effective rules
+to enforce strict `ci/verify-gates` checks from GitHub Actions. GitHub enforces
+freshness at the actual merge, including if main moves after the adapter's rules
+lookup. There is no bypass or unpinned fallback. This does not remove normal
+strict branch requirements or solve conflicting concurrent appends (#2902).
+
 `--self-test` seeds independent schema, causality, temporal, adjudication, and
 history corruptions and must fail each one.
 

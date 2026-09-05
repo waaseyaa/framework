@@ -36,14 +36,14 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
     steps:
+      - name: Checkout trusted merge adapter
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
       - name: Enable auto-merge (squash)
-        run: |
-          set -euo pipefail
-          # --auto errors if the PR is already in clean (mergeable) status;
-          # in that case merge immediately instead.
-          if ! gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash; then
-            gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash
-          fi
+        run: bash bin/enable-governed-auto-merge
 
       - name: Chain-dispatch main CI on the merge commit
         run: |

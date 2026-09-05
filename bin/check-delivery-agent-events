@@ -42,7 +42,7 @@ function validateLedger(string $contents, object $schema): array
             $errors[] = sprintf('line %d must be a JSON object', $index + 1);
             continue;
         }
-        if (!(new Validator())->validate($document, $schema)->isValid()) {
+        if (!new Validator()->validate($document, $schema)->isValid()) {
             $errors[] = sprintf('line %d does not conform to %s', $index + 1, LEDGER_SCHEMA);
             continue;
         }
@@ -145,12 +145,12 @@ function validateAppendOnly(string $prior, string $current): array
     return str_starts_with($current, $prior) ? [] : ['the ledger is not an exact byte-prefix extension of the base ledger'];
 }
 
-/** @return array{exit: int, output: string} */
-function gitShow(string $root, string $base, string $path): array
+/** @param list<string> $arguments @return array{exit: int, output: string} */
+function gitRun(string $root, array $arguments): array
 {
     $pipes = [];
     $process = proc_open(
-        ['git', '-C', $root, 'show', $base . ':' . $path],
+        [$root . '/bin/git', '-C', $root, ...$arguments],
         [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
     );
@@ -163,6 +163,85 @@ function gitShow(string $root, string $base, string $path): array
     fclose($pipes[2]);
     $exit = proc_close($process);
     return ['exit' => $exit, 'output' => $exit === 0 ? $output : $error];
+}
+
+/** @return array{exit: int, output: string} */
+function gitShow(string $root, string $commit, string $path): array
+{
+    return gitRun($root, ['show', $commit . ':' . $path]);
+}
+
+function resolveCommit(string $root, string $ref): ?string
+{
+    $result = gitRun($root, ['rev-parse', '--verify', '--end-of-options', $ref . '^{commit}']);
+    if ($result['exit'] !== 0) {
+        return null;
+    }
+    $lines = array_values(array_filter(preg_split('/\R/', trim($result['output'])) ?: [], static fn(string $line): bool => $line !== ''));
+
+    return count($lines) === 1 && preg_match('/^[0-9a-f]{40}$/D', $lines[0]) === 1 ? $lines[0] : null;
+}
+
+/** @return list<string>|null */
+function mergeBases(string $root, string $left, string $right): ?array
+{
+    $result = gitRun($root, ['merge-base', '--all', $left, $right]);
+    if ($result['exit'] !== 0) {
+        return [];
+    }
+    $lines = array_values(array_filter(preg_split('/\R/', trim($result['output'])) ?: [], static fn(string $line): bool => $line !== ''));
+    foreach ($lines as $line) {
+        if (preg_match('/^[0-9a-f]{40}$/D', $line) !== 1) {
+            return null;
+        }
+    }
+
+    return $lines;
+}
+
+/** @return list<string>|null */
+function commitParents(string $root, string $commit): ?array
+{
+    $result = gitRun($root, ['rev-list', '--parents', '-n', '1', $commit]);
+    if ($result['exit'] !== 0) {
+        return null;
+    }
+    $parts = preg_split('/\s+/', trim($result['output'])) ?: [];
+    if (array_shift($parts) !== $commit) {
+        return null;
+    }
+
+    return array_values($parts);
+}
+
+function isStrictAncestor(string $root, string $ancestor, string $descendant): bool
+{
+    if ($ancestor === $descendant) {
+        return false;
+    }
+
+    return gitRun($root, ['merge-base', '--is-ancestor', $ancestor, $descendant])['exit'] === 0;
+}
+
+function refuseShallowHistory(string $root): void
+{
+    $result = gitRun($root, ['rev-parse', '--is-shallow-repository']);
+    if ($result['exit'] !== 0 || !in_array(trim($result['output']), ['true', 'false'], true)) {
+        fwrite(STDERR, "delivery agent event contract: could not determine whether repository history is complete\n");
+        exit(2);
+    }
+    if (trim($result['output']) === 'true') {
+        fwrite(STDERR, "delivery agent event contract: branch and candidate modes refuse a shallow repository\n");
+        exit(1);
+    }
+}
+
+/** @param array{exit: int, output: string} $result */
+function missingAtCommit(array $result): bool
+{
+    return $result['exit'] !== 0
+        && (str_contains($result['output'], 'exists on disk, but not in')
+            || str_contains($result['output'], 'does not exist in'));
 }
 
 /** @return array<string, mixed> */
@@ -278,6 +357,9 @@ $root = dirname(__DIR__);
 $schemaPath = $root . '/' . LEDGER_SCHEMA;
 $ledgerPath = $root . '/' . LEDGER_PATH;
 $base = null;
+$branchBase = null;
+$candidate = null;
+$head = null;
 $priorLedgerPath = null;
 $priorSchemaPath = null;
 $selfTest = false;
@@ -292,7 +374,7 @@ foreach (array_slice($argv, 1) as $argument) {
         $selfTest = true;
         continue;
     }
-    if (preg_match('/^--(base|ledger|prior-ledger|schema|prior-schema)=(.*)$/D', $argument, $matches) !== 1) {
+    if (preg_match('/^--(base|branch-base|candidate|head|ledger|prior-ledger|schema|prior-schema)=(.*)$/D', $argument, $matches) !== 1) {
         fwrite(STDERR, "delivery agent event contract: unknown or malformed option {$argument}\n");
         exit(2);
     }
@@ -308,51 +390,172 @@ foreach (array_slice($argv, 1) as $argument) {
     }
     match ($name) {
         'base' => $base = $value,
+        'branch-base' => $branchBase = $value,
+        'candidate' => $candidate = $value,
+        'head' => $head = $value,
         'ledger' => $ledgerPath = $value,
         'prior-ledger' => $priorLedgerPath = $value,
         'schema' => $schemaPath = $value,
         'prior-schema' => $priorSchemaPath = $value,
     };
 }
-$schemaBytes = readRequiredFile($schemaPath, 'schema');
-$schema = json_decode($schemaBytes, flags: JSON_THROW_ON_ERROR);
 if ($selfTest) {
     if (count($seen) !== 1) {
         fwrite(STDERR, "delivery agent event contract: --self-test cannot be combined with other options\n");
         exit(2);
     }
+    $schemaBytes = readRequiredFile($schemaPath, 'schema');
+    $schema = json_decode($schemaBytes, flags: JSON_THROW_ON_ERROR);
     exit(selfTest($schema));
 }
 if ($base !== null && ($priorLedgerPath !== null || $priorSchemaPath !== null)) {
     fwrite(STDERR, "delivery agent event contract: --base and explicit prior files are mutually exclusive\n");
     exit(2);
 }
-$contents = readRequiredFile($ledgerPath, 'ledger');
-$errors = validateLedger($contents, $schema);
+
+$fixtureOptions = array_intersect(array_keys($seen), ['ledger', 'prior-ledger', 'schema', 'prior-schema']);
+if ($branchBase !== null) {
+    if ($base !== null || $candidate !== null || $head !== null || $fixtureOptions !== []) {
+        fwrite(STDERR, "delivery agent event contract: --branch-base is a canonical-worktree mode and cannot be combined with other custody or fixture options\n");
+        exit(2);
+    }
+    if ($branchBase === str_repeat('0', 40)) {
+        fwrite(STDERR, "delivery agent event contract: an all-zero branch base is not a custody boundary\n");
+        exit(2);
+    }
+}
+if ($candidate !== null || $head !== null) {
+    if ($candidate === null || $base === null) {
+        fwrite(STDERR, "delivery agent event contract: --candidate requires --base, and --head requires --candidate\n");
+        exit(2);
+    }
+    if ($branchBase !== null || $fixtureOptions !== []) {
+        fwrite(STDERR, "delivery agent event contract: immutable candidate mode cannot use branch or fixture path options\n");
+        exit(2);
+    }
+    foreach (['candidate' => $candidate, 'base' => $base, 'head' => $head] as $label => $sha) {
+        if ($sha !== null && preg_match('/^[0-9a-f]{40}$/D', $sha) !== 1) {
+            fwrite(STDERR, "delivery agent event contract: --{$label} must be an immutable 40-character commit SHA\n");
+            exit(2);
+        }
+    }
+}
+if ($branchBase !== null || $candidate !== null) {
+    refuseShallowHistory($root);
+}
+
+$identity = null;
+$priorCommit = null;
+if ($candidate !== null) {
+    foreach (['candidate' => $candidate, 'base' => $base, 'head' => $head] as $label => $sha) {
+        if ($sha !== null && resolveCommit($root, $sha) !== $sha) {
+            fwrite(STDERR, "delivery agent event contract: could not resolve immutable {$label} commit {$sha}\n");
+            exit(2);
+        }
+    }
+    $topologyErrors = [];
+    if ($head !== null) {
+        if (commitParents($root, $candidate) !== [$base, $head]) {
+            $topologyErrors[] = 'the candidate must have exactly the declared base and head as its two parents, in that order';
+        }
+    } elseif (!isStrictAncestor($root, $base, $candidate)) {
+        $topologyErrors[] = 'the declared base must be a strict ancestor of the candidate';
+    }
+    refuseShallowHistory($root);
+    $candidateLedger = gitShow($root, $candidate, LEDGER_PATH);
+    $candidateSchema = gitShow($root, $candidate, LEDGER_SCHEMA);
+    if ($candidateLedger['exit'] !== 0 || $candidateSchema['exit'] !== 0) {
+        fwrite(STDERR, "delivery agent event contract: candidate must track the canonical ledger and schema\n");
+        exit(2);
+    }
+    $contents = $candidateLedger['output'];
+    $schemaBytes = $candidateSchema['output'];
+    $priorCommit = $base;
+    $identity = sprintf(
+        'mode=candidate candidate=%s base=%s head=%s',
+        $candidate,
+        $base,
+        $head ?? 'none',
+    );
+    $errors = $topologyErrors;
+} else {
+    $schemaBytes = readRequiredFile($schemaPath, 'schema');
+    $contents = readRequiredFile($ledgerPath, 'ledger');
+    $errors = [];
+    if ($branchBase !== null) {
+        $resolvedBranchBase = resolveCommit($root, $branchBase);
+        $resolvedHead = resolveCommit($root, 'HEAD');
+        if ($resolvedBranchBase === null) {
+            fwrite(STDERR, "delivery agent event contract: could not resolve branch base {$branchBase}\n");
+            exit(2);
+        }
+        if ($resolvedHead === null) {
+            fwrite(STDERR, "delivery agent event contract: could not resolve worktree HEAD\n");
+            exit(2);
+        }
+        $bases = mergeBases($root, $resolvedBranchBase, $resolvedHead);
+        if ($bases === null || count($bases) !== 1) {
+            fwrite(STDERR, "delivery agent event contract: branch history must have exactly one merge base\n");
+            exit(1);
+        }
+        refuseShallowHistory($root);
+        $priorCommit = $bases[0];
+        $identity = sprintf(
+            'mode=branch branch_base=%s head=%s merge_base=%s',
+            $resolvedBranchBase,
+            $resolvedHead,
+            $priorCommit,
+        );
+    } elseif ($base !== null) {
+        $priorCommit = $base;
+    }
+}
+
+try {
+    $schema = json_decode($schemaBytes, flags: JSON_THROW_ON_ERROR);
+} catch (JsonException $exception) {
+    fwrite(STDERR, "delivery agent event contract: schema is not valid JSON: {$exception->getMessage()}\n");
+    exit(1);
+}
+if (!is_object($schema)) {
+    fwrite(STDERR, "delivery agent event contract: schema must be a JSON object\n");
+    exit(1);
+}
+array_push($errors, ...validateLedger($contents, $schema));
 if ($priorLedgerPath !== null) {
     array_push($errors, ...validateAppendOnly(readRequiredFile($priorLedgerPath, 'prior ledger'), $contents));
 }
 if ($priorSchemaPath !== null && readRequiredFile($priorSchemaPath, 'prior schema') !== $schemaBytes) {
     $errors[] = 'the published v1 schema is immutable; create a new schema version';
 }
-if ($base !== null) {
-    $prior = gitShow($root, $base, LEDGER_PATH);
+if ($priorCommit !== null) {
+    $prior = gitShow($root, $priorCommit, LEDGER_PATH);
     if ($prior['exit'] === 0) {
         array_push($errors, ...validateAppendOnly($prior['output'], $contents));
-    } elseif (!str_contains($prior['output'], 'exists on disk, but not in') && !str_contains($prior['output'], 'does not exist in')) {
-        $errors[] = "could not read the base ledger at {$base}";
+    } elseif ($candidate !== null && missingAtCommit($prior)) {
+        $errors[] = 'the declared base must track the canonical ledger';
+    } elseif (!missingAtCommit($prior)) {
+        $errors[] = "could not read the base ledger at {$priorCommit}";
     }
-    $priorSchema = gitShow($root, $base, LEDGER_SCHEMA);
+    $priorSchema = gitShow($root, $priorCommit, LEDGER_SCHEMA);
     if ($priorSchema['exit'] === 0 && $priorSchema['output'] !== $schemaBytes) {
         $errors[] = 'the published v1 schema is immutable; create a new schema version';
-    } elseif ($priorSchema['exit'] !== 0 && !str_contains($priorSchema['output'], 'exists on disk, but not in') && !str_contains($priorSchema['output'], 'does not exist in')) {
-        $errors[] = "could not read the base schema at {$base}";
+    } elseif ($candidate !== null && missingAtCommit($priorSchema)) {
+        $errors[] = 'the declared base must track the canonical schema';
+    } elseif ($priorSchema['exit'] !== 0 && !missingAtCommit($priorSchema)) {
+        $errors[] = "could not read the base schema at {$priorCommit}";
     }
 }
 if ($errors !== []) {
+    if ($identity !== null) {
+        fwrite(STDERR, "delivery agent event contract: {$identity}\n");
+    }
     foreach ($errors as $error) {
         fwrite(STDERR, "delivery agent event contract: {$error}\n");
     }
     exit(1);
+}
+if ($identity !== null) {
+    fwrite(STDOUT, "delivery agent event contract: {$identity}\n");
 }
 fwrite(STDOUT, "delivery agent event contract: PASS\n");
