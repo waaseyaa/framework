@@ -8,6 +8,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 #[ContentEntityType(id: 'article', label: 'Article', storageBackend: 'sql-blob')]
 #[ContentEntityKeys(
@@ -15,6 +16,6 @@ use Waaseyaa\Entity\ContentEntityBase;
 )]
 final class Article extends ContentEntityBase
 {
-    #[Field(type: 'string', label: 'Title', required: false, translatable: false, revisionable: false)]
+    #[Field(type: 'string', label: 'Title', required: false, translatable: false, revisionable: false, read: FieldReadLevel::Public)]
     public string $title = '';
 }

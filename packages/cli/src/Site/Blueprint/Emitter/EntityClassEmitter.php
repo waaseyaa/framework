@@ -34,11 +34,15 @@ use Waaseyaa\SiteContract\SiteManifest;
  * independent of that inference path.
  *
  * `keys.owner` (`BlueprintEntityKeys::$owner`, validated as a relationship
- * field name for ownership policies) is intentionally NOT carried onto the
- * generated entity class: `ContentEntityKeys` has no `owner` parameter and
- * the entity runtime has no "owner" key at all. A future ownership-policy
- * emitter must re-derive the owner relationship field from the blueprint
- * itself, not from generated entity metadata.
+ * field name for ownership policies) is NOT carried onto `ContentEntityKeys`
+ * (it has no `owner` parameter and the entity runtime has no "owner" key at
+ * all), but the owner relationship FIELD it names is (#2788, FW-SITE-
+ * BLUEPRINT-01E): that field is sealed `read: FieldReadLevel::Protected` and
+ * `settings: ['authorizationInput' => true]`, exactly like Node's `uid`
+ * (`packages/node/src/Node.php:84-85`), so a generated `AccessPolicyEmitter`
+ * policy can read it via `AuthorizationInputReader` for an `ownership`
+ * condition. Every other relationship field, and every ordinary scalar
+ * field, is sealed `read: FieldReadLevel::Public`.
  *
  * Field cardinality beyond 1 is a known limitation of the current `#[Field]`
  * attribute surface (`EntityMetadataReader::resolveFields()` hardcodes
@@ -46,17 +50,27 @@ use Waaseyaa\SiteContract\SiteManifest;
  * valued fields, and a future slice widening `#[Field]` itself would apply
  * here unchanged.
  *
- * R2-5: no emitted `#[Field(...)]` declares `read:`, so `EntityMetadataReader`
- * leaves every field's read level `null`, which `EntityValueContainer::read()`
- * treats as `FieldReadLevel::Internal` — every `get()` on a saved or loaded
- * generated entity throws `FieldReadDenied` for every caller (there is no
- * registered policy to grant the read). This is a framework-wide `#[Field]`
- * default, not specific to blueprint generation (`make:content-type` output
- * shares it), but the blueprint contract itself has no way to author a
- * field's intended read level. Left open for a later slice to close: either
- * 01D-2's engine wiring, a governance/policy emitter, or a blueprint-contract
- * extension adding a per-field `read_level` declaration this emitter would
- * then carry onto `#[Field(read: ...)]`.
+ * R2-5 / #2788 follow-up (G5): every emitted `#[Field(...)]` now declares an
+ * explicit `read:` — `Public` for an ordinary scalar field and every
+ * relationship field except the owner field, `Protected` for the owner
+ * field and (workflow-bound entities only) `workflow_state`. This closes the
+ * "every read throws" gap R2-5 originally documented, but only for what this
+ * emitter itself declares: the framework-wide `#[Field]` default (an
+ * undeclared `read:` resolves to `FieldReadLevel::Internal`) is unchanged,
+ * and the blueprint contract still has no per-field `read_level` the author
+ * can override — a field this emitter defaults to `Public` cannot be
+ * authored as `Protected`. Left open for contract follow-up F2.
+ *
+ * A workflow-bound entity also gains a generated `workflow_state` field
+ * (`read: Protected`, `settings: ['authorizationInput' => true]`,
+ * `stored: FieldStorage::Data`) byte-for-byte matching
+ * `Node::$workflow_state` (`packages/node/src/Node.php:81-82`) — the raw
+ * input a generated `workflow_state` policy condition and `TransitionService`
+ * read. This emitter does NOT also emit Node's boolean `status` field: a
+ * blueprint entity may already declare its own `status` field for a
+ * different purpose (`complete.yaml`'s `article.status` is an author-defined
+ * `enum`, not the CW-v1 published flag), and doing so unconditionally would
+ * collide with it. See the WP-C session report for this open question.
  *
  * @api
  */
@@ -98,13 +112,14 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
         foreach ($blueprint->relationships as $relationship) {
             $relationshipsByFromEntity[$relationship->fromEntity][] = $relationship;
         }
+        $boundEntityIds = self::workflowBoundEntityIds($blueprint);
 
         $artifacts = [];
         foreach ($blueprint->entities as $entity) {
             $enumPlans = self::enumFieldPlans($entity);
             $artifacts[] = new GeneratedArtifact(
                 'src/Entity/' . self::pascalCase($entity->id) . '.php',
-                $this->renderEntity($entity, $relationshipsByFromEntity[$entity->id] ?? [], $enumPlans),
+                $this->renderEntity($entity, $relationshipsByFromEntity[$entity->id] ?? [], $enumPlans, isset($boundEntityIds[$entity->id])),
             );
             foreach (self::uniqueEnumClasses($enumPlans) as $shortName => $values) {
                 $artifacts[] = new GeneratedArtifact(
@@ -119,7 +134,7 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
     }
 
     /** @param list<BlueprintRelationship> $relationships @param array<string, array{shortName: string, values: list<string>}> $enumPlans */
-    private function renderEntity(BlueprintEntity $entity, array $relationships, array $enumPlans): string
+    private function renderEntity(BlueprintEntity $entity, array $relationships, array $enumPlans, bool $workflowBound): string
     {
         $className = self::pascalCase($entity->id);
         $safeLabel = self::singleQuoted($entity->label);
@@ -136,8 +151,9 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
             $keysArgs[] = "default_langcode: '{$this->safeId($entity->keys->defaultLangcode)}'";
         }
 
-        $fieldBlock = $this->renderFieldBlock($entity, $relationships, $enumPlans);
+        $fieldBlock = $this->renderFieldBlock($entity, $relationships, $enumPlans, $workflowBound);
         $enumUseBlock = self::renderEnumUseBlock($enumPlans);
+        $fieldStorageUseBlock = $workflowBound ? "use Waaseyaa\\Field\\FieldStorage;\n" : '';
 
         return <<<PHP
             <?php
@@ -150,7 +166,8 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
             use Waaseyaa\\Entity\\Attribute\\ContentEntityType;
             use Waaseyaa\\Entity\\Attribute\\Field;
             use Waaseyaa\\Entity\\ContentEntityBase;
-
+            use Waaseyaa\\Entity\\FieldReadLevel;
+            {$fieldStorageUseBlock}
             #[ContentEntityType(id: '{$this->safeId($entity->id)}', label: {$safeLabel}, storageBackend: '{$entity->storage->value}')]
             #[ContentEntityKeys(
             \x20   {$this->joinArgs($keysArgs)}
@@ -182,7 +199,7 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
     }
 
     /** @param list<BlueprintRelationship> $relationships @param array<string, array{shortName: string, values: list<string>}> $enumPlans */
-    private function renderFieldBlock(BlueprintEntity $entity, array $relationships, array $enumPlans): string
+    private function renderFieldBlock(BlueprintEntity $entity, array $relationships, array $enumPlans, bool $workflowBound): string
     {
         $lines = [];
         foreach (self::sortedFields($entity) as $field) {
@@ -200,24 +217,49 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
             if ($field->type === BlueprintFieldType::Enum) {
                 $shortName = $enumPlans[$field->id]['shortName'];
                 $attrArgs[] = "settings: ['enum_class' => \\App\\Entity\\Enum\\{$shortName}::class]";
+                $attrArgs[] = 'read: FieldReadLevel::Public';
                 $lines[] = "    #[Field({$this->joinArgs($attrArgs)})]";
                 $lines[] = "    public ?{$shortName} \${$this->safeId($field->id)} = null;";
                 $lines[] = '';
                 continue;
             }
 
+            $attrArgs[] = 'read: FieldReadLevel::Public';
             [$phpType, $default] = self::PHP_TYPE_MAP[$field->type->value];
             $lines[] = "    #[Field({$this->joinArgs($attrArgs)})]";
             $lines[] = "    public {$phpType} \${$this->safeId($field->id)} = {$default};";
             $lines[] = '';
         }
 
+        // F5 / decision (e): the owner relationship field is the entity's
+        // authorization input for an `ownership` policy condition — it is
+        // read via `AuthorizationInputReader`, never through the ordinary
+        // `EntityInterface::get()` path, so it is sealed `Protected` exactly
+        // like Node's `uid` (`packages/node/src/Node.php:84-85`) rather than
+        // `Public` like every other relationship field.
         foreach ($relationships as $relationship) {
+            $isOwner = $relationship->fromField === $entity->keys->owner;
             $label = self::singleQuoted(ucwords(strtr($relationship->fromField, '_', ' ')));
             $target = self::singleQuoted($relationship->toEntity);
             $required = $relationship->required ? 'true' : 'false';
-            $lines[] = "    #[Field(type: 'entity_reference', label: {$label}, required: {$required}, settings: ['target_entity_type_id' => {$target}])]";
+            $settings = $isOwner
+                ? "['target_entity_type_id' => {$target}, 'authorizationInput' => true]"
+                : "['target_entity_type_id' => {$target}]";
+            $read = $isOwner ? 'FieldReadLevel::Protected' : 'FieldReadLevel::Public';
+            $lines[] = "    #[Field(type: 'entity_reference', label: {$label}, required: {$required}, settings: {$settings}, read: {$read})]";
             $lines[] = "    public ?int \${$this->safeId($relationship->fromField)} = null;";
+            $lines[] = '';
+        }
+
+        // F5: a workflow-bound entity needs the raw `workflow_state` a
+        // generated `workflow_state` policy condition and `TransitionService`
+        // read — declared byte-for-byte as `Node::$workflow_state`
+        // (`packages/node/src/Node.php:81-82`): `_data`-stored, sealed
+        // `Protected`, and marked `authorizationInput` so
+        // `AuthorizationInputReader` releases it to a generated policy.
+        if ($workflowBound) {
+            $lines[] = "    #[Field(type: 'string', label: 'Workflow state', settings: ['authorizationInput' => true], stored: FieldStorage::Data, read: FieldReadLevel::Protected)]";
+            $lines[] = '    public ?string $workflow_state = null;';
             $lines[] = '';
         }
 
@@ -293,6 +335,19 @@ final class EntityClassEmitter implements BlueprintArtifactEmitterInterface
             }
 
             PHP;
+    }
+
+    /** @return array<string, true> entity id => true, for every entity bound to some blueprint workflow */
+    private static function workflowBoundEntityIds(ApplicationBlueprint $blueprint): array
+    {
+        $bound = [];
+        foreach ($blueprint->workflows as $workflow) {
+            foreach ($workflow->bindings as $binding) {
+                $bound[$binding->entity] = true;
+            }
+        }
+
+        return $bound;
     }
 
     /** @return list<BlueprintField> */
