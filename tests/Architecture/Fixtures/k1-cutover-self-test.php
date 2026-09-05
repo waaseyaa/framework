@@ -110,6 +110,9 @@ function k1CutoverSelfTestDsnBoundary(): void
     $refused = [
         'mysql:host=remote.invalid;dbname=delivery' => 'MySQL projection is local-only; host must be loopback',
         'mysql:host=localhost;host=remote.invalid;dbname=delivery' => 'MySQL DSN must declare exactly one host',
+        'mysql:host=localhost; host =remote.invalid;dbname=delivery' => 'MySQL DSN must declare exactly one host',
+        "mysql:host=localhost;\thost\t=remote.invalid;dbname=delivery" => 'MySQL DSN must declare exactly one host',
+        "mysql:host=localhost;\nhost\n=remote.invalid;dbname=delivery" => 'MySQL DSN must declare exactly one host',
     ];
     foreach ($refused as $dsn => $diagnostic) {
         try {

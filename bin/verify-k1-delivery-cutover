@@ -87,7 +87,7 @@ function projectionAssertDsn(string $dsn): void
     if (!str_starts_with($dsn, 'mysql:')) {
         throw new InvalidArgumentException('DSN must use sqlite or mysql');
     }
-    $matchCount = preg_match_all('/(?:^|;)host=([^;]*)/i', substr($dsn, 6), $matches);
+    $matchCount = preg_match_all('/(?:^|;)\s*host\s*=([^;]*)/i', substr($dsn, 6), $matches);
     if ($matchCount !== 1) {
         throw new InvalidArgumentException('MySQL DSN must declare exactly one host');
     }
