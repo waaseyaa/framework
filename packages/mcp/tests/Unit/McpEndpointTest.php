@@ -18,6 +18,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\AI\Tools\Resource\ContentResourceContent;
 use Waaseyaa\AI\Tools\Resource\ContentResourceDescriptor;
 use Waaseyaa\AI\Tools\Resource\ContentResourceListPage;
+use Waaseyaa\AI\Tools\Resource\ContentResourceListResume;
 use Waaseyaa\AI\Tools\Resource\ContentResourceProviderInterface;
 use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
 use Waaseyaa\AI\Tools\Resource\ContentResourceTemplate;
@@ -873,6 +874,35 @@ final class McpEndpointTest extends TestCase
         self::assertCount(1, $second['result']['resources']);
         self::assertSame('B', $second['result']['resources'][0]['title']);
         self::assertArrayNotHasKey('nextCursor', $second['result']);
+    }
+
+    #[Test]
+    public function resources_list_rejects_unavailable_tampered_and_unknown_provider_cursors(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $registry = $this->resourceRegistry();
+        $codec = new \Waaseyaa\Mcp\Resource\ContentResourceListCursorCodec(
+            \Waaseyaa\Mcp\Tests\Support\McpContentResourceListCursorKeyring::create(),
+        );
+        $binding = \Waaseyaa\Mcp\Resource\ContentResourceListCursorCodec::principalBinding($this->account);
+        $unknownProviderCursor = $codec->seal(new ContentResourceListResume('missing', 'page_2'), $binding);
+
+        $withoutCodec = $this->createEndpoint(resources: $registry, resourcesEnabled: true);
+        self::assertSame(-32602, $this->rpc($withoutCodec, 'resources/list', ['cursor' => 'opaque'])['error']['code']);
+
+        $endpoint = $this->createEndpoint(
+            resources: $registry,
+            resourcesEnabled: true,
+            contentResourceListCursors: $codec,
+        );
+        self::assertSame(
+            -32602,
+            $this->rpc($endpoint, 'resources/list', ['cursor' => $unknownProviderCursor . 'x'])['error']['code'],
+        );
+        self::assertSame(
+            -32602,
+            $this->rpc($endpoint, 'resources/list', ['cursor' => $unknownProviderCursor])['error']['code'],
+        );
     }
 
     #[Test]
