@@ -29,6 +29,13 @@ and both identities together; retrying the same immutable source is recovery.
 
 ## Independent verification and cutover
 
+Independent review found that `--self-test` loaded `HEAD` through durable
+complete-set validation, so it failed in a depth-one checkout. The self-test now
+uses controlled in-memory fixture events and identity bytes. Shallow and
+source-only fixtures prove that self-test succeeds, while durable `plan`,
+`apply`, and `verify` still refuse the same unverifiable `HEAD`; the
+committed-batch fixtures continue to exercise the durable path.
+
 The committed-batch fixture proves that a poisoned working-tree batch does not
 change immutable source replay, that a batch row is projected, and that manifest
 and row corruption are refused by verify and repaired by replay. Receipt hashes

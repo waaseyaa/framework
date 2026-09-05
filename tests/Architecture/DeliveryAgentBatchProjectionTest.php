@@ -24,6 +24,89 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
     }
 
     #[Test]
+    public function self_test_is_history_independent_while_durable_projection_refuses_a_shallow_source(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $fixture = sys_get_temp_dir() . '/waaseyaa_batch_projection_shallow_' . uniqid('', true);
+        $source = $fixture . '/source';
+        $shallow = $fixture . '/shallow';
+        $sourceOnly = $fixture . '/source-only';
+        $fs = new Filesystem();
+        try {
+            $fs->mkdir([
+                $source . '/bin/lib',
+                $source . '/ops/observability/delivery-agent-batches-v1',
+                $source . '/vendor',
+            ]);
+            foreach ([
+                'bin/git',
+                'bin/check-delivery-agent-events',
+                'bin/project-delivery-agent-events',
+                'bin/lib/delivery-agent-event-set.php',
+                'ops/observability/delivery-agent-event-v1.schema.json',
+                'ops/observability/delivery-agent-events-v1.jsonl',
+                'ops/observability/delivery-agent-batch-v1.schema.json',
+                'ops/observability/delivery-agent-v1-freeze.json',
+            ] as $relativePath) {
+                $fs->copy($root . '/' . $relativePath, $source . '/' . $relativePath);
+            }
+            chmod($source . '/bin/git', 0o755);
+            $fs->dumpFile(
+                $source . '/vendor/autoload.php',
+                '<?php require ' . var_export($root . '/vendor/autoload.php', true) . ";\n",
+            );
+
+            $this->git($source, ['init', '--initial-branch=main']);
+            $this->git($source, ['config', 'user.name', 'Projection Shallow Fixture']);
+            $this->git($source, ['config', 'user.email', 'projection-shallow@example.invalid']);
+            $this->git($source, ['add', '--all']);
+            $this->git($source, ['commit', '-m', 'fixture: projection source baseline']);
+            $this->git($source, ['commit', '--allow-empty', '-m', 'fixture: shallow tip']);
+
+            $clone = new Process([
+                $root . '/bin/git',
+                'clone',
+                '--depth=1',
+                '--no-local',
+                'file://' . $source,
+                $shallow,
+            ]);
+            self::assertSame(0, $clone->run(), $clone->getErrorOutput());
+            self::assertSame('true', trim($this->git($shallow, ['rev-parse', '--is-shallow-repository'])));
+
+            $fs->mirror($shallow, $sourceOnly);
+            $fs->remove($sourceOnly . '/.git');
+            self::assertDirectoryDoesNotExist($sourceOnly . '/.git');
+
+            foreach ([$shallow, $sourceOnly] as $selfTestRoot) {
+                $selfTest = new Process(
+                    [PHP_BINARY, $selfTestRoot . '/bin/project-delivery-agent-events', '--self-test'],
+                    $selfTestRoot,
+                    null,
+                    null,
+                    120,
+                );
+                self::assertSame(0, $selfTest->run(), $selfTest->getErrorOutput() . $selfTest->getOutput());
+                self::assertStringContainsString('delivery agent projection self-test: PASS', $selfTest->getOutput());
+            }
+
+            $environment = ['WAASEYAA_DELIVERY_TELEMETRY_DSN' => 'sqlite:' . $fixture . '/projection.sqlite'];
+            self::assertSame(0, $this->project($shallow, $environment, ['install'])->getExitCode());
+            foreach (['plan', 'apply', 'verify'] as $operation) {
+                $durable = $this->project($shallow, $environment, [$operation, '--source-ref=HEAD']);
+                self::assertSame(1, $durable->getExitCode(), $operation);
+                self::assertStringContainsString(
+                    'batch source commit must have an immutable first parent for complete-set validation',
+                    $durable->getErrorOutput(),
+                    $operation,
+                );
+            }
+        } finally {
+            $fs->remove($fixture);
+        }
+    }
+
+    #[Test]
     public function cli_projects_a_committed_batch_and_repairs_projection_drift_from_immutable_source(): void
     {
         $root = dirname(__DIR__, 2);

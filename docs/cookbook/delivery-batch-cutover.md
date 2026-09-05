@@ -7,6 +7,9 @@ analytics projection; it does not publish event evidence or authorize a release.
 ## Preconditions
 
 - Use a clean checkout of the accepted cutover commit with its locked dependencies.
+- Use a non-shallow Git checkout containing the accepted source, its first parent,
+  and the previous projected source history. Source validation refuses incomplete
+  history; fetch the required history before activation.
 - Confirm the freeze manifest matches the accepted v1 ledger and the gate refuses
   mutation or deletion of accepted freeze, batch-schema and batch files.
 - Retain the last successful projection receipt and its immutable source commit.

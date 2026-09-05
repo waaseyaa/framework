@@ -6543,6 +6543,55 @@
             "occurrence": 9
         },
         {
+            "path": "tests/Architecture/DeliveryAgentBatchProjectionTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "29d1a44b961f6542f5883b6cb074cb28436db848260ecf2fb4e7ec7b97ecf1c3",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/DeliveryAgentBatchProjectionTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "29d1a44b961f6542f5883b6cb074cb28436db848260ecf2fb4e7ec7b97ecf1c3",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Architecture/DeliveryAgentBatchProjectionTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/DeliveryAgentBatchProjectionTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Architecture/DeliveryAgentBatchProjectionTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 3
+        },
+        {
+            "path": "tests/Architecture/DeliveryAgentBatchProjectionTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 4
+        },
+        {
+            "path": "tests/Architecture/DeliveryAgentBatchProjectionTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 5
+        },
+        {
             "path": "tests/Architecture/DevRuntimeBootstrapTest.php",
             "pattern": "pdo_sqlite_token",
             "class": "test",
