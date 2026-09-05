@@ -81,7 +81,9 @@ so no consumer can install it. The following decisions replace that approach.
    missing, a resource file missing, a resource file corrupt — must be rejected by
    the complete oracle, not by exit status alone; and hand-edit preservation
    (scaffold, edit, re-check without `--force` keeps the edit; `--force` reports the
-   overwrite). Wired into the `packaged-form` CI job beside the existing proofs.
+   overwrite). Runs as its own dedicated `ci/cli-auth-scaffold` job in
+   `.github/workflows/ci.yml`, alongside the existing `packaged-form` checks and
+   mirroring the `check-cli-sync-rules` job's wiring.
 5. **Coverage.** Changed-line coverage is closed by unit tests that drive the
    separate consumer branches through an injectable install-path resolver plus the
    packaged proof; the 80% threshold and coverage configuration are untouched.
