@@ -128,6 +128,41 @@ const KNOWN_LEAK_FAMILIES = [
     ['/^NUL$/', 'Windows UNC redirection residue (.gitignore /NUL)'],
 ];
 
+/**
+ * Environment variables through which git selects a repository, work tree,
+ * index or object store *instead of* discovering them from `-C $root`. This
+ * mirrors git's own `local_repo_env` (environment.c) — the set git clears
+ * before running a command in another repository — plus GIT_NAMESPACE.
+ *
+ * Git hooks export some of these: a pre-push from a linked worktree carries
+ * `GIT_DIR=<main>/.git/worktrees/<name>`, and bin/project-hooks runs
+ * check-pr-preflight (hence this gate) with that environment intact. Every
+ * git child this gate spawns must drop them, otherwise `git -C $root` acts on
+ * the hook's repository: the tracked-file enumeration would be the wrong
+ * repository's, and any future git subcommand added here could reinitialise
+ * the developer's real gitdir (#2929's first revision did exactly that).
+ *
+ * @var list<string>
+ */
+const REPOSITORY_LOCAL_GIT_ENVIRONMENT = [
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_COMMON_DIR',
+    'GIT_CONFIG',
+    'GIT_CONFIG_COUNT',
+    'GIT_CONFIG_PARAMETERS',
+    'GIT_DIR',
+    'GIT_GRAFT_FILE',
+    'GIT_IMPLICIT_WORK_TREE',
+    'GIT_INDEX_FILE',
+    'GIT_NAMESPACE',
+    'GIT_NO_REPLACE_OBJECTS',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_PREFIX',
+    'GIT_REPLACE_REF_BASE',
+    'GIT_SHALLOW_FILE',
+    'GIT_WORK_TREE',
+];
+
 $root = dirname(__DIR__);
 $list = false;
 foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
@@ -195,6 +230,8 @@ function trackedTopLevelEntries(string $root): array
         ['git', '-C', $root, 'ls-files', '-z'],
         [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
+        null,
+        repositoryGitEnvironment(),
     );
     if (!is_resource($process)) {
         fwrite(STDERR, "check-repo-root-hygiene: unable to start Git.\n");
@@ -222,6 +259,23 @@ function trackedTopLevelEntries(string $root): array
     }
 
     return $tracked;
+}
+
+/**
+ * The current process environment with every repository-selecting git
+ * variable removed, so a git child resolves its repository from `-C $root`
+ * alone (see REPOSITORY_LOCAL_GIT_ENVIRONMENT).
+ *
+ * @return array<string, string>
+ */
+function repositoryGitEnvironment(): array
+{
+    $environment = getenv();
+    foreach (REPOSITORY_LOCAL_GIT_ENVIRONMENT as $name) {
+        unset($environment[$name]);
+    }
+
+    return $environment;
 }
 
 function isExpectedLocalEntry(string $entry): bool

@@ -175,6 +175,16 @@ the default preflight profile (pre-push). It has no recorded baseline, so
 entry, or — only for a genuinely expected local artifact — to add it to `EXPECTED_LOCAL_ENTRIES`
 with its source. Fixture proof: `tests/Architecture/CheckRepoRootHygieneGateTest.php`.
 
+The gate's one git child (`git -C <root> ls-files -z`) runs with git's repository-selecting
+environment scrubbed (`REPOSITORY_LOCAL_GIT_ENVIRONMENT` in the script: `GIT_DIR`,
+`GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_OBJECT_DIRECTORY`, `GIT_CONFIG*`,
+`GIT_PREFIX`, `GIT_NAMESPACE`, and the rest of git's own `local_repo_env`). Git hooks export
+`GIT_DIR` (a pre-push from a linked worktree carries `GIT_DIR=<main>/.git/worktrees/<name>`),
+and `bin/project-hooks` runs the preflight — hence this gate — with that environment intact;
+without the scrub, `git -C <root>` enumerated the hook's repository, so a stray root entry that
+happened to be tracked there passed. The fixture test's hostile-`GIT_DIR` case proves the
+enumeration is the target repository's and the target's `core.bare` stays `false`.
+
 **Producer trace (recorded so nobody repeats it).** The only in-repo producer of the
 `waaseyaa_loader_test_*` name is `packages/foundation/tests/Unit/Migration/MigrationLoaderArrayFormTest.php`
 (`sys_get_temp_dir() . '/waaseyaa_loader_test_' . uniqid()`), unchanged since authored (`git log -S`)

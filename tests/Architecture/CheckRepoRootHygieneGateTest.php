@@ -191,6 +191,36 @@ final class CheckRepoRootHygieneGateTest extends TestCase
     }
 
     #[Test]
+    public function an_inherited_hook_git_environment_never_selects_another_repository(): void
+    {
+        // A pre-push hook run from a linked worktree exports
+        // GIT_DIR=<main>/.git/worktrees/<name>, and bin/project-hooks runs
+        // check-pr-preflight — hence this gate — with that environment
+        // intact. With GIT_DIR set, `git -C $root` no longer selects the
+        // repository by discovery: it enumerates the hook's repository, so a
+        // stray file that happens to be tracked over there is silently
+        // accepted here. The fixture plays the developer's main checkout; its
+        // linked worktree gitdir is the hostile GIT_DIR, and the linked branch
+        // tracks a file that is only a stray in the main root.
+        $linked = $this->tmpRoot . '/.worktrees/pushing-from-here';
+        $this->git(['worktree', 'add', '-q', $linked, '-b', 'pushing']);
+        file_put_contents($linked . '/hook-side-only.txt', "tracked on the hook side\n");
+        $this->gitIn($linked, ['add', '-A']);
+        $this->gitIn($linked, ['commit', '-q', '-m', 'hook side']);
+        file_put_contents($this->tmpRoot . '/hook-side-only.txt', "stray in the target root\n");
+        $hostile = ['GIT_DIR' => $this->tmpRoot . '/.git/worktrees/pushing-from-here'];
+
+        $process = new Process([PHP_BINARY, $this->gate, '--root=' . $this->tmpRoot], $this->repoRoot, $hostile);
+        $exit = $process->run();
+        $out = $process->getOutput() . $process->getErrorOutput();
+
+        self::assertSame('false', trim($this->git(['config', 'core.bare'])), 'The gate must never touch the repository the hook environment points at.');
+        self::assertSame(1, $exit, "The gate must enumerate the root it was given, not the hook's repository.\n{$out}");
+        self::assertStringContainsString('hook-side-only.txt', $out, 'The stray file is tracked only in the hook-side repository; the target root must still report it.');
+        self::assertSame('', trim($this->git(['status', '--porcelain', '--', 'README.md'])), 'The fixture repository must still be a usable work tree.');
+    }
+
+    #[Test]
     public function a_root_that_is_not_a_git_repository_fails_closed(): void
     {
         $bare = $this->tmpRoot . '/not-a-repo';
@@ -233,16 +263,51 @@ final class CheckRepoRootHygieneGateTest extends TestCase
     /** @param list<string> $arguments */
     private function git(array $arguments): string
     {
-        $process = new Process(['git', '-C', $this->tmpRoot, ...$arguments]);
+        return $this->gitIn($this->tmpRoot, $arguments);
+    }
+
+    /** @param list<string> $arguments */
+    private function gitIn(string $directory, array $arguments): string
+    {
+        $process = new Process(['git', '-C', $directory, ...$arguments], null, $this->cleanGitEnvironment());
         $process->mustRun();
 
         return $process->getOutput();
     }
 
+    /**
+     * Unset every repository-selecting git variable (Symfony Process removes
+     * a variable set to false) so the test's own git calls, like the gate's,
+     * act on the fixture whatever environment PHPUnit inherited.
+     *
+     * @return array<string, false>
+     */
+    private function cleanGitEnvironment(): array
+    {
+        return array_fill_keys([
+            'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+            'GIT_COMMON_DIR',
+            'GIT_CONFIG',
+            'GIT_CONFIG_COUNT',
+            'GIT_CONFIG_PARAMETERS',
+            'GIT_DIR',
+            'GIT_GRAFT_FILE',
+            'GIT_IMPLICIT_WORK_TREE',
+            'GIT_INDEX_FILE',
+            'GIT_NAMESPACE',
+            'GIT_NO_REPLACE_OBJECTS',
+            'GIT_OBJECT_DIRECTORY',
+            'GIT_PREFIX',
+            'GIT_REPLACE_REF_BASE',
+            'GIT_SHALLOW_FILE',
+            'GIT_WORK_TREE',
+        ], false);
+    }
+
     /** @return array{int, string} */
     private function runGate(?string $root = null): array
     {
-        $process = new Process([PHP_BINARY, $this->gate, '--root=' . ($root ?? $this->tmpRoot)], $this->repoRoot);
+        $process = new Process([PHP_BINARY, $this->gate, '--root=' . ($root ?? $this->tmpRoot)], $this->repoRoot, $this->cleanGitEnvironment());
         $process->run();
 
         return [$process->getExitCode() ?? -1, $process->getOutput() . $process->getErrorOutput()];
