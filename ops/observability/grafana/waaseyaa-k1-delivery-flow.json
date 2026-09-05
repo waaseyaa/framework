@@ -24,7 +24,7 @@
         "id": 8,
         "type": "table",
         "title": "Governed projection identity",
-        "description": "Current singleton identity and freshness state for the governed delivery-agent-event projection; the dashboard time range does not filter this state view.",
+        "description": "Current singleton identity for the governed delivery-agent-event projection. Frozen v1 ledger SHA-256 is the cutover JSONL bytes; complete replay SHA-256 covers frozen v1 plus accepted batches. Missing state or v2 identity fields display as unknown. The dashboard time range does not filter this state view.",
         "gridPos": { "h": 5, "w": 24, "x": 0, "y": 6 },
         "datasource": { "type": "mysql", "uid": "waaseyaa-devlake-mysql" },
         "targets": [
@@ -32,7 +32,7 @@
             "refId": "A",
             "format": "table",
             "rawQuery": true,
-            "rawSql": "SELECT source_commit_sha AS `Source commit`, ledger_sha256 AS `Ledger SHA-256`, schema_sha256 AS `Schema SHA-256`, event_count AS `Events`, generation AS `Generation`, projected_at AS `Projected (UTC)` FROM waaseyaa_delivery_projection_state WHERE projection_id = 'delivery-agent-events/v1'"
+            "rawSql": "SELECT COALESCE(s.source_commit_sha, 'unknown') AS `Source commit`, COALESCE(s.projector_version, 'unknown') AS `Projector version`, COALESCE(s.generation, 'unknown') AS `Generation`, COALESCE(s.event_count, 'unknown') AS `Events`, COALESCE(s.projected_at, 'unknown') AS `Projected (UTC)`, COALESCE(s.ledger_sha256, 'unknown') AS `Frozen v1 ledger SHA-256`, COALESCE(i.replay_sha256, 'unknown') AS `Complete replay SHA-256`, COALESCE(i.batch_manifest_sha256, 'unknown') AS `Batch manifest SHA-256` FROM (SELECT 'delivery-agent-events/v1' AS projection_id) AS p LEFT JOIN waaseyaa_delivery_projection_state AS s ON s.projection_id = p.projection_id LEFT JOIN waaseyaa_delivery_projection_identity_v2 AS i ON i.projection_id = p.projection_id"
           }
         ],
         "options": { "showHeader": true, "cellHeight": "sm" }
