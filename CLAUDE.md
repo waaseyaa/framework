@@ -208,7 +208,12 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
   not accepted as a spec acknowledgement (the drift detector warns and
   discards it; it is not a hard rejection).
 - Never `git stash`. Commit to a branch instead.
-- `composer test` must pass before any commit.
+- Intermediate branch commits may be recoverable checkpoints, including deliberately
+  red TDD states; they are not release-ready. Qualify the one review-candidate tip
+  with `php bin/check-pr-preflight --full` and the Unit, Integration, and Architecture
+  suites locally, then require CI green on the exact pushed head before acceptance.
+  Ordinary landings use governed squash auto-merge. See
+  `docs/cookbook/commit-qualification.md`.
 - Open PRs via `gh`; require CI green on the exact pushed head before merge.
 
 ### Project hooks

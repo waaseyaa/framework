@@ -56,6 +56,11 @@ maintainer.
 - Keep one review candidate per work package. Add an appropriate
   `changes/unreleased/<issue>.<slice>.<type>.md` fragment for the governed
   release compiler.
+- Intermediate unpublished or branch commits may be recoverable checkpoints;
+  do not claim they are individually release-ready. Qualification binds the
+  review-candidate head. Ordinary merges to `main` use the governed squash
+  auto-merge path. The release-cut workflow preserves its exact gated SHA as
+  a distinct boundary; see `docs/cookbook/commit-qualification.md`.
 - Review spec impact explicitly. Update enduring contracts when behavior or
   architecture changes. If a change set affects no specs, no trailer is
   required, and one is not accepted as a spec acknowledgement — the drift
