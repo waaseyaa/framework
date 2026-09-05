@@ -220,6 +220,17 @@ absolute paths for development diagnostics. Production, staging, unknown,
 missing, empty, and malformed environment values redact paths. Provider wiring
 must not re-read `APP_ENV` or PHP environment superglobals.
 
+## Framework rule synchronization
+
+`sync-rules [--force] [--dry-run]` reads the canonical `.claude/rules/`
+resources shipped by `waaseyaa/foundation`, anchored on that package's loaded
+`ServiceProvider` class location. It supports direct-package and aggregate
+consumers and follows Foundation when Composer loads it outside the CLI package's parent directory. This does not widen the separate provenance policy. Neither
+`waaseyaa/framework` nor an application-side source copy is required. The
+application root determines only the target `.claude/rules/` directory.
+Dry-run reports additions/updates without creating that directory or writing
+files; existing overwrite, counts and missing-source diagnostics are unchanged.
+
 ## Configuration authority commands and diagnostics
 
 The reserved `config:*` namespace is owned by the framework CLI. Provider

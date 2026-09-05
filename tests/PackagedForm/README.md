@@ -85,3 +85,12 @@ only the framework composition contract can have supplied), and
 (`Cannot auto-wire … unresolvable parameter`) is rejected by name whatever the
 exit code. Like `check-cli-ai-commands-optional`, it archives `HEAD`, so it
 proves committed bytes, not the working tree.
+
+`check-cli-sync-rules` covers the package-owned rule boundary (#2832). It
+archives the candidate commit and installs copied packages into the accepted
+Content Pipeline direct profile (23 runtime and 5 development requirements),
+without `waaseyaa/framework`, and an aggregate control. The real CLI must report
+the three Foundation rule files and 3/0/0 counts without creating application
+rules. Missing and empty installed resources are negative controls against a
+vacuously passing proof. The historical failing consumer pin is context only;
+the harness qualifies the candidate bytes.

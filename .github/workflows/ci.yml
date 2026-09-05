@@ -1618,6 +1618,34 @@ jobs:
       - name: Run health:report in a packaged-form consumer
         run: bash tests/PackagedForm/check-cli-health-report
 
+  cli-sync-rules:
+    # #2832: prove package-owned rules from candidate bytes in direct and aggregate consumers.
+    name: ci/cli-sync-rules
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      # Installs into a fresh mktemp consumer with its own dependency graph, so
+      # it cannot consume prepare-test-plan's vendor archive. Exact key only —
+      # no restore-keys — same rationale as the other consumer-shaped jobs.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Run sync-rules in packaged-form consumers
+        run: bash tests/PackagedForm/check-cli-sync-rules
+
   split-artifact-acceptance:
     # #2649 (child of #2527). Release Gate 2 must prove that the EXACT candidate
     # SURVIVES PACKAGING, not merely that it boots. ci/fresh-install-boot builds
