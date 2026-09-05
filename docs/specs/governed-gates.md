@@ -51,6 +51,25 @@ command, repair command, profile, and the CI surface that enforces it. A self-te
 command, and (b) every gate names a CI enforcement surface that actually exists in the workflow
 files — so the manifest cannot silently drift from CI.
 
+Vendor-freshness precondition (#2926): before any gate runs, preflight calls the shared,
+dependency-free `bin/lib/vendor-freshness.php` against the repository root. It compares
+`composer.lock` (packages and packages-dev — by name, version, and source/dist reference)
+with `vendor/composer/installed.json`, and the PSR-4 namespaces a fresh dump must carry —
+the root `composer.json`'s autoload and autoload-dev plus every locked package's autoload
+(Composer never dumps a dependency's autoload-dev) — with `vendor/composer/autoload_psr4.php`. A stale or missing `vendor/`
+short-circuits with `VENDOR_FRESHNESS_EXIT_CODE` (3 — distinct from 0 pass, 1 defect, 2 gate
+infrastructure, 255 PHP fatal) and one actionable `vendor/ is stale relative to composer.lock —
+run composer install` message; **no gate runs**, because their results against a stale
+checkout would misreport environment faults as repository defects (an uncaught
+`Opis\JsonSchema\Validator` fatal in the delivery-ledger gate; an "orphaned" public-surface
+declaration whose repair is a CHANGELOG directive). The gates that dereference locked packages
+or the autoloader — `bin/check-delivery-agent-events`, `tools/check-surface-parity.php`,
+`bin/generate-surface-map` — run the same precondition themselves, so they behave identically
+when invoked directly or by CI's `run_gate`. The precondition is deliberately **not** a manifest
+gate: hosted CI installs fresh and can never observe this state, so a manifest entry would be a
+no-op in CI while still needing an `enforced_by` surface; `bin/check-vendor-fresh` remains the
+standalone local guard over the same library. `--list` does not require a fresh `vendor/`.
+
 State semantics: preflight evaluates the committed range against `origin/main` (or
 `WAASEYAA_DRIFT_BASE`) **plus staged, unstaged, and untracked worktree files**. Spec-review
 trailers remain commit metadata: a committed trailer cannot pre-approve a later worktree source
@@ -191,6 +210,7 @@ Applies to all four S1 rosters: `s1-configuration-activation`, `s1-configuration
 | Preflight command | `bin/check-pr-preflight` |
 | PHPUnit skip policy | `bin/check-phpunit-skip-policy`, `tools/phpunit-skip-policy.json`, `docs/specs/phpunit-skip-governance.md` |
 | Gate manifest | `tools/preflight-gates.json` |
+| Vendor-freshness precondition | `bin/lib/vendor-freshness.php` (shared library, `VENDOR_FRESHNESS_EXIT_CODE`), `bin/check-vendor-fresh` (standalone local guard); callers `bin/check-pr-preflight`, `bin/check-delivery-agent-events`, `tools/check-surface-parity.php`, `bin/generate-surface-map`; proofs `tests/Architecture/VendorFreshnessPreconditionTest.php`, `tests/Architecture/SurfaceDeclarationEnvironmentFaultTest.php`, `tests/Integration/Policy/CheckVendorFreshTest.php` |
 | Runtime-policy custody | `bin/check-runtime-policy-custody`, `tools/runtime-policy-custody-baseline.php` |
 | Refresh command | `bin/refresh-governance-artifacts` |
 | Manifest/CI parity test | `tests/Architecture/PreflightParityTest.php` |
