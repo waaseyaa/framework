@@ -1,5 +1,11 @@
 # Search
 
+<!-- Spec reviewed 2026-09-05 - #2636: SearchContentCatalogueInterface.list()
+returns SearchCataloguePage with optional SearchCatalogueScanPosition resume;
+FTS5 still bounds each page to 500 scanned / 50 visible. Wire pagination and
+AEAD cursors live in mcp-endpoint.md / packages/search/README.md — this file
+keeps only cross-cutting invariants. -->
+
 Canonical contract documentation lives in [`packages/search/README.md`](../../packages/search/README.md)
 (the orchestration table's spec target for `packages/search/*`). This file
 keeps only the cross-cutting invariants.
