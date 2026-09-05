@@ -265,19 +265,19 @@
         },
         {
             "path": "packages/seo/tests/Unit/Discovery/DiscoverySurfaceGovernanceTest.php",
-            "reason": "Public surface map is only present in the monorepo tree.",
+            "reason": "Public surface declarations are only composable in the monorepo tree.",
             "occurrence": 1,
             "classification": "optional-package-form",
-            "predicate": "is_file(monorepo docs/public-surface-map.php)",
-            "rationale": "The surface map is intentionally absent from the split SEO repository."
+            "predicate": "is_file(monorepo tools/lib/compose-public-surface.php)",
+            "rationale": "The composed surface view is served by monorepo tooling; the split SEO repository carries no tools/lib."
         },
         {
             "path": "packages/seo/tests/Unit/Discovery/SitemapPathTest.php",
-            "reason": "Public surface map is only present in the monorepo tree.",
+            "reason": "Public surface declarations are only composable in the monorepo tree.",
             "occurrence": 1,
             "classification": "optional-package-form",
-            "predicate": "is_file(monorepo docs/public-surface-map.php)",
-            "rationale": "The sitemap classification map is intentionally absent from the split SEO repository."
+            "predicate": "is_file(monorepo tools/lib/compose-public-surface.php)",
+            "rationale": "The sitemap classification is composed from the declaration plane by monorepo tooling absent from the split repository."
         },
         {
             "path": "packages/ssr/tests/Unit/HomepageTemplateTest.php",

@@ -69,6 +69,12 @@ Rules:
   returns, so `require` consumers are unchanged.
 - `owner(string $fqcn): ?string` — the owning package by PSR-4.
 
+`tools/lib/compose-public-surface.php` is the path-based entry point: `require`
+it and receive the composed `FQCN => disposition` map. Package-local tests use it
+exactly as they once required the aggregate, without naming a `Waaseyaa\Tooling`
+class (`bin/check-package-layers` PL010 forbids package tests referencing a
+namespace that is not a PSR-4 package root).
+
 `Waaseyaa\Tooling\SurfaceScanner` (`tools/lib/SurfaceScanner.php`) is the
 existing php-parser walk lifted out of the gate: it discovers every
 interface, abstract class, trait and enum under `packages/*/src` (the same
@@ -161,7 +167,7 @@ infrastructure (parser, git, malformed declaration file).
 |---|---|
 | `tests/Integration/SurfaceMap/PublicSurfaceVerificationTest.php` | reads the composed declarations; the source-regex duplicate-key test is replaced by §4 *duplicate* |
 | `tests/Architecture/GenerationErrorCodeBoundaryTest.php` | reads the composed declarations (asserts a disposition a PR may have just declared) |
-| `packages/{page-builder,publishing,seo}/tests/...PublicSurface*Test.php`, `SitemapPathTest`, `DiscoverySurfaceGovernanceTest` | unchanged: they `require` the tracked aggregate for long-established entries and skip in split form; a lagging aggregate cannot change those assertions |
+| `packages/{page-builder,publishing,seo}/tests/...PublicSurface*Test.php`, `SitemapPathTest`, `DiscoverySurfaceGovernanceTest` | `require` `tools/lib/compose-public-surface.php` (live composition, never the lagging aggregate); the seo pair keeps its split-form skip, predicated on that file |
 | `tools/check-changelog-discipline.sh` | `packages/*/public-surface.php` is a public-surface file |
 | `.github/workflows/surface-parity.yml` | triggers on `packages/*/public-surface.php` |
 | `bin/check-external-consumers`, spec cross-references | unchanged (the aggregate path still exists) |

@@ -50,13 +50,16 @@ final class DiscoverySurfaceGovernanceTest extends TestCase
     /** @return array<string, string> FQCN => disposition */
     private static function surfaceMap(): array
     {
-        $path = dirname(__DIR__, 5) . '/docs/public-surface-map.php';
-        if (!is_file($path)) {
-            self::markTestSkipped('Public surface map is only present in the monorepo tree.');
+        // Compose from the package-local declaration plane; the generated
+        // docs/public-surface-map.php may lag until the next release cut.
+        $root = dirname(__DIR__, 5);
+        $composer = $root . '/tools/lib/compose-public-surface.php';
+        if (!is_file($composer)) {
+            self::markTestSkipped('Public surface declarations are only composable in the monorepo tree.');
         }
 
         /** @var array<string, string> $map */
-        $map = require $path;
+        $map = require $composer;
 
         return $map;
     }
