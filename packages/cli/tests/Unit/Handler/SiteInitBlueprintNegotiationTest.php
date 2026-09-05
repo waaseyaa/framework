@@ -152,6 +152,65 @@ final class SiteInitBlueprintNegotiationTest extends TestCase
         self::assertStringStartsWith('generation GEN010_UNIT_PATH_CONFLICT:', $document['errors'][0]['message']);
     }
 
+    #[Test]
+    public function maliciousPhpIdentifierIsCodedBeforeAnyWrite(): void
+    {
+        $root = $this->root();
+        $answers = $root . '/answers.yaml';
+        $manifest = str_replace('id: article', 'id: die', $this->blueprintManifest());
+        file_put_contents($answers, $manifest);
+
+        $tester = $this->tester($root);
+        $tester->execute(["--answers={$answers}", "--project-root={$root}", '--json', '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        $document = json_decode(trim($tester->getStdout()), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertCount(1, $document['errors']);
+        self::assertSame('GEN006_MALICIOUS_IDENTIFIER', $document['errors'][0]['code']);
+        self::assertSame('/application_blueprint/entities/die/id', $document['errors'][0]['pointer']);
+        self::assertStringContainsString('reserved PHP word', $document['errors'][0]['message']);
+        self::assertDirectoryDoesNotExist($root . '/.waaseyaa');
+    }
+
+    #[Test]
+    public function priorBlueprintRefusesBlueprintFreeTransitionWithCodedGen011BeforeAnyWrite(): void
+    {
+        $root = $this->root();
+        file_put_contents($root . '/composer.json', "{}\n");
+        file_put_contents($root . '/composer.lock', "{}\n");
+        $answers = $this->writeAnswers($root);
+        $receipt = $root . '/decision.json';
+        $manifest = new \Waaseyaa\SiteContract\SiteManifestParser()->parse((string) file_get_contents($answers));
+        $decision = \Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::fromArray([
+            'schema' => \Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::SCHEMA_ID,
+            'version' => \Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt::CONTRACT_VERSION,
+            'decision' => 'approved',
+            'blueprint_digest' => $manifest->applicationBlueprint->digest,
+            'manifest_digest' => $manifest->digest,
+            'actor' => 'operator',
+            'decided_at' => '2026-09-05T12:00:00Z',
+            'mechanism' => 'manual-review',
+        ]);
+        file_put_contents($receipt, \Waaseyaa\SiteContract\CanonicalJson::encode($decision->toArray()) . "\n");
+
+        $applyTester = $this->tester($root);
+        $applyTester->execute(["--answers={$answers}", "--project-root={$root}", '--json', '--yes', "--decision-receipt={$receipt}"]);
+        self::assertSame(0, $applyTester->getExitCode(), $applyTester->getStdout() . $applyTester->getStderr());
+        $before = (string) file_get_contents($root . '/.waaseyaa/generated.json');
+
+        $plainAnswers = $root . '/plain-answers.yaml';
+        file_put_contents($plainAnswers, $this->blueprintFreeManifest());
+        $tester = $this->tester($root);
+        $tester->execute(["--answers={$plainAnswers}", "--project-root={$root}", '--json', '--yes']);
+
+        self::assertSame(2, $tester->getExitCode());
+        $document = json_decode(trim($tester->getStdout()), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertCount(1, $document['errors']);
+        self::assertSame('GEN011_UNAUTHORIZED_SET_DELTA', $document['errors'][0]['code']);
+        self::assertSame('/application_blueprint', $document['errors'][0]['pointer']);
+        self::assertSame($before, file_get_contents($root . '/.waaseyaa/generated.json'));
+    }
+
     private function tester(string $root): CliTester
     {
         $provider = new SiteServiceProvider(projectRoot: $root);

@@ -139,10 +139,11 @@ final readonly class SiteInitHandler
             $violation = $exception->violations[0];
             $this->writeError($io, sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message), $json, code: $violation->code === 'SITE050_DECISION_RECEIPT_INVALID' ? $violation->code : null, pointer: $violation->path);
         } catch (GenerationRefusalException $exception) {
-            // Blueprint activation makes compiler and approval refusals part
-            // of the coded public contract. A blueprint-free engine refusal
-            // retains the legacy message-only JSON envelope.
-            if ($exception->source === 'site:init' || $blueprintInvocation) {
+            // Current and previously applied blueprint refusals share the coded
+            // contract. Other engine refusals keep their legacy JSON envelope.
+            if ($exception->source === 'site:init'
+                || $blueprintInvocation
+                || ($exception->violations[0]->pointer ?? null) === '/application_blueprint') {
                 $this->writeCodedError($io, $exception, $json);
             } else {
                 $this->writeError($io, $exception->getMessage(), $json);

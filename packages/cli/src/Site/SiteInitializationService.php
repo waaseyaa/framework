@@ -617,7 +617,7 @@ final class SiteInitializationService
                 throw new SiteInitializationCollisionException('Generated ownership metadata does not bind the current manifest authority.');
             }
             if ($manifest->applicationBlueprint !== null && !array_key_exists('application_blueprint', $prior)) {
-                $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'A generated blueprint root requires its matching applied approval evidence.');
+                $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'A generated blueprint root requires its matching applied approval evidence.', pointer: '/application_blueprint');
             }
             if (array_key_exists('application_blueprint', $prior)) {
                 try {
@@ -643,7 +643,7 @@ final class SiteInitializationService
         if ($existing !== null && $plan->unitId === 'site'
             && $existing['generator']['fqcn'] === ApplicationBlueprintCompiler::class
             && $plan->generatorFqcn !== ApplicationBlueprintCompiler::class) {
-            $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'An applied blueprint root cannot transition back to the manifest-only compiler.');
+            $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'An applied blueprint root cannot transition back to the manifest-only compiler.', pointer: '/application_blueprint');
         }
         $approvedRootTransition = $existing !== null
             && $plan->unitId === 'site'
@@ -1169,9 +1169,9 @@ final class SiteInitializationService
         return json_encode($key, JSON_THROW_ON_ERROR) . $colon . $value;
     }
 
-    private function unitRefusal(GenerationErrorCode $code, string $message, ?string $path = null): never
+    private function unitRefusal(GenerationErrorCode $code, string $message, ?string $path = null, ?string $pointer = null): never
     {
-        throw new GenerationRefusalException('generation', [new GenerationViolation($code, $message, $path)]);
+        throw new GenerationRefusalException('generation', [new GenerationViolation($code, $message, $path, $pointer)]);
     }
 
     /**
