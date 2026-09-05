@@ -51,7 +51,7 @@ maintainer.
   name fails that fetch. Preferred sequence: create the worktree on an
   already-remote tip (`origin/main` or another published branch), relocate the
   agent root if needed, then create the feature branch inside the worktree.
-  Alternative: create the feature branch first, `git push -u origin HEAD` so
+  Alternative: create the feature branch first, `bin/git push -u origin HEAD` so
   the remote branch exists, then relocate. Until the branch is on `origin`,
   keep editing via absolute paths in the worktree rather than relocating.
   Install worktree `vendor/` (or otherwise satisfy local gates) before the
