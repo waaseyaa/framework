@@ -1188,9 +1188,16 @@ abstract class Migration
     public array $after = [];  // package names this migration must run after
 
     abstract public function up(SchemaBuilder $schema): void;
-    public function down(SchemaBuilder $schema): void {}  // optional rollback
+    public function providesSupportedReverse(): bool { return false; }  // explicit reverse opt-in (#2731)
+    public function down(SchemaBuilder $schema): void {}  // reverse body; ignored unless supported
 }
 ```
+
+Forward-only is the default. A `down()` override alone is not a supported reverse
+plan. Test fixtures and new migrations may return `true` from
+`providesSupportedReverse()`. Checksum-bound first-party historical files must
+not add that method — register exact ledger ids in `LegacyReversePlanCatalog`
+instead (see `docs/specs/s1-schema-authority.md` §Rollback and verification).
 
 ### SchemaBuilder
 
@@ -1253,7 +1260,7 @@ final class Migrator
 }
 ```
 
-Migrations are topologically sorted by `Migration::$after` dependencies. Each batch gets an incrementing batch number. Rollback undoes the last batch in reverse order.
+Migrations are topologically sorted by `Migration::$after` dependencies. Each batch gets an incrementing batch number. Rollback undoes the last batch in reverse order only when every node has an explicit supported reverse plan, the loaded source and package match the applied ledger identity (`[S1-DB113]`), and each `down()` changes the logical schema fingerprint (`[S1-DB114]`); unsupported reverses refuse with `[S1-DB104]` and leave schema and ledger unchanged (#2731).
 
 ### Fresh-install reconciliation (#2701)
 

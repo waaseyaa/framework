@@ -199,4 +199,37 @@ final class SchemaAuthorityRetainedRedTest extends TestCase
         self::assertTrue($refused, 'Rollback reported success without an executable reverse source.');
         self::assertTrue($repository->hasRun('app:missing_source'));
     }
+
+    #[Test]
+    public function rollback_refuses_shipped_oidc_noop_reverse_and_preserves_authority(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $repository = new MigrationRepository($connection);
+        $repository->createTable();
+        $migrator = new Migrator($connection, $repository);
+        $schema = new SchemaBuilder($connection);
+
+        $migration = require dirname(__DIR__, 4) . '/oidc/migrations/2026_05_25_000002_oidc_token_schema.php';
+        self::assertInstanceOf(Migration::class, $migration);
+
+        $id = 'waaseyaa/oidc:2026_05_25_000002_oidc_token_schema';
+        $catalogue = ['waaseyaa/oidc' => [$id => $migration]];
+        $migrator->run($catalogue);
+
+        self::assertTrue($schema->hasTable('oidc_access_token'));
+        self::assertTrue($schema->hasTable('oidc_refresh_token'));
+        self::assertTrue($repository->hasRun($id));
+
+        try {
+            $migrator->rollback($catalogue);
+            self::fail('Shipped no-op OIDC reverse must refuse.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('[S1-DB104]', $exception->getMessage());
+        }
+
+        self::assertTrue($schema->hasTable('oidc_access_token'));
+        self::assertTrue($schema->hasTable('oidc_refresh_token'));
+        self::assertTrue($repository->hasRun($id));
+        self::assertNotSame([], $repository->getCompleted());
+    }
 }

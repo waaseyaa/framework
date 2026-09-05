@@ -51,6 +51,10 @@ final class MigrationRoundTripTest extends TestCase
                         $table->timestamps();
                     });
                 }
+                public function providesSupportedReverse(): bool
+                {
+                    return true;
+                }
                 public function down(SchemaBuilder $schema): void
                 {
                     $schema->dropIfExists('articles');

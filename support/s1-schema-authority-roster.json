@@ -6860,6 +6860,13 @@
             "occurrence": 3
         },
         {
+            "path": "packages/foundation/tests/Integration/Migration/SchemaAuthorityRetainedRedTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 4
+        },
+        {
             "path": "packages/foundation/tests/Integration/Migration/SchemaAuthoritySteadyStateConcurrencyTest.php",
             "pattern": "ddl_sql",
             "class": "test-only",
@@ -8968,6 +8975,69 @@
         },
         {
             "path": "packages/foundation/tests/Unit/Migration/Ledger/VerifyChecksumTest.php",
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 3
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 4
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 5
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 6
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 7
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
+            "occurrence": 8
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/LegacyReversePlanContractTest.php",
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "b4b98081ca189e8d2dbeb5a06d476d03c8eb7528037a0d0e34d2f3dc2b52bc92",

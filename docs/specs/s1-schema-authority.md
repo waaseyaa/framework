@@ -137,6 +137,29 @@ schema or ledger unless the exact applied migration provides a supported,
 versioned reverse plan with checked preconditions and a verified post-state.
 Missing source is failure, never success.
 
+Legacy reverse support is an explicit contract (#2731), not a reflection
+heuristic on `down()` overrides:
+
+- `Migration::providesSupportedReverse()` defaults to `false`. Opting in is
+  for fixtures and new migrations that can carry the method in their hashed
+  source.
+- First-party historical files stay checksum-bound: the
+  `LegacyReversePlanCatalog` lists exact ledger migration ids whose current
+  `down()` bodies are supported reverses. No-op overrides are absent from
+  that catalogue and refuse with `[S1-DB104]` even when they override
+  `down()`.
+- Before any reverse mutation, every node in the last batch must pass an
+  identity gate: non-null ledger source checksum equal to the loaded
+  `legacySourceChecksum`, and ledger package equal to the catalogue package.
+  Null or mismatched identity refuses with `[S1-DB113]`; the whole batch is
+  unchanged.
+- After each `down()` and before ledger removal, the logical schema
+  fingerprint must change. An ineffective reverse refuses with
+  `[S1-DB114]` inside the coordinator transaction.
+- V2 nodes remain without a reverse contract in this slice: they fail as
+  missing legacy reverse source (`[S1-DB103]`) until a separate V2 reverse
+  plan exists.
+
 Strict verification rejects duplicates, unknown or null-hash legacy rows,
 orphan rows, missing sources, package/source/plan mismatches, stale expected
 pre-state, and live-schema drift. The logical schema fingerprint is based on
