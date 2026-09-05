@@ -147,6 +147,92 @@ final class QualifyCandidateRunnerTest extends TestCase
     }
 
     #[Test]
+    public function a_zero_exit_that_contradicts_its_junit_failures_is_an_evidence_error_not_a_pass(): void
+    {
+        // PHPUnit never exits 0 with failures or errors; a junit that says
+        // otherwise is not this run's evidence and must not be counted green.
+        $plan = $this->plan([
+            $this->component('alpha', 'exit(0);', junit: ['tests' => 5, 'failures' => 2, 'errors' => 0, 'skipped' => 0]),
+        ], full: true);
+
+        [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
+
+        self::assertSame(2, $exit, $out);
+        self::assertSame('evidence_error', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        self::assertStringNotContainsString('verdict: qualified', $out);
+        $alpha = $this->componentNamed($receipt, 'alpha');
+        self::assertSame('evidence_error', $alpha['outcome']);
+        self::assertSame(2, $alpha['counts']['failures']);
+    }
+
+    #[Test]
+    public function stale_evidence_in_a_reused_out_directory_is_never_this_runs_evidence(): void
+    {
+        $out = $this->tmp . '/evidence-reused';
+        mkdir($out);
+        file_put_contents(
+            $out . '/alpha.junit.xml',
+            '<?xml version="1.0"?><testsuites><testsuite name="old" tests="14316" errors="0" failures="0" skipped="0"/></testsuites>',
+        );
+        file_put_contents($out . '/alpha.log', "OLD LOG LINE\n");
+        // declares a junit, exits 0, never writes one — only the stale file exists
+        $plan = $this->plan([$this->component('alpha', 'exit(0);', junit: null, declaresJunit: true)], full: true);
+
+        $process = $this->process(['--plan=' . $plan, '--out=' . $out]);
+        $exit = $process->run();
+        $receipt = json_decode((string) file_get_contents($out . '/receipt.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(2, $exit, $process->getOutput() . $process->getErrorOutput());
+        self::assertSame('evidence_error', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        $alpha = $this->componentNamed($receipt, 'alpha');
+        self::assertSame('evidence_error', $alpha['outcome']);
+        self::assertArrayNotHasKey('counts', $alpha, 'Stale counts must not be attributed to this run.');
+        self::assertStringNotContainsString('OLD LOG LINE', (string) file_get_contents($out . '/alpha.log'));
+    }
+
+    #[Test]
+    public function a_real_sigint_terminates_running_children_and_exits_130_promptly(): void
+    {
+        if (!function_exists('pcntl_async_signals')) {
+            self::markTestSkipped('Real signal delivery to the runner requires the pcntl extension.');
+        }
+        $plan = $this->plan([
+            $this->component('alpha', 'exit(0);'),
+            $this->component('sleeper', 'sleep(20); exit(0);'),
+            $this->component('never', 'exit(0);'),
+        ], full: true);
+        $out = $this->tmp . '/evidence-sigint';
+
+        $process = $this->process(['--plan=' . $plan, '--out=' . $out]);
+        $startedNs = hrtime(true);
+        $process->start();
+        // The sleeper's log is opened by the runner at spawn; once it exists the
+        // child is running and the signal lands mid-component, not between two.
+        while (!is_file($out . '/sleeper.log') && $process->isRunning() && hrtime(true) - $startedNs < 10_000_000_000) {
+            usleep(20_000);
+        }
+        usleep(200_000);
+        $process->signal(SIGINT);
+        $exit = $process->wait();
+        $elapsedS = (hrtime(true) - $startedNs) / 1_000_000_000;
+        $output = $process->getOutput() . $process->getErrorOutput();
+        $receipt = json_decode((string) file_get_contents($out . '/receipt.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(130, $exit, $output);
+        self::assertLessThan(10.0, $elapsedS, 'The runner must not wait for a 20s child after SIGINT.');
+        self::assertSame('interrupted', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        $sleeper = $this->componentNamed($receipt, 'sleeper');
+        self::assertSame('signal', $sleeper['termination']);
+        self::assertSame('signaled', $sleeper['outcome']);
+        self::assertNotSame('passed', $sleeper['outcome']);
+        self::assertArrayNotHasKey('never', array_column($receipt['components'], null, 'id'));
+        self::assertStringNotContainsString('verdict: qualified', $output);
+    }
+
+    #[Test]
     public function an_unwritable_evidence_directory_is_refused_without_a_success_claim(): void
     {
         $ro = $this->tmp . '/ro';

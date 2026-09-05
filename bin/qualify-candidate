@@ -49,6 +49,13 @@ declare(strict_types=1);
  * from a component), a receipt is written. If the evidence directory or the
  * receipt file itself cannot be written, the runner exits 2 and prints
  * nothing on stdout that could be mistaken for a green result.
+ *
+ * Evidence binding per component: a previous run's log/junit at the same path
+ * is removed before the child starts (unremovable -> evidence_error); a junit
+ * whose failures/errors are non-zero next to a zero exit is an evidence_error,
+ * never a pass. A real SIGINT/SIGTERM terminates still-running children
+ * (SIGTERM, bounded wait, SIGKILL) and records them as signaled. Components
+ * with an evidence_error outcome carry a `reason` string.
  */
 
 const QUALIFY_CANDIDATE_VERSION = '1.0.0';
@@ -184,13 +191,32 @@ function qcStartComponent(string $repo, string $out, array $component, array $ba
     if ($junitPath !== null) {
         $env['WAASEYAA_QUALIFY_JUNIT'] = $junitPath;
     }
+    $startedAt = gmdate('Y-m-d\TH:i:s\Z');
+    $startHr = hrtime(true);
+
+    // Evidence must belong to THIS child. A reused --out directory may still
+    // hold a previous run's log and junit; if they cannot be cleared, the
+    // component is an evidence error rather than a pass on stale counts.
+    foreach (array_filter([$logPath, $junitPath]) as $stale) {
+        if ((file_exists($stale) || is_link($stale)) && !@unlink($stale)) {
+            return [
+                'component' => $component,
+                'process' => null,
+                'spawn_failed' => true,
+                'reason' => 'stale evidence could not be removed before start: ' . $stale,
+                'log' => $logPath,
+                'junit_path' => $junitPath,
+                'started_at' => $startedAt,
+                'start_hr' => $startHr,
+            ];
+        }
+    }
+
     $descriptors = [
         0 => ['file', '/dev/null', 'r'],
         1 => ['file', $logPath, 'a'],
         2 => ['file', $logPath, 'a'],
     ];
-    $startedAt = gmdate('Y-m-d\TH:i:s\Z');
-    $startHr = hrtime(true);
     /** @var list<string> $command */
     $command = $component['command'];
     $process = @proc_open($command, $descriptors, $pipes, $repo, $env);
@@ -199,6 +225,7 @@ function qcStartComponent(string $repo, string $out, array $component, array $ba
         'component' => $component,
         'process' => is_resource($process) ? $process : null,
         'spawn_failed' => !is_resource($process),
+        'reason' => is_resource($process) ? null : 'could not spawn the child or open its log: ' . $logPath,
         'log' => $logPath,
         'junit_path' => $junitPath,
         'started_at' => $startedAt,
@@ -229,6 +256,7 @@ function qcFinalizeComponent(array $handle, ?array $status): array
             'exit_code' => null,
             'termination' => 'exit',
             'outcome' => 'evidence_error',
+            'reason' => $handle['reason'] ?? 'could not spawn the child',
         ];
     }
 
@@ -238,11 +266,27 @@ function qcFinalizeComponent(array $handle, ?array $status): array
     $exitCode = $signaled ? null : (int) $status['exitcode'];
 
     $counts = null;
+    $reason = null;
     if ($signaled) {
         $outcome = 'signaled';
     } elseif ($handle['junit_path'] !== null) {
         $counts = qcParseJunit($handle['junit_path']);
-        $outcome = $counts === null ? 'evidence_error' : ($exitCode === 0 ? 'passed' : 'failed');
+        if ($counts === null) {
+            $outcome = 'evidence_error';
+            $reason = 'junit missing or unparseable: ' . $handle['junit_path'];
+        } elseif ($exitCode === 0 && ($counts['failures'] > 0 || $counts['errors'] > 0)) {
+            // PHPUnit never exits 0 with failures or errors, so a zero exit
+            // paired with such a junit means the junit is not this run's
+            // evidence (or the child is not the command it claims to be).
+            $outcome = 'evidence_error';
+            $reason = sprintf(
+                'exit 0 contradicts junit failures=%d errors=%d',
+                $counts['failures'],
+                $counts['errors'],
+            );
+        } else {
+            $outcome = $exitCode === 0 ? 'passed' : 'failed';
+        }
     } else {
         $outcome = $exitCode === 0 ? 'passed' : 'failed';
     }
@@ -265,8 +309,51 @@ function qcFinalizeComponent(array $handle, ?array $status): array
     if ($counts !== null) {
         $result['counts'] = $counts;
     }
+    if ($reason !== null) {
+        $result['reason'] = $reason;
+    }
 
     return $result;
+}
+
+/**
+ * Terminate still-running children after an interrupt and record what
+ * happened to each: SIGTERM first, a bounded wait, then SIGKILL. The child
+ * produced no trustworthy result, so it is recorded as signaled (or with
+ * whatever exit it managed) — never as passed by omission.
+ *
+ * @param list<array<string, mixed>> $active
+ * @return list<array<string, mixed>>
+ */
+function qcTerminateActive(array $active): array
+{
+    $results = [];
+    foreach ($active as $handle) {
+        if ($handle['spawn_failed'] === true || !is_resource($handle['process'])) {
+            $results[] = qcFinalizeComponent($handle, null);
+            continue;
+        }
+        @proc_terminate($handle['process'], 15);
+        $deadline = hrtime(true) + 5_000_000_000;
+        $status = proc_get_status($handle['process']);
+        while ($status['running'] && hrtime(true) < $deadline) {
+            usleep(50_000);
+            $status = proc_get_status($handle['process']);
+        }
+        if ($status['running']) {
+            @proc_terminate($handle['process'], 9);
+            do {
+                usleep(50_000);
+                $status = proc_get_status($handle['process']);
+            } while ($status['running']);
+        }
+        proc_close($handle['process']);
+        $result = qcFinalizeComponent($handle, $status);
+        $result['reason'] = 'terminated by the runner after an interrupt';
+        $results[] = $result;
+    }
+
+    return $results;
 }
 
 /**
@@ -287,7 +374,7 @@ function qcSummaryLine(array $result): string
         )
         : 'tests=- failures=- errors=- skipped=-';
 
-    return sprintf(
+    $line = sprintf(
         '%s %s %s %s (%.2fs) log=%s',
         $result['outcome'],
         $result['id'],
@@ -296,6 +383,11 @@ function qcSummaryLine(array $result): string
         $result['duration_s'],
         $result['log'],
     );
+    if (isset($result['reason'])) {
+        $line .= ' reason=' . $result['reason'];
+    }
+
+    return $line;
 }
 
 /**
@@ -472,6 +564,14 @@ if (!@mkdir($out, 0o777, true) && !is_dir($out)) {
 if (!is_writable($out)) {
     qcExitWithoutReceipt("evidence directory is not writable: {$out}", 2);
 }
+// Children run with cwd=$repo while the runner may have been invoked from
+// elsewhere; an absolute evidence path keeps the junit the child writes and
+// the junit the runner reads the same file.
+$outResolved = realpath($out);
+if ($outResolved === false) {
+    qcExitWithoutReceipt("cannot resolve evidence directory: {$out}", 2);
+}
+$out = $outResolved;
 
 $candidate = ['head' => $source['head'], 'tree' => $source['tree'], 'branch' => $branch, 'dirty_at_start' => $dirtyAtStart];
 
@@ -531,6 +631,7 @@ if ($dirtyAtStart !== [] && !$allowDirty) {
         fwrite(STDERR, "  {$line}\n");
     }
     fwrite(STDOUT, "verdict: drifted\n");
+    fwrite(STDOUT, "qualification: false\n");
     fwrite(STDOUT, "receipt: {$out}/receipt.json\n");
     exit(3);
 }
@@ -591,6 +692,13 @@ while (($pending !== [] || $active !== []) && !$stopScheduling) {
 
     usleep(50_000);
 
+    // A real SIGINT/SIGTERM must act while children are still running, not
+    // only once one of them happens to exit.
+    if ($sigInterrupted) {
+        $stopScheduling = true;
+        break;
+    }
+
     foreach ($active as $key => $handle) {
         if ($handle['spawn_failed'] === true) {
             $result = qcFinalizeComponent($handle, null);
@@ -635,34 +743,42 @@ while (($pending !== [] || $active !== []) && !$stopScheduling) {
     $active = array_values($active);
 }
 
-if ($sigInterrupted) {
-    // Terminate anything still running; it produced no usable result.
-    foreach ($active as $handle) {
-        if ($handle['spawn_failed'] === false && is_resource($handle['process'])) {
-            @proc_terminate($handle['process']);
-            proc_close($handle['process']);
-        }
-    }
-} elseif ($driftedFlag) {
+if ($driftedFlag && !$sigInterrupted) {
     // Drift is not as urgent as an interrupt: let already-started children
     // finish (their exit evidence is still meaningful) but never schedule more.
-    foreach ($active as $handle) {
+    // An interrupt arriving during this wait still wins.
+    foreach ($active as $key => $handle) {
         if ($handle['spawn_failed'] === true) {
             $result = qcFinalizeComponent($handle, null);
             $results[$result['id']] = $result;
+            unset($active[$key]);
             continue;
         }
         while (true) {
             $status = proc_get_status($handle['process']);
-            if (!$status['running']) {
+            if (!$status['running'] || $sigInterrupted) {
                 break;
             }
             usleep(50_000);
         }
+        if ($sigInterrupted) {
+            break;
+        }
         proc_close($handle['process']);
         $result = qcFinalizeComponent($handle, $status);
         $results[$result['id']] = $result;
+        unset($active[$key]);
     }
+    $active = array_values($active);
+}
+
+if ($sigInterrupted) {
+    // Terminate anything still running and record it; it produced no usable
+    // result, and it must not be left running behind the runner.
+    foreach (qcTerminateActive($active) as $result) {
+        $results[$result['id']] = $result;
+    }
+    $active = [];
 }
 
 $finalSource = qcReadSourceState($repo);
@@ -742,6 +858,10 @@ foreach ($orderedComponents as $result) {
     fwrite(STDOUT, qcSummaryLine($result) . "\n");
 }
 fwrite(STDOUT, "verdict: {$verdict}\n");
+// "verdict: qualified" alone is ambiguous on an --allow-dirty tree or a
+// non-qualifying plan; the receipt's qualification flag is echoed so stdout
+// never reads as a qualification when the receipt says it is not one.
+fwrite(STDOUT, 'qualification: ' . ($qualification ? 'true' : 'false') . "\n");
 fwrite(STDOUT, "receipt: {$out}/receipt.json\n");
 
 exit($exitCode);

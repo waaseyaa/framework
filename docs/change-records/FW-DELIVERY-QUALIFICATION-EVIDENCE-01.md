@@ -50,12 +50,16 @@ parsed for a verdict: **success is never inferred from a green line.**
 | `passed` | exit 0 |
 | `failed` | non-zero exit |
 | `signaled` | terminated by a signal |
-| `evidence_error` | could not spawn, log unwritable, junit missing or unparseable |
+| `evidence_error` | could not spawn, log unwritable, junit missing or unparseable, stale log/junit from a previous run at the same path that could not be cleared, or a zero exit contradicted by junit `failures`/`errors` > 0 (PHPUnit never exits 0 with either, so such a junit is not this run's evidence) |
 
 `skipped` is a **count on a passed component**, never an outcome: PHPUnit exits 0
 when every test is skipped, so the receipt carries the number and the summary
 prints it. Wrapper and evidence failures are their own outcome and never look
-like a test failure.
+like a test failure; an `evidence_error` component carries a `reason` string.
+
+Evidence is bound to the child that produced it: before a component starts,
+any log or junit already at its path (a reused `--out`) is removed, so counts
+can never come from an earlier run.
 
 ### Source binding
 
@@ -75,7 +79,7 @@ version 1:
 ```
 candidate   { head, tree, branch, dirty_at_start[] }
 components[]{ id, command[], log, junit?, started_at, finished_at, duration_s,
-              exit_code, termination, signal?, counts?{tests,failures,errors,skipped}, outcome }
+              exit_code, termination, signal?, counts?{tests,failures,errors,skipped}, outcome, reason? }
 source_check{ head_after, tree_after, drifted, changes[] }
 verdict     qualified | failed | drifted | evidence_error | interrupted | partial
 qualification  bool   — true only for verdict=qualified over the full default plan
@@ -93,8 +97,13 @@ drifted · `130` interrupted.
 
 ### Interruption
 
-`SIGINT`/`SIGTERM` (via `pcntl` where available) terminate running children,
-write the receipt with `verdict: interrupted`, and exit 130. A test-only seam
+`SIGINT`/`SIGTERM` (via `pcntl` where available) are acted on while children are
+still running — not only once one exits: each running child is terminated
+(SIGTERM, bounded wait, then SIGKILL) and recorded as `signaled`, the receipt is
+written with `verdict: interrupted`, and the runner exits 130. Stdout always
+carries an explicit `qualification: true|false` line next to the verdict, so an
+`--allow-dirty` or non-qualifying plan that happens to be green never reads as a
+qualification. A test-only seam
 (`WAASEYAA_QUALIFY_INTERRUPT_AFTER=<id>`) triggers the same path deterministically
 so the proof does not depend on signal delivery or a POSIX-only lane.
 
@@ -121,6 +130,18 @@ interruption via the seam; candidate drift (a child mutates a tracked file →
 exit 3, `qualification: false`); dirty refusal; `--only` partial; `--jobs=2`
 concurrency binding both children to one head. The red state of this test
 before the runner exists is the required pre-fix evidence.
+
+Three further cases were added by the adversarial review of the first
+candidate, each red against that candidate and green after the fix: a zero
+exit contradicted by junit `failures=2` (was recorded `passed`, `verdict:
+qualified`, `qualification: true`; now `evidence_error`, exit 2); a stale
+`alpha.junit.xml`/`alpha.log` in a reused `--out` (was attributed to the run as
+`tests=14316`, `qualification: true`, and the old log line was kept; now cleared
+before start, missing junit → `evidence_error`); and a real `SIGINT` delivered
+to the runner alone while a 20 s child sleeps (the runner waited the full
+duration and recorded the child `passed` before writing `interrupted`; now the
+child is terminated within ~2 s and recorded `signaled 15`, exit 130, verdict
+`interrupted`).
 
 ### Red, before the runner existed
 

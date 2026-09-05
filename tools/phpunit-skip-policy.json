@@ -353,6 +353,14 @@
         },
         {
             "path": "tests/Architecture/QualifyCandidateRunnerTest.php",
+            "reason": "Real signal delivery to the runner requires the pcntl extension.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(pcntl_async_signals)",
+            "rationale": "The runner only installs SIGINT/SIGTERM handlers when pcntl is loaded; without it a real signal kills the runner outright and the interrupted-receipt path under test does not exist on that platform."
+        },
+        {
+            "path": "tests/Architecture/QualifyCandidateRunnerTest.php",
             "reason": "Read-only directory permissions are not enforced for this user.",
             "occurrence": 1,
             "classification": "permission-semantics",
