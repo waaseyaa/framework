@@ -1,4 +1,5 @@
 # Security Defaults
+<!-- Spec reviewed 2026-09-05 - #2637: document that mcp.transport.max_request_bytes defaults to the same 1 MiB as http_security.body_size_limit.max_bytes and cannot be raised above an enabled kernel ceiling; BodySizeLimitMiddleware still runs first on MCP routes. -->
 <!-- Spec reviewed 2026-08-26 - #2490 reconciles the documented HTTP boundary with runtime: HttpKernel now activates durable shared-database rate limiting and the request body-size limit exactly once through the authoritative stack composer. Both controls default on with explicit configuration rollback. -->
 
 ## Purpose
@@ -89,6 +90,8 @@ Provider-contributed HTTP middleware uses the same onion response phase: code af
 ### Request body limits
 
 `HttpKernel` activates `BodySizeLimitMiddleware` exactly once at priority 70 and rejects payloads exceeding 1 MiB (1,048,576 bytes) with HTTP 413. Operators may override the positive integer at `http_security.body_size_limit.max_bytes`, or set `.enabled` to `false` for emergency rollback.
+
+This kernel cap runs before route controllers, including MCP. `mcp.transport.max_request_bytes` defaults to the same 1 MiB and cannot be set above an enabled kernel ceiling — otherwise the advertised MCP number is unreachable. Lowering the MCP cap below the kernel limit still lets the transport guard refuse first. Disabling `body_size_limit` makes the MCP setting the effective ceiling. See [mcp-endpoint.md](mcp-endpoint.md) "dispatch() (private)".
 
 ### CSRF token cookie
 

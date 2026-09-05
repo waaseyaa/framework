@@ -713,13 +713,13 @@ final class McpServiceProviderTest extends TestCase
     public function transport_request_size_is_bounded_and_strictly_configured(): void
     {
         $endpoint = $this->resolveWriteEndpoint(
-            ['mcp' => ['transport' => ['max_request_bytes' => 2_000_000]]],
+            ['mcp' => ['transport' => ['max_request_bytes' => 512_000]]],
             $this->workingLedger(),
             $this->approvalStore(),
         );
         $inner = new \ReflectionProperty(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
         self::assertSame(
-            2_000_000,
+            512_000,
             new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'maxRequestBytes')->getValue($inner),
         );
 
@@ -735,6 +735,40 @@ final class McpServiceProviderTest extends TestCase
                 self::assertStringContainsString('mcp.transport.max_request_bytes', $e->getMessage());
             }
         }
+    }
+
+    #[Test]
+    public function transport_request_size_cannot_exceed_the_enabled_kernel_body_limit(): void
+    {
+        try {
+            $this->resolveWriteEndpoint(
+                ['mcp' => ['transport' => ['max_request_bytes' => 2_000_000]]],
+                $this->workingLedger(),
+                $this->approvalStore(),
+            );
+            self::fail('An MCP cap above the kernel body limit must fail closed.');
+        } catch (ConfigException $e) {
+            self::assertStringContainsString('mcp.transport.max_request_bytes', $e->getMessage());
+            self::assertStringContainsString('body_size_limit', $e->getMessage());
+        }
+    }
+
+    #[Test]
+    public function transport_request_size_may_exceed_one_mib_when_the_kernel_body_limit_is_disabled(): void
+    {
+        $endpoint = $this->resolveWriteEndpoint(
+            [
+                'http_security' => ['body_size_limit' => ['enabled' => false]],
+                'mcp' => ['transport' => ['max_request_bytes' => 2_000_000]],
+            ],
+            $this->workingLedger(),
+            $this->approvalStore(),
+        );
+        $inner = new \ReflectionProperty(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
+        self::assertSame(
+            2_000_000,
+            new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'maxRequestBytes')->getValue($inner),
+        );
     }
 
     /**

@@ -805,6 +805,37 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
             );
         }
 
+        $kernelCeiling = $this->kernelBodySizeCeiling();
+        if ($kernelCeiling !== null && $max > $kernelCeiling) {
+            throw self::malformedConfig(
+                'mcp.transport.max_request_bytes',
+                $max,
+                'an integer no greater than http_security.body_size_limit.max_bytes while that kernel cap is enabled',
+            );
+        }
+
+        return $max;
+    }
+
+    /**
+     * Effective kernel body ceiling, or null when BodySizeLimitMiddleware is
+     * rolled back. Absent config uses the same 1 MiB default as the middleware.
+     */
+    private function kernelBodySizeCeiling(): ?int
+    {
+        $http = $this->config['http_security'] ?? null;
+        $limit = \is_array($http) && \is_array($http['body_size_limit'] ?? null)
+            ? $http['body_size_limit']
+            : [];
+        if (($limit['enabled'] ?? true) === false) {
+            return null;
+        }
+
+        $max = $limit['max_bytes'] ?? 1_048_576;
+        if (!\is_int($max) || $max < 1) {
+            return 1_048_576;
+        }
+
         return $max;
     }
 
