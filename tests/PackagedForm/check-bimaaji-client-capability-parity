@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+
+# Packaged-consumer proof that Codex and Claude receive equivalent canonical
+# skill inventories with matching source hashes (#2660 Part B).
+#
+# Run: bash tests/PackagedForm/check-bimaaji-client-capability-parity
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-bimaaji-parity.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+fail() {
+    echo "$1" >&2
+    exit 1
+}
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+
+mkdir -p "$source_root" "$consumer"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+cp -R "$source_root/skeleton/." "$consumer/"
+rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+php -r '
+    $path = $argv[1];
+    $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $composer["repositories"] = [
+        ["type" => "path", "url" => $argv[2] . "/packages/*", "options" => ["symlink" => false]],
+        ["type" => "path", "url" => $argv[2], "options" => ["symlink" => false]],
+    ];
+    $composer["require"]["waaseyaa/framework"] = "*";
+    unset($composer["require-dev"], $composer["extra"]["merge-plugin"], $composer["scripts"]);
+    file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/composer.json" "$source_root"
+
+printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/bimaaji-parity.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+    "$consumer" "$consumer" > "$consumer/.env"
+
+if ! "$composer_bin" install --working-dir="$consumer" \
+        --no-interaction --no-progress --prefer-dist --no-scripts >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    fail 'The packaged-form consumer could not install the candidate framework.'
+fi
+
+# Skeleton consumers declare bimaaji only through require-dev ai-development.
+php -r '
+    $composer = json_decode((string) file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+    if (array_key_exists("waaseyaa/bimaaji", $composer["require"] ?? [])) {
+        fwrite(STDERR, "Production require must not name waaseyaa/bimaaji.\n");
+        exit(1);
+    }
+' "$consumer/composer.json" || fail 'Consumer production require names waaseyaa/bimaaji.'
+
+[[ ! -L "$consumer/vendor/waaseyaa/bimaaji" ]] \
+    || fail 'vendor/waaseyaa/bimaaji is a symlink; this proof requires installed bytes.'
+
+resources="$consumer/vendor/waaseyaa/bimaaji/resources/skills"
+[[ -d "$resources" ]] || fail "Missing packaged skills at $resources."
+
+shipped="$(find "$resources" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')"
+[[ "$shipped" -gt 0 ]] || fail 'No packaged skills found.'
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa install:init ) >"$work/install-init.out" 2>&1; then
+    cat "$work/install-init.out" >&2
+    fail 'install:init failed on the packaged-form consumer.'
+fi
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,codex --force ) \
+        >"$work/install.out" 2>&1; then
+    cat "$work/install.out" >&2
+    fail 'bimaaji:install failed for claude,codex.'
+fi
+
+claude_count=0
+codex_count=0
+if [[ -d "$consumer/.claude/skills" ]]; then
+    claude_count="$(find "$consumer/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' | wc -l | tr -d ' ')"
+fi
+if [[ -d "$consumer/.agents/skills" ]]; then
+    codex_count="$(find "$consumer/.agents/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' | wc -l | tr -d ' ')"
+fi
+[[ "$claude_count" -eq "$shipped" ]] || fail "Expected $shipped Claude skill files, found $claude_count."
+[[ "$codex_count" -eq "$shipped" ]] || fail "Expected $shipped Codex skill files, found $codex_count."
+
+[[ -f "$consumer/AGENTS.md" ]] || fail 'Codex guidance AGENTS.md was not written.'
+[[ -f "$consumer/.claude/CLAUDE-WAASEYAA.md" ]] || fail 'Claude guidance index was not written.'
+
+grep -Fq '# Entity System Specialist' "$consumer/AGENTS.md" && fail 'AGENTS.md still embeds full skill bodies.'
+grep -Fq '## Available skills' "$consumer/AGENTS.md" || fail 'AGENTS.md lacks the concise skills index.'
+
+while IFS= read -r skill_id; do
+    claude="$consumer/.claude/skills/waaseyaa-$skill_id/SKILL.md"
+    codex="$consumer/.agents/skills/waaseyaa-$skill_id/SKILL.md"
+    source="$resources/$skill_id/SKILL.md"
+    [[ -f "$claude" ]] || fail "Missing Claude skill for $skill_id."
+    [[ -f "$codex" ]] || fail "Missing Codex skill for $skill_id."
+    [[ -f "$source" ]] || fail "Missing source skill for $skill_id."
+
+    source_hash="$(sha256sum "$source" | awk '{print $1}')"
+    grep -Fq "source sha256 \`$source_hash\`" "$consumer/AGENTS.md" \
+        || fail "AGENTS.md does not record source hash for $skill_id."
+    grep -Fq "source sha256 \`$source_hash\`" "$consumer/.claude/CLAUDE-WAASEYAA.md" \
+        || fail "Claude guidance does not record source hash for $skill_id."
+
+    head -1 "$claude" | grep -qx -- '---' || fail "$claude must open with YAML frontmatter."
+    head -1 "$codex" | grep -qx -- '---' || fail "$codex must open with YAML frontmatter."
+    grep -qx -- "name: waaseyaa-$skill_id" "$claude" || fail "$claude frontmatter name mismatch."
+    grep -qx -- "name: waaseyaa-$skill_id" "$codex" || fail "$codex frontmatter name mismatch."
+done < <(find "$resources" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+
+if ! ( cd "$consumer" && php vendor/bin/waaseyaa bimaaji:install --client=claude,codex --verify ) \
+        >"$work/verify.out" 2>&1; then
+    cat "$work/verify.out" >&2
+    fail '--verify reported drift immediately after install.'
+fi
+grep -Fq 'verified (no drift)' "$work/verify.out" || fail 'Verify output missing success lines.'
+
+printf 'Bimaaji client capability parity proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"

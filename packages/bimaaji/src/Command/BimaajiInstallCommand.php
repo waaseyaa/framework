@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Bimaaji\Command;
 
+use Waaseyaa\Bimaaji\Install\ClientCapabilityDiagnostics;
+use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\InstalledManifest;
+use Waaseyaa\Bimaaji\Install\InstallStateVerifier;
 use Waaseyaa\Bimaaji\Install\ManagedRegion;
 use Waaseyaa\Bimaaji\Install\ParsedSkill;
 use Waaseyaa\Bimaaji\Install\SkillInventory;
@@ -93,15 +96,12 @@ final class BimaajiInstallCommand
 
         $dryRun = (bool) $io->option('dry-run');
         $force = (bool) $io->option('force');
+        $verifyOnly = (bool) $io->option('verify');
+        $requestedFeatures = $this->resolveRequestedFeatures($io);
 
         try {
-            // SkillInventory is the one enumeration every transformer and
-            // future generated-state consumer reads — it wraps `parse()`
-            // rather than re-deriving the skill set from disk a second way
-            // (#2660 Part A). `->all()` below hands transformers the same
-            // `list<ParsedSkill>` they always received; nothing about the
-            // write set changes.
-            $skills = SkillInventory::fromParser($this->skillSetParser)->all();
+            $inventory = SkillInventory::fromParser($this->skillSetParser);
+            $skills = $inventory->all();
         } catch (SkillResourceException $exception) {
             // The diagnostic already names the resolved absolute directory
             // and the remedy for this failure class (missing vs corrupt).
@@ -112,11 +112,32 @@ final class BimaajiInstallCommand
         $exitCode = 0;
         $manifest = InstalledManifest::load($projectRoot);
         $manifestChanged = false;
+        $verifier = new InstallStateVerifier();
 
         foreach ($clients as $clientId) {
             $transformer = $this->resolveTransformer($io, $clientId);
             if ($transformer === null) {
                 $exitCode = 1;
+                continue;
+            }
+
+            $capabilities = ClientCapabilityRegistry::default()->for($clientId);
+            if ($capabilities !== null) {
+                foreach (ClientCapabilityDiagnostics::warnings($capabilities, $requestedFeatures) as $warning) {
+                    $io->writeln('Warning: ' . $warning);
+                }
+            }
+
+            if ($verifyOnly) {
+                $issues = $verifier->verifyClient($projectRoot, $transformer, $inventory);
+                if ($issues === []) {
+                    $io->writeln(sprintf('Client %s: verified (no drift).', $clientId));
+                } else {
+                    foreach ($issues as $issue) {
+                        $io->error(sprintf('Client %s: %s', $clientId, $issue));
+                    }
+                    $exitCode = 1;
+                }
                 continue;
             }
 
@@ -163,6 +184,19 @@ final class BimaajiInstallCommand
         }
 
         return $exitCode;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveRequestedFeatures(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): array
+    {
+        $raw = $io->option('features');
+        if (!is_string($raw) || trim($raw) === '') {
+            return ['guidelines', 'skills'];
+        }
+
+        return $this->splitCsv($raw);
     }
 
     /**

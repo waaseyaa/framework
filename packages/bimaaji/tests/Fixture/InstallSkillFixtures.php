@@ -35,6 +35,7 @@ final class InstallSkillFixtures
                 'description' => 'First fixture skill used by the client-transformer contract tests.',
             ],
             body: "# Skill Alpha\n\nUse this skill when the framework asks for a basic fixture.\n\nIt has three short paragraphs of body content. The frontmatter above MUST\nbe stripped by the transformer — only this body section is emitted into\nthe per-client target file.\n\nClosing paragraph confirms multi-paragraph bodies survive the transform.",
+            sourceSha256: hash('sha256', 'fixture-skill-alpha'),
         );
     }
 
@@ -49,6 +50,7 @@ final class InstallSkillFixtures
                 'description' => 'Second fixture skill — single-paragraph body for size assertions.',
             ],
             body: "Single-paragraph body. Used by the size-budget assertions in the\nsingle-file transformer tests.",
+            sourceSha256: hash('sha256', 'fixture-skill-beta'),
         );
     }
 
@@ -63,6 +65,7 @@ final class InstallSkillFixtures
                 'description' => 'Third fixture skill — H2 sub-headings inside the body.',
             ],
             body: "## Subsection one\n\nBody text under the subsection.\n\n## Subsection two\n\nMore body text. The transformer must preserve the inner H2s exactly;\nonly the leading frontmatter block is stripped.",
+            sourceSha256: hash('sha256', 'fixture-skill-gamma'),
         );
     }
 }

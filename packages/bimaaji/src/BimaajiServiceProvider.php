@@ -286,6 +286,11 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
                     mode: \Waaseyaa\CLI\Command\HandlerOptionMode::None,
                     description: 'Skip every confirmation prompt and overwrite existing files unconditionally.',
                 ),
+                new \Waaseyaa\CLI\Command\HandlerOption(
+                    name: 'verify',
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::None,
+                    description: 'Verify installed files match the canonical inventory without writing.',
+                ),
             ],
             handler: [BimaajiInstallCommand::class, 'execute'],
         );

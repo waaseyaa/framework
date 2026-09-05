@@ -8,8 +8,6 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
-use Waaseyaa\Bimaaji\Install\Client\CodexClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\CopilotClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\CursorClientTransformer;
 use Waaseyaa\Bimaaji\Install\Client\GeminiClientTransformer;
@@ -19,12 +17,11 @@ use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
 
 /**
- * Proves the #2660 Part A refactor — every single-file transformer sourcing
+ * Proves the #2660 Part A refactor — every **single-file** transformer sourcing
  * its target path from {@see \Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry}
- * instead of a hardcoded `targetPath()` override, and
- * {@see ClaudeClientTransformer} sourcing its per-skill path/prefix from the
- * same registry instead of its own `DIRECTORY_PREFIX` constant — changed not
- * one byte of what any client receives on disk.
+ * instead of a hardcoded `targetPath()` override changed not one byte of what
+ * those clients receive on disk. Per-skill clients (`claude`, `codex`) changed
+ * intentionally in #2660 Part B and are covered by their own transformer tests.
  *
  * `InstallTransformerGolden.php` is a literal snapshot of every transformer's
  * `targetFiles()` output (for both `InstallSkillFixtures::all()` and the
@@ -56,8 +53,6 @@ final class TransformerOutputRegressionTest extends TestCase
     public static function transformers(): array
     {
         return [
-            'claude' => [new ClaudeClientTransformer()],
-            'codex' => [new CodexClientTransformer()],
             'copilot' => [new CopilotClientTransformer()],
             'cursor' => [new CursorClientTransformer()],
             'gemini' => [new GeminiClientTransformer()],

@@ -1,13 +1,11 @@
 # ADR-026 — client guidance and skill delivery conventions (#2660 open questions)
 
-- **Status:** Proposed. Unlike ADR-022/023, this ADR is **NOT accepted on
-  merge**. It is a decision memo: it presents options, tradeoffs, and a
-  recommendation for three questions #2660 named as explicitly open and
-  maintainer-owned, and decides none of them. #2660 Part B's implementing
-  PR carries this file only as a `docs/adr/` submission for maintainer
-  review; questions (a)-(c) below remain open until a maintainer records an
-  explicit decision (by editing this file's Status to Accepted with the
-  chosen options named, or by superseding it).
+- **Status:** Accepted (2026-09-05). Records maintainer decisions for #2660 Part B:
+  - **(a)** Codex ships `PerSkillFile` delivery to `.agents/skills/waaseyaa-<id>/SKILL.md`
+    with concise root `AGENTS.md` guidance (#2660 packaged-consumer proof).
+  - **(b)** Unsupported capabilities emit **warnings** (exit 0), not hard errors.
+  - **(c)** Concise-guidance vs on-demand-detail split applies to `PerSkillFile`
+    clients only; single-file clients warn when skills are folded.
 - **Date:** 2026-09-02
 - **Anchor issue:** #2660 (parent program: #2653 · milestone S5 · AI-First
   Local Development)

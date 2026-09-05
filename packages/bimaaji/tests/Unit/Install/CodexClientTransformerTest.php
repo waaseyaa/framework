@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Bimaaji\Install\Client\CodexClientTransformer;
+use Waaseyaa\Bimaaji\Install\ClientCapabilityRegistry;
+use Waaseyaa\Bimaaji\Install\SkillDeliveryMode;
 use Waaseyaa\Bimaaji\Tests\Fixture\InstallSkillFixtures;
 
 #[CoversClass(CodexClientTransformer::class)]
@@ -20,41 +22,54 @@ final class CodexClientTransformerTest extends TestCase
     }
 
     #[Test]
-    public function producesExactlyOneTargetFile(): void
+    public function producesOnePerSkillFilePlusConciseAgentsGuidance(): void
     {
         $files = (new CodexClientTransformer())->targetFiles(InstallSkillFixtures::all());
-        self::assertCount(1, $files);
-        self::assertSame('AGENTS.md', $files[0]->path);
+        self::assertCount(4, $files);
+
+        $paths = array_map(static fn($f): string => $f->path, $files);
+        self::assertContains('.agents/skills/waaseyaa-skill-alpha/SKILL.md', $paths);
+        self::assertContains('AGENTS.md', $paths);
     }
 
     #[Test]
-    public function producesNonEmptyContent(): void
+    public function guidanceDoesNotEmbedFullSkillBodies(): void
     {
-        $files = (new CodexClientTransformer())->targetFiles(InstallSkillFixtures::all());
-        self::assertNotSame('', $files[0]->content);
+        $guidance = $this->guidanceContent();
+        self::assertStringNotContainsString('# Skill Alpha', $guidance);
+        self::assertStringNotContainsString('Closing paragraph confirms', $guidance);
+        self::assertStringContainsString('## Available skills', $guidance);
+        self::assertStringContainsString('.agents/skills/waaseyaa-skill-alpha/SKILL.md', $guidance);
     }
 
     #[Test]
-    public function fileHasPreludeAndAtLeastOneSkillBody(): void
+    public function perSkillFilesCarryFrontmatterAndManagedBodies(): void
     {
-        $content = (new CodexClientTransformer())->targetFiles(InstallSkillFixtures::all())[0]->content;
-        self::assertStringContainsString('Waaseyaa framework conventions', $content);
-        self::assertStringContainsString('## skill-alpha', $content);
+        $files = (new CodexClientTransformer())->targetFiles([InstallSkillFixtures::alpha()]);
+        $alpha = $files[0];
+        self::assertSame('.agents/skills/waaseyaa-skill-alpha/SKILL.md', $alpha->path);
+        self::assertStringStartsWith("---\nname: waaseyaa-skill-alpha\n", $alpha->content);
+        self::assertStringContainsString('# Skill Alpha', $alpha->content);
+        self::assertStringContainsString('waaseyaa:bimaaji:source-inventory sha256=', $alpha->content);
     }
 
     #[Test]
-    public function respectsFrontmatterStripping(): void // FR-005
+    public function registryDeclaresPerSkillDeliveryForCodex(): void
     {
-        $content = (new CodexClientTransformer())->targetFiles(InstallSkillFixtures::all())[0]->content;
-        self::assertStringContainsString('Body text under the subsection.', $content);
-        self::assertStringNotContainsString("\nname: skill-alpha\n", $content);
+        $capabilities = ClientCapabilityRegistry::default()->for('codex');
+        self::assertNotNull($capabilities);
+        self::assertSame(SkillDeliveryMode::PerSkillFile, $capabilities->skillDelivery);
+        self::assertSame('.agents/skills', $capabilities->skillDirectory);
     }
 
-    #[Test]
-    public function handlesEmptySkillSetGracefully(): void
+    private function guidanceContent(): string
     {
-        $files = (new CodexClientTransformer())->targetFiles([]);
-        self::assertCount(1, $files);
-        self::assertStringContainsString('No skills to install', $files[0]->content);
+        foreach ((new CodexClientTransformer())->targetFiles(InstallSkillFixtures::all()) as $file) {
+            if ($file->path === 'AGENTS.md') {
+                return $file->content;
+            }
+        }
+
+        self::fail('No AGENTS.md guidance target was produced.');
     }
 }

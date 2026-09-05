@@ -191,11 +191,9 @@ final class ClaudeClientTransformerTest extends TestCase
         self::assertNotNull($alpha);
         self::assertStringStartsNotWith('---', $alpha->content);
         self::assertStringNotContainsString('name: waaseyaa-skill-alpha', $alpha->content);
-        self::assertSame(
-            ManagedRegion::wrap(InstallSkillFixtures::alpha()->body),
-            $alpha->content,
-            'With the capability off, a per-skill file is exactly the managed body and nothing else.',
-        );
+        self::assertStringContainsString('# Skill Alpha', $alpha->content);
+        self::assertStringContainsString('waaseyaa:bimaaji:source-inventory sha256=', $alpha->content);
+        self::assertStringContainsString(ManagedRegion::BEGIN, $alpha->content);
     }
 
     #[Test]

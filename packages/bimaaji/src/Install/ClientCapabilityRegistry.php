@@ -19,11 +19,8 @@ namespace Waaseyaa\Bimaaji\Install;
  * `default()` mirrors the **currently shipped** convention for all seven
  * launch clients — see the "Supported clients" table in
  * `docs/specs/bimaaji-install.md` — and changing an entry here changes
- * what `bimaaji:install` writes to disk. It intentionally does NOT encode
- * the #2660 decision memo's proposed conventions (e.g. Codex per-skill
- * `.agents/skills/`), because that mapping is gated on an undecided
- * maintainer question (open question (a) — see
- * `docs/adr/026-client-guidance-and-skill-conventions.md`).
+ * what `bimaaji:install` writes to disk. Codex and Claude both receive
+ * per-skill delivery with concise always-loaded guidance (#2660 Part B).
  *
  * @api
  */
@@ -63,9 +60,11 @@ final class ClientCapabilityRegistry
             ),
             new ClientCapabilities(
                 clientId: 'codex',
-                skillDelivery: SkillDeliveryMode::SingleConsolidatedFile,
-                requiresFrontmatterAtByteZero: false,
+                skillDelivery: SkillDeliveryMode::PerSkillFile,
+                requiresFrontmatterAtByteZero: true,
                 guidancePath: 'AGENTS.md',
+                skillDirectory: '.agents/skills',
+                skillIdPrefix: 'waaseyaa-',
             ),
             new ClientCapabilities(
                 clientId: 'copilot',

@@ -124,4 +124,18 @@ final readonly class ClientCapabilities
 
         return sprintf('%s/%s/SKILL.md', $this->skillDirectory, $this->skillDirectoryName($skillId));
     }
+
+    /**
+     * @return list<ClientCapabilitySurface>
+     */
+    public function supportedSurfaces(): array
+    {
+        $surfaces = [ClientCapabilitySurface::Guidelines];
+
+        if ($this->skillDelivery === SkillDeliveryMode::PerSkillFile) {
+            $surfaces[] = ClientCapabilitySurface::Skills;
+        }
+
+        return $surfaces;
+    }
 }

@@ -135,6 +135,7 @@ final class SkillInventoryTest extends TestCase
                 description: 'A different skill claiming the same id.',
                 frontmatter: [],
                 body: 'Different body.',
+                sourceSha256: hash('sha256', 'impostor'),
             ),
         ]);
     }

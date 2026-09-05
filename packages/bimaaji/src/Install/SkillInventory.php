@@ -127,4 +127,24 @@ final readonly class SkillInventory
 
         return null;
     }
+
+    /**
+     * @return array<string, string> skill id => sha256 of the raw source document
+     */
+    public function sourceSha256ById(): array
+    {
+        $map = [];
+        foreach ($this->skills as $skill) {
+            $map[$skill->id] = $skill->sourceSha256;
+        }
+
+        ksort($map);
+
+        return $map;
+    }
+
+    public function inventorySha256(): string
+    {
+        return SkillSourceProvenance::fromInventory($this)->inventorySha256;
+    }
 }
