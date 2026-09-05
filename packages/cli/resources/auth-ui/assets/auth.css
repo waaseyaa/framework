@@ -1,0 +1,33 @@
+/* Auth screen theming tokens — override these in your app stylesheet */
+:root {
+  /* Brand panel */
+  --waaseyaa-auth-brand-bg: linear-gradient(135deg, #0d4f4f 0%, #0f766e 50%, #14b8a6 100%);
+  --waaseyaa-auth-brand-color: #ffffff;
+  --waaseyaa-auth-brand-logo: none;
+  --waaseyaa-auth-brand-logo-size: 48px;
+
+  /* Form panel */
+  --waaseyaa-auth-form-bg: #ffffff;
+  --waaseyaa-auth-form-color: #1e293b;
+  --waaseyaa-auth-form-muted: #64748b;
+
+  /* Inputs */
+  --waaseyaa-auth-input-border: #d1d5db;
+  --waaseyaa-auth-input-focus: #0f766e;
+  --waaseyaa-auth-input-focus-ring: rgba(15, 118, 110, 0.15);
+  --waaseyaa-auth-input-radius: 6px;
+
+  /* Button */
+  --waaseyaa-auth-btn-bg: #0f766e;
+  --waaseyaa-auth-btn-hover: #0d4f4f;
+  --waaseyaa-auth-btn-color: #ffffff;
+  --waaseyaa-auth-btn-radius: 6px;
+
+  /* Page */
+  --waaseyaa-auth-page-bg: #f1f5f9;
+  --waaseyaa-auth-card-radius: 12px;
+  --waaseyaa-auth-card-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+
+  /* Density toggle: set to 1 to hide brand panel (Centered Minimal) */
+  --waaseyaa-auth-hide-brand-panel: 0;
+}

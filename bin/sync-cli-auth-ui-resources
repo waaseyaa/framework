@@ -1,0 +1,148 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * bin/sync-cli-auth-ui-resources
+ *
+ * Regenerates packages/cli/resources/auth-ui/ as a deterministic, byte-for-byte
+ * mirror of the AuthUiScaffoldManager::FILE_MAP source files that live under
+ * packages/admin/app/. packages/admin/app is the only authored source (#2833
+ * repair design, decision 2): this script copies exactly the FILE_MAP source
+ * paths into the mirror and removes anything else already present there, so
+ * the mirror can never drift into an independent source of truth.
+ *
+ * tests/Architecture/CliAuthUiResourceParityTest.php fails CI if the checked-in
+ * mirror and packages/admin/app disagree — re-run this script and commit the
+ * result whenever packages/admin/app/{pages/login.vue,
+ * components/auth/{LoginForm,BrandPanel}.vue, composables/useAuth.ts,
+ * assets/auth.css} change.
+ *
+ * Idempotent: running twice produces no diff on the second run. Deterministic:
+ * file contents are copied byte-for-byte and directory entries are always
+ * written in FILE_MAP order, so no filesystem timestamp or traversal order
+ * leaks into the result.
+ *
+ * Exit codes:
+ *   0 — success
+ *   2 — runtime error (missing source file, I/O failure)
+ */
+
+require __DIR__ . '/../packages/cli/src/Scaffold/AuthUiScaffoldManager.php';
+
+use Waaseyaa\CLI\Scaffold\AuthUiScaffoldManager;
+
+$repoRoot = dirname(__DIR__);
+$sourceBase = $repoRoot . '/packages/admin/app';
+$mirrorBase = $repoRoot . '/packages/cli/resources/auth-ui';
+
+/**
+ * @param string $directory
+ * @return list<string> relative paths (forward-slash separated), sorted
+ */
+function listFilesRelativeTo(string $directory): array
+{
+    if (!is_dir($directory)) {
+        return [];
+    }
+
+    $found = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST,
+    );
+    foreach ($iterator as $fileInfo) {
+        assert($fileInfo instanceof SplFileInfo);
+        if (!$fileInfo->isFile()) {
+            continue;
+        }
+        $relative = substr($fileInfo->getPathname(), strlen($directory) + 1);
+        $found[] = str_replace('\\', '/', $relative);
+    }
+    sort($found, SORT_STRING);
+
+    return $found;
+}
+
+function ensureDirectoryExists(string $directory): void
+{
+    if (is_dir($directory)) {
+        return;
+    }
+    if (!mkdir($directory, 0o755, true) && !is_dir($directory)) {
+        fwrite(STDERR, sprintf("Error: unable to create directory: %s\n", $directory));
+        exit(2);
+    }
+}
+
+$expectedRelativePaths = array_values(array_keys(AuthUiScaffoldManager::FILE_MAP));
+sort($expectedRelativePaths, SORT_STRING);
+
+// ── copy exactly the FILE_MAP sources, byte-for-byte ──────────────────────────
+
+ensureDirectoryExists($mirrorBase);
+
+foreach ($expectedRelativePaths as $relativePath) {
+    $sourcePath = $sourceBase . '/' . $relativePath;
+    $mirrorPath = $mirrorBase . '/' . $relativePath;
+
+    if (!is_file($sourcePath)) {
+        fwrite(STDERR, sprintf("Error: FILE_MAP source is missing: %s\n", $sourcePath));
+        exit(2);
+    }
+
+    ensureDirectoryExists(dirname($mirrorPath));
+
+    $bytes = file_get_contents($sourcePath);
+    if ($bytes === false) {
+        fwrite(STDERR, sprintf("Error: unable to read: %s\n", $sourcePath));
+        exit(2);
+    }
+
+    // Skip the write entirely when the mirror already matches, so an
+    // idempotent re-run touches no file mtimes.
+    if (is_file($mirrorPath) && file_get_contents($mirrorPath) === $bytes) {
+        continue;
+    }
+
+    if (file_put_contents($mirrorPath, $bytes) === false) {
+        fwrite(STDERR, sprintf("Error: unable to write: %s\n", $mirrorPath));
+        exit(2);
+    }
+}
+
+// ── remove anything else under the mirror directory ───────────────────────────
+
+$actualRelativePaths = listFilesRelativeTo($mirrorBase);
+$extraneous = array_diff($actualRelativePaths, $expectedRelativePaths);
+
+foreach ($extraneous as $relativePath) {
+    $mirrorPath = $mirrorBase . '/' . $relativePath;
+    if (!unlink($mirrorPath)) {
+        fwrite(STDERR, sprintf("Error: unable to remove stale mirror file: %s\n", $mirrorPath));
+        exit(2);
+    }
+}
+
+// Prune now-empty directories left behind by removed files (deepest first).
+$directories = [];
+$directoryIterator = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($mirrorBase, FilesystemIterator::SKIP_DOTS),
+    RecursiveIteratorIterator::CHILD_FIRST,
+);
+foreach ($directoryIterator as $fileInfo) {
+    assert($fileInfo instanceof SplFileInfo);
+    if ($fileInfo->isDir()) {
+        $directories[] = $fileInfo->getPathname();
+    }
+}
+foreach ($directories as $directory) {
+    $entries = scandir($directory);
+    if ($entries !== false && count($entries) === 2) {
+        rmdir($directory);
+    }
+}
+
+printf("Synced %d auth UI resource(s) into %s\n", count($expectedRelativePaths), $mirrorBase);
+exit(0);
