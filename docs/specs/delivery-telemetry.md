@@ -90,14 +90,22 @@ strict branch requirements or solve conflicting concurrent appends (#2902).
 `--self-test` seeds independent schema, causality, temporal, adjudication, and
 history corruptions and must fail each one.
 
-The v1 schema is closed. A vocabulary or shape change requires a new schema
-version and an explicit migration; projections do not widen the contract.
+After the #2902 cutover the same gate also loads immutable batch envelopes under
+`ops/observability/delivery-agent-batches-v1/`, enforces the hard v1 freeze in
+`ops/observability/delivery-agent-v1-freeze.json`, validates the complete event
+set, and defines deterministic topological replay for batch events. Detail:
+`docs/specs/delivery-agent-event-batches.md`.
+
+The v1 event schema is closed. A vocabulary or shape change requires a new schema
+version and an explicit migration; projections do not widen the contract. The v1
+ledger bytes are hard-frozen at cutover — there is no rewrite exception.
 
 ## Projection
 
 `php bin/project-delivery-agent-events plan|apply|verify --source-ref=<ref>` is
 the governed source-to-analytics boundary. Durable operations resolve the ref to
-a full commit and read the tracked schema and ledger from that commit; dirty
+a full commit and read the tracked event schema, frozen ledger, freeze manifest,
+batch schema and batch files from that commit; dirty
 working-tree bytes are not an input. It validates the complete source before
 database mutation and replaces
 event rows, projection identity, and row count in one transaction. A failure
@@ -109,10 +117,19 @@ the governed source are removed from the projection. Replaying an already
 verified source is a true no-op and advances neither generation nor projection
 time. A singleton state row binds the projection to the resolved source commit,
 ledger SHA-256, schema SHA-256, source row count, generation, and projection time
-so dashboards can display freshness and source identity. Ordered rows preserve
-each JSONL line verbatim and carry an individual line hash; verification
-reconstructs the complete ledger bytes and cannot accept a matching state digest
-over corrupted rows.
+so dashboards can display freshness and source identity. The ledger hash retains
+its meaning as the frozen v1 bytes. Explicit `install` adds the projection v2
+identity table without clearing existing rows; normal operations refuse a missing
+table. That table binds the sorted batch ID/raw-content-hash manifest, both
+schemas, freeze manifest and complete replay hash. Apply updates event rows and
+both identity records in one transaction.
+
+Ordered rows preserve each v1 JSONL line verbatim, then serialize batch events
+deterministically in the governed topological replay order. Verification compares
+the complete ordered replay and its hashes against the immutable source; a
+matching state digest cannot conceal missing or corrupt rows. Prior batch
+identity is read from the prior source commit, never treated as authoritative
+merely because it appears in mutable projection metadata.
 
 Connection secrets are environment-only and are never included in output or
 tracked dashboard exports. MySQL projection is local-operator tooling and

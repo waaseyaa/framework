@@ -6,9 +6,13 @@ declare(strict_types=1);
 use Opis\JsonSchema\Validator;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/bin/lib/delivery-agent-event-set.php';
 
 const LEDGER_SCHEMA = 'ops/observability/delivery-agent-event-v1.schema.json';
 const LEDGER_PATH = 'ops/observability/delivery-agent-events-v1.jsonl';
+const BATCH_SCHEMA = DELIVERY_AGENT_BATCH_SCHEMA;
+const BATCH_DIR = DELIVERY_AGENT_BATCH_DIR;
+const V1_FREEZE = DELIVERY_AGENT_V1_FREEZE;
 
 /** @return list<string> */
 function validateLedger(string $contents, object $schema): array
@@ -169,6 +173,12 @@ function gitRun(string $root, array $arguments): array
 function gitShow(string $root, string $commit, string $path): array
 {
     return gitRun($root, ['show', $commit . ':' . $path]);
+}
+
+/** @return array{exit: int, output: string} */
+function gitLsTree(string $root, string $commit, string $path): array
+{
+    return gitRun($root, ['ls-tree', '-r', '--name-only', $commit, '--', $path]);
 }
 
 function resolveCommit(string $root, string $ref): ?string
@@ -522,6 +532,100 @@ if (!is_object($schema)) {
     exit(1);
 }
 array_push($errors, ...validateLedger($contents, $schema));
+
+$freezeBytes = null;
+$usingFixtures = $fixtureOptions !== [];
+if (!$usingFixtures) {
+    if ($candidate !== null) {
+        $freezeAtCandidate = gitShow($root, $candidate, V1_FREEZE);
+        if ($freezeAtCandidate['exit'] === 0) {
+            $freezeBytes = $freezeAtCandidate['output'];
+        }
+    } elseif (is_file($root . '/' . V1_FREEZE)) {
+        $freezeBytes = readRequiredFile($root . '/' . V1_FREEZE, 'v1 freeze');
+    }
+    array_push($errors, ...delivery_agent_v1_freeze_errors($contents, $freezeBytes));
+}
+
+$batchSchemaBytes = null;
+$batchFiles = [];
+if (!$usingFixtures) {
+    if ($candidate !== null) {
+        $batchSchemaAtCandidate = gitShow($root, $candidate, BATCH_SCHEMA);
+        if ($batchSchemaAtCandidate['exit'] === 0) {
+            $batchSchemaBytes = $batchSchemaAtCandidate['output'];
+        }
+        $loaded = delivery_agent_load_batch_files_from_commit(
+            static fn(string $path): array => gitShow($root, $candidate, $path),
+            static fn(string $path): array => gitLsTree($root, $candidate, $path),
+        );
+        array_push($errors, ...$loaded['errors']);
+        $batchFiles = $loaded['batches'];
+    } else {
+        if (is_file($root . '/' . BATCH_SCHEMA)) {
+            $batchSchemaBytes = readRequiredFile($root . '/' . BATCH_SCHEMA, 'batch schema');
+        }
+        $loaded = delivery_agent_load_batch_files_from_directory($root . '/' . BATCH_DIR);
+        array_push($errors, ...$loaded['errors']);
+        $batchFiles = $loaded['batches'];
+    }
+}
+
+$batchEvents = [];
+if (!$usingFixtures && ($batchFiles !== [] || $batchSchemaBytes !== null)) {
+    if ($batchSchemaBytes === null) {
+        $errors[] = 'batch authority requires ' . BATCH_SCHEMA;
+    } else {
+        try {
+            $batchSchema = json_decode($batchSchemaBytes, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            $errors[] = 'batch schema is not valid JSON: ' . $exception->getMessage();
+            $batchSchema = null;
+        }
+        if ($batchSchema !== null && !is_object($batchSchema)) {
+            $errors[] = 'batch schema must be a JSON object';
+            $batchSchema = null;
+        }
+        if ($batchSchema !== null) {
+            $parsedBatches = delivery_agent_parse_batch_files($batchFiles, $batchSchema, $schema);
+            array_push($errors, ...$parsedBatches['errors']);
+            $batchEvents = $parsedBatches['events'];
+        }
+    }
+
+    $v1Events = [];
+    try {
+        $v1Events = delivery_agent_parse_v1_ledger_events($contents);
+    } catch (JsonException $exception) {
+        $errors[] = 'could not parse v1 ledger events: ' . $exception->getMessage();
+    }
+
+    $union = [...$v1Events, ...$batchEvents];
+    array_push($errors, ...delivery_agent_event_set_errors($union));
+
+    $replay = delivery_agent_replay_events($v1Events, $batchEvents);
+    array_push($errors, ...$replay['errors']);
+    /** @var array<string, array<string, mixed>> $eventsById */
+    $eventsById = [];
+    /** @var array<string, int> $replayLines */
+    $replayLines = [];
+    foreach ($replay['events'] as $index => $event) {
+        $eventId = $event['event_id'] ?? null;
+        if (!is_string($eventId)) {
+            continue;
+        }
+        $eventsById[$eventId] = $event;
+        $replayLines[$eventId] = $index + 1;
+    }
+    foreach ($batchEvents as $batchEvent) {
+        $eventId = $batchEvent['event_id'] ?? null;
+        if (!is_string($eventId) || !isset($replayLines[$eventId])) {
+            continue;
+        }
+        validateEventSemantics($batchEvent, $eventsById, $replayLines, $replayLines[$eventId], $errors);
+    }
+}
+
 if ($priorLedgerPath !== null) {
     array_push($errors, ...validateAppendOnly(readRequiredFile($priorLedgerPath, 'prior ledger'), $contents));
 }
@@ -545,6 +649,27 @@ if ($priorCommit !== null) {
     } elseif ($priorSchema['exit'] !== 0 && !missingAtCommit($priorSchema)) {
         $errors[] = "could not read the base schema at {$priorCommit}";
     }
+
+    $priorBatches = delivery_agent_load_batch_files_from_commit(
+        static fn(string $path): array => gitShow($root, $priorCommit, $path),
+        static fn(string $path): array => gitLsTree($root, $priorCommit, $path),
+    );
+    array_push($errors, ...$priorBatches['errors']);
+    array_push($errors, ...delivery_agent_batch_immutability_errors($priorBatches['batches'], $batchFiles));
+
+    $priorFreeze = gitShow($root, $priorCommit, V1_FREEZE);
+    $priorFreezeBytes = $priorFreeze['exit'] === 0 ? $priorFreeze['output'] : null;
+    array_push(
+        $errors,
+        ...delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $priorFreezeBytes, $freezeBytes),
+    );
+
+    $priorBatchSchema = gitShow($root, $priorCommit, BATCH_SCHEMA);
+    $priorBatchSchemaBytes = $priorBatchSchema['exit'] === 0 ? $priorBatchSchema['output'] : null;
+    array_push(
+        $errors,
+        ...delivery_agent_authority_blob_immutability_errors('batch schema', $priorBatchSchemaBytes, $batchSchemaBytes),
+    );
 }
 if ($errors !== []) {
     if ($identity !== null) {
