@@ -388,6 +388,7 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
+- PHPUnit boots through `tests/bootstrap.php`, which refuses to start the suite when `sys_get_temp_dir()` is relative or IS the repository root (a relative `TMPDIR` made every `sys_get_temp_dir() . '/waaseyaa_*_'` scratch helper write into the checkout — #2927). `bin/check-repo-root-hygiene` (preflight default profile, CI after every shard) fails on any root entry that is neither tracked nor an expected local entry, including empty directories `git status` never reports.
 - GraphQL integration tests in `tests/Integration/GraphQL/` — full-stack tests with real SQLite via `DBALDatabase::createSqlite()`
 - Unit tests in `packages/*/tests/Unit/`
 - Use `CliTester` (`Waaseyaa\CLI\Testing\CliTester`, in `packages/cli/tests/Testing/`) for CLI command tests — `CliTester::for($definition, $container)->execute([...])`, then assert `getExitCode()` / `getStdout()`. `CliTester` wraps Symfony Console's `CommandTester` for you (the CLI now runs on Symfony Console), binding the container via `HandlerCommand::withContainer()` — prefer it over instantiating `CommandTester` directly.

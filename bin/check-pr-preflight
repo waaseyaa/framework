@@ -14,6 +14,11 @@ declare(strict_types=1);
  * failure prints the gate's captured output plus its exact repair command,
  * and the exit code is non-zero if anything failed.
  *
+ * Before any gate runs, the shared vendor/ freshness precondition
+ * (bin/lib/vendor-freshness.php, #2926) must pass; a stale local vendor/
+ * short-circuits with VENDOR_FRESHNESS_EXIT_CODE and an actionable message
+ * instead of running gates whose failures would be environment faults.
+ *
  * Usage:
  *   bin/check-pr-preflight            # default profile (fast repo-state gates)
  *   bin/check-pr-preflight --full     # adds the phpstan-engine gates (phpstan, dead-code)
@@ -85,6 +90,21 @@ function preflightResolveBase(string $root, ?string $explicit): string
     }
 
     return 'origin/main';
+}
+
+// Precondition (#2926): a stale local vendor/ makes every gate below lie —
+// opis/json-schema absent reads as a fatal in the delivery-ledger gate, a
+// never-dumped autoload-dev mapping reads as an "orphaned" public-surface
+// declaration whose repair is a CHANGELOG directive. Check once, up front,
+// and short-circuit with the shared precondition exit code so nothing here
+// is ever reported as a repository defect. Not a manifest gate: hosted CI
+// installs fresh and never observes this state (docs/specs/governed-gates.md §1).
+require $root . '/bin/lib/vendor-freshness.php';
+$vendorProblem = vendor_freshness_problem($root);
+if ($vendorProblem !== null) {
+    fwrite(STDERR, vendor_freshness_message($vendorProblem, 'check-pr-preflight'));
+    fwrite(STDERR, "check-pr-preflight: no gate was run — their results against a stale vendor/ would misreport environment faults as repository defects.\n");
+    exit(VENDOR_FRESHNESS_EXIT_CODE);
 }
 
 $resolvedBase = preflightResolveBase($root, $base);

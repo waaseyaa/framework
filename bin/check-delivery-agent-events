@@ -5,8 +5,35 @@ declare(strict_types=1);
 
 use Opis\JsonSchema\Validator;
 
+// Precondition (#2926): a stale local vendor/ must surface as one actionable
+// line with its own exit code, never as `Class "Opis\JsonSchema\Validator"
+// not found` (exit 255). The library is dependency-free by design and runs
+// before the autoloader is even required, so a missing vendor/ cannot fatal.
+require dirname(__DIR__) . '/bin/lib/vendor-freshness.php';
+$vendorProblem = vendor_freshness_problem(dirname(__DIR__));
+if ($vendorProblem !== null) {
+    fwrite(STDERR, vendor_freshness_message($vendorProblem, 'delivery agent event contract'));
+    exit(VENDOR_FRESHNESS_EXIT_CODE);
+}
+
 require dirname(__DIR__) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/bin/lib/delivery-agent-event-set.php';
+
+// Defence in depth: metadata can agree with the lock while the package bytes
+// are gone (a hand-deleted vendor/opis). Every mode below — including
+// --self-test — dereferences the validator, so refuse here, once, with the
+// same precondition code rather than letting PHP fatal later.
+if (!class_exists(Validator::class)) {
+    fwrite(STDERR, vendor_freshness_message(
+        [
+            'what' => 'opis/json-schema is locked but its validator class cannot be autoloaded',
+            'detail' => Validator::class . ' is not loadable from vendor/ even though vendor/composer/installed.json lists opis/json-schema.',
+            'fix' => 'composer install',
+        ],
+        'delivery agent event contract',
+    ));
+    exit(VENDOR_FRESHNESS_EXIT_CODE);
+}
 
 const LEDGER_SCHEMA = 'ops/observability/delivery-agent-event-v1.schema.json';
 const LEDGER_PATH = 'ops/observability/delivery-agent-events-v1.jsonl';
