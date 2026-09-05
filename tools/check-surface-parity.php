@@ -3,49 +3,52 @@
 declare(strict_types=1);
 
 /**
- * Public-surface-map parity check.
+ * Public-surface parity check.
  *
- * Enforces docs/specs/stability-charter.md §8.1 / §2.5. Run by
- * .github/workflows/surface-parity.yml and runnable locally:
+ * Enforces docs/specs/stability-charter.md §8.1 / §2.5 and
+ * docs/specs/public-surface-declarations.md §7 (FW-DELIVERY-SURFACE-01 /
+ * #2901). Run by .github/workflows/surface-parity.yml and runnable locally:
  *
  *   php tools/check-surface-parity.php --base=origin/main
  *
- * Contract (the AST gate for tests/Integration/SurfaceMap/PublicSurfaceVerificationTest.php
- * — same scope and semantics, but a real php-parser walk instead of a single-match-
- * per-file regex, so it sees every declaration, not just the first):
+ * Contract: the single editable authority for an element's disposition is
+ * now `packages/<pkg>/public-surface.php` (docs/specs/public-surface-declarations.md
+ * §2), not docs/public-surface-map.php — that file, and its .md companion,
+ * are DERIVED VIEWS composed by bin/generate-surface-map. This gate:
  *
- *   A "public element" is an interface, abstract class, trait, or enum declared
- *   under a package's `src/` tree (concrete `final`/plain classes are
- *   implementations, not contracts, and are intentionally NOT tracked). The single
- *   source of truth for their disposition is docs/public-surface-map.php
- *   (`FQCN => public|internal|extract|remove`).
- *
- *   source -> map : every discovered public element MUST have a map entry, else
- *                   "untracked surface" (a public contract shipped without a
- *                   stability disposition — charter §2.4 forbids indefinite
- *                   ambiguity).
- *   map -> source : every map FQCN MUST resolve to a loadable type. A map entry
- *                   removed relative to the merge base requires a newly-added,
- *                   exact-FQCN authorization in a newly added validated
- *                   changelog fragment. This delta check also governs concrete
- *                   final classes already recorded in the map.
- *
- * This replaces the 2026-05-11 skeleton, which stubbed the scan and so could not
- * detect drift (audit finding C-14). The workflow's `continue-on-error` is removed
- * in the same change: the gate now blocks.
+ *   1. loads and validates HEAD's declarations (§4: missing/duplicate/
+ *      orphaned/contradictory/invalid all fail closed, naming the offender —
+ *      this single step replaces the old gate's separate "source -> map"
+ *      untracked-element scan and "map -> source" stale-entry scan, because
+ *      §4's "missing" and "orphaned" checks are exactly those two
+ *      directions against the declaration plane instead of the aggregate);
+ *   2. composes HEAD's declarations into the FQCN => disposition map;
+ *   3. loads the merge base's declarations and composes them the same way
+ *      (a merge base with no declaration files at all — one that predates
+ *      the plane — contributes its tracked docs/public-surface-map.php
+ *      instead; an empty base map is never compared against, exit 2),
+ *      then applies the UNCHANGED SurfaceChangeAuthorization removal/rename/
+ *      downgrade rules between the two composed maps — current-change
+ *      changelog-fragment authorization only, exactly as before (§5);
+ *   4. applies the §6 tracked/generated boundary rule to both
+ *      docs/public-surface-map.php and .md: each must be byte-identical to
+ *      either the merge base's tracked bytes, or a fresh generation from
+ *      HEAD's declarations — anything else is a hand edit and fails, naming
+ *      the file.
  *
  * Exit codes:
  *   0 — parity verified, no drift
- *   1 — drift detected (untracked element, or removal-without-deprecation)
- *   2 — infrastructure failure (map missing/ill-formed, parser unavailable, parse error)
+ *   1 — drift detected (validation failure, unauthorized removal/downgrade,
+ *       or a hand-edited aggregate)
+ *   2 — infrastructure failure (declarations unreadable, parser unavailable,
+ *       git failure, unparsable layer table)
  */
 
-use PhpParser\Node;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitorAbstract;
-use PhpParser\ParserFactory;
-use Waaseyaa\Tooling\SurfaceChangeAuthorization;
 use Waaseyaa\Tooling\ChangelogFragments;
+use Waaseyaa\Tooling\SurfaceChangeAuthorization;
+use Waaseyaa\Tooling\SurfaceDeclarations;
+use Waaseyaa\Tooling\SurfaceMapView;
+use Waaseyaa\Tooling\SurfaceScanner;
 
 $root = dirname(__DIR__);
 
@@ -56,19 +59,15 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
-if (!class_exists(ParserFactory::class)) {
-    fwrite(STDERR, "surface-parity: nikic/php-parser is not installed.\n");
-    exit(2);
-}
-
-const SURFACE_MAP_REL = 'docs/public-surface-map.php';
+const SURFACE_MAP_PHP_REL = 'docs/public-surface-map.php';
+const SURFACE_MAP_MD_REL = 'docs/public-surface-map.md';
 const FRAGMENT_DIR_REL = 'changes/unreleased';
 
+require_once __DIR__ . '/lib/SurfaceScanner.php';
+require_once __DIR__ . '/lib/SurfaceDeclarations.php';
+require_once __DIR__ . '/lib/SurfaceMapView.php';
 require_once __DIR__ . '/lib/SurfaceChangeAuthorization.php';
 require_once __DIR__ . '/lib/ChangelogFragments.php';
-
-/** Public element shapes — contracts/extension points, never concrete classes. */
-const PUBLIC_SHAPES = ['interface', 'abstract', 'trait', 'enum'];
 
 function info(string $msg): void
 {
@@ -111,12 +110,17 @@ function surfaceGit(string $root, array $arguments): array
     return [(string) $stdout . ($exitCode === 0 ? '' : (string) $stderr), $exitCode];
 }
 
-/** @return array<string, string> */
-function loadBaseSurfaceMap(string $root, string $mergeBase): array
+/**
+ * The merge base's tracked docs/public-surface-map.php as a validated
+ * FQCN => disposition map — the authority a pre-migration base carried.
+ *
+ * @return array<string, string>
+ */
+function loadBaseAggregate(string $root, string $mergeBase): array
 {
-    [$source, $exitCode] = surfaceGit($root, ['show', $mergeBase . ':' . SURFACE_MAP_REL]);
+    [$source, $exitCode] = surfaceGit($root, ['show', $mergeBase . ':' . SURFACE_MAP_PHP_REL]);
     if ($exitCode !== 0 || $source === '') {
-        fail("cannot read " . SURFACE_MAP_REL . " at merge base {$mergeBase}: " . trim($source), 2);
+        fail("merge base {$mergeBase} has neither package-local declarations nor a readable " . SURFACE_MAP_PHP_REL . ': ' . trim($source), 2);
     }
 
     $temporary = tempnam(sys_get_temp_dir(), 'waaseyaa-surface-map-');
@@ -129,11 +133,19 @@ function loadBaseSurfaceMap(string $root, string $mergeBase): array
     } finally {
         @unlink($temporary);
     }
-    if (!is_array($map)) {
-        fail("merge-base " . SURFACE_MAP_REL . ' must return an array.', 2);
+    if (!is_array($map) || $map === []) {
+        fail('merge-base ' . SURFACE_MAP_PHP_REL . ' must return a non-empty array.', 2);
     }
 
-    return $map;
+    $validated = [];
+    foreach ($map as $fqcn => $disposition) {
+        if (!is_string($fqcn) || !is_string($disposition) || !in_array($disposition, SurfaceDeclarations::ALLOWED_DISPOSITIONS, true)) {
+            fail('merge-base ' . SURFACE_MAP_PHP_REL . ' carries an invalid entry: ' . var_export($fqcn, true) . ' => ' . var_export($disposition, true), 2);
+        }
+        $validated[$fqcn] = $disposition;
+    }
+
+    return $validated;
 }
 
 /** @return list<string> */
@@ -180,47 +192,76 @@ if ($baseRef === '') {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 1: Load the surface map (single source of truth).
+// Phase 1: Load + validate HEAD's package-local declarations (§4).
 // ---------------------------------------------------------------------------
 
-$mapPath = $root . '/' . SURFACE_MAP_REL;
-if (!is_file($mapPath)) {
-    fail(SURFACE_MAP_REL . ' not found. Per charter §2.5 it is the single source of truth for the public surface.', 2);
+try {
+    $headDeclarations = SurfaceDeclarations::load($root);
+    $scanner = SurfaceScanner::scan($root);
+} catch (\Throwable $e) {
+    fail('infrastructure failure while loading declarations: ' . $e->getMessage(), 2);
 }
 
-/** @var mixed $surfaceMap */
-$surfaceMap = require $mapPath;
-if (!is_array($surfaceMap) || $surfaceMap === []) {
-    fail(SURFACE_MAP_REL . ' must return a non-empty array (FQCN => disposition).', 2);
+$validationErrors = $headDeclarations->validate($scanner);
+if ($validationErrors !== []) {
+    fail("declaration validation failed (docs/specs/public-surface-declarations.md §4):\n\n" . implode("\n\n", $validationErrors));
 }
 
-$allowedDispositions = ['public', 'internal', 'extract', 'remove'];
-$badDispositions = [];
-$validatedSurfaceMap = [];
-foreach ($surfaceMap as $fqcn => $disposition) {
-    if (!is_string($fqcn) || !in_array($disposition, $allowedDispositions, true)) {
-        $badDispositions[] = is_string($fqcn) ? "{$fqcn} => " . var_export($disposition, true) : '(non-string key)';
-        continue;
+$headMap = $headDeclarations->compose();
+$unloadableDeclarations = [];
+foreach (array_keys($headMap) as $fqcn) {
+    if (!surfaceTypeExists($fqcn)) {
+        $unloadableDeclarations[] = $fqcn;
     }
-    $validatedSurfaceMap[$fqcn] = $disposition;
 }
-if ($badDispositions !== []) {
+if ($unloadableDeclarations !== []) {
+    sort($unloadableDeclarations, SORT_STRING);
     fail(
-        "invalid disposition(s) in " . SURFACE_MAP_REL . " (allowed: " . implode('|', $allowedDispositions) . "):\n  "
-        . implode("\n  ", $badDispositions),
-        2,
+        "declaration validation failed (docs/specs/public-surface-declarations.md §4):\n\n"
+        . count($unloadableDeclarations) . " declared type(s) do not load through the repository autoloader:\n  "
+        . implode("\n  ", $unloadableDeclarations),
     );
 }
-$surfaceMap = $validatedSurfaceMap;
+info(sprintf(
+    'Loaded %d disposition(s) from %d package declaration file(s); scanned %d source file(s).',
+    count($headMap),
+    count($headDeclarations->packages()),
+    $scanner->fileCount(),
+));
 
-info('Loaded ' . count($surfaceMap) . ' entries from ' . SURFACE_MAP_REL . '.');
+// ---------------------------------------------------------------------------
+// Phase 2: Merge-base declarations + current-change authorization (§5).
+// ---------------------------------------------------------------------------
 
 [$mergeBase, $mergeBaseExit] = surfaceGit($root, ['merge-base', 'HEAD', $baseRef]);
 $mergeBase = trim($mergeBase);
 if ($mergeBaseExit !== 0 || $mergeBase === '') {
     fail("cannot resolve merge base between HEAD and {$baseRef}; fetch the base ref or pass --base=<ref>.", 2);
 }
-$baseSurfaceMap = loadBaseSurfaceMap($root, $mergeBase);
+
+try {
+    $baseDeclarations = SurfaceDeclarations::loadAt($root, $mergeBase);
+} catch (\Throwable $e) {
+    fail("cannot load declarations at merge base {$mergeBase}: " . $e->getMessage(), 2);
+}
+if ($baseDeclarations->packages() === []) {
+    // A merge base that predates the declaration plane (no
+    // packages/*/public-surface.php at all) still carried its authority in the
+    // tracked docs/public-surface-map.php. Comparing against an EMPTY composed
+    // map would make every removal and downgrade invisible, so read the base's
+    // aggregate instead — the pre-migration gate's own base — and fail closed
+    // (exit 2) when the base has neither. Review-observed regression: removing
+    // a governed public entry and regenerating the aggregate passed against
+    // 5bac44286 before this fallback existed.
+    $baseMap = loadBaseAggregate($root, $mergeBase);
+    info('Merge base carries no package-local declarations; comparing against its tracked ' . SURFACE_MAP_PHP_REL . ' instead.');
+} else {
+    $baseMap = $baseDeclarations->compose();
+}
+if ($baseMap === []) {
+    fail("merge base {$mergeBase} yields an empty disposition map; refusing to authorize against nothing.", 2);
+}
+
 $allFragments = ChangelogFragments::load($root . '/' . FRAGMENT_DIR_REL);
 $addedFilenames = array_fill_keys(addedFragmentFilenames($root, $mergeBase), true);
 $candidateFragments = array_values(array_filter(
@@ -231,124 +272,17 @@ $candidateBody = $candidateFragments === [] ? '' : ChangelogFragments::render($c
 $candidateChangelog = "## [Unreleased]\n\n" . $candidateBody;
 $candidateLines = preg_split('/\n/', $candidateBody) ?: [];
 $authorizations = SurfaceChangeAuthorization::parse($candidateChangelog, $candidateLines);
-info("Comparing governed map changes with merge base {$mergeBase} ({$baseRef}).");
-
-// ---------------------------------------------------------------------------
-// Phase 2: AST-scan src/ for declared public elements (contracts/extension points).
-// ---------------------------------------------------------------------------
-
-$scanDirs = [];
-$packageDirectories = glob($root . '/packages/*', GLOB_ONLYDIR);
-foreach ($packageDirectories === false ? [] : $packageDirectories as $pkg) {
-    if (is_dir("{$pkg}/src")) {
-        $scanDirs[] = "{$pkg}/src";
-    }
-}
-if (is_dir($root . '/src')) {
-    $scanDirs[] = $root . '/src';
-}
-
-$parser = (new ParserFactory())->createForNewestSupportedVersion();
-
-$collector = new class extends NodeVisitorAbstract {
-    public string $ns = '';
-    /** @var array<string, true> fqcn => true (public-shape elements only) */
-    public array $elements = [];
-
-    public function enterNode(Node $node): null
-    {
-        if ($node instanceof Node\Stmt\Namespace_) {
-            $this->ns = $node->name !== null ? $node->name->toString() : '';
-
-            return null;
-        }
-
-        $isPublicShape = $node instanceof Node\Stmt\Interface_
-            || $node instanceof Node\Stmt\Trait_
-            || $node instanceof Node\Stmt\Enum_
-            || ($node instanceof Node\Stmt\Class_ && $node->name !== null && $node->isAbstract());
-
-        if ($isPublicShape && isset($node->name)) {
-            $fqcn = ($this->ns !== '' ? $this->ns . '\\' : '') . $node->name->toString();
-            $this->elements[$fqcn] = true;
-        }
-
-        return null;
-    }
-};
-
-/** @var array<string, true> $publicElements */
-$publicElements = [];
-$fileCount = 0;
-foreach ($scanDirs as $dir) {
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-    );
-    foreach ($iterator as $file) {
-        if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
-            continue;
-        }
-        $fileCount++;
-        try {
-            $ast = $parser->parse((string) file_get_contents($file->getPathname()));
-        } catch (\Throwable $e) {
-            fail("parse error in {$file->getPathname()}: {$e->getMessage()}", 2);
-        }
-        if ($ast === null) {
-            continue;
-        }
-        $visitor = clone $collector;
-        $traverser = new NodeTraverser();
-        $traverser->addVisitor($visitor);
-        $traverser->traverse($ast);
-        foreach ($visitor->elements as $fqcn => $_) {
-            $publicElements[$fqcn] = true;
-        }
-    }
-}
-
-info("Scanned {$fileCount} src files across " . count($scanDirs) . ' package trees: '
-    . count($publicElements) . ' public-shape elements (interface/abstract/trait/enum).');
-
-// ---------------------------------------------------------------------------
-// Phase 3: Compare in both directions.
-// ---------------------------------------------------------------------------
+info("Comparing composed declarations with merge base {$mergeBase} ({$baseRef}).");
 
 $problems = [];
-
-// source -> map : a discovered public element with no disposition.
-$untracked = array_values(array_diff(array_keys($publicElements), array_keys($surfaceMap)));
-sort($untracked);
-if ($untracked !== []) {
-    $problems[] = count($untracked) . " untracked public element(s) — declared in source but absent from "
-        . SURFACE_MAP_REL . " (add each with `public` or `internal`):\n  " . implode("\n  ", $untracked);
-}
-
-// map -> source : every current map entry must still load. Authorization is
-// deliberately not an escape hatch for leaving a stale entry behind.
-$staleMapEntries = [];
-foreach (array_keys($surfaceMap) as $fqcn) {
-    if (!surfaceTypeExists($fqcn)) {
-        $staleMapEntries[] = $fqcn;
-    }
-}
-sort($staleMapEntries);
-if ($staleMapEntries !== []) {
-    $problems[] = count($staleMapEntries) . " current map entry(ies) reference types that no longer load. Remove the "
-        . "map entry in the same change and add the exact governed Removed fragment authorization:\n  "
-        . implode("\n  ", $staleMapEntries);
-}
 
 foreach ($authorizations['errors'] as $authorizationError) {
     $problems[] = "invalid current-change changelog-fragment public-surface authorization: {$authorizationError}";
 }
 
-// base map -> candidate map : catches removal even when both the source and
-// map entry disappear, including concrete final classes the source scanner
-// intentionally does not infer as contracts.
 $unauthorizedRemovals = [];
 $invalidRenames = [];
-foreach (SurfaceChangeAuthorization::removedMapEntries($baseSurfaceMap, $surfaceMap) as $fqcn) {
+foreach (SurfaceChangeAuthorization::removedMapEntries($baseMap, $headMap) as $fqcn) {
     if (isset($authorizations['removals'][$fqcn])) {
         continue;
     }
@@ -357,22 +291,22 @@ foreach (SurfaceChangeAuthorization::removedMapEntries($baseSurfaceMap, $surface
         $unauthorizedRemovals[] = $fqcn;
         continue;
     }
-    if (!isset($surfaceMap[$renameTarget]) || !surfaceTypeExists($renameTarget)) {
-        $invalidRenames[] = "{$fqcn} -> {$renameTarget} (replacement must be mapped and loadable)";
+    if (!isset($headMap[$renameTarget]) || !surfaceTypeExists($renameTarget)) {
+        $invalidRenames[] = "{$fqcn} -> {$renameTarget} (replacement must be declared and loadable)";
     }
 }
 if ($unauthorizedRemovals !== []) {
-    $problems[] = count($unauthorizedRemovals) . " governed map entry(ies) were removed without a newly-added exact-FQCN "
+    $problems[] = count($unauthorizedRemovals) . " governed declaration(s) were removed without a newly-added exact-FQCN "
         . "changelog-fragment authorization of type removed:\n  "
         . implode("\n  ", $unauthorizedRemovals);
 }
 if ($invalidRenames !== []) {
-    $problems[] = count($invalidRenames) . " public-surface rename authorization(s) have no mapped, loadable replacement:\n  "
+    $problems[] = count($invalidRenames) . " public-surface rename authorization(s) have no declared, loadable replacement:\n  "
         . implode("\n  ", $invalidRenames);
 }
 
 $unauthorizedDowngrades = array_values(array_filter(
-    SurfaceChangeAuthorization::publicDowngrades($baseSurfaceMap, $surfaceMap),
+    SurfaceChangeAuthorization::publicDowngrades($baseMap, $headMap),
     static fn(string $fqcn): bool => !isset($authorizations['deprecations'][$fqcn]),
 ));
 if ($unauthorizedDowngrades !== []) {
@@ -381,9 +315,42 @@ if ($unauthorizedDowngrades !== []) {
         . implode("\n  ", $unauthorizedDowngrades);
 }
 
+// ---------------------------------------------------------------------------
+// Phase 3: §6 tracked/generated boundary — each aggregate must be either the
+// merge base's tracked bytes, or a fresh generation from HEAD's declarations.
+// ---------------------------------------------------------------------------
+
+try {
+    $layerByShort = SurfaceMapView::layerTable($root);
+    [$freshPhp, $freshMd] = SurfaceMapView::render($headMap, $headDeclarations->packages(), $layerByShort, $scanner);
+} catch (\Throwable $e) {
+    fail('infrastructure failure while regenerating the aggregate views: ' . $e->getMessage(), 2);
+}
+
+foreach ([
+    [SURFACE_MAP_PHP_REL, $freshPhp],
+    [SURFACE_MAP_MD_REL, $freshMd],
+] as [$relativePath, $fresh]) {
+    $trackedPath = $root . '/' . $relativePath;
+    if (!is_file($trackedPath)) {
+        $problems[] = "{$relativePath} does not exist. It is a generated view — run `php bin/generate-surface-map --write`.";
+        continue;
+    }
+    $tracked = (string) file_get_contents($trackedPath);
+    if ($tracked === $fresh) {
+        continue;
+    }
+    [$baseBytes, $baseBytesExit] = surfaceGit($root, ['show', $mergeBase . ':' . $relativePath]);
+    if ($baseBytesExit === 0 && $tracked === $baseBytes) {
+        continue;
+    }
+    $problems[] = "{$relativePath} is neither byte-identical to the merge base ({$mergeBase}) nor to a fresh generation from HEAD's "
+        . 'declarations — it looks hand-edited. Run `php bin/generate-surface-map --write` (docs/specs/public-surface-declarations.md §6).';
+}
+
 if ($problems !== []) {
     fail(implode("\n\n", $problems));
 }
 
-info('OK — public-surface-map parity verified in both directions.');
+info('OK — public-surface parity verified: declarations valid, authorization current, aggregates within the tracked/generated boundary.');
 exit(0);

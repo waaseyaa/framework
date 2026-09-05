@@ -11648,6 +11648,13 @@
             "occurrence": 1
         },
         {
+            "path": "tests/Architecture/SurfaceParityLoadabilityTest.php",
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "848452b59be362b1d974e7eba2f687f559b5d8214154e372ba5603ec7787c6a2",
+            "occurrence": 1
+        },
+        {
             "path": "tests/Integration/BackendRegistry/Fixtures/backend_registry_runner.php",
             "pattern": "legacy_schema_method",
             "class": "test-only",

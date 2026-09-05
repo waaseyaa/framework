@@ -27,7 +27,12 @@ use Waaseyaa\Publishing\SaveAdvisoryAcknowledgementDispatcher;
 #[CoversNothing]
 final class DraftMutationPublicSurfaceTest extends TestCase
 {
-    private const SURFACE_MAP = __DIR__ . '/../../../../docs/public-surface-map.php';
+    /**
+     * Monorepo root. Dispositions are composed from the package-local declaration
+     * plane (docs/specs/public-surface-declarations.md), never from the generated
+     * docs/public-surface-map.php, which may lag until the next release cut.
+     */
+    private const MONOREPO_ROOT = __DIR__ . '/../../../..';
 
     /** The five frozen parameters of the base contract, in order. */
     private const FROZEN_BASE_PARAMETERS = [
@@ -42,7 +47,7 @@ final class DraftMutationPublicSurfaceTest extends TestCase
     private function surfaceMap(): array
     {
         /** @var array<string, string> $map */
-        $map = require self::SURFACE_MAP;
+        $map = require self::MONOREPO_ROOT . '/tools/lib/compose-public-surface.php';
 
         return $map;
     }

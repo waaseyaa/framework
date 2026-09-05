@@ -15,12 +15,17 @@ on:
     paths:
       - 'packages/**/src/**'
       - 'packages/**/testing/**'
+      - 'packages/*/public-surface.php'
       - 'src/**'
       - 'docs/public-surface-map.php'
       - 'docs/public-surface-map.md'
       - 'CHANGELOG.md'
       - 'changes/unreleased/**'
       - 'tools/check-surface-parity.php'
+      - 'tools/lib/SurfaceScanner.php'
+      - 'tools/lib/SurfaceDeclarations.php'
+      - 'tools/lib/SurfaceMapView.php'
+      - 'bin/generate-surface-map'
       - '.github/workflows/surface-parity.yml'
 
 jobs:

@@ -1,0 +1,192 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Composes package-local `packages/<pkg>/public-surface.php` declarations
+ * into the two derived aggregate views (docs/specs/public-surface-declarations.md
+ * §6, FW-DELIVERY-SURFACE-01 / #2901):
+ *
+ *   docs/public-surface-map.php — the FQCN => disposition map every existing
+ *   `require` consumer already reads (unchanged shape).
+ *
+ *   docs/public-surface-map.md — layer -> package -> sorted symbol table,
+ *   for humans, with shape derived from source and purpose/notes carried
+ *   verbatim from the declarations.
+ *
+ * Usage:
+ *   php bin/generate-surface-map [--root=DIR] --write
+ *   php bin/generate-surface-map [--root=DIR] --check
+ *   php bin/generate-surface-map [--root=DIR] --stdout=php|md
+ *
+ * --root defaults to the repository root (the directory containing this
+ * bin/ directory's parent). The generator itself, and the layer table it
+ * groups packages by (Waaseyaa\Tooling\SurfaceMapView::layerTable()), always
+ * come from THIS repository (dirname(__DIR__)), independent of --root —
+ * --root only selects where package declarations and source trees are read
+ * from (used by tests/Architecture/SurfaceDeclarationCompositionTest.php to
+ * compose a throwaway fixture tree without ever touching
+ * docs/public-surface-map.*).
+ *
+ * Exit codes: 0 success; 1 validation failure or --check drift; 2 usage or
+ * infrastructure failure (unparsable layer table, unwritable target, ...).
+ */
+
+$selfRoot = dirname(__DIR__);
+
+$autoload = $selfRoot . '/vendor/autoload.php';
+if (!is_file($autoload)) {
+    fwrite(STDERR, "generate-surface-map: vendor/autoload.php not found — run `composer install` first.\n");
+    exit(2);
+}
+require $autoload;
+
+require_once $selfRoot . '/tools/lib/SurfaceScanner.php';
+require_once $selfRoot . '/tools/lib/SurfaceDeclarations.php';
+require_once $selfRoot . '/tools/lib/SurfaceMapView.php';
+
+use Waaseyaa\Tooling\SurfaceDeclarations;
+use Waaseyaa\Tooling\SurfaceMapView;
+use Waaseyaa\Tooling\SurfaceScanner;
+
+function gsmFail(string $message, int $exit = 1): never
+{
+    fwrite(STDERR, "generate-surface-map: {$message}\n");
+    exit($exit);
+}
+
+function gsmInfo(string $message): void
+{
+    fwrite(STDOUT, "generate-surface-map: {$message}\n");
+}
+
+$root = $selfRoot;
+$write = false;
+$check = false;
+$stdout = null;
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--root=')) {
+        $root = rtrim(substr($argument, strlen('--root=')), '/');
+        continue;
+    }
+    if ($argument === '--write') {
+        $write = true;
+        continue;
+    }
+    if ($argument === '--check') {
+        $check = true;
+        continue;
+    }
+    if (str_starts_with($argument, '--stdout=')) {
+        $stdout = substr($argument, strlen('--stdout='));
+        if (!in_array($stdout, ['php', 'md'], true)) {
+            gsmFail("--stdout must be 'php' or 'md', got '{$stdout}'.", 2);
+        }
+        continue;
+    }
+    gsmFail("unknown argument {$argument}; expected --root=DIR, --write, --check, or --stdout=php|md.", 2);
+}
+if (!$write && !$check && $stdout === null) {
+    gsmFail('nothing to do; pass --write, --check, or --stdout=php|md.', 2);
+}
+if (!is_dir($root)) {
+    gsmFail("--root {$root} is not a directory.", 2);
+}
+
+// ---------------------------------------------------------------------------
+// Load + validate the declaration plane (§4).
+// ---------------------------------------------------------------------------
+
+try {
+    $declarations = SurfaceDeclarations::load($root);
+    $scanner = SurfaceScanner::scan($root);
+} catch (\Throwable $e) {
+    gsmFail('infrastructure failure while scanning: ' . $e->getMessage(), 2);
+}
+
+$errors = $declarations->validate($scanner);
+if ($errors !== []) {
+    gsmFail("declaration validation failed:\n\n" . implode("\n\n", $errors));
+}
+
+$composedMap = $declarations->compose();
+if ($write || $check) {
+    // Keep --stdout output byte-pure (no incidental info lines mixed in) so
+    // a caller (and SurfaceDeclarationCompositionTest) can `require` it directly.
+    gsmInfo(sprintf(
+        'composed %d disposition(s) from %d package declaration file(s); scanned %d source file(s).',
+        count($composedMap),
+        count($declarations->packages()),
+        $scanner->fileCount(),
+    ));
+}
+
+try {
+    $layerByShort = SurfaceMapView::layerTable($selfRoot);
+} catch (\Throwable $e) {
+    gsmFail($e->getMessage(), 2);
+}
+
+[$phpView, $mdView] = SurfaceMapView::render($composedMap, $declarations->packages(), $layerByShort, $scanner);
+
+// ---------------------------------------------------------------------------
+// --stdout
+// ---------------------------------------------------------------------------
+
+if ($stdout === 'php') {
+    fwrite(STDOUT, $phpView);
+}
+if ($stdout === 'md') {
+    fwrite(STDOUT, $mdView);
+}
+
+$targetPhp = $root . '/docs/public-surface-map.php';
+$targetMd = $root . '/docs/public-surface-map.md';
+
+// ---------------------------------------------------------------------------
+// --check
+// ---------------------------------------------------------------------------
+
+if ($check) {
+    $problems = [];
+    foreach ([['php', $targetPhp, $phpView], ['md', $targetMd, $mdView]] as [$label, $target, $fresh]) {
+        $onDisk = is_file($target) ? (string) file_get_contents($target) : null;
+        if ($onDisk === null) {
+            $problems[] = "{$target} does not exist.";
+            continue;
+        }
+        if ($onDisk !== $fresh) {
+            $problems[] = sprintf(
+                '%s differs from a fresh generation (on-disk %d bytes, generated %d bytes).',
+                $target,
+                strlen($onDisk),
+                strlen($fresh),
+            );
+        }
+    }
+    if ($problems !== []) {
+        gsmFail("--check found drift:\n  " . implode("\n  ", $problems) . "\n\nRun `php bin/generate-surface-map --write` to regenerate.");
+    }
+    gsmInfo('OK — both tracked aggregates are byte-identical to a fresh generation.');
+}
+
+// ---------------------------------------------------------------------------
+// --write (atomic: write-to-temp-then-rename)
+// ---------------------------------------------------------------------------
+
+if ($write) {
+    foreach ([[$targetPhp, $phpView], [$targetMd, $mdView]] as [$target, $content]) {
+        $directory = dirname($target);
+        if (!is_dir($directory)) {
+            gsmFail("cannot write {$target}: directory {$directory} does not exist.", 2);
+        }
+        $temporary = $target . '.tmp-' . getmypid();
+        if (file_put_contents($temporary, $content) === false || !rename($temporary, $target)) {
+            gsmFail("failed to write {$target}.", 2);
+        }
+    }
+    gsmInfo("wrote {$targetPhp} and {$targetMd}.");
+}
+
+exit(0);

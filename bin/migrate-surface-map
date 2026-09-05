@@ -1,0 +1,300 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * ONE-OFF migration (kept for provenance — docs/specs/public-surface-declarations.md
+ * §10, FW-DELIVERY-SURFACE-01 / #2901): joins the pre-migration
+ * docs/public-surface-map.php (dispositions, authoritative) with
+ * docs/public-surface-map.md (purpose text, where a row names a governed FQCN)
+ * and writes one packages/<pkg>/public-surface.php per owning package.
+ *
+ * Join algorithm:
+ *   - Every php-map FQCN is assigned an owning package by longest Composer
+ *     PSR-4 prefix match (verified 0 orphans, 0 multi-owner at 5bac44286).
+ *   - Every php-map entry's disposition carries over verbatim. A `ref` is
+ *     attached only when the single comment block immediately preceding
+ *     that entry's line cites an issue (#NNNN), an ADR (ADR-NNN), or an
+ *     audit finding (audit C-NN) — the first such citation in the block.
+ *     A comment block that precedes more than one entry (rare) attaches to
+ *     the first only; this is a best-effort provenance carry, not a
+ *     validated contract (§2: `ref` is optional).
+ *   - Every docs/public-surface-map.md table row is joined back to a FQCN:
+ *     first by <package's PSR-4 prefix> + <Element> exact match against the
+ *     php map; if that misses (the human-written md often omits an
+ *     intermediate namespace segment), by a UNIQUE suffix match of
+ *     `\<Element>` (or an exact equal) among that package's OWN owned keys.
+ *     A match's Purpose column becomes the declaration's `purpose`.
+ *   - `#### <pkg> — ...` nests under the last `### <pkg>` heading (same
+ *     package) per docs/public-surface-map.md's one use of this (config —
+ *     CMI sync substrate).
+ *   - Any md row that joins to no FQCN (a governed-looking element the php
+ *     map never dispositioned, or a prose method/constructor-argument row)
+ *     becomes a package `note`, verbatim as "`Element` (Type): Purpose" —
+ *     never a new disposition (no broadening; §11 acceptance).
+ *
+ * Idempotent: re-running regenerates the same packages/<pkg>/public-surface.php
+ * files from the same two source aggregates.
+ */
+
+$root = dirname(__DIR__);
+$phpMapPath = $root . '/docs/public-surface-map.php';
+$mdMapPath = $root . '/docs/public-surface-map.md';
+
+if (!is_file($phpMapPath) || !is_file($mdMapPath)) {
+    fwrite(STDERR, "migrate-surface-map: both docs/public-surface-map.php and .md must exist.\n");
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// 1. Package PSR-4 prefixes.
+// ---------------------------------------------------------------------------
+
+/** @var array<string, string> pkg short => single psr-4 prefix */
+$prefixOf = [];
+$packageDirectories = glob($root . '/packages/*', GLOB_ONLYDIR) ?: [];
+sort($packageDirectories, SORT_STRING);
+foreach ($packageDirectories as $dir) {
+    $short = basename($dir);
+    $composerPath = $dir . '/composer.json';
+    if (!is_file($composerPath)) {
+        continue;
+    }
+    $decoded = json_decode((string) file_get_contents($composerPath), true);
+    $psr4 = is_array($decoded) ? ($decoded['autoload']['psr-4'] ?? []) : [];
+    if (is_array($psr4) && $psr4 !== []) {
+        // Every current package has exactly one psr-4 root; take the first
+        // (longest, if ever more than one) deterministically.
+        $keys = array_keys($psr4);
+        usort($keys, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+        $prefixOf[$short] = $keys[0];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 2. Parse docs/public-surface-map.php: ordered (fqcn, disposition, ref).
+// ---------------------------------------------------------------------------
+
+$phpSource = (string) file_get_contents($phpMapPath);
+$phpLines = explode("\n", $phpSource);
+
+/** @var list<array{fqcn: string, disposition: string, ref: ?string}> */
+$phpEntries = [];
+/** @var list<string> */
+$pendingComments = [];
+
+foreach ($phpLines as $line) {
+    $trimmed = trim($line);
+    if ($trimmed === '') {
+        $pendingComments = [];
+        continue;
+    }
+    if (str_starts_with($trimmed, '//')) {
+        $pendingComments[] = ltrim(substr($trimmed, 2));
+        continue;
+    }
+    if (preg_match("/^\\s*'([^']+)'\\s*=>\\s*'([a-z]+)',\\s*$/", $line, $matches) === 1) {
+        // These keys are single-quoted PHP strings. Most entries use a
+        // literal single backslash ('Waaseyaa\Foo\Bar'); a handful (the Oidc
+        // signing-key entries) escape it ('Waaseyaa\\Oidc\\...'). Both are
+        // valid single-quoted PHP and require() to the identical string —
+        // collapse doubled backslashes the same way PHP's own lexer does so
+        // ownership matching sees one consistent value either way.
+        $fqcn = str_replace('\\\\', '\\', $matches[1]);
+        $disposition = $matches[2];
+        $ref = null;
+        $commentBlock = implode(' ', $pendingComments);
+        if (preg_match('/#(\d+)/', $commentBlock, $refMatch) === 1) {
+            $ref = '#' . $refMatch[1];
+        } elseif (preg_match('/ADR-(\d+)/', $commentBlock, $refMatch) === 1) {
+            $ref = 'ADR-' . $refMatch[1];
+        } elseif (preg_match('/audit ([A-Z]-\d+)/i', $commentBlock, $refMatch) === 1) {
+            $ref = 'audit ' . $refMatch[1];
+        }
+        $phpEntries[] = ['fqcn' => $fqcn, 'disposition' => $disposition, 'ref' => $ref];
+        $pendingComments = [];
+        continue;
+    }
+    // A non-comment, non-entry, non-blank line (array open/close, declare(),
+    // etc.) breaks any accumulating comment block's association.
+    $pendingComments = [];
+}
+
+$phpFqcns = array_column($phpEntries, null, 'fqcn');
+if (count($phpFqcns) !== count($phpEntries)) {
+    fwrite(STDERR, "migrate-surface-map: duplicate FQCN(s) parsed from " . $phpMapPath . "; require()-collapse would have hidden this.\n");
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// 3. Owner of every php-map FQCN (longest PSR-4 prefix match).
+// ---------------------------------------------------------------------------
+
+/** @var array<string, string> fqcn => owning package short name */
+$ownerOf = [];
+$unowned = [];
+foreach (array_keys($phpFqcns) as $fqcn) {
+    $best = null;
+    $bestLength = -1;
+    foreach ($prefixOf as $short => $prefix) {
+        if (str_starts_with($fqcn, $prefix) && strlen($prefix) > $bestLength) {
+            $best = $short;
+            $bestLength = strlen($prefix);
+        }
+    }
+    if ($best === null) {
+        $unowned[] = $fqcn;
+        continue;
+    }
+    $ownerOf[$fqcn] = $best;
+}
+if ($unowned !== []) {
+    fwrite(STDERR, "migrate-surface-map: " . count($unowned) . " map entrie(s) have no owning package:\n  " . implode("\n  ", $unowned) . "\n");
+    exit(1);
+}
+
+/** @var array<string, list<string>> package => list of owned fqcns */
+$ownedKeysByPackage = [];
+foreach ($ownerOf as $fqcn => $short) {
+    $ownedKeysByPackage[$short][] = $fqcn;
+}
+
+// ---------------------------------------------------------------------------
+// 4. Parse docs/public-surface-map.md; join rows to FQCNs; collect notes.
+// ---------------------------------------------------------------------------
+
+/** @var array<string, string> fqcn => purpose */
+$purposeOf = [];
+/** @var array<string, list<string>> package => list of verbatim note strings */
+$notesByPackage = [];
+
+$currentPackage = null;
+$mdLines = explode("\n", (string) file_get_contents($mdMapPath));
+$ambiguous = [];
+foreach ($mdLines as $line) {
+    if (preg_match('/^#{4}\s/', $line) === 1) {
+        // Nested subsection ("#### config — ..."): same package as the last "###".
+        continue;
+    }
+    if (preg_match('/^###\s+(.+)$/', $line, $matches) === 1) {
+        $currentPackage = trim($matches[1]);
+        continue;
+    }
+    if ($currentPackage === null) {
+        continue;
+    }
+    if (preg_match('/^\|\s*`(.+?)`\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|$/', $line, $matches) !== 1) {
+        continue;
+    }
+    [, $element, $type, $purpose] = $matches;
+
+    $prefix = $prefixOf[$currentPackage] ?? null;
+    $exactFqcn = $prefix !== null ? $prefix . $element : null;
+    if ($exactFqcn !== null && isset($phpFqcns[$exactFqcn])) {
+        $purposeOf[$exactFqcn] = $purpose;
+        continue;
+    }
+
+    $candidates = [];
+    foreach ($ownedKeysByPackage[$currentPackage] ?? [] as $key) {
+        if ($key === $element || str_ends_with($key, '\\' . $element)) {
+            $candidates[] = $key;
+        }
+    }
+    $candidates = array_values(array_unique($candidates));
+    if (count($candidates) === 1) {
+        $purposeOf[$candidates[0]] = $purpose;
+        continue;
+    }
+    if (count($candidates) > 1) {
+        $ambiguous[] = "{$currentPackage}: `{$element}` matches " . implode(', ', $candidates);
+        continue;
+    }
+
+    // No governed FQCN for this row: carry it as a package note, verbatim,
+    // never as a new disposition.
+    $notesByPackage[$currentPackage][] = "`{$element}` ({$type}): {$purpose}";
+}
+if ($ambiguous !== []) {
+    fwrite(STDERR, "migrate-surface-map: ambiguous md row join(s) — resolve manually:\n  " . implode("\n  ", $ambiguous) . "\n");
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// 5. Write packages/<pkg>/public-surface.php, one per owning package.
+// ---------------------------------------------------------------------------
+
+$writtenCount = 0;
+$entryCount = 0;
+$noteCount = 0;
+ksort($ownedKeysByPackage, SORT_STRING);
+foreach ($ownedKeysByPackage as $short => $fqcns) {
+    sort($fqcns, SORT_STRING);
+    $entries = [];
+    foreach ($fqcns as $fqcn) {
+        $source = $phpFqcns[$fqcn];
+        $entry = ['fqcn' => $fqcn, 'disposition' => $source['disposition']];
+        if (isset($purposeOf[$fqcn])) {
+            $entry['purpose'] = $purposeOf[$fqcn];
+        }
+        if ($source['ref'] !== null) {
+            $entry['ref'] = $source['ref'];
+        }
+        $entries[] = $entry;
+    }
+    $notes = $notesByPackage[$short] ?? [];
+
+    $lines = [];
+    $lines[] = '<?php';
+    $lines[] = '';
+    $lines[] = 'declare(strict_types=1);';
+    $lines[] = '';
+    $lines[] = '// Migrated by bin/migrate-surface-map from docs/public-surface-map.php';
+    $lines[] = '// and docs/public-surface-map.md (FW-DELIVERY-SURFACE-01 / #2901). This';
+    $lines[] = '// file, not the generated docs/public-surface-map.*, is the editable';
+    $lines[] = '// authority — see docs/specs/public-surface-declarations.md.';
+    $lines[] = 'return [';
+    $lines[] = "    'entries' => [";
+    foreach ($entries as $entry) {
+        $parts = ["'fqcn' => '" . addslashes($entry['fqcn']) . "'", "'disposition' => '{$entry['disposition']}'"];
+        if (isset($entry['purpose'])) {
+            $parts[] = "'purpose' => " . var_export($entry['purpose'], true);
+        }
+        if (isset($entry['ref'])) {
+            $parts[] = "'ref' => " . var_export($entry['ref'], true);
+        }
+        $lines[] = '        [' . implode(', ', $parts) . '],';
+    }
+    $lines[] = '    ],';
+    if ($notes !== []) {
+        $lines[] = "    'notes' => [";
+        foreach ($notes as $note) {
+            $lines[] = '        ' . var_export($note, true) . ',';
+        }
+        $lines[] = '    ],';
+    }
+    $lines[] = '];';
+    $lines[] = '';
+
+    $targetDir = $root . '/packages/' . $short;
+    if (!is_dir($targetDir)) {
+        fwrite(STDERR, "migrate-surface-map: packages/{$short} does not exist; skipping {$short}'s " . count($entries) . " entrie(s).\n");
+        continue;
+    }
+    file_put_contents($targetDir . '/public-surface.php', implode("\n", $lines));
+    $writtenCount++;
+    $entryCount += count($entries);
+    $noteCount += count($notes);
+    fwrite(STDOUT, sprintf("wrote packages/%s/public-surface.php: %d entrie(s), %d note(s).\n", $short, count($entries), count($notes)));
+}
+
+fwrite(STDOUT, sprintf(
+    "\nmigrate-surface-map: %d package file(s), %d entrie(s) total, %d note(s) total, %d md row(s) carried as notes.\n",
+    $writtenCount,
+    $entryCount,
+    $noteCount,
+    array_sum(array_map('count', $notesByPackage)),
+));
+
+exit(0);

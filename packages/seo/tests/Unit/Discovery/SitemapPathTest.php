@@ -41,13 +41,16 @@ final class SitemapPathTest extends TestCase
     {
         // Absent when this package is exercised as a split repository, where
         // packages/seo IS the root and the monorepo's docs/ tree is not present.
-        $map = dirname(__DIR__, 5) . '/docs/public-surface-map.php';
-        if (!is_file($map)) {
-            self::markTestSkipped('Public surface map is only present in the monorepo tree.');
+        // Compose from the package-local declaration plane; the generated
+        // docs/public-surface-map.php may lag until the next release cut.
+        $root = dirname(__DIR__, 5);
+        $composer = $root . '/tools/lib/compose-public-surface.php';
+        if (!is_file($composer)) {
+            self::markTestSkipped('Public surface declarations are only composable in the monorepo tree.');
         }
 
         /** @var array<string, string> $dispositions */
-        $dispositions = require $map;
+        $dispositions = require $composer;
 
         self::assertArrayHasKey(SitemapPath::class, $dispositions);
         self::assertSame('public', $dispositions[SitemapPath::class]);
