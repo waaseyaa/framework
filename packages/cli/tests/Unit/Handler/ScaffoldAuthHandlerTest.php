@@ -12,6 +12,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\CLI\Handler\ScaffoldAuthHandler;
 use Waaseyaa\CLI\Provider\OtherScaffoldsServiceProvider;
 use Waaseyaa\CLI\Scaffold\AuthUiScaffoldManager;
+use Waaseyaa\CLI\Scaffold\CliInstallPathResolverInterface;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(ScaffoldAuthHandler::class)]
@@ -213,47 +214,157 @@ final class ScaffoldAuthHandlerTest extends TestCase
         self::assertStringContainsString('No auth UI scaffold drift detected.', $check->getStdout());
     }
 
+    /**
+     * Superseded by the #2833 repair design (2026-09-05 review of candidate
+     * 290d064): the removed sibling `dirname($cliRoot) . '/admin/app'` guess
+     * only ever worked when `vendor/waaseyaa/cli` was a path-repo symlink back
+     * into this monorepo, which no real consumer install produces. The
+     * replacement candidates are package-owned: (c)
+     * {@see resolvesAuthUiSourcesFromAnInjectedInstallPathResolver} and (d)
+     * {@see fallsBackToTheLoadedCliPackagesOwnResourcesDirectoryWhenNoInstallPathIsResolved}.
+     */
     #[Test]
-    public function resolvesAuthUiSourcesFromLoadedCliPackageSiblingWithoutFrameworkAggregate(): void
+    public function resolvesAuthUiSourcesFromAnInjectedInstallPathResolver(): void
     {
-        // Isolate the #2833 path: empty consumer root, no in-tree packages/, and
-        // only the loaded waaseyaa/cli package's monorepo sibling admin app.
+        // Isolate the #2833 path: empty consumer root, no in-tree packages/,
+        // and no installed waaseyaa/framework aggregate. The package-owned
+        // candidate (c) is driven entirely by an injected resolver so this
+        // test never touches the real vendor/ install of this repository.
         (new Filesystem())->remove($this->tempDir . '/packages');
         unlink($this->tempDir . '/VERSION');
         self::assertDirectoryDoesNotExist($this->tempDir . '/vendor/waaseyaa/framework');
 
-        $manager = new AuthUiScaffoldManager($this->tempDir);
-        $candidates = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceCandidates')
-            ->invoke($manager);
+        $fixtureCliRoot = $this->tempDir . '/fixture-cli-install';
+        mkdir($fixtureCliRoot . '/resources/auth-ui/pages', 0755, true);
+        mkdir($fixtureCliRoot . '/resources/auth-ui/components/auth', 0755, true);
+        mkdir($fixtureCliRoot . '/resources/auth-ui/composables', 0755, true);
+        mkdir($fixtureCliRoot . '/resources/auth-ui/assets', 0755, true);
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/pages/login.vue', '<template>fixture login</template>');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/components/auth/LoginForm.vue', '<template>fixture form</template>');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/components/auth/BrandPanel.vue', '<template>fixture brand</template>');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/composables/useAuth.ts', 'export function useAuth() {}');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/assets/auth.css', ':root {}');
+        file_put_contents($fixtureCliRoot . '/VERSION', 'v9.9.9-fixture');
+
+        $manager = new AuthUiScaffoldManager($this->tempDir, $this->fixedResolver($fixtureCliRoot));
+        $candidates = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceCandidates')->invoke($manager);
         self::assertIsArray($candidates);
 
-        $cliRoot = dirname((string) (new \ReflectionClass(AuthUiScaffoldManager::class))->getFileName(), 3);
-        $siblingAdmin = dirname($cliRoot) . '/admin/app';
-        self::assertDirectoryExists($siblingAdmin);
-
-        $siblingOnly = array_values(array_filter(
+        $expectedSourceBase = $fixtureCliRoot . '/resources/auth-ui';
+        $packageOwnedOnly = array_values(array_filter(
             $candidates,
-            static fn(array $candidate): bool => $candidate['source_base'] === $siblingAdmin,
+            static fn(array $candidate): bool => $candidate['source_base'] === $expectedSourceBase,
         ));
-        self::assertNotSame([], $siblingOnly, 'Loaded CLI package must nominate its sibling admin app.');
+        self::assertNotSame([], $packageOwnedOnly, 'An injected install path must nominate the package-owned resources/auth-ui candidate.');
 
         $context = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceContextFromCandidates')
-            ->invoke($manager, $siblingOnly);
-        self::assertSame($siblingAdmin, $context['source_base']);
-        self::assertNotSame('', $context['framework_version']);
+            ->invoke($manager, $packageOwnedOnly);
+        self::assertSame($expectedSourceBase, $context['source_base']);
+        self::assertSame('v9.9.9-fixture', $context['framework_version']);
 
-        $check = $this->makeTester();
-        $check->execute(['--check']);
-        self::assertSame(0, $check->getExitCode(), $check->getStderr() . $check->getStdout());
-        self::assertStringContainsString(
-            'Auth UI is framework-owned; no published consumer files were detected.',
-            $check->getStdout(),
+        // End-to-end through the public API: publish() must resolve from the
+        // injected fixture, not the real repo's own resources/auth-ui.
+        $result = $manager->publish(force: false, dryRun: false);
+        self::assertSame(5, $result['copied']);
+        self::assertSame(
+            '<template>fixture login</template>',
+            file_get_contents($this->tempDir . '/app/pages/login.vue'),
+        );
+    }
+
+    #[Test]
+    public function fallsBackToTheLoadedCliPackagesOwnResourcesDirectoryWhenNoInstallPathIsResolved(): void
+    {
+        // The (c) candidate must be skipped — not merely absent — when the
+        // resolver has no record of the package, falling through to (d): the
+        // loaded-package-local resources/auth-ui shipped beside this class
+        // file (see CliAuthUiResourceParityTest for the mirror it reads).
+        (new Filesystem())->remove($this->tempDir . '/packages');
+        unlink($this->tempDir . '/VERSION');
+
+        $manager = new AuthUiScaffoldManager($this->tempDir, $this->fixedResolver(null));
+        $candidates = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceCandidates')->invoke($manager);
+
+        $packageOwnedCandidateCount = count(array_filter(
+            $candidates,
+            static fn(array $candidate): bool => str_ends_with($candidate['source_base'], '/resources/auth-ui'),
+        ));
+        self::assertSame(
+            1,
+            $packageOwnedCandidateCount,
+            'A resolver with no install path must not push the (c) package-owned candidate; only the (d) loaded-package-local fallback should remain.',
         );
 
-        $publish = $this->makeTester();
-        $publish->execute([]);
-        self::assertSame(0, $publish->getExitCode(), $publish->getStderr() . $publish->getStdout());
-        self::assertFileExists($this->tempDir . '/app/pages/login.vue');
+        $loadedCliRoot = dirname((string) (new \ReflectionClass(AuthUiScaffoldManager::class))->getFileName(), 3);
+        $context = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceContextFromCandidates')
+            ->invoke($manager, $candidates);
+        self::assertSame($loadedCliRoot . '/resources/auth-ui', $context['source_base']);
+    }
+
+    #[Test]
+    public function skipsAnInjectedInstallPathWhoseResourcesDirectoryDoesNotExist(): void
+    {
+        // (c) is nominated but must be skipped by sourceContextFromCandidates'
+        // is_dir() guard when the resolved install path has no
+        // resources/auth-ui at all, falling through to (d).
+        (new Filesystem())->remove($this->tempDir . '/packages');
+        unlink($this->tempDir . '/VERSION');
+
+        $emptyCliRoot = $this->tempDir . '/fixture-cli-without-resources';
+        mkdir($emptyCliRoot, 0755, true);
+
+        $manager = new AuthUiScaffoldManager($this->tempDir, $this->fixedResolver($emptyCliRoot));
+        $context = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceContextFromCandidates')
+            ->invoke($manager, new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceCandidates')->invoke($manager));
+
+        $loadedCliRoot = dirname((string) (new \ReflectionClass(AuthUiScaffoldManager::class))->getFileName(), 3);
+        self::assertSame($loadedCliRoot . '/resources/auth-ui', $context['source_base']);
+    }
+
+    #[Test]
+    public function publishFailsSafelyWhenAPackageOwnedResourceFileIsUnreadable(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            self::markTestSkipped('Cannot exercise an unreadable-file failure while running as root.');
+        }
+
+        (new Filesystem())->remove($this->tempDir . '/packages');
+        unlink($this->tempDir . '/VERSION');
+
+        $fixtureCliRoot = $this->tempDir . '/fixture-cli-corrupt';
+        mkdir($fixtureCliRoot . '/resources/auth-ui/pages', 0755, true);
+        mkdir($fixtureCliRoot . '/resources/auth-ui/components/auth', 0755, true);
+        mkdir($fixtureCliRoot . '/resources/auth-ui/composables', 0755, true);
+        mkdir($fixtureCliRoot . '/resources/auth-ui/assets', 0755, true);
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/pages/login.vue', '<template>fixture login</template>');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/components/auth/LoginForm.vue', '<template>fixture form</template>');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/components/auth/BrandPanel.vue', '<template>fixture brand</template>');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/composables/useAuth.ts', 'export function useAuth() {}');
+        file_put_contents($fixtureCliRoot . '/resources/auth-ui/assets/auth.css', ':root {}');
+        file_put_contents($fixtureCliRoot . '/VERSION', 'v9.9.9-fixture');
+        chmod($fixtureCliRoot . '/resources/auth-ui/pages/login.vue', 0000);
+
+        try {
+            $manager = new AuthUiScaffoldManager($this->tempDir, $this->fixedResolver($fixtureCliRoot));
+
+            // is_file() ignores permissions, so the unreadable file is still
+            // nominated for publication; PHP's copy() then fails, and
+            // AuthUiScaffoldManager::publish() must fail closed rather than
+            // record a manifest entry or leave a partial destination file.
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('Unable to copy auth UI file: pages/login.vue');
+
+            try {
+                // Suppress PHP's own copy() warning for the expected failure;
+                // the RuntimeException assertion above is the actual behavioural
+                // contract under test, not the raw engine warning.
+                @$manager->publish(force: false, dryRun: false);
+            } finally {
+                self::assertFileDoesNotExist($this->tempDir . '/app/pages/login.vue');
+            }
+        } finally {
+            chmod($fixtureCliRoot . '/resources/auth-ui/pages/login.vue', 0644);
+        }
     }
 
     #[Test]
@@ -264,7 +375,9 @@ final class ScaffoldAuthHandlerTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage(
-            'Framework auth UI sources were not found in the project, an installed waaseyaa/framework package, or the loaded waaseyaa/cli package sibling admin app.',
+            'Framework auth UI sources were not found in the project (packages/admin/app), an installed '
+            . 'waaseyaa/framework package (vendor/waaseyaa/framework/packages/admin/app), the installed '
+            . 'waaseyaa/cli package (resources/auth-ui), or the loaded waaseyaa/cli package\'s own resources/auth-ui.',
         );
 
         $fromCandidates->invoke($manager, []);
@@ -392,4 +505,21 @@ final class ScaffoldAuthHandlerTest extends TestCase
         );
     }
 
+    /**
+     * An install-path resolver whose result is fixed at construction time, so
+     * tests can drive AuthUiScaffoldManager's package-owned candidate (c)
+     * without touching the real Composer\InstalledVersions registration of
+     * this repository's own vendor/ install (#2833 repair design, decision 3).
+     */
+    private function fixedResolver(?string $installPath): CliInstallPathResolverInterface
+    {
+        return new class ($installPath) implements CliInstallPathResolverInterface {
+            public function __construct(private readonly ?string $installPath) {}
+
+            public function resolve(): ?string
+            {
+                return $this->installPath;
+            }
+        };
+    }
 }

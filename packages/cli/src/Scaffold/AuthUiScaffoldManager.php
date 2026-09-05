@@ -19,7 +19,10 @@ final class AuthUiScaffoldManager
         'assets/auth.css' => 'assets/auth.css',
     ];
 
-    public function __construct(private readonly string $projectRoot) {}
+    public function __construct(
+        private readonly string $projectRoot,
+        private readonly CliInstallPathResolverInterface $installPathResolver = new ComposerCliInstallPathResolver(),
+    ) {}
 
     /**
      * @return array{actions: list<array{action: string, path: string, source: string}>, copied: int, skipped: int}
@@ -266,17 +269,27 @@ final class AuthUiScaffoldManager
         }
 
         throw new \RuntimeException(
-            'Framework auth UI sources were not found in the project, an installed waaseyaa/framework package, or the loaded waaseyaa/cli package sibling admin app.',
+            'Framework auth UI sources were not found in the project (packages/admin/app), an installed '
+            . 'waaseyaa/framework package (vendor/waaseyaa/framework/packages/admin/app), the installed '
+            . 'waaseyaa/cli package (resources/auth-ui), or the loaded waaseyaa/cli package\'s own resources/auth-ui.',
         );
     }
 
     /**
      * Ordered source roots for scaffold:auth (#2833).
      *
-     * Direct-package consumers omit waaseyaa/framework; auth UI sources still
-     * live at packages/admin/app beside the loaded waaseyaa/cli package when
-     * Composer path-installs monorepo packages (ADR-004). Follow the loaded
-     * CLI class location — same owning-package anchor pattern as sync-rules (#2832).
+     * (a) and (b) are project-owned and metapackage-aggregate lookups.
+     * Direct-package consumers omit waaseyaa/framework (ADR-004), so (c)
+     * resolves the canonical package-owned mirror shipped inside the
+     * installed waaseyaa/cli package itself
+     * (packages/cli/resources/auth-ui — kept byte-identical to
+     * packages/admin/app by bin/sync-cli-auth-ui-resources, see
+     * CliAuthUiResourceParityTest). (d) is a loaded-package-local fallback,
+     * anchored on this class's own file location, for runtimes where
+     * Composer\InstalledVersions does not register the package — the same
+     * convention as Waaseyaa\Bimaaji\Install\PackagedSkillResources. No
+     * candidate here guesses at a sibling directory outside the package it
+     * resolves from (see FW-2833-AUTH-SCAFFOLD-SOURCES-01.md, decision 3).
      *
      * @return list<array{source_base: string, version_roots: list<string>}>
      */
@@ -293,42 +306,19 @@ final class AuthUiScaffoldManager
             ],
         ];
 
-        if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/framework')) {
-            $installedPath = InstalledVersions::getInstallPath('waaseyaa/framework');
-            if (is_string($installedPath) && $installedPath !== '') {
-                $frameworkRoot = realpath($installedPath);
-                if ($frameworkRoot === false) {
-                    $frameworkRoot = $installedPath;
-                }
-                $candidates[] = [
-                    'source_base' => rtrim($frameworkRoot, '/\\') . '/packages/admin/app',
-                    'version_roots' => [$frameworkRoot],
-                ];
-            }
-        }
-
-        $cliFile = new \ReflectionClass(self::class)->getFileName();
-        if (is_string($cliFile)) {
-            $cliRoot = dirname($cliFile, 3);
+        $cliRoot = $this->installPathResolver->resolve();
+        if ($cliRoot !== null && $cliRoot !== '') {
             $candidates[] = [
-                'source_base' => dirname($cliRoot) . '/admin/app',
-                'version_roots' => [dirname($cliRoot, 2)],
+                'source_base' => rtrim($cliRoot, '/\\') . '/resources/auth-ui',
+                'version_roots' => [$cliRoot],
             ];
         }
 
-        if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/cli')) {
-            $installedPath = InstalledVersions::getInstallPath('waaseyaa/cli');
-            if (is_string($installedPath) && $installedPath !== '') {
-                $cliRoot = realpath($installedPath);
-                if ($cliRoot === false) {
-                    $cliRoot = $installedPath;
-                }
-                $candidates[] = [
-                    'source_base' => dirname($cliRoot) . '/admin/app',
-                    'version_roots' => [dirname($cliRoot, 2)],
-                ];
-            }
-        }
+        $loadedCliRoot = dirname(__DIR__, 2);
+        $candidates[] = [
+            'source_base' => $loadedCliRoot . '/resources/auth-ui',
+            'version_roots' => [$loadedCliRoot],
+        ];
 
         return $candidates;
     }
