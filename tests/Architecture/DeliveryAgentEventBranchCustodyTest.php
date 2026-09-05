@@ -370,7 +370,14 @@ final class DeliveryAgentEventBranchCustodyTest extends TestCase
         self::assertTrue(copy($this->root . '/ops/observability/delivery-agent-events-v1.jsonl', $repo . '/ops/observability/delivery-agent-events-v1.jsonl'));
         self::assertTrue(copy($this->root . '/bin/check-delivery-agent-events', $repo . '/bin/check-delivery-agent-events'));
         self::assertTrue(copy($this->root . '/bin/lib/delivery-agent-event-set.php', $repo . '/bin/lib/delivery-agent-event-set.php'));
+        self::assertTrue(copy($this->root . '/bin/lib/vendor-freshness.php', $repo . '/bin/lib/vendor-freshness.php'));
         self::assertTrue(copy($this->root . '/bin/git', $repo . '/bin/git'));
+        // The gate's vendor/ precondition (#2926) compares these against the
+        // symlinked real vendor/, so the fixture carries the real pair. On a
+        // machine whose vendor/ is stale these tests fail with the gate's
+        // exit-3 "run composer install" message — not a fixture bug.
+        self::assertTrue(copy($this->root . '/composer.json', $repo . '/composer.json'));
+        self::assertTrue(copy($this->root . '/composer.lock', $repo . '/composer.lock'));
         chmod($repo . '/bin/check-delivery-agent-events', 0o755);
         chmod($repo . '/bin/git', 0o755);
         self::assertTrue(symlink($this->root . '/vendor', $repo . '/vendor'));
@@ -379,7 +386,7 @@ final class DeliveryAgentEventBranchCustodyTest extends TestCase
         $this->git($repo, ['init', '--quiet', '--initial-branch=main']);
         $this->git($repo, ['config', 'user.name', 'Ledger Fixture']);
         $this->git($repo, ['config', 'user.email', 'ledger-fixture@example.invalid']);
-        $this->git($repo, ['add', 'ops/observability', 'bin', 'vendor']);
+        $this->git($repo, ['add', 'ops/observability', 'bin', 'vendor', 'composer.json', 'composer.lock']);
         $this->git($repo, ['commit', '--quiet', '-m', 'initial custody']);
 
         return $repo;
