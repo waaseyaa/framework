@@ -87,10 +87,11 @@ function projectionAssertDsn(string $dsn): void
     if (!str_starts_with($dsn, 'mysql:')) {
         throw new InvalidArgumentException('DSN must use sqlite or mysql');
     }
-    if (preg_match('/(?:^|;)host=([^;]+)/i', substr($dsn, 6), $matches) !== 1) {
-        throw new InvalidArgumentException('MySQL DSN must declare a host');
+    $matchCount = preg_match_all('/(?:^|;)host=([^;]*)/i', substr($dsn, 6), $matches);
+    if ($matchCount !== 1) {
+        throw new InvalidArgumentException('MySQL DSN must declare exactly one host');
     }
-    if (!in_array(strtolower(trim($matches[1], '[]')), ['localhost', '127.0.0.1', '::1'], true)) {
+    if (!in_array(strtolower(trim($matches[1][0], '[]')), ['localhost', '127.0.0.1', '::1'], true)) {
         throw new InvalidArgumentException('MySQL projection is local-only; host must be loopback');
     }
 }
@@ -124,17 +125,26 @@ function projectionConnect(): PDO
 function k1CutoverSafeMessage(string $message): string
 {
     $secrets = [
-        getenv('WAASEYAA_DELIVERY_TELEMETRY_DSN'),
-        getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER'),
-        getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD'),
-        getenv('WAASEYAA_GRAFANA_URL'),
-        getenv('WAASEYAA_GRAFANA_TOKEN'),
-        getenv('WAASEYAA_GRAFANA_USER'),
-        getenv('WAASEYAA_GRAFANA_PASSWORD'),
+        [getenv('WAASEYAA_DELIVERY_TELEMETRY_DSN'), false],
+        [getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER'), true],
+        [getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD'), false],
+        [getenv('WAASEYAA_GRAFANA_URL'), false],
+        [getenv('WAASEYAA_GRAFANA_TOKEN'), false],
+        [getenv('WAASEYAA_GRAFANA_USER'), true],
+        [getenv('WAASEYAA_GRAFANA_PASSWORD'), false],
     ];
-    foreach ($secrets as $secret) {
+    foreach ($secrets as [$secret, $tokenBounded]) {
         if (is_string($secret) && $secret !== '') {
-            $message = str_replace($secret, '[redacted]', $message);
+            if (!$tokenBounded) {
+                $message = str_replace($secret, '[redacted]', $message);
+                continue;
+            }
+            $redacted = preg_replace(
+                '/(?<![A-Za-z0-9_])' . preg_quote($secret, '/') . '(?![A-Za-z0-9_])/',
+                '[redacted]',
+                $message,
+            );
+            $message = is_string($redacted) ? $redacted : str_replace($secret, '[redacted]', $message);
         }
     }
 

@@ -24,24 +24,30 @@ The verifier fetches the deployed dashboard from the loopback Grafana API,
 requires Panel 8's SQL and datasource UID to match the tracked definition
 exactly, and obtains the actual panel row through `/api/ds/query`. It then
 reads the projection tables through a query-only database connection. Each
-Grafana field and each database identity field is compared independently with
-the receipt. Missing, `unknown`, stale, malformed, or mismatched evidence
-fails closed.
+receipt-backed Grafana field and each database identity field is compared
+independently with the receipt. The Panel 8 projected timestamp remains
+display-only because the projector receipt has no corresponding timestamp
+field. Missing, `unknown`, stale, malformed, or mismatched receipt-backed
+evidence fails closed.
 
-Grafana credentials and database credentials remain environment-only. HTTP
-requests have a five-second timeout, bounded response bodies, and no redirect
-following. The Grafana base URL and MySQL host must be loopback. A SQLite
+Grafana credentials and database credentials remain environment-only. Username
+redaction preserves surrounding diagnostic words while still replacing the
+complete username token. HTTP requests have a five-second timeout, bounded
+response bodies, and no redirect following. The Grafana base URL and single
+declared MySQL host must be loopback;
+duplicate MySQL host parameters are rejected before connection. A SQLite
 database must already exist at an absolute path, preventing a verification typo
-from creating a new database. The public arbitrary-dashboard SQL seam is
-removed.
+from creating a new database. The public arbitrary-dashboard SQL seam is removed.
 
 The Architecture fixture copies the accepted tracked default dashboard and
 uses a disposable loopback HTTP server and SQLite database. It covers token
 and basic authentication, exact deployed SQL/datasource matching, receipt
 staleness, every comparison field separately,
 unknown values, row cardinality, redirect refusal, missing SQLite, and
-credential redaction. The credential-free self-test keeps a small comparison
-smoke with in-memory SQLite and no external HTTP or persistent database.
+credential redaction. Redirect refusal covers both dashboard GET and panel-query
+POST requests. The credential-free self-test keeps a small comparison smoke
+with in-memory SQLite and no external HTTP or persistent database, and exercises
+the duplicate-host MySQL DSN boundary without opening a connection.
 
 ## Scope boundary
 

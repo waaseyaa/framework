@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 function k1CutoverRunSelfTest(): int
 {
+    k1CutoverSelfTestDsnBoundary();
+    k1CutoverSelfTestSecretRedaction();
+
     $receipt = [
         'operation' => 'verify',
         'outcome' => 'no_op',
@@ -97,6 +100,49 @@ function k1CutoverRunSelfTest(): int
     fwrite(STDOUT, "matching fixture: PASS\nmissing provenance: FAIL (expected)\nmismatched Grafana result: FAIL (expected)\nk1 delivery cutover self-test: PASS\n");
 
     return 0;
+}
+
+function k1CutoverSelfTestDsnBoundary(): void
+{
+    foreach (['localhost', '127.0.0.1', '[::1]'] as $host) {
+        projectionAssertDsn('mysql:host=' . $host . ';dbname=delivery');
+    }
+    $refused = [
+        'mysql:host=remote.invalid;dbname=delivery' => 'MySQL projection is local-only; host must be loopback',
+        'mysql:host=localhost;host=remote.invalid;dbname=delivery' => 'MySQL DSN must declare exactly one host',
+    ];
+    foreach ($refused as $dsn => $diagnostic) {
+        try {
+            projectionAssertDsn($dsn);
+        } catch (InvalidArgumentException $exception) {
+            if ($exception->getMessage() === $diagnostic) {
+                continue;
+            }
+
+            throw new RuntimeException('self-test failed: refused MySQL host returned the wrong diagnostic');
+        }
+
+        throw new RuntimeException('self-test failed: refused MySQL host escaped the loopback boundary');
+    }
+}
+
+function k1CutoverSelfTestSecretRedaction(): void
+{
+    $name = 'WAASEYAA_DELIVERY_TELEMETRY_DB_USER';
+    $prior = getenv($name);
+    putenv($name . '=ro');
+    try {
+        $actual = k1CutoverSafeMessage('projection account ro is invalid');
+    } finally {
+        if ($prior === false) {
+            putenv($name);
+        } else {
+            putenv($name . '=' . $prior);
+        }
+    }
+    if ($actual !== 'projection account [redacted] is invalid') {
+        throw new RuntimeException('self-test failed: short secret redaction corrupted the diagnostic');
+    }
 }
 
 /** @param array{ok: bool, lines: list<string>} $report */

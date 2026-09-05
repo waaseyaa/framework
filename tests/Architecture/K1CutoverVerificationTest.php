@@ -209,11 +209,33 @@ final class K1CutoverVerificationTest extends TestCase
     }
 
     #[Test]
+    public function short_account_names_do_not_corrupt_fail_closed_diagnostics(): void
+    {
+        $fixture = $this->fixture();
+        unlink($fixture['database']);
+
+        $result = $this->execute($fixture, ['WAASEYAA_DELIVERY_TELEMETRY_DB_USER' => 'ro']);
+
+        self::assertSame(2, $result['exit']);
+        self::assertStringContainsString(
+            'SQLite projection database must already exist at an absolute path',
+            $result['stderr'],
+        );
+        self::assertStringNotContainsString('p[redacted]jection', $result['stderr']);
+        self::assertSame([], $this->requests($fixture));
+    }
+
+    #[Test]
     public function public_dashboard_override_is_rejected(): void
     {
         $fixture = $this->fixture();
         $result = $this->runProcess(
-            [PHP_BINARY, $fixture['application'] . '/' . self::SCRIPT, '--dashboard=/tmp/foreign.json'],
+            [
+                PHP_BINARY,
+                $fixture['application'] . '/' . self::SCRIPT,
+                '--receipt=' . $fixture['receipt'],
+                '--dashboard=/tmp/foreign.json',
+            ],
             $fixture['application'],
             $this->environment($fixture),
         );
@@ -236,6 +258,17 @@ final class K1CutoverVerificationTest extends TestCase
         self::assertStringContainsString('Grafana dashboard request failed', $redirect['stderr']);
         $this->assertNoSecrets($redirect, $fixture);
         self::assertCount(1, $this->requests($fixture));
+
+        $this->filesystem()->dumpFile($fixture['log'], '');
+        $this->writeServerConfig($fixture, overrides: [
+            'query_status' => 302,
+            'query_location' => 'http://example.invalid/credential-target',
+        ]);
+        $queryRedirect = $this->execute($fixture);
+        self::assertSame(1, $queryRedirect['exit']);
+        self::assertStringContainsString('Grafana panel query request failed', $queryRedirect['stderr']);
+        $this->assertNoSecrets($queryRedirect, $fixture);
+        self::assertCount(2, $this->requests($fixture));
 
         $this->filesystem()->dumpFile($fixture['log'], '');
         foreach ([0, 2] as $rowCount) {
@@ -332,7 +365,7 @@ final class K1CutoverVerificationTest extends TestCase
         );
         $server->start();
         $this->servers[] = $server;
-        $this->waitUntilReady($port);
+        $this->waitUntilReady($server, $url);
         $this->filesystem()->dumpFile($log, '');
 
         return $fixture;
@@ -564,18 +597,23 @@ final class K1CutoverVerificationTest extends TestCase
         return (int) substr($name, (int) strrpos($name, ':') + 1);
     }
 
-    private function waitUntilReady(int $port): void
+    private function waitUntilReady(Process $server, string $url): void
     {
-        for ($attempt = 0; $attempt < 100; ++$attempt) {
-            $socket = @fsockopen('127.0.0.1', $port, $errorCode, $error, 0.1);
-            if (is_resource($socket)) {
-                fclose($socket);
+        $startupOutput = '';
+        $server->setTimeout(5);
+        try {
+            $ready = $server->waitUntil(static function (string $type, string $output) use (&$startupOutput, $url): bool {
+                if ($type === Process::ERR) {
+                    $startupOutput .= $output;
+                }
 
-                return;
-            }
-            usleep(50_000);
+                return str_contains($startupOutput, 'Development Server (' . $url . ') started');
+            });
+        } finally {
+            $server->setTimeout(null);
         }
-        self::fail('Grafana fixture server did not start');
+
+        self::assertTrue($ready, 'Grafana fixture server did not bind to ' . $url);
     }
 
     /**

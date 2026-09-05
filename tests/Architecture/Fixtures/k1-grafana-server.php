@@ -39,6 +39,9 @@ if ($method === 'GET' && $path === '/api/dashboards/uid/waaseyaa-k1-flow') {
 
 if ($method === 'POST' && $path === '/api/ds/query') {
     http_response_code((int) ($config['query_status'] ?? 200));
+    if (is_string($config['query_location'] ?? null)) {
+        header('Location: ' . $config['query_location']);
+    }
     $fields = [];
     $values = [];
     $rowCount = (int) ($config['row_count'] ?? 1);
