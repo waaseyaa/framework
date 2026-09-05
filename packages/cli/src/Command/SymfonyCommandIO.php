@@ -69,6 +69,12 @@ class SymfonyCommandIO
         $this->stdout->write($this->plainText($text), false, OutputInterface::OUTPUT_RAW);
     }
 
+    /** Write machine-readable bytes without presentation normalization. */
+    public function writeRaw(string $text): void
+    {
+        $this->stdout->write($text, false, OutputInterface::OUTPUT_RAW);
+    }
+
     public function writeln(string $text = ''): void
     {
         $this->stdout->writeln($this->plainText($text), OutputInterface::OUTPUT_RAW);

@@ -25,7 +25,7 @@ final class McpRegistryManifestCommand
     public function execute(SymfonyCommandIO $io): int
     {
         try {
-            $io->write(($this->manifest)()->toJson());
+            $io->writeRaw(($this->manifest)()->toJson());
         } catch (ConfigException $e) {
             $io->error($e->getMessage());
 

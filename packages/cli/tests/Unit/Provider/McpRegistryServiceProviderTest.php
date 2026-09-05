@@ -7,11 +7,18 @@ namespace Waaseyaa\CLI\Tests\Unit\Provider;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\Mcp\McpRegistryManifestCommand;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Provider\McpRegistryServiceProvider;
 use Waaseyaa\Foundation\ServiceProvider\Capability\OptionalPackageGate;
 use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresOptionalPackagesInterface;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Mcp\McpImplementationInfo;
 use Waaseyaa\Mcp\Registry\McpRegistryManifest;
+use Waaseyaa\Mcp\Registry\McpRegistryManifestConfig;
 
 /**
  * `mcp:registry-manifest` is an optional contribution gated on `waaseyaa/mcp`
@@ -54,6 +61,67 @@ final class McpRegistryServiceProviderTest extends TestCase
         self::assertCount(1, $commands);
         self::assertInstanceOf(HandlerCommand::class, $commands[0]);
         self::assertSame('mcp:registry-manifest', $commands[0]->getName());
+    }
+
+    #[Test]
+    public function registered_command_resolves_the_host_manifest_through_kernel_services(): void
+    {
+        $manifest = new McpRegistryManifest(
+            McpRegistryManifestConfig::fromArray([
+                'name' => 'io.github.waaseyaa/framework',
+                'description' => 'Access-controlled CMS content and editorial tools',
+                'remote_url' => 'https://cms.example/mcp',
+            ]),
+            new McpImplementationInfo('Waaseyaa', '0.1.0-alpha.286'),
+        );
+        $provider = new McpRegistryServiceProvider();
+        $provider->setKernelServices(new readonly class ($manifest) implements KernelServicesInterface {
+            public function __construct(private McpRegistryManifest $manifest) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === McpRegistryManifest::class ? $this->manifest : null;
+            }
+        });
+        $provider->register();
+
+        $command = $provider->resolve(McpRegistryManifestCommand::class);
+        self::assertInstanceOf(McpRegistryManifestCommand::class, $command);
+        $stdout = new BufferedOutput();
+        $exit = $command->execute(new SymfonyCommandIO(new ArrayInput([]), $stdout));
+
+        self::assertSame(0, $exit);
+        self::assertSame($manifest->toJson(), $stdout->fetch());
+    }
+
+    #[Test]
+    public function registered_command_refuses_resolution_without_kernel_services(): void
+    {
+        $provider = new McpRegistryServiceProvider();
+        $provider->register();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('requires the kernel-services bus');
+        $provider->resolve(McpRegistryManifestCommand::class);
+    }
+
+    #[Test]
+    public function registered_command_refuses_a_wrong_host_service_type(): void
+    {
+        $provider = new McpRegistryServiceProvider();
+        $provider->setKernelServices(new class implements KernelServicesInterface {
+            public function get(string $abstract): ?object
+            {
+                return $abstract === McpRegistryManifest::class ? new \stdClass() : null;
+            }
+        });
+        $provider->register();
+        $command = $provider->resolve(McpRegistryManifestCommand::class);
+        self::assertInstanceOf(McpRegistryManifestCommand::class, $command);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('requires a host-bound McpRegistryManifest');
+        $command->execute(new SymfonyCommandIO(new ArrayInput([]), new BufferedOutput()));
     }
 
     #[Test]

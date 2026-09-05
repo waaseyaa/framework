@@ -25,6 +25,25 @@ Registry stays out of scope.
    Configuration refusals go to stderr and exit non-zero.
 4. Do not add an HTTP route. Do not publish to the Registry.
 
+## Review repair
+
+Independent review found two gaps in the first CLI adapter candidate:
+
+1. `SymfonyCommandIO::write()` deliberately removes Symfony style tags for
+   human-readable command output. Registry descriptions may legitimately
+   contain the same angle-bracket text, so using that path changed valid
+   `McpRegistryManifest::toJson()` bytes while still exiting successfully.
+2. The provider tests advertised the command but did not resolve its lazy
+   binding through the kernel-services bus, leaving both the successful and
+   fail-loud registration paths unproved.
+
+The machine artifact therefore uses a narrowly additive raw-write operation
+on `SymfonyCommandIO`; existing human-output methods retain their plain-text
+normalization. A regression pins byte-for-byte `toJson()` output with
+style-tag-shaped description text. Provider tests resolve the registered
+command with a valid manifest and prove that an absent bus or wrong service
+type is refused explicitly.
+
 ## Sequence
 
 1. Fixture command and optional-package provider tests.
