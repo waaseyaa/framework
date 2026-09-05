@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SiteContract\Tests\Unit\Blueprint;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\SiteContract\Blueprint\BlueprintAppliedEvidence;
@@ -15,6 +16,7 @@ use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
+#[CoversClass(BlueprintDecisionReceipt::class)]
 final class BlueprintDecisionReceiptTest extends TestCase
 {
     public function test_a_well_formed_receipt_parses_and_exposes_its_fields(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SiteContract\Tests\Unit\Blueprint;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
@@ -14,6 +15,7 @@ use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
+#[CoversClass(BlueprintAppliedEvidence::class)]
 final class BlueprintAppliedEvidenceTest extends TestCase
 {
     public function test_closed_applied_evidence_round_trips_and_matches_only_the_current_manifest(): void
