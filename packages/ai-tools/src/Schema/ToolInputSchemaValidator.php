@@ -17,16 +17,35 @@ namespace Waaseyaa\AI\Tools\Schema;
  *
  * `type` (single or list), `properties`, `required`, `additionalProperties`
  * (`false` or a subschema), `enum`, `const`, `items`, `minItems`, `maxItems`,
- * `minLength`, `maxLength`, `minimum`, `maximum`, `exclusiveMinimum`,
- * `exclusiveMaximum`, `pattern`. Unrecognised keywords (`default`,
- * `description`, `$schema`, `x-*`) are ignored, so a schema is never
+ * `uniqueItems`, `minLength`, `maxLength`, `minimum`, `maximum`,
+ * `exclusiveMinimum`, `exclusiveMaximum`, `pattern`, and the in-place
+ * applicators `allOf`, `anyOf`, `oneOf`. Unrecognised keywords (`default`,
+ * `description`, `format`, `$schema`, `x-*`) are ignored, so a schema is never
  * *rejected* for using vocabulary this validator does not police — a tool's
- * schema stays declarative documentation first.
+ * schema stays declarative documentation first. This is a documented subset,
+ * not a claim of full draft 2020-12 conformance: `$ref` (and every other
+ * keyword not listed above) is not implemented.
  *
- * Composition keywords (`allOf`/`anyOf`/`oneOf`/`$ref`) are deliberately NOT
- * implemented: no first-party tool declares them, and silently accepting them
- * would be worse than not offering them. Add support alongside the first tool
- * that needs it rather than speculatively.
+ * The applicators exist because first-party tools advertise them (#2737):
+ * `ContentToolSet` wraps nullable fields as `anyOf [<field>, {type: null}]`,
+ * declares reference-list items as `oneOf [integer >= 1, non-empty string]`,
+ * and marks list fields `uniqueItems`. Every keyword `tools/list` advertises
+ * is enforced here — an advertised constraint the server ignores is a
+ * contract lie, and the domain layer behind the handler is not the admission
+ * authority.
+ *
+ * - `allOf`: every subschema is applied; their violations are reported as-is.
+ * - `anyOf`: valid when at least one subschema accepts the value.
+ * - `oneOf`: valid when exactly one subschema accepts the value; more than
+ *   one match is a violation as well as none.
+ * - When no alternative accepts the value and exactly one alternative fits
+ *   the value's *type* (`anyOf [{string, maxLength}, {null}]` given a long
+ *   string, `oneOf [{integer, minimum: 1}, {string}]` given `0`), that
+ *   alternative's own violations are reported so the caller sees the concrete
+ *   constraint at its real path (`values.related.0`). Otherwise a single
+ *   "does not match any alternative" violation is reported at the path.
+ * - `uniqueItems` compares decoded-JSON items with strict equality, like
+ *   `enum`/`const`: `1` and `"1"` are distinct, and so are `1` and `1.0`.
  *
  * ## Decoded-JSON value model
  *
@@ -119,6 +138,128 @@ final class ToolInputSchemaValidator
                 ? self::checkObject($schema, $value, $path, $violations)
                 : self::checkArray($schema, $value, $path, $violations);
         }
+
+        // In-place applicators run after the value's own keywords, so a
+        // declared `type` beside `anyOf` still short-circuits above with its
+        // single violation rather than a union failure on top.
+        if (\is_array($schema['allOf'] ?? null)) {
+            foreach ($schema['allOf'] as $subschema) {
+                if (\is_array($subschema)) {
+                    self::check($subschema, $value, $path, $violations);
+                }
+            }
+        }
+
+        if (\is_array($schema['anyOf'] ?? null)) {
+            self::checkAnyOf($schema['anyOf'], $value, $path, $violations);
+        }
+
+        if (\is_array($schema['oneOf'] ?? null)) {
+            self::checkOneOf($schema['oneOf'], $value, $path, $violations);
+        }
+    }
+
+    /**
+     * @param array<mixed> $alternatives
+     * @param list<array{field: string, message: string}> $violations
+     */
+    private static function checkAnyOf(array $alternatives, mixed $value, string $path, array &$violations): void
+    {
+        $outcomes = self::evaluateAlternatives($alternatives, $value, $path);
+        if ($outcomes === [] || self::countMatches($outcomes) > 0) {
+            return;
+        }
+
+        self::reportNoMatch($outcomes, $path, $violations);
+    }
+
+    /**
+     * @param array<mixed> $alternatives
+     * @param list<array{field: string, message: string}> $violations
+     */
+    private static function checkOneOf(array $alternatives, mixed $value, string $path, array &$violations): void
+    {
+        $outcomes = self::evaluateAlternatives($alternatives, $value, $path);
+        if ($outcomes === []) {
+            return;
+        }
+
+        $matches = self::countMatches($outcomes);
+        if ($matches === 1) {
+            return;
+        }
+
+        if ($matches === 0) {
+            self::reportNoMatch($outcomes, $path, $violations);
+
+            return;
+        }
+
+        $violations[] = self::violation($path, sprintf(
+            'Matches %d of the %d allowed alternatives; exactly one is required.',
+            $matches,
+            \count($outcomes),
+        ));
+    }
+
+    /**
+     * Runs each alternative against the value into its own scratch list. An
+     * alternative is "type-compatible" when it declares no `type` or the
+     * value satisfies it — the signal `reportNoMatch()` uses to pick the
+     * alternative whose constraints are worth reporting. A non-array entry is
+     * an unusable schema, not a caller error, so it is skipped: an empty
+     * result means "no verdict".
+     *
+     * @param array<mixed> $alternatives
+     * @return list<array{typeCompatible: bool, violations: list<array{field: string, message: string}>}>
+     */
+    private static function evaluateAlternatives(array $alternatives, mixed $value, string $path): array
+    {
+        $outcomes = [];
+        foreach ($alternatives as $alternative) {
+            if (!\is_array($alternative)) {
+                continue;
+            }
+
+            $scratch = [];
+            self::check($alternative, $value, $path, $scratch);
+            $outcomes[] = [
+                'typeCompatible' => !isset($alternative['type']) || self::matchesType($alternative['type'], $value),
+                'violations' => $scratch,
+            ];
+        }
+
+        return $outcomes;
+    }
+
+    /** @param list<array{typeCompatible: bool, violations: list<array{field: string, message: string}>}> $outcomes */
+    private static function countMatches(array $outcomes): int
+    {
+        return \count(array_filter($outcomes, static fn(array $outcome): bool => $outcome['violations'] === []));
+    }
+
+    /**
+     * @param list<array{typeCompatible: bool, violations: list<array{field: string, message: string}>}> $outcomes
+     * @param list<array{field: string, message: string}> $violations
+     */
+    private static function reportNoMatch(array $outcomes, string $path, array &$violations): void
+    {
+        $compatible = array_values(array_filter($outcomes, static fn(array $outcome): bool => $outcome['typeCompatible']));
+        if (\count($compatible) === 1) {
+            // The value has the shape of exactly one alternative, so that
+            // alternative's own constraint (and nested path) is the message an
+            // agent can act on; "no alternative matched" would hide it.
+            foreach ($compatible[0]['violations'] as $violation) {
+                $violations[] = $violation;
+            }
+
+            return;
+        }
+
+        $violations[] = self::violation($path, sprintf(
+            'Does not match any of the %d allowed alternatives.',
+            \count($outcomes),
+        ));
     }
 
     /**
@@ -276,6 +417,23 @@ final class ToolInputSchemaValidator
         if (\is_array($schema['items'] ?? null)) {
             foreach ($value as $index => $item) {
                 self::check($schema['items'], $item, self::join($path, (string) $index), $violations);
+            }
+        }
+
+        if (($schema['uniqueItems'] ?? false) === true) {
+            // Strict decoded-JSON equality, like `enum`/`const`; the violation
+            // sits on the later duplicate so its index is actionable.
+            $seen = [];
+            foreach ($value as $index => $item) {
+                if (\in_array($item, $seen, true)) {
+                    $violations[] = self::violation(self::join($path, (string) $index), sprintf(
+                        'Items must be unique; item %d duplicates an earlier item.',
+                        (int) $index,
+                    ));
+
+                    continue;
+                }
+                $seen[] = $item;
             }
         }
     }

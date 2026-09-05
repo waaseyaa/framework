@@ -294,4 +294,149 @@ final class ToolInputSchemaValidatorTest extends TestCase
         self::assertCount(1, $violations);
         self::assertSame('(arguments)', $violations[0]['field']);
     }
+
+    #[Test]
+    public function any_of_accepts_a_matching_alternative_and_rejects_the_rest(): void
+    {
+        // The ContentToolSet nullable-field shape: anyOf [<field schema>, {type: null}].
+        $schema = [
+            'type' => 'object',
+            'properties' => ['v' => ['anyOf' => [['type' => 'string', 'maxLength' => 8], ['type' => 'null']]]],
+        ];
+
+        self::assertSame([], self::fields($schema, ['v' => null]));
+        self::assertSame([], self::fields($schema, ['v' => 'short']));
+        self::assertSame(['v'], self::fields($schema, ['v' => false]));
+        self::assertSame(['v'], self::fields($schema, ['v' => 3]));
+        self::assertSame(['v'], self::fields($schema, ['v' => 'way-too-long-for-eight']));
+    }
+
+    #[Test]
+    public function any_of_reports_the_single_type_compatible_alternatives_own_violation(): void
+    {
+        // When exactly one alternative fits the value's type, its concrete
+        // constraint is the useful message — not a generic union failure.
+        $schema = ['anyOf' => [['type' => 'string', 'maxLength' => 8], ['type' => 'null']]];
+
+        $violations = ToolInputSchemaValidator::validate($schema, 'way-too-long-for-eight');
+        self::assertCount(1, $violations);
+        self::assertSame('(arguments)', $violations[0]['field']);
+        self::assertStringContainsString('at most 8', $violations[0]['message']);
+
+        // No alternative fits the type at all: one generic violation at the path.
+        $violations = ToolInputSchemaValidator::validate($schema, false);
+        self::assertCount(1, $violations);
+        self::assertSame('(arguments)', $violations[0]['field']);
+        self::assertStringContainsString('alternative', strtolower($violations[0]['message']));
+    }
+
+    #[Test]
+    public function one_of_requires_exactly_one_matching_alternative(): void
+    {
+        // The ContentToolSet reference-list item shape.
+        $schema = [
+            'oneOf' => [
+                ['type' => 'integer', 'minimum' => 1],
+                ['type' => 'string', 'minLength' => 1, 'maxLength' => 190],
+            ],
+        ];
+
+        self::assertSame([], ToolInputSchemaValidator::validate($schema, 1));
+        self::assertSame([], ToolInputSchemaValidator::validate($schema, 'x'));
+        self::assertSame(['(arguments)'], self::fields($schema, 0));
+        self::assertSame(['(arguments)'], self::fields($schema, ''));
+        self::assertSame(['(arguments)'], self::fields($schema, false));
+        self::assertSame(['(arguments)'], self::fields($schema, null));
+        self::assertSame(['(arguments)'], self::fields($schema, str_repeat('s', 191)));
+    }
+
+    #[Test]
+    public function one_of_rejects_a_value_matching_more_than_one_alternative(): void
+    {
+        $schema = ['oneOf' => [['type' => 'integer'], ['minimum' => 0]]];
+
+        // -1 satisfies only the integer alternative.
+        self::assertSame([], ToolInputSchemaValidator::validate($schema, -1));
+
+        // 5 satisfies both; oneOf demands exactly one.
+        $violations = ToolInputSchemaValidator::validate($schema, 5);
+        self::assertCount(1, $violations);
+        self::assertSame('(arguments)', $violations[0]['field']);
+        self::assertStringContainsString('exactly one', strtolower($violations[0]['message']));
+    }
+
+    #[Test]
+    public function all_of_requires_every_alternative(): void
+    {
+        $schema = ['allOf' => [['type' => 'string', 'minLength' => 3], ['pattern' => '^[a-z]+$']]];
+
+        self::assertSame([], ToolInputSchemaValidator::validate($schema, 'abc'));
+        self::assertSame(['(arguments)'], self::fields($schema, 'ab'));
+        self::assertSame(['(arguments)'], self::fields($schema, 'ABC'));
+        // Both subschemas fail: both violations are reported.
+        self::assertCount(2, ToolInputSchemaValidator::validate($schema, 'AB'));
+    }
+
+    #[Test]
+    public function unique_items_rejects_duplicates_at_the_duplicate_index(): void
+    {
+        $schema = ['type' => 'object', 'properties' => ['tags' => ['type' => 'array', 'uniqueItems' => true]]];
+
+        self::assertSame([], self::fields($schema, ['tags' => ['a', 'b']]));
+        self::assertSame([], self::fields($schema, ['tags' => []]));
+        self::assertSame(['tags.1'], self::fields($schema, ['tags' => ['x', 'x']]));
+        self::assertSame(['tags.2'], self::fields($schema, ['tags' => [1, 2, 1]]));
+        self::assertSame(['tags.1'], self::fields($schema, ['tags' => [['k' => 'v'], ['k' => 'v']]]));
+
+        // Strict decoded-JSON equality, like `enum`/`const`: 1 and "1" are
+        // distinct items, and so are 1 and 1.0.
+        self::assertSame([], self::fields($schema, ['tags' => [1, '1']]));
+        self::assertSame([], self::fields($schema, ['tags' => [1, 1.0]]));
+
+        // `uniqueItems: false` (or absent) polices nothing.
+        self::assertSame([], self::fields(
+            ['type' => 'object', 'properties' => ['tags' => ['type' => 'array', 'uniqueItems' => false]]],
+            ['tags' => ['x', 'x']],
+        ));
+    }
+
+    #[Test]
+    public function the_first_party_nullable_reference_list_shape_is_enforced_recursively(): void
+    {
+        // `ContentToolSet::valuesSchema()` for a nullable reference_list with
+        // maxItems 2: anyOf [{array of oneOf[int>=1, non-empty string], unique, <=2}, null].
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'related' => [
+                    'anyOf' => [
+                        [
+                            'type' => 'array',
+                            'items' => [
+                                'oneOf' => [
+                                    ['type' => 'integer', 'minimum' => 1],
+                                    ['type' => 'string', 'minLength' => 1, 'maxLength' => 190],
+                                ],
+                            ],
+                            'uniqueItems' => true,
+                            'maxItems' => 2,
+                        ],
+                        ['type' => 'null'],
+                    ],
+                ],
+            ],
+        ];
+
+        self::assertSame([], self::fields($schema, ['related' => null]));
+        self::assertSame([], self::fields($schema, ['related' => []]));
+        self::assertSame([], self::fields($schema, ['related' => [1, 'b']]));
+
+        self::assertSame(['related'], self::fields($schema, ['related' => [1, 2, 3]]));
+        self::assertSame(['related'], self::fields($schema, ['related' => 'not-a-list']));
+        self::assertSame(['related.0'], self::fields($schema, ['related' => [0]]));
+        self::assertSame(['related.0'], self::fields($schema, ['related' => ['']]));
+        self::assertSame(['related.1'], self::fields($schema, ['related' => [1, false]]));
+        self::assertSame(['related.1'], self::fields($schema, ['related' => ['a', 'a']]));
+    }
+
 }
