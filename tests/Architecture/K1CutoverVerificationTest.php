@@ -26,8 +26,6 @@ final class K1CutoverVerificationTest extends TestCase
     private const MANIFEST = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     private const BATCH_SCHEMA = '4444444444444444444444444444444444444444444444444444444444444444';
     private const FREEZE = '5555555555555555555555555555555555555555555555555555555555555555';
-    private const PANEL_SQL = "SELECT COALESCE(s.source_commit_sha, 'unknown') AS `Source commit`, COALESCE(s.projector_version, 'unknown') AS `Projector version`, COALESCE(s.generation, 'unknown') AS `Generation`, COALESCE(s.event_count, 'unknown') AS `Events`, COALESCE(s.projected_at, 'unknown') AS `Projected (UTC)`, COALESCE(s.ledger_sha256, 'unknown') AS `Frozen v1 ledger SHA-256`, COALESCE(i.replay_sha256, 'unknown') AS `Complete replay SHA-256`, COALESCE(i.batch_manifest_sha256, 'unknown') AS `Batch manifest SHA-256` FROM (SELECT 'delivery-agent-events/v1' AS projection_id) AS p LEFT JOIN waaseyaa_delivery_projection_state AS s ON s.projection_id = p.projection_id LEFT JOIN waaseyaa_delivery_projection_identity_v2 AS i ON i.projection_id = p.projection_id";
-
     private string $root = '';
     private ?Filesystem $filesystem = null;
 
@@ -70,7 +68,12 @@ final class K1CutoverVerificationTest extends TestCase
         self::assertSame(['GET', 'POST'], array_column($requests, 'method'));
         self::assertSame(['/api/dashboards/uid/waaseyaa-k1-flow', '/api/ds/query'], array_column($requests, 'path'));
         self::assertSame([true, true], array_column($requests, 'authorization_matches'));
-        self::assertSame(self::PANEL_SQL, $requests[1]['body']['queries'][0]['rawSql'] ?? null);
+        $panel = $this->trackedPanel();
+        $trackedSql = $panel['targets'][0]['rawSql'] ?? null;
+        self::assertIsString($trackedSql);
+        self::assertStringContainsString('i.replay_sha256', $trackedSql);
+        self::assertStringContainsString('i.batch_manifest_sha256', $trackedSql);
+        self::assertSame($trackedSql, $requests[1]['body']['queries'][0]['rawSql'] ?? null);
         self::assertSame('waaseyaa-devlake-mysql', $requests[1]['body']['queries'][0]['datasource']['uid'] ?? null);
     }
 
@@ -150,15 +153,17 @@ final class K1CutoverVerificationTest extends TestCase
     public function deployed_panel_sql_and_datasource_must_match_the_tracked_panel_exactly(): void
     {
         $fixture = $this->fixture();
-        $dashboard = $this->dashboard();
-        $dashboard['panels'][0]['targets'][0]['rawSql'] .= ' ';
+        $dashboard = $this->trackedDashboard();
+        $panelIndex = $this->trackedPanelIndex($dashboard);
+        $dashboard['panels'][$panelIndex]['targets'][0]['rawSql'] .= ' ';
         $this->writeServerConfig($fixture, dashboard: $dashboard);
         $sqlMismatch = $this->execute($fixture);
         self::assertSame(1, $sqlMismatch['exit']);
         self::assertStringContainsString('deployed panel 8 SQL does not match tracked SQL', $sqlMismatch['stderr']);
 
-        $dashboard = $this->dashboard();
-        $dashboard['panels'][0]['datasource']['uid'] = 'other-datasource';
+        $dashboard = $this->trackedDashboard();
+        $panelIndex = $this->trackedPanelIndex($dashboard);
+        $dashboard['panels'][$panelIndex]['datasource']['uid'] = 'other-datasource';
         $this->writeServerConfig($fixture, dashboard: $dashboard);
         $datasourceMismatch = $this->execute($fixture);
         self::assertSame(1, $datasourceMismatch['exit']);
@@ -277,9 +282,9 @@ final class K1CutoverVerificationTest extends TestCase
             $application . '/vendor/autoload.php',
             '<?php require ' . var_export($this->root . '/vendor/autoload.php', true) . ";\n",
         );
-        $this->filesystem()->dumpFile(
+        $this->filesystem()->copy(
+            $this->root . '/ops/observability/grafana/waaseyaa-k1-delivery-flow.json',
             $application . '/ops/observability/grafana/waaseyaa-k1-delivery-flow.json',
-            json_encode($this->dashboard(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
 
         $database = $directory . '/projection.sqlite';
@@ -343,7 +348,7 @@ final class K1CutoverVerificationTest extends TestCase
     {
         $config = array_replace([
             'authorization' => $fixture['authorization'],
-            'dashboard' => $dashboard ?? $this->dashboard(),
+            'dashboard' => $dashboard ?? $this->trackedDashboard(),
             'row' => $row ?? $this->grafanaRow(),
         ], $overrides);
         $this->filesystem()->dumpFile(
@@ -455,24 +460,36 @@ final class K1CutoverVerificationTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function dashboard(): array
+    private function trackedDashboard(): array
     {
-        return [
-            'uid' => 'waaseyaa-k1-flow',
-            'title' => 'Waaseyaa K1 delivery flow',
-            'panels' => [[
-                'id' => 8,
-                'type' => 'table',
-                'title' => 'Governed projection identity',
-                'datasource' => ['type' => 'mysql', 'uid' => 'waaseyaa-devlake-mysql'],
-                'targets' => [[
-                    'refId' => 'A',
-                    'format' => 'table',
-                    'rawQuery' => true,
-                    'rawSql' => self::PANEL_SQL,
-                ]],
-            ]],
-        ];
+        $bytes = file_get_contents($this->root . '/ops/observability/grafana/waaseyaa-k1-delivery-flow.json');
+        self::assertIsString($bytes);
+        $document = json_decode($bytes, true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($document);
+        $dashboard = $document['dashboard'] ?? null;
+        self::assertIsArray($dashboard);
+
+        return $dashboard;
+    }
+
+    /** @return array<string, mixed> */
+    private function trackedPanel(): array
+    {
+        $dashboard = $this->trackedDashboard();
+
+        return $dashboard['panels'][$this->trackedPanelIndex($dashboard)];
+    }
+
+    /** @param array<string, mixed> $dashboard */
+    private function trackedPanelIndex(array $dashboard): int
+    {
+        foreach ($dashboard['panels'] ?? [] as $index => $panel) {
+            if (is_array($panel) && ($panel['id'] ?? null) === 8) {
+                return $index;
+            }
+        }
+
+        self::fail('Tracked default dashboard does not contain Panel 8.');
     }
 
     /** @param array<string, mixed> $identity */

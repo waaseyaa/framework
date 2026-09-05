@@ -35,9 +35,10 @@ database must already exist at an absolute path, preventing a verification typo
 from creating a new database. The public arbitrary-dashboard SQL seam is
 removed.
 
-The Architecture fixture uses a disposable loopback HTTP server and SQLite
-database. It covers token and basic authentication, exact deployed
-SQL/datasource matching, receipt staleness, every comparison field separately,
+The Architecture fixture copies the accepted tracked default dashboard and
+uses a disposable loopback HTTP server and SQLite database. It covers token
+and basic authentication, exact deployed SQL/datasource matching, receipt
+staleness, every comparison field separately,
 unknown values, row cardinality, redirect refusal, missing SQLite, and
 credential redaction. The credential-free self-test keeps a small comparison
 smoke with in-memory SQLite and no external HTTP or persistent database.
@@ -46,6 +47,6 @@ smoke with in-memory SQLite and no external HTTP or persistent database.
 
 This slice owns the verifier, its focused fixtures and tests, this record, the
 operator guide, and the changelog fragment. It does not change the dashboard,
-projector, validator, CI, or live Grafana/projection state. The final
-default-dashboard proof depends on integrating the batch-aware Panel 8 change
-from `#2915`.
+projector, validator, CI, or live Grafana/projection state. This candidate is
+based on the accepted batch-aware Panel 8 change from `#2915`; the fixture does
+not synthesize substitute dashboard SQL.
