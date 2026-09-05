@@ -17,6 +17,12 @@ authentication, session, CSRF, credential, token, rate-limit, or two-factor
 implementation code. Once published, those presentation files are
 application-owned and Framework updates never overwrite them automatically.
 
+Upstream sources are resolved from, in order: the application
+`packages/admin/app` tree, an installed `waaseyaa/framework` metapackage, or
+the loaded `waaseyaa/cli` package's monorepo sibling `packages/admin/app`
+(#2833). Direct-package consumers that omit the metapackage therefore still
+see Framework-owned sources when Composer path-installs monorepo packages.
+
 The versioned `app/.waaseyaa/scaffold-manifest.json` records, per file, the
 stable upstream source path, originating Framework version, digest algorithm,
 upstream digest, and reviewed consumer digest. `scaffold:auth --check` is
