@@ -43,28 +43,51 @@ final class PhpunitTempDirGuardTest extends TestCase
         self::assertFileExists($this->repoRoot . '/tests/bootstrap.php');
     }
 
-    /** @return iterable<string, array{string, bool}> */
+    /**
+     * @return iterable<string, array{string, bool, bool}> temp dir, Windows
+     *                                                    path semantics, safe
+     */
     public static function tempDirs(): iterable
     {
-        yield 'relative dot' => ['.', false];
-        yield 'relative nested' => ['relative/dir', false];
-        yield 'empty string' => ['', false];
-        yield 'repository root itself' => ['__ROOT__', false];
-        yield 'repository root with trailing slash' => ['__ROOT__/', false];
-        yield 'absolute posix' => ['/tmp', true];
-        yield 'absolute posix nested' => ['/var/folders/xy/T', true];
-        yield 'absolute windows drive' => ['C:\\Users\\dev\\AppData\\Local\\Temp', true];
-        yield 'absolute windows forward slashes' => ['C:/Temp', true];
-        yield 'repository-internal scratch (tmp/) is allowed' => ['__ROOT__/tmp', true];
+        // POSIX: only a leading "/" is absolute. Drive-rooted, UNC and
+        // backslash-rooted strings are ordinary relative names there — PHP
+        // resolves them against the cwd, i.e. the repository root (#2927).
+        yield 'posix: relative dot' => ['.', false, false];
+        yield 'posix: relative nested' => ['relative/dir', false, false];
+        yield 'posix: empty string' => ['', false, false];
+        yield 'posix: repository root itself' => ['__ROOT__', false, false];
+        yield 'posix: repository root with trailing slash' => ['__ROOT__/', false, false];
+        yield 'posix: absolute' => ['/tmp', false, true];
+        yield 'posix: absolute nested' => ['/var/folders/xy/T', false, true];
+        yield 'posix: repository-internal scratch (tmp/) is allowed' => ['__ROOT__/tmp', false, true];
+        yield 'posix: windows drive path is relative here' => ['C:\\Users\\dev\\AppData\\Local\\Temp', false, false];
+        yield 'posix: windows drive path with forward slashes is relative here' => ['C:/Temp', false, false];
+        yield 'posix: drive-relative windows path is relative here' => ['C:Temp', false, false];
+        yield 'posix: UNC path is relative here' => ['\\\\server\\share\\tmp', false, false];
+        yield 'posix: backslash-rooted path is relative here' => ['\\Temp', false, false];
+
+        // Windows: fully qualified means drive-rooted or UNC. Drive-relative
+        // ("C:foo") and current-drive-rooted ("\foo", "/foo") names are not.
+        yield 'windows: drive-rooted' => ['C:\\Users\\dev\\AppData\\Local\\Temp', true, true];
+        yield 'windows: drive-rooted with forward slashes' => ['C:/Temp', true, true];
+        yield 'windows: UNC' => ['\\\\server\\share\\tmp', true, true];
+        yield 'windows: UNC with forward slashes' => ['//server/share/tmp', true, true];
+        yield 'windows: drive-relative' => ['C:Temp', true, false];
+        yield 'windows: current-drive-rooted backslash' => ['\\Temp', true, false];
+        yield 'windows: current-drive-rooted forward slash' => ['/Temp', true, false];
+        yield 'windows: bare drive letter' => ['C:', true, false];
+        yield 'windows: relative' => ['Temp', true, false];
+        yield 'windows: relative dot' => ['.', true, false];
+        yield 'windows: empty string' => ['', true, false];
     }
 
     #[Test]
     #[DataProvider('tempDirs')]
-    public function the_guard_rejects_relative_and_root_temp_dirs(string $tempDir, bool $safe): void
+    public function the_guard_rejects_relative_and_root_temp_dirs(string $tempDir, bool $windows, bool $safe): void
     {
         $tempDir = str_replace('__ROOT__', $this->repoRoot, $tempDir);
 
-        $violation = TempDirGuard::violation($tempDir, $this->repoRoot);
+        $violation = TempDirGuard::violation($tempDir, $this->repoRoot, $windows);
 
         if ($safe) {
             self::assertNull($violation, "{$tempDir} must be accepted.");

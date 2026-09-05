@@ -202,6 +202,11 @@ exact invocation that set it during the 2026-05-22..24 accumulation window was n
 session transcripts survive from that period). Source-level fix: `tests/bootstrap.php` now refuses
 to start the suite when `sys_get_temp_dir()` is non-absolute or IS the repository root
 (`tests/Support/TempDirGuard.php`, proven by `tests/Architecture/PhpunitTempDirGuardTest.php`), so
+"absolute" is decided by the platform the process runs on, not by the shape of the string: on
+POSIX only a leading `/` qualifies (a `TMPDIR=C:\Temp` on Linux/WSL is a *relative* name that
+`realpath()` cannot resolve and scratch paths land in the cwd); on Windows only drive-rooted
+(`C:\`, `C:/`) or UNC (`\\server\share`) paths qualify, never drive-relative `C:foo` or
+current-drive-rooted `\foo` — and the proof exercises both semantics on every OS,
 the mechanism fails loudly before the first write instead of silently.
 
 ## Invariants
