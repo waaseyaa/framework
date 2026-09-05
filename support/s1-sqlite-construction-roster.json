@@ -6403,6 +6403,34 @@
             "occurrence": 5
         },
         {
+            "path": "tests/Architecture/CheckSupportContractGateTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 6
+        },
+        {
+            "path": "tests/Architecture/CheckSupportContractGateTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 7
+        },
+        {
+            "path": "tests/Architecture/CheckSupportContractGateTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 8
+        },
+        {
+            "path": "tests/Architecture/CheckSupportContractGateTest.php",
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "occurrence": 9
+        },
+        {
             "path": "tests/Architecture/DevRuntimeBootstrapTest.php",
             "pattern": "pdo_sqlite_token",
             "class": "test",

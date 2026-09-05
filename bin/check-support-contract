@@ -612,7 +612,12 @@ try {
     foreach (['ext-pdo_sqlite', 'ext-sqlite3'] as $sqliteExtension) {
         if (!isset($composer['require'][$sqliteExtension])) {
             $errors[] = "composer.json must require {$sqliteExtension} for the declared platform.sqlite runtime";
+            continue;
         }
+        // Not contract-derived: an open wildcard is the invariant regardless
+        // of platform.sqlite.constraint, which bounds the SQLite LIBRARY
+        // version, not the PHP extension declaration.
+        requireSame($composer['require'][$sqliteExtension], '*', "composer.json require.{$sqliteExtension}", $errors);
     }
     $composerLock = readJsonObject($root . '/composer.lock');
     requireSame($composerLock['platform']['php'] ?? null, $composer['require']['php'] ?? null, 'composer.lock platform.php', $errors);
@@ -637,6 +642,10 @@ try {
     }
     if (!is_string($devRuntime['tools']['frankenphp']['pin'] ?? null)) {
         $errors[] = 'managed FrankenPHP pin authority is missing from tools/dev-runtime-manifest.json';
+    } else {
+        // Not contract-derived: the managed dev runtime always resolves its
+        // FrankenPHP pin from this one repository-relative authority file.
+        requireSame($devRuntime['tools']['frankenphp']['pin'], 'tools/frankenphp-runtime-pin.json', 'managed FrankenPHP pin authority', $errors);
     }
 
     if ($revisionAuthority !== null) {

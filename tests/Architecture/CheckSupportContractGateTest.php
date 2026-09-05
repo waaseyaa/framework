@@ -485,6 +485,36 @@ final class CheckSupportContractGateTest extends TestCase
             ['composer.json' => $json(['require' => ['php' => '>=8.5 <8.6', 'ext-pdo_sqlite' => '*']])],
             'composer.json must require ext-sqlite3 for the declared platform.sqlite runtime',
         ];
+        yield 'composer.json pins ext-sqlite3 to a version instead of an open wildcard' => [
+            $unchanged,
+            ['composer.json' => $json(['require' => ['php' => '>=8.5 <8.6', 'ext-pdo_sqlite' => '*', 'ext-sqlite3' => '^3.40']])],
+            'composer.json require.ext-sqlite3 differs: expected "*", got "^3.40"',
+        ];
+        yield 'composer.json pins ext-pdo_sqlite to a version instead of an open wildcard' => [
+            $unchanged,
+            ['composer.json' => $json(['require' => ['php' => '>=8.5 <8.6', 'ext-pdo_sqlite' => '^3.40', 'ext-sqlite3' => '*']])],
+            'composer.json require.ext-pdo_sqlite differs: expected "*", got "^3.40"',
+        ];
+        yield 'managed FrankenPHP pin authority points elsewhere' => [
+            $unchanged,
+            [
+                'tools/dev-runtime-manifest.json' => (static function (): string {
+                    $manifest = json_decode(
+                        (string) file_get_contents(dirname(__DIR__, 2) . '/tools/dev-runtime-manifest.json'),
+                        true,
+                        flags: JSON_THROW_ON_ERROR,
+                    );
+                    $manifest['tools']['frankenphp']['pin'] = 'tools/other-runtime-pin.json';
+
+                    return json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+                })(),
+                // A real, schema-valid pin file at the ALTERNATE path, so
+                // DevRuntime::loadManifest() resolves it successfully and the
+                // failure is the checker's own invariant, not a missing file.
+                'tools/other-runtime-pin.json' => (string) file_get_contents(dirname(__DIR__, 2) . '/tools/frankenphp-runtime-pin.json'),
+            ],
+            'managed FrankenPHP pin authority differs: expected "tools\/frankenphp-runtime-pin.json", got "tools\/other-runtime-pin.json"',
+        ];
         yield 'contract narrowed but composer.json left behind' => [
             static function (array $c): array {
                 $c['platform']['php']['constraint'] = '>=8.5.3 <8.6.0';
@@ -611,6 +641,32 @@ final class CheckSupportContractGateTest extends TestCase
         [$exit, $out] = $this->runGate(['--contract=' . $this->tmpRoot . '/support/mislabelled.json']);
         self::assertSame(1, $exit, "A contract file not named after its contract_version must fail.\n{$out}");
         self::assertStringContainsString('contract file mislabelled.json must be named after contract_version (s1-v2.json)', $out);
+    }
+
+    /**
+     * The acceptance item GAP A closes: "Packaged-consumer execution proves
+     * the published checker and contract remain usable outside the root
+     * monorepo." --root/--contract made this feasible; this proves it by
+     * running the real, unmodified tests/PackagedForm/check-support-contract-packaged,
+     * which copies only the files the checker itself reads into a disposable
+     * tree outside the repository and runs bin/check-support-contract
+     * against that copy (positive arm), then corrupts the packaged contract
+     * and asserts the checker rejects it (negative arm) -- proving it is
+     * genuinely reading the --root copy, not silently falling back to the
+     * monorepo original.
+     */
+    #[Test]
+    public function exact_head_packaged_checker_and_contract_pass_outside_the_monorepo_and_reject_a_corrupted_copy(): void
+    {
+        $script = $this->repoRoot . '/tests/PackagedForm/check-support-contract-packaged';
+        self::assertFileExists($script);
+        self::assertTrue(is_executable($script));
+
+        exec(escapeshellarg($script) . ' 2>&1', $output, $exitCode);
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        self::assertStringContainsString('Support-contract packaged proof passed', implode("\n", $output));
+        self::assertStringNotContainsString('github.com', strtolower((string) file_get_contents($script)));
     }
 
     /** @return array<string, mixed> */
