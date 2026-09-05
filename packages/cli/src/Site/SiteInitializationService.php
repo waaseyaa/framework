@@ -650,8 +650,10 @@ final class SiteInitializationService
             && $existing['generator']['fqcn'] === SiteArtifactRenderer::class
             && $plan->generatorFqcn === ApplicationBlueprintCompiler::class
             && $blueprintEvidence !== null;
-        if ($existing !== null && !$approvedRootTransition
-            && ($existing['generator']['fqcn'] !== $plan->generatorFqcn || $existing['generator']['version'] !== $plan->generatorVersion || $existing['disposition'] !== $plan->disposition->value)) {
+        if ($existing !== null
+            && ((!$approvedRootTransition && $existing['generator']['fqcn'] !== $plan->generatorFqcn)
+                || $existing['generator']['version'] !== $plan->generatorVersion
+                || $existing['disposition'] !== $plan->disposition->value)) {
             $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'A recorded unit cannot change compiler identity or disposition.');
         }
         // @phpstan-ignore function.impossibleType (the reviewed compiler allowlist is intentionally empty before migrations)

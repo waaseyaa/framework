@@ -210,6 +210,51 @@ final class BlueprintExecutionAdmissionTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('generatorVersionTransitionModes')]
+    public function approvedPlainToBlueprintTransitionRefusesGeneratorVersionChangeWithoutWriting(bool $dryRun): void
+    {
+        $service = new SiteInitializationService($this->root);
+        $plainManifest = new SiteManifestParser()->parse($this->blueprintFreeYaml(), '<plain>');
+        self::assertSame(1, $plainManifest->generatorVersion);
+        $service->initialize(SiteArtifactRendererFactory::create()->render($plainManifest));
+        unlink($this->root . '/.waaseyaa/site-init.lock');
+
+        $yaml = (string) file_get_contents(
+            dirname(__DIR__, 4) . '/site-contract/tests/Fixtures/Blueprint/valid/minimal.yaml',
+        );
+        $manifest = new SiteManifestParser()->parse(
+            str_replace('generator_version: 1', 'generator_version: 2', $yaml),
+            '<blueprint-v2>',
+        );
+        self::assertSame(2, $manifest->generatorVersion);
+        $receipt = $this->receipt($manifest);
+        self::assertTrue($receipt->matches($manifest));
+        $plan = ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+        $before = $this->snapshot();
+
+        try {
+            $service->initialize($plan, dryRun: $dryRun, decisionReceipt: $receipt);
+            self::fail('Expected approved compiler transition to retain the generator-version guard.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::UnitPathConflict, $exception->violations[0]->code);
+        }
+
+        self::assertSame($before, $this->snapshot(), 'Manifest, metadata, Composer and all existing artifact bytes must remain unchanged.');
+        self::assertFileDoesNotExist($this->root . '/.waaseyaa/site-init.lock');
+        self::assertFileDoesNotExist($this->root . '/.waaseyaa/site-init.transaction.json');
+        self::assertSame([], glob($this->root . '/.waaseyaa/site-init-stage-*'));
+        self::assertDirectoryDoesNotExist($this->root . '/src/Entity');
+        self::assertDirectoryDoesNotExist($this->root . '/config/waaseyaa-blueprint');
+    }
+
+    /** @return iterable<string, array{bool}> */
+    public static function generatorVersionTransitionModes(): iterable
+    {
+        yield 'preview' => [true];
+        yield 'live apply' => [false];
+    }
+
+    #[Test]
     public function aDifferentMatchingApprovalBecomesTheRecordedEvidenceAndThenReplaysExactly(): void
     {
         $manifest = $this->manifest();

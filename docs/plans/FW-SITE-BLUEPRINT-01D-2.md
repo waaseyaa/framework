@@ -86,7 +86,12 @@ evidence and the prior manifest, never from an authored status flag.
 
 Allowed transitions are a fresh approved blueprint root, approved
 manifest-to-blueprint additive growth, and approved blueprint replay/additive
-evolution. Existing path-drop and registration rules still apply.
+evolution. The approved manifest-to-blueprint transition exempts only the
+compiler FQCN difference: the recorded generator version and disposition must
+remain unchanged. A generator-version change still refuses
+`GEN010_UNIT_PATH_CONFLICT` in preview and apply, without publishing artifacts
+or approval evidence; approval is not generator-version migration authority.
+Existing path-drop and registration rules still apply.
 Blueprint-to-plain is always GEN011, even if a fixture's paths happen to match,
 because it would erase approval provenance. A matching alternative approved
 receipt changes only evidence as appropriate; exact replay is `no_changes`.
