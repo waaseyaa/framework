@@ -51,6 +51,7 @@ final class PackagedFormCleanupExitStatusTest extends TestCase
         'check-cli-ai-commands-optional',
         'check-cli-health-report',
         'check-cli-oidc-commands-optional',
+        'check-cli-sync-rules',
         'check-custom-field-admission',
         'check-fresh-install-boot',
         'check-s1-configuration-archives',

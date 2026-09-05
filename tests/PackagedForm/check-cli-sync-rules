@@ -1,0 +1,461 @@
+#!/usr/bin/env bash
+
+# Packaged direct-consumer proof for sync-rules (#2832).
+#
+# The command is owned by waaseyaa/cli, while its canonical rule inputs ship
+# inside waaseyaa/foundation. A supported direct-package application omits the
+# waaseyaa/framework aggregate entirely. Before #2832, MiscBServiceProvider
+# derived the source from that absent aggregate, so sync-rules --dry-run exited
+# 1 even though Foundation was installed with all three rule files.
+#
+# This harness archives the exact candidate HEAD, installs every package as a
+# real copy (Composer path repositories with symlink=false), and exercises the
+# real vendor/bin/waaseyaa entrypoint. The direct consumer uses Content
+# Pipeline's accepted 23 runtime-direct + 5 development-direct profile. It has
+# no framework aggregate and no application .claude/rules copy. A separate
+# framework-aggregate consumer is the compatibility control.
+#
+# The positive oracle binds exact filenames, summary, and dry-run non-mutation.
+# It is then run against missing and empty installed Foundation resource
+# directories. The empty directory currently makes the handler itself exit 0,
+# so checking the process status alone would be a false positive; the complete
+# oracle must reject both corruptions.
+#
+# Run: bash tests/PackagedForm/check-cli-sync-rules
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-cli-sync-rules.XXXXXX")"
+source_root="$work/source"
+direct="$work/direct"
+aggregate="$work/aggregate"
+expected_rules=$'waaseyaa-data-freshness.md\nwaaseyaa-framework.md\nwaaseyaa-shell-compat.md'
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    # Cleanup is best-effort and must never change this script's exit
+    # status; report a leak on stderr instead of letting a failed rm
+    # corrupt the proof under test (#2870).
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+fail() {
+    echo "$*" >&2
+    exit 1
+}
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+printf 'Candidate: %s\n' "$candidate"
+mkdir -p "$source_root"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+
+# build_consumer <directory> <direct|aggregate>
+build_consumer() {
+    local consumer="$1"
+    local profile="$2"
+    local label
+    label="$(basename "$consumer")"
+
+    mkdir -p "$consumer"
+    cp -R "$source_root/skeleton/." "$consumer/"
+    rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+    rm -rf "$consumer/.claude" "$consumer/src" "$consumer/tests"
+    mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+    php -r '
+        [$path, $sourceRoot, $profile] = array_slice($argv, 1);
+        $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $runtime = [
+            "waaseyaa/foundation",
+            "waaseyaa/cache",
+            "waaseyaa/typed-data",
+            "waaseyaa/database-legacy",
+            "waaseyaa/queue",
+            "waaseyaa/scheduler",
+            "waaseyaa/mail",
+            "waaseyaa/site-contract",
+            "waaseyaa/entity",
+            "waaseyaa/entity-storage",
+            "waaseyaa/access",
+            "waaseyaa/audit",
+            "waaseyaa/user",
+            "waaseyaa/field",
+            "waaseyaa/auth",
+            "waaseyaa/media",
+            "waaseyaa/notification",
+            "waaseyaa/api",
+            "waaseyaa/routing",
+            "waaseyaa/ai-schema",
+            "waaseyaa/ai-tools",
+            "waaseyaa/admin-surface",
+            "waaseyaa/cli",
+        ];
+        $development = [
+            "waaseyaa/testing",
+            "waaseyaa/ai-development",
+            "waaseyaa/frankenphp",
+            "waaseyaa/ai-agent",
+            "waaseyaa/ai-observability",
+        ];
+        if (count($runtime) !== 23 || count($development) !== 5) {
+            throw new RuntimeException("The accepted direct-package profile count drifted.");
+        }
+
+        $composer["repositories"] = [
+            [
+                "type" => "path",
+                "url" => $sourceRoot . "/packages/*",
+                "options" => ["symlink" => false],
+            ],
+            [
+                "type" => "path",
+                "url" => $sourceRoot,
+                "options" => ["symlink" => false],
+            ],
+        ];
+        $composer["require"] = [
+            "php" => ">=8.5",
+            "ext-pdo_sqlite" => "*",
+            "ext-sqlite3" => "*",
+        ];
+        if ($profile === "direct") {
+            $composer["require-dev"] = [];
+            foreach ($runtime as $package) {
+                $composer["require"][$package] = "*";
+            }
+            foreach ($development as $package) {
+                $composer["require-dev"][$package] = "*";
+            }
+        } elseif ($profile === "aggregate") {
+            unset($composer["require-dev"]);
+            $composer["require"]["waaseyaa/framework"] = "*";
+        } else {
+            throw new RuntimeException("Unknown consumer profile: " . $profile);
+        }
+        $composer["minimum-stability"] = "dev";
+        $composer["prefer-stable"] = true;
+        unset(
+            $composer["autoload"],
+            $composer["autoload-dev"],
+            $composer["extra"]["merge-plugin"],
+            $composer["extra"]["waaseyaa"],
+            $composer["scripts"],
+        );
+        file_put_contents(
+            $path,
+            json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+    ' "$consumer/composer.json" "$source_root" "$profile"
+
+    printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/consumer.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+        "$app_secret" "$consumer" "$consumer" >"$consumer/.env"
+
+    if ! "$composer_bin" install --working-dir="$consumer" \
+            --no-interaction --no-progress --prefer-dist --no-scripts >"$work/$label.composer.out" 2>&1; then
+        tail -100 "$work/$label.composer.out" >&2
+        fail "Composer could not install the $profile consumer from candidate $candidate."
+    fi
+
+    [[ ! -L "$consumer/vendor/waaseyaa/cli" ]] \
+        || fail "$profile consumer installed waaseyaa/cli as a symlink; copied package bytes are required."
+    [[ ! -L "$consumer/vendor/waaseyaa/foundation" ]] \
+        || fail "$profile consumer installed waaseyaa/foundation as a symlink; copied package bytes are required."
+
+    if ! (cd "$consumer" && php vendor/bin/waaseyaa install:init) >"$work/$label.install.out" 2>&1; then
+        cat "$work/$label.install.out" >&2
+        fail "install:init failed for the $profile consumer."
+    fi
+    grep -Fq 'Installation is complete.' "$work/$label.install.out" \
+        || { cat "$work/$label.install.out" >&2; fail "install:init did not complete for the $profile consumer."; }
+
+    [[ ! -e "$consumer/.claude/rules" ]] \
+        || fail "$profile consumer has an application .claude/rules source before sync-rules."
+}
+
+assert_foundation_resources() {
+    local consumer="$1"
+    local resources="$consumer/vendor/waaseyaa/foundation/.claude/rules"
+    [[ -d "$resources" ]] || fail "Installed Foundation rules are missing: $resources"
+
+    local actual
+    actual="$(find "$resources" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)"
+    [[ "$actual" == "$expected_rules" ]] || {
+        printf 'Installed Foundation rule entries:\n%s\n' "$actual" >&2
+        fail 'Installed Foundation resources do not contain exactly the canonical three rule files.'
+    }
+}
+
+assert_install_provenance() {
+    local consumer="$1"
+    local profile="$2"
+
+    php -r '
+        [$consumer, $sourceRoot, $profile] = array_slice($argv, 1);
+        $runtime = [
+            "waaseyaa/foundation",
+            "waaseyaa/cache",
+            "waaseyaa/typed-data",
+            "waaseyaa/database-legacy",
+            "waaseyaa/queue",
+            "waaseyaa/scheduler",
+            "waaseyaa/mail",
+            "waaseyaa/site-contract",
+            "waaseyaa/entity",
+            "waaseyaa/entity-storage",
+            "waaseyaa/access",
+            "waaseyaa/audit",
+            "waaseyaa/user",
+            "waaseyaa/field",
+            "waaseyaa/auth",
+            "waaseyaa/media",
+            "waaseyaa/notification",
+            "waaseyaa/api",
+            "waaseyaa/routing",
+            "waaseyaa/ai-schema",
+            "waaseyaa/ai-tools",
+            "waaseyaa/admin-surface",
+            "waaseyaa/cli",
+        ];
+        $development = [
+            "waaseyaa/testing",
+            "waaseyaa/ai-development",
+            "waaseyaa/frankenphp",
+            "waaseyaa/ai-agent",
+            "waaseyaa/ai-observability",
+        ];
+        sort($runtime);
+        sort($development);
+
+        $manifest = json_decode(
+            (string) file_get_contents($consumer . "/composer.json"),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        if ($profile === "direct") {
+            $actualRuntime = array_values(array_filter(
+                array_keys($manifest["require"] ?? []),
+                static fn (string $name): bool => str_starts_with($name, "waaseyaa/"),
+            ));
+            $actualDevelopment = array_values(array_filter(
+                array_keys($manifest["require-dev"] ?? []),
+                static fn (string $name): bool => str_starts_with($name, "waaseyaa/"),
+            ));
+            sort($actualRuntime);
+            sort($actualDevelopment);
+            if ($actualRuntime !== $runtime || $actualDevelopment !== $development) {
+                throw new RuntimeException("The direct consumer manifest is not the exact accepted 23+5 profile.");
+            }
+        }
+
+        $installedPath = $consumer . "/vendor/composer/installed.json";
+        $installed = json_decode(
+            (string) file_get_contents($installedPath),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $packages = $installed["packages"] ?? $installed;
+        $waaseyaa = [];
+        $sourceRoot = realpath($sourceRoot);
+        if ($sourceRoot === false) {
+            throw new RuntimeException("Candidate archive root cannot be resolved.");
+        }
+        foreach ($packages as $package) {
+            $name = $package["name"] ?? null;
+            if (!is_string($name) || !str_starts_with($name, "waaseyaa/")) {
+                continue;
+            }
+            $distType = $package["dist"]["type"] ?? null;
+            $distUrl = $package["dist"]["url"] ?? null;
+            if ($distType !== "path" || !is_string($distUrl)) {
+                throw new RuntimeException($name . " is not recorded as a Composer path distribution.");
+            }
+            $resolvedSource = realpath($distUrl);
+            if ($resolvedSource === false) {
+                $resolvedSource = realpath($consumer . "/" . $distUrl);
+            }
+            if ($resolvedSource === false || (
+                $resolvedSource !== $sourceRoot
+                && !str_starts_with($resolvedSource, $sourceRoot . DIRECTORY_SEPARATOR)
+            )) {
+                throw new RuntimeException($name . " does not resolve into the candidate archive: " . $distUrl);
+            }
+
+            $packageType = $package["type"] ?? null;
+            $installPath = $package["install-path"] ?? null;
+            if ($packageType === "metapackage") {
+                if ($installPath !== null) {
+                    throw new RuntimeException($name . " metapackage unexpectedly has an install path.");
+                }
+            } else {
+                if (!is_string($installPath) || $installPath === "") {
+                    throw new RuntimeException($name . " package is missing its install path.");
+                }
+                $rawInstall = dirname($installedPath) . "/" . $installPath;
+                $resolvedInstall = realpath($rawInstall);
+                if ($resolvedInstall === false || !is_dir($resolvedInstall) || is_link($rawInstall)) {
+                    throw new RuntimeException($name . " was not installed as a real package copy.");
+                }
+            }
+            $waaseyaa[$name] = [$resolvedSource, $installPath];
+        }
+        ksort($waaseyaa);
+
+        if ($profile === "direct") {
+            foreach (array_merge($runtime, $development) as $required) {
+                if (!array_key_exists($required, $waaseyaa)) {
+                    throw new RuntimeException("Direct requirement missing from installed closure: " . $required);
+                }
+            }
+            if (array_key_exists("waaseyaa/framework", $waaseyaa)) {
+                throw new RuntimeException("The direct installed closure unexpectedly contains waaseyaa/framework.");
+            }
+        } else {
+            foreach (["waaseyaa/framework", "waaseyaa/cli", "waaseyaa/foundation"] as $required) {
+                if (!array_key_exists($required, $waaseyaa)) {
+                    throw new RuntimeException("Aggregate installed closure is missing: " . $required);
+                }
+            }
+        }
+
+        printf("%s composer.lock sha256: %s\n", $profile, hash_file("sha256", $consumer . "/composer.lock"));
+        printf("%s installed Waaseyaa closure (%d):\n", $profile, count($waaseyaa));
+        foreach ($waaseyaa as $name => [$resolvedSource, $installPath]) {
+            printf("  %s|%s|%s\n", $name, $resolvedSource, $installPath ?? "<metapackage>");
+        }
+    ' "$consumer" "$source_root" "$profile"
+
+    cmp -s \
+        "$source_root/packages/cli/src/Provider/MiscBServiceProvider.php" \
+        "$consumer/vendor/waaseyaa/cli/src/Provider/MiscBServiceProvider.php" \
+        || fail "$profile consumer CLI provider bytes differ from the candidate archive."
+    while IFS= read -r rule; do
+        cmp -s \
+            "$source_root/packages/foundation/.claude/rules/$rule" \
+            "$consumer/vendor/waaseyaa/foundation/.claude/rules/$rule" \
+            || fail "$profile consumer Foundation rule bytes differ from the candidate archive: $rule"
+    done <<<"$expected_rules"
+}
+
+capture_sync_rules() {
+    local consumer="$1"
+    local label="$2"
+    local exit_code
+
+    set +e
+    (cd "$consumer" && php vendor/bin/waaseyaa sync-rules --dry-run) \
+        >"$work/$label.stdout" 2>"$work/$label.stderr"
+    exit_code=$?
+    set -e
+    printf '%s\n' "$exit_code" >"$work/$label.exit"
+}
+
+# Complete success oracle. Content matters because an empty source exits 0.
+sync_rules_oracle() {
+    local consumer="$1"
+    local label="$2"
+    local target="$consumer/.claude/rules"
+    local reported
+
+    capture_sync_rules "$consumer" "$label"
+
+    [[ "$(cat "$work/$label.exit")" == '0' ]] || return 1
+    if grep -Fq 'Source directory not found:' "$work/$label.stdout" "$work/$label.stderr"; then
+        return 1
+    fi
+    reported="$(sed -n 's/^\[dry run\] Would add: //p' "$work/$label.stdout")"
+    [[ "$reported" == "$expected_rules" ]] || return 1
+    grep -Fxq '3 added, 0 updated, 0 skipped.' "$work/$label.stdout" || return 1
+    grep -Fxq "Would create: $target" "$work/$label.stdout" || return 1
+    [[ ! -e "$target" ]] || return 1
+
+    return 0
+}
+
+build_consumer "$direct" direct
+assert_install_provenance "$direct" direct
+
+[[ ! -e "$direct/vendor/waaseyaa/framework" ]] \
+    || fail 'The direct consumer unexpectedly installed waaseyaa/framework.'
+php -r '
+    require $argv[1];
+    exit(Composer\InstalledVersions::isInstalled("waaseyaa/framework") ? 1 : 0);
+' "$direct/vendor/autoload.php" \
+    || fail 'Composer metadata says the direct consumer installed waaseyaa/framework.'
+assert_foundation_resources "$direct"
+
+# Run the direct profile first so the unfixed candidate reproduces #2832 at
+# its framework-owned lookup without installing the aggregate control.
+if ! sync_rules_oracle "$direct" direct-positive; then
+    cat "$work/direct-positive.stdout" "$work/direct-positive.stderr" >&2
+    fail 'sync-rules --dry-run failed for the exact direct-package consumer.'
+fi
+printf 'Exact direct-package consumer passed.\n'
+
+# The fixed candidate must serve the same canonical Foundation rules through
+# the framework-aggregate compatibility profile.
+build_consumer "$aggregate" aggregate
+assert_install_provenance "$aggregate" aggregate
+[[ -d "$aggregate/vendor/waaseyaa/framework" ]] \
+    || fail 'The aggregate compatibility consumer did not install waaseyaa/framework.'
+[[ ! -L "$aggregate/vendor/waaseyaa/framework" ]] \
+    || fail 'The aggregate compatibility consumer must use copied candidate bytes.'
+assert_foundation_resources "$aggregate"
+
+if ! sync_rules_oracle "$aggregate" aggregate-positive; then
+    cat "$work/aggregate-positive.stdout" "$work/aggregate-positive.stderr" >&2
+    fail 'sync-rules --dry-run failed for the framework-aggregate compatibility control.'
+fi
+printf 'Framework-aggregate compatibility control passed.\n'
+
+resources="$direct/vendor/waaseyaa/foundation/.claude/rules"
+resource_backup="$work/foundation-rules-backup"
+cp -R "$resources" "$resource_backup"
+
+# Missing resources must fail the complete oracle and name the installed
+# package-owned path.
+rm -rf "$resources"
+if sync_rules_oracle "$direct" direct-missing-resources; then
+    fail 'The sync-rules oracle accepted a missing installed Foundation resource directory.'
+fi
+[[ "$(cat "$work/direct-missing-resources.exit")" != '0' ]] \
+    || fail 'Missing installed Foundation resources unexpectedly exited successfully.'
+[[ ! -e "$direct/.claude/rules" ]] \
+    || fail 'The missing-resource negative control unexpectedly created the target directory.'
+if ! grep -Fq "Source directory not found: $resources" \
+        "$work/direct-missing-resources.stdout" "$work/direct-missing-resources.stderr"; then
+    cat "$work/direct-missing-resources.stdout" "$work/direct-missing-resources.stderr" >&2
+    fail 'Missing installed Foundation resources did not produce the package-owned diagnostic.'
+fi
+cp -R "$resource_backup" "$resources"
+
+# Empty resources are subtler: the handler currently exits 0 with a zero-file
+# summary. The exact-filename and 3/0/0 oracle must still reject that result.
+rm -rf "$resources"
+mkdir -p "$resources"
+if sync_rules_oracle "$direct" direct-empty-resources; then
+    fail 'The sync-rules oracle accepted an empty installed Foundation resource directory.'
+fi
+[[ "$(cat "$work/direct-empty-resources.exit")" == '0' ]] \
+    || fail 'The empty-resource control did not exercise the expected successful no-op process path.'
+grep -Fxq '0 added, 0 updated, 0 skipped.' "$work/direct-empty-resources.stdout" \
+    || fail 'The empty-resource control did not report the expected vacuous zero-file summary.'
+[[ ! -e "$direct/.claude/rules" ]] \
+    || fail 'The empty-resource negative control unexpectedly created the target directory.'
+rm -rf "$resources"
+cp -R "$resource_backup" "$resources"
+assert_foundation_resources "$direct"
+
+printf 'Missing and empty installed-resource controls were rejected.\n'
+printf 'sync-rules packaged consumer proof passed.\n'

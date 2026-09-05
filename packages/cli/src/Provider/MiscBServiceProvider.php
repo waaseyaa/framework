@@ -118,7 +118,8 @@ final class MiscBServiceProvider extends ServiceProvider implements ProvidesCons
             handler: \Closure::fromCallable([new ServeHandler(projectRoot: $projectRoot), 'execute']),
         );
 
-        $rulesSourceDir = $projectRoot . '/vendor/waaseyaa/framework/.claude/rules';
+        // Follow the loaded Foundation package instead of assuming CLI's siblings.
+        $rulesSourceDir = dirname((string) new \ReflectionClass(ServiceProvider::class)->getFileName(), 3) . '/.claude/rules';
         $rulesTargetDir = $projectRoot . '/.claude/rules';
 
         yield new HandlerCommand(
