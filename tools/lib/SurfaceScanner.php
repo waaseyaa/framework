@@ -99,6 +99,40 @@ final class SurfaceScanner
         return null;
     }
 
+    /**
+     * The shape $fqcn is declared with in ONE file on disk, parsed
+     * independently of the autoloader and of the scan() walk — null when the
+     * file does not exist, does not parse, or does not declare that FQCN.
+     *
+     * This is how an on-disk definition outside packages/*\/src (a test helper
+     * mapped only by a root autoload-dev PSR-4 entry — the #2926 StdinSource
+     * case) is told apart from a declaration that nothing defines.
+     */
+    public function shapeInFile(string $path, string $fqcn): ?string
+    {
+        if (!is_file($path)) {
+            return null;
+        }
+        if (!class_exists(ParserFactory::class)) {
+            throw new RuntimeException('nikic/php-parser is not installed.');
+        }
+        $parser = (new ParserFactory())->createForNewestSupportedVersion();
+        try {
+            $ast = $parser->parse((string) file_get_contents($path));
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($ast === null) {
+            return null;
+        }
+        $visitor = self::shapeCollector();
+        $traverser = new NodeTraverser();
+        $traverser->addVisitor($visitor);
+        $traverser->traverse($ast);
+
+        return $visitor->shapes[$fqcn] ?? null;
+    }
+
     public static function classShape(bool $abstract, bool $final, bool $readonly): string
     {
         if ($abstract) {
@@ -117,25 +151,15 @@ final class SurfaceScanner
         return 'class';
     }
 
-    private function run(): void
+    /**
+     * A fresh AST visitor recording every class-like declaration it sees as
+     * fqcn => shape, shared by the scan() walk and shapeInFile().
+     *
+     * @return NodeVisitorAbstract&object{ns: string, shapes: array<string, string>}
+     */
+    private static function shapeCollector(): NodeVisitorAbstract
     {
-        $scanDirs = [];
-        $packageDirectories = glob($this->root . '/packages/*', GLOB_ONLYDIR);
-        foreach ($packageDirectories === false ? [] : $packageDirectories as $pkg) {
-            if (is_dir("{$pkg}/src")) {
-                $scanDirs[] = "{$pkg}/src";
-            }
-        }
-        if (is_dir($this->root . '/src')) {
-            $scanDirs[] = $this->root . '/src';
-        }
-
-        if (!class_exists(ParserFactory::class)) {
-            throw new RuntimeException('nikic/php-parser is not installed.');
-        }
-        $parser = (new ParserFactory())->createForNewestSupportedVersion();
-
-        $collector = new class extends NodeVisitorAbstract {
+        return new class extends NodeVisitorAbstract {
             public string $ns = '';
             /** @var array<string, string> fqcn => shape */
             public array $shapes = [];
@@ -174,6 +198,26 @@ final class SurfaceScanner
                 return null;
             }
         };
+    }
+
+    private function run(): void
+    {
+        $scanDirs = [];
+        $packageDirectories = glob($this->root . '/packages/*', GLOB_ONLYDIR);
+        foreach ($packageDirectories === false ? [] : $packageDirectories as $pkg) {
+            if (is_dir("{$pkg}/src")) {
+                $scanDirs[] = "{$pkg}/src";
+            }
+        }
+        if (is_dir($this->root . '/src')) {
+            $scanDirs[] = $this->root . '/src';
+        }
+
+        if (!class_exists(ParserFactory::class)) {
+            throw new RuntimeException('nikic/php-parser is not installed.');
+        }
+        $parser = (new ParserFactory())->createForNewestSupportedVersion();
+        $collector = self::shapeCollector();
 
         foreach ($scanDirs as $dir) {
             $iterator = new RecursiveIteratorIterator(
