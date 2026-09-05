@@ -23,7 +23,9 @@ use Waaseyaa\CLI\Command\Migrate\VerifyResultRow;
 use Waaseyaa\CLI\Command\Migrate\VerifyRunner;
 use Waaseyaa\CLI\Command\Migrate\VerifySummary;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
+use Waaseyaa\Foundation\Migration\LogicalSchemaFingerprint;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\MigrationCatalogFingerprint;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
@@ -377,6 +379,232 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
         self::assertDoesNotMatchRegularExpression('#/home/|/var/|/tmp/#', $tester->getStdout());
     }
 
+    // ----- #2730: verify-fails -> apply/replay -> verify. A replay must never
+    // turn demonstrated drift into trusted state, and a refusal must leave
+    // schema, ledger, catalogue, manifest and generation exactly as found.
+
+    #[Test]
+    public function aNoOpReplayDoesNotReBaselineLiveSchemaDrift(): void
+    {
+        [$connection, $repo, $migrator, $verifier, $catalogue] = self::authorityHarness();
+        $migrator->run($catalogue);
+        self::assertSame('match', $verifier->verify($catalogue, [])->authority->status);
+
+        $connection->executeStatement('ALTER TABLE sample ADD COLUMN unauthorised TEXT');
+        self::assertSame('schema_drift', $verifier->verify($catalogue, [])->authority->status);
+        $generation = self::generation($connection);
+
+        $refusal = null;
+        try {
+            $migrator->run($catalogue);
+        } catch (\RuntimeException $exception) {
+            $refusal = $exception;
+        }
+        self::assertNotNull($refusal, 'A no-op replay adopted a drifted schema.');
+        self::assertStringContainsString('[S1-DB109]', $refusal->getMessage());
+
+        $after = $verifier->verify($catalogue, []);
+        self::assertSame('schema_drift', $after->authority->status);
+        self::assertTrue($after->summary->hasFailure());
+        self::assertContains('unauthorised', self::columns($connection, 'sample'));
+        self::assertSame($generation, self::generation($connection));
+    }
+
+    #[Test]
+    public function aNoOpReplayDoesNotReBaselineLedgerDrift(): void
+    {
+        [$connection, $repo, $migrator, $verifier, $catalogue] = self::authorityHarness();
+        $migrator->run($catalogue);
+
+        $connection->executeStatement('UPDATE waaseyaa_migrations SET batch = 99');
+        self::assertSame('ledger_drift', $verifier->verify($catalogue, [])->authority->status);
+
+        $refusal = null;
+        try {
+            $migrator->run($catalogue);
+        } catch (\RuntimeException $exception) {
+            $refusal = $exception;
+        }
+        self::assertNotNull($refusal, 'A no-op replay adopted a drifted ledger.');
+        self::assertStringContainsString('[S1-DB109]', $refusal->getMessage());
+
+        $after = $verifier->verify($catalogue, []);
+        self::assertSame('ledger_drift', $after->authority->status);
+        self::assertTrue($after->summary->hasFailure());
+        self::assertSame(99, (int) $connection->fetchOne('SELECT batch FROM waaseyaa_migrations'));
+    }
+
+    #[Test]
+    public function pendingWorkAfterDriftIsRefusedAndLeavesEverythingUnchanged(): void
+    {
+        [$connection, $repo, $migrator, $verifier, $catalogue] = self::authorityHarness();
+        $migrator->run($catalogue);
+        $connection->executeStatement('ALTER TABLE sample ADD COLUMN unauthorised TEXT');
+        $manifest = $repo->schemaAuthorityManifest();
+        $ledger = $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations ORDER BY id');
+        $generation = self::generation($connection);
+
+        $extended = $catalogue;
+        $extended['audit']['audit:002'] = self::legacyCreating('second');
+
+        $refusal = null;
+        try {
+            $migrator->run($extended);
+        } catch (\RuntimeException $exception) {
+            $refusal = $exception;
+        }
+        self::assertNotNull($refusal, 'Pending work after drift was applied.');
+        self::assertStringContainsString('[S1-DB109]', $refusal->getMessage());
+
+        self::assertFalse($connection->createSchemaManager()->tablesExist(['second']), 'no schema change');
+        self::assertSame($ledger, $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations ORDER BY id'), 'no ledger change');
+        self::assertEquals($manifest, $repo->schemaAuthorityManifest(), 'no manifest or catalogue change');
+        self::assertSame($generation, self::generation($connection), 'no generation change');
+        self::assertSame('schema_drift', $verifier->verify($extended, [])->authority->status);
+    }
+
+    #[Test]
+    public function aChangedLegacySourceUnderTheSameIdIsRefusedAndKeepsTheCatalogueAuthority(): void
+    {
+        [$connection, $repo, $migrator, $verifier, $catalogue] = self::authorityHarness();
+        $migrator->run($catalogue);
+        self::assertSame('match', $verifier->verify($catalogue, [])->authority->status);
+
+        $changed = ['audit' => ['audit:001' => new class extends Migration {
+            public function up(SchemaBuilder $schema): void
+            {
+                $schema->create('sample', static function ($table): void {
+                    $table->id();
+                    $table->string('rewritten');
+                });
+            }
+        }]];
+        $before = $verifier->verify($changed, []);
+        self::assertSame(['audit:001' => 'mismatch'], array_column(
+            array_map(static fn(VerifyResultRow $row): array => ['migration' => $row->migration, 'status' => $row->status], $before->rows),
+            'status',
+            'migration',
+        ));
+        self::assertSame('source_catalog_mismatch', $before->authority->status);
+
+        $this->expectException(ChecksumMismatchException::class);
+        try {
+            $migrator->run($changed);
+        } finally {
+            $after = $verifier->verify($changed, []);
+            self::assertSame('source_catalog_mismatch', $after->authority->status, 'the refused replay must not adopt the changed catalogue');
+            self::assertTrue($after->summary->hasFailure());
+        }
+    }
+
+    #[Test]
+    public function aLegitimateCatalogueExtensionStillAppliesAfterACleanVerify(): void
+    {
+        [$connection, $repo, $migrator, $verifier, $catalogue] = self::authorityHarness();
+        $migrator->run($catalogue);
+        self::assertSame('match', $verifier->verify($catalogue, [])->authority->status);
+
+        $extended = $catalogue;
+        $extended['audit']['audit:002'] = self::legacyCreating('second');
+        $result = $migrator->run($extended);
+
+        self::assertSame(['audit:002'], $result->migrations);
+        $after = $verifier->verify($extended, []);
+        self::assertSame('match', $after->authority->status);
+        self::assertFalse($after->summary->hasFailure());
+        self::assertSame(2, $after->summary->match);
+    }
+
+    #[Test]
+    public function aPreApplyModeManifestStillAppliesAndVerifiesAfterTheLedgerUpgrade(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        // Pre-#2701 shape: fingerprinted manifest recorded while the ledger
+        // still lacked `apply_mode`.
+        $connection->executeStatement('CREATE TABLE waaseyaa_migrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            migration VARCHAR(255) NOT NULL,
+            package VARCHAR(128) NOT NULL,
+            batch INTEGER NOT NULL,
+            ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            checksum VARCHAR(64) NULL,
+            diff_hash VARCHAR(64) NULL
+        )');
+        $connection->executeStatement(
+            'CREATE UNIQUE INDEX waaseyaa_migrations_migration_unique ON waaseyaa_migrations (migration)',
+        );
+        $connection->executeStatement('CREATE TABLE waaseyaa_schema_authority (
+            authority_id INTEGER PRIMARY KEY CHECK (authority_id = 1),
+            generation INTEGER NOT NULL,
+            schema_fingerprint VARCHAR(64) NULL,
+            ledger_fingerprint VARCHAR(64) NULL,
+            source_catalog_fingerprint VARCHAR(64) NULL
+        )');
+        $connection->executeStatement('INSERT INTO waaseyaa_schema_authority (authority_id, generation) VALUES (1, 1)');
+        $repo = new MigrationRepository($connection);
+        $catalogue = ['audit' => ['audit:001' => self::legacyCreating('sample')]];
+        $repo->recordSourceCatalogFingerprint(MigrationCatalogFingerprint::capture($catalogue, []));
+        $repo->recordSchemaManifest(LogicalSchemaFingerprint::capture($connection));
+        $migrator = new Migrator($connection, $repo);
+        $verifier = new VerifyRunner($repo, SqliteCompiler::forVersion('3.40.0'));
+        self::assertSame('match', $verifier->verify($catalogue, [])->authority->status);
+
+        $result = $migrator->run($catalogue);
+
+        self::assertSame(['audit:001'], $result->migrations);
+        self::assertContains('apply_mode', self::columns($connection, 'waaseyaa_migrations'));
+        $after = $verifier->verify($catalogue, []);
+        self::assertSame('match', $after->authority->status);
+        self::assertFalse($after->summary->hasFailure());
+    }
+
+    /**
+     * Mirrors the issue's reproduction: a bare connection, no pre-installed
+     * ledger, the real Migrator, and the real VerifyRunner.
+     *
+     * @return array{0: \Doctrine\DBAL\Connection, 1: MigrationRepository, 2: Migrator, 3: VerifyRunner, 4: array<string, array<string, Migration>>}
+     */
+    private static function authorityHarness(): array
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $repo = new MigrationRepository($connection);
+
+        return [
+            $connection,
+            $repo,
+            new Migrator($connection, $repo),
+            new VerifyRunner($repo, SqliteCompiler::forVersion('3.40.0')),
+            ['audit' => ['audit:001' => self::legacyCreating('sample')]],
+        ];
+    }
+
+    private static function legacyCreating(string $table): Migration
+    {
+        return new class ($table) extends Migration {
+            public function __construct(private readonly string $table) {}
+
+            public function up(SchemaBuilder $schema): void
+            {
+                $schema->create($this->table, static function ($table): void {
+                    $table->id();
+                });
+            }
+        };
+    }
+
+    private static function generation(\Doctrine\DBAL\Connection $connection): int
+    {
+        return (int) $connection->fetchOne('SELECT generation FROM waaseyaa_schema_authority WHERE authority_id = 1');
+    }
+
+    /** @return list<string> */
+    private static function columns(\Doctrine\DBAL\Connection $connection, string $table): array
+    {
+        return array_column(
+            $connection->executeQuery('PRAGMA table_info(' . $table . ')')->fetchAllAssociative(),
+            'name',
+        );
+    }
     /**
      * @param list<MigrationInterfaceV2> $v2
      * @return array{0: \Doctrine\DBAL\Connection, 1: MigrationRepository, 2: CliTester}

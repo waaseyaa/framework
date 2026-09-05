@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\CoordinatedEntitySchemaExecutor;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
@@ -186,12 +187,15 @@ final class EntitySchemaSyncTest extends TestCase
     /** A sql-blob translatable type's non-empty sibling is reported, never written to. */
     private function seedNonEmptyTranslationSibling(): void
     {
-        $this->database->schema()->createTable('trans_widget_translations', [
+        // The sibling stands in for a table an earlier release created; seed
+        // it inside the coordinator so the manifest still describes the
+        // database and the next synchronization is not refused as drift (#2730).
+        new CoordinatedEntitySchemaExecutor($this->database)->execute(fn() => $this->database->schema()->createTable('trans_widget_translations', [
             'fields' => [
                 'entity_id' => ['type' => 'varchar', 'length' => 128],
                 'langcode' => ['type' => 'varchar', 'length' => 12],
             ],
-        ]);
+        ]));
         $this->database->insert('trans_widget_translations')
             ->values(['entity_id' => 'e1', 'langcode' => 'oj'])
             ->execute();

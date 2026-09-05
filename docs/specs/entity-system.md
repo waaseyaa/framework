@@ -1222,6 +1222,12 @@ only when no replay follows, so one `syncAll()` reports a condition once rather
 than once per traversal.
 Non-SQLite databases keep the coordinated path. Full writer-position and
 read-only-plan invariants: `docs/specs/infrastructure.md` “MigrationRepository”.
+The privileged-read ledger (`StrictLedgerSchema`, table `privileged_read_ledger`)
+that kernel-built validators and gateway audits declare on first use is created
+through the same coordinator, so a kernel boot cannot leave the recorded schema
+manifest stale and make the next coordinated transition refuse as drift (#2730).
+The `EntityMutationAuthoritySchema` test fixture follows the same rule because
+production creates that table by migration.
 
 Default table schema (from `buildTableSpec()`):
 - `{idKey}` -- `serial NOT NULL` (auto-increment primary key)

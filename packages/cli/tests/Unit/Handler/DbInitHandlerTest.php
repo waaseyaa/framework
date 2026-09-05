@@ -20,7 +20,6 @@ use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2Migration;
 use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
 use Waaseyaa\Foundation\Log\LoggerInterface;
-use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 
 #[CoversClass(DbInitHandler::class)]
@@ -136,7 +135,12 @@ final class DbInitHandlerTest extends TestCase
         $connection->close();
 
         $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects($strict ? self::never() : self::once())->method('warning')->with(self::stringContains('Skipping re-apply'));
+        // #2730: a tampered ledger row is ledger drift. The coordinator refuses
+        // it in every environment before the mode-dependent replay guard can
+        // run, so no "skip" warning is ever logged here. Genuine source drift
+        // keeps its production-refuse / development-warn split; see
+        // ChecksumReplayGuardTest, where the source can actually change.
+        $logger->expects(self::never())->method('warning');
         $tester = $this->createTester($logger);
         $tester->executeMap(['--no-sync-schema' => true]);
 
@@ -153,13 +157,18 @@ final class DbInitHandlerTest extends TestCase
             $readConnection->executeStatement('UPDATE waaseyaa_migrations SET checksum = ?', [str_repeat('0', 64)]);
             $ledger = $readConnection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations');
             $schema = $readConnection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name');
+            $refusal = null;
             try {
                 $tester->executeMap(['--no-sync-schema' => true]);
-                self::assertFalse($strict, 'Production-like environments must reject checksum drift.');
-                self::assertSame(0, $tester->getExitCode());
-            } catch (ChecksumMismatchException) {
-                self::assertTrue($strict, 'Development must warn and skip checksum drift.');
+            } catch (\RuntimeException $exception) {
+                $refusal = $exception;
             }
+            self::assertNotNull($refusal, sprintf(
+                'A tampered ledger must be refused in the %s environment (strict=%s).',
+                $environment,
+                $strict ? 'yes' : 'no',
+            ));
+            self::assertStringContainsString('[S1-DB109]', $refusal->getMessage());
             self::assertSame($ledger, $readConnection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations'));
             self::assertSame($schema, $readConnection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name'));
         } finally {
@@ -216,6 +225,47 @@ final class DbInitHandlerTest extends TestCase
         }
     }
 
+    /**
+     * #2730: a manifest recorded before #2701 fingerprints a ledger without
+     * `apply_mode`. The upgrade must run inside the coordinator, after the
+     * pre-state check, so db:init still converges on such an install.
+     */
+    #[Test]
+    public function aPreApplyModeLedgerUpgradesThroughTheCoordinator(): void
+    {
+        $first = $this->createTester()->executeMap(['--no-sync-schema' => true]);
+        self::assertSame(0, $first->getExitCode());
+
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->projectRoot . '/storage/waaseyaa.sqlite']);
+        try {
+            $connection->executeStatement('ALTER TABLE waaseyaa_migrations DROP COLUMN apply_mode');
+            $repository = new \Waaseyaa\Foundation\Migration\MigrationRepository($connection);
+            $repository->recordSchemaManifest(
+                \Waaseyaa\Foundation\Migration\LogicalSchemaFingerprint::capture($connection),
+            );
+        } finally {
+            $connection->close();
+        }
+
+        $upgrade = $this->createTester()->executeMap(['--no-sync-schema' => true]);
+
+        self::assertSame(0, $upgrade->getExitCode(), $upgrade->getStdout() . $upgrade->getStderr());
+        self::assertStringContainsString('Database ready', $upgrade->getStdout());
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->projectRoot . '/storage/waaseyaa.sqlite']);
+        try {
+            self::assertContains('apply_mode', array_column(
+                $connection->executeQuery('PRAGMA table_info(waaseyaa_migrations)')->fetchAllAssociative(),
+                'name',
+            ));
+            $repository = new \Waaseyaa\Foundation\Migration\MigrationRepository($connection);
+            self::assertSame(
+                $repository->currentLogicalSchemaFingerprint(),
+                $repository->schemaAuthorityManifest()?->schemaFingerprint,
+            );
+        } finally {
+            $connection->close();
+        }
+    }
     // ----- P0-3 (wayfinding-stress-remediation-01KVGK4Q): a fresh db:init must
     // provision entity-storage schema BY DEFAULT, not just migration tables.
     // The schema-creation result for the trail's two-axis shape is proven in

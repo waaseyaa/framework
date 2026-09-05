@@ -10,9 +10,11 @@ use Waaseyaa\Database\DBALDatabase;
 /**
  * The singular transaction boundary for authoritative schema mutation.
  *
- * Writer ownership and ledger installation occur before a transition may
- * inspect or mutate schema state. SQLite DDL, ledger rows, and any data step
- * included by the caller therefore share one DBAL transaction.
+ * Writer ownership, prior-state validation and ledger installation occur, in
+ * that order, before a transition may inspect or mutate schema state. SQLite
+ * DDL, ledger rows, and any data step included by the caller therefore share
+ * one DBAL transaction, and a refused pre-state rolls the authority claim back
+ * with it (#2730).
  *
  * @api
  */
@@ -40,6 +42,7 @@ final class SchemaMutationCoordinator
 
         return new DBALDatabase($this->connection)->transactional(function () use ($transition): mixed {
             $this->repository->acquireSchemaAuthority();
+            $this->repository->assertSchemaAuthorityPreState();
             $this->repository->installOrUpgradeLedger();
 
             $active = self::$activeConnections ??= new \WeakMap();

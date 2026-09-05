@@ -57,10 +57,13 @@ final class SchemaAuthoritySteadyStateConcurrencyTest extends TestCase
 
         // Steady state: a prior boot already installed the authority row.
         $seed = $this->productionConnection();
-        $repository = new MigrationRepository($seed);
-        new SchemaMutationCoordinator($seed, $repository)->execute(static fn(): null => null);
+        // The probe is test scaffolding, created before the authority row so
+        // the recorded manifest describes it; a later uncoordinated table
+        // would make the steady-state transition refuse as drifted (#2730).
         $seed->executeStatement('CREATE TABLE IF NOT EXISTS concurrency_probe (id INTEGER PRIMARY KEY, n INTEGER)');
         $seed->executeStatement('INSERT OR IGNORE INTO concurrency_probe (id, n) VALUES (1, 0)');
+        $repository = new MigrationRepository($seed);
+        new SchemaMutationCoordinator($seed, $repository)->execute(static fn(): null => null);
         $seed->close();
 
         // Worker B commits exactly once, at the moment worker A first reads.

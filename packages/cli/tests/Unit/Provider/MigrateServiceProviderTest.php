@@ -21,7 +21,6 @@ use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\CLI\Tests\Fixtures\RootApplicationV2MigrationAutoloader;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
-use Waaseyaa\Foundation\Migration\ChecksumMismatchException;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 /**
@@ -63,7 +62,11 @@ final class MigrateServiceProviderTest extends TestCase
             $provider = new MigrateServiceProvider();
             $provider->setKernelContext($root, ['environment' => $environment, 'database' => $databasePath], []);
             $logger = $this->createMock(LoggerInterface::class);
-            $logger->expects($strict ? self::never() : self::once())->method('warning')->with(self::stringContains('Skipping re-apply'));
+            // #2730: the tampered ledger row below is ledger drift, refused in
+            // every environment before the mode-dependent replay guard runs,
+            // so no "skip" warning is ever logged. Genuine source drift keeps
+            // its production-refuse / development-warn split (ChecksumReplayGuardTest).
+            $logger->expects(self::never())->method('warning');
             $services = $this->createStub(KernelServicesInterface::class);
             $services->method('get')->willReturnCallback(static fn(string $id): ?object => $id === LoggerInterface::class ? $logger : null);
             $provider->setKernelServices($services);
@@ -105,13 +108,18 @@ final class MigrateServiceProviderTest extends TestCase
             $connection->executeStatement('UPDATE waaseyaa_migrations SET checksum = ?', [str_repeat('0', 64)]);
             $ledger = $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations');
             $schema = $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name');
+            $refusal = null;
             try {
                 $apply->execute([]);
-                self::assertFalse($strict, 'Production-like environments must reject checksum drift.');
-                self::assertSame(0, $apply->getExitCode());
-            } catch (ChecksumMismatchException) {
-                self::assertTrue($strict, 'Development must warn and skip checksum drift.');
+            } catch (\RuntimeException $exception) {
+                $refusal = $exception;
             }
+            self::assertNotNull($refusal, sprintf(
+                'A tampered ledger must be refused in the %s environment (strict=%s).',
+                $environment,
+                $strict ? 'yes' : 'no',
+            ));
+            self::assertStringContainsString('[S1-DB109]', $refusal->getMessage());
             self::assertSame($ledger, $connection->fetchAllAssociative('SELECT * FROM waaseyaa_migrations'));
             self::assertSame($schema, $connection->fetchAllAssociative('SELECT * FROM sqlite_master ORDER BY name'));
         } finally {

@@ -52,6 +52,71 @@ the implementation never picks a winner. Every already-applied skip rechecks
 package identity, source checksum, compiled plan, expected pre-state, and
 verified post-state.
 
+## Prior-state validation and replay rechecks
+
+Every coordinated transition validates the recorded manifest before it may
+inspect or mutate schema state (#2730). The order inside the coordinator
+transaction is fixed: writer acquisition (`acquireSchemaAuthority()`, whose
+first statement is unchanged from #2446), prior-state validation
+(`MigrationRepository::assertSchemaAuthorityPreState()`), ledger
+install/upgrade, the transition, the manifest. The validation compares the live
+logical schema fingerprint and the canonical ledger fingerprint — the same
+functions strict verification reads, so refusal and `migrate --verify` always
+agree — with the recorded manifest:
+
+- No manifest, or a manifest without fingerprints, is a fresh install or the
+  #2452 adoption path: the transition proceeds and records the first proof.
+- A recorded manifest that no longer describes the live schema or ledger
+  refuses with `[S1-DB109]`. The refusal is thrown inside the coordinator
+  transaction, so the authority generation, schema, data, ledger, catalogue and
+  manifest are left exactly as found, and verification keeps reporting the
+  drift. Pending work after drift is refused the same way; a catalogue
+  extension against an unchanged database applies normally.
+- Because the ledger upgrade runs after the validation, a manifest recorded
+  before a ledger column existed (the pre-#2701 `apply_mode` window) is not
+  drift: the unchanged schema passes, the upgrade runs inside the boundary, and
+  the new manifest is recorded. `db:init` therefore no longer installs or
+  upgrades the ledger outside the coordinator.
+
+Replay rechecks apply to every already-applied node, legacy and V2 alike, from
+the ledger row rather than `hasRun()` alone. Package identity and the stored
+compiled-plan hash (`diff_hash`: the compiled SQLite plan for V2, the
+domain-separated procedural hash for legacy) are refused with `[S1-DB112]`; a
+source-checksum mismatch keeps the `CHECKSUM_MISMATCH` refusal. All three throw
+in production and log a warning in development. A null stored hash is a
+pre-WP09 row: nothing is invented, and strict verification continues to report
+it as unverifiable. The loaded catalogue fingerprint is recorded only after
+every replay check has passed, so a refused replay cannot rewrite the catalogue
+authority.
+
+Runtime tables that a serving path declares lazily on the authoritative
+database are part of the logical schema fingerprint. The privileged-read ledger
+(`StrictLedgerSchema`) therefore creates its table through the coordinator on
+first use, so a kernel boot cannot leave the manifest stale. A projection that
+still declares its tables outside the coordinator on a shared authoritative
+file (FTS5 search without a dedicated `search.database`, ai-vector embeddings)
+makes strict verification report `schema_drift` and makes the next coordinated
+transition refuse with `[S1-DB109]` until the projection is migration-owned or
+moved to its own file.
+
+### Governed re-adoption
+
+There is deliberately no automatic re-baseline. When an operator has verified
+that the drift `migrate --verify` reports is benign — for example a projection
+table created before this contract landed — the explicit re-adoption step is to
+clear the recorded fingerprints so the next transition records a fresh manifest
+from the live database:
+
+```sql
+UPDATE waaseyaa_schema_authority
+   SET schema_fingerprint = NULL, ledger_fingerprint = NULL
+ WHERE authority_id = 1;
+```
+
+then run `migrate` (or `db:init`). The transition acquires authority, advances
+the generation and records the new proof. The step is an operator decision
+visible in the generation counter; the framework never takes it on its own.
+
 ## Read-only boundary
 
 Boot, status, dry-run, verify, health, and ordinary repository construction

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Testing;
 
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\CoordinatedEntitySchemaExecutor;
 
 /** Explicit test-fixture schema; production schema is DB-02 migration-owned. */
 final class EntityMutationAuthoritySchema
@@ -14,7 +15,10 @@ final class EntityMutationAuthoritySchema
         if ($database->schema()->tableExists('waaseyaa_entity_mutation_authority')) {
             return;
         }
-        $database->getConnection()->executeStatement(<<<'SQL'
+        // Production creates this table by migration, i.e. inside the schema
+        // coordinator. The fixture must do the same, or the next coordinated
+        // transition in a test would refuse the database as drifted (#2730).
+        new CoordinatedEntitySchemaExecutor($database)->execute(static fn(): int|string => $database->getConnection()->executeStatement(<<<'SQL'
             CREATE TABLE waaseyaa_entity_mutation_authority (
                 storage_authority VARCHAR(191) NOT NULL,
                 tenant_id VARCHAR(191) NOT NULL,
@@ -25,6 +29,6 @@ final class EntityMutationAuthoritySchema
                 lifecycle_state VARCHAR(16) NOT NULL,
                 PRIMARY KEY (storage_authority, tenant_id, entity_type, entity_id)
             )
-            SQL);
+            SQL));
     }
 }

@@ -6,7 +6,9 @@ namespace Waaseyaa\Tests\Support;
 
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
+use Waaseyaa\Foundation\Migration\SchemaMutationCoordinator;
 
 /** Explicit migration fixtures for cross-package tests. */
 final class RuntimeSchemaMigrations
@@ -157,6 +159,11 @@ final class RuntimeSchemaMigrations
      */
     public static function relationship(DBALDatabase $database): void
     {
+        self::coordinated($database, static fn() => self::declareRelationship($database));
+    }
+
+    private static function declareRelationship(DBALDatabase $database): void
+    {
         if (!$database->schema()->tableExists('relationship')) {
             $database->schema()->createTable('relationship', [
                 'fields' => [
@@ -212,6 +219,15 @@ final class RuntimeSchemaMigrations
         if (!$migration instanceof Migration) {
             throw new \LogicException(sprintf('Runtime migration "%s" is invalid.', $relativePath));
         }
-        $migration->up(new SchemaBuilder($database->getConnection()));
+        // Applied as the Migrator would: inside the schema coordinator, so the
+        // recorded manifest still describes the database and a later
+        // coordinated synchronization is not refused as drift (#2730).
+        self::coordinated($database, static fn() => $migration->up(new SchemaBuilder($database->getConnection())));
+    }
+
+    private static function coordinated(DBALDatabase $database, \Closure $transition): void
+    {
+        $connection = $database->getConnection();
+        new SchemaMutationCoordinator($connection, new MigrationRepository($connection))->execute($transition);
     }
 }
