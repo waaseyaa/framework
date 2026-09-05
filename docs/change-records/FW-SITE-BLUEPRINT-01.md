@@ -135,3 +135,11 @@ entity-value projection, cardinality and revision/translation metadata,
 effective-field enumeration through the real schema controller, exact
 blueprint-roster equality, protected-field concealment, unknown-type refusal,
 package layers, and the governed CI/preflight roster.
+
+## Slice 01D-2 implementation plan
+
+The execution-authority activation plan and explicit decisions for receipt
+identity, generated evidence, replay, recovery attribution and the six D-13
+review obligations are recorded in
+[FW-SITE-BLUEPRINT-01D-2](../plans/FW-SITE-BLUEPRINT-01D-2.md).
+The plan composes 01D-1; it does not independently qualify that candidate.
