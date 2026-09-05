@@ -50,6 +50,7 @@ final class GenerationAuthorityConstraintsTest extends TestCase
     public function generatedOwnershipDocumentHasOneClosedSetOfProductionParticipants(): void
     {
         self::assertSame([
+            'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
             'packages/cli/src/Site/SiteDoctorService.php',
             'packages/cli/src/Site/SiteInitializationService.php',
             'packages/site-contract/src/Generation/GeneratedSite.php',
