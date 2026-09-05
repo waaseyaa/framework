@@ -397,7 +397,12 @@ final class DeliveryAgentEventBatchGateTest extends TestCase
             'ops/observability/delivery-agent-v1-freeze.json',
             'bin/check-delivery-agent-events',
             'bin/lib/delivery-agent-event-set.php',
+            'bin/lib/vendor-freshness.php',
             'bin/git',
+            // The gate's vendor/ precondition (#2926) compares these against
+            // the symlinked real vendor/, so the fixture carries the real pair.
+            'composer.json',
+            'composer.lock',
         ] as $path) {
             self::assertTrue(copy($this->root . '/' . $path, $repo . '/' . $path));
         }
@@ -409,7 +414,7 @@ final class DeliveryAgentEventBatchGateTest extends TestCase
         $this->git($repo, ['init', '--quiet', '--initial-branch=main']);
         $this->git($repo, ['config', 'user.name', 'Batch Gate Fixture']);
         $this->git($repo, ['config', 'user.email', 'batch-gate@example.invalid']);
-        $this->git($repo, ['add', 'ops', 'bin', 'vendor']);
+        $this->git($repo, ['add', 'ops', 'bin', 'vendor', 'composer.json', 'composer.lock']);
         $this->git($repo, ['commit', '--quiet', '-m', 'frozen authority']);
 
         return $repo;

@@ -42,6 +42,11 @@ declare(strict_types=1);
  *       or a hand-edited aggregate)
  *   2 — infrastructure failure (declarations unreadable, parser unavailable,
  *       git failure, unparsable layer table)
+ *   3 — VENDOR_FRESHNESS_EXIT_CODE (bin/lib/vendor-freshness.php, #2926): the
+ *       local vendor/ is stale relative to composer.lock, or a declared FQCN
+ *       is defined on disk under a declared PSR-4 root but the autoloader
+ *       cannot load it. An environment fault — `composer install` — never a
+ *       repository defect, and never the §4 "orphaned" repair.
  */
 
 use Waaseyaa\Tooling\ChangelogFragments;
@@ -52,12 +57,17 @@ use Waaseyaa\Tooling\SurfaceScanner;
 
 $root = dirname(__DIR__);
 
-$autoload = $root . '/vendor/autoload.php';
-if (!is_file($autoload)) {
-    fwrite(STDERR, "surface-parity: vendor/autoload.php not found — run `composer install` first.\n");
-    exit(2);
+// Precondition (#2926): every "does this FQCN load" answer below comes from
+// the Composer autoloader, so a stale vendor/ would misreport environment
+// faults as orphaned declarations. The library is dependency-free and runs
+// before the autoloader is required, so a missing vendor/ cannot fatal.
+require $root . '/bin/lib/vendor-freshness.php';
+$vendorProblem = vendor_freshness_problem($root);
+if ($vendorProblem !== null) {
+    fwrite(STDERR, vendor_freshness_message($vendorProblem, 'surface-parity'));
+    exit(VENDOR_FRESHNESS_EXIT_CODE);
 }
-require $autoload;
+require $root . '/vendor/autoload.php';
 
 const SURFACE_MAP_PHP_REL = 'docs/public-surface-map.php';
 const SURFACE_MAP_MD_REL = 'docs/public-surface-map.md';
@@ -203,16 +213,46 @@ try {
 }
 
 $validationErrors = $headDeclarations->validate($scanner);
+$environmentErrors = array_values(array_filter($validationErrors, [SurfaceDeclarations::class, 'isEnvironmentError']));
+if ($environmentErrors !== []) {
+    // A declared FQCN is defined on disk under a declared PSR-4 root but the
+    // autoloader cannot load it: the checkout, not the change, is wrong.
+    // Report it with the precondition code so nobody follows the §4 repair.
+    fail(
+        "vendor/ is stale relative to composer.lock — run `composer install` (bin/lib/vendor-freshness.php, #2926):\n\n"
+        . implode("\n\n", $environmentErrors),
+        VENDOR_FRESHNESS_EXIT_CODE,
+    );
+}
 if ($validationErrors !== []) {
     fail("declaration validation failed (docs/specs/public-surface-declarations.md §4):\n\n" . implode("\n\n", $validationErrors));
 }
 
 $headMap = $headDeclarations->compose();
 $unloadableDeclarations = [];
+$unloadableDefinedOnDisk = [];
 foreach (array_keys($headMap) as $fqcn) {
-    if (!surfaceTypeExists($fqcn)) {
-        $unloadableDeclarations[] = $fqcn;
+    if (surfaceTypeExists($fqcn)) {
+        continue;
     }
+    // validate() already proved every FQCN resolves somewhere (AST or
+    // reflection); one the autoloader still cannot load is an environment
+    // fault when its defining file sits under a declared PSR-4 root.
+    $located = $headDeclarations->locateDefinition($fqcn, $scanner);
+    if ($located !== null) {
+        $unloadableDefinedOnDisk[] = "{$fqcn} (defined in {$located['file']}, PSR-4 root {$located['prefix']} from {$located['origin']})";
+        continue;
+    }
+    $unloadableDeclarations[] = $fqcn;
+}
+if ($unloadableDefinedOnDisk !== []) {
+    sort($unloadableDefinedOnDisk, SORT_STRING);
+    fail(
+        "vendor/ is stale relative to composer.lock — run `composer install` (bin/lib/vendor-freshness.php, #2926):\n\n"
+        . count($unloadableDefinedOnDisk) . " declared type(s) are defined on disk under a declared PSR-4 root but do not load through the repository autoloader:\n  "
+        . implode("\n  ", $unloadableDefinedOnDisk),
+        VENDOR_FRESHNESS_EXIT_CODE,
+    );
 }
 if ($unloadableDeclarations !== []) {
     sort($unloadableDeclarations, SORT_STRING);

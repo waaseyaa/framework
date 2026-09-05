@@ -18,6 +18,15 @@ final class SurfaceDeclarations
 {
     public const ALLOWED_DISPOSITIONS = ['public', 'internal', 'extract', 'remove'];
 
+    /**
+     * Prefix of a validate() error that describes an ENVIRONMENT fault (a
+     * declared FQCN whose defining file exists on disk under a declared PSR-4
+     * root but which the autoloader cannot load — a stale vendor/, #2926)
+     * rather than a defect in the declaration plane. Callers map these to
+     * the shared VENDOR_FRESHNESS_EXIT_CODE, never to the §4 failure exit.
+     */
+    public const ENVIRONMENT_PREFIX = 'environment:';
+
     private const DECLARATION_FILENAME = 'public-surface.php';
 
     /**
@@ -25,17 +34,25 @@ final class SurfaceDeclarations
      *   dir: string,
      *   file: string,
      *   prefixes: list<string>,
+     *   sourceRoots: list<array{prefix: string, dir: string, origin: string}>,
      *   entries: list<array{fqcn: mixed, disposition: mixed, purpose: mixed, ref: mixed}>,
      *   notes: list<mixed>,
      *   structuralErrors: list<string>,
      * }> $packages package short name => declaration data
+     * @param list<array{prefix: string, dir: string, origin: string}> $rootSourceRoots PSR-4 roots the
+     *   ROOT composer.json declares (autoload + autoload-dev), absolute dirs; empty for a git-ref load
+     * @param ?string $root the on-disk tree these declarations were read from; null for a git-ref load
      */
-    private function __construct(private readonly array $packages)
-    {
+    private function __construct(
+        private readonly array $packages,
+        private readonly array $rootSourceRoots = [],
+        private readonly ?string $root = null,
+    ) {
     }
 
     public static function load(string $root): self
     {
+        $root = rtrim(str_replace('\\', '/', $root), '/');
         $packages = [];
         $packageDirectories = glob($root . '/packages/*', GLOB_ONLYDIR) ?: [];
         sort($packageDirectories, SORT_STRING);
@@ -49,9 +66,14 @@ final class SurfaceDeclarations
             $relativeFile = 'packages/' . $short . '/' . self::DECLARATION_FILENAME;
             $source = (string) file_get_contents($declarationPath);
             $packages[$short] = self::parseSource($short, $relativeFile, $prefixes, $source);
+            $packages[$short]['sourceRoots'] = self::readPsr4SourceRoots(
+                $pkgDir . '/composer.json',
+                $pkgDir,
+                "packages/{$short}/composer.json",
+            );
         }
 
-        return new self($packages);
+        return new self($packages, self::readPsr4SourceRoots($root . '/composer.json', $root, 'composer.json'), $root);
     }
 
     public static function loadAt(string $root, string $ref): self
@@ -228,6 +250,27 @@ final class SurfaceDeclarations
                     continue;
                 }
                 if ($scanner->shape($fqcn) === null) {
+                    // Before calling this an orphan — whose repair is a
+                    // CHANGELOG deprecation directive — check whether a file
+                    // on disk under a DECLARED PSR-4 root defines it. If one
+                    // does, the autoloader is what is wrong (#2926): that is
+                    // an environment fault, and following the orphan repair
+                    // would turn it into a real charter violation.
+                    $located = $this->locateDefinition($fqcn, $scanner);
+                    if ($located !== null) {
+                        $errors[] = sprintf(
+                            '%s %s declared in %s (package %s) is defined as %s in %s (PSR-4 root %s from %s) but the Composer autoloader cannot load it — vendor/ is stale relative to composer.lock. This is an environment fault, not an orphaned declaration: run `composer install` (or `composer dump-autoload`) and re-run the gate.',
+                            self::ENVIRONMENT_PREFIX,
+                            $fqcn,
+                            $package['file'],
+                            $short,
+                            $located['shape'],
+                            $located['file'],
+                            $located['prefix'],
+                            $located['origin'],
+                        );
+                        continue;
+                    }
                     $errors[] = sprintf(
                         'orphaned: %s declared in %s (package %s) does not load — no matching interface, class, trait, or enum was found.',
                         $fqcn,
@@ -256,6 +299,58 @@ final class SurfaceDeclarations
         }
 
         return $errors;
+    }
+
+    /**
+     * Whether a validate() error describes an environment fault (#2926)
+     * rather than a defect in the declaration plane.
+     */
+    public static function isEnvironmentError(string $error): bool
+    {
+        return str_starts_with($error, self::ENVIRONMENT_PREFIX);
+    }
+
+    /**
+     * The file on disk that defines $fqcn under a DECLARED PSR-4 root —
+     * every package's composer.json autoload + autoload-dev, and the root
+     * composer.json's autoload + autoload-dev — resolved longest-prefix
+     * first and confirmed by parsing that one file, independently of the
+     * autoloader. Null when nothing on disk defines the symbol (a real
+     * orphan) or when this instance was loaded from a git ref.
+     *
+     * @return array{file: string, prefix: string, origin: string, shape: string}|null
+     *   file is relative to the loaded root
+     */
+    public function locateDefinition(string $fqcn, SurfaceScanner $scanner): ?array
+    {
+        if ($this->root === null) {
+            return null;
+        }
+        $candidates = $this->rootSourceRoots;
+        foreach ($this->packages as $package) {
+            foreach ($package['sourceRoots'] ?? [] as $sourceRoot) {
+                $candidates[] = $sourceRoot;
+            }
+        }
+        $matching = array_values(array_filter(
+            $candidates,
+            static fn(array $candidate): bool => $candidate['prefix'] !== '' && str_starts_with($fqcn, $candidate['prefix']),
+        ));
+        usort($matching, static fn(array $a, array $b): int => strlen($b['prefix']) <=> strlen($a['prefix']));
+
+        foreach ($matching as $candidate) {
+            $relative = str_replace('\\', '/', substr($fqcn, strlen($candidate['prefix']))) . '.php';
+            $path = $candidate['dir'] . '/' . $relative;
+            $shape = $scanner->shapeInFile($path, $fqcn);
+            if ($shape === null) {
+                continue;
+            }
+            $file = str_starts_with($path, $this->root . '/') ? substr($path, strlen($this->root) + 1) : $path;
+
+            return ['file' => $file, 'prefix' => $candidate['prefix'], 'origin' => $candidate['origin'], 'shape' => $shape];
+        }
+
+        return null;
     }
 
     /**
@@ -294,6 +389,56 @@ final class SurfaceDeclarations
         return self::extractPsr4Prefixes((string) file_get_contents($composerJsonPath));
     }
 
+    /**
+     * Every PSR-4 root a composer.json declares under autoload AND
+     * autoload-dev, as absolute directories. Ownership (readPsr4Prefixes)
+     * deliberately stays autoload-only; this is the wider set a symbol may
+     * legitimately be DEFINED under (test helpers, testing/ trees).
+     *
+     * @return list<array{prefix: string, dir: string, origin: string}>
+     */
+    private static function readPsr4SourceRoots(string $composerJsonPath, string $baseDir, string $label): array
+    {
+        if (!is_file($composerJsonPath)) {
+            return [];
+        }
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode((string) file_get_contents($composerJsonPath), true, flags: JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return [];
+        }
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $baseDir = rtrim(str_replace('\\', '/', $baseDir), '/');
+        $roots = [];
+        foreach (['autoload', 'autoload-dev'] as $section) {
+            $psr4 = $decoded[$section]['psr-4'] ?? null;
+            if (!is_array($psr4)) {
+                continue;
+            }
+            foreach ($psr4 as $prefix => $dirs) {
+                if (!is_string($prefix)) {
+                    continue;
+                }
+                foreach (is_array($dirs) ? $dirs : [$dirs] as $dir) {
+                    if (!is_string($dir)) {
+                        continue;
+                    }
+                    $dir = trim(str_replace('\\', '/', $dir), '/');
+                    $roots[] = [
+                        'prefix' => $prefix,
+                        'dir' => $dir === '' ? $baseDir : $baseDir . '/' . $dir,
+                        'origin' => "{$label} {$section}",
+                    ];
+                }
+            }
+        }
+
+        return $roots;
+    }
+
     /** @return list<string> */
     private static function extractPsr4Prefixes(string $composerJsonSource): array
     {
@@ -316,11 +461,11 @@ final class SurfaceDeclarations
 
     /**
      * @param list<string> $prefixes
-     * @return array{dir: string, file: string, prefixes: list<string>, entries: list<array{fqcn: mixed, disposition: mixed, purpose: mixed, ref: mixed}>, notes: list<mixed>, structuralErrors: list<string>}
+     * @return array{dir: string, file: string, prefixes: list<string>, sourceRoots: list<array{prefix: string, dir: string, origin: string}>, entries: list<array{fqcn: mixed, disposition: mixed, purpose: mixed, ref: mixed}>, notes: list<mixed>, structuralErrors: list<string>}
      */
     private static function parseSource(string $short, string $relativeFile, array $prefixes, string $source): array
     {
-        $empty = ['dir' => "packages/{$short}", 'file' => $relativeFile, 'prefixes' => $prefixes, 'entries' => [], 'notes' => [], 'structuralErrors' => []];
+        $empty = ['dir' => "packages/{$short}", 'file' => $relativeFile, 'prefixes' => $prefixes, 'sourceRoots' => [], 'entries' => [], 'notes' => [], 'structuralErrors' => []];
 
         $temporary = tempnam(sys_get_temp_dir(), 'waaseyaa-surface-decl-');
         if ($temporary === false) {
@@ -411,6 +556,7 @@ final class SurfaceDeclarations
             'dir' => "packages/{$short}",
             'file' => $relativeFile,
             'prefixes' => $prefixes,
+            'sourceRoots' => [],
             'entries' => array_values($entries),
             'notes' => $notes,
             'structuralErrors' => $errors,
