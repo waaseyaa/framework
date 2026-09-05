@@ -240,36 +240,121 @@ final class AuthUiScaffoldManager
      */
     private function sourceContext(): array
     {
-        $frameworkRoots = [
-            $this->projectRoot,
-            $this->projectRoot . '/vendor/waaseyaa/framework',
-        ];
-        if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/framework')) {
-            $installedPath = InstalledVersions::getInstallPath('waaseyaa/framework');
-            if (is_string($installedPath) && $installedPath !== '') {
-                $frameworkRoots[] = $installedPath;
-            }
-        }
+        return $this->sourceContextFromCandidates($this->sourceCandidates());
+    }
 
-        foreach (array_unique($frameworkRoots) as $frameworkRoot) {
-            $sourceBase = rtrim($frameworkRoot, '/\\') . '/packages/admin/app';
-            if (!is_dir($sourceBase)) {
+    /**
+     * @param list<array{source_base: string, version_roots: list<string>}> $candidates
+     * @return array{source_base: string, framework_version: string}
+     */
+    private function sourceContextFromCandidates(array $candidates): array
+    {
+        foreach ($candidates as $candidate) {
+            if (!is_dir($candidate['source_base'])) {
                 continue;
             }
 
-            $versionPath = rtrim($frameworkRoot, '/\\') . '/VERSION';
-            $version = is_file($versionPath) ? trim((string) file_get_contents($versionPath)) : '';
-            if ($version === '' && class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/framework')) {
-                $version = InstalledVersions::getPrettyVersion('waaseyaa/framework') ?? '';
-            }
+            $version = $this->resolveFrameworkVersion($candidate['version_roots']);
             if ($version === '') {
                 throw new \RuntimeException('Unable to identify the Framework version that owns the auth UI sources.');
             }
 
-            return ['source_base' => $sourceBase, 'framework_version' => $version];
+            return [
+                'source_base' => $candidate['source_base'],
+                'framework_version' => $version,
+            ];
         }
 
-        throw new \RuntimeException('Framework auth UI sources were not found in the project or installed waaseyaa/framework package.');
+        throw new \RuntimeException(
+            'Framework auth UI sources were not found in the project, an installed waaseyaa/framework package, or the loaded waaseyaa/cli package sibling admin app.',
+        );
+    }
+
+    /**
+     * Ordered source roots for scaffold:auth (#2833).
+     *
+     * Direct-package consumers omit waaseyaa/framework; auth UI sources still
+     * live at packages/admin/app beside the loaded waaseyaa/cli package when
+     * Composer path-installs monorepo packages (ADR-004). Follow the loaded
+     * CLI class location — same owning-package anchor pattern as sync-rules (#2832).
+     *
+     * @return list<array{source_base: string, version_roots: list<string>}>
+     */
+    private function sourceCandidates(): array
+    {
+        $candidates = [
+            [
+                'source_base' => $this->projectRoot . '/packages/admin/app',
+                'version_roots' => [$this->projectRoot],
+            ],
+            [
+                'source_base' => $this->projectRoot . '/vendor/waaseyaa/framework/packages/admin/app',
+                'version_roots' => [$this->projectRoot . '/vendor/waaseyaa/framework'],
+            ],
+        ];
+
+        if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/framework')) {
+            $installedPath = InstalledVersions::getInstallPath('waaseyaa/framework');
+            if (is_string($installedPath) && $installedPath !== '') {
+                $frameworkRoot = realpath($installedPath) ?: $installedPath;
+                $candidates[] = [
+                    'source_base' => rtrim($frameworkRoot, '/\\') . '/packages/admin/app',
+                    'version_roots' => [$frameworkRoot],
+                ];
+            }
+        }
+
+        $cliFile = new \ReflectionClass(self::class)->getFileName();
+        if (is_string($cliFile) && $cliFile !== '') {
+            $cliRoot = dirname($cliFile, 3);
+            $candidates[] = [
+                'source_base' => dirname($cliRoot) . '/admin/app',
+                'version_roots' => [dirname($cliRoot, 2)],
+            ];
+        }
+
+        if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/cli')) {
+            $installedPath = InstalledVersions::getInstallPath('waaseyaa/cli');
+            if (is_string($installedPath) && $installedPath !== '') {
+                $cliRoot = realpath($installedPath) ?: $installedPath;
+                $candidates[] = [
+                    'source_base' => dirname($cliRoot) . '/admin/app',
+                    'version_roots' => [dirname($cliRoot, 2)],
+                ];
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param list<string> $versionRoots
+     */
+    private function resolveFrameworkVersion(array $versionRoots): string
+    {
+        foreach ($versionRoots as $root) {
+            $versionPath = rtrim($root, '/\\') . '/VERSION';
+            if (!is_file($versionPath)) {
+                continue;
+            }
+            $version = trim((string) file_get_contents($versionPath));
+            if ($version !== '') {
+                return $version;
+            }
+        }
+
+        if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/framework')) {
+            $version = InstalledVersions::getPrettyVersion('waaseyaa/framework') ?? '';
+            if ($version !== '') {
+                return $version;
+            }
+        }
+
+        if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('waaseyaa/cli')) {
+            return InstalledVersions::getPrettyVersion('waaseyaa/cli') ?? '';
+        }
+
+        return '';
     }
 
     private function hasConsumerFiles(): bool

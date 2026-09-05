@@ -213,6 +213,49 @@ final class ScaffoldAuthHandlerTest extends TestCase
     }
 
     #[Test]
+    public function resolvesAuthUiSourcesFromLoadedCliPackageSiblingWithoutFrameworkAggregate(): void
+    {
+        // Isolate the #2833 path: empty consumer root, no in-tree packages/, and
+        // only the loaded waaseyaa/cli package's monorepo sibling admin app.
+        (new Filesystem())->remove($this->tempDir . '/packages');
+        unlink($this->tempDir . '/VERSION');
+        self::assertDirectoryDoesNotExist($this->tempDir . '/vendor/waaseyaa/framework');
+
+        $manager = new AuthUiScaffoldManager($this->tempDir);
+        $candidates = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceCandidates')
+            ->invoke($manager);
+        self::assertIsArray($candidates);
+
+        $cliRoot = dirname((string) (new \ReflectionClass(AuthUiScaffoldManager::class))->getFileName(), 3);
+        $siblingAdmin = dirname($cliRoot) . '/admin/app';
+        self::assertDirectoryExists($siblingAdmin);
+
+        $siblingOnly = array_values(array_filter(
+            $candidates,
+            static fn(array $candidate): bool => $candidate['source_base'] === $siblingAdmin,
+        ));
+        self::assertNotSame([], $siblingOnly, 'Loaded CLI package must nominate its sibling admin app.');
+
+        $context = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceContextFromCandidates')
+            ->invoke($manager, $siblingOnly);
+        self::assertSame($siblingAdmin, $context['source_base']);
+        self::assertNotSame('', $context['framework_version']);
+
+        $check = $this->makeTester();
+        $check->execute(['--check']);
+        self::assertSame(0, $check->getExitCode(), $check->getStderr() . $check->getStdout());
+        self::assertStringContainsString(
+            'Auth UI is framework-owned; no published consumer files were detected.',
+            $check->getStdout(),
+        );
+
+        $publish = $this->makeTester();
+        $publish->execute([]);
+        self::assertSame(0, $publish->getExitCode(), $publish->getStderr() . $publish->getStdout());
+        self::assertFileExists($this->tempDir . '/app/pages/login.vue');
+    }
+
+    #[Test]
     public function resolvesFrameworkSourcesFromAConsumerVendorInstall(): void
     {
         rename($this->tempDir . '/packages', $this->tempDir . '/vendor-packages');
