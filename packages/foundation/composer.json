@@ -107,6 +107,10 @@
         {
             "type": "path",
             "url": "../workflows"
+        },
+        {
+            "type": "path",
+            "url": "../config"
         }
     ],
     "require": {
@@ -132,6 +136,7 @@
         "waaseyaa/audit": "^0.1.0-alpha.300",
         "waaseyaa/auth": "^0.1.0-alpha.300",
         "waaseyaa/cli": "^0.1.0-alpha.300",
+        "waaseyaa/config": "^0.1.0-alpha.300",
         "waaseyaa/entity": "^0.1.0-alpha.300",
         "waaseyaa/entity-storage": "^0.1.0-alpha.300",
         "waaseyaa/error-handler": "^0.1.0-alpha.300",

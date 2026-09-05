@@ -31,6 +31,7 @@ use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
 use Waaseyaa\Workflows\Listener\WorkflowRepublishListener;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
 use Waaseyaa\Workflows\Publishing\WorkflowContentPublicationTransitioner;
+use Waaseyaa\Workflows\Read\ActiveWorkflows;
 use Waaseyaa\Workflows\Republish\RepublishMarker;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Validation\WorkflowValidator;
@@ -72,6 +73,18 @@ final class WorkflowServiceProvider extends ServiceProvider
         $this->singleton(EditorialVisibilityResolver::class, function (): EditorialVisibilityResolver {
             return new EditorialVisibilityResolver(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
+            );
+        });
+
+        // #2835: read-side authority for `GET /api/workflow-definitions`
+        // (resolved by HttpKernel via getHttpServiceResolver(), then handed
+        // to WorkflowDefinitionsApiRouter) — the active, verified
+        // `workflows.assignments` configuration, replacing the retired
+        // EditorialWorkflowPreset fallback.
+        $this->singleton(ActiveWorkflows::class, function (): ActiveWorkflows {
+            return new ActiveWorkflows(
+                configFactory: $this->resolve(ConfigFactoryInterface::class),
+                entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
             );
         });
 

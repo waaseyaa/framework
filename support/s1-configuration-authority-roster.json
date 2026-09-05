@@ -1907,6 +1907,20 @@
             "occurrence": 2
         },
         {
+            "path": "packages/workflows/src/Read/ActiveWorkflows.php",
+            "pattern": "factory_compatibility",
+            "class": "legacy-compatibility",
+            "match_sha256": "d1a2019907f9e523e061ce96bc5508c497c5be4a8278914f0acd071637d8f537",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/workflows/src/Read/ActiveWorkflows.php",
+            "pattern": "factory_compatibility",
+            "class": "legacy-compatibility",
+            "match_sha256": "d1a2019907f9e523e061ce96bc5508c497c5be4a8278914f0acd071637d8f537",
+            "occurrence": 2
+        },
+        {
             "path": "packages/workflows/src/WorkflowServiceProvider.php",
             "pattern": "factory_compatibility",
             "class": "legacy-compatibility",
@@ -1961,6 +1975,13 @@
             "class": "legacy-compatibility",
             "match_sha256": "d1a2019907f9e523e061ce96bc5508c497c5be4a8278914f0acd071637d8f537",
             "occurrence": 8
+        },
+        {
+            "path": "packages/workflows/src/WorkflowServiceProvider.php",
+            "pattern": "factory_compatibility",
+            "class": "legacy-compatibility",
+            "match_sha256": "d1a2019907f9e523e061ce96bc5508c497c5be4a8278914f0acd071637d8f537",
+            "occurrence": 9
         },
         {
             "path": "skeleton/config/waaseyaa.php",

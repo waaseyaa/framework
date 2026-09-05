@@ -15,24 +15,24 @@ use Waaseyaa\Workflows\Workflow;
 final class WorkflowDefinitionsControllerTest extends TestCase
 {
     #[Test]
-    public function listReturnsEditorialPresetByDefault(): void
+    public function listReturnsWellFormedEmptyResultByDefault(): void
     {
+        // #2835: replaces the retired pin on EditorialWorkflowPreset — with
+        // no provider (an unwired install), the controller must yield a
+        // well-formed empty result, never a fictional in-code preset that
+        // has already drifted from the live editorial transition set.
         $payload = (new WorkflowDefinitionsController())->list();
 
-        self::assertArrayHasKey('data', $payload);
-        self::assertCount(1, $payload['data']);
-
-        $editorial = $payload['data'][0];
-        self::assertSame('editorial', $editorial['id']);
-        self::assertSame('Editorial', $editorial['label']);
-        self::assertCount(4, $editorial['states'], 'editorial preset has 4 states');
-        self::assertCount(6, $editorial['transitions'], 'editorial preset has 6 transitions');
+        self::assertSame(['data' => []], $payload);
     }
 
     #[Test]
     public function listSerializesStateShape(): void
     {
-        $payload = (new WorkflowDefinitionsController())->list();
+        $controller = new WorkflowDefinitionsController(
+            static fn(): array => [EditorialWorkflowPreset::create()],
+        );
+        $payload = $controller->list();
         $stateIds = array_column($payload['data'][0]['states'], 'id');
 
         self::assertSame(['draft', 'review', 'published', 'archived'], $stateIds);
@@ -47,7 +47,10 @@ final class WorkflowDefinitionsControllerTest extends TestCase
     #[Test]
     public function listSerializesTransitionShape(): void
     {
-        $payload = (new WorkflowDefinitionsController())->list();
+        $controller = new WorkflowDefinitionsController(
+            static fn(): array => [EditorialWorkflowPreset::create()],
+        );
+        $payload = $controller->list();
         $submit = $payload['data'][0]['transitions'][0];
 
         self::assertSame('submit_for_review', $submit['id']);
