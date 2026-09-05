@@ -6599,6 +6599,34 @@
             "occurrence": 1
         },
         {
+            "path": "tests/Architecture/K1BatchProvenanceDashboardTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "f7a6a31ceb3e731047498ad455c9eec01768f968967451278610da3fcf5d0f22",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/K1BatchProvenanceDashboardTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "f7a6a31ceb3e731047498ad455c9eec01768f968967451278610da3fcf5d0f22",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Architecture/K1BatchProvenanceDashboardTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/K1BatchProvenanceDashboardTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 2
+        },
+        {
             "path": "tests/CoreOnlyBoot/prepare-runtime-schema.php",
             "pattern": "dbal_factory",
             "class": "test",
