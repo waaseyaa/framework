@@ -111,7 +111,7 @@ Route role matching is exact except for one directional superuser implication: a
 
 ## Public Surface
 
-Authoritative dispositions are in `docs/public-surface-map.php`, verified by `PublicSurfaceVerificationTest`.
+Authoritative dispositions are in each element's owning package-local `packages/<pkg>/public-surface.php` declaration; `PublicSurfaceVerificationTest` verifies the composed declaration plane.
 
 **Public API** (stable, semver-protected):
 

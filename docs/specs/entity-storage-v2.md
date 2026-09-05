@@ -577,7 +577,7 @@ The mission is complete when:
 3. The registrar-owned gateway integration suites are green for `sql-blob` and `sql-column`.
 4. WP11's Minoo migration ships in production and serves traffic for at least 7 days without a related incident.
 5. Charter §3.2 criterion 8 ("revisions in production") is satisfiable — at least one revisionable entity type is shipping in Minoo.
-6. Charter §5.3 stable-surface entries for this mission are reflected in `public-surface-map.md` and `public-surface-map.php` with both tier (`stable`) and mission-status (`present`) labels.
+6. Charter §5.3 public-surface entries for this mission are declared in the owning package-local `packages/<pkg>/public-surface.php` files; the generated `public-surface-map.md` / `.php` views reflect them at release.
 7. The first concrete upgrade guide exists at `docs/upgrades/waaseyaa-alpha-<X>-to-<Y>.md` per FR-056.
 
 ---
@@ -625,7 +625,7 @@ Mission-specific, in addition to charter §11.
 - [ADR 009](../adr/009-migration-manifest-discovery.md) — migration manifest format; relevant to WP10.
 - [`schema-evolution-v2.md`](schema-evolution-v2.md) — sibling mission; spec format template; relevant to open question §16.4.
 - 2026-05-11 framework/app audit (`waaseyaa/minoo/docs/audits/2026-05-11-framework-app-audit.md`) — original M3 origin and findings F1 and F8.
-- [`public-surface-map.md`](../public-surface-map.md) — Layer 1 `entity-storage` and `entity` packages; updated by this mission per §4.
+- `packages/{entity-storage,entity}/public-surface.php` — Layer 1 declarations updated by this mission per §4; generated views update at release.
 
 ---
 

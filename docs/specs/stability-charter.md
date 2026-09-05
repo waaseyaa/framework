@@ -54,7 +54,7 @@ This charter exists because the 2026-05-11 framework/app audit found that recent
 
 The framework public surface uses a **binary** classification: every tracked element is either **public** or **internal** (audit C-15). An earlier three-tier `stable | provisional | internal` model and a `mission_status` axis — described in §2.1–§2.3 and §2.6 below, and in §11 Q1 — were aspirational and **never shipped**; the public-surface-map, the surface-parity gate (`tools/check-surface-parity.php`), and `PublicSurfaceVerificationTest` all implement the binary model. §2.1–§2.3 are retained only for historical context.
 
-The tracked surface is the **contract shapes** — interfaces, abstract classes, traits, and enums declared under `packages/*/src` — together with the config keys, log channels (§4.4), event names, CLI commands, and env vars enumerated in this charter. Concrete `final`/plain classes are implementations, not extension points, and are intentionally **not** tracked by the parity gate (audit C-16): there are ~1378 of them versus ~426 mapped contract elements, and listing them would not strengthen the stability guarantee — consumers depend on the interface, not the implementation (e.g. `EntityTypeManagerInterface` is mapped `public` while the concrete `EntityTypeManager` is not). The single source of truth for an element's disposition is the public-surface-map (§2.5).
+The tracked surface is the **contract shapes** — interfaces, abstract classes, traits, and enums declared under `packages/*/src` — together with the config keys, log channels (§4.4), event names, CLI commands, and env vars enumerated in this charter. Concrete `final`/plain classes are implementations, not extension points, and are intentionally **not** tracked by the parity gate (audit C-16): there are ~1378 of them versus ~426 mapped contract elements, and listing them would not strengthen the stability guarantee — consumers depend on the interface, not the implementation (e.g. `EntityTypeManagerInterface` is mapped `public` while the concrete `EntityTypeManager` is not). The single source of truth for an element's disposition is its owning package-local declaration (§2.5).
 
 ### 2.1 Stable
 
@@ -876,7 +876,7 @@ Maintainers merging a PR labeled `breaking-change` must confirm each item:
 - [ ] If shim infeasible: §4.6 abbreviated path used; infeasibility argued.
 - [ ] Upgrade-guide entry written (§7) under docs/upgrades/.
 - [ ] Tracking issue exists and is linked.
-- [ ] Public-surface-map updated.
+- [ ] Owning `packages/<pkg>/public-surface.php` declaration updated.
 - [ ] Changelog fragment uses the correct release type.
 - [ ] CI green on `surface-parity` and `changelog-discipline` jobs.
 - [ ] At least one non-author maintainer reviewed the breaking-change section of the PR description.
@@ -979,7 +979,7 @@ This charter is **in force**. As a single-developer project, it takes effect by 
 
 Two engineering items remain to fully satisfy the §3.2 *beta* bar (they do not gate the charter being in force for *alpha*):
 
-1. `public-surface-map.php` items fully tier-labeled per §2.5 (tracked as audit C-15).
+1. Package-local public-surface declarations fully disposition-labeled per §2.5 (tracked as audit C-15).
 2. The enforcement hooks of §8 wired and green on `main` — **done**: `surface-parity` is a real blocking AST gate, and the full `composer verify` gate set runs in CI (`ci/verify-gates`).
 
 The charter's guarantees bind the framework's own development now; consumers gain binding stable-surface guarantees at beta entry (§3.2).
