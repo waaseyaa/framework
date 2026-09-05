@@ -536,7 +536,7 @@
         "check-s1-schema-authority": "php bin/check-s1-schema-authority",
         "check-s1-configuration-authority": "php bin/check-s1-configuration-authority",
         "check-s1-configuration-activation": "php bin/check-s1-configuration-activation",
-        "check-delivery-agent-events": "php bin/check-delivery-agent-events --base=origin/main",
+        "check-delivery-agent-events": "php bin/check-delivery-agent-events --branch-base=origin/main",
         "check-delivery-agent-projection": "php bin/project-delivery-agent-events --self-test",
         "test": [
             "Composer\\Config::disableProcessTimeout",

@@ -235,7 +235,7 @@
         },
         {
             "id": "check-delivery-agent-events",
-            "run": "php bin/check-delivery-agent-events --base={base}",
+            "run": "php bin/check-delivery-agent-events --branch-base={base}",
             "base": true,
             "repair": "restore schema and causal conformance, or append a new event without changing prior ledger bytes",
             "profile": "default",

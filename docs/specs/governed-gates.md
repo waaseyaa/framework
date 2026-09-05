@@ -57,6 +57,13 @@ trailers remain commit metadata: a committed trailer cannot pre-approve a later 
 change, so that source change requires a corresponding worktree spec edit. Hosted CI omits the
 worktree mode because its checkout is already the exact immutable PR head.
 
+Delivery-ledger custody has explicit local and hosted modes (#2900). The local
+roster passes `--branch-base={base}` so unrelated main appends do not reject an
+unchanged branch ledger. The dedicated `ci/verify-gates` step instead validates
+committed candidate bytes against pinned accepted history, preserving the full
+push baseline and binding PR merge parents. Strict native GitHub checks enforce
+freshness when the pinned PR head merges. See [delivery-telemetry.md](./delivery-telemetry.md).
+
 ### 2. `bin/refresh-governance-artifacts` — one refresh command
 
 For every governed recorded artifact, one command knows how to repair it:

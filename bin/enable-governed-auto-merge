@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Strict GitHub rules enforce freshness atomically when the pinned head merges.
+set -euo pipefail
+: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+: "${PR_NUMBER:?PR_NUMBER is required}"
+[[ "$GITHUB_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+[[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 1
+pr_json=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid,baseRefName,state,isDraft)
+head_sha=$(jq -er 'select(.baseRefName == "main" and .state == "OPEN" and .isDraft == false) | .headRefOid | select(test("^[0-9a-f]{40}$"))' <<<"$pr_json")
+rules_json=$(gh api "repos/$GITHUB_REPOSITORY/rules/branches/main")
+if ! jq -e 'any(.[]; .type == "required_status_checks" and .parameters.strict_required_status_checks_policy == true and any(.parameters.required_status_checks[]; .context == "ci/verify-gates" and .integration_id == 15368))' <<<"$rules_json" >/dev/null; then
+  echo "Refusing merge: main must enforce strict ci/verify-gates checks from GitHub Actions." >&2
+  exit 1
+fi
+# No bypass or retry without the pinned head. GitHub rechecks strict protection
+# at merge time, including if main moves after the rules lookup above.
+gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$head_sha"

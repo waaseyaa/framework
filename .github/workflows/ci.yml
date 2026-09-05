@@ -1880,7 +1880,7 @@ jobs:
     # of verify). Wired here after confirming each green at HEAD. Run via the `composer
     # <script>` aliases so this job stays byte-identical to what `composer verify` enforces.
     # The delivery-event gate is the one exception: its dedicated step supplies
-    # the exact event base, while the local Composer alias uses origin/main.
+    # the exact candidate and event base; local checks use their merge-base.
     # (check-phpstan-paths — the PHPStan coverage invariant — was added for audit C-19.)
     # (check-admin-dist-fresh — the D6 admin-SPA-dist freshness gate — was added here so a stale committed admin dist fails the PR in blocking CI, not only via the out-of-band admin-dist.yml fix-up workflow.)
     # (check-admin-dist-manifest — the #2524 acceptance-manifest gate — re-derives packages/admin-surface/dist.manifest.json from the committed bytes: published-tree digest/counts, source-signature parity, Nuxt build identity, and every declared source-contract marker. Additive to check-admin-dist-fresh, which stays authoritative for staleness.)
@@ -1895,7 +1895,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ inputs.sha || github.sha }}
           fetch-depth: 0
 
       - name: Set up PHP
@@ -1958,13 +1958,28 @@ jobs:
 
       - name: Verify append-only delivery agent events
         env:
+          EVENT_NAME: ${{ github.event_name }}
           EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           EXACT_SHA: ${{ inputs.sha || github.sha }}
         run: |
-          if [ -z "$EVENT_BASE_SHA" ] || [ "$EVENT_BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            EVENT_BASE_SHA="$(git rev-parse "$EXACT_SHA^")"
-          fi
-          php bin/check-delivery-agent-events --base="$EVENT_BASE_SHA"
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          case "$EVENT_NAME" in
+            pull_request)
+              php bin/check-delivery-agent-events --base="$EVENT_BASE_SHA" --candidate="$EXACT_SHA" --head="$PR_HEAD_SHA"
+              ;;
+            push)
+              # Preserve the whole push baseline, including multi-commit pushes.
+              php bin/check-delivery-agent-events --base="$EVENT_BASE_SHA" --candidate="$EXACT_SHA"
+              ;;
+            workflow_dispatch)
+              # A dispatch qualifies this immutable transition, not a push range.
+              EVENT_BASE_SHA="$(git rev-parse "$EXACT_SHA^1")"
+              php bin/check-delivery-agent-events --base="$EVENT_BASE_SHA" --candidate="$EXACT_SHA"
+              ;;
+            *) echo "Unsupported delivery custody event: $EVENT_NAME" >&2; exit 1 ;;
+          esac
 
   ci-playwright-smoke:
     name: ci/playwright-smoke
