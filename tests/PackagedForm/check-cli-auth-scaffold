@@ -1,0 +1,399 @@
+#!/usr/bin/env bash
+
+# Packaged direct-consumer proof for scaffold:auth (#2833).
+#
+# The command is owned by waaseyaa/cli, while its five publishable auth UI
+# inputs are authored inside packages/admin/app (no composer.json, not
+# split-mirrored — no consumer can install it). Before the FW-2833 repair
+# design, AuthUiScaffoldManager::sourceContext() only looked at the project
+# root and an installed waaseyaa/framework metapackage, so a supported
+# direct-package consumer (ADR-004) that omits that aggregate failed
+# `scaffold:auth --check` even with waaseyaa/cli installed.
+#
+# The repair ships the five FILE_MAP sources as a generated, byte-identical
+# mirror at packages/cli/resources/auth-ui/ (bin/sync-cli-auth-ui-resources,
+# CliAuthUiResourceParityTest) and adds a package-owned source candidate that
+# resolves to <installed waaseyaa/cli>/resources/auth-ui.
+#
+# This harness archives the exact candidate HEAD, installs every package as a
+# real copy (Composer path repositories with symlink=false), and exercises the
+# real vendor/bin/waaseyaa entrypoint. The direct consumer uses the same
+# accepted 23 runtime-direct + 5 development-direct profile as
+# check-cli-sync-rules. It has no framework aggregate and no application
+# packages/admin/app source. A separate framework-aggregate consumer is the
+# compatibility control.
+#
+# The positive oracle binds exact exit code AND the five COPY lines / files.
+# It is then run against a missing installed resources directory, a missing
+# single resource file, and a corrupted single resource file — each must be
+# rejected by the complete oracle, not by exit status alone. A final pass
+# proves hand-edit preservation: a scaffolded file surviving a second
+# publish without --force, and being overwritten with --force.
+#
+# Run: bash tests/PackagedForm/check-cli-auth-scaffold
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-cli-auth-scaffold.XXXXXX")"
+source_root="$work/source"
+direct="$work/direct"
+aggregate="$work/aggregate"
+
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
+
+cleanup() {
+    # Cleanup is best-effort and must never change this script's exit
+    # status; report a leak on stderr instead of letting a failed rm
+    # corrupt the proof under test (#2870, same rationale as check-cli-sync-rules).
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+fail() {
+    echo "$*" >&2
+    exit 1
+}
+
+candidate="$("$root/bin/git" -C "$root" rev-parse HEAD)"
+printf 'Candidate: %s\n' "$candidate"
+mkdir -p "$source_root"
+"$root/bin/git" -C "$root" archive --format=tar HEAD \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+
+app_secret="base64:$(php -r 'echo base64_encode(str_repeat("x", 32));')"
+
+# build_consumer <directory> <direct|aggregate>
+build_consumer() {
+    local consumer="$1"
+    local profile="$2"
+    local label
+    label="$(basename "$consumer")"
+
+    mkdir -p "$consumer"
+    cp -R "$source_root/skeleton/." "$consumer/"
+    rm -f "$consumer/composer.lock" "$consumer/composer.local.json.example"
+    rm -rf "$consumer/.claude" "$consumer/src" "$consumer/tests"
+    mkdir -p "$consumer/storage/framework" "$consumer/storage/files" "$consumer/config/sync"
+
+    php -r '
+        [$path, $sourceRoot, $profile] = array_slice($argv, 1);
+        $composer = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $runtime = [
+            "waaseyaa/foundation",
+            "waaseyaa/cache",
+            "waaseyaa/typed-data",
+            "waaseyaa/database-legacy",
+            "waaseyaa/queue",
+            "waaseyaa/scheduler",
+            "waaseyaa/mail",
+            "waaseyaa/site-contract",
+            "waaseyaa/entity",
+            "waaseyaa/entity-storage",
+            "waaseyaa/access",
+            "waaseyaa/audit",
+            "waaseyaa/user",
+            "waaseyaa/field",
+            "waaseyaa/auth",
+            "waaseyaa/media",
+            "waaseyaa/notification",
+            "waaseyaa/api",
+            "waaseyaa/routing",
+            "waaseyaa/ai-schema",
+            "waaseyaa/ai-tools",
+            "waaseyaa/admin-surface",
+            "waaseyaa/cli",
+        ];
+        $development = [
+            "waaseyaa/testing",
+            "waaseyaa/ai-development",
+            "waaseyaa/frankenphp",
+            "waaseyaa/ai-agent",
+            "waaseyaa/ai-observability",
+        ];
+        if (count($runtime) !== 23 || count($development) !== 5) {
+            throw new RuntimeException("The accepted direct-package profile count drifted.");
+        }
+
+        $composer["repositories"] = [
+            [
+                "type" => "path",
+                "url" => $sourceRoot . "/packages/*",
+                "options" => ["symlink" => false],
+            ],
+            [
+                "type" => "path",
+                "url" => $sourceRoot,
+                "options" => ["symlink" => false],
+            ],
+        ];
+        $composer["require"] = [
+            "php" => ">=8.5",
+            "ext-pdo_sqlite" => "*",
+            "ext-sqlite3" => "*",
+        ];
+        if ($profile === "direct") {
+            $composer["require-dev"] = [];
+            foreach ($runtime as $package) {
+                $composer["require"][$package] = "*";
+            }
+            foreach ($development as $package) {
+                $composer["require-dev"][$package] = "*";
+            }
+        } elseif ($profile === "aggregate") {
+            unset($composer["require-dev"]);
+            $composer["require"]["waaseyaa/framework"] = "*";
+        } else {
+            throw new RuntimeException("Unknown consumer profile: " . $profile);
+        }
+        $composer["minimum-stability"] = "dev";
+        $composer["prefer-stable"] = true;
+        unset(
+            $composer["autoload"],
+            $composer["autoload-dev"],
+            $composer["extra"]["merge-plugin"],
+            $composer["extra"]["waaseyaa"],
+            $composer["scripts"],
+        );
+        file_put_contents(
+            $path,
+            json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+    ' "$consumer/composer.json" "$source_root" "$profile"
+
+    printf 'APP_ENV=local\nAPP_DEBUG=false\nWAASEYAA_APP_SECRET=%s\nWAASEYAA_DB=%s/storage/consumer.sqlite\nWAASEYAA_CONFIG_SYNC_PATH=%s/config/sync\n' \
+        "$app_secret" "$consumer" "$consumer" >"$consumer/.env"
+
+    if ! "$composer_bin" install --working-dir="$consumer" \
+            --no-interaction --no-progress --prefer-dist --no-scripts >"$work/$label.composer.out" 2>&1; then
+        tail -100 "$work/$label.composer.out" >&2
+        fail "Composer could not install the $profile consumer from candidate $candidate."
+    fi
+
+    [[ ! -L "$consumer/vendor/waaseyaa/cli" ]] \
+        || fail "$profile consumer installed waaseyaa/cli as a symlink; copied package bytes are required."
+
+    if ! (cd "$consumer" && php vendor/bin/waaseyaa install:init) >"$work/$label.install.out" 2>&1; then
+        cat "$work/$label.install.out" >&2
+        fail "install:init failed for the $profile consumer."
+    fi
+    grep -Fq 'Installation is complete.' "$work/$label.install.out" \
+        || { cat "$work/$label.install.out" >&2; fail "install:init did not complete for the $profile consumer."; }
+
+    [[ ! -e "$consumer/app" ]] \
+        || fail "$profile consumer has an application app/ directory before scaffold:auth."
+}
+
+assert_installed_resources() {
+    local consumer="$1"
+    local resources="$consumer/vendor/waaseyaa/cli/resources/auth-ui"
+    [[ -d "$resources" ]] || fail "Installed CLI auth-ui resources are missing: $resources"
+
+    local expected=$'assets/auth.css\ncomponents/auth/BrandPanel.vue\ncomponents/auth/LoginForm.vue\ncomposables/useAuth.ts\npages/login.vue'
+    local actual
+    actual="$(cd "$resources" && find . -type f -printf '%P\n' | sort)"
+    [[ "$actual" == "$expected" ]] || {
+        printf 'Installed CLI auth-ui resource entries:\n%s\n' "$actual" >&2
+        fail 'Installed CLI auth-ui resources do not contain exactly the five FILE_MAP files.'
+    }
+
+    while IFS= read -r rel; do
+        cmp -s "$source_root/packages/admin/app/$rel" "$resources/$rel" \
+            || fail "$(basename "$consumer") consumer installed auth-ui resource bytes differ from packages/admin/app: $rel"
+    done <<<"$expected"
+}
+
+capture_scaffold() {
+    local consumer="$1"
+    local label="$2"
+    shift 2
+    local exit_code
+
+    set +e
+    (cd "$consumer" && php vendor/bin/waaseyaa scaffold:auth "$@") \
+        >"$work/$label.stdout" 2>"$work/$label.stderr"
+    exit_code=$?
+    set -e
+    printf '%s\n' "$exit_code" >"$work/$label.exit"
+}
+
+# Complete success oracle for a first publish: exit 0, all five destination
+# files exist, all five are reported COPY-ed, and every consumer file is
+# byte-identical to the candidate's own packages/admin/app source (content
+# matters — an empty/partial resource tree could still exit 0).
+publish_oracle() {
+    local consumer="$1"
+    local label="$2"
+
+    capture_scaffold "$consumer" "$label"
+    [[ "$(cat "$work/$label.exit")" == '0' ]] || return 1
+
+    local rel dest
+    for rel in \
+        'pages/login.vue' \
+        'components/auth/LoginForm.vue' \
+        'components/auth/BrandPanel.vue' \
+        'composables/useAuth.ts' \
+        'assets/auth.css'
+    do
+        dest="$consumer/app/$rel"
+        [[ -f "$dest" ]] || return 1
+        grep -Fq "COPY $rel" "$work/$label.stdout" || return 1
+        cmp -s "$source_root/packages/admin/app/$rel" "$dest" || return 1
+    done
+
+    return 0
+}
+
+check_clean_oracle() {
+    local consumer="$1"
+    local label="$2"
+
+    capture_scaffold "$consumer" "$label" --check
+    [[ "$(cat "$work/$label.exit")" == '0' ]] || return 1
+    grep -Fxq 'No auth UI scaffold drift detected.' "$work/$label.stdout" || return 1
+
+    return 0
+}
+
+build_consumer "$direct" direct
+assert_installed_resources "$direct"
+
+[[ ! -e "$direct/vendor/waaseyaa/framework" ]] \
+    || fail 'The direct consumer unexpectedly installed waaseyaa/framework.'
+php -r '
+    require $argv[1];
+    exit(Composer\InstalledVersions::isInstalled("waaseyaa/framework") ? 1 : 0);
+' "$direct/vendor/autoload.php" \
+    || fail 'Composer metadata says the direct consumer installed waaseyaa/framework.'
+
+# Run the direct profile first so the unfixed candidate reproduces #2833 at
+# its framework-owned lookup without installing the aggregate control.
+if ! publish_oracle "$direct" direct-positive; then
+    cat "$work/direct-positive.stdout" "$work/direct-positive.stderr" >&2
+    fail 'scaffold:auth failed for the exact direct-package consumer.'
+fi
+printf 'Exact direct-package consumer passed (publish).\n'
+
+if ! check_clean_oracle "$direct" direct-check-clean; then
+    cat "$work/direct-check-clean.stdout" "$work/direct-check-clean.stderr" >&2
+    fail 'scaffold:auth --check reported drift immediately after publishing in the direct consumer.'
+fi
+printf 'Exact direct-package consumer passed (clean --check).\n'
+
+# The fixed candidate must serve the same canonical auth UI sources through
+# the framework-aggregate compatibility profile.
+build_consumer "$aggregate" aggregate
+[[ -d "$aggregate/vendor/waaseyaa/framework" ]] \
+    || fail 'The aggregate compatibility consumer did not install waaseyaa/framework.'
+[[ ! -L "$aggregate/vendor/waaseyaa/framework" ]] \
+    || fail 'The aggregate compatibility consumer must use copied candidate bytes.'
+
+if ! publish_oracle "$aggregate" aggregate-positive; then
+    cat "$work/aggregate-positive.stdout" "$work/aggregate-positive.stderr" >&2
+    fail 'scaffold:auth failed for the framework-aggregate compatibility control.'
+fi
+if ! check_clean_oracle "$aggregate" aggregate-check-clean; then
+    cat "$work/aggregate-check-clean.stdout" "$work/aggregate-check-clean.stderr" >&2
+    fail 'scaffold:auth --check reported drift immediately after publishing in the aggregate consumer.'
+fi
+printf 'Framework-aggregate compatibility control passed.\n'
+
+resources="$direct/vendor/waaseyaa/cli/resources/auth-ui"
+resource_backup="$work/cli-resources-backup"
+cp -R "$resources" "$resource_backup"
+
+# Reset the direct consumer's published app/ + manifest between negative
+# controls so each one starts from the same "nothing published yet" state.
+reset_direct_app() {
+    rm -rf "$direct/app"
+}
+
+# Negative 1: the entire installed resources directory is missing. In the
+# direct profile, candidates (a)/(b)/(c)/(d) all resolve to nothing (see
+# repair design decision 3: (c) and (d) are the same physical directory for a
+# real, non-symlinked package install), so this must fail closed with the
+# package-owned diagnostic naming resources/auth-ui.
+reset_direct_app
+rm -rf "$resources"
+capture_scaffold "$direct" direct-missing-resources --check
+[[ "$(cat "$work/direct-missing-resources.exit")" != '0' ]] \
+    || fail 'The scaffold:auth oracle accepted a missing installed CLI resources directory.'
+[[ ! -e "$direct/app" ]] \
+    || fail 'The missing-resources negative control unexpectedly created app/.'
+grep -Fq 'resources/auth-ui' "$work/direct-missing-resources.stderr" \
+    || { cat "$work/direct-missing-resources.stderr" >&2; fail 'Missing installed CLI resources did not name resources/auth-ui in the diagnostic.'; }
+rm -rf "$resources" && cp -R "$resource_backup" "$resources"
+printf 'Missing installed-resources-directory control rejected.\n'
+
+# Negative 2: a single resource file is missing. The complete oracle must
+# reject this even though the process still exits 0 and copies the other
+# four files — exit status alone is not sufficient (mirrors check-cli-sync-rules).
+reset_direct_app
+rm -f "$resources/assets/auth.css"
+capture_scaffold "$direct" direct-missing-one-file
+if [[ "$(cat "$work/direct-missing-one-file.exit")" == '0' ]] \
+    && [[ -f "$direct/app/pages/login.vue" ]] \
+    && [[ -f "$direct/app/assets/auth.css" ]]; then
+    fail 'The scaffold:auth oracle accepted a missing single installed resource file.'
+fi
+grep -Fq 'MISSING source: assets/auth.css' "$work/direct-missing-one-file.stdout" \
+    || { cat "$work/direct-missing-one-file.stdout" >&2; fail 'A missing single resource file did not produce the expected MISSING diagnostic.'; }
+[[ ! -f "$direct/app/assets/auth.css" ]] \
+    || fail 'The missing-one-file negative control unexpectedly created the missing destination file.'
+rm -rf "$resources" && cp -R "$resource_backup" "$resources"
+printf 'Missing single installed-resource-file control rejected.\n'
+
+# Negative 3: a single resource file is corrupted (truncated). The complete
+# oracle must reject the corrupted file's byte identity, not just the exit
+# code — the process still exits 0 and "successfully" copies the corrupt bytes.
+reset_direct_app
+: >"$resources/pages/login.vue"
+capture_scaffold "$direct" direct-corrupt-one-file
+if ! cmp -s "$source_root/packages/admin/app/pages/login.vue" "$direct/app/pages/login.vue" 2>/dev/null; then
+    : # expected: the corrupted upstream byte content must not match the candidate's real source
+else
+    fail 'The scaffold:auth oracle accepted a corrupted installed resource file as byte-identical to the real source.'
+fi
+[[ -s "$direct/app/pages/login.vue" ]] && fail 'Corrupted (truncated) resource file unexpectedly produced non-empty consumer output — the corruption must be visible in the output.'
+grep -Fq 'pages/login.vue' "$work/direct-corrupt-one-file.stdout" \
+    || { cat "$work/direct-corrupt-one-file.stdout" >&2; fail 'A corrupted resource file was not named in scaffold:auth output.'; }
+rm -rf "$resources" && cp -R "$resource_backup" "$resources"
+assert_installed_resources "$direct"
+printf 'Corrupted installed-resource-file control rejected.\n'
+
+# Hand-edit preservation: publish, hand-edit one scaffolded file, re-publish
+# without --force (edit survives, reported skipped), then with --force
+# (edit is overwritten, reported).
+reset_direct_app
+capture_scaffold "$direct" direct-hand-edit-seed
+[[ "$(cat "$work/direct-hand-edit-seed.exit")" == '0' ]] \
+    || fail 'Seeding the hand-edit preservation control failed to publish.'
+
+printf '<template>hand-edited by operator</template>' >"$direct/app/pages/login.vue"
+
+capture_scaffold "$direct" direct-hand-edit-no-force
+[[ "$(cat "$work/direct-hand-edit-no-force.exit")" == '0' ]] \
+    || fail 'scaffold:auth without --force unexpectedly failed over a hand-edited file.'
+grep -Fq 'SKIP pages/login.vue' "$work/direct-hand-edit-no-force.stdout" \
+    || { cat "$work/direct-hand-edit-no-force.stdout" >&2; fail 'A hand-edited file was not reported as skipped without --force.'; }
+[[ "$(cat "$direct/app/pages/login.vue")" == '<template>hand-edited by operator</template>' ]] \
+    || fail 'A hand-edited file was overwritten without --force.'
+printf 'Hand-edit preservation (no --force) verified.\n'
+
+capture_scaffold "$direct" direct-hand-edit-force --force
+[[ "$(cat "$work/direct-hand-edit-force.exit")" == '0' ]] \
+    || fail 'scaffold:auth --force unexpectedly failed over a hand-edited file.'
+grep -Fq 'COPY pages/login.vue' "$work/direct-hand-edit-force.stdout" \
+    || { cat "$work/direct-hand-edit-force.stdout" >&2; fail 'A --force overwrite was not reported for the hand-edited file.'; }
+cmp -s "$source_root/packages/admin/app/pages/login.vue" "$direct/app/pages/login.vue" \
+    || fail 'A --force overwrite did not restore the canonical upstream content.'
+printf 'Hand-edit overwrite (--force) verified.\n'
+
+printf 'scaffold:auth packaged consumer proof passed.\n'
