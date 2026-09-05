@@ -188,8 +188,8 @@ final class ApplicationBlueprintCompiler
      */
     private const array RESERVED_CLASS_NAMES = [
         'abstract', 'and', 'array', 'as', 'break', 'callable', 'case', 'catch', 'class', 'clone',
-        'const', 'continue', 'declare', 'default', 'do', 'echo', 'else', 'elseif', 'empty',
-        'enddeclare', 'endfor', 'endforeach', 'endif', 'endswitch', 'endwhile', 'enum', 'exit',
+        'const', 'continue', 'declare', 'default', 'die', 'do', 'echo', 'else', 'elseif', 'empty',
+        'enddeclare', 'endfor', 'endforeach', 'endif', 'endswitch', 'endwhile', 'enum', 'eval', 'exit',
         'extends', 'final', 'finally', 'fn', 'for', 'foreach', 'function', 'global', 'goto', 'if',
         'implements', 'include', 'include_once', 'instanceof', 'insteadof', 'interface', 'isset',
         'list', 'match', 'namespace', 'new', 'or', 'print', 'private', 'protected', 'public',

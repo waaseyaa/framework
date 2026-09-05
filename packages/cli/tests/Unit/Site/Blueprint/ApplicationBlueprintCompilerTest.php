@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Site\Blueprint;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler;
@@ -293,6 +294,40 @@ final class ApplicationBlueprintCompilerTest extends TestCase
             self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
             self::assertStringContainsString('Parent', $exception->violations[0]->message);
         }
+    }
+
+    /**
+     * Codex immutable review of 0d5ec6ecb: `die` and `eval` are language
+     * constructs the manual lists among the reserved keywords but that were
+     * missing from {@see ApplicationBlueprintCompiler::RESERVED_CLASS_NAMES}.
+     * Both pass the id grammar, and PHP 8.5 rejects `final class Die`
+     * / `final class Eval` at parse time, so they must be refused GEN006
+     * at the identifier check, before any emitter runs.
+     */
+    #[Test]
+    #[DataProvider('languageConstructEntityIds')]
+    public function anEntityIdThatPascalCasesToALanguageConstructIsRefusedGen006BeforeAnyEmitterRuns(string $entityId, string $className): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity($entityId),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertCount(1, $exception->violations);
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString($className, $exception->violations[0]->message);
+            self::assertSame("/application_blueprint/entities/{$entityId}/id", $exception->violations[0]->pointer);
+        }
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function languageConstructEntityIds(): iterable
+    {
+        yield 'die' => ['die', 'Die'];
+        yield 'eval' => ['eval', 'Eval'];
     }
 
     /**
