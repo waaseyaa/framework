@@ -4940,6 +4940,27 @@
             "occurrence": 1
         },
         {
+            "path": "packages/mcp/tests/Unit/Rekey/McpContentResourceListCursorRekeyAdapterTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 1
+        },
+        {
+            "path": "packages/mcp/tests/Unit/Rekey/McpContentResourceListCursorRekeyAdapterTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 2
+        },
+        {
+            "path": "packages/mcp/tests/Unit/Rekey/McpContentResourceListCursorRekeyAdapterTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 3
+        },
+        {
             "path": "packages/media/tests/Unit/Http/Router/MediaRouterTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -5995,6 +6016,13 @@
             "class": "test",
             "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
             "occurrence": 1
+        },
+        {
+            "path": "packages/search/tests/Unit/Fts5SearchContentCatalogueTest.php",
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f273f45948fbdcf9cdd36508665e273c47c6534dd3e9d6643ffc6f974f6d251a",
+            "occurrence": 2
         },
         {
             "path": "packages/search/tests/Unit/Fts5SearchIndexerLazySchemaTest.php",
