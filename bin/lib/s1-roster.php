@@ -14,37 +14,16 @@ declare(strict_types=1);
  * whole-file hashes), so unrelated edits in rostered files cannot invalidate
  * a roster. Line numbers are derived at report time for failure output only.
  *
+ * File enumeration is delegated to git (bin/lib/repository-files.php): a scan
+ * sees tracked files plus untracked files git would add, so the repository's
+ * ignore boundary — not a hand-maintained path denylist — keeps nested
+ * worktrees, nested vendor/ trees and build caches out of every scan
+ * (governed-gates.md §3, #2925).
+ *
  * Plain functions, no autoloader: the verifiers must run pre-`composer install`.
  */
 
-/**
- * Trees that are never repository content: excluded from every scan so a
- * local run and a CI run of the same gate agree on the same tree
- * (governed-gates.md invariant 5). vendor/, node_modules/ and tmp/ are
- * excluded at any depth, and .claude/worktrees/ is excluded outright: all
- * four are gitignored build artifacts or separate checkouts that exist
- * locally and never in CI, so scanning them makes the same gate disagree
- * with itself across the two runs (#2865).
- *
- * .claude/ itself is NOT excluded -- .claude/rules/*.md and
- * .claude/settings.json are tracked repository content.
- */
-function s1RosterIsExcluded(string $relative): bool
-{
-    if (str_starts_with($relative, '.git/')
-        || str_starts_with($relative, 'storage/')
-        || str_starts_with($relative, '.claude/worktrees/')
-    ) {
-        return true;
-    }
-
-    return str_starts_with($relative, 'vendor/')
-        || str_contains($relative, '/vendor/')
-        || str_starts_with($relative, 'node_modules/')
-        || str_contains($relative, '/node_modules/')
-        || str_starts_with($relative, 'tmp/')
-        || str_contains($relative, '/tmp/');
-}
+require_once __DIR__ . '/repository-files.php';
 
 /**
  * Identity hash of a matched text: lowercased with all whitespace removed —
@@ -64,46 +43,24 @@ function s1RosterMatchHash(string $matched): string
  * key (live position, for report-time display only) — pass through
  * s1RosterCanonicalize() before recording or comparing.
  *
- * @param list<string> $scanRoots Relative subtrees to walk ('' = repo root).
+ * @param list<string> $scanRoots Relative subtrees to scan ('' = whole repository).
  * @param array<string, string> $patterns patternId => PCRE.
  * @param callable(string, string): bool $includeFile (relativePath, contents) => scan this file?
  * @param callable(string, string): string $classify (relativePath, patternId) => class label.
- * @param list<string> $extraFiles Relative paths scanned in addition to the walk.
+ * @param list<string> $extraFiles Relative paths scanned in addition to the scan roots
+ *   (still subject to the repository boundary: an ignored or foreign file is never read).
  * @return list<array{path: string, pattern: string, class: string, match_sha256: string, occurrence: int, line: int}>
+ *
+ * @throws RuntimeException when git cannot enumerate the repository (fail closed).
  */
 function s1RosterScan(string $root, array $scanRoots, array $patterns, callable $includeFile, callable $classify, array $extraFiles = []): array
 {
     $normalizedRoot = rtrim(str_replace('\\', '/', $root), '/');
-    $files = [];
-
-    foreach ($scanRoots as $scanRoot) {
-        $base = $scanRoot === '' ? $normalizedRoot : $normalizedRoot . '/' . $scanRoot;
-        if (!is_dir($base)) {
-            continue;
-        }
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($base, FilesystemIterator::SKIP_DOTS),
-        );
-        foreach ($iterator as $file) {
-            if (!$file instanceof SplFileInfo || !$file->isFile()) {
-                continue;
-            }
-            $path = str_replace('\\', '/', $file->getPathname());
-            $relative = substr($path, strlen($normalizedRoot) + 1);
-            if (s1RosterIsExcluded($relative)) {
-                continue;
-            }
-            $files[$relative] = true;
-        }
-    }
-    foreach ($extraFiles as $relative) {
-        if (is_file($normalizedRoot . '/' . $relative)) {
-            $files[$relative] = true;
-        }
-    }
+    $pathspecs = in_array('', $scanRoots, true) ? [] : array_values(array_unique([...$scanRoots, ...$extraFiles]));
+    $files = repositoryFiles($normalizedRoot, $pathspecs);
 
     $entries = [];
-    foreach (array_keys($files) as $relative) {
+    foreach ($files as $relative) {
         $contents = @file_get_contents($normalizedRoot . '/' . $relative);
         if ($contents === false) {
             continue;

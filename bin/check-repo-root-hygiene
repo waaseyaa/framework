@@ -1,0 +1,336 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Repository-root hygiene gate (#2927).
+ *
+ * Fails when the repository root holds any entry that is neither Git-tracked
+ * nor on the explicit allowlist of expected local entries below. It exists
+ * because 734 stray runtime/test artifacts (~11 MB) accumulated in the root
+ * undetected: 363 were EMPTY untracked directories, which `git status` never
+ * reports, and the rest were hidden by `.gitignore` leak-family patterns.
+ *
+ * Two deliberate design points follow from that:
+ *
+ *   1. The gate enumerates the literal filesystem (scandir), never
+ *      `git status` or `git ls-files` alone, so empty untracked directories
+ *      are findings.
+ *   2. The gate is stricter than `.gitignore`. The leak families ignored at
+ *      `.gitignore` lines 110-135 (and the older `waaseyaa-sync-*` /
+ *      `waaseyaa_oidc_jwks_*` rules) hide leaks from `git status`; here they
+ *      remain findings, labelled "known leak family" so the producer trail in
+ *      docs/specs/governed-gates.md §7 is one lookup away.
+ *
+ * Usage:
+ *   bin/check-repo-root-hygiene              # gate the repository containing bin/
+ *   bin/check-repo-root-hygiene --root=DIR   # gate another repository tree (fixture-driven tests)
+ *   bin/check-repo-root-hygiene --list       # print the allowlist and exit
+ */
+
+/**
+ * Untracked root entries that are expected on a developer machine or a CI
+ * runner. Derived from .gitignore and .github/workflows/ci.yml; every entry
+ * names its source. Anything not listed here and not Git-tracked is a finding.
+ *
+ * @var list<string>
+ */
+const EXPECTED_LOCAL_ENTRIES = [
+    // Git metadata: a directory in a plain clone, a file in a linked worktree.
+    '.git',
+    // Dependency installs (.gitignore: vendor/, mcp/node_modules/ family).
+    'vendor',
+    'node_modules',
+    // Tool caches (.gitignore: .phpunit.result.cache, .phpunit.cache/, .php-cs-fixer.cache, /tmp/, /phpstan/).
+    '.phpunit.result.cache',
+    '.phpunit.cache',
+    '.php-cs-fixer.cache',
+    'tmp',
+    'phpstan',
+    // CI build output and evidence (ci.yml writes build/ci, build/logs,
+    // build/exact-source, build/release-evidence; .gitignore: /build/, artifacts/).
+    'build',
+    'artifacts',
+    // Support-contract evidence written to the root by the ci.yml
+    // support-contract job (`--evidence=support-contract-evidence.json`).
+    'support-contract-evidence.json',
+    // Node / Vitest / Playwright runner state (.gitignore: node-compile-cache/,
+    // test-results/, .playwright-mcp/, .superpowers/).
+    'node-compile-cache',
+    'test-results',
+    '.playwright-mcp',
+    '.superpowers',
+    // Local environment (.gitignore: .env, .env.*; .env.example is tracked).
+    '.env',
+    // Worktrees and retired-tool state (.gitignore: .worktrees/, .kittify/, .spec-kitty/, .sofa/).
+    '.worktrees',
+    '.kittify',
+    '.spec-kitty',
+    '.sofa',
+    // IDE and OS metadata (.gitignore: .idea/, .vscode/; .DS_Store is macOS Finder state).
+    '.idea',
+    '.vscode',
+    '.DS_Store',
+    // Agent command directories (.gitignore "Agent command directories" block).
+    '.codex',
+    '.vibe',
+    '.opencode',
+    '.windsurf',
+    '.gemini',
+    '.cursor',
+    '.qwen',
+    '.kilocode',
+    '.augment',
+    '.roo',
+    '.amazonq',
+    '.kiro',
+    '.agent',
+];
+
+/**
+ * Regular expressions for expected local entries whose names vary.
+ *
+ * @var list<string>
+ */
+const EXPECTED_LOCAL_PATTERNS = [
+    // .gitignore: .env.* (local environment overlays such as .env.local).
+    '/^\.env\..+$/',
+];
+
+/**
+ * Known leak families: .gitignore hides these from `git status`, which is
+ * exactly why they accumulated. Each entry is [regex, label]. The label is
+ * printed with the finding so the producer trail is discoverable.
+ *
+ * @var list<array{string, string}>
+ */
+const KNOWN_LEAK_FAMILIES = [
+    ['/^waaseyaa_loader_test_/', 'MigrationLoaderArrayFormTest scratch (sys_get_temp_dir misresolved; docs/specs/governed-gates.md §7)'],
+    ['/^waaseyaa_test_lock_/', 'Import*CommandTest MigrationLock scratch (.gitignore /waaseyaa_test_lock_*/)'],
+    ['/^waaseyaa_e2e_lock_/', 'e2e lock scratch (.gitignore /waaseyaa_e2e_lock_*/)'],
+    ['/^waaseyaa_idmap_/', 'identity-map SQLite scratch (.gitignore /waaseyaa_idmap_*)'],
+    ['/^waaseyaa_audit_handler_/', 'audit handler scratch (.gitignore /waaseyaa_audit_handler_*)'],
+    ['/^waaseyaa_ssr_http_/', 'SSR HTTP scratch (.gitignore /waaseyaa_ssr_http_*)'],
+    ['/^waaseyaa_monitor_test_/', 'NotificationMonitor scratch (.gitignore /waaseyaa_monitor_test_*/)'],
+    ['/^waaseyaa_oidc_jwks_/', 'OIDC JWKS fixture scratch (.gitignore waaseyaa_oidc_jwks_*/)'],
+    ['/^waaseyaa-sync-/', 'background sync working dir (.gitignore waaseyaa-sync-*/)'],
+    ['/^csrf_upload_/', 'CSRF upload scratch (.gitignore /csrf_upload_*)'],
+    ['/^perf-(?:baseline|current)-/', 'perf comparison scratch (.gitignore /perf-baseline-*, /perf-current-*)'],
+    ['/^playwright-transform-cache-/', 'Playwright transform cache (.gitignore /playwright-transform-cache-*/)'],
+    ['/^newsletter-test-/', 'newsletter test scratch (.gitignore /newsletter-test-*)'],
+    ['/^sess_[a-f0-9]+$/', 'PHP dev-server session file (.gitignore /sess_[a-f0-9]*)'],
+    ['/^img[A-Za-z0-9]{15,}$/', 'media test scratch (.gitignore /img<15+ alnum>)'],
+    ['/^php[A-Za-z0-9]{18,}$/', 'PHP tempnam() output (.gitignore /php<18+ alnum>)'],
+    ['/^spec-kitty-.*\.md$/', 'retired Spec Kitty session scratch (.gitignore /spec-kitty-*.md)'],
+    ['/^smoke-.*\.png$|^admin-login-smoke-.*\.png$/', 'smoke-test screenshot (.gitignore smoke-*.png)'],
+    ['/\.sqlite(?:-(?:wal|shm|journal))?$/', 'SQLite database or WAL/SHM sidecar (.gitignore *.sqlite)'],
+    ['/^NUL$/', 'Windows UNC redirection residue (.gitignore /NUL)'],
+];
+
+/**
+ * Environment variables through which git selects a repository, work tree,
+ * index or object store *instead of* discovering them from `-C $root`. This
+ * mirrors git's own `local_repo_env` (environment.c) — the set git clears
+ * before running a command in another repository — plus GIT_NAMESPACE.
+ *
+ * Git hooks export some of these: a pre-push from a linked worktree carries
+ * `GIT_DIR=<main>/.git/worktrees/<name>`, and bin/project-hooks runs
+ * check-pr-preflight (hence this gate) with that environment intact. Every
+ * git child this gate spawns must drop them, otherwise `git -C $root` acts on
+ * the hook's repository: the tracked-file enumeration would be the wrong
+ * repository's, and any future git subcommand added here could reinitialise
+ * the developer's real gitdir (#2929's first revision did exactly that).
+ *
+ * @var list<string>
+ */
+const REPOSITORY_LOCAL_GIT_ENVIRONMENT = [
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_COMMON_DIR',
+    'GIT_CONFIG',
+    'GIT_CONFIG_COUNT',
+    'GIT_CONFIG_PARAMETERS',
+    'GIT_DIR',
+    'GIT_GRAFT_FILE',
+    'GIT_IMPLICIT_WORK_TREE',
+    'GIT_INDEX_FILE',
+    'GIT_NAMESPACE',
+    'GIT_NO_REPLACE_OBJECTS',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_PREFIX',
+    'GIT_REPLACE_REF_BASE',
+    'GIT_SHALLOW_FILE',
+    'GIT_WORK_TREE',
+];
+
+$root = dirname(__DIR__);
+$list = false;
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if (str_starts_with($argument, '--root=')) {
+        $root = rtrim(substr($argument, strlen('--root=')), '/');
+    } elseif ($argument === '--list') {
+        $list = true;
+    } else {
+        fwrite(STDERR, "check-repo-root-hygiene: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+
+if ($list) {
+    foreach (EXPECTED_LOCAL_ENTRIES as $entry) {
+        echo $entry, "\n";
+    }
+    foreach (EXPECTED_LOCAL_PATTERNS as $pattern) {
+        echo $pattern, "\n";
+    }
+    exit(0);
+}
+
+if (!is_dir($root)) {
+    fwrite(STDERR, "check-repo-root-hygiene: {$root} is not a directory.\n");
+    exit(2);
+}
+
+$tracked = trackedTopLevelEntries($root);
+$entries = scandir($root, SCANDIR_SORT_ASCENDING);
+if ($entries === false) {
+    fwrite(STDERR, "check-repo-root-hygiene: unable to read {$root}.\n");
+    exit(2);
+}
+
+$findings = [];
+foreach ($entries as $entry) {
+    if ($entry === '.' || $entry === '..') {
+        continue;
+    }
+    if (isset($tracked[$entry]) || isExpectedLocalEntry($entry)) {
+        continue;
+    }
+    $findings[$entry] = classify($root . '/' . $entry, $entry);
+}
+
+if ($findings === []) {
+    printf("OK — repository root holds only Git-tracked and expected local entries (%d entries).\n", count($entries) - 2);
+    exit(0);
+}
+
+fwrite(STDERR, sprintf("Repository root hygiene: %d stray %s in %s\n", count($findings), count($findings) === 1 ? 'entry' : 'entries', $root));
+foreach ($findings as $entry => $reason) {
+    fwrite(STDERR, sprintf("  %s: %s\n", $entry, $reason));
+}
+fwrite(STDERR, "Repair: remove each stray entry (rm -rf <entry>) — they are not tracked and not expected — or, only if an entry is a genuinely expected local artifact, add it to EXPECTED_LOCAL_ENTRIES in bin/check-repo-root-hygiene with its .gitignore/ci.yml source. Known leak families are never expected: trace the producer (docs/specs/governed-gates.md §7).\n");
+exit(1);
+
+/**
+ * @return array<string, true> first path segment of every Git-tracked path
+ */
+function trackedTopLevelEntries(string $root): array
+{
+    $process = proc_open(
+        ['git', '-C', $root, 'ls-files', '-z'],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        null,
+        repositoryGitEnvironment(),
+    );
+    if (!is_resource($process)) {
+        fwrite(STDERR, "check-repo-root-hygiene: unable to start Git.\n");
+        exit(2);
+    }
+    $output = (string) stream_get_contents($pipes[1]);
+    $error = (string) stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    if (proc_close($process) !== 0) {
+        fwrite(STDERR, "check-repo-root-hygiene: unable to enumerate tracked paths in {$root}.\n{$error}");
+        exit(2);
+    }
+
+    $tracked = [];
+    foreach (explode("\0", $output) as $path) {
+        if ($path === '') {
+            continue;
+        }
+        $tracked[explode('/', $path, 2)[0]] = true;
+    }
+    if ($tracked === []) {
+        fwrite(STDERR, "check-repo-root-hygiene: {$root} tracks no files; refusing to gate an empty repository.\n");
+        exit(2);
+    }
+
+    return $tracked;
+}
+
+/**
+ * The current process environment with every repository-selecting git
+ * variable removed, so a git child resolves its repository from `-C $root`
+ * alone (see REPOSITORY_LOCAL_GIT_ENVIRONMENT).
+ *
+ * @return array<string, string>
+ */
+function repositoryGitEnvironment(): array
+{
+    $environment = getenv();
+    foreach (REPOSITORY_LOCAL_GIT_ENVIRONMENT as $name) {
+        unset($environment[$name]);
+    }
+
+    return $environment;
+}
+
+function isExpectedLocalEntry(string $entry): bool
+{
+    if (in_array($entry, EXPECTED_LOCAL_ENTRIES, true)) {
+        return true;
+    }
+    foreach (EXPECTED_LOCAL_PATTERNS as $pattern) {
+        if (preg_match($pattern, $entry) === 1) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function classify(string $absolutePath, string $entry): string
+{
+    $kind = 'unexpected entry';
+    if (is_dir($absolutePath) && !is_link($absolutePath)) {
+        $kind = isEmptyDirectory($absolutePath) ? 'empty directory (invisible to git status)' : 'untracked directory';
+    } elseif (is_link($absolutePath)) {
+        $kind = 'untracked symlink';
+    } elseif (is_file($absolutePath)) {
+        $kind = sprintf('untracked file, %d bytes', (int) filesize($absolutePath));
+    }
+
+    foreach (KNOWN_LEAK_FAMILIES as [$pattern, $label]) {
+        if (preg_match($pattern, $entry) === 1) {
+            return sprintf('%s — known leak family: %s', $kind, $label);
+        }
+    }
+
+    return $kind . ' — neither Git-tracked nor an expected local entry';
+}
+
+function isEmptyDirectory(string $absolutePath): bool
+{
+    $children = scandir($absolutePath, SCANDIR_SORT_NONE);
+    if ($children === false) {
+        return false;
+    }
+    foreach ($children as $child) {
+        if ($child === '.' || $child === '..') {
+            continue;
+        }
+        if (is_dir($absolutePath . '/' . $child) && !is_link($absolutePath . '/' . $child)) {
+            if (!isEmptyDirectory($absolutePath . '/' . $child)) {
+                return false;
+            }
+            continue;
+        }
+
+        return false;
+    }
+
+    return true;
+}

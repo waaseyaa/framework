@@ -7,6 +7,10 @@ packages/*/composer.lock
 # project); ignore artifacts from running composer inside skeleton/ locally.
 skeleton/composer.lock
 skeleton/vendor/
+# Any depth: gate scanners enumerate through git, so the ignore boundary is
+# what keeps build trees out of a scan (#2925).
+node_modules/
+tmp/
 mcp/node_modules/
 tools/spec-retrieval/node_modules/
 
@@ -107,8 +111,12 @@ node-compile-cache/
 .claude/worktrees/
 phpstan-tests/
 
-# Runtime/test artifacts that leak into repo root (see #TODO: trace and fix at source).
+# Runtime/test artifacts that leak into repo root (see #2927: traced to
+# sys_get_temp_dir() helpers under a relative TMPDIR; tests/bootstrap.php now
+# refuses such a run and bin/check-repo-root-hygiene flags every family below
+# as a leak even though git status hides it).
 /csrf_upload_*
+/waaseyaa_loader_test_*/
 /perf-baseline-*
 /perf-current-*
 /waaseyaa_audit_handler_*
