@@ -1,0 +1,480 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Usage: php bin/check-stale-spec-deferrals [--root DIR] [--specs-dir DIR]
+//          [--baseline FILE] [--snapshot FILE] [--repo owner/name]
+//          [--fail-on-findings]
+//
+// Scans live docs/specs/**/*.md body prose for present/future-tense capability
+// deferrals (#NNNN) whose issue has since closed. PR-MERGED is always fine.
+// Spec-reviewed HTML comments, fenced examples, past-tense narration, and
+// positional after/once are out of scope.
+//
+// This is a nightly warn-only detector (#2641). It is not a preflight gate:
+// issue state changes when an issue closes elsewhere, not when a PR lands,
+// and resolution needs network or an injected snapshot.
+//
+// Exit codes:
+//   0 = no unresolved state; findings are warnings (unless --fail-on-findings)
+//   1 = findings present and --fail-on-findings was passed
+//   2 = config/resolution failure (incomplete allowlist, missing snapshot entry)
+
+$repoRoot = dirname(__DIR__);
+$specsDir = null;
+$baselineFile = null;
+$snapshotFile = null;
+$repoName = getenv('GITHUB_REPOSITORY') ?: 'waaseyaa/framework';
+$failOnFindings = false;
+
+for ($i = 1; $i < $argc; ++$i) {
+    $arg = $argv[$i];
+    if ($arg === '--root') {
+        $repoRoot = $argv[++$i] ?? '';
+    } elseif ($arg === '--specs-dir') {
+        $specsDir = $argv[++$i] ?? '';
+    } elseif ($arg === '--baseline') {
+        $baselineFile = $argv[++$i] ?? '';
+    } elseif ($arg === '--snapshot') {
+        $snapshotFile = $argv[++$i] ?? '';
+    } elseif ($arg === '--repo') {
+        $repoName = $argv[++$i] ?? '';
+    } elseif ($arg === '--fail-on-findings') {
+        $failOnFindings = true;
+    } elseif ($arg === '--help' || $arg === '-h') {
+        fwrite(STDOUT, "Usage: php bin/check-stale-spec-deferrals [--root DIR] [--snapshot FILE]\n");
+        exit(0);
+    } else {
+        fwrite(STDERR, "Unknown argument: {$arg}\n");
+        exit(2);
+    }
+}
+
+if ($repoRoot === '' || !is_dir($repoRoot)) {
+    fwrite(STDERR, "ERROR: --root is not a directory.\n");
+    exit(2);
+}
+
+$repoRoot = (string) realpath($repoRoot);
+$specsDir = $specsDir !== null && $specsDir !== '' ? $specsDir : ($repoRoot . '/docs/specs');
+$baselineFile = $baselineFile !== null && $baselineFile !== ''
+    ? $baselineFile
+    : ($repoRoot . '/tools/stale-spec-deferrals-baseline.txt');
+
+if (!is_dir($specsDir)) {
+    fwrite(STDERR, "ERROR: specs directory not found: {$specsDir}\n");
+    exit(2);
+}
+
+if (!file_exists($baselineFile)) {
+    fwrite(STDERR, "ERROR: Baseline file not found: {$baselineFile}\n");
+    exit(2);
+}
+
+$incomplete = staleSpecValidateBaselineComments($baselineFile);
+if ($incomplete !== []) {
+    echo "ERROR: Incomplete baseline entries (missing mandatory inline comment):\n";
+    foreach ($incomplete as $line) {
+        echo "  {$line}\n";
+    }
+    echo "Each entry MUST have an inline comment: <path>:<line>  # <reason>\n";
+    exit(2);
+}
+
+$allowlist = staleSpecLoadBaseline($baselineFile);
+$snapshotProvided = $snapshotFile !== null && $snapshotFile !== '';
+$snapshot = staleSpecLoadSnapshot($snapshotFile);
+$hits = staleSpecFindDeferrals($specsDir, $repoRoot);
+
+$unresolved = [];
+$findings = [];
+$allowlisted = [];
+
+foreach ($hits as $hit) {
+    $issue = $hit['issue'];
+    $state = staleSpecResolveIssue($issue, $repoName, $snapshot, $snapshotProvided);
+    if ($state === null) {
+        $unresolved[$issue] = true;
+        continue;
+    }
+    if ($state['pull_request'] === true) {
+        continue;
+    }
+    if ($state['state'] !== 'closed') {
+        continue;
+    }
+
+    $key = $hit['path'] . ':' . $hit['line'];
+    if (isset($allowlist[$key])) {
+        $allowlisted[$key] = $hit;
+        continue;
+    }
+    $findings[] = $hit;
+}
+
+if ($unresolved !== []) {
+    echo "ERROR: UNRESOLVED issue state (snapshot miss or GitHub lookup failed):\n";
+    foreach (array_keys($unresolved) as $number) {
+        echo "  #{$number}\n";
+    }
+    echo "Inject --snapshot JSON or set GH_TOKEN/GITHUB_TOKEN and retry.\n";
+    exit(2);
+}
+
+$allowlistedCount = count($allowlisted);
+if ($findings === []) {
+    echo "check-stale-spec-deferrals: OK (0 new; {$allowlistedCount} allowlisted)\n";
+    exit(0);
+}
+
+foreach ($findings as $hit) {
+    $phrase = $hit['phrase'];
+    $path = $hit['path'];
+    $line = $hit['line'];
+    $issue = $hit['issue'];
+    $message = "STALE-DEFERRAL: {$path}:{$line} {$phrase} #{$issue} is ISSUE-CLOSED";
+    echo $message . "\n";
+    echo "::warning file={$path},line={$line}::{$message}\n";
+}
+
+$count = count($findings);
+echo "{$count} live spec deferral(s) point at ISSUE-CLOSED (warn-only; not a merge gate).\n";
+echo "Rewrite the prose, or add <path>:<line>  # <reason> to {$baselineFile}.\n";
+
+if ($failOnFindings) {
+    exit(1);
+}
+
+exit(0);
+
+/**
+ * @return list<array{path: string, line: int, issue: int, phrase: string}>
+ */
+function staleSpecFindDeferrals(string $specsDir, string $repoRoot): array
+{
+    $hits = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($specsDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY,
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || $file->getExtension() !== 'md') {
+            continue;
+        }
+        $absolute = $file->getPathname();
+        $relative = staleSpecRelativePath($absolute, $repoRoot);
+        $content = file_get_contents($absolute);
+        if ($content === false) {
+            continue;
+        }
+        $scannable = staleSpecBlankIgnoredRegions($content);
+        foreach (staleSpecMatchDeferrals($scannable) as $match) {
+            $hits[] = [
+                'path' => $relative,
+                'line' => staleSpecLineNumber($scannable, $match['offset']),
+                'issue' => $match['issue'],
+                'phrase' => $match['phrase'],
+            ];
+        }
+    }
+
+    usort(
+        $hits,
+        static function (array $a, array $b): int {
+            return [$a['path'], $a['line'], $a['issue']] <=> [$b['path'], $b['line'], $b['issue']];
+        },
+    );
+
+    $deduped = [];
+    $seen = [];
+    foreach ($hits as $hit) {
+        $id = $hit['path'] . ':' . $hit['line'] . ':#' . $hit['issue'];
+        if (isset($seen[$id])) {
+            continue;
+        }
+        $seen[$id] = true;
+        $deduped[] = $hit;
+    }
+
+    return $deduped;
+}
+
+/**
+ * @return list<array{phrase: string, issue: int, offset: int}>
+ */
+function staleSpecMatchDeferrals(string $text): array
+{
+    $matches = [];
+
+    $strong = '/\b(blocked on|waits for|tracked by|tracked in)\b.{0,60}?#(\d+)/isu';
+    if (preg_match_all($strong, $text, $found, PREG_OFFSET_CAPTURE | PREG_SET_ORDER) > 0) {
+        foreach ($found as $row) {
+            $matches[] = [
+                'phrase' => strtolower($row[1][0]),
+                'issue' => (int) $row[2][0],
+                'offset' => $row[0][1],
+            ];
+        }
+    }
+
+    $adjacent = '/\b(pending|until|after|once|deferred to)\s+#(\d+)/iu';
+    if (preg_match_all($adjacent, $text, $found, PREG_OFFSET_CAPTURE | PREG_SET_ORDER) > 0) {
+        foreach ($found as $row) {
+            $matches[] = [
+                'phrase' => strtolower($row[1][0]),
+                'issue' => (int) $row[2][0],
+                'offset' => $row[0][1],
+            ];
+        }
+    }
+
+    $kept = [];
+    foreach ($matches as $match) {
+        if ($match['phrase'] === 'after' && staleSpecPrecededByProvenance($text, $match['offset'])) {
+            continue;
+        }
+        $clause = staleSpecClauseAt($text, $match['offset']);
+        if (staleSpecClauseHasPastTense($clause)) {
+            continue;
+        }
+        $kept[] = $match;
+    }
+
+    return $kept;
+}
+
+function staleSpecBlankIgnoredRegions(string $content): string
+{
+    $blank = static function (array $m): string {
+        return preg_replace('/[^\n]/', ' ', $m[0]) ?? $m[0];
+    };
+
+    $content = preg_replace_callback('/<!--.*?-->/s', $blank, $content) ?? $content;
+
+    return preg_replace_callback('/```.*?```/s', $blank, $content) ?? $content;
+}
+
+function staleSpecClauseAt(string $text, int $offset): string
+{
+    $start = $offset;
+    while ($start > 0) {
+        $ch = $text[$start - 1];
+        if ($ch === '.' || $ch === "\n") {
+            break;
+        }
+        --$start;
+    }
+
+    $end = $offset;
+    $length = strlen($text);
+    while ($end < $length) {
+        $ch = $text[$end];
+        if ($ch === '.') {
+            ++$end;
+            break;
+        }
+        ++$end;
+    }
+
+    return substr($text, $start, $end - $start);
+}
+
+function staleSpecPrecededByProvenance(string $text, int $offset): bool
+{
+    $before = strtolower(substr($text, max(0, $offset - 48), min(48, $offset)));
+
+    return preg_match('/\b(uses|used|introduced|established|landed|shipped)\b/', $before) === 1;
+}
+
+function staleSpecClauseHasPastTense(string $clause): bool
+{
+    return preg_match(
+        '/\b(was|were|been|had|did|emitted|landed|closed|shipped|fixed|added|removed|superseded|supplied)\b/i',
+        $clause,
+    ) === 1;
+}
+
+function staleSpecLineNumber(string $text, int $offset): int
+{
+    $before = substr($text, 0, $offset);
+
+    return substr_count($before, "\n") + 1;
+}
+
+function staleSpecRelativePath(string $absolute, string $repoRoot): string
+{
+    $real = realpath($absolute);
+    $root = realpath($repoRoot);
+    if ($real === false || $root === false) {
+        return $absolute;
+    }
+    if (str_starts_with($real, $root . DIRECTORY_SEPARATOR)) {
+        return str_replace('\\', '/', substr($real, strlen($root) + 1));
+    }
+
+    return str_replace('\\', '/', $real);
+}
+
+/**
+ * @return array<string, true>
+ */
+function staleSpecLoadBaseline(string $baselineFile): array
+{
+    $lines = file($baselineFile, FILE_IGNORE_NEW_LINES);
+    if ($lines === false) {
+        return [];
+    }
+
+    $entries = [];
+    foreach ($lines as $rawLine) {
+        $line = trim($rawLine);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        $pathLine = preg_replace('/\s+#\s.+$/', '', $rawLine);
+        if (!is_string($pathLine)) {
+            continue;
+        }
+        $key = trim($pathLine);
+        if ($key !== '') {
+            $entries[$key] = true;
+        }
+    }
+
+    return $entries;
+}
+
+/**
+ * @return list<string>
+ */
+function staleSpecValidateBaselineComments(string $baselineFile): array
+{
+    $lines = file($baselineFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return [];
+    }
+
+    $incomplete = [];
+    foreach ($lines as $rawLine) {
+        $line = trim($rawLine);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        if (!preg_match('/  # .+/', $rawLine)) {
+            $incomplete[] = $rawLine;
+        }
+    }
+
+    return $incomplete;
+}
+
+/**
+ * @return array<int, array{state: string, pull_request: bool}>
+ */
+function staleSpecLoadSnapshot(?string $snapshotFile): array
+{
+    if ($snapshotFile === null || $snapshotFile === '') {
+        return [];
+    }
+    if (!is_file($snapshotFile)) {
+        fwrite(STDERR, "ERROR: snapshot file not found: {$snapshotFile}\n");
+        exit(2);
+    }
+
+    $decoded = json_decode((string) file_get_contents($snapshotFile), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+        fwrite(STDERR, "ERROR: snapshot must be a JSON object of issue number => state.\n");
+        exit(2);
+    }
+
+    $snapshot = [];
+    foreach ($decoded as $number => $row) {
+        if (!is_array($row) || !isset($row['state'])) {
+            fwrite(STDERR, "ERROR: snapshot entry {$number} must have state.\n");
+            exit(2);
+        }
+        $snapshot[(int) $number] = [
+            'state' => (string) $row['state'],
+            'pull_request' => (bool) ($row['pull_request'] ?? false),
+        ];
+    }
+
+    return $snapshot;
+}
+
+/**
+ * @param array<int, array{state: string, pull_request: bool}> $snapshot
+ * @return array{state: string, pull_request: bool}|null
+ */
+function staleSpecResolveIssue(int $number, string $repo, array $snapshot, bool $snapshotProvided): ?array
+{
+    if (isset($snapshot[$number])) {
+        return $snapshot[$number];
+    }
+    if ($snapshotProvided) {
+        return null;
+    }
+
+    return staleSpecFetchIssue($repo, $number);
+}
+
+/**
+ * @return array{state: string, pull_request: bool}|null
+ */
+function staleSpecFetchIssue(string $repo, int $number): ?array
+{
+    $command = sprintf(
+        'gh api %s --jq %s',
+        escapeshellarg(sprintf('repos/%s/issues/%d', $repo, $number)),
+        escapeshellarg('{state:.state,pull_request:(.pull_request!=null)}'),
+    );
+    $output = [];
+    $exit = 0;
+    exec($command . ' 2>/dev/null', $output, $exit);
+    if ($exit === 0 && $output !== []) {
+        $decoded = json_decode(implode("\n", $output), true);
+        if (is_array($decoded) && isset($decoded['state'])) {
+            return [
+                'state' => (string) $decoded['state'],
+                'pull_request' => (bool) ($decoded['pull_request'] ?? false),
+            ];
+        }
+    }
+
+    $token = getenv('GH_TOKEN') ?: getenv('GITHUB_TOKEN') ?: '';
+    $headers = [
+        'User-Agent: waaseyaa-stale-spec-deferrals',
+        'Accept: application/vnd.github+json',
+    ];
+    if (is_string($token) && $token !== '') {
+        $headers[] = 'Authorization: Bearer ' . $token;
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'header' => implode("\r\n", $headers),
+            'ignore_errors' => true,
+            'timeout' => 20,
+        ],
+    ]);
+    $body = @file_get_contents(
+        sprintf('https://api.github.com/repos/%s/issues/%d', $repo, $number),
+        false,
+        $context,
+    );
+    if (!is_string($body) || $body === '') {
+        return null;
+    }
+    $decoded = json_decode($body, true);
+    if (!is_array($decoded) || !isset($decoded['state'])) {
+        return null;
+    }
+
+    return [
+        'state' => (string) $decoded['state'],
+        'pull_request' => isset($decoded['pull_request']),
+    ];
+}
