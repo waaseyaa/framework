@@ -52,23 +52,33 @@ final class RelationshipEmitter implements BlueprintArtifactEmitterInterface
 
     private static function renderRow(BlueprintRelationship $relationship): string
     {
-        $id = addslashes($relationship->id);
-        $fromEntity = addslashes($relationship->fromEntity);
-        $fromField = addslashes($relationship->fromField);
-        $toEntity = addslashes($relationship->toEntity);
+        $id = self::singleQuoted($relationship->id);
+        $fromEntity = self::singleQuoted($relationship->fromEntity);
+        $fromField = self::singleQuoted($relationship->fromField);
+        $toEntity = self::singleQuoted($relationship->toEntity);
         $required = $relationship->required ? 'true' : 'false';
-        $onDelete = addslashes($relationship->onDelete->value);
+        $onDelete = self::singleQuoted($relationship->onDelete->value);
 
         return <<<PHP
-                '{$id}' => [
-                    'from_entity' => '{$fromEntity}',
-                    'from_field' => '{$fromField}',
-                    'to_entity' => '{$toEntity}',
+                {$id} => [
+                    'from_entity' => {$fromEntity},
+                    'from_field' => {$fromField},
+                    'to_entity' => {$toEntity},
                     'cardinality' => {$relationship->cardinality},
                     'required' => {$required},
-                    'on_delete' => '{$onDelete}',
+                    'on_delete' => {$onDelete},
                 ],
 
             PHP;
+    }
+
+    /** Escapes only backslash and single quote so the result is safe to
+     * interpolate between single quotes in generated PHP source — unlike
+     * `addslashes()`, which also escapes double quotes that single-quoted
+     * PHP strings never unescape, corrupting any value containing one.
+     */
+    private static function singleQuoted(string $value): string
+    {
+        return "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], $value) . "'";
     }
 }

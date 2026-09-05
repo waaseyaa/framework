@@ -36,7 +36,7 @@ final class ProviderRegistrationEmitter implements BlueprintArtifactEmitterInter
         $entities = array_values($blueprint->entities);
         usort($entities, static fn(BlueprintEntity $left, BlueprintEntity $right): int => strcmp($left->id, $right->id));
 
-        $registrations = implode('', array_map(self::renderRegistration(...), $entities));
+        $registrations = rtrim(implode('', array_map(self::renderRegistration(...), $entities)), "\n");
 
         $content = <<<PHP
             <?php

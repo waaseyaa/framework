@@ -13,6 +13,11 @@ use Waaseyaa\CLI\Site\Blueprint\Emitter\BlueprintArtifactEmitterInterface;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\BlueprintEmission;
 use Waaseyaa\CLI\Site\SiteArtifactRendererFactory;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
+use Waaseyaa\SiteContract\Blueprint\BlueprintEntity;
+use Waaseyaa\SiteContract\Blueprint\BlueprintEntityKeys;
+use Waaseyaa\SiteContract\Blueprint\BlueprintField;
+use Waaseyaa\SiteContract\Blueprint\BlueprintFieldType;
+use Waaseyaa\SiteContract\Blueprint\BlueprintStorage;
 use Waaseyaa\SiteContract\Generation\ArtifactSetEvolution;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
@@ -179,6 +184,66 @@ final class ApplicationBlueprintCompilerTest extends TestCase
         } catch (GenerationRefusalException $exception) {
             self::assertSame(GenerationErrorCode::UnsupportedDeclaration, $exception->violations[0]->code);
             self::assertStringContainsString('some-future-feature-v1', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * F3: the SITE0xx grammar (`^[a-z][a-z0-9_-]*$`) permits a hyphen a PHP
+     * identifier cannot represent. Before this fix, a hyphenated entity id
+     * reached `EntityClassEmitter::safeId()` and crashed with a bare
+     * `\InvalidArgumentException` no CLI envelope could carry a code or
+     * pointer for. The compiler now refuses it itself, coded, before
+     * invoking any emitter.
+     */
+    #[Test]
+    public function aHyphenatedEntityIdIsRefusedGen006BeforeAnyEmitterRuns(): void
+    {
+        $blueprint = new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: [
+                'blog-post' => new BlueprintEntity(
+                    id: 'blog-post',
+                    label: 'Blog Post',
+                    storage: BlueprintStorage::SqlBlob,
+                    revisionable: false,
+                    translatable: false,
+                    keys: new BlueprintEntityKeys(id: 'id', uuid: 'uuid', label: 'title'),
+                    fields: [
+                        'title' => new BlueprintField('title', BlueprintFieldType::String, true, 1, false, false, false),
+                    ],
+                ),
+            ],
+            relationships: [],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: [],
+            fixtures: [],
+            checks: [],
+        );
+        $parsed = $this->manifest('minimal.yaml');
+        $manifest = new SiteManifest(
+            $parsed->schemaVersion,
+            $parsed->generatorVersion,
+            $parsed->application,
+            $parsed->framework,
+            $parsed->contentTypes,
+            $parsed->capabilities,
+            $parsed->personalDataStores,
+            $parsed->recipes,
+            $parsed->verificationCommand,
+            $parsed->canonicalJson,
+            $parsed->digest,
+            $blueprint,
+            [ApplicationBlueprintCompiler::GENERATOR_FEATURES[0]],
+        );
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString('blog-post', $exception->violations[0]->message);
         }
     }
 

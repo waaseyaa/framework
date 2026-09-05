@@ -96,7 +96,12 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         // no evaluation, and no apply. `SiteInitHandler` only catches and
         // relays the coded refusal into its existing JSON envelope, exactly
         // as it already does for `SiteManifestValidationException`; it never
-        // constructs one.
+        // constructs one. `ApplicationBlueprintCompiler` is a third,
+        // deliberately reviewed call site (review round 1, F3): before
+        // invoking any emitter it asserts every blueprint id headed for a
+        // PHP identifier position is one, reusing `GEN006_MALICIOUS_IDENTIFIER`
+        // — the same closed family, at the plan-compilation boundary
+        // `compile()` already owns, still carrying no evaluation or apply.
         $offenders = [];
         foreach ($this->productionPhpCodeFiles() as $relative => $code) {
             if (str_starts_with($relative, self::REFUSAL_FAMILY_DIR)) {
@@ -110,6 +115,7 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         self::assertSame(
             [
                 'packages/cli/src/Handler/SiteInitHandler.php',
+                'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
                 'packages/cli/src/Site/SiteInitializationService.php',
                 'packages/site-contract/src/Generation/GeneratorFeatureNegotiation.php',
             ],

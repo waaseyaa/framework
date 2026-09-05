@@ -210,6 +210,18 @@ and leaving the eligibility list unable to tell the two compilers apart
 digest (ADR-023 D-3); `set_evolution` is `additive`, declared purely, with
 eligibility left entirely to the engine (D-13 item 1).
 
+**Deviation from D-10.1's literal wording (review round 1, F6).** D-10.1
+states "the root unit's provenance is the existing top-level pair:
+`generator_version` plus the installed `SiteArtifactRenderer`." 01D-1
+publishes root `site` under `ApplicationBlueprintCompiler::class` instead
+(not `SiteArtifactRenderer`), for the D-13 reason above: the engine's
+eligibility gate needs to tell the two compilers apart by `generator.fqcn`,
+and every 01D-1 plan is refused `GEN011` because `ADDITIVE_COMPILERS` does
+not yet name it. This is a deliberate staging deviation, not a
+contradiction of D-10.1's intent (the root unit itself is unchanged); the
+ADR's wording is amended when 01D-2 adds the compiler to the closed
+eligibility list and the deviation becomes the shipped shape.
+
 **(b) Approval-free compilation, approval-required evaluation.** Parsing,
 semantic validation, negotiation and `compile()` take no receipt: the golden
 path states that a proposal needs no approval to validate or render, and
@@ -286,7 +298,18 @@ without editing the compiler, and 01D-3 appends fixtures and checks.
   roster that 01C proved equal to the plugin registry, storage,
   revisionable and translatable flags, and the relationship-created
   reference field for every relationship whose `from.entity` is this entity
-  (the validator already reserves that field id).
+  (the validator already reserves that field id). An `enum` field also
+  emits a generated backed-enum class,
+  `src/Entity/Enum/<PascalCase(entity.id)><PascalCase(field.id)>.php`, and
+  the property's `#[Field]` attribute carries `settings.enum_class` naming
+  it explicitly — `Waaseyaa\Field\Item\EnumItem` requires that setting
+  (`EnumFieldTypeException::MISSING_ENUM_CLASS` otherwise); a `values`
+  setting alone, the review-round-1 finding (F1), is not sufficient.
+  `keys.owner` is intentionally not carried onto the generated class:
+  `ContentEntityKeys` has no `owner` parameter, and the entity runtime has
+  no "owner" key at all (review-round-1 finding F4) — a future
+  ownership-policy emitter must re-derive the owner relationship field from
+  the blueprint itself, not from generated entity metadata.
 - `RelationshipEmitter` — one deterministic registry artifact
   `config/waaseyaa-blueprint/relationships.php` listing id, from entity and
   field, to entity, cardinality, required and `on_delete`
@@ -335,18 +358,49 @@ execution and compilers that know runtime FQCNs stay in `cli`, and the
 01D-2 `ADDITIVE_COMPILERS` entry is a same-package class-string. New `@api`
 types are declared in the package-local `public-surface.php` (#2901).
 
+**(i) Identifier-grammar refusal (review round 1, F3).** The SITE0xx grammar
+(`^[a-z][a-z0-9_-]*$`, `ManifestShapeReader::id()`) admits a hyphen that PHP
+cannot represent as a class, property, or entity-key name. Rather than
+tightening that shared grammar (a 01B/01C authority change out of scope
+here) or letting an emitter crash with a bare, uncoded
+`\InvalidArgumentException` the CLI envelope cannot carry a code or pointer
+for, `ApplicationBlueprintCompiler::compile()` asserts every blueprint
+entity id, field id, entity-key value, and relationship `from` field
+against the PHP identifier grammar itself, immediately after negotiation
+and before invoking any emitter. A violation reuses
+`GEN006_MALICIOUS_IDENTIFIER` — ADR-025 D-5 already reserves it for "a unit
+id fails the D-2.1 grammar", the same shape of problem one layer up — with
+one `GenerationViolation` per offending identifier, pointing at
+`/application_blueprint/entities/<id>/...`. Each emitter's own identifier
+check (e.g. `EntityClassEmitter::safeId()`) becomes a defensive invariant
+after this fix: it should be unreachable in practice, and its bare
+`\InvalidArgumentException` now signals a compiler defect (the pre-check
+and the emitter's own check have drifted apart), never a project-state
+refusal.
+
 ### CLI outcomes
 
 | Invocation on a blueprint-bearing manifest | 01D-1 | 01D-2 |
 |---|---|---|
-| `site:init --dry-run` | exit 2, `GEN007_UNSUPPORTED_DECLARATION` at `/application_blueprint`; no render, no write | without a matching approved receipt: exit 2, `GEN011_UNAUTHORIZED_SET_DELTA`, no write; with one: exit 0, `outcome: planned`, the complete deterministic artifact set with per-path status and `setDelta` |
-| `site:init --yes` (apply) | identical refusal, payload and exit; no lock, journal or write | without: identical `GEN011` refusal, no write; with: `outcome: applied` and `.waaseyaa/generated.json` carrying `application_blueprint` evidence; unchanged replay: `no_changes`; changed blueprint with a fresh approval: additive successor path; blueprint removal: `GEN011` (drops) |
+| `site:init --dry-run` | handler returns 2, `GEN007_UNSUPPORTED_DECLARATION` at `/application_blueprint`; no render, no write | without a matching approved receipt: handler returns 2, `GEN011_UNAUTHORIZED_SET_DELTA`, no write; with one: handler returns 0, `outcome: planned`, the complete deterministic artifact set with per-path status and `setDelta` |
+| `site:init --yes` (apply) | identical refusal, payload and handler return; no lock, journal or write | without: identical `GEN011` refusal, no write; with: `outcome: applied` and `.waaseyaa/generated.json` carrying `application_blueprint` evidence; unchanged replay: `no_changes`; changed blueprint with a fresh approval: additive successor path; blueprint removal: `GEN011` (drops) |
 | `--json` envelope | `{"evaluation":null,"result":null,"receipts":[],"errors":[{"code":"GEN007_UNSUPPORTED_DECLARATION","pointer":"/application_blueprint","message":"..."}]}` | the same shape for refusals; `evaluation`, `result` and `receipts` populated on success |
-| blueprint-free manifest | unchanged bytes, exit codes and envelopes | unchanged |
+| blueprint-free manifest | unchanged bytes, handler return and envelopes | unchanged |
 
-Exit 2 is today's handler mapping for every input refusal, shared with
-`SITE0xx`; renumbering is not part of 01D. The `errors` entry for a
-`GenerationRefusalException` carries `code`, `pointer` and `message` from
+**Handler return vs. process exit (review round 1, F5, corrected).** The
+handler returns 2 for every input refusal, shared with `SITE0xx`; that is
+what the `CliTester`/handler-level red tests in this record assert, and
+renumbering is not part of 01D. But `Waaseyaa\CLI\WaaseyaaConsoleApplication
+::run()` normalizes every non-zero handler return to a **process exit of
+1** (`$exitCode === 0 ? 0 : 1`) — verified: `bin/waaseyaa site:init
+--dry-run --json` on a blueprint-bearing manifest exits the OS process with
+`1`, not `2`, in this slice and pre-existing today for every other
+`SITE0xx` refusal. Studio's process-boundary contract (decision (d)) is
+therefore the fixture **envelope** (`errors[0].code`), not the numeric
+process exit code — a non-zero exit signals failure, but distinguishing
+refusal families by exit code alone is not supported at any point on this
+branch. The `errors` entry for a `GenerationRefusalException` carries
+`code`, `pointer` and `message` from
 `GenerationRefusalException::toArray()`; today's handler emits `message`
 only, and 01D-1 widens that entry for coded refusals without changing the
 envelope's members.
@@ -370,9 +424,10 @@ Not touched in 01D-1: `SiteArtifactRenderer.php`,
 ### 01D-1 red boundary tests
 
 1. `packages/cli/tests/Unit/Handler/SiteInitBlueprintNegotiationTest.php` —
-   red at the parent because both modes exit 0 today: `--dry-run` and
-   `--yes` on `minimal.yaml` exit 2 with `GEN007` and pointer
-   `/application_blueprint` in text and JSON; the two envelopes are
+   red at the parent because both modes return 0 today: `--dry-run` and
+   `--yes` on `minimal.yaml` return 2 with `GEN007` and pointer
+   `/application_blueprint` in text and JSON (process exit 1, per the
+   handler-return-vs-process-exit note above); the two envelopes are
    identical; the project root is byte-identical afterwards with no
    `.waaseyaa/` directory or lock; blueprint-free answers keep their
    existing envelopes (`SiteInitJsonTest` fixtures unchanged).
@@ -391,13 +446,20 @@ Not touched in 01D-1: `SiteArtifactRenderer.php`,
    `digest`); a blueprint-free manifest is refused with
    `\InvalidArgumentException`; an emitter overlapping a base path or
    another emitter is refused at compile; a manifest requiring a token
-   outside the compiler's roster is `GEN007`.
+   outside the compiler's roster is `GEN007`; a hyphenated blueprint id is
+   refused `GEN006_MALICIOUS_IDENTIFIER` before any emitter runs
+   (review round 1, F3).
 4. `packages/cli/tests/Unit/Site/Blueprint/Emitter/EntityClassEmitterTest.php`,
    `RelationshipEmitterTest.php`, `ProviderRegistrationEmitterTest.php` —
    one artifact per entity and one registry row per relationship against
    the golden fixtures; the relationship-created reference field appears on
    the `from` entity exactly once; the registration carries no group;
-   `companionTests` are a subset of the emission's own paths.
+   `companionTests` are a subset of the emission's own paths; an `enum`
+   field's generated backed-enum class and `settings.enum_class` load
+   through the real `EntityMetadataReader`/`EnumItem` runtime, not only a
+   snapshot comparison (review round 1, F1); `keys.owner` is asserted
+   absent from the generated class (F4); a label containing a single and a
+   double quote round-trips exactly (F2).
 5. `packages/cli/tests/Unit/Site/GenerationBlueprintAdmissionTest.php` —
    a compiler plan through `SiteInitializationService::evaluate()` and
    `initialize()` (dry-run and apply) is refused `GEN011` before any write,

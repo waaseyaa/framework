@@ -27,6 +27,5 @@ final class ApplicationBlueprintServiceProvider extends ServiceProvider
             revisionable: false,
             translatable: false,
         ));
-
     }
 }
