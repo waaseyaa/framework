@@ -147,6 +147,102 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
     }
 
     #[Test]
+    public function comment_only_change_on_a_clover_present_file_is_not_labelled_absent(): void
+    {
+        $source = <<<'PHP'
+            <?php
+            namespace Waaseyaa\Demo;
+            final class Example
+            {
+                // comment-only touch target
+                public function answer(): int
+                {
+                    return 200;
+                }
+            }
+            PHP;
+        mkdir($this->directory . '/packages/demo/src', 0o755, true);
+        file_put_contents($this->directory . '/packages/demo/src/Example.php', $source);
+
+        // Diff touches only the comment line; Clover still lists other stmts in
+        // the same file — vendor-less mode must not claim the file is absent.
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -5 +5 @@\n";
+
+        $result = $this->runRatchetFixture(
+            $diff,
+            ['packages/demo/src/Example.php' => [8 => 1]],
+            80,
+            $this->directory,
+            skipAutoload: true,
+        );
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('no executable Clover lines', $result['output']);
+        self::assertStringNotContainsString('absent from Clover', $result['output']);
+    }
+
+    #[Test]
+    public function clover_statement_counts_match_with_and_without_static_analysis(): void
+    {
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -1,5 +1,5 @@\n";
+        $files = ['packages/demo/src/Example.php' => [1 => 1, 2 => 1, 3 => 1, 4 => 1, 5 => 0]];
+
+        $withAnalysis = $this->runRatchetFixture($diff, $files, 80);
+        $withoutAnalysis = $this->runRatchetFixture($diff, $files, 80, skipAutoload: true);
+
+        self::assertSame(0, $withAnalysis['exit_code'], $withAnalysis['output']);
+        self::assertSame(0, $withoutAnalysis['exit_code'], $withoutAnalysis['output']);
+        self::assertStringContainsString('4/5 executable changed lines covered (80.00%', $withAnalysis['output']);
+        self::assertStringContainsString('4/5 executable changed lines covered (80.00%', $withoutAnalysis['output']);
+    }
+
+    #[Test]
+    public function excluded_attribution_does_not_claim_execution_from_test_text_alone(): void
+    {
+        $source = <<<'PHP'
+            <?php
+            namespace Waaseyaa\Demo;
+            final class Example
+            {
+                public function answer(bool $allowed): int
+                {
+                    if (!$allowed) {
+                        return 403;
+                    }
+                    return 200;
+                }
+            }
+            PHP;
+        mkdir($this->directory . '/packages/demo/src', 0o755, true);
+        mkdir($this->directory . '/tests/Integration', 0o755, true);
+        file_put_contents($this->directory . '/packages/demo/src/Example.php', $source);
+        file_put_contents(
+            $this->directory . '/tests/Integration/ExampleFlowTest.php',
+            "<?php\nuse PHPUnit\\Framework\\Attributes\\CoversNothing;\nuse Waaseyaa\\Demo\\Example;\n#[CoversNothing]\nfinal class ExampleFlowTest {}\n",
+        );
+
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -7,0 +7,2 @@\n"
+            . "diff --git a/tests/Integration/ExampleFlowTest.php b/tests/Integration/ExampleFlowTest.php\n"
+            . "+++ b/tests/Integration/ExampleFlowTest.php\n@@ -0,0 +1,5 @@\n";
+
+        $result = $this->runRatchetFixture(
+            $diff,
+            ['packages/demo/src/Example.php' => [7 => 0, 8 => 0]],
+            80,
+            $this->directory,
+        );
+
+        self::assertSame(1, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('excluded-attribution:', $result['output']);
+        self::assertStringNotContainsString('were executed', $result['output']);
+        self::assertStringNotContainsString('was executed', $result['output']);
+        self::assertStringContainsString('not proof of execution', $result['output']);
+    }
+
+    #[Test]
     public function non_source_hunks_do_not_inherit_the_previous_source_path(): void
     {
         $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"

@@ -50,15 +50,19 @@ Conclusions established by evidence (not hypothesis):
 
 1. Keep the blocking threshold at **80% of changed executable Clover stmts**
    (`covered / (covered + uncovered)`). Do not change floors or invent a new
-   required percentage in this slice.
+   required percentage in this slice. The Clover-statement count is identical
+   with or without optional static analysis.
 2. Extend `bin/check-changed-php-coverage` to classify every changed executable
-   line (static analysis ∩ diff) as **covered**, **uncovered**, or
- **uninstrumented** (executable + changed but absent from Clover), and print
-   that inventory beside the existing percentage.
+   line as **covered**, **uncovered**, or **uninstrumented** (executable +
+   changed but absent from Clover), and print that inventory beside the
+   existing percentage. Static analysis only refines uninstrumented lists;
+   “absent from Clover” means the **file** never appears in Clover, not that a
+   comment-only change missed stmt intersection on a present file.
 3. Treat **excluded** as an attribution-risk label: uncovered changed lines
    whose only changed test companions are `#[CoversNothing]` (same signal as
    `bin/check-covers-nothing-companions`). Visible in the gate report; does not
-   by itself alter the percentage formula.
+   by itself alter the percentage formula; **must not claim execution** from
+   test text alone.
 4. Retain intentional `#[CoversNothing]` on structural/orchestration tests.
    Behavioral branches still need `#[CoversClass]` / `#[CoversMethod]` Unit or
    Contract companions — documented, not blanket-removed.

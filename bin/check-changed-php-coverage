@@ -6,17 +6,13 @@ declare(strict_types=1);
 /**
  * Enforce the changed-line Clover ratchet and report attribution boundaries.
  *
- * Threshold denominator (unchanged): covered / (covered + uncovered) among
- * changed lines that appear as Clover statements. Uninstrumented changed
- * executable lines and CoversNothing-only exclusion risks are reported beside
- * that percentage so the number cannot silently omit clover-absent files or
- * metadata-suppressed execution.
+ * Threshold denominator (unchanged, analyser-independent): covered /
+ * (covered + uncovered) among changed lines that appear as Clover statements.
+ * Optional php-code-coverage static analysis only refines uninstrumented
+ * reporting; it must not change which Clover stmts enter the 80% count.
  *
  * Hosted `ci/coverage` checks out the tree without Composer vendor. The 80%
- * ratchet therefore must not require autoload. Optional php-code-coverage
- * static analysis (when vendor is present) refines uninstrumented line lists
- * and CoversNothing exclusion labeling; without it the threshold path is
- * identical to the pre-#2904 clover intersection.
+ * ratchet therefore must not require autoload.
  */
 
 $toolRoot = dirname(__DIR__);
@@ -115,7 +111,9 @@ if (!$xml instanceof SimpleXMLElement) {
     exit(2);
 }
 
-/** @var array<string, array<int, int>> $cloverCounts path => line => count */
+/** @var array<string, true> $cloverPresentFiles files that appear in Clover at all */
+$cloverPresentFiles = [];
+/** @var array<string, array<int, int>> $cloverCounts path => changed line => count */
 $cloverCounts = [];
 foreach ($xml->xpath('//file') ?: [] as $file) {
     $name = str_replace('\\', '/', (string) $file['name']);
@@ -123,6 +121,7 @@ foreach ($xml->xpath('//file') ?: [] as $file) {
     if (!isset($changedLines[$relative])) {
         continue;
     }
+    $cloverPresentFiles[$relative] = true;
     foreach ($file->line as $line) {
         if ((string) $line['type'] !== 'stmt') {
             continue;
@@ -161,18 +160,17 @@ $covered = 0;
 foreach ($changedLines as $sourcePath => $lines) {
     $absolute = $root . '/' . $sourcePath;
     $contents = @file_get_contents($absolute);
-    $executableChanged = array_map('intval', array_keys($lines));
-    sort($executableChanged);
 
     $shortName = null;
     $fqcn = null;
+    /** @var array<int, true>|null $analyserExecutable */
+    $analyserExecutable = null;
     if ($contents !== false && $analyser !== null) {
         $analysis = $analyser->analyse($absolute, $contents, true, false);
-        $executableChanged = array_values(array_filter(
-            array_map('intval', array_keys($lines)),
-            static fn(int $line): bool => isset($analysis->executableLines()[$line]),
-        ));
-        sort($executableChanged);
+        $analyserExecutable = [];
+        foreach (array_keys($analysis->executableLines()) as $lineNumber) {
+            $analyserExecutable[(int) $lineNumber] = true;
+        }
 
         $symbols = [
             ...array_values($analysis->classes()),
@@ -212,26 +210,13 @@ foreach ($changedLines as $sourcePath => $lines) {
         }
     }
 
-    foreach ($executableChanged as $number) {
+    // Ratchet counts only Clover stmts on changed lines — never depends on SA.
+    $pathCounts = $cloverCounts[$sourcePath] ?? [];
+    ksort($pathCounts);
+    foreach ($pathCounts as $number => $hitCount) {
         $ref = $sourcePath . ':' . $number;
-        if (!isset($cloverCounts[$sourcePath][$number])) {
-            // Without static analysis, only flag whole-file clover absence to
-            // avoid treating signatures/comments as uninstrumented noise on the
-            // vendor-less ci/coverage job.
-            if ($analyser !== null || ($cloverCounts[$sourcePath] ?? []) === []) {
-                if ($analyser === null) {
-                    $fileRef = $sourcePath . ' (absent from Clover)';
-                    if (!in_array($fileRef, $uninstrumentedRefs, true)) {
-                        $uninstrumentedRefs[] = $fileRef;
-                    }
-                } else {
-                    $uninstrumentedRefs[] = $ref;
-                }
-            }
-            continue;
-        }
         ++$executable;
-        if ($cloverCounts[$sourcePath][$number] > 0) {
+        if ($hitCount > 0) {
             ++$covered;
             $coveredRefs[] = $ref;
             continue;
@@ -239,6 +224,26 @@ foreach ($changedLines as $sourcePath => $lines) {
         $uncoveredRefs[] = $ref;
         if (isset($excludedTestsBySource[$sourcePath])) {
             $excludedRefs[] = $ref;
+        }
+    }
+
+    // Uninstrumented reporting is diagnostic only; optional SA refines line lists.
+    if ($analyserExecutable !== null) {
+        $changedNumbers = array_map('intval', array_keys($lines));
+        sort($changedNumbers);
+        foreach ($changedNumbers as $number) {
+            if (!isset($analyserExecutable[$number])) {
+                continue;
+            }
+            if (isset($pathCounts[$number])) {
+                continue;
+            }
+            $uninstrumentedRefs[] = $sourcePath . ':' . $number;
+        }
+    } elseif (!isset($cloverPresentFiles[$sourcePath])) {
+        $fileRef = $sourcePath . ' (absent from Clover)';
+        if (!in_array($fileRef, $uninstrumentedRefs, true)) {
+            $uninstrumentedRefs[] = $fileRef;
         }
     }
 }
@@ -268,7 +273,7 @@ if ($uninstrumentedRefs !== []) {
     fwrite(STDERR, "changed-php-coverage: denominator excludes uninstrumented lines; investigate subprocess or coverage include gaps before trusting a green percentage.\n");
 }
 if ($excludedRefs !== []) {
-    fwrite(STDERR, "changed-php-coverage: excluded-attribution lines were executed only under #[CoversNothing] companions in this diff; add #[CoversClass]/#[CoversMethod] Unit/Contract coverage through a real public boundary.\n");
+    fwrite(STDERR, "changed-php-coverage: excluded-attribution lines are uncovered and only named by #[CoversNothing] companions in this diff (not proof of execution); add #[CoversClass]/#[CoversMethod] Unit/Contract coverage through a real public boundary.\n");
 }
 if ($analyser === null) {
     fwrite(STDERR, "changed-php-coverage: vendor autoload unavailable; 80% ratchet used clover intersection only (static-analysis refinement skipped).\n");
