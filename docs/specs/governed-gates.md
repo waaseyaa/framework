@@ -39,7 +39,7 @@ Profiles:
   keys, getquery bindings, admin coercion patterns, admin dist freshness, admin dist acceptance
   manifest, field guards, access hardening, contract-suite coverage, openapi, phpstan/phpunit path checks, distribution
   extensions, PHPUnit skip policy, delivery-agent event schema and append-only
-  custody, spec drift, changelog discipline, cs-check.
+  custody, repository-root hygiene, spec drift, changelog discipline, cs-check.
 - **`--full`** — adds the phpstan-engine gates (`composer phpstan`, `bin/check-dead-code`). These
   are in CI's blocking set; they are separated locally only because the PHPStan worker layer is
   environment-sensitive (documented WSL crashes) and cache-cold runs are minutes long. `--full` is
@@ -188,6 +188,65 @@ candidates, and all semantic anchors / contract assertions are unchanged.
 Applies to all four S1 rosters: `s1-configuration-activation`, `s1-configuration-authority`,
 `s1-schema-authority`, `s1-sqlite-construction`.
 
+### 7. Repository-root hygiene — stricter than `.gitignore`, sees what `git status` cannot
+
+`bin/check-repo-root-hygiene` (#2927) fails when the repository root holds any entry that is
+neither Git-tracked nor on its explicit, source-annotated allowlist of expected local entries
+(`vendor/`, `node_modules/`, `tmp/`, `build/`, `node-compile-cache/`, `.worktrees/`, `.kittify/`,
+`.env`, tool caches, IDE and agent-CLI directories, the `support-contract-evidence.json` the
+`support/s1-contract` job writes — every entry cites its `.gitignore` or `ci.yml` origin). Two
+design points are load-bearing:
+
+- It enumerates the **literal filesystem** (`scandir`), never `git status` or `git ls-files`
+  alone, so an **empty untracked directory** is a finding. 363 of the 734 stray entries that
+  motivated the gate were empty `waaseyaa_loader_test_*` directories, and `git status --porcelain`
+  was empty with all of them present.
+- It is **deliberately stricter than `.gitignore`**. The leak families ignored at `.gitignore`
+  lines 110-135 (plus the older `waaseyaa-sync-*` / `waaseyaa_oidc_jwks_*` rules) hide leaks from
+  `git status`, which is exactly why they accumulated; the gate reports them as
+  "known leak family" findings with the producer label.
+
+It runs in `ci/composer-policy` on the pristine checkout and again **after** each PHPUnit shard and
+random-order shard, so a test that leaks into the root fails the run that leaked. Locally it is in
+the default preflight profile (pre-push). It has no recorded baseline, so
+`bin/refresh-governance-artifacts` has nothing to regenerate: the repair is to delete the stray
+entry, or — only for a genuinely expected local artifact — to add it to `EXPECTED_LOCAL_ENTRIES`
+with its source. Fixture proof: `tests/Architecture/CheckRepoRootHygieneGateTest.php`.
+
+The gate's one git child (`git -C <root> ls-files -z`) runs with git's repository-selecting
+environment scrubbed (`REPOSITORY_LOCAL_GIT_ENVIRONMENT` in the script: `GIT_DIR`,
+`GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_COMMON_DIR`, `GIT_OBJECT_DIRECTORY`, `GIT_CONFIG*`,
+`GIT_PREFIX`, `GIT_NAMESPACE`, and the rest of git's own `local_repo_env`). Git hooks export
+`GIT_DIR` (a pre-push from a linked worktree carries `GIT_DIR=<main>/.git/worktrees/<name>`),
+and `bin/project-hooks` runs the preflight — hence this gate — with that environment intact;
+without the scrub, `git -C <root>` enumerated the hook's repository, so a stray root entry that
+happened to be tracked there passed. The fixture test's hostile-`GIT_DIR` case proves the
+enumeration is the target repository's and the target's `core.bare` stays `false`.
+
+**Producer trace (recorded so nobody repeats it).** The only in-repo producer of the
+`waaseyaa_loader_test_*` name is `packages/foundation/tests/Unit/Migration/MigrationLoaderArrayFormTest.php`
+(`sys_get_temp_dir() . '/waaseyaa_loader_test_' . uniqid()`), unchanged since authored (`git log -S`)
+and byte-identical in every worktree; `waaseyaa_test_lock_*` is the same shape in
+`packages/cli/tests/Unit/Command/Import/Import*CommandTest.php`. Neither writes to the root as
+written: `sys_get_temp_dir()` resolves to `/tmp` on the host today, `TMPDIR` is unset, and no
+`TMPDIR`/`sys_temp_dir` override exists in `bin/`, `tools/`, `Taskfile.yml`, `phpunit.xml.dist`,
+or any workflow. The reproducible **mechanism** is a relative `TMPDIR`: PHP returns the value
+verbatim (`TMPDIR=.` → `sys_get_temp_dir() === '.'`), so every scratch path lands in the process
+working directory, and a run killed before `tearDown()` (OOM at the default `memory_limit`, or a
+harness timeout) leaves the empty directories behind. That both `waaseyaa_loader_test_6a0d*` and
+`waaseyaa_test_lock_6a0d*` (same `uniqid()` prefix, i.e. the same run) were later found together in a
+*different* project root corroborates an environment-bound trigger rather than a code defect. The
+exact invocation that set it during the 2026-05-22..24 accumulation window was not recoverable (no
+session transcripts survive from that period). Source-level fix: `tests/bootstrap.php` now refuses
+to start the suite when `sys_get_temp_dir()` is non-absolute or IS the repository root
+(`tests/Support/TempDirGuard.php`, proven by `tests/Architecture/PhpunitTempDirGuardTest.php`), so
+"absolute" is decided by the platform the process runs on, not by the shape of the string: on
+POSIX only a leading `/` qualifies (a `TMPDIR=C:\Temp` on Linux/WSL is a *relative* name that
+`realpath()` cannot resolve and scratch paths land in the cwd); on Windows only drive-rooted
+(`C:\`, `C:/`) or UNC (`\\server\share`) paths qualify, never drive-relative `C:foo` or
+current-drive-rooted `\foo` — and the proof exercises both semantics on every OS,
+the mechanism fails loudly before the first write instead of silently.
+
 ## Invariants
 
 1. Every gate hosted CI blocks merge on is in `tools/preflight-gates.json` (enforced by
@@ -208,6 +267,7 @@ Applies to all four S1 rosters: `s1-configuration-activation`, `s1-configuration
 | Surface | Path |
 |---|---|
 | Preflight command | `bin/check-pr-preflight` |
+| Repository-root hygiene gate | `bin/check-repo-root-hygiene` (§7), `tests/bootstrap.php` + `tests/Support/TempDirGuard.php` (TMPDIR guard), `tests/Architecture/CheckRepoRootHygieneGateTest.php`, `tests/Architecture/PhpunitTempDirGuardTest.php` |
 | PHPUnit skip policy | `bin/check-phpunit-skip-policy`, `tools/phpunit-skip-policy.json`, `docs/specs/phpunit-skip-governance.md` |
 | Gate manifest | `tools/preflight-gates.json` |
 | Vendor-freshness precondition | `bin/lib/vendor-freshness.php` (shared library, `VENDOR_FRESHNESS_EXIT_CODE`), `bin/check-vendor-fresh` (standalone local guard); callers `bin/check-pr-preflight`, `bin/check-delivery-agent-events`, `tools/check-surface-parity.php`, `bin/generate-surface-map`; proofs `tests/Architecture/VendorFreshnessPreconditionTest.php`, `tests/Architecture/SurfaceDeclarationEnvironmentFaultTest.php`, `tests/Integration/Policy/CheckVendorFreshTest.php` |

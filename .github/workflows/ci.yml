@@ -163,6 +163,9 @@ jobs:
       - name: Enforce portable repository paths
         run: php bin/check-portable-paths
 
+      - name: Enforce repository-root hygiene (#2927)
+        run: php bin/check-repo-root-hygiene
+
       - name: Enforce package layer graph
         run: php bin/check-package-layers
 
@@ -506,6 +509,9 @@ jobs:
             --coverage-clover build/logs/clover-${{ matrix.id }}.xml \
             --log-junit build/logs/junit-${{ matrix.id }}.xml
 
+      - name: Verify the shard left the repository root clean (#2927)
+        run: php bin/check-repo-root-hygiene
+
       - name: Upload shard evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -662,6 +668,9 @@ jobs:
 
       - name: Execute the shard in replayable random order
         run: php bin/test-random-order --plan=build/ci/random-order-plan.json --shard=${{ matrix.id }}
+
+      - name: Verify the random-order shard left the repository root clean (#2927)
+        run: php bin/check-repo-root-hygiene
 
   ci-random-order:
     name: ci/random-order
