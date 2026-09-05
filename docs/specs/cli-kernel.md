@@ -7,6 +7,11 @@ site-golden-path.md. -->
 
 # CLI Console
 
+<!-- Spec reviewed 2026-09-05 - #2638: `mcp:registry-manifest` is an optional
+operator command gated on `waaseyaa/mcp`, sibling to `oidc:*` / `mcp:serve`.
+It writes official Registry `server.json` to stdout and does not take over
+the stdio JSON-RPC session. Discovery, optional-package gating, and the
+rule that Layer 4 must not construct CLI command objects are unchanged. -->
 <!-- #2846 slice 8 / FW-GENERATION-UNITS-08: site:init and site:doctor activate the shared unit authority; controlled apply binds the transported plan and reviewed state before staging. Other compiler migrations remain closed. -->
 
 <!-- Spec reviewed 2026-09-03 - #2659: `mcp:serve` remains the optional,
@@ -158,6 +163,15 @@ every diagnostic including a refused `LocalOperatorPrincipal` attestation
 lands on stderr, never interleaved with a protocol frame on stdout. Full
 transport contract: `docs/specs/ai-integration.md` "Local stdio MCP transport
 (`mcp:serve`, ADR-022 D-9.2, #2659)".
+
+`mcp:registry-manifest` (#2638) is a fourth optional contribution, gated on
+`waaseyaa/mcp` rather than the Layer-5 AI plane. `McpRegistryServiceProvider`
+implements `RequiresOptionalPackagesInterface` with `McpRegistryManifest` as
+the sentinel. A `--no-dev` consumer without the HTTP MCP package lists no
+`mcp:registry-manifest` command. When present, the command resolves the
+existing Layer-4 manifest binding and writes official Registry `server.json`
+to stdout; configuration refusals go to stderr and exit non-zero. It does
+not publish to the Registry and does not share stdout with `mcp:serve`.
 
 Command presentation belongs to this Layer-6 package even when the domain operation belongs lower in the stack. For example, `BearerTokenServiceProvider` owns the `bearer-token:issue|list|rotate|revoke` Symfony commands and depends downward on auth's `BearerTokenStoreInterface`; `AuthServiceProvider` owns the durable credential binding and exposes no Symfony Console types. A lower-layer provider must never construct CLI command objects, including through hidden string FQCNs.
 

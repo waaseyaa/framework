@@ -4124,7 +4124,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "59152ad22d3e7200acfe83def35bc38f973ef8f9"
+                "reference": "2de2ef841f01191507b1c017895da719a9aa71a5"
             },
             "require": {
                 "php": ">=8.5",
@@ -4164,6 +4164,7 @@
                 "phpunit/phpunit": "^13.0",
                 "waaseyaa/ai-agent": "^0.1.0-alpha.300",
                 "waaseyaa/ai-tools": "^0.1.0-alpha.300",
+                "waaseyaa/mcp": "^0.1.0-alpha.300",
                 "waaseyaa/node": "^0.1.0-alpha.300",
                 "waaseyaa/oidc": "^0.1.0-alpha.300",
                 "waaseyaa/relationship": "^0.1.0-alpha.300",
@@ -4174,6 +4175,7 @@
                 "ext-pcntl": "Required for clean SIGINT handling in --watch mode",
                 "waaseyaa/ai-agent": "Provides the optional ai:* operator commands",
                 "waaseyaa/ai-tools": "Provides the transport-neutral tool registry and dispatch contracts used by optional mcp:serve",
+                "waaseyaa/mcp": "Provides the optional mcp:registry-manifest command that emits official Registry server.json",
                 "waaseyaa/oidc": "Provides the optional oidc:* operator commands"
             },
             "bin": [
@@ -4190,6 +4192,7 @@
                         "Waaseyaa\\CLI\\CliServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\AiServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
+                        "Waaseyaa\\CLI\\Provider\\McpRegistryServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\McpStdioServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\BearerTokenServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",
@@ -4631,7 +4634,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "b48fbd4b9680062df9a851915a1ab6a279f70cf3"
+                "reference": "073808840fd7e30a4de1af3ee8ac81550eb2f7ac"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -4656,6 +4659,7 @@
                 "waaseyaa/audit": "^0.1.0-alpha.300",
                 "waaseyaa/auth": "^0.1.0-alpha.300",
                 "waaseyaa/cli": "^0.1.0-alpha.300",
+                "waaseyaa/config": "^0.1.0-alpha.300",
                 "waaseyaa/entity": "^0.1.0-alpha.300",
                 "waaseyaa/entity-storage": "^0.1.0-alpha.300",
                 "waaseyaa/error-handler": "^0.1.0-alpha.300",
