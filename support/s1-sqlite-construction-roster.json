@@ -145,6 +145,20 @@
             "occurrence": 1
         },
         {
+            "path": "bin/verify-k1-delivery-cutover",
+            "pattern": "pdo_constructor",
+            "class": "tooling-query",
+            "match_sha256": "f7a6a31ceb3e731047498ad455c9eec01768f968967451278610da3fcf5d0f22",
+            "occurrence": 1
+        },
+        {
+            "path": "bin/verify-k1-delivery-cutover",
+            "pattern": "sqlite_dsn_token",
+            "class": "tooling-query",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
             "path": "packages/admin-surface/tests/Integration/Host/AuthenticatedNoteOwnershipFlowTest.php",
             "pattern": "dbal_factory",
             "class": "test",
@@ -6548,6 +6562,48 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/Fixtures/k1-cutover-self-test.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "f7a6a31ceb3e731047498ad455c9eec01768f968967451278610da3fcf5d0f22",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/Fixtures/k1-cutover-self-test.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/K1CutoverVerificationTest.php",
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "f7a6a31ceb3e731047498ad455c9eec01768f968967451278610da3fcf5d0f22",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/K1CutoverVerificationTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 1
+        },
+        {
+            "path": "tests/Architecture/K1CutoverVerificationTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 2
+        },
+        {
+            "path": "tests/Architecture/K1CutoverVerificationTest.php",
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "occurrence": 3
         },
         {
             "path": "tests/CoreOnlyBoot/prepare-runtime-schema.php",

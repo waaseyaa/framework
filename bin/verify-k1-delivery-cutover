@@ -1,0 +1,255 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+const K1_CUTOVER_DASHBOARD = 'ops/observability/grafana/waaseyaa-k1-delivery-flow.json';
+const K1_CUTOVER_PANEL_ID = 8;
+const K1_CUTOVER_PROJECTION_ID = 'delivery-agent-events/v1';
+const K1_CUTOVER_IDENTITY_SQL = "SELECT s.source_commit_sha, s.projector_version, s.generation, s.event_count, s.ledger_sha256, i.replay_sha256, i.batch_manifest_sha256 FROM waaseyaa_delivery_projection_state AS s LEFT JOIN waaseyaa_delivery_projection_identity_v2 AS i ON i.projection_id = s.projection_id WHERE s.projection_id = 'delivery-agent-events/v1'";
+
+/** @var array<string, string> */
+const K1_CUTOVER_FIELDS = [
+    'Source commit' => 'source_commit_sha',
+    'Projector version' => 'projector_version',
+    'Generation' => 'generation',
+    'Events' => 'event_count',
+    'Frozen v1 ledger SHA-256' => 'ledger_sha256',
+    'Complete replay SHA-256' => 'replay_sha256',
+    'Batch manifest SHA-256' => 'batch_manifest_sha256',
+];
+
+$root = dirname(__DIR__);
+try {
+    $arguments = array_slice($argv, 1);
+    if ($arguments === ['--self-test']) {
+        exit(k1CutoverSelfTest());
+    }
+    $dashboard = $root . '/' . K1_CUTOVER_DASHBOARD;
+    foreach ($arguments as $argument) {
+        if (!str_starts_with($argument, '--dashboard=') || strlen($argument) === 12) {
+            k1CutoverUsage('unknown, empty, or duplicate option ' . $argument);
+        }
+        if ($dashboard !== $root . '/' . K1_CUTOVER_DASHBOARD) {
+            k1CutoverUsage('unknown, empty, or duplicate option ' . $argument);
+        }
+        $dashboard = substr($argument, 12);
+    }
+    $report = k1CutoverVerify(projectionConnect(), $dashboard);
+    fwrite(STDOUT, k1CutoverFormat($report));
+    exit($report['ok'] ? 0 : 1);
+} catch (InvalidArgumentException $exception) {
+    k1CutoverUsage($exception->getMessage());
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'k1 delivery cutover: ' . k1CutoverSafeMessage($exception->getMessage()) . "\n");
+    exit(1);
+}
+
+function k1CutoverUsage(string $message): never
+{
+    fwrite(STDERR, 'k1 delivery cutover: ' . k1CutoverSafeMessage($message) . "\n");
+    exit(2);
+}
+
+function projectionAssertDsn(string $dsn): void
+{
+    if (str_starts_with($dsn, 'sqlite:')) {
+        return;
+    }
+    if (!str_starts_with($dsn, 'mysql:')) {
+        throw new InvalidArgumentException('DSN must use sqlite or mysql');
+    }
+    if (preg_match('/(?:^|;)host=([^;]+)/i', substr($dsn, 6), $matches) !== 1) {
+        throw new InvalidArgumentException('MySQL DSN must declare a host');
+    }
+    if (!in_array(strtolower(trim($matches[1], '[]')), ['localhost', '127.0.0.1', '::1'], true)) {
+        throw new InvalidArgumentException('MySQL projection is local-only; host must be loopback');
+    }
+}
+
+function projectionConnect(): PDO
+{
+    $dsn = getenv('WAASEYAA_DELIVERY_TELEMETRY_DSN');
+    if (!is_string($dsn) || $dsn === '') {
+        throw new InvalidArgumentException('WAASEYAA_DELIVERY_TELEMETRY_DSN is required');
+    }
+    projectionAssertDsn($dsn);
+    $user = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER');
+    $password = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD');
+    try {
+        $pdo = new PDO($dsn, is_string($user) && $user !== '' ? $user : null, is_string($password) ? $password : null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]);
+    } catch (PDOException $exception) {
+        throw new RuntimeException('projection connection failed');
+    }
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $pdo->exec("SET SESSION sql_mode = 'STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
+    }
+
+    return $pdo;
+}
+
+function k1CutoverSafeMessage(string $message): string
+{
+    $dsn = getenv('WAASEYAA_DELIVERY_TELEMETRY_DSN');
+    $user = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_USER');
+    $password = getenv('WAASEYAA_DELIVERY_TELEMETRY_DB_PASSWORD');
+    foreach ([$password, $user, $dsn] as $secret) {
+        if (is_string($secret) && $secret !== '') {
+            $message = str_replace($secret, '[redacted]', $message);
+        }
+    }
+
+    return $message;
+}
+
+/** @return array{ok: bool, lines: list<string>} */
+function k1CutoverVerify(PDO $pdo, string $dashboard): array
+{
+    $sql = k1CutoverPanelSql($dashboard);
+    k1CutoverAssertSelectOnly($sql);
+    $identity = k1CutoverIdentity($pdo);
+    $grafana = k1CutoverGrafanaRow($pdo, $sql);
+
+    return k1CutoverCompare($grafana, $identity);
+}
+
+function k1CutoverPanelSql(string $dashboard): string
+{
+    $decoded = json_decode((string) file_get_contents($dashboard), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+        throw new RuntimeException('dashboard definition is invalid');
+    }
+    $panels = $decoded['dashboard']['panels'] ?? $decoded['panels'] ?? [];
+    if (!is_array($panels)) {
+        throw new RuntimeException('dashboard panels are missing');
+    }
+    foreach ($panels as $panel) {
+        if (!is_array($panel) || ($panel['id'] ?? null) !== K1_CUTOVER_PANEL_ID) {
+            continue;
+        }
+        $sql = $panel['targets'][0]['rawSql'] ?? null;
+        if (!is_string($sql) || trim($sql) === '') {
+            throw new RuntimeException('panel 8 SQL is missing');
+        }
+
+        return $sql;
+    }
+
+    throw new RuntimeException('panel 8 is missing from the dashboard definition');
+}
+
+function k1CutoverAssertSelectOnly(string $sql): void
+{
+    $normalized = trim($sql);
+    if (preg_match('/^(with\b|select\b)/i', $normalized) !== 1) {
+        throw new RuntimeException('panel 8 SQL must be a read-only SELECT');
+    }
+    if (preg_match('/;\s*\S/', $normalized) === 1) {
+        throw new RuntimeException('panel 8 SQL must be a single read-only statement');
+    }
+    if (preg_match('/\b(insert|update|delete|replace|drop|alter|create|truncate|grant|revoke)\b/i', $normalized) === 1) {
+        throw new RuntimeException('panel 8 SQL must be a read-only SELECT');
+    }
+}
+
+/** @return array<string, string|null> */
+function k1CutoverIdentity(PDO $pdo): array
+{
+    try {
+        $statement = $pdo->query(K1_CUTOVER_IDENTITY_SQL);
+        $row = $statement === false ? false : $statement->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException) {
+        return array_fill_keys(array_values(K1_CUTOVER_FIELDS), null);
+    }
+    if (!is_array($row)) {
+        return array_fill_keys(array_values(K1_CUTOVER_FIELDS), null);
+    }
+    $identity = [];
+    foreach (K1_CUTOVER_FIELDS as $column) {
+        $identity[$column] = array_key_exists($column, $row) ? k1CutoverScalar($row[$column]) : null;
+    }
+
+    return $identity;
+}
+
+/** @return array<string, string|null> */
+function k1CutoverGrafanaRow(PDO $pdo, string $sql): array
+{
+    try {
+        $statement = $pdo->query($sql);
+        $rows = $statement === false ? [] : $statement->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException) {
+        throw new RuntimeException('panel 8 query failed');
+    }
+    if ($rows === []) {
+        return array_fill_keys(array_keys(K1_CUTOVER_FIELDS), null);
+    }
+    if (count($rows) !== 1) {
+        throw new RuntimeException('panel 8 must return exactly one identity row');
+    }
+    $row = $rows[0];
+    $grafana = [];
+    foreach (K1_CUTOVER_FIELDS as $label => $column) {
+        $grafana[$column] = array_key_exists($label, $row) ? k1CutoverScalar($row[$label]) : null;
+    }
+
+    return $grafana;
+}
+
+function k1CutoverScalar(mixed $value): ?string
+{
+    if ($value === null) {
+        return null;
+    }
+    if (is_bool($value)) {
+        return $value ? '1' : '0';
+    }
+    if (is_int($value) || is_float($value) || is_string($value)) {
+        return (string) $value;
+    }
+
+    return null;
+}
+
+function k1CutoverMissing(?string $value): bool
+{
+    return $value === null || trim($value) === '' || strcasecmp(trim($value), 'unknown') === 0;
+}
+
+/** @param array<string, string|null> $grafana @param array<string, string|null> $identity @return array{ok: bool, lines: list<string>} */
+function k1CutoverCompare(array $grafana, array $identity): array
+{
+    $lines = [];
+    foreach (K1_CUTOVER_FIELDS as $label => $column) {
+        $grafanaValue = $grafana[$column] ?? null;
+        $identityValue = $identity[$column] ?? null;
+        if (k1CutoverMissing($grafanaValue) || k1CutoverMissing($identityValue)) {
+            $lines[] = 'missing provenance: ' . $label;
+            continue;
+        }
+        if ($grafanaValue !== $identityValue) {
+            $lines[] = 'mismatch: ' . $label;
+        }
+    }
+    if ($lines === []) {
+        return ['ok' => true, 'lines' => ['k1 delivery cutover: PASS']];
+    }
+
+    array_unshift($lines, 'k1 delivery cutover: FAIL');
+
+    return ['ok' => false, 'lines' => $lines];
+}
+
+/** @param array{ok: bool, lines: list<string>} $report */
+function k1CutoverFormat(array $report): string
+{
+    return implode("\n", $report['lines']) . "\n";
+}
+
+function k1CutoverSelfTest(): int
+{
+    require dirname(__DIR__) . '/tests/Architecture/Fixtures/k1-cutover-self-test.php';
+
+    return k1CutoverRunSelfTest();
+}
+
