@@ -186,6 +186,42 @@ final class ConsumerPromotionAdapterTest extends TestCase
     }
 
     #[Test]
+    public function utc_timestamps_are_independent_of_the_host_timezone(): void
+    {
+        $directory = sys_get_temp_dir() . '/waaseyaa-promotion-timezone-' . bin2hex(random_bytes(8));
+        self::assertTrue(mkdir($directory, 0o700));
+        $input = $directory . '/runs.json';
+        $run = array_replace($this->promoteRun(), [
+            'run_started_at' => '2026-03-08T02:10:00Z',
+            'updated_at' => '2026-03-08T02:30:00Z',
+        ]);
+        file_put_contents($input, json_encode($this->document([$run]), JSON_THROW_ON_ERROR));
+        try {
+            $outputs = [];
+            foreach (['UTC', 'America/New_York'] as $timezone) {
+                $result = $this->runProcess([PHP_BINARY, '-d', 'date.timezone=' . $timezone, $this->root . '/' . self::SCRIPT, '--input=' . $input]);
+                self::assertSame(0, $result['exit']);
+                $decoded = $this->decode($result);
+                self::assertSame(1, $decoded['sample_size']);
+                $outputs[] = $decoded;
+            }
+            self::assertSame($outputs[0], $outputs[1]);
+        } finally {
+            unlink($input);
+            rmdir($directory);
+        }
+    }
+
+    #[Test]
+    public function unreadable_input_emits_no_partial_json_or_php_warning(): void
+    {
+        $result = $this->runProcess([PHP_BINARY, '-d', 'display_errors=1', $this->root . '/' . self::SCRIPT, '--input=/nonexistent/waaseyaa-promotion.json']);
+        self::assertSame(1, $result['exit']);
+        self::assertSame('', $result['stdout']);
+        self::assertSame("consumer promotions: could not read input\n", $result['stderr']);
+    }
+
+    #[Test]
     public function credential_free_self_test_covers_promote_reject_and_ineligible_cases(): void
     {
         $result = $this->runProcess([PHP_BINARY, $this->root . '/' . self::SCRIPT, '--self-test']);

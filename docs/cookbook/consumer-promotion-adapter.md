@@ -38,3 +38,7 @@ deduplicates identical copies, and excludes conflicting copies. Output names the
 revision `infra_sha`; application and Framework pins are not inferred.
 `source_updated_at` is a source update-time proxy, explicitly labeled by
 `completion_time_basis`, and must not be used as exact job completion time.
+
+The list-endpoint recipe captures the latest reported attempt for each run; it
+does not reconstruct earlier attempts. Timestamp validation is explicitly UTC
+and produces the same output regardless of the host timezone.

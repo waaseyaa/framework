@@ -79,7 +79,7 @@ function consumerPromotionSafeMessage(string $message): string
  */
 function consumerPromotionAdaptFile(string $path): array
 {
-    $bytes = file_get_contents($path);
+    $bytes = @file_get_contents($path);
     if ($bytes === false) {
         throw new RuntimeException('could not read input');
     }
@@ -277,7 +277,7 @@ function consumerPromotionTimestamp(?string $value): bool
     if ($value === null) {
         return false;
     }
-    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value);
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value, new DateTimeZone('UTC'));
 
     return $parsed !== false && $parsed->format('Y-m-d\TH:i:s\Z') === $value;
 }
