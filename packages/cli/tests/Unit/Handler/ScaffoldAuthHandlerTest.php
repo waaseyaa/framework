@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
+use Composer\InstalledVersions;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -253,6 +254,55 @@ final class ScaffoldAuthHandlerTest extends TestCase
         $publish->execute([]);
         self::assertSame(0, $publish->getExitCode(), $publish->getStderr() . $publish->getStdout());
         self::assertFileExists($this->tempDir . '/app/pages/login.vue');
+    }
+
+    #[Test]
+    public function throwsWhenNoCandidateSourceDirectoryExistsAnywhere(): void
+    {
+        $manager = new AuthUiScaffoldManager($this->tempDir);
+        $fromCandidates = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceContextFromCandidates');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage(
+            'Framework auth UI sources were not found in the project, an installed waaseyaa/framework package, or the loaded waaseyaa/cli package sibling admin app.',
+        );
+
+        $fromCandidates->invoke($manager, []);
+    }
+
+    #[Test]
+    public function fallsBackToInstalledVersionsWhenNoVersionFileIsPresentInAnyCandidateRoot(): void
+    {
+        // Project-owned packages/admin/app is present (setUp), but the project
+        // root carries no VERSION file. resolveFrameworkVersion() must walk past
+        // the missing-file `continue` and resolve the version from Composer's
+        // InstalledVersions metadata for waaseyaa/framework instead of failing.
+        unlink($this->tempDir . '/VERSION');
+        self::assertFileDoesNotExist($this->tempDir . '/VERSION');
+
+        $manager = new AuthUiScaffoldManager($this->tempDir);
+        $resolveVersion = new \ReflectionMethod(AuthUiScaffoldManager::class, 'resolveFrameworkVersion');
+        $resolved = $resolveVersion->invoke($manager, [$this->tempDir]);
+
+        self::assertNotSame('', $resolved);
+        self::assertSame(InstalledVersions::getPrettyVersion('waaseyaa/framework'), $resolved);
+
+        $check = $this->makeTester();
+        $check->execute(['--check']);
+        self::assertSame(0, $check->getExitCode(), $check->getStderr() . $check->getStdout());
+
+        $publish = $this->makeTester();
+        $publish->execute([]);
+        self::assertSame(0, $publish->getExitCode(), $publish->getStderr() . $publish->getStdout());
+        $manifest = json_decode(
+            (string) file_get_contents($this->tempDir . '/app/.waaseyaa/scaffold-manifest.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        self::assertSame(
+            InstalledVersions::getPrettyVersion('waaseyaa/framework'),
+            $manifest['scaffolds']['auth-ui']['files']['pages/login.vue']['framework_version'],
+        );
     }
 
     #[Test]
