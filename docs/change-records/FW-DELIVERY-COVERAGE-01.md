@@ -79,6 +79,17 @@ Conclusions established by evidence (not hypothesis):
    limitations.
 5. Exact-head PCOV verification on the review candidate; Codex landing handoff.
 
+## Verification (candidate `26e60426be3df95c830f918a300b6cdec0372873`)
+
+- Reproduction: PCOV 1.0.12 / PHP 8.5.8 Greeter fixture — CoversNothing stmts
+  `count="0"`; CoversClass attributed; subprocess child unattributed.
+- Inflation probe: clover-absent changed file → legacy gate `1/1 100%`; new gate
+  prints `uninstrumented:` and the denominator warning.
+- `./vendor/bin/phpunit --filter 'ChangedPhpCoverageRatchetTest|CoversNothingCompanionDiagnosticTest' --no-coverage` — 11 tests OK.
+- PCOV on exact head: `php -d extension=…/pcov.so ./vendor/bin/phpunit --filter ChangedPhpCoverageRatchetTest --coverage-clover build/logs/clover-2904.xml` — 9 tests OK.
+- `php bin/check-changed-php-coverage --clover=build/logs/clover-2904.xml --base=origin/main` — `no changed PHP source lines` (candidate touches `bin/` + docs + Architecture tests only).
+- `php bin/check-pr-preflight` — green.
+
 ## Boundaries
 
 No threshold change, no ruleset edit, no release/deploy, no blanket
