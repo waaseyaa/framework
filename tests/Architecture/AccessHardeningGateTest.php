@@ -31,6 +31,11 @@ final class AccessHardeningGateTest extends TestCase
     private string $gate;
     private string $tmpRoot;
 
+    public static function setUpBeforeClass(): void
+    {
+        require_once dirname(__DIR__, 2) . '/bin/lib/repository-files.php';
+    }
+
     protected function setUp(): void
     {
         $this->gate = dirname(__DIR__, 2) . '/bin/check-access-hardening';
@@ -96,6 +101,33 @@ final class AccessHardeningGateTest extends TestCase
     }
 
     #[Test]
+    public function an_inherited_hook_git_environment_never_reaches_the_fixture_or_the_scan(): void
+    {
+        // A pre-push hook run from a linked worktree exports
+        // GIT_DIR=<main>/.git/worktrees/<name>. Before the env was scrubbed,
+        // the self-test's `git init` under that variable "reinitialised" the
+        // developer's own worktree gitdir as bare (core.bare=true in the
+        // shared .git/config — every git command in the main checkout then
+        // fails), and `git -C $root ls-files` enumerated the hook's
+        // repository instead of $root. The fixture here plays the developer's
+        // main checkout; its linked worktree gitdir is the hostile GIT_DIR.
+        $this->writeRepositoryFixture();
+        $this->git('worktree', 'add', '-q', $this->tmpRoot . '/.worktrees/pushing-from-here', '-b', 'pushing');
+        $hostile = ['GIT_DIR' => $this->tmpRoot . '/.git/worktrees/pushing-from-here'];
+
+        $selfTest = new Process([PHP_BINARY, $this->gate, '--self-test'], $this->tmpRoot, $hostile);
+        $selfTestExit = $selfTest->run();
+        $scan = new Process([PHP_BINARY, $this->gate, $this->tmpRoot], $this->tmpRoot, $hostile);
+        $scanExit = $scan->run();
+
+        self::assertSame('false', $this->gitOutput('config', 'core.bare'), 'The self-test must never touch the repository the hook environment points at.');
+        self::assertSame(0, $selfTestExit, "The self-test must pass under a hook environment.\n" . $selfTest->getOutput() . $selfTest->getErrorOutput());
+        self::assertSame(0, $scanExit, "The scan must enumerate the root it was given, not the hook's repository.\n" . $scan->getOutput() . $scan->getErrorOutput());
+        self::assertStringContainsString('access-hardening: OK', $scan->getOutput());
+        self::assertSame(0, new Process(['git', '-C', $this->tmpRoot, 'status', '--porcelain'], null, $this->cleanGitEnvironment())->run(), 'The fixture repository must still be a usable work tree.');
+    }
+
+    #[Test]
     public function a_root_outside_any_git_repository_fails_closed(): void
     {
         $this->writeSafeSurfaces();
@@ -152,13 +184,30 @@ final class AccessHardeningGateTest extends TestCase
 
     private function git(string ...$arguments): void
     {
-        new Process(['git', '-C', $this->tmpRoot, ...$arguments])->mustRun();
+        new Process(['git', '-C', $this->tmpRoot, ...$arguments], null, $this->cleanGitEnvironment())->mustRun();
+    }
+
+    private function gitOutput(string ...$arguments): string
+    {
+        return trim(new Process(['git', '-C', $this->tmpRoot, ...$arguments], null, $this->cleanGitEnvironment())->mustRun()->getOutput());
+    }
+
+    /**
+     * Unset every repository-selecting git variable (Symfony Process removes
+     * a variable set to false) so the test's own git calls, like the gate's,
+     * act on the fixture whatever environment PHPUnit inherited.
+     *
+     * @return array<string, false>
+     */
+    private function cleanGitEnvironment(): array
+    {
+        return array_fill_keys(REPOSITORY_LOCAL_GIT_ENVIRONMENT, false);
     }
 
     /** @return array{0: int, 1: string} */
     private function runGate(): array
     {
-        $process = new Process([PHP_BINARY, $this->gate, $this->tmpRoot], $this->tmpRoot);
+        $process = new Process([PHP_BINARY, $this->gate, $this->tmpRoot], $this->tmpRoot, $this->cleanGitEnvironment());
         $exit = $process->run();
 
         return [$exit, $process->getOutput() . $process->getErrorOutput()];

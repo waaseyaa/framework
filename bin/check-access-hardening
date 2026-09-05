@@ -364,14 +364,11 @@ function selfTest(): void
 
 function initRepository(string $root): void
 {
-    $process = proc_open(['git', '-C', $root, 'init', '-q'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-    if (!is_resource($process)) {
-        throw new RuntimeException('self-test could not start git to initialise the fixture repository');
-    }
-    fclose($pipes[1]);
-    $error = trim((string) stream_get_contents($pipes[2]));
-    fclose($pipes[2]);
-    if (proc_close($process) !== 0) {
+    // repositoryGit() scrubs GIT_DIR and friends: under a pre-push hook from a
+    // linked worktree, a plain `git init` here would reinitialise the
+    // developer's own gitdir as bare instead of creating the fixture's.
+    [$exitCode, , $error] = repositoryGit($root, ['init', '-q']);
+    if ($exitCode !== 0) {
         throw new RuntimeException('self-test could not initialise the fixture repository: ' . $error);
     }
 }

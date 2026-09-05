@@ -7,6 +7,10 @@ packages/*/composer.lock
 # project); ignore artifacts from running composer inside skeleton/ locally.
 skeleton/composer.lock
 skeleton/vendor/
+# Any depth: gate scanners enumerate through git, so the ignore boundary is
+# what keeps build trees out of a scan (#2925).
+node_modules/
+tmp/
 mcp/node_modules/
 tools/spec-retrieval/node_modules/
 

@@ -109,8 +109,17 @@ Local gate runs must see what the developer sees:
   extending — a filesystem walk minus a list re-creates the ignore boundary by hand and missed
   `.worktrees/` outright, producing 24,780 phantom findings in one developer clone). A root git
   cannot enumerate fails closed with a clear error; the scanners never fall back to a walk.
-  Consequence for the mechanical rosters: `--write-*-roster` composes the scan, so it cannot
-  record a path that is not repository content.
+  Every git child the gates run drops git's repository-selecting environment
+  (`REPOSITORY_LOCAL_GIT_ENVIRONMENT`: `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
+  `GIT_COMMON_DIR`, ... — git's own `local_repo_env` list), because a pre-push hook run from a
+  linked worktree exports `GIT_DIR=<main>/.git/worktrees/<name>`: without the scrub, `ls-files`
+  would enumerate the hook's repository instead of the scan root, and the access-hardening
+  self-test's fixture `git init` would reinitialise the developer's own gitdir as bare.
+  `--exclude-standard` also honours the developer's global `core.excludesFile`, so a personal
+  ignore can hide an *untracked* new file from a local scan until it is added (tracked files are
+  unaffected; CI has no such file). Consequence for the mechanical rosters: `--write-*-roster`
+  composes the scan, so it cannot record a non-repository path (a nested worktree, a nested
+  `vendor/`, an ignored tree).
 - Drift and changelog discipline combine the committed PR range with staged, unstaged, and
   untracked paths when invoked by preflight. A spec changed in an earlier commit does not cover a
   later uncommitted source edit; the spec must also change in the worktree. This preserves trailer

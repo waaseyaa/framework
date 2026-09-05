@@ -43,13 +43,14 @@ final class S1RosterLibraryTest extends TestCase
         $this->git('config', 'user.email', 's1roster@example.test');
         $this->git('config', 'user.name', 'S1 Roster Test');
         // Mirrors the real repository's ignore boundary for the trees that
-        // exist only in developer clones (#2865, #2925).
+        // exist only in developer clones (#2865, #2925); keep in step with
+        // the root .gitignore.
         file_put_contents($this->tempDir . '/.gitignore', implode("\n", [
             'vendor/',
             'packages/*/vendor/',
             'node_modules/',
             'storage/*',
-            '/tmp/',
+            'tmp/',
             '.worktrees/',
             '.claude/worktrees/',
             '',
@@ -65,8 +66,20 @@ final class S1RosterLibraryTest extends TestCase
 
     private function git(string ...$arguments): void
     {
-        $process = new Process(['git', '-C', $this->tempDir, ...$arguments]);
+        $process = new Process(['git', '-C', $this->tempDir, ...$arguments], null, $this->cleanGitEnvironment());
         $process->mustRun();
+    }
+
+    /**
+     * Unset every repository-selecting git variable (Symfony Process removes
+     * a variable set to false) so the fixture's git calls act on the fixture
+     * whatever environment PHPUnit inherited (a hook exports GIT_DIR).
+     *
+     * @return array<string, false>
+     */
+    private function cleanGitEnvironment(): array
+    {
+        return array_fill_keys(REPOSITORY_LOCAL_GIT_ENVIRONMENT, false);
     }
 
     /**
@@ -191,7 +204,7 @@ final class S1RosterLibraryTest extends TestCase
         $this->git('worktree', 'add', '-q', $this->tempDir . '/.worktrees/wf1', '-b', 'wf1');
         $this->git('worktree', 'add', '-q', $this->tempDir . '/.claude/worktrees/wf2', '-b', 'wf2');
         mkdir($this->tempDir . '/nested-repo', 0o755, true);
-        new Process(['git', '-C', $this->tempDir . '/nested-repo', 'init', '-q'])->mustRun();
+        new Process(['git', '-C', $this->tempDir . '/nested-repo', 'init', '-q'], null, $this->cleanGitEnvironment())->mustRun();
 
         foreach ([
             '.worktrees/wf1/packages/demo/src',
@@ -238,6 +251,27 @@ final class S1RosterLibraryTest extends TestCase
         $this->assertCount(1, $entries, 'Tracked .claude/ content must remain scannable.');
         $this->assertSame('.claude/rules/Tracked.php', $entries[0]['path']);
         $this->assertSame([], $this->scan(['packages']), 'A scan root scopes the enumeration to that subtree.');
+    }
+
+    #[Test]
+    public function scan_ignores_an_inherited_hook_git_environment(): void
+    {
+        // A pre-push hook from a linked worktree exports
+        // GIT_DIR=<main>/.git/worktrees/<name>; the enumerator must resolve
+        // the repository from the scan root alone, never from that variable,
+        // or a preflight run from a worktree scans the wrong tree (#2925).
+        file_put_contents($this->tempDir . '/packages/demo/src/Real.php', "<?php\nGovernedNeedle::run();\n");
+        $this->git('worktree', 'add', '-q', $this->tempDir . '/.worktrees/pushing-from-here', '-b', 'pushing');
+        $previous = getenv('GIT_DIR');
+        putenv('GIT_DIR=' . $this->tempDir . '/.git/worktrees/pushing-from-here');
+
+        try {
+            $paths = array_column($this->scan(), 'path');
+        } finally {
+            putenv($previous === false ? 'GIT_DIR' : 'GIT_DIR=' . $previous);
+        }
+
+        $this->assertSame(['packages/demo/src/Real.php'], $paths);
     }
 
     #[Test]
