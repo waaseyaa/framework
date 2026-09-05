@@ -45,6 +45,17 @@ maintainer.
   recoverable work to a temporary branch instead.
 - Use temporary directories for experiments, generated scratch projects,
   archive extraction, and commands with incidental writes.
+- When a harness relocates the agent workspace root (Cursor
+  `move_agent_to_root` and equivalents), that step typically fetches
+  `origin/<current-branch>` in the destination. A brand-new local-only branch
+  name fails that fetch. Preferred sequence: create the worktree on an
+  already-remote tip (`origin/main` or another published branch), relocate the
+  agent root if needed, then create the feature branch inside the worktree.
+  Alternative: create the feature branch first, `git push -u origin HEAD` so
+  the remote branch exists, then relocate. Until the branch is on `origin`,
+  keep editing via absolute paths in the worktree rather than relocating.
+  Install worktree `vendor/` (or otherwise satisfy local gates) before the
+  first push if pre-push preflight requires it.
 
 ## Change workflow
 
