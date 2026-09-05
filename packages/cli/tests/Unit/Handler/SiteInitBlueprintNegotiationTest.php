@@ -113,6 +113,47 @@ final class SiteInitBlueprintNegotiationTest extends TestCase
         self::assertArrayNotHasKey('errors', $document);
     }
 
+    /**
+     * R2-3: `SiteInitHandler`'s new `catch (GenerationRefusalException)` for
+     * negotiation must not widen the envelope for an EXISTING engine
+     * refusal that also happens to be a `GenerationRefusalException`
+     * (it extends `\RuntimeException`, same as negotiation's). Deleting
+     * `.waaseyaa/site.yaml` after a blueprint-free apply leaves the
+     * ownership metadata (`.waaseyaa/generated.json`) without its manifest
+     * authority, so `SiteInitializationService::prepareUnitPlan()` refuses
+     * `GEN010_UNIT_PATH_CONFLICT` sourced `'generation'`, not `'site:init'`
+     * — the handler must route that through the pre-existing uncoded
+     * `writeError()` path, exactly as it did before this handler learned
+     * about negotiation, not through `writeCodedError()`.
+     */
+    #[Test]
+    public function anEngineRefusalOnAPreviouslyBlueprintFreeProjectKeepsTheUncodedEnvelopeShape(): void
+    {
+        $root = $this->root();
+        $answers = $root . '/answers.yaml';
+        file_put_contents($answers, $this->blueprintFreeManifest());
+
+        $applyTester = $this->tester($root);
+        $applyTester->execute(["--answers={$answers}", "--project-root={$root}", '--json', '--yes']);
+        self::assertSame(0, $applyTester->getExitCode(), $applyTester->getStderr());
+        self::assertFileExists($root . '/.waaseyaa/site.yaml');
+
+        unlink($root . '/.waaseyaa/site.yaml');
+
+        $dryRunTester = $this->tester($root);
+        $dryRunTester->execute(["--answers={$answers}", "--project-root={$root}", '--dry-run', '--json']);
+
+        self::assertSame(2, $dryRunTester->getExitCode());
+        $document = json_decode(trim($dryRunTester->getStdout()), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertNull($document['evaluation']);
+        self::assertNull($document['result']);
+        self::assertSame([], $document['receipts']);
+        self::assertCount(1, $document['errors']);
+        self::assertSame(['message'], array_keys($document['errors'][0]));
+        self::assertStringContainsString('GEN010_UNIT_PATH_CONFLICT', $document['errors'][0]['message']);
+        self::assertStringStartsWith('generation GEN010_UNIT_PATH_CONFLICT:', $document['errors'][0]['message']);
+    }
+
     private function tester(string $root): CliTester
     {
         $provider = new SiteServiceProvider(projectRoot: $root);

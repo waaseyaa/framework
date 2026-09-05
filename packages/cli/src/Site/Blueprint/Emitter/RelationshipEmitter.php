@@ -12,8 +12,13 @@ use Waaseyaa\SiteContract\SiteManifest;
 /**
  * Emits `config/waaseyaa-blueprint/relationships.php`: one deterministic
  * registry row per blueprint relationship — id, from entity and field, to
- * entity, cardinality, required and `on_delete` — consumed by the generated
- * provider for referential integrity (FW-SITE-BLUEPRINT-01D decision (f)).
+ * entity, cardinality, required and `on_delete` (FW-SITE-BLUEPRINT-01D
+ * decision (f)).
+ *
+ * Nothing in this slice loads this registry (review round 2, R2-6): it is
+ * emitted for a later consumer — a referential-integrity or
+ * governance/policy emitter added by a future slice — not read by
+ * {@see ProviderRegistrationEmitter}'s generated provider today.
  *
  * @api
  */

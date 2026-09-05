@@ -247,6 +247,232 @@ final class ApplicationBlueprintCompilerTest extends TestCase
         }
     }
 
+    /**
+     * R2-1: an entity id can pass the SITE0xx grammar and the hyphen check
+     * above and still PascalCase to a name PHP refuses to declare as a
+     * class. `string` is one of the "other reserved words" the PHP manual
+     * lists (semantic refusal, not a parser-level keyword) — before this
+     * fix `EntityClassEmitter` produced `src/Entity/String.php` and the
+     * consumer kernel fataled loading it: "Cannot use 'String' as a class
+     * name as it is reserved".
+     */
+    #[Test]
+    public function anEntityIdThatPascalCasesToAnOtherReservedWordIsRefusedGen006(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity('string'),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString('String', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * R2-1: `parent` is a true PHP keyword (not merely an "other reserved
+     * word" like `string`), covering the other half of the reserved-name
+     * table {@see ApplicationBlueprintCompiler::RESERVED_CLASS_NAMES}
+     * combines. Before this fix: "Cannot use 'Parent' as a class name as it
+     * is reserved".
+     */
+    #[Test]
+    public function anEntityIdThatPascalCasesToAKeywordReservedWordIsRefusedGen006(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity('parent'),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString('Parent', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * R2-1/R2-2: two grammar-valid, non-colliding entity ids can still
+     * PascalCase to the exact same class name — `blog_post` and
+     * `blog__post` both become `BlogPost` — which `EntityClassEmitter`
+     * previously only caught as an uncoded path-collision
+     * `\InvalidArgumentException` deep inside the emitter.
+     */
+    #[Test]
+    public function twoEntityIdsPascalCasingToTheSameClassNameAreRefusedGen006(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity('blog_post'),
+            $this->simpleEntity('blog__post'),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString('BlogPost', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * R2-1/R2-2: an enum field's declared value is free-form authored text,
+     * not an identifier. `"in progress"` PascalCases to `"In progress"`
+     * (`EntityClassEmitter::pascalCase()` only capitalizes after `_`, never
+     * after a space), which is not a valid PHP enum case name — previously
+     * an uncoded `\InvalidArgumentException` from `enumCaseName()`.
+     */
+    #[Test]
+    public function anEnumValueThatCannotBecomeAPhpEnumCaseNameIsRefusedGen006(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity('article', enumField: 'status', enumValues: ['in progress']),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString('in progress', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * R2-1: an enum case literally named `class` is a distinct PHP fatal
+     * from an ungrammatical case name — "A class constant must not be
+     * called 'class'" — because enum cases are backed by class constants.
+     */
+    #[Test]
+    public function anEnumValueOfClassIsRefusedGen006(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity('article', enumField: 'status', enumValues: ['class']),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString('class', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * R2-1/R2-2: two declared enum values that are distinct authored
+     * strings can still PascalCase to the same case name — `draft` and
+     * `Draft` both become `Draft` — which previously reached the generated
+     * enum class as "Cannot redefine class constant ...::Draft".
+     */
+    #[Test]
+    public function twoEnumValuesCollidingAfterPascalCaseAreRefusedGen006(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity('article', enumField: 'status', enumValues: ['draft', 'Draft']),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+            self::assertStringContainsString('Draft', $exception->violations[0]->message);
+        }
+    }
+
+    /**
+     * R2-2: the generated enum class short name is
+     * `<PascalCase(entity.id)><PascalCase(field.id)>`. Two entity/field id
+     * pairs whose entity ids do NOT themselves collide can still combine to
+     * the same short name case-insensitively — entity `a` field `bc` and
+     * entity `ab` field `c` both PascalCase-concatenate to `ABc`/`AbC`,
+     * which PHP's case-insensitive class-name resolution treats as one
+     * name — previously an uncoded emitter-level path-collision exception.
+     */
+    #[Test]
+    public function twoEntityFieldPairsProducingTheSameEnumClassNameAreRefusedGen006(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithEntities([
+            $this->simpleEntity('a', enumField: 'bc', enumValues: ['x']),
+            $this->simpleEntity('ab', enumField: 'c', enumValues: ['y']),
+        ]));
+
+        try {
+            ApplicationBlueprintCompilerFactory::create()->compile($manifest);
+            self::fail('Expected a GenerationRefusalException.');
+        } catch (GenerationRefusalException $exception) {
+            self::assertSame(GenerationErrorCode::MaliciousIdentifier, $exception->violations[0]->code);
+        }
+    }
+
+    /** @param list<BlueprintEntity> $entities keyed by id for `ApplicationBlueprint` */
+    private function blueprintWithEntities(array $entities): ApplicationBlueprint
+    {
+        $byId = [];
+        foreach ($entities as $entity) {
+            $byId[$entity->id] = $entity;
+        }
+
+        return new ApplicationBlueprint(
+            contractVersion: 1,
+            entities: $byId,
+            relationships: [],
+            permissions: [],
+            roles: [],
+            policies: [],
+            workflows: [],
+            fixtures: [],
+            checks: [],
+        );
+    }
+
+    /** @param list<string>|null $enumValues */
+    private function simpleEntity(string $id, ?string $enumField = null, ?array $enumValues = null): BlueprintEntity
+    {
+        $fields = [
+            'title' => new BlueprintField('title', BlueprintFieldType::String, true, 1, false, false, false),
+        ];
+        if ($enumField !== null) {
+            $fields[$enumField] = new BlueprintField($enumField, BlueprintFieldType::Enum, false, 1, false, false, false, $enumValues ?? []);
+        }
+
+        return new BlueprintEntity(
+            id: $id,
+            label: 'Label',
+            storage: BlueprintStorage::SqlBlob,
+            revisionable: false,
+            translatable: false,
+            keys: new BlueprintEntityKeys(id: 'id', uuid: 'uuid', label: 'title'),
+            fields: $fields,
+        );
+    }
+
+    private function manifestWithBlueprint(ApplicationBlueprint $blueprint): SiteManifest
+    {
+        $parsed = $this->manifest('minimal.yaml');
+
+        return new SiteManifest(
+            $parsed->schemaVersion,
+            $parsed->generatorVersion,
+            $parsed->application,
+            $parsed->framework,
+            $parsed->contentTypes,
+            $parsed->capabilities,
+            $parsed->personalDataStores,
+            $parsed->recipes,
+            $parsed->verificationCommand,
+            $parsed->canonicalJson,
+            $parsed->digest,
+            $blueprint,
+            [ApplicationBlueprintCompiler::GENERATOR_FEATURES[0]],
+        );
+    }
+
     private function artifact(array $artifacts, string $path): GeneratedArtifact
     {
         foreach ($artifacts as $artifact) {

@@ -46,6 +46,18 @@ use Waaseyaa\SiteContract\SiteManifest;
  * valued fields, and a future slice widening `#[Field]` itself would apply
  * here unchanged.
  *
+ * R2-5: no emitted `#[Field(...)]` declares `read:`, so `EntityMetadataReader`
+ * leaves every field's read level `null`, which `EntityValueContainer::read()`
+ * treats as `FieldReadLevel::Internal` — every `get()` on a saved or loaded
+ * generated entity throws `FieldReadDenied` for every caller (there is no
+ * registered policy to grant the read). This is a framework-wide `#[Field]`
+ * default, not specific to blueprint generation (`make:content-type` output
+ * shares it), but the blueprint contract itself has no way to author a
+ * field's intended read level. Left open for a later slice to close: either
+ * 01D-2's engine wiring, a governance/policy emitter, or a blueprint-contract
+ * extension adding a per-field `read_level` declaration this emitter would
+ * then carry onto `#[Field(read: ...)]`.
+ *
  * @api
  */
 final class EntityClassEmitter implements BlueprintArtifactEmitterInterface

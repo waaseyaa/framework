@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Site\Blueprint;
 
 use Waaseyaa\CLI\Site\Blueprint\Emitter\BlueprintArtifactEmitterInterface;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
+use Waaseyaa\SiteContract\Blueprint\BlueprintFieldType;
 use Waaseyaa\SiteContract\Generation\ArtifactPlan;
 use Waaseyaa\SiteContract\Generation\ArtifactSetEvolution;
 use Waaseyaa\SiteContract\Generation\ComposerProviderRegistration;
@@ -43,7 +44,17 @@ use Waaseyaa\SiteContract\SiteManifest;
  * valid one (`GEN006_MALICIOUS_IDENTIFIER`) — the SITE0xx grammar admits a
  * hyphen that PHP cannot represent as a class, property, or entity-key
  * name, and review found this can only be reached by an uncoded exception
- * without the check.
+ * without the check. Round-2 review (R2-1, R2-2) found the lexical check
+ * alone still let several uncoded PHP fatals through, so the same
+ * pre-check additionally refuses, all before any emitter runs: an entity
+ * id whose PascalCase form is a reserved PHP class name (`string` ->
+ * `String` cannot be declared as a class); two entity ids that PascalCase
+ * to the same class name (`blog_post` and `blog__post` both -> `BlogPost`);
+ * an enum value whose PascalCase form is not a valid PHP identifier
+ * (`"in progress"`), *is* the reserved case name `class`, or collides with
+ * another declared value's case name after conversion (`draft` and
+ * `Draft`); and two entity/field id pairs whose generated enum class short
+ * name (`<PascalCase(entity)><PascalCase(field)>`) collides.
  *
  * Not a {@see \Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface}
  * and never registered in `SiteArtifactRendererFactory`: a recipe renderer's
@@ -166,6 +177,29 @@ final class ApplicationBlueprintCompiler
     }
 
     /**
+     * Names PHP refuses to declare a class, interface, trait, or enum as —
+     * the full reserved-keyword table plus the "other reserved words" the
+     * PHP manual lists as additionally forbidden in a class-name position
+     * (`int`, `string`, `never`, `parent`, `self`, ...). Checked
+     * case-insensitively, matching PHP's own keyword matching: `String` is
+     * exactly as reserved as `string`.
+     *
+     * @var list<string>
+     */
+    private const array RESERVED_CLASS_NAMES = [
+        'abstract', 'and', 'array', 'as', 'break', 'callable', 'case', 'catch', 'class', 'clone',
+        'const', 'continue', 'declare', 'default', 'do', 'echo', 'else', 'elseif', 'empty',
+        'enddeclare', 'endfor', 'endforeach', 'endif', 'endswitch', 'endwhile', 'enum', 'exit',
+        'extends', 'final', 'finally', 'fn', 'for', 'foreach', 'function', 'global', 'goto', 'if',
+        'implements', 'include', 'include_once', 'instanceof', 'insteadof', 'interface', 'isset',
+        'list', 'match', 'namespace', 'new', 'or', 'print', 'private', 'protected', 'public',
+        'readonly', 'require', 'require_once', 'return', 'static', 'switch', 'throw', 'trait',
+        'try', 'unset', 'use', 'var', 'while', 'xor', 'yield',
+        'int', 'float', 'bool', 'string', 'true', 'false', 'null', 'void', 'iterable', 'object',
+        'mixed', 'never', 'self', 'parent', 'resource', 'numeric',
+    ];
+
+    /**
      * Blueprint entity/field ids are validated only against the SITE0xx
      * grammar (`^[a-z][a-z0-9_-]*$`, `ManifestShapeReader::id()`), which
      * permits a hyphen — not a valid PHP identifier character. An id headed
@@ -176,12 +210,28 @@ final class ApplicationBlueprintCompiler
      * `GEN006_MALICIOUS_IDENTIFIER` id ADR-025 D-5 already reserves for "a
      * unit id fails the D-2.1 grammar" — the same shape of problem one layer
      * up the blueprint's own ids.
+     *
+     * Round-2 review (R2-1, R2-2) found the lexical check alone was not
+     * enough: an id can be grammar-valid and still PascalCase into something
+     * PHP cannot declare as a class (a reserved word), or into the same
+     * class name as another entity, or (for an `enum` field's declared
+     * values) into an invalid or colliding enum case name. All of that is
+     * checked here too, over the same violation list, so a single refusal
+     * carries every offense the blueprint contains rather than stopping at
+     * the first `EntityClassEmitter` happens to reach.
      */
     private static function assertPhpIdentifierGrammar(ApplicationBlueprint $blueprint): void
     {
         $violations = [];
+        $classNamesSeen = [];
+        $enumClassNamesSeen = [];
         foreach ($blueprint->entities as $entity) {
-            self::checkIdentifier($entity->id, "/application_blueprint/entities/{$entity->id}/id", $violations);
+            $entityPointer = "/application_blueprint/entities/{$entity->id}/id";
+            self::checkIdentifier($entity->id, $entityPointer, $violations);
+
+            $entityClassName = self::pascalCase($entity->id);
+            self::checkClassName($entityClassName, $entityPointer, "entity id \"{$entity->id}\"", $violations);
+            self::checkClassNameCollision($entityClassName, $entityPointer, "entity id \"{$entity->id}\"", $classNamesSeen, $violations);
 
             $keys = [
                 'id' => $entity->keys->id,
@@ -197,7 +247,15 @@ final class ApplicationBlueprintCompiler
             }
 
             foreach ($entity->fields as $field) {
-                self::checkIdentifier($field->id, "/application_blueprint/entities/{$entity->id}/fields/{$field->id}/id", $violations);
+                $fieldPointer = "/application_blueprint/entities/{$entity->id}/fields/{$field->id}/id";
+                self::checkIdentifier($field->id, $fieldPointer, $violations);
+
+                if ($field->type === BlueprintFieldType::Enum) {
+                    $enumClassName = $entityClassName . self::pascalCase($field->id);
+                    self::checkClassName($enumClassName, $fieldPointer, "enum field \"{$entity->id}.{$field->id}\"", $violations);
+                    self::checkClassNameCollision($enumClassName, $fieldPointer, "enum field \"{$entity->id}.{$field->id}\"", $enumClassNamesSeen, $violations);
+                    self::checkEnumCaseNames($field->values ?? [], "/application_blueprint/entities/{$entity->id}/fields/{$field->id}/values", $violations);
+                }
             }
         }
         foreach ($blueprint->relationships as $relationship) {
@@ -221,5 +279,101 @@ final class ApplicationBlueprintCompiler
             "Blueprint identifier is not representable as a PHP identifier segment: {$id}",
             pointer: $pointer,
         );
+    }
+
+    /** @param list<GenerationViolation> $violations */
+    private static function checkClassName(string $className, string $pointer, string $subject, array &$violations): void
+    {
+        if (!\in_array(strtolower($className), self::RESERVED_CLASS_NAMES, true)) {
+            return;
+        }
+
+        $violations[] = new GenerationViolation(
+            GenerationErrorCode::MaliciousIdentifier,
+            "Blueprint {$subject} PascalCases to \"{$className}\", a reserved PHP word that cannot be declared as a class.",
+            pointer: $pointer,
+        );
+    }
+
+    /**
+     * @param array<string, string> $seen lowercased class name => the subject that first claimed it (mutated)
+     * @param list<GenerationViolation> $violations
+     */
+    private static function checkClassNameCollision(string $className, string $pointer, string $subject, array &$seen, array &$violations): void
+    {
+        $key = strtolower($className);
+        if (isset($seen[$key])) {
+            $violations[] = new GenerationViolation(
+                GenerationErrorCode::MaliciousIdentifier,
+                "Blueprint {$subject} PascalCases to \"{$className}\", the same generated class name as {$seen[$key]}.",
+                pointer: $pointer,
+            );
+
+            return;
+        }
+        $seen[$key] = $subject;
+    }
+
+    /**
+     * An `enum` field's declared `values` are free-form non-empty strings
+     * (`ApplicationBlueprintParser`), not identifiers. `EntityClassEmitter`
+     * converts each to a PHP enum case name best-effort (`pascalCase`); this
+     * mirrors that conversion to refuse, before any emitter runs, a value
+     * that cannot become a valid case name, that becomes the reserved case
+     * name `class` (`A class constant must not be called 'class'`), or that
+     * collides with another declared value's case name after conversion
+     * (`draft` and `Draft` both -> `Draft`).
+     *
+     * @param list<string> $values
+     * @param list<GenerationViolation> $violations
+     */
+    private static function checkEnumCaseNames(array $values, string $pointer, array &$violations): void
+    {
+        $caseNamesSeen = [];
+        foreach ($values as $index => $value) {
+            $valuePointer = $pointer . '/' . $index;
+            $caseName = self::pascalCase($value);
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $caseName) !== 1) {
+                $violations[] = new GenerationViolation(
+                    GenerationErrorCode::MaliciousIdentifier,
+                    "Blueprint enum value \"{$value}\" is not representable as a PHP enum case name.",
+                    pointer: $valuePointer,
+                );
+                continue;
+            }
+            if (strtolower($caseName) === 'class') {
+                $violations[] = new GenerationViolation(
+                    GenerationErrorCode::MaliciousIdentifier,
+                    "Blueprint enum value \"{$value}\" PascalCases to the reserved enum case name \"class\".",
+                    pointer: $valuePointer,
+                );
+                continue;
+            }
+            $key = strtolower($caseName);
+            if (isset($caseNamesSeen[$key])) {
+                $violations[] = new GenerationViolation(
+                    GenerationErrorCode::MaliciousIdentifier,
+                    "Blueprint enum value \"{$value}\" PascalCases to \"{$caseName}\", the same case name as \"{$caseNamesSeen[$key]}\".",
+                    pointer: $valuePointer,
+                );
+                continue;
+            }
+            $caseNamesSeen[$key] = $value;
+        }
+    }
+
+    /**
+     * Duplicated from `EntityClassEmitter::pascalCase()` /
+     * `ProviderRegistrationEmitter::pascalCase()` rather than shared: each
+     * copy is a private implementation detail of pure string formatting, not
+     * a public seam, and the three call sites already carried this exact
+     * duplication before this pre-check existed. Keep the algorithm
+     * identical across all three if it ever changes — that identity is what
+     * makes this pre-check a valid predictor of what the emitters will
+     * later produce.
+     */
+    private static function pascalCase(string $id): string
+    {
+        return str_replace('_', '', ucwords(str_replace('-', '_', $id), '_'));
     }
 }

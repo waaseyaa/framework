@@ -142,20 +142,31 @@ final class EntityClassEmitterTest extends TestCase
      * entity class AND its generated backed-enum class through the real
      * `EntityMetadataReader` / `EnumItem` runtime (not a snapshot
      * comparison) to prove the fix.
+     *
+     * R2-4: this must drive `EntityClassEmitter::emit()`'s own output, not
+     * the golden fixture file — a revert-probe on the emitter (reverting
+     * `settings.enum_class` back to `settings.values`) left an earlier draft
+     * of this test green, with only the byte-identity snapshot test above
+     * catching the regression. Rewriting the namespace on the fixture
+     * instead of on the emission made the runtime proof pass transitively
+     * through the snapshot equality rather than on its own.
      */
     #[Test]
     public function theEmittedEnumFieldLoadsThroughTheRealEntityAndFieldRuntime(): void
     {
+        $manifest = $this->manifest('complete.yaml');
+        $emission = new EntityClassEmitter()->emit($manifest->applicationBlueprint, $manifest);
+
         $namespace = 'Waaseyaa\\CLI\\Tests\\BlueprintRuntimeLoad' . bin2hex(random_bytes(4));
         $entitySource = str_replace(
             ['namespace App\\Entity;', 'App\\Entity\\Enum\\ArticleStatus'],
             ['namespace ' . $namespace . ';', $namespace . '\\Enum\\ArticleStatus'],
-            $this->expected('complete/src/Entity/Article.php'),
+            $this->content($emission->artifacts, 'src/Entity/Article.php'),
         );
         $enumSource = str_replace(
             'namespace App\\Entity\\Enum;',
             'namespace ' . $namespace . '\\Enum;',
-            $this->expected('complete/src/Entity/Enum/ArticleStatus.php'),
+            $this->content($emission->artifacts, 'src/Entity/Enum/ArticleStatus.php'),
         );
 
         $this->assertLints($entitySource);

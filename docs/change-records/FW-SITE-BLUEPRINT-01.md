@@ -309,17 +309,29 @@ without editing the compiler, and 01D-3 appends fixtures and checks.
   `ContentEntityKeys` has no `owner` parameter, and the entity runtime has
   no "owner" key at all (review-round-1 finding F4) — a future
   ownership-policy emitter must re-derive the owner relationship field from
-  the blueprint itself, not from generated entity metadata.
+  the blueprint itself, not from generated entity metadata. Review-round-2
+  (R2-5) found a second, framework-wide limitation this slice inherits
+  rather than introduces: no emitted `#[Field(...)]` declares `read:`, so
+  every field's read level defaults to `FieldReadLevel::Internal` and every
+  `get()` on a generated entity throws `FieldReadDenied` with no policy
+  registered to grant it. `make:content-type` output shares this default;
+  the blueprint contract has no per-field read-level declaration to carry
+  through. Left open for 01D-2's engine wiring, a governance/policy emitter,
+  or a future blueprint-contract extension to close.
 - `RelationshipEmitter` — one deterministic registry artifact
   `config/waaseyaa-blueprint/relationships.php` listing id, from entity and
   field, to entity, cardinality, required and `on_delete`
-  (`restrict` | `nullify`), consumed by the generated provider for
-  referential integrity.
+  (`restrict` | `nullify`). Review-round-2 (R2-6) found nothing in 01D-1
+  loads this registry: it is emitted for a later consumer to wire up
+  (candidate: 01D-2's engine work, or a governance/policy emitter), not
+  read by the generated provider today.
 - `ProviderRegistrationEmitter` —
   `src/Provider/ApplicationBlueprintServiceProvider.php` registering every
-  generated entity type in `register()` and wiring the relationship
-  registry, plus one `ComposerProviderRegistration` for that FQCN with no
-  group.
+  generated entity type in `register()`, plus one
+  `ComposerProviderRegistration` for that FQCN with no group. It does not
+  read the relationship registry (R2-6, corrected from an earlier "wires
+  the relationship registry" claim this section and the emitter's own
+  docblock both carried).
 
 **(g) Negotiation refusal code.** The `SITE0xx` family was checked: the next
 free id in the negotiation family after

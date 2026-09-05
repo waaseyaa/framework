@@ -12,13 +12,19 @@ use Waaseyaa\SiteContract\SiteManifest;
 
 /**
  * Emits `src/Provider/ApplicationBlueprintServiceProvider.php`: registers
- * every generated entity type via `EntityType::fromClass()` and wires the
- * relationship registry, plus one {@see ComposerProviderRegistration} for
- * that FQCN with no group (FW-SITE-BLUEPRINT-01D decisions (e), (f)).
+ * every generated entity type via `EntityType::fromClass()`, plus one
+ * {@see ComposerProviderRegistration} for that FQCN with no group
+ * (FW-SITE-BLUEPRINT-01D decisions (e), (f)).
  *
  * `group` is `null`: `EntityType` group is roster/presentation metadata with
  * no runtime authority, and `content` would assert editorial-content
  * semantics the blueprint never declares (decision (e)).
+ *
+ * Does NOT load or consume `RelationshipEmitter`'s
+ * `config/waaseyaa-blueprint/relationships.php` (review round 2, R2-6,
+ * correcting an earlier version of this docblock and of decision (f) that
+ * both claimed it did): that registry is emitted for a later consumer to
+ * wire up, not read by this provider today.
  *
  * @api
  */

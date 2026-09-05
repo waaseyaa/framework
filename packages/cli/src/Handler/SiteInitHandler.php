@@ -130,7 +130,20 @@ final readonly class SiteInitHandler
             $violation = $exception->violations[0];
             $this->writeError($io, sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message), $json);
         } catch (GenerationRefusalException $exception) {
-            $this->writeCodedError($io, $exception, $json);
+            // R2-3: only the negotiation refusal this handler itself raises
+            // (source 'site:init', immediately above) gets the widened coded
+            // envelope. `SiteInitializationService`'s own GEN0xx refusals
+            // (source 'generation', e.g. GEN010_UNIT_PATH_CONFLICT from
+            // `prepareUnitPlan()`) are a `GenerationRefusalException` too —
+            // it extends `\RuntimeException` — and fall through to the
+            // uncoded `writeError()` path below unchanged, so a blueprint-
+            // free manifest's existing engine-refusal envelope stays exactly
+            // as it was before this handler learned about negotiation.
+            if ($exception->source === 'site:init') {
+                $this->writeCodedError($io, $exception, $json);
+            } else {
+                $this->writeError($io, $exception->getMessage(), $json);
+            }
         } catch (SiteInitializationExecutionException $exception) {
             $this->writeError($io, $exception->getMessage(), $json, $exception->receipts, $exception->applyResult);
         } catch (SiteInitializationCollisionException|SiteInitializationLockedException|\InvalidArgumentException|\RuntimeException $exception) {
