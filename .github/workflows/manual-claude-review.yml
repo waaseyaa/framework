@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Validate request and subscription setup
         id: request
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HAS_SUBSCRIPTION_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         with:
@@ -104,7 +104,7 @@ jobs:
 
       - name: Check reviewed revision is still current
         if: success()
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           REVIEWED_HEAD: ${{ steps.request.outputs.head_sha }}
           REVIEWED_BASE: ${{ steps.request.outputs.base_sha }}
