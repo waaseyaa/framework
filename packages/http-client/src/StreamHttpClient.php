@@ -112,8 +112,8 @@ final class StreamHttpClient implements HttpClientInterface
     }
 
     /**
-     * Open the URL and read at most {@see $maxResponseBytes} of the body, with a
-     * bounded connect phase, capturing the underlying error on failure.
+     * Open the URL and read a complete body of at most {@see $maxResponseBytes},
+     * with a bounded connect phase. Truncated or over-limit bodies fail closed.
      *
      * @param resource $context
      */
@@ -134,8 +134,9 @@ final class StreamHttpClient implements HttpClientInterface
             }
 
             try {
-                // m4: cap the body so a runaway/hostile endpoint can't OOM the worker.
-                $responseBody = @stream_get_contents($handle, $this->maxResponseBytes);
+                stream_set_timeout($handle, (int) max(1, ceil($this->timeout)));
+
+                return $this->readCompleteBody($handle, $method, $url);
             } finally {
                 fclose($handle);
             }
@@ -144,12 +145,77 @@ final class StreamHttpClient implements HttpClientInterface
                 ini_set('default_socket_timeout', $previousSocketTimeout);
             }
         }
+    }
 
-        if ($responseBody === false) {
-            throw $this->transportFailure($method, $url);
+    /**
+     * @param resource $handle
+     */
+    private function readCompleteBody($handle, string $method, string $url): string
+    {
+        $headers = http_get_last_response_headers() ?? [];
+        $contentLength = $this->isChunked($headers) ? null : $this->headerContentLength($headers);
+        if ($contentLength !== null && $contentLength > $this->maxResponseBytes) {
+            throw $this->boundedBodyFailure($method, $url, 'HTTP response body exceeded the configured maximum');
         }
 
-        return $responseBody;
+        $body = '';
+        while (!feof($handle)) {
+            $remaining = $this->maxResponseBytes - strlen($body);
+            $chunk = @fread($handle, max(1, min(8192, $remaining + 1)));
+            $meta = stream_get_meta_data($handle);
+            if ($meta['timed_out'] === true) {
+                throw $this->boundedBodyFailure($method, $url, 'HTTP response body was incomplete');
+            }
+            if ($chunk === false) {
+                throw $this->transportFailure($method, $url);
+            }
+            if ($chunk === '') {
+                break;
+            }
+            $body .= $chunk;
+            if (strlen($body) > $this->maxResponseBytes) {
+                throw $this->boundedBodyFailure($method, $url, 'HTTP response body exceeded the configured maximum');
+            }
+        }
+
+        if ($contentLength !== null && strlen($body) !== $contentLength) {
+            throw $this->boundedBodyFailure($method, $url, 'HTTP response body was incomplete');
+        }
+
+        return $body;
+    }
+
+    /**
+     * @param list<string> $rawHeaders
+     */
+    private function isChunked(array $rawHeaders): bool
+    {
+        foreach ($rawHeaders as $header) {
+            if (preg_match('/^Transfer-Encoding:\s*chunked\s*$/i', $header) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $rawHeaders
+     */
+    private function headerContentLength(array $rawHeaders): ?int
+    {
+        foreach ($rawHeaders as $header) {
+            if (preg_match('/^Content-Length:\s*(\d+)\s*$/i', $header, $matches) === 1) {
+                return (int) $matches[1];
+            }
+        }
+
+        return null;
+    }
+
+    private function boundedBodyFailure(string $method, string $url, string $message): HttpRequestException
+    {
+        return new HttpRequestException($message, $url, $method);
     }
 
     /**
