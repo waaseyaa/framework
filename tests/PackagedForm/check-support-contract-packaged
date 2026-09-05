@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# GAP A (#2852 branch review): "packaged-consumer execution proves the
+# published checker and contract remain usable outside the root monorepo"
+# had no evidence. bin/check-support-contract's --root/--contract overrides
+# (added for the fixture-driven CheckSupportContractGateTest) made this
+# feasible but nothing exercised them against real, unmodified bytes copied
+# OUT of the monorepo working tree.
+#
+# A consumer that requires waaseyaa/framework receives the entire repository
+# (no .gitattributes export-ignore filters it -- see CLAUDE.md
+# "self.version"), so "what a published package ships" is not narrower than
+# this set. What this proof narrows to is the set the CHECKER ITSELF reads:
+# its own require_once dependency (resolved from the SCRIPT'S OWN location,
+# NOT --root -- see bin/check-support-contract's
+# `require_once dirname(__DIR__) . '/tools/lib/DevRuntime.php'`), the
+# contract, and every real surface it compares a parsed contract value
+# against (mirrors the exact file set CheckSupportContractGateTest::writeFixture
+# constructs). Copying only that set and running successfully proves the
+# checker needs nothing else from the monorepo tree to validate real bytes.
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-support-contract-packaged.XXXXXX")"
+consumer="$work/consumer"
+
+cleanup() {
+    # Cleanup is best-effort and must never change this script's exit
+    # status; report a leak on stderr instead of letting a failed rm
+    # corrupt the proof under test (#2870).
+    rm -rf -- "$work" || echo "warning: failed to remove $work" >&2
+}
+trap cleanup EXIT
+
+consumed_paths=(
+    bin/check-support-contract
+    tools/lib/DevRuntime.php
+    support/s1-v1.json
+    composer.json
+    composer.lock
+    .nvmrc
+    packages/admin/package.json
+    packages/admin/package-lock.json
+    packages/admin/playwright.config.ts
+    tools/dev-runtime-manifest.json
+    tools/frankenphp-runtime-pin.json
+    docs/specs/s1-support-lifecycle.md
+    SECURITY.md
+    README.md
+    .github/workflows/ci.yml
+    tests/PackagedForm/check-support-contract-packaged
+)
+if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- "${consumed_paths[@]}")" ]]; then
+    echo 'Support-contract packaged evidence refuses dirty checker, contract, or surface bytes.' >&2
+    exit 1
+fi
+
+candidate="$($root/bin/git -C "$root" rev-parse HEAD)"
+
+for relative in "${consumed_paths[@]}"; do
+    mkdir -p "$consumer/$(dirname "$relative")"
+    cp "$root/$relative" "$consumer/$relative"
+done
+chmod +x "$consumer/bin/check-support-contract"
+
+if ! php "$consumer/bin/check-support-contract" --root="$consumer" >"$work/positive.out" 2>&1; then
+    cat "$work/positive.out" >&2
+    exit 1
+fi
+grep -Fq 'OK: S1 support contract' "$work/positive.out"
+
+# Negative arm: corrupt ONLY the packaged copy of the contract. If the
+# checker silently accepted this, it would prove it wasn't actually reading
+# the --root contract at all -- a false positive above.
+php -r '
+    $path = $argv[1];
+    $contract = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $contract["schema_version"] = 2;
+    file_put_contents($path, json_encode($contract, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/support/s1-v1.json"
+
+if php "$consumer/bin/check-support-contract" --root="$consumer" >"$work/negative.out" 2>&1; then
+    echo 'A corrupted packaged contract must not pass.' >&2
+    cat "$work/negative.out" >&2
+    exit 1
+fi
+grep -Fq 'schema_version must be 1' "$work/negative.out"
+
+printf 'Support-contract packaged proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"
+printf 'Source tree: %s\n' "$($root/bin/git -C "$root" rev-parse HEAD^{tree})"

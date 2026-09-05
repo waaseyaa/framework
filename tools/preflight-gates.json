@@ -189,12 +189,12 @@
         {
             "id": "check-support-contract",
             "run": "php bin/check-support-contract",
-            "repair": "align support/s1-v1.json and the runtime surfaces it binds (hand-edited contract)",
+            "repair": "amend support/s1-v1.json (sole support-policy authority) or the real surface it binds; the checker derives every expected value from the contract",
             "profile": "default",
             "enforced_by": "workflow:ci.yml#php bin/check-support-contract --ci",
             "refresh": {
                 "mode": "manual",
-                "instruction": "hand-edit support/s1-v1.json and the duplicated expected values inside bin/check-support-contract so contract and runtime agree"
+                "instruction": "hand-edit support/s1-v1.json (the sole support-policy authority) and the real surface it binds; bin/check-support-contract carries no policy values to synchronize"
             }
         },
         {
