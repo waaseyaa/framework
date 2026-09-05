@@ -365,10 +365,11 @@ final class DeliveryAgentEventBranchCustodyTest extends TestCase
     {
         $repo = sys_get_temp_dir() . '/waaseyaa-ledger-custody-' . bin2hex(random_bytes(8));
         self::assertTrue(mkdir($repo . '/ops/observability', 0o777, true));
-        self::assertTrue(mkdir($repo . '/bin', 0o777, true));
+        self::assertTrue(mkdir($repo . '/bin/lib', 0o777, true));
         self::assertTrue(copy($this->root . '/ops/observability/delivery-agent-event-v1.schema.json', $repo . '/ops/observability/delivery-agent-event-v1.schema.json'));
         self::assertTrue(copy($this->root . '/ops/observability/delivery-agent-events-v1.jsonl', $repo . '/ops/observability/delivery-agent-events-v1.jsonl'));
         self::assertTrue(copy($this->root . '/bin/check-delivery-agent-events', $repo . '/bin/check-delivery-agent-events'));
+        self::assertTrue(copy($this->root . '/bin/lib/delivery-agent-event-set.php', $repo . '/bin/lib/delivery-agent-event-set.php'));
         self::assertTrue(copy($this->root . '/bin/git', $repo . '/bin/git'));
         chmod($repo . '/bin/check-delivery-agent-events', 0o755);
         chmod($repo . '/bin/git', 0o755);

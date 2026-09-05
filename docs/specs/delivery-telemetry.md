@@ -90,8 +90,15 @@ strict branch requirements or solve conflicting concurrent appends (#2902).
 `--self-test` seeds independent schema, causality, temporal, adjudication, and
 history corruptions and must fail each one.
 
-The v1 schema is closed. A vocabulary or shape change requires a new schema
-version and an explicit migration; projections do not widen the contract.
+After the #2902 cutover the same gate also loads immutable batch envelopes under
+`ops/observability/delivery-agent-batches-v1/`, enforces the hard v1 freeze in
+`ops/observability/delivery-agent-v1-freeze.json`, validates the complete event
+set, and defines deterministic topological replay for batch events. Detail:
+`docs/specs/delivery-agent-event-batches.md`.
+
+The v1 event schema is closed. A vocabulary or shape change requires a new schema
+version and an explicit migration; projections do not widen the contract. The v1
+ledger bytes are hard-frozen at cutover — there is no rewrite exception.
 
 ## Projection
 
