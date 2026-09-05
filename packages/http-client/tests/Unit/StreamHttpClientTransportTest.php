@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\HttpClient\HttpRequestException;
 use Waaseyaa\HttpClient\StreamHttpClient;
 use Waaseyaa\HttpClient\Tests\Support\LocalHttpServer;
+use Waaseyaa\HttpClient\Tests\Support\RawHttpServer;
 
 /**
  * Transport-level hardening tests for StreamHttpClient (credential-leak +
@@ -22,18 +23,33 @@ final class StreamHttpClientTransportTest extends TestCase
     /** @var list<LocalHttpServer> */
     private array $servers = [];
 
+    /** @var list<RawHttpServer> */
+    private array $rawServers = [];
+
     protected function tearDown(): void
     {
         foreach ($this->servers as $server) {
             $server->stop();
         }
         $this->servers = [];
+        foreach ($this->rawServers as $server) {
+            $server->stop();
+        }
+        $this->rawServers = [];
     }
 
     private function startServer(): LocalHttpServer
     {
         $server = new LocalHttpServer();
         $this->servers[] = $server;
+
+        return $server;
+    }
+
+    private function startRaw(string $httpResponse, int $splitAt = 0, int $delayUs = 0): RawHttpServer
+    {
+        $server = new RawHttpServer($httpResponse, $splitAt, $delayUs);
+        $this->rawServers[] = $server;
 
         return $server;
     }
@@ -163,17 +179,208 @@ final class StreamHttpClientTransportTest extends TestCase
         self::assertSame('Bearer SUPER-SECRET', $redirectorRequests[0]['authorization']);
     }
 
-    // ---- m4: response body is capped --------------------------------------
+    // ---- m4: response body is complete or a typed transport failure --------
 
     #[Test]
-    public function capsResponseBodySize(): void
+    public function rejectsAnOverLimitBodyWithoutReturningAPartialSuccess(): void
+    {
+        $server = $this->startServer();
+        $client = new StreamHttpClient(timeout: 5.0, maxResponseBytes: 8);
+
+        try {
+            $client->get($server->baseUrl() . '/big?n=100');
+            self::fail('Expected HttpRequestException for an over-limit body.');
+        } catch (HttpRequestException $exception) {
+            $this->assertFailClosedBody($exception, 'exceeded', $server->baseUrl());
+            self::assertSame('GET', $exception->method);
+            self::assertStringNotContainsString(str_repeat('x', 8), $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function acceptsACompleteBodyExactlyAtTheLimit(): void
+    {
+        $server = $this->startServer();
+        $body = str_repeat('x', 32);
+
+        $response = (new StreamHttpClient(timeout: 5.0, maxResponseBytes: 32))
+            ->get($server->baseUrl() . '/big?n=32');
+
+        self::assertSame(200, $response->statusCode);
+        self::assertSame($body, $response->body);
+    }
+
+    #[Test]
+    public function acceptsACompleteBodyBelowTheLimit(): void
     {
         $server = $this->startServer();
 
-        $client = new StreamHttpClient(timeout: 5.0, maxResponseBytes: 1024);
-        $response = $client->get($server->baseUrl() . '/big?n=100000');
+        $response = (new StreamHttpClient(timeout: 5.0, maxResponseBytes: 1024))
+            ->get($server->baseUrl() . '/ok');
 
-        self::assertLessThanOrEqual(1024, strlen($response->body));
+        self::assertSame(200, $response->statusCode);
+        self::assertSame('OK', $response->body);
+    }
+
+    #[Test]
+    public function rejectsAContentLengthMismatchWithoutAPartialSuccess(): void
+    {
+        $server = $this->startRaw(
+            "HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\n" . str_repeat('x', 8),
+        );
+        $client = new StreamHttpClient(timeout: 5.0, maxResponseBytes: 1024);
+
+        try {
+            $client->get($server->baseUrl() . '/export');
+            self::fail('Expected HttpRequestException for a truncated Content-Length body.');
+        } catch (HttpRequestException $exception) {
+            $this->assertFailClosedBody($exception, 'incomplete', $server->baseUrl());
+            self::assertStringNotContainsString(str_repeat('x', 8), $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function acceptsHeadMetadataWithoutReadingAResponseBody(): void
+    {
+        $server = $this->startRaw("HTTP/1.1 200 OK\r\nContent-Length: 1200\r\nConnection: close\r\n\r\n");
+        $response = (new StreamHttpClient(maxResponseBytes: 8))->request('HEAD', $server->baseUrl());
+        self::assertSame(200, $response->statusCode);
+        self::assertSame('', $response->body);
+        self::assertSame('1200', $response->headers['content-length']);
+    }
+
+    #[Test]
+    public function acceptsBodylessStatusMetadata(): void
+    {
+        foreach ([204, 304] as $status) {
+            $server = $this->startRaw("HTTP/1.1 {$status} No Body\r\nContent-Length: 1200\r\nConnection: close\r\n\r\n");
+            $response = (new StreamHttpClient(maxResponseBytes: 8))->get($server->baseUrl());
+            self::assertSame($status, $response->statusCode);
+            self::assertSame('', $response->body);
+        }
+    }
+
+    #[Test]
+    public function acceptsDeclaredLengthWithoutWaitingForPeerClose(): void
+    {
+        $payload = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: keep-alive\r\n\r\nhello";
+        // The existing split-delay seam leaves the socket open after the entire body.
+        $server = $this->startRaw($payload . 'x', strlen($payload), 2_500_000);
+        $response = (new StreamHttpClient(timeout: 1.0, maxResponseBytes: 5))->get($server->baseUrl());
+        self::assertSame(200, $response->statusCode);
+        self::assertSame('hello', $response->body);
+    }
+
+    #[Test]
+    public function rejectsAChunkedBodyThatExceedsTheLimit(): void
+    {
+        $chunk = str_repeat('x', 32);
+        $server = $this->startRaw(
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n"
+            . sprintf("%x\r\n%s\r\n0\r\n\r\n", strlen($chunk), $chunk),
+        );
+        $client = new StreamHttpClient(timeout: 5.0, maxResponseBytes: 8);
+
+        try {
+            $client->get($server->baseUrl() . '/export');
+            self::fail('Expected HttpRequestException for an over-limit chunked body.');
+        } catch (HttpRequestException $exception) {
+            $this->assertFailClosedBody($exception, 'exceeded', $server->baseUrl());
+        }
+    }
+
+    #[Test]
+    public function acceptsACompleteChunkedBodyAtTheLimit(): void
+    {
+        $chunk = str_repeat('z', 16);
+        $server = $this->startRaw(
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n"
+            . sprintf("%x\r\n%s\r\n0\r\n\r\n", strlen($chunk), $chunk),
+        );
+
+        $response = (new StreamHttpClient(timeout: 5.0, maxResponseBytes: 16))
+            ->get($server->baseUrl() . '/export');
+
+        self::assertSame(200, $response->statusCode);
+        self::assertSame($chunk, $response->body);
+    }
+
+    #[Test]
+    public function acceptsACompleteBodyWithNoContentLength(): void
+    {
+        $body = str_repeat('n', 16);
+        $server = $this->startRaw(
+            "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n" . $body,
+        );
+
+        $response = (new StreamHttpClient(timeout: 5.0, maxResponseBytes: 1024))
+            ->get($server->baseUrl() . '/export');
+
+        self::assertSame(200, $response->statusCode);
+        self::assertSame($body, $response->body);
+    }
+
+    #[Test]
+    public function rejectsAnOverLimitBodyWithNoContentLength(): void
+    {
+        $body = str_repeat('n', 32);
+        $server = $this->startRaw(
+            "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n" . $body,
+        );
+        $client = new StreamHttpClient(timeout: 5.0, maxResponseBytes: 8);
+
+        try {
+            $client->get($server->baseUrl() . '/export');
+            self::fail('Expected HttpRequestException for an over-limit unknown-length body.');
+        } catch (HttpRequestException $exception) {
+            $this->assertFailClosedBody($exception, 'exceeded', $server->baseUrl());
+        }
+    }
+
+    #[Test]
+    public function rejectsAMidBodyTimeoutWithoutAPartialSuccess(): void
+    {
+        $prefix = str_repeat('t', 4);
+        $suffix = str_repeat('u', 28);
+        $payload = "HTTP/1.1 200 OK\r\nContent-Length: 32\r\nConnection: close\r\n\r\n" . $prefix . $suffix;
+        $splitAt = strpos($payload, $prefix);
+        self::assertNotFalse($splitAt);
+        $server = $this->startRaw($payload, $splitAt + strlen($prefix), 2_500_000);
+        $client = new StreamHttpClient(timeout: 1.0, maxResponseBytes: 1024);
+
+        try {
+            $client->get($server->baseUrl() . '/export');
+            self::fail('Expected HttpRequestException for a mid-body timeout.');
+        } catch (HttpRequestException $exception) {
+            self::assertNull($exception->response);
+            self::assertStringNotContainsString($prefix, $exception->getMessage());
+            self::assertStringNotContainsString('Authorization', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function rejectsAnOverLimitErrorStatusWithoutAPartialSuccess(): void
+    {
+        $server = $this->startServer();
+        $client = new StreamHttpClient(timeout: 5.0, maxResponseBytes: 8);
+
+        try {
+            $client->get($server->baseUrl() . '/error-big?n=100');
+            self::fail('Expected HttpRequestException for an over-limit error body.');
+        } catch (HttpRequestException $exception) {
+            $this->assertFailClosedBody($exception, 'exceeded', $server->baseUrl());
+        }
+    }
+
+    #[Test]
+    public function stillReturnsAnOrdinaryCompleteNon2xxResponse(): void
+    {
+        $server = $this->startServer();
+        $response = (new StreamHttpClient(timeout: 5.0, maxResponseBytes: 1024))
+            ->get($server->baseUrl() . '/not-found');
+
+        self::assertSame(404, $response->statusCode);
+        self::assertSame('NOT FOUND', $response->body);
     }
 
     // ---- sanity: a normal request still works -----------------------------
@@ -187,5 +394,16 @@ final class StreamHttpClientTransportTest extends TestCase
 
         self::assertSame(200, $response->statusCode);
         self::assertSame('OK', $response->body);
+    }
+
+    private function assertFailClosedBody(
+        HttpRequestException $exception,
+        string $messageNeedle,
+        string $url,
+    ): void {
+        self::assertNull($exception->response);
+        self::assertStringContainsString($messageNeedle, strtolower($exception->getMessage()));
+        self::assertStringNotContainsString('Authorization', $exception->getMessage());
+        self::assertStringNotContainsString($url, $exception->getMessage());
     }
 }
