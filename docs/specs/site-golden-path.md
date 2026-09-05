@@ -179,6 +179,27 @@ verification in evaluation, the `application_blueprint` evidence member with
 its compatible reader, strict doctor re-derivation, and the CLI wiring.
 Fixtures, checks and seeding are a later slice.
 
+A compiled blueprint's governance is default deny (#2788, design in
+`docs/change-records/FW-SITE-BLUEPRINT-01.md` "Work package 01E"). The
+compiler emits, through the same factory roster and never a parallel
+authority: a permission catalogue naming every declared permission; one
+`#[PolicyAttribute]` access policy per entity that declares a policy,
+discovered and composed by the framework's own `AccessPolicyRegistry` and
+`EntityAccessHandler`, which starts every decision Neutral, returns Allowed
+only for a declared `(operation, permission, condition)` rule, never returns
+Forbidden, and never inspects roles; a workflow definition per declared
+workflow in the shipped `DefaultWorkflows` shape, seeded additively by a
+generated governance provider that also contributes the declared roles
+through `ProvidesRolesInterface`; the authored `workflows.assignments` sync
+entry per binding; and companion tests for the declared checks plus a
+default-deny test. An entity without a policy is denied every operation;
+roles reach accounts only through `user:assign-role`; an `administrator`
+role id, an `ownership` or `workflow_state` condition on `create`, and a
+wildcard permission are refused before any artifact is produced. Generated
+types are not exposed on generic JSON:API routes by generation (exposure is
+the operator's `api.entity_type_allowlist` decision), and binding
+activation remains a verified `config:import`, not a boot-time write.
+
 ### Closed vocabulary (#2785)
 
 Namespace `Waaseyaa\SiteContract\Blueprint\`. Every list is a closed mapping
