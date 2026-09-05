@@ -109,6 +109,7 @@ function s1ConfigClass(string $path): string
         'packages/ssr/src/ThemeServiceProvider.php' => 'legacy-compatibility',
         'packages/ssr/src/Twig/WaaseyaaExtension.php' => 'legacy-compatibility',
         'packages/workflows/src/Binding/WorkflowBindingResolver.php' => 'legacy-compatibility',
+        'packages/workflows/src/Read/ActiveWorkflows.php' => 'legacy-compatibility',
         'packages/workflows/src/WorkflowServiceProvider.php' => 'legacy-compatibility',
         'skeleton/config/waaseyaa.php' => 'bootstrap-declaration',
     ];

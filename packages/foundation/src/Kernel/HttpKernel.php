@@ -73,6 +73,7 @@ use Waaseyaa\User\Middleware\CsrfMiddleware;
 use Waaseyaa\User\Middleware\ResponseCacheControlMiddleware;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\Session\SessionCookiePolicy;
+use Waaseyaa\Workflows\Read\ActiveWorkflows;
 
 /**
  * HTTP front controller kernel.
@@ -763,6 +764,14 @@ final class HttpKernel extends AbstractKernel
         $fieldSchemaAuthority = $resolvedFieldSchemaAuthority instanceof FieldSchemaAuthority
             ? $resolvedFieldSchemaAuthority
             : new FieldSchemaAuthority($this->getFieldTypeManager());
+        // #2835: `waaseyaa/workflows` is a `cms`-only opt-in domain package
+        // (not in `core`), so ActiveWorkflows may not even be declared here —
+        // resolve() returns null in that case and WorkflowDefinitionsApiRouter
+        // falls back to its own well-formed-empty-result default.
+        $resolvedActiveWorkflows = $this->getHttpServiceResolver()->resolve(ActiveWorkflows::class);
+        $activeWorkflows = $resolvedActiveWorkflows instanceof ActiveWorkflows
+            ? $resolvedActiveWorkflows
+            : null;
         $foundationRouters = [
             new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler, $exposurePolicy, $internalFieldVisibility),
             new HttpRouter\JsonApiRouter(
@@ -779,7 +788,7 @@ final class HttpKernel extends AbstractKernel
                 $exposurePolicy,
                 $fieldSchemaAuthority,
             ),
-            new HttpRouter\WorkflowDefinitionsApiRouter(),
+            new HttpRouter\WorkflowDefinitionsApiRouter($activeWorkflows),
             new HttpRouter\SearchRouter(
                 $this->config,
                 $this->database,

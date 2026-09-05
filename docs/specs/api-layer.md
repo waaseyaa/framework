@@ -2,6 +2,26 @@
 <!-- Spec reviewed 2026-09-02 - #2786 contract edge: GraphQL multi-value FormattedText resolvers distinguish list-shaped values from an associative single TextValue map, wrapping the latter as one item while recursively sanitizing both shapes. -->
 # API Layer
 
+<!-- Spec reviewed 2026-09-04 - #2835: WorkflowDefinitionsController's
+no-provider default changed from `[EditorialWorkflowPreset::create()]` to `[]`
+— a well-formed empty result, never a fictional default. Production wiring
+(WorkflowDefinitionsApiRouter, resolved via HttpKernel) now always supplies a
+provider backed by `Waaseyaa\Workflows\Read\ActiveWorkflows` when the
+workflows package is installed and wired; the no-provider path is exercised
+only by direct construction (an unwired install, or a `core`-only install
+with no `waaseyaa/workflows` package). GET /api/workflow-definitions response
+shape (`{data: WorkflowDefinition[]}`, per-state/-transition fields) is
+unchanged from M4A-1/M4A-2 below — only which workflows are served changed.
+**Payload widening explicitly deferred:** `Workflow`/`WorkflowState`
+carry `published`, `default_revision`, and `initial_state` and
+`WorkflowTransition` carries `permission`/`group_constraint`, none of which
+`serializeWorkflow()` emits — every active state currently serializes with
+`weight: 0, metadata: []` regardless of its real publication role. Widening
+the serializer is a deliberate follow-up, not part of this fix (#2835 scope
+boundary: no release or downstream adoption authorized by this issue); track
+it separately before the admin states grid is asked to render publication
+state from this endpoint. Full contract: content-workflow.md "Integration". -->
+
 <!-- Spec reviewed 2026-09-01 - #2757: AuthOidcRouteServiceProvider injects
 the canonical authentication-eligibility policy into registration, login, and
 two-factor promotion, makes verification resend public with an email request

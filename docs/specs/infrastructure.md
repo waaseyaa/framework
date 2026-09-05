@@ -1,4 +1,13 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-04 - #2835: HttpKernel resolves the provider-bound
+`Waaseyaa\Workflows\Read\ActiveWorkflows` through the same HttpKernelServiceResolver
+idiom as FieldSchemaAuthority (#2786 entry below) and passes it into
+WorkflowDefinitionsApiRouter, which now takes it as an optional constructor
+argument instead of always constructing WorkflowDefinitionsController with no
+provider. `waaseyaa/workflows` is not part of `core`, so this resolves to null
+on a `core`-only install and the router falls back to its own well-formed
+empty-result default — no boot-order, route, or kernel-owned service contract
+change. Full endpoint contract: content-workflow.md "Integration". -->
 <!-- Spec reviewed 2026-09-02 - #2826: foundation gains the optional-package
 contribution contract (ServiceProvider/Capability/RequiresOptionalPackagesInterface,
 OptionalPackageRequirement, OptionalPackageGate). PackageManifestCompiler now
