@@ -223,6 +223,52 @@ final class DeliveryAgentEventBatchGateTest extends TestCase
         self::assertStringContainsString('accepted batch modified', $result['stderr']);
     }
 
+    #[Test]
+    public function freeze_manifest_cannot_be_rewritten_to_authorize_a_mutated_ledger(): void
+    {
+        $repo = $this->seedFrozenAuthorityRepo();
+        $base = $this->sha($repo);
+        $this->git($repo, ['checkout', '-q', '-b', 'rewrite-freeze']);
+
+        $ledgerPath = $repo . '/ops/observability/delivery-agent-events-v1.jsonl';
+        file_put_contents(
+            $ledgerPath,
+            (string) file_get_contents($ledgerPath)
+            . json_encode($this->event('99999999-9999-4999-8999-999999999999', 'review_started', '2099-01-01T00:00:00Z'), JSON_UNESCAPED_SLASHES) . "\n",
+        );
+        $newHash = hash('sha256', (string) file_get_contents($ledgerPath));
+        $freeze = json_decode((string) file_get_contents($repo . '/ops/observability/delivery-agent-v1-freeze.json'), true, flags: JSON_THROW_ON_ERROR);
+        $freeze['ledger_sha256'] = $newHash;
+        $freeze['ledger_bytes'] = strlen((string) file_get_contents($ledgerPath));
+        file_put_contents(
+            $repo . '/ops/observability/delivery-agent-v1-freeze.json',
+            json_encode($freeze, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+        $this->commitAll($repo, 'rewrite freeze to match mutated ledger');
+
+        $result = $this->gate($repo, ['--branch-base=' . $base]);
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertStringContainsString('v1 freeze manifest is immutable', $result['stderr']);
+    }
+
+    #[Test]
+    public function published_batch_schema_cannot_be_widened_after_acceptance(): void
+    {
+        $repo = $this->seedFrozenAuthorityRepo();
+        $base = $this->sha($repo);
+        $this->git($repo, ['checkout', '-q', '-b', 'widen-batch-schema']);
+
+        $schemaPath = $repo . '/ops/observability/delivery-agent-batch-v1.schema.json';
+        $schema = json_decode((string) file_get_contents($schemaPath), true, flags: JSON_THROW_ON_ERROR);
+        $schema['properties']['events']['minItems'] = 0;
+        file_put_contents($schemaPath, json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        $this->commitAll($repo, 'widen batch schema');
+
+        $result = $this->gate($repo, ['--branch-base=' . $base]);
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        self::assertStringContainsString('batch schema is immutable', $result['stderr']);
+    }
+
     private function seedFrozenAuthorityRepo(): string
     {
         $repo = sys_get_temp_dir() . '/waaseyaa-batch-gate-' . bin2hex(random_bytes(6));

@@ -656,6 +656,24 @@ if ($priorCommit !== null) {
     );
     array_push($errors, ...$priorBatches['errors']);
     array_push($errors, ...delivery_agent_batch_immutability_errors($priorBatches['batches'], $batchFiles));
+
+    $priorFreeze = gitShow($root, $priorCommit, V1_FREEZE);
+    $priorFreezeBytes = $priorFreeze['exit'] === 0 ? $priorFreeze['output'] : null;
+    $currentFreezeBytes = $freezeBytes;
+    if ($currentFreezeBytes === null && is_file($root . '/' . V1_FREEZE) && !$usingFixtures) {
+        $currentFreezeBytes = (string) file_get_contents($root . '/' . V1_FREEZE);
+    }
+    array_push(
+        $errors,
+        ...delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $priorFreezeBytes, $currentFreezeBytes),
+    );
+
+    $priorBatchSchema = gitShow($root, $priorCommit, BATCH_SCHEMA);
+    $priorBatchSchemaBytes = $priorBatchSchema['exit'] === 0 ? $priorBatchSchema['output'] : null;
+    array_push(
+        $errors,
+        ...delivery_agent_authority_blob_immutability_errors('batch schema', $priorBatchSchemaBytes, $batchSchemaBytes),
+    );
 }
 if ($errors !== []) {
     if ($identity !== null) {

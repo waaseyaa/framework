@@ -152,6 +152,30 @@ function delivery_agent_batch_immutability_errors(array $acceptedBatches, array 
 }
 
 /**
+ * Refuse modification of an already-accepted authority blob (freeze manifest,
+ * batch schema, etc.).
+ *
+ * @return list<string>
+ */
+function delivery_agent_authority_blob_immutability_errors(
+    string $label,
+    ?string $acceptedBytes,
+    ?string $proposedBytes,
+): array {
+    if ($acceptedBytes === null || $acceptedBytes === '') {
+        return [];
+    }
+    if ($proposedBytes === null || $proposedBytes === '') {
+        return [sprintf('accepted %s deleted', $label)];
+    }
+    if (!hash_equals($acceptedBytes, $proposedBytes)) {
+        return [sprintf('the published %s is immutable', $label)];
+    }
+
+    return [];
+}
+
+/**
  * @return list<string>
  */
 function delivery_agent_v1_freeze_errors(string $ledgerBytes, ?string $freezeJson): array

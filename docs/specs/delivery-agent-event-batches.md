@@ -25,7 +25,8 @@ remain projections over the complete accepted set.
 Across frozen v1 ∪ all batches: unique event IDs (duplicates refused even when
 payloads match), causal closure, no cycles, custody/occurrence directionality,
 at most one adjudication per finding, immutable existing batch paths and v1
-bytes, additive-only acceptance.
+bytes, and immutable accepted freeze-manifest / batch-schema blobs
+(additive-only acceptance).
 
 ## Replay order
 
