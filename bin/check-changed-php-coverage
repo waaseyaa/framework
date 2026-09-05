@@ -3,15 +3,31 @@
 
 declare(strict_types=1);
 
-$root = dirname(__DIR__);
-$options = getopt('', ['clover:', 'base::', 'diff-file::', 'threshold::']);
+use SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser;
+
+/**
+ * Enforce the changed-line Clover ratchet and report attribution boundaries.
+ *
+ * Threshold denominator (unchanged): covered / (covered + uncovered) among
+ * changed lines that appear as Clover statements. Uninstrumented changed
+ * executable lines and CoversNothing-only exclusion risks are reported beside
+ * that percentage so the number cannot silently omit clover-absent files or
+ * metadata-suppressed execution.
+ */
+
+$toolRoot = dirname(__DIR__);
+require $toolRoot . '/vendor/autoload.php';
+
+$options = getopt('', ['clover:', 'base::', 'diff-file::', 'threshold::', 'root::']);
+$rootOption = $options['root'] ?? $toolRoot;
+$root = realpath((string) $rootOption);
 $cloverPath = $options['clover'] ?? '';
 $base = $options['base'] ?? '';
 $diffFile = $options['diff-file'] ?? '';
 $threshold = isset($options['threshold']) ? (float) $options['threshold'] : 80.0;
 
-if (!is_string($cloverPath) || $cloverPath === '' || $threshold < 0 || $threshold > 100) {
-    fwrite(STDERR, "Usage: php bin/check-changed-php-coverage --clover=<path> [--base=<sha>|--diff-file=<path>] [--threshold=80]\n");
+if ($root === false || !is_string($cloverPath) || $cloverPath === '' || $threshold < 0 || $threshold > 100) {
+    fwrite(STDERR, "Usage: php bin/check-changed-php-coverage --clover=<path> [--base=<sha>|--diff-file=<path>] [--threshold=80] [--root=<path>]\n");
     exit(2);
 }
 
@@ -23,7 +39,7 @@ if ($diffFile !== '') {
     }
 } elseif ($base !== '') {
     $process = proc_open(
-        [$root . '/bin/git', '-C', $root, 'diff', '--unified=0', $base . '...HEAD', '--', 'packages'],
+        [$toolRoot . '/bin/git', '-C', $root, 'diff', '--unified=0', $base . '...HEAD', '--', 'packages', 'tests'],
         [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
     );
@@ -46,6 +62,8 @@ if ($diffFile !== '') {
 
 /** @var array<string, array<int, true>> $changedLines */
 $changedLines = [];
+/** @var array<string, true> $changedTests */
+$changedTests = [];
 $path = null;
 foreach (preg_split('/\R/', $diff) ?: [] as $line) {
     if (str_starts_with($line, 'diff --git ')) {
@@ -53,9 +71,14 @@ foreach (preg_split('/\R/', $diff) ?: [] as $line) {
         continue;
     }
     if (str_starts_with($line, '+++ ')) {
-        $path = preg_match('#^\+\+\+ b/(packages/[^/]+/src/.+\.php)$#', $line, $matches) === 1
-            ? $matches[1]
-            : null;
+        if (preg_match('#^\+\+\+ b/(packages/[^/]+/src/.+\.php)$#', $line, $matches) === 1) {
+            $path = $matches[1];
+        } elseif (preg_match('#^\+\+\+ b/((?:packages/[^/]+/tests|tests)/.+Test\.php)$#', $line, $matches) === 1) {
+            $path = null;
+            $changedTests[$matches[1]] = true;
+        } else {
+            $path = null;
+        }
         continue;
     }
     if ($path !== null && preg_match('/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/', $line, $matches) === 1) {
@@ -80,8 +103,8 @@ if (!$xml instanceof SimpleXMLElement) {
     exit(2);
 }
 
-$executable = 0;
-$covered = 0;
+/** @var array<string, array<int, int>> $cloverCounts path => line => count */
+$cloverCounts = [];
 foreach ($xml->xpath('//file') ?: [] as $file) {
     $name = str_replace('\\', '/', (string) $file['name']);
     $relative = str_starts_with($name, $root . '/') ? substr($name, strlen($root) + 1) : $name;
@@ -89,22 +112,166 @@ foreach ($xml->xpath('//file') ?: [] as $file) {
         continue;
     }
     foreach ($file->line as $line) {
+        if ((string) $line['type'] !== 'stmt') {
+            continue;
+        }
         $number = (int) $line['num'];
-        if (!isset($changedLines[$relative][$number]) || (string) $line['type'] !== 'stmt') {
+        if (!isset($changedLines[$relative][$number])) {
+            continue;
+        }
+        $cloverCounts[$relative][$number] = (int) $line['count'];
+    }
+}
+
+/** @var array<string, string> $testContents */
+$testContents = [];
+foreach (array_keys($changedTests) as $testPath) {
+    $contents = @file_get_contents($root . '/' . $testPath);
+    if ($contents !== false) {
+        $testContents[$testPath] = $contents;
+    }
+}
+
+$analyser = new ParsingSourceAnalyser();
+/** @var list<string> $coveredRefs */
+$coveredRefs = [];
+/** @var list<string> $uncoveredRefs */
+$uncoveredRefs = [];
+/** @var list<string> $uninstrumentedRefs */
+$uninstrumentedRefs = [];
+/** @var list<string> $excludedRefs */
+$excludedRefs = [];
+/** @var array<string, list<string>> $excludedTestsBySource */
+$excludedTestsBySource = [];
+
+$executable = 0;
+$covered = 0;
+
+foreach ($changedLines as $sourcePath => $lines) {
+    $absolute = $root . '/' . $sourcePath;
+    $contents = @file_get_contents($absolute);
+    $executableChanged = array_map('intval', array_keys($lines));
+    sort($executableChanged);
+
+    if ($contents !== false) {
+        $analysis = $analyser->analyse($absolute, $contents, true, false);
+        $executableChanged = array_values(array_filter(
+            array_map('intval', array_keys($lines)),
+            static fn(int $line): bool => isset($analysis->executableLines()[$line]),
+        ));
+        sort($executableChanged);
+
+        $symbols = [
+            ...array_values($analysis->classes()),
+            ...array_values($analysis->interfaces()),
+            ...array_values($analysis->traits()),
+        ];
+        if ($symbols !== [] && $testContents !== []) {
+            $shortName = $symbols[0]->name();
+            $fqcn = $symbols[0]->namespacedName();
+            $coversNothingTests = [];
+            $hasCompanion = false;
+            foreach ($testContents as $testPath => $testContent) {
+                if (!preg_match('/\b' . preg_quote($shortName, '/') . '\b/', $testContent)) {
+                    continue;
+                }
+                if (preg_match('/#\[CoversNothing\b/', $testContent) === 1) {
+                    $coversNothingTests[] = $testPath;
+                    continue;
+                }
+                if (preg_match('/#\[Covers(?:Class|Method)\(\s*(?:\\\\?' . preg_quote($fqcn, '/') . '|' . preg_quote($shortName, '/') . ')::class\b/', $testContent) === 1) {
+                    $hasCompanion = true;
+                }
+            }
+            if ($coversNothingTests !== [] && !$hasCompanion) {
+                $excludedTestsBySource[$sourcePath] = $coversNothingTests;
+            }
+        }
+    }
+
+    foreach ($executableChanged as $number) {
+        $ref = $sourcePath . ':' . $number;
+        if (!isset($cloverCounts[$sourcePath][$number])) {
+            $uninstrumentedRefs[] = $ref;
             continue;
         }
         ++$executable;
-        if ((int) $line['count'] > 0) {
+        if ($cloverCounts[$sourcePath][$number] > 0) {
             ++$covered;
+            $coveredRefs[] = $ref;
+            continue;
+        }
+        $uncoveredRefs[] = $ref;
+        if (isset($excludedTestsBySource[$sourcePath])) {
+            $excludedRefs[] = $ref;
         }
     }
 }
 
-if ($executable === 0) {
+if ($executable === 0 && $uninstrumentedRefs === []) {
     echo "changed-php-coverage: changed PHP source contains no executable Clover lines.\n";
     exit(0);
 }
 
+if ($executable === 0) {
+    echo "changed-php-coverage: changed PHP source contains no executable Clover lines.\n";
+    printClassification($coveredRefs, $uncoveredRefs, $uninstrumentedRefs, $excludedRefs, $excludedTestsBySource);
+    fwrite(STDERR, "changed-php-coverage: denominator excludes uninstrumented lines; investigate subprocess or coverage include gaps before trusting a green percentage.\n");
+    exit(0);
+}
+
 $percentage = ($covered / $executable) * 100;
-printf("changed-php-coverage: %d/%d executable changed lines covered (%.2f%%, required %.2f%%).\n", $covered, $executable, $percentage, $threshold);
+printf(
+    "changed-php-coverage: %d/%d executable changed lines covered (%.2f%%, required %.2f%%).\n",
+    $covered,
+    $executable,
+    $percentage,
+    $threshold,
+);
+printClassification($coveredRefs, $uncoveredRefs, $uninstrumentedRefs, $excludedRefs, $excludedTestsBySource);
+if ($uninstrumentedRefs !== []) {
+    fwrite(STDERR, "changed-php-coverage: denominator excludes uninstrumented lines; investigate subprocess or coverage include gaps before trusting a green percentage.\n");
+}
+if ($excludedRefs !== []) {
+    fwrite(STDERR, "changed-php-coverage: excluded-attribution lines were executed only under #[CoversNothing] companions in this diff; add #[CoversClass]/#[CoversMethod] Unit/Contract coverage through a real public boundary.\n");
+}
+
 exit($percentage + 0.00001 >= $threshold ? 0 : 1);
+
+/**
+ * @param list<string> $coveredRefs
+ * @param list<string> $uncoveredRefs
+ * @param list<string> $uninstrumentedRefs
+ * @param list<string> $excludedRefs
+ * @param array<string, list<string>> $excludedTestsBySource
+ */
+function printClassification(
+    array $coveredRefs,
+    array $uncoveredRefs,
+    array $uninstrumentedRefs,
+    array $excludedRefs,
+    array $excludedTestsBySource,
+): void {
+    echo 'changed-php-coverage: covered: '
+        . ($coveredRefs === [] ? '(none)' : implode(', ', $coveredRefs))
+        . "\n";
+    echo 'changed-php-coverage: uncovered: '
+        . ($uncoveredRefs === [] ? '(none)' : implode(', ', $uncoveredRefs))
+        . "\n";
+    echo 'changed-php-coverage: uninstrumented: '
+        . ($uninstrumentedRefs === [] ? '(none)' : implode(', ', $uninstrumentedRefs))
+        . "\n";
+    if ($excludedRefs !== []) {
+        $tests = [];
+        foreach ($excludedTestsBySource as $paths) {
+            foreach ($paths as $path) {
+                $tests[$path] = true;
+            }
+        }
+        echo 'changed-php-coverage: excluded-attribution: '
+            . implode(', ', $excludedRefs)
+            . ' via #[CoversNothing] '
+            . implode(', ', array_keys($tests))
+            . "\n";
+    }
+}
