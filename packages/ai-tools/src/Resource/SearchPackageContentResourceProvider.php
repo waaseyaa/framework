@@ -187,7 +187,7 @@ final class SearchPackageContentResourceProvider implements ContentResourceProvi
         } catch (\InvalidArgumentException) {
             throw $invalid;
         }
-        if (!is_object($position) || $this->encodeResume($position) !== $token) {
+        if ($this->encodeResume($position) !== $token) {
             throw $invalid;
         }
 
