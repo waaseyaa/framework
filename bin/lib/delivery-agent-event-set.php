@@ -155,6 +155,9 @@ function delivery_agent_batch_immutability_errors(array $acceptedBatches, array 
  * Refuse modification of an already-accepted authority blob (freeze manifest,
  * batch schema, etc.).
  *
+ * Candidate mode must pass the blob from the candidate commit. A missing
+ * candidate blob is a deletion; working-tree bytes must not be substituted.
+ *
  * @return list<string>
  */
 function delivery_agent_authority_blob_immutability_errors(

@@ -659,13 +659,9 @@ if ($priorCommit !== null) {
 
     $priorFreeze = gitShow($root, $priorCommit, V1_FREEZE);
     $priorFreezeBytes = $priorFreeze['exit'] === 0 ? $priorFreeze['output'] : null;
-    $currentFreezeBytes = $freezeBytes;
-    if ($currentFreezeBytes === null && is_file($root . '/' . V1_FREEZE) && !$usingFixtures) {
-        $currentFreezeBytes = (string) file_get_contents($root . '/' . V1_FREEZE);
-    }
     array_push(
         $errors,
-        ...delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $priorFreezeBytes, $currentFreezeBytes),
+        ...delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $priorFreezeBytes, $freezeBytes),
     );
 
     $priorBatchSchema = gitShow($root, $priorCommit, BATCH_SCHEMA);

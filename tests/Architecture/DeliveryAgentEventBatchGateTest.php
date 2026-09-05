@@ -269,6 +269,122 @@ final class DeliveryAgentEventBatchGateTest extends TestCase
         self::assertStringContainsString('batch schema is immutable', $result['stderr']);
     }
 
+    #[Test]
+    public function branch_mode_refuses_deleted_freeze_manifest(): void
+    {
+        $this->assertAuthorityDeletionRefused(
+            'ops/observability/delivery-agent-v1-freeze.json',
+            'accepted v1 freeze manifest deleted',
+            candidateMode: false,
+            restoreInWorktree: false,
+        );
+    }
+
+    #[Test]
+    public function immutable_candidate_refuses_deleted_freeze_even_when_working_tree_restores_it(): void
+    {
+        $this->assertAuthorityDeletionRefused(
+            'ops/observability/delivery-agent-v1-freeze.json',
+            'accepted v1 freeze manifest deleted',
+            candidateMode: true,
+            restoreInWorktree: true,
+        );
+    }
+
+    #[Test]
+    public function immutable_candidate_refuses_rewritten_freeze_manifest(): void
+    {
+        $repo = $this->seedFrozenAuthorityRepo();
+        $base = $this->sha($repo);
+        $this->git($repo, ['checkout', '-q', '-b', 'rewrite-freeze-candidate']);
+
+        $ledgerPath = $repo . '/ops/observability/delivery-agent-events-v1.jsonl';
+        file_put_contents(
+            $ledgerPath,
+            (string) file_get_contents($ledgerPath)
+            . json_encode($this->event('99999999-9999-4999-8999-999999999999', 'review_started', '2099-01-01T00:00:00Z'), JSON_UNESCAPED_SLASHES) . "\n",
+        );
+        $newHash = hash('sha256', (string) file_get_contents($ledgerPath));
+        $freeze = json_decode((string) file_get_contents($repo . '/ops/observability/delivery-agent-v1-freeze.json'), true, flags: JSON_THROW_ON_ERROR);
+        $freeze['ledger_sha256'] = $newHash;
+        $freeze['ledger_bytes'] = strlen((string) file_get_contents($ledgerPath));
+        file_put_contents(
+            $repo . '/ops/observability/delivery-agent-v1-freeze.json',
+            json_encode($freeze, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+        $candidate = $this->commitAll($repo, 'rewrite freeze to match mutated ledger');
+
+        $result = $this->gate($repo, ['--candidate=' . $candidate, '--base=' . $base]);
+        self::assertSame(1, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertStringContainsString('v1 freeze manifest is immutable', $result['stderr']);
+        self::assertStringNotContainsString('PASS', $result['stdout']);
+    }
+
+    #[Test]
+    public function branch_mode_refuses_deleted_batch_schema(): void
+    {
+        $this->assertAuthorityDeletionRefused(
+            'ops/observability/delivery-agent-batch-v1.schema.json',
+            'accepted batch schema deleted',
+            candidateMode: false,
+            restoreInWorktree: false,
+        );
+    }
+
+    #[Test]
+    public function immutable_candidate_refuses_deleted_batch_schema_even_when_working_tree_restores_it(): void
+    {
+        $this->assertAuthorityDeletionRefused(
+            'ops/observability/delivery-agent-batch-v1.schema.json',
+            'accepted batch schema deleted',
+            candidateMode: true,
+            restoreInWorktree: true,
+        );
+    }
+
+    #[Test]
+    public function immutable_candidate_refuses_rewritten_batch_schema(): void
+    {
+        $repo = $this->seedFrozenAuthorityRepo();
+        $base = $this->sha($repo);
+        $this->git($repo, ['checkout', '-q', '-b', 'widen-batch-schema-candidate']);
+
+        $schemaPath = $repo . '/ops/observability/delivery-agent-batch-v1.schema.json';
+        $schema = json_decode((string) file_get_contents($schemaPath), true, flags: JSON_THROW_ON_ERROR);
+        $schema['properties']['events']['minItems'] = 0;
+        file_put_contents($schemaPath, json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        $candidate = $this->commitAll($repo, 'widen batch schema');
+
+        $result = $this->gate($repo, ['--candidate=' . $candidate, '--base=' . $base]);
+        self::assertSame(1, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertStringContainsString('batch schema is immutable', $result['stderr']);
+        self::assertStringNotContainsString('PASS', $result['stdout']);
+    }
+
+    private function assertAuthorityDeletionRefused(
+        string $relativePath,
+        string $expectedError,
+        bool $candidateMode,
+        bool $restoreInWorktree,
+    ): void {
+        $repo = $this->seedFrozenAuthorityRepo();
+        $base = $this->sha($repo);
+        $accepted = (string) file_get_contents($repo . '/' . $relativePath);
+        $this->git($repo, ['checkout', '-q', '-b', 'delete-' . basename($relativePath)]);
+        $this->git($repo, ['rm', '-q', $relativePath]);
+        $candidate = $this->commitAll($repo, 'delete ' . $relativePath);
+        if ($restoreInWorktree) {
+            file_put_contents($repo . '/' . $relativePath, $accepted);
+        }
+
+        $result = $candidateMode
+            ? $this->gate($repo, ['--candidate=' . $candidate, '--base=' . $base])
+            : $this->gate($repo, ['--branch-base=' . $base]);
+        self::assertSame(1, $result['exit'], $result['stderr'] . $result['stdout']);
+        self::assertStringContainsString($expectedError, $result['stderr']);
+        self::assertStringNotContainsString('PASS', $result['stdout']);
+    }
+
     private function seedFrozenAuthorityRepo(): string
     {
         $repo = sys_get_temp_dir() . '/waaseyaa-batch-gate-' . bin2hex(random_bytes(6));

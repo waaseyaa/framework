@@ -165,6 +165,47 @@ final class DeliveryAgentEventBatchAdversarialFixtureTest extends TestCase
     }
 
     #[Test]
+    public function accepted_freeze_and_batch_schema_blobs_cannot_be_deleted_or_rewritten(): void
+    {
+        $freeze = "{\"schema_version\":\"delivery-agent-v1-freeze/v1\"}\n";
+        $schema = "{\"title\":\"batch\"}\n";
+
+        self::assertSame(
+            ['accepted v1 freeze manifest deleted'],
+            delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $freeze, null),
+        );
+        self::assertSame(
+            ['accepted v1 freeze manifest deleted'],
+            delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $freeze, ''),
+        );
+        self::assertSame(
+            ['the published v1 freeze manifest is immutable'],
+            delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $freeze, $schema),
+        );
+        self::assertSame(
+            [],
+            delivery_agent_authority_blob_immutability_errors('v1 freeze manifest', $freeze, $freeze),
+        );
+
+        self::assertSame(
+            ['accepted batch schema deleted'],
+            delivery_agent_authority_blob_immutability_errors('batch schema', $schema, null),
+        );
+        self::assertSame(
+            ['accepted batch schema deleted'],
+            delivery_agent_authority_blob_immutability_errors('batch schema', $schema, ''),
+        );
+        self::assertSame(
+            ['the published batch schema is immutable'],
+            delivery_agent_authority_blob_immutability_errors('batch schema', $schema, $freeze),
+        );
+        self::assertSame(
+            [],
+            delivery_agent_authority_blob_immutability_errors('batch schema', $schema, $schema),
+        );
+    }
+
+    #[Test]
     public function a_valid_cross_batch_causal_set_without_cycles_or_duplicates_is_accepted(): void
     {
         $finding = $this->finding('77777777-7777-4777-8777-777777777777');
