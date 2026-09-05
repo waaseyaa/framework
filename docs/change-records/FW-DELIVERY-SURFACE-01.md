@@ -252,3 +252,25 @@ index 591759d8c..7c111e7bc 100644
          },
          {
 ```
+
+## Codex integration and independent review
+
+The reserved preflight-roster, governed-gates and release-cut patch is integrated
+in this candidate. Release-cut generation and staging include both aggregate
+files; refresh remains manual because classification and authorization require
+maintainer judgment. No release operation was performed.
+
+Independent review of candidate 801b6cb3ea15f63d71c298ff527d344e8cdfd9cf
+reproduced a gate-level loadability regression: an interface declared in source
+under the wrong PSR-4 filename passed the new AST-backed parity gate, whereas
+the previous gate refused the same type as non-loadable. Source discovery must
+remain distinct from actual autoloadability. The existing Integration test also
+checks loadability; this finding does not claim that the entire CI pipeline
+would accept the broken type. The repair restores actual autoloadability for every composed declaration and
+rename target, with a real-gate wrong-filename refusal and correct-filename
+positive control. Generator fixture AST behavior remains unchanged.
+
+Independent real-tree probes also confirmed that a public-to-internal downgrade
+without a directive fails, a historical CHANGELOG directive still fails, and a
+newly added correctly typed exact-FQCN directive passes. Those controls exercised
+the pre-migration aggregate fallback against the real candidate merge base.

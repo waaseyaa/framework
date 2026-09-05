@@ -284,6 +284,16 @@ jobs:
         # fails a different way. See the git add list below.
         run: bash tests/PackagedForm/check-s1-sqlite-artifact --write-dependency-authority
 
+      - name: Regenerate the public-surface-map aggregates
+        # packages/<pkg>/public-surface.php declarations are the editable
+        # authority (FW-DELIVERY-SURFACE-01 / #2901); the tracked
+        # docs/public-surface-map.{php,md} aggregates are derived views the
+        # release cut regenerates and commits, exactly like CHANGELOG.md is
+        # compiled from changes/unreleased/ in this same job. Declarations do
+        # not change during the version sweep, so ordering relative to it is
+        # immaterial; it must simply run before the release commit is staged.
+        run: php bin/generate-surface-map --write
+
       - name: Commit release and push the gate branch
         id: relcommit
         env:
@@ -297,7 +307,7 @@ jobs:
           # whose manifests disagree with its install or consumer metadata.
           # See alpha.178 (unstaged packages) and alpha.287 gate attempt 1
           # (unstaged skeleton and stale root-lock metadata).
-          git add -A -- CHANGELOG.md changes/unreleased changes/released VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json
+          git add -A -- CHANGELOG.md changes/unreleased changes/released VERSION composer.lock packages/*/composer.json skeleton/composer.json support/s1-sqlite-dependency-bytes.json docs/public-surface-map.php docs/public-surface-map.md
           git commit -m "chore: release ${VERSION}"
           # The release commit goes to a throwaway gate branch FIRST. Main is
           # only fast-forwarded after Gate 2 proves CI green on this exact SHA.

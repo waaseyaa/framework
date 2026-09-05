@@ -174,6 +174,11 @@ function addedFragmentFilenames(string $root, string $mergeBase): array
     return $filenames;
 }
 
+function surfaceTypeExists(string $fqcn): bool
+{
+    return class_exists($fqcn) || interface_exists($fqcn) || trait_exists($fqcn) || enum_exists($fqcn);
+}
+
 $baseRef = 'origin/main';
 foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
     if (str_starts_with($argument, '--base=')) {
@@ -203,6 +208,20 @@ if ($validationErrors !== []) {
 }
 
 $headMap = $headDeclarations->compose();
+$unloadableDeclarations = [];
+foreach (array_keys($headMap) as $fqcn) {
+    if (!surfaceTypeExists($fqcn)) {
+        $unloadableDeclarations[] = $fqcn;
+    }
+}
+if ($unloadableDeclarations !== []) {
+    sort($unloadableDeclarations, SORT_STRING);
+    fail(
+        "declaration validation failed (docs/specs/public-surface-declarations.md §4):\n\n"
+        . count($unloadableDeclarations) . " declared type(s) do not load through the repository autoloader:\n  "
+        . implode("\n  ", $unloadableDeclarations),
+    );
+}
 info(sprintf(
     'Loaded %d disposition(s) from %d package declaration file(s); scanned %d source file(s).',
     count($headMap),
@@ -272,7 +291,7 @@ foreach (SurfaceChangeAuthorization::removedMapEntries($baseMap, $headMap) as $f
         $unauthorizedRemovals[] = $fqcn;
         continue;
     }
-    if (!isset($headMap[$renameTarget]) || $scanner->shape($renameTarget) === null) {
+    if (!isset($headMap[$renameTarget]) || !surfaceTypeExists($renameTarget)) {
         $invalidRenames[] = "{$fqcn} -> {$renameTarget} (replacement must be declared and loadable)";
     }
 }
