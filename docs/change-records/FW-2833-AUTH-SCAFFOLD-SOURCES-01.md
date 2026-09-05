@@ -14,24 +14,29 @@ consumers omit that aggregate, so `scaffold:auth --check` exited 1 with
 though the loaded `waaseyaa/cli` path-install still sits beside
 `packages/admin/app` in the monorepo.
 
-## Decision
+## Decision (superseded — see "Repair design" below)
 
-Keep project-root and metapackage lookups. Add owning-package candidates that
-follow the loaded `AuthUiScaffoldManager` / `waaseyaa/cli` install path to the
-sibling `packages/admin/app`, using `realpath` so Composer path symlinks resolve.
-Version identity prefers the monorepo `VERSION` beside that tree, then
-InstalledVersions for `waaseyaa/framework` or `waaseyaa/cli`.
+Candidate `290d064` kept project-root and metapackage lookups and added
+owning-package candidates that followed the loaded `AuthUiScaffoldManager` /
+`waaseyaa/cli` install path to the sibling `packages/admin/app`, using
+`realpath` so Composer path symlinks resolve. Independent review found this
+sibling guess only ever holds when `vendor/waaseyaa/cli` is a path-repo
+symlink back into this monorepo — no real consumer install produces that
+layout, since `packages/admin` has no `composer.json` and is not
+split-mirrored. It is replaced by the package-owned resource mirror in
+"Repair design" below.
 
-No application-side fallback, vendor-path workaround, metapackage
-reintroduction, or relocation of admin SPA sources into the CLI package.
+## Proof (superseded — see "Repair design" below)
 
-## Proof
-
-- Unit: sibling-only candidate resolves and `scaffold:auth --check` / publish
-  succeed without in-tree `packages/` or `vendor/waaseyaa/framework`.
-- Existing metapackage and in-tree fixtures remain green.
-- Content Pipeline direct profile requalifies `scaffold:auth --check` against
-  this candidate's CLI package.
+The unit-only proof originally claimed here, and a claimed Content Pipeline
+direct-profile requalification of `scaffold:auth --check`, were never
+substantiated by a real packaged-consumer install and are withdrawn. The
+actual proof is `tests/PackagedForm/check-cli-auth-scaffold`: an exact-HEAD
+archive installed into direct (no `waaseyaa/framework`) and aggregate
+consumers via Composer path repositories with `symlink: false`, running the
+real `vendor/bin/waaseyaa scaffold:auth`, with negatives for a missing
+resources directory, a missing resource file, and a corrupted resource file,
+plus a hand-edit preservation check. See "Repair design" decision 4.
 
 ## Repair design (2026-09-05, review of candidate 290d064)
 

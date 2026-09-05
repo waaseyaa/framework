@@ -18,10 +18,20 @@ implementation code. Once published, those presentation files are
 application-owned and Framework updates never overwrite them automatically.
 
 Upstream sources are resolved from, in order: the application
-`packages/admin/app` tree, an installed `waaseyaa/framework` metapackage, or
-the loaded `waaseyaa/cli` package's monorepo sibling `packages/admin/app`
-(#2833). Direct-package consumers that omit the metapackage therefore still
-see Framework-owned sources when Composer path-installs monorepo packages.
+`packages/admin/app` tree; an installed `waaseyaa/framework` metapackage; the
+package-owned mirror shipped inside the installed `waaseyaa/cli` package at
+`resources/auth-ui` (kept byte-identical to `packages/admin/app` by
+`bin/sync-cli-auth-ui-resources`, checked by
+`CliAuthUiResourceParityTest`); or a loaded-package-local fallback anchored on
+`AuthUiScaffoldManager`'s own class file location, for runtimes where
+Composer's `InstalledVersions` has no record of the package (#2833).
+Direct-package consumers that omit the metapackage (ADR-004) therefore always
+see Framework-owned sources from the installed `waaseyaa/cli` package itself
+— no dependency on Composer path-repository symlink layout or on any
+monorepo-only directory. Proof: `tests/PackagedForm/check-cli-auth-scaffold`
+installs both consumer shapes from real path-repository copies (`symlink:
+false`) and exercises the real `scaffold:auth` entrypoint, including missing-
+and corrupted-resource negatives and a hand-edit preservation check.
 
 The versioned `app/.waaseyaa/scaffold-manifest.json` records, per file, the
 stable upstream source path, originating Framework version, digest algorithm,
@@ -97,3 +107,5 @@ Framework credential/session invariant remains load-bearing.
 CLI tests additionally pin every drift classification, legacy checksum
 compatibility, malformed-manifest refusal, packaged-consumer source discovery,
 strict-policy exit behavior, and the no-overwrite invariant.
+`tests/PackagedForm/check-cli-auth-scaffold` proves source discovery from real
+installed package bytes in both consumer shapes (#2833).
