@@ -20,6 +20,7 @@ use Waaseyaa\Foundation\Migration\TableBuilder;
  */
 #[CoversClass(Migrator::class)]
 #[CoversClass(LegacyReversePlanCatalog::class)]
+#[CoversClass(Migration::class)]
 final class LegacyReversePlanContractTest extends TestCase
 {
     private \Doctrine\DBAL\Connection $connection;
@@ -34,6 +35,16 @@ final class LegacyReversePlanContractTest extends TestCase
         $this->repository = new MigrationRepository($this->connection);
         $this->repository->createTable();
         $this->migrator = new Migrator($this->connection, $this->repository);
+    }
+
+    #[Test]
+    public function default_migration_does_not_provide_supported_reverse(): void
+    {
+        $migration = new class extends Migration {
+            public function up(SchemaBuilder $schema): void {}
+        };
+
+        self::assertFalse($migration->providesSupportedReverse());
     }
 
     #[Test]
