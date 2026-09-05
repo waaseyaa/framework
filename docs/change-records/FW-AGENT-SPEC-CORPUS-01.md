@@ -32,6 +32,8 @@ work sequencing and review decisions; it is not a second specification source.
   revision identity; generated content cannot bind to its own future commit.
 - #2648/#2650: raw docs and an approved compiled corpus have separate
   distribution ownership.
+- The design candidate contains 113 recursively enumerated Markdown sources:
+  111 top-level files, including the new corpus contract, and two nested files.
 
 ## Decisions
 
@@ -50,6 +52,16 @@ work sequencing and review decisions; it is not a second specification source.
    external/spec links, source line mapping, and structural provenance.
 6. The generated resource is owned by `waaseyaa/bimaaji` but remains inert.
    Search activation and FTS5 belong to #2662.
+7. The compiler validates the current candidate and has no Git-history or
+   mutable prior-state authority. Single-sided catalog/source omissions fail in
+   code; lifecycle transitions and paired delete/rename changes fail or pass by
+   governance review of the candidate diff.
+8. Catalog, document, chunk, manifest, lifecycle-count, sanitization-count, and
+   corpus-digest preimage shapes are closed. Corpus identity excludes only its
+   own digest/version fields and binds both JSONL files in line order.
+9. Repository-relative provenance remains. Sanitization removes absolute
+   host-local filesystem paths and `file:` URLs rather than claiming every
+   local-looking relative path disappears.
 
 ## Work packages
 
@@ -66,6 +78,8 @@ work sequencing and review decisions; it is not a second specification source.
   chunks, and content-addressed identities.
 - Prove every refusal class and check/write atomicity with temporary fixtures.
 - Use the repository-owned file enumerator and scrubbed Git execution path.
+- Implement only current-state validation; do not add a history reader or
+  mutable state store to guess lifecycle evolution.
 
 ### WP-C — generated resource and governed drift check
 
@@ -97,6 +111,8 @@ work sequencing and review decisions; it is not a second specification source.
 2. Confirm the proposed compiler command/library names during implementation.
 3. #2662 must settle FTS schema, ranking, filters, and installed-version
    reporting while preserving this corpus's live-only default and identities.
+4. Any future deletion/rename migration must define preserved citation
+   identity in a later format; v1 review refuses such candidates.
 
 ## Candidate evidence
 
