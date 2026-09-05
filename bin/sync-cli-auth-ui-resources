@@ -76,7 +76,7 @@ function ensureDirectoryExists(string $directory): void
     }
 }
 
-$expectedRelativePaths = array_values(array_keys(AuthUiScaffoldManager::FILE_MAP));
+$expectedRelativePaths = array_keys(AuthUiScaffoldManager::FILE_MAP);
 sort($expectedRelativePaths, SORT_STRING);
 
 // ── copy exactly the FILE_MAP sources, byte-for-byte ──────────────────────────
