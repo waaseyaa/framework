@@ -74,6 +74,11 @@ public:// source contract. -->
 and 428/400 JSON:API envelopes go through Waaseyaa\Api\Http\EntityMutationPrecondition.
 EntityMutationToken::fromHttpIfMatch() remains the policy authority; Request::getETags()
 is not used. Canonical envelope contract: docs/specs/api-layer.md. -->
+<!-- Spec reviewed 2026-09-05 - #2636: ApplicationSecret adds
+PURPOSE_MCP_CONTENT_RESOURCE_LIST_CURSOR (waaseyaa.mcp.content-resource-list-cursor.v1),
+owned by waaseyaa/mcp for AEAD-sealed resources/list pagination. Purpose is
+registered via McpServiceProvider application-master rekey contributions;
+expiry is enforced in sealed claims, not by ApplicationSecret itself. -->
 <!-- Spec reviewed 2026-08-22 - #2500: ApplicationSecret adds PURPOSE_AUTH_TOKEN_HMAC (waaseyaa.auth.token-hmac.v1), owned by waaseyaa/auth. Auth reset/verify/invite HMACs derive from that purpose unless a valid explicit AUTH_TOKEN_SECRET overrides; raw master bytes are never the HMAC key. Kernel custody, HKDF salt, and non-disclosure rules are unchanged. -->
 
 <!-- Spec reviewed 2026-08-16 - #2113: HttpKernel resolves the boot-scoped InternalFieldVisibilityPolicy and threads the same instance into JSON:API, translation, and search routers. Every ResourceSerializer created by those infrastructure adapters therefore consumes application `entity.internal_fields_by_type` metadata consistently; routing and controller dispatch semantics are unchanged. -->

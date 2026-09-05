@@ -1,5 +1,10 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-09-05 - #2636: ContentResourceProviderInterface.list()
+returns ContentResourceListPage with provider-local resume tokens;
+ContentResourceRegistry::listPage() composes sealable ContentResourceListResume
+values. MCP AEAD cursor sealing and resources/list wire contract live in
+mcp-endpoint.md — ai-tools remains MCP-neutral. -->
 <!-- Spec reviewed 2026-08-30 - #2657: `waaseyaa/ai-tools` gains two
 namespaces that are library code only — no service provider, no route, no
 attribute, no discovery convention. `Dispatch/` holds `ToolDispatcherInterface`
