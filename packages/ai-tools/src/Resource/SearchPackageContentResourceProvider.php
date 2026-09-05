@@ -11,15 +11,21 @@ final class SearchPackageContentResourceProvider implements ContentResourceProvi
 {
     private const string CATALOGUE = 'Waaseyaa\\Search\\SearchContentCatalogueInterface';
     private const string PROJECTION = 'Waaseyaa\\Search\\SearchCandidateProjection';
+    private const string PAGE = 'Waaseyaa\\Search\\SearchCataloguePage';
+    private const string POSITION = 'Waaseyaa\\Search\\SearchCatalogueScanPosition';
     private const string URI_PREFIX = 'waaseyaa://content/';
     private const int MAX_PATH_BYTES = 1_024;
+    private const string RESUME_VERSION = 'srv1';
 
     /** @param \Closure(): object $catalogueResolver */
     public function __construct(private readonly \Closure $catalogueResolver) {}
 
     public static function isAvailable(): bool
     {
-        return interface_exists(self::CATALOGUE) && class_exists(self::PROJECTION);
+        return interface_exists(self::CATALOGUE)
+            && class_exists(self::PROJECTION)
+            && class_exists(self::PAGE)
+            && class_exists(self::POSITION);
     }
 
     public static function catalogueServiceId(): string
@@ -27,13 +33,21 @@ final class SearchPackageContentResourceProvider implements ContentResourceProvi
         return self::CATALOGUE;
     }
 
-    public function list(AuthorizationPrincipalInterface $principal): array
-    {
+    public function list(
+        AuthorizationPrincipalInterface $principal,
+        ?string $resumeToken = null,
+    ): ContentResourceListPage {
         $catalogue = $this->catalogue();
+        $after = $resumeToken === null ? null : $this->decodeResume($resumeToken);
         $list = \Closure::fromCallable([$catalogue, 'list']);
-        $source = $list($principal);
+        $page = $list($principal, $after);
+        if (!is_object($page) || !is_a($page, self::PAGE)) {
+            throw new \RuntimeException('The optional Search catalogue returned an invalid page.');
+        }
+
+        $source = get_object_vars($page)['projections'] ?? null;
         if (!is_array($source) || !array_is_list($source)) {
-            throw new \RuntimeException('The optional Search catalogue returned an invalid list.');
+            throw new \RuntimeException('The optional Search catalogue returned an invalid projection list.');
         }
 
         $resources = [];
@@ -61,7 +75,13 @@ final class SearchPackageContentResourceProvider implements ContentResourceProvi
             }
         }
 
-        return $resources;
+        $nextPosition = get_object_vars($page)['next'] ?? null;
+        $nextToken = null;
+        if (is_object($nextPosition) && is_a($nextPosition, self::POSITION)) {
+            $nextToken = $this->encodeResume($nextPosition);
+        }
+
+        return new ContentResourceListPage($resources, $nextToken);
     }
 
     public function templates(): array
@@ -135,6 +155,43 @@ final class SearchPackageContentResourceProvider implements ContentResourceProvi
         }
 
         return $catalogue;
+    }
+
+    private function encodeResume(object $position): string
+    {
+        $createdAt = (string) (get_object_vars($position)['createdAt'] ?? '');
+        $documentId = (string) (get_object_vars($position)['documentId'] ?? '');
+        $payload = self::RESUME_VERSION . ':' . $createdAt . "\0" . $documentId;
+
+        return rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
+    }
+
+    private function decodeResume(string $token): object
+    {
+        $invalid = new \InvalidArgumentException('The content resource list resume token is malformed.');
+        if (preg_match('/^[A-Za-z0-9_-]+$/D', $token) !== 1) {
+            throw $invalid;
+        }
+        $decoded = base64_decode(strtr($token, '-_', '+/') . str_repeat('=', (4 - strlen($token) % 4) % 4), true);
+        if (!is_string($decoded) || !str_starts_with($decoded, self::RESUME_VERSION . ':')) {
+            throw $invalid;
+        }
+        $body = substr($decoded, strlen(self::RESUME_VERSION) + 1);
+        $parts = explode("\0", $body, 2);
+        if (count($parts) !== 2) {
+            throw $invalid;
+        }
+        $positionClass = self::POSITION;
+        try {
+            $position = new $positionClass($parts[0], $parts[1]);
+        } catch (\InvalidArgumentException) {
+            throw $invalid;
+        }
+        if (!is_object($position) || $this->encodeResume($position) !== $token) {
+            throw $invalid;
+        }
+
+        return $position;
     }
 
     private static function assertCanonicalPath(string $path): void

@@ -11,6 +11,8 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Search\SearchCandidateProjection;
 use Waaseyaa\Search\SearchCandidateReference;
 use Waaseyaa\Search\SearchCandidateResolverInterface;
+use Waaseyaa\Search\SearchCataloguePage;
+use Waaseyaa\Search\SearchCatalogueScanPosition;
 use Waaseyaa\Search\SearchContentCatalogueInterface;
 
 /** Bounded protected-index catalogue; raw rows are candidate pointers only. @api */
@@ -32,20 +34,47 @@ final class Fts5SearchContentCatalogue implements SearchContentCatalogueInterfac
         $this->logger = $logger ?? new NullLogger();
     }
 
-    public function list(AuthorizationPrincipalInterface $principal): array
-    {
+    public function list(
+        AuthorizationPrincipalInterface $principal,
+        ?SearchCatalogueScanPosition $after = null,
+    ): SearchCataloguePage {
         if (!$this->schemaExists()) {
-            return [];
+            return new SearchCataloguePage([]);
         }
 
-        $rows = $this->database->query(
-            'SELECT document_id, entity_type FROM search_metadata '
-            . 'ORDER BY created_at DESC, document_id ASC LIMIT :scanCap',
-            ['scanCap' => self::MAX_CANDIDATE_SCAN],
-        );
+        $rows = $after === null
+            ? $this->database->query(
+                'SELECT document_id, entity_type, created_at FROM search_metadata '
+                . 'ORDER BY created_at DESC, document_id ASC LIMIT :scanCap',
+                ['scanCap' => self::MAX_CANDIDATE_SCAN],
+            )
+            : $this->database->query(
+                'SELECT document_id, entity_type, created_at FROM search_metadata '
+                . 'WHERE created_at < :createdAt '
+                . 'OR (created_at = :createdAt AND document_id > :documentId) '
+                . 'ORDER BY created_at DESC, document_id ASC LIMIT :scanCap',
+                [
+                    'createdAt' => $after->createdAt,
+                    'documentId' => $after->documentId,
+                    'scanCap' => self::MAX_CANDIDATE_SCAN,
+                ],
+            );
+
         $visible = [];
         $paths = [];
+        $scanned = 0;
+        $lastPosition = null;
         foreach ($rows as $row) {
+            ++$scanned;
+            $createdAt = (string) ($row['created_at'] ?? '');
+            $documentId = (string) ($row['document_id'] ?? '');
+            try {
+                $lastPosition = new SearchCatalogueScanPosition($createdAt, $documentId);
+            } catch (\InvalidArgumentException) {
+                $this->logger->warning('Search content catalogue omitted a row with invalid scan coordinates.');
+                continue;
+            }
+
             $projection = $this->resolveRow($row, $principal);
             if ($projection === null || $projection->url === '' || isset($paths[$projection->url])) {
                 continue;
@@ -57,7 +86,17 @@ final class Fts5SearchContentCatalogue implements SearchContentCatalogueInterfac
             }
         }
 
-        return $visible;
+        $next = ($scanned === self::MAX_CANDIDATE_SCAN || count($visible) === self::MAX_VISIBLE_RESOURCES)
+            && $lastPosition instanceof SearchCatalogueScanPosition
+            ? $lastPosition
+            : null;
+
+        // A short final chunk under both caps has no continuation.
+        if ($scanned < self::MAX_CANDIDATE_SCAN && count($visible) < self::MAX_VISIBLE_RESOURCES) {
+            $next = null;
+        }
+
+        return new SearchCataloguePage($visible, $next);
     }
 
     public function readByPublicPath(

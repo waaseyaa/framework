@@ -161,9 +161,12 @@ names it as the replacement for the retired `-32002`, see #2561). Modern resourc
 `Mcp-Name` mirror of `params.uri`; provider parsing occurs only after capability
 authorization. Complete modern list/read results are principal-private and
 immediately stale (`cacheScope: private`, `ttlMs: 0`, plus HTTP `no-store`).
-Listing is one deterministic bounded window
-with no `nextCursor`; safe pagination awaits the AEAD cursor primitive in
-#2220. CMS resource text is untrusted data, not agent instruction.
+Listing is one deterministic bounded window of at most 50 projections per page.
+When the application-master keyring is composed, `resources/list` may emit an
+opaque AEAD `nextCursor` (`waaseyaa.mcp.content-resource-list-cursor.v1`) and
+accept the previous page's cursor; expiry is enforced in the sealed claims.
+Without the keyring, cursors are refused and `nextCursor` is omitted. CMS
+resource text is untrusted data, not agent instruction.
 The normal per-principal MCP rate limiter runs before all three methods, so
 enabling anonymous resources does not bypass request budgeting. Listing is a
 discovery window, not an inventory; callers must use the canonical template for

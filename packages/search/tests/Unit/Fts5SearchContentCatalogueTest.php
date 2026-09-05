@@ -14,10 +14,12 @@ use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\SearchCandidateProjection;
 use Waaseyaa\Search\SearchCandidateReference;
 use Waaseyaa\Search\SearchCandidateResolverInterface;
+use Waaseyaa\Search\SearchCataloguePage;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\Tests\Support\SearchTestPrincipal;
 
 #[CoversClass(Fts5SearchContentCatalogue::class)]
+#[CoversClass(SearchCataloguePage::class)]
 final class Fts5SearchContentCatalogueTest extends TestCase
 {
     private DBALDatabase $database;
@@ -60,8 +62,9 @@ final class Fts5SearchContentCatalogueTest extends TestCase
 
         $listed = $catalogue->list($principal);
 
-        self::assertCount(1, $listed);
-        self::assertSame('/public', $listed[0]->url);
+        self::assertCount(1, $listed->projections);
+        self::assertNull($listed->next);
+        self::assertSame('/public', $listed->projections[0]->url);
         self::assertNull($catalogue->readByPublicPath('/private', $principal));
         self::assertSame('/public', $catalogue->readByPublicPath('/public', $principal)?->url);
         foreach ($seen as $actual) {
@@ -84,7 +87,7 @@ final class Fts5SearchContentCatalogueTest extends TestCase
     }
 
     #[Test]
-    public function listing_scans_and_returns_fixed_bounded_windows_without_counts_or_cursors(): void
+    public function listing_pages_through_sealed_capable_scan_positions_without_counts(): void
     {
         for ($id = 3; $id <= 550; ++$id) {
             $this->index('node:' . $id, '/page-' . $id, 'Page ' . $id);
@@ -105,10 +108,17 @@ final class Fts5SearchContentCatalogueTest extends TestCase
             }
         };
 
-        $listed = new Fts5SearchContentCatalogue($this->database, $resolver)->list(SearchTestPrincipal::create());
+        $catalogue = new Fts5SearchContentCatalogue($this->database, $resolver);
+        $first = $catalogue->list(SearchTestPrincipal::create());
 
-        self::assertCount(50, $listed);
+        self::assertCount(50, $first->projections);
+        self::assertNotNull($first->next);
         self::assertSame(50, $calls);
+
+        $second = $catalogue->list(SearchTestPrincipal::create(), $first->next);
+        self::assertNotEmpty($second->projections);
+        self::assertNotSame($first->projections[0]->url, $second->projections[0]->url);
+        self::assertGreaterThan(50, $calls);
     }
 
     private function index(string $id, string $url, string $title): void

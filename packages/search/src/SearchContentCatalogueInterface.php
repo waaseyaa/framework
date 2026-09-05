@@ -18,8 +18,16 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
  */
 interface SearchContentCatalogueInterface
 {
-    /** @return list<SearchCandidateProjection> One bounded discovery window. */
-    public function list(AuthorizationPrincipalInterface $principal): array;
+    /**
+     * One bounded discovery window, optionally resumed after a prior scan position.
+     *
+     * Implementations MUST NOT expose raw counts, denied identifiers, or
+     * ordering positions except via the sealed-capable {@see SearchCataloguePage::$next}.
+     */
+    public function list(
+        AuthorizationPrincipalInterface $principal,
+        ?SearchCatalogueScanPosition $after = null,
+    ): SearchCataloguePage;
 
     public function readByPublicPath(
         string $publicPath,
