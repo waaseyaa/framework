@@ -1,4 +1,5 @@
 # Infrastructure
+<!-- Spec reviewed 2026-09-05 - #2822: the supported application job extension point is abstract `Waaseyaa\Queue\Job` (`handle()`), classified public. There is no `JobInterface`. Queue README key classes name only loadable types. Job middleware remains foundation `JobMiddlewareInterface`. HandlerInterface/TransportInterface/FailedJobRepositoryInterface stay internal backend types. Acceptance: QueueJobContractSurfaceTest. -->
 <!-- Spec reviewed 2026-09-04 - #2835: HttpKernel resolves the provider-bound
 `Waaseyaa\Workflows\Read\ActiveWorkflows` through the same HttpKernelServiceResolver
 idiom as FieldSchemaAuthority (#2786 entry below) and passes it into
@@ -236,7 +237,7 @@ Authoritative dispositions are in each element's owning package-local `packages/
 | plugin | `PluginInspectionInterface`, `PluginManagerInterface`, `PluginBase` |
 | typed-data | `DataDefinitionInterface`, `CoercionException`, `EntityCastCoercion` |
 | i18n | `LanguageManagerInterface`, `TranslatorInterface` |
-| queue | `QueueInterface` |
+| queue | `QueueInterface`, `Job` |
 | testing | `CreatesApplication`, `InteractsWithApi`, `InteractsWithAuth`, `InteractsWithEvents`, `RefreshDatabase`, `EntityFactory`, `EntityTypeFixtureValues` |
 
 **`@internal`** (implementation details, may change without notice):
@@ -246,7 +247,7 @@ Authoritative dispositions are in each element's owning package-local `packages/
 | foundation | `AbstractKernel` | Entry-point orchestrator, not a consumer contract |
 | foundation | `TenantResolverInterface` | Multi-tenancy seam not yet stabilized |
 | plugin | `PluginDiscoveryInterface`, `KnowledgeToolingExtensionInterface`, `PluginFactoryInterface` | Discovery/factory internals |
-| queue | `HandlerInterface`, `TransportInterface`, `FailedJobRepositoryInterface`, `Job` | Queue backend internals |
+| queue | `HandlerInterface`, `TransportInterface`, `FailedJobRepositoryInterface` | Queue backend internals |
 | scheduler | `LockInterface`, `ScheduleInterface` | Scheduler internals |
 | state | `StateInterface` | State machine internals |
 | mail | `MailerInterface`, `TransportInterface` | `@internal` foundation seam (#798 closed — single `Mailer` + transport stack) |
@@ -2281,6 +2282,14 @@ File: `packages/queue/src/QueueInterface.php`
 
 Queue implementations: `DbalQueue` (DBAL-backed persistent), `InMemoryQueue` (testing), `MessageBusQueue` (Symfony Messenger bridge), `SyncQueue` (immediate execution).
 
+### Job
+
+File: `packages/queue/src/Job.php`
+
+Abstract application job. Consumers subclass `Waaseyaa\Queue\Job` and implement
+`handle()`. There is no `JobInterface`. Job middleware is
+`Waaseyaa\Foundation\Middleware\JobMiddlewareInterface`, not a queue-package type.
+
 ### Worker
 
 File: `packages/queue/src/Worker/Worker.php`
@@ -2973,7 +2982,7 @@ DbalQueue.php                    -- DBAL-backed persistent queue
 InMemoryQueue.php                -- in-memory queue for testing
 MessageBusQueue.php              -- Symfony Messenger bridge
 SyncQueue.php                    -- immediate synchronous execution
-Job.php                          -- job value object
+Job.php                          -- abstract application job (`handle()`)
 Worker/
     Worker.php                   -- processes jobs from queue
     WorkerOptions.php            -- max jobs, memory limit, sleep, timeout

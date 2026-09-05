@@ -7,10 +7,9 @@ namespace Waaseyaa\Queue;
 /**
  * Abstract base class for queue jobs.
  *
- * Provides a structured way to define dispatchable work units with
- * retry policies, timeouts, and failure handling.
+ * Applications subclass this type and implement {@see handle()}. There is no
+ * `JobInterface`; this abstract class is the supported job extension point.
  *
- * @internal
  * @api
  */
 abstract class Job
