@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompilerFactory;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
@@ -14,7 +15,9 @@ use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteManifestWizard;
 use Waaseyaa\CLI\Site\SitePreset;
 use Waaseyaa\CLI\Site\SitePresetResolver;
+use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Exception\ManifestViolation;
 use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyResult;
 use Waaseyaa\SiteContract\Generation\ArtifactStatus;
@@ -75,10 +78,14 @@ final readonly class SiteInitHandler
 
             $manifest = new SiteManifestParser()->parse($yaml, $answers !== '' ? $answers : '<interactive>');
             GeneratorFeatureNegotiation::assert($manifest, SiteArtifactRendererFactory::advertisedGeneratorFeatures(), 'site:init');
-            $site = SiteArtifactRendererFactory::create()->render($manifest);
+            $decisionPath = trim((string) ($io->option('decision-receipt') ?? ''));
+            $decisionReceipt = $decisionPath === '' ? null : $this->readDecisionReceipt($decisionPath, $projectRoot);
+            $site = $manifest->applicationBlueprint === null
+                ? SiteArtifactRendererFactory::create()->render($manifest)
+                : ApplicationBlueprintCompilerFactory::create()->compile($manifest);
             $service = new SiteInitializationService($projectRoot);
             if ($dryRun) {
-                $plan = $service->initialize($site, true);
+                $plan = $service->initialize($site, true, decisionReceipt: $decisionReceipt);
                 if ($json) {
                     $this->writeStructuredResult($io, $plan);
 
@@ -106,7 +113,7 @@ final readonly class SiteInitHandler
 
                 return $yes || $io->confirm('Publish this complete generated site contract?', false);
             };
-            $result = $service->initialize($site, authorize: $authorize);
+            $result = $service->initialize($site, authorize: $authorize, decisionReceipt: $decisionReceipt);
             if ($json) {
                 $this->writeStructuredResult($io, $result);
 
@@ -128,7 +135,7 @@ final readonly class SiteInitHandler
             return 0;
         } catch (SiteManifestValidationException $exception) {
             $violation = $exception->violations[0];
-            $this->writeError($io, sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message), $json);
+            $this->writeError($io, sprintf('%s at %s: %s', $violation->code, $violation->path, $violation->message), $json, code: $violation->code === 'SITE050_DECISION_RECEIPT_INVALID' ? $violation->code : null, pointer: $violation->path);
         } catch (GenerationRefusalException $exception) {
             // R2-3: only the negotiation refusal this handler itself raises
             // (source 'site:init', immediately above) gets the widened coded
@@ -156,7 +163,7 @@ final readonly class SiteInitHandler
     private function writeStructuredResult(SymfonyCommandIO $io, SiteInitializationResult $result): void
     {
         $evaluation = $result->evaluation;
-        $io->writeln(CanonicalJson::encode([
+        $io->writeRaw(CanonicalJson::encode([
             'evaluation' => $evaluation === null ? null : [
                 'plan' => $evaluation->plan->toArray(),
                 'project_state' => $evaluation->projectState->toArray(),
@@ -168,14 +175,15 @@ final readonly class SiteInitHandler
             ],
             'result' => $result->applyResult?->toArray(),
             'receipts' => array_map(static fn(ChangeReceipt $receipt): array => $receipt->toArray(), $result->receipts),
-        ]));
+        ]) . "\n");
     }
 
     /** @param list<ChangeReceipt> $receipts */
-    private function writeError(SymfonyCommandIO $io, string $message, bool $json, array $receipts = [], ?ArtifactApplyResult $result = null): void
+    private function writeError(SymfonyCommandIO $io, string $message, bool $json, array $receipts = [], ?ArtifactApplyResult $result = null, ?string $code = null, ?string $pointer = null): void
     {
         if ($json) {
-            $io->writeln(CanonicalJson::encode(['evaluation' => null, 'result' => $result?->toArray(), 'receipts' => array_map(static fn(ChangeReceipt $receipt): array => $receipt->toArray(), $receipts), 'errors' => [['message' => $message]]]));
+            $error = $code === null ? ['message' => $message] : ['code' => $code, 'pointer' => $pointer, 'message' => $message];
+            $io->writeRaw(CanonicalJson::encode(['evaluation' => null, 'result' => $result?->toArray(), 'receipts' => array_map(static fn(ChangeReceipt $receipt): array => $receipt->toArray(), $receipts), 'errors' => [$error]]) . "\n");
 
             return;
         }
@@ -189,12 +197,13 @@ final readonly class SiteInitHandler
      * instead of `message` alone. The envelope's other members are unchanged
      * from an uncoded refusal: `evaluation`, `result` and `receipts` stay
      * `null`/`null`/`[]`, since a coded refusal at this boundary precedes
-     * every render, lock, journal and write, identically in dry-run and apply.
+     * every lock, journal and write, identically in dry-run and apply.
+     * Pure compilation may already have produced a reviewable plan.
      */
     private function writeCodedError(SymfonyCommandIO $io, GenerationRefusalException $exception, bool $json): void
     {
         if ($json) {
-            $io->writeln(CanonicalJson::encode(['evaluation' => null, 'result' => null, 'receipts' => [], 'errors' => $exception->toArray()]));
+            $io->writeRaw(CanonicalJson::encode(['evaluation' => null, 'result' => null, 'receipts' => [], 'errors' => $exception->toArray()]) . "\n");
 
             return;
         }
@@ -203,6 +212,34 @@ final readonly class SiteInitHandler
         $io->error($location === null
             ? sprintf('%s: %s', $violation->code->value, $violation->message)
             : sprintf('%s at %s: %s', $violation->code->value, $location, $violation->message));
+    }
+
+    private function readDecisionReceipt(string $receiptPath, string $projectRoot): BlueprintDecisionReceipt
+    {
+        try {
+            $path = $this->resolveAnswerPath($receiptPath, $projectRoot);
+            if (!is_file($path) || !is_readable($path)) {
+                throw new \InvalidArgumentException('The decision receipt must be a readable JSON document.');
+            }
+            // Read exactly once: a later path replacement cannot change the
+            // immutable approval snapshot used by this invocation.
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new \InvalidArgumentException('The decision receipt could not be read.');
+            }
+            $document = json_decode($bytes, true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($document) || array_is_list($document)) {
+                throw new \InvalidArgumentException('The decision receipt must be a JSON object.');
+            }
+
+            return BlueprintDecisionReceipt::fromArray($document, $receiptPath);
+        } catch (\JsonException|\InvalidArgumentException $exception) {
+            throw new SiteManifestValidationException($receiptPath, [new ManifestViolation(
+                'SITE050_DECISION_RECEIPT_INVALID',
+                '/decision_receipt',
+                'Expected a valid closed blueprint decision receipt JSON document.',
+            )], $exception);
+        }
     }
 
     private function resolveAnswerPath(string $answers, string $projectRoot): string

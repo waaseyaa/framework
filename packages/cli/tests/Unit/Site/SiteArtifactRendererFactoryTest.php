@@ -20,13 +20,11 @@ final class SiteArtifactRendererFactoryTest extends TestCase
     }
 
     #[Test]
-    public function advertisedGeneratorFeaturesIsEmptyIn01D1(): void
+    public function dispatcherAdvertisesOnlyTheActivatedBlueprintFeature(): void
     {
-        // FW-SITE-BLUEPRINT-01D, 01D-1: the manifest-only root compiler
-        // advertises nothing, so a blueprint-bearing manifest is refused at
-        // negotiation regardless of the installed recipe set. A later slice
-        // unions the blueprint root compiler's own declared feature roster
-        // here once that compiler is wired into site:init.
-        self::assertSame([], SiteArtifactRendererFactory::advertisedGeneratorFeatures());
+        // This advertises the dispatcher's installed capabilities; the
+        // renderer remains the legacy recipe composition, and the engine
+        // separately binds approval to the selected declared compiler.
+        self::assertSame(['site-application-blueprint-v1'], SiteArtifactRendererFactory::advertisedGeneratorFeatures());
     }
 }
