@@ -67,16 +67,20 @@ declare(strict_types=1);
  * always leaves an honest in_progress receipt behind, never a stale success
  * from a previous run. On completion (success or any run-time outcome —
  * failed/drifted/interrupted/evidence_error) the final receipt overwrites it
- * atomically. If the evidence directory or the receipt file itself cannot be
- * written, the runner exits 2 and prints nothing on stdout that could be
- * mistaken for a green result.
+ * atomically. Validation that occurs after the initial write (such as an
+ * unknown --only id) also finalizes the receipt as evidence_error. If the
+ * evidence directory or the receipt file itself cannot be written, the runner
+ * exits 2 and prints nothing on stdout that could be mistaken for a green
+ * result.
  *
  * Evidence binding per component: a previous run's log/junit at the same path
  * is removed before the child starts (unremovable -> evidence_error); a junit
  * whose failures/errors are non-zero next to a zero exit is an evidence_error,
  * never a pass. A real SIGINT/SIGTERM terminates still-running children
  * (SIGTERM, bounded wait, SIGKILL) and records them as signaled. Components
- * with an evidence_error outcome carry a `reason` string.
+ * with an evidence_error outcome carry a `reason` string. JUnit evidence must
+ * have a testsuites/testsuite root and explicit non-negative integer tests,
+ * failures, errors and skipped counts on every top-level suite.
  */
 
 const QUALIFY_CANDIDATE_VERSION = '1.0.0';
@@ -182,17 +186,50 @@ function qcParseJunit(string $path): ?array
     // each top-level <testsuite> already aggregates its nested per-class
     // <testsuite>/<testcase> descendants, so only DIRECT children are summed
     // — recursing into nested testsuite elements would double-count.
-    $roots = $xml->getName() === 'testsuites' ? $xml->testsuite : [$xml];
+    if ($xml->getName() === 'testsuites') {
+        $roots = iterator_to_array($xml->testsuite, false);
+        if ($roots === []) {
+            return null;
+        }
+    } elseif ($xml->getName() === 'testsuite') {
+        $roots = [$xml];
+    } else {
+        return null;
+    }
+
     $tests = 0;
     $failures = 0;
     $errors = 0;
     $skipped = 0;
     foreach ($roots as $suite) {
         $attributes = $suite->attributes();
-        $tests += (int) ($attributes['tests'] ?? 0);
-        $failures += (int) ($attributes['failures'] ?? 0);
-        $errors += (int) ($attributes['errors'] ?? 0);
-        $skipped += (int) ($attributes['skipped'] ?? 0);
+        $suiteCounts = [];
+        foreach (['tests', 'failures', 'errors', 'skipped'] as $name) {
+            if (!isset($attributes[$name])) {
+                return null;
+            }
+            $raw = (string) $attributes[$name];
+            if (preg_match('/^(?:0|[1-9][0-9]*)$/D', $raw) !== 1) {
+                return null;
+            }
+            $value = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+            if ($value === false) {
+                return null;
+            }
+            $suiteCounts[$name] = $value;
+        }
+        if (
+            $suiteCounts['tests'] > PHP_INT_MAX - $tests
+            || $suiteCounts['failures'] > PHP_INT_MAX - $failures
+            || $suiteCounts['errors'] > PHP_INT_MAX - $errors
+            || $suiteCounts['skipped'] > PHP_INT_MAX - $skipped
+        ) {
+            return null;
+        }
+        $tests += $suiteCounts['tests'];
+        $failures += $suiteCounts['failures'];
+        $errors += $suiteCounts['errors'];
+        $skipped += $suiteCounts['skipped'];
     }
 
     return ['tests' => $tests, 'failures' => $failures, 'errors' => $errors, 'skipped' => $skipped];
@@ -294,7 +331,7 @@ function qcFinalizeComponent(array $handle, ?array $status): array
         $counts = qcParseJunit($handle['junit_path']);
         if ($counts === null) {
             $outcome = 'evidence_error';
-            $reason = 'junit missing or unparseable: ' . $handle['junit_path'];
+            $reason = 'junit missing, unparseable, or structurally invalid: ' . $handle['junit_path'];
         } elseif ($exitCode === 0 && ($counts['failures'] > 0 || $counts['errors'] > 0)) {
             // PHPUnit never exits 0 with failures or errors, so a zero exit
             // paired with such a junit means the junit is not this run's
@@ -614,7 +651,7 @@ function qcBuildReceipt(
     array $disqualifiers,
     int $jobs,
     string $startedAtRunner,
-    ?string $finishedAtRunner = null,
+    ?string $finishedAtRunner,
 ): array {
     return [
         'candidate' => $candidate,
@@ -630,7 +667,7 @@ function qcBuildReceipt(
             'os' => PHP_OS_FAMILY,
             'jobs' => $jobs,
             'started_at' => $startedAtRunner,
-            'finished_at' => $finishedAtRunner ?? gmdate('Y-m-d\TH:i:s\Z'),
+            'finished_at' => $finishedAtRunner,
         ],
     ];
 }
@@ -681,6 +718,7 @@ if ($dirtyAtStart !== [] && !$allowDirty) {
         [],
         $jobs,
         $startedAtRunner,
+        gmdate('Y-m-d\TH:i:s\Z'),
     );
     if (!qcWriteReceiptAtomic($out, $receipt)) {
         qcExitWithoutReceipt('receipt could not be written after a dirty-tree refusal.', 2);
@@ -705,7 +743,26 @@ if ($onlyGiven) {
     $available = array_column($allComponents, 'id');
     $missing = array_diff($wanted, $available);
     if ($missing !== []) {
-        qcExitWithoutReceipt('--only names components absent from the plan: ' . implode(', ', $missing), 2);
+        $message = '--only names components absent from the plan: ' . implode(', ', $missing);
+        $receipt = qcBuildReceipt(
+            $candidate,
+            [],
+            ['head_after' => $source['head'], 'tree_after' => $source['tree'], 'drifted' => false, 'changes' => []],
+            'evidence_error',
+            false,
+            [],
+            $jobs,
+            $startedAtRunner,
+            gmdate('Y-m-d\TH:i:s\Z'),
+        );
+        if (!qcWriteReceiptAtomic($out, $receipt)) {
+            qcExitWithoutReceipt('receipt could not be finalized after an invalid --only selection.', 2);
+        }
+        fwrite(STDERR, "qualify-candidate: {$message}\n");
+        fwrite(STDOUT, "verdict: evidence_error\n");
+        fwrite(STDOUT, "qualification: false\n");
+        fwrite(STDOUT, "receipt: {$out}/receipt.json\n");
+        exit(2);
     }
     $componentsToRun = array_values(array_filter($allComponents, static fn(array $c): bool => in_array($c['id'], $wanted, true)));
 } else {
@@ -918,6 +975,7 @@ $receipt = qcBuildReceipt(
     $disqualifiers,
     $jobs,
     $startedAtRunner,
+    gmdate('Y-m-d\TH:i:s\Z'),
 );
 
 if (!qcWriteReceiptAtomic($out, $receipt)) {

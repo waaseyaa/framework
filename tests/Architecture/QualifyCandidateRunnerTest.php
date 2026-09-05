@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -148,6 +149,32 @@ final class QualifyCandidateRunnerTest extends TestCase
         self::assertSame('passed', $alpha['outcome']);
         self::assertSame(2, $alpha['counts']['skipped']);
         self::assertStringContainsString('skipped', $out, 'The summary must surface skipped counts.');
+    }
+
+    #[Test]
+    #[DataProvider('invalidJunitDocuments')]
+    public function malformed_or_invalid_junit_counts_are_an_evidence_error(string $junit): void
+    {
+        $plan = $this->plan([$this->componentWithJunit('alpha', $junit)]);
+
+        [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
+
+        self::assertSame(2, $exit, $out);
+        self::assertSame('evidence_error', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        $alpha = $this->componentNamed($receipt, 'alpha');
+        self::assertSame('evidence_error', $alpha['outcome']);
+        self::assertArrayNotHasKey('counts', $alpha);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function invalidJunitDocuments(): iterable
+    {
+        yield 'non-junit root' => ['<?xml version="1.0"?><report tests="1" failures="0" errors="0" skipped="0"/>'];
+        yield 'no suites' => ['<?xml version="1.0"?><testsuites/>'];
+        yield 'missing count' => ['<?xml version="1.0"?><testsuites><testsuite tests="1" failures="0" errors="0"/></testsuites>'];
+        yield 'negative count' => ['<?xml version="1.0"?><testsuites><testsuite tests="1" failures="-1" errors="0" skipped="0"/></testsuites>'];
+        yield 'non-integer count' => ['<?xml version="1.0"?><testsuites><testsuite tests="1.5" failures="0" errors="0" skipped="0"/></testsuites>'];
     }
 
     #[Test]
@@ -382,6 +409,7 @@ final class QualifyCandidateRunnerTest extends TestCase
             $receipt = json_decode((string) file_get_contents($out . '/receipt.json'), true, 512, JSON_THROW_ON_ERROR);
             self::assertSame('in_progress', $receipt['verdict']);
             self::assertFalse($receipt['qualification']);
+            self::assertNull($receipt['runner']['finished_at']);
 
             $superseded = glob($out . '/receipt.superseded-*.json');
             self::assertCount(1, $superseded, 'Exactly one superseded receipt must be preserved.');
@@ -430,6 +458,23 @@ final class QualifyCandidateRunnerTest extends TestCase
         self::assertSame(0, $exit, $process->getOutput() . $process->getErrorOutput());
         self::assertFileExists($out . '/receipt.json');
         self::assertSame([], glob($out . '/receipt.superseded-*.json'));
+    }
+
+    #[Test]
+    public function an_invalid_only_selection_finalizes_the_in_progress_receipt(): void
+    {
+        $out = $this->tmp . '/evidence-invalid-only';
+        $plan = $this->plan([$this->component('alpha', 'exit(0);')]);
+
+        $process = $this->process(['--plan=' . $plan, '--only=missing', '--out=' . $out]);
+        $exit = $process->run();
+        $receipt = json_decode((string) file_get_contents($out . '/receipt.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(2, $exit, $process->getOutput() . $process->getErrorOutput());
+        self::assertSame('evidence_error', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        self::assertSame([], $receipt['components']);
+        self::assertNotNull($receipt['runner']['finished_at']);
     }
 
     // ---------------------------------------------------------------- helpers
@@ -482,6 +527,18 @@ final class QualifyCandidateRunnerTest extends TestCase
             'id' => $id,
             'command' => [PHP_BINARY, '-r', $writeJunit . ' ' . $php],
             'junit' => $declaresJunit,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function componentWithJunit(string $id, string $junit): array
+    {
+        $writeJunit = 'file_put_contents(getenv("WAASEYAA_QUALIFY_JUNIT"), ' . var_export($junit, true) . ');';
+
+        return [
+            'id' => $id,
+            'command' => [PHP_BINARY, '-r', $writeJunit . ' exit(0);'],
+            'junit' => true,
         ];
     }
 

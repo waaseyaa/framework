@@ -54,7 +54,7 @@ parsed for a verdict: **success is never inferred from a green line.**
 | `passed` | exit 0 |
 | `failed` | non-zero exit |
 | `signaled` | terminated by a signal |
-| `evidence_error` | could not spawn, log unwritable, junit missing or unparseable, stale log/junit from a previous run at the same path that could not be cleared, or a zero exit contradicted by junit `failures`/`errors` > 0 (PHPUnit never exits 0 with either, so such a junit is not this run's evidence) |
+| `evidence_error` | could not spawn, log unwritable, JUnit missing, unparseable, or structurally invalid, stale log/JUnit from a previous run at the same path that could not be cleared, a zero exit contradicted by JUnit `failures`/`errors` > 0, or post-start validation such as an unknown `--only` component |
 
 `skipped` is a **count on a passed component**, never an outcome: PHPUnit exits 0
 when every test is skipped, so the receipt carries the number and the summary
@@ -65,6 +65,15 @@ Evidence is bound to the child that produced it: before a component starts,
 any log or junit already at its path (a reused `--out`) is removed, so counts
 can never come from an earlier run.
 
+JUnit evidence accepts the PHPUnit shapes observed in retained qualification
+receipts: either one `<testsuite>` root or a `<testsuites>` root with at least
+one direct `<testsuite>`. Every counted suite must explicitly provide
+non-negative integer `tests`, `failures`, `errors`, and `skipped` attributes.
+The container does not need count attributes, nested suites are not summed a
+second time, zero counts remain valid evidence, and skipped tests remain a
+count rather than a failure. Missing, negative, fractional, or non-numeric
+counts are an evidence error rather than silently becoming zero.
+
 ### Source binding
 
 At start the runner records `HEAD`, `HEAD^{tree}` and `git status --porcelain
@@ -74,6 +83,14 @@ At start the runner records `HEAD`, `HEAD^{tree}` and `git status --porcelain
 component and at the end the same three are re-read; any change makes the
 verdict `drifted` (exit 3): mixed-source evidence is never called a
 qualification.
+
+This is intentionally a tracked-state boundary. Untracked files are excluded
+so ignored build/evidence output and permitted local scratch do not disqualify
+a run. Because an untracked source or test file can still affect worktree
+execution through autoloading or discovery, operators must qualify from an
+isolated worktree and retain exact-head hosted CI as the committed-source
+corroboration. This contract does not introduce a blanket untracked-file
+refusal policy.
 
 ### Qualification vs. passed
 
@@ -104,6 +121,12 @@ never a stale success from a previous run. The dirty-tree refusal path goes
 through the same supersede-then-write sequence. The final receipt (any
 verdict) overwrites the in-progress one atomically as before. The existing
 per-component stale log/junit removal is unchanged.
+
+If validation that depends on the resolved plan fails after this initial
+receipt is written (for example, `--only` names an unknown component), the
+receipt is finalized as `evidence_error` with a non-null `runner.finished_at`
+before exit 2. A normally terminated runner therefore never leaves a permanent
+`in_progress` receipt.
 
 ### Receipt
 
@@ -250,6 +273,23 @@ Green after the fix: `OK (18 tests, 129 assertions)`. `bin/check-phpunit-skip-po
 unaffected (no new skips — `required_hosted=3 allowed=46 discovered=46`).
 `php bin/check-pr-preflight`: `39 gate(s) run — 0 failed`.
 
+### Adversarial review round 3 (Codex on PR #2919): evidence parsing and receipt lifecycle
+
+Independent review of the repaired candidate found two further receipt-trust
+gaps and one timestamp defect. A well-formed non-JUnit root, an empty
+`<testsuites>`, and top-level suites with missing, negative, or fractional
+counts were silently converted to zero or otherwise accepted. An unknown
+`--only` id was validated after the initial receipt write, so a normal exit 2
+left `verdict: in_progress` forever. The in-progress builder also replaced its
+explicit null completion time with the current timestamp.
+
+Five invalid-JUnit fixture cases now require `evidence_error` without counts;
+the retained valid-count and skipped-count fixtures remain green. The reused-out
+SIGKILL fixture requires `runner.finished_at: null`, while the invalid-selection
+fixture requires a terminal `evidence_error` receipt with a non-null completion
+time. Red before repair: `24 tests, 146 assertions, 7 failures`. Green after
+repair: `OK (24 tests, 171 assertions)`.
+
 ### Dogfood: the runner qualifying its own tip
 
 `php bin/qualify-candidate --jobs=1` run from the worktree against its own
@@ -284,10 +324,14 @@ inferring success; it was fixed by classifying the file (`bin/test-quality-inven
 and updating the recorded count (`tests/Architecture/TestQualityInventoryTest.php`,
 8 → 9), and the fix is included in this change's second commit.
 
-## Operator text for shared guidance (Codex integrates)
+## Operator guidance
 
 ```
 php bin/qualify-candidate            # preflight --full + Unit + Integration + Architecture on the exact HEAD
 php bin/qualify-candidate --jobs=2   # explicit concurrency
-# receipt: build/qualification/<sha>-<time>/receipt.json — exit 0 means qualified; anything else says why
+# receipt: build/qualification/<sha>-<time>/receipt.json — inspect verdict, qualification, and disqualifiers
 ```
+
+This guidance is integrated in `docs/cookbook/commit-qualification.md`, including
+the distinction between a qualifying default run and an exit-0 custom, subset,
+or allowed-dirty pass.
