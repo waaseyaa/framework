@@ -170,7 +170,9 @@ implements `RequiresOptionalPackagesInterface` with `McpRegistryManifest` as
 the sentinel. A `--no-dev` consumer without the HTTP MCP package lists no
 `mcp:registry-manifest` command. When present, the command resolves the
 existing Layer-4 manifest binding and writes official Registry `server.json`
-to stdout; configuration refusals go to stderr and exit non-zero. It does
+to stdout as the exact bytes returned by `McpRegistryManifest::toJson()`;
+human-output style normalization does not touch the artifact. Configuration
+refusals go to stderr and exit non-zero. It does
 not publish to the Registry and does not share stdout with `mcp:serve`.
 
 Command presentation belongs to this Layer-6 package even when the domain operation belongs lower in the stack. For example, `BearerTokenServiceProvider` owns the `bearer-token:issue|list|rotate|revoke` Symfony commands and depends downward on auth's `BearerTokenStoreInterface`; `AuthServiceProvider` owns the durable credential binding and exposes no Symfony Console types. A lower-layer provider must never construct CLI command objects, including through hidden string FQCNs.

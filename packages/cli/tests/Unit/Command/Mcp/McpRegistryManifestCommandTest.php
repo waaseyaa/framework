@@ -17,6 +17,7 @@ use Waaseyaa\Mcp\Registry\McpRegistryManifest;
 use Waaseyaa\Mcp\Registry\McpRegistryManifestConfig;
 
 #[CoversClass(McpRegistryManifestCommand::class)]
+#[CoversClass(SymfonyCommandIO::class)]
 final class McpRegistryManifestCommandTest extends TestCase
 {
     #[Test]
@@ -29,6 +30,25 @@ final class McpRegistryManifestCommandTest extends TestCase
                 'remote_url' => 'https://cms.example/mcp',
                 'repository_url' => 'https://github.com/waaseyaa/framework',
                 'website_url' => 'https://waaseyaa.org',
+            ]),
+            new McpImplementationInfo('Waaseyaa', '0.1.0-alpha.286'),
+        );
+
+        $tester = $this->runCommand(static fn(): McpRegistryManifest => $manifest);
+
+        self::assertSame(0, $tester->getExitCode());
+        self::assertSame($manifest->toJson(), $tester->getStdout());
+        self::assertSame('', $tester->getStderr());
+    }
+
+    #[Test]
+    public function preserves_style_tag_shaped_description_as_exact_json_bytes(): void
+    {
+        $manifest = new McpRegistryManifest(
+            McpRegistryManifestConfig::fromArray([
+                'name' => 'io.github.waaseyaa/framework',
+                'description' => 'Use <info>trusted</info> content',
+                'remote_url' => 'https://cms.example/mcp',
             ]),
             new McpImplementationInfo('Waaseyaa', '0.1.0-alpha.286'),
         );
