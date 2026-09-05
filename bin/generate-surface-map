@@ -22,11 +22,12 @@ declare(strict_types=1);
  *
  * --root defaults to the repository root (the directory containing this
  * bin/ directory's parent). The generator itself, and the layer table it
- * groups packages by, always come from THIS repository (dirname(__DIR__)),
- * independent of --root — --root only selects where package declarations
- * and source trees are read from (used by
- * tests/Architecture/SurfaceDeclarationCompositionTest.php to compose a
- * throwaway fixture tree without ever touching docs/public-surface-map.*).
+ * groups packages by (Waaseyaa\Tooling\SurfaceMapView::layerTable()), always
+ * come from THIS repository (dirname(__DIR__)), independent of --root —
+ * --root only selects where package declarations and source trees are read
+ * from (used by tests/Architecture/SurfaceDeclarationCompositionTest.php to
+ * compose a throwaway fixture tree without ever touching
+ * docs/public-surface-map.*).
  *
  * Exit codes: 0 success; 1 validation failure or --check drift; 2 usage or
  * infrastructure failure (unparsable layer table, unwritable target, ...).
@@ -43,8 +44,10 @@ require $autoload;
 
 require_once $selfRoot . '/tools/lib/SurfaceScanner.php';
 require_once $selfRoot . '/tools/lib/SurfaceDeclarations.php';
+require_once $selfRoot . '/tools/lib/SurfaceMapView.php';
 
 use Waaseyaa\Tooling\SurfaceDeclarations;
+use Waaseyaa\Tooling\SurfaceMapView;
 use Waaseyaa\Tooling\SurfaceScanner;
 
 function gsmFail(string $message, int $exit = 1): never
@@ -119,130 +122,13 @@ if ($write || $check) {
     ));
 }
 
-// ---------------------------------------------------------------------------
-// Layer table — always from THIS repository, never from --root.
-// ---------------------------------------------------------------------------
-
-const LAYER_NAMES = [
-    0 => 'Foundation',
-    1 => 'Core Data',
-    2 => 'Content Types',
-    3 => 'Services',
-    4 => 'API',
-    5 => 'AI',
-    6 => 'Interfaces',
-];
-const UNASSIGNED_LAYER = 999;
-
-$layerScriptPath = $selfRoot . '/bin/check-package-layers';
-if (!is_file($layerScriptPath)) {
-    gsmFail("cannot find the layer table at {$layerScriptPath}.", 2);
-}
-$layerScriptSource = (string) file_get_contents($layerScriptPath);
-preg_match_all("/^\\s*'([a-z0-9-]+)'\\s*=>\\s*([0-9]+),\$/m", $layerScriptSource, $layerMatches, PREG_SET_ORDER);
-if (count($layerMatches) < 40) {
-    gsmFail(sprintf(
-        'parsed only %d package(s) from the layer table in %s (expected at least 40) — the table shape may have changed; regex needs updating.',
-        count($layerMatches),
-        $layerScriptPath,
-    ), 2);
-}
-$layerByShort = [];
-foreach ($layerMatches as $match) {
-    $layerByShort[$match[1]] = (int) $match[2];
+try {
+    $layerByShort = SurfaceMapView::layerTable($selfRoot);
+} catch (\Throwable $e) {
+    gsmFail($e->getMessage(), 2);
 }
 
-// ---------------------------------------------------------------------------
-// Render the two deterministic views.
-// ---------------------------------------------------------------------------
-
-/** @return array{0: string, 1: string} [phpView, mdView] */
-function gsmRender(array $composedMap, array $packages, array $layerByShort, SurfaceScanner $scanner): array
-{
-    $phpLines = [];
-    $phpLines[] = '<?php';
-    $phpLines[] = '';
-    $phpLines[] = '// GENERATED FILE — DO NOT EDIT BY HAND.';
-    $phpLines[] = '// Composed by bin/generate-surface-map from packages/<pkg>/public-surface.php';
-    $phpLines[] = '// declarations. Contract: docs/specs/public-surface-declarations.md.';
-    $phpLines[] = '// Format: \'Fully\\Qualified\\ClassName\' => \'public|internal|extract|remove\'.';
-    $phpLines[] = '';
-    $phpLines[] = 'declare(strict_types=1);';
-    $phpLines[] = '';
-    $phpLines[] = 'return [';
-    foreach ($composedMap as $fqcn => $disposition) {
-        $phpLines[] = sprintf("    '%s' => '%s',", addslashes($fqcn), $disposition);
-    }
-    $phpLines[] = '];';
-    $phpLines[] = '';
-    $phpView = implode("\n", $phpLines);
-
-    // Group owning packages by layer, then package name.
-    $byLayer = [];
-    foreach ($packages as $short => $package) {
-        if ($package['entries'] === [] && $package['notes'] === []) {
-            continue;
-        }
-        $layer = $layerByShort[$short] ?? UNASSIGNED_LAYER;
-        $byLayer[$layer][$short] = $package;
-    }
-    ksort($byLayer, SORT_NUMERIC);
-
-    $mdLines = [];
-    $mdLines[] = '# Waaseyaa Public Surface Map';
-    $mdLines[] = '';
-    $mdLines[] = 'GENERATED FILE — DO NOT EDIT BY HAND.';
-    $mdLines[] = '';
-    $mdLines[] = 'This document lists every intentionally public API element in the Waaseyaa framework.';
-    $mdLines[] = 'Elements not listed here are `@internal` and may change without notice.';
-    $mdLines[] = '';
-    $mdLines[] = 'Single editable authority: `packages/<pkg>/public-surface.php` (contract:';
-    $mdLines[] = '`docs/specs/public-surface-declarations.md`). Composed by `bin/generate-surface-map`.';
-    $mdLines[] = 'Machine-readable derived view: `docs/public-surface-map.php`.';
-    $mdLines[] = '';
-    $mdLines[] = '---';
-    foreach ($byLayer as $layer => $packagesInLayer) {
-        $layerName = LAYER_NAMES[$layer] ?? 'Unassigned';
-        $mdLines[] = '';
-        $mdLines[] = "## Layer {$layer}: {$layerName}";
-        ksort($packagesInLayer, SORT_STRING);
-        foreach ($packagesInLayer as $short => $package) {
-            $mdLines[] = '';
-            $mdLines[] = "### {$short}";
-            $entries = $package['entries'];
-            usort($entries, static fn(array $a, array $b): int => strcmp($a['fqcn'], $b['fqcn']));
-            if ($entries !== []) {
-                $mdLines[] = '';
-                $mdLines[] = '| Element | Type | Purpose |';
-                $mdLines[] = '|---------|------|---------|';
-                foreach ($entries as $entry) {
-                    $element = $entry['fqcn'];
-                    foreach ($package['prefixes'] as $prefix) {
-                        if ($prefix !== '' && str_starts_with($element, $prefix)) {
-                            $element = substr($element, strlen($prefix));
-                            break;
-                        }
-                    }
-                    $type = $scanner->shape($entry['fqcn']) ?? 'unknown';
-                    $purpose = $entry['purpose'] ?? '—';
-                    $mdLines[] = sprintf('| `%s` | %s | %s |', $element, $type, $purpose);
-                }
-            }
-            if ($package['notes'] !== []) {
-                $mdLines[] = '';
-                foreach ($package['notes'] as $note) {
-                    $mdLines[] = "- {$note}";
-                }
-            }
-        }
-    }
-    $mdLines[] = '';
-    $mdView = implode("\n", $mdLines);
-
-    return [$phpView, $mdView];
-}
-
-[$phpView, $mdView] = gsmRender($composedMap, $declarations->packages(), $layerByShort, $scanner);
+[$phpView, $mdView] = SurfaceMapView::render($composedMap, $declarations->packages(), $layerByShort, $scanner);
 
 // ---------------------------------------------------------------------------
 // --stdout

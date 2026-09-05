@@ -8,8 +8,9 @@
 # Strategy:
 #   1. Compute changed files between the PR HEAD and the merge-base with the
 #      target branch (default: origin/main).
-#   2. If any changed file is a public-surface file (packages/*/src/, src/,
-#      docs/public-surface-map.*), require that the PR also touched
+#   2. If any changed file is a public-surface file (packages/*/src/,
+#      packages/*/public-surface.php, src/, docs/public-surface-map.*),
+#      require that the PR also touched
 #      a valid file under changes/unreleased/ or a file under docs/upgrades/.
 #   3. Maintainers may override by including "no-changelog: <reason>" in the
 #      PR body (passed via $PR_BODY environment variable).
@@ -106,7 +107,7 @@ if [[ -n "${fragment_changed}" ]]; then
 fi
 
 # Heuristic for public-surface files. Refine as new surface locations are added.
-surface_changed="$(printf '%s\n' "${changed}" | grep -E '^(packages/[^/]+/src/|src/|docs/public-surface-map\.)' || true)"
+surface_changed="$(printf '%s\n' "${changed}" | grep -E '^(packages/[^/]+/src/|packages/[^/]+/public-surface\.php|src/|docs/public-surface-map\.)' || true)"
 
 if [[ -z "${surface_changed}" ]]; then
     echo "changelog-discipline: no public-surface files changed; skipping."

@@ -7,6 +7,9 @@ namespace Waaseyaa\Tests\Architecture;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Tooling\SurfaceDeclarations;
+
+require_once __DIR__ . '/../../tools/lib/SurfaceDeclarations.php';
 
 /**
  * ADR-025 D-5 reserves the `GEN0xx` family to `waaseyaa/site-contract` and
@@ -31,8 +34,6 @@ use PHPUnit\Framework\TestCase;
 final class GenerationErrorCodeBoundaryTest extends TestCase
 {
     private const string FAMILY_DIR = 'packages/site-contract/src/Generation/Exception/';
-
-    private const string SURFACE_MAP = 'docs/public-surface-map.php';
 
     private const string AUTHORITY = 'docs/adr/025-unified-artifact-generation-authority.md';
 
@@ -92,8 +93,7 @@ final class GenerationErrorCodeBoundaryTest extends TestCase
     #[Test]
     public function theClosedCodeVocabularyIsTrackedAsPublicSurfaceAndItsCarriersAreNot(): void
     {
-        $map = require $this->root . '/' . self::SURFACE_MAP;
-        self::assertIsArray($map);
+        $map = SurfaceDeclarations::load($this->root)->compose();
 
         self::assertSame(
             'public',
