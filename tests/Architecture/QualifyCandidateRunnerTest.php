@@ -50,18 +50,20 @@ final class QualifyCandidateRunnerTest extends TestCase
     }
 
     #[Test]
-    public function a_fully_passing_plan_is_a_qualification_with_numeric_evidence(): void
+    public function an_all_green_custom_plan_is_passed_but_never_a_qualification(): void
     {
         $plan = $this->plan([
             $this->component('alpha', 'exit(0);', junit: ['tests' => 3, 'failures' => 0, 'errors' => 0, 'skipped' => 0]),
             $this->component('beta', 'exit(0);'),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
 
         self::assertSame(0, $exit, $out);
-        self::assertSame('qualified', $receipt['verdict']);
-        self::assertTrue($receipt['qualification']);
+        self::assertSame('passed', $receipt['verdict']);
+        self::assertFalse($receipt['qualification']);
+        self::assertSame(['custom_plan'], $receipt['disqualifiers']);
+        self::assertStringContainsString('qualification: false', $out);
         self::assertSame($this->head(), $receipt['candidate']['head']);
         self::assertSame($this->head(), $receipt['source_check']['head_after']);
         self::assertFalse($receipt['source_check']['drifted']);
@@ -74,12 +76,30 @@ final class QualifyCandidateRunnerTest extends TestCase
     }
 
     #[Test]
+    public function a_plan_declaring_qualifies_is_rejected(): void
+    {
+        $plan = $this->rawPlan(json_encode([
+            'schema_version' => 1,
+            'qualifies' => true,
+            'components' => [$this->component('alpha', 'exit(0);')],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        $process = $this->process(['--plan=' . $plan, '--out=' . $this->tmp . '/evidence-rejected']);
+        $exit = $process->run();
+        $err = $process->getErrorOutput();
+
+        self::assertSame(2, $exit, $process->getOutput() . $err);
+        self::assertStringContainsString('custom plans cannot declare qualification', $err);
+        self::assertFileDoesNotExist($this->tmp . '/evidence-rejected/alpha.log', 'No component may run once the plan is rejected.');
+    }
+
+    #[Test]
     public function a_failing_child_fails_the_run_with_its_real_exit_status(): void
     {
         $plan = $this->plan([
             $this->component('alpha', 'exit(0);'),
             $this->component('beta', 'fwrite(STDOUT, "OK (999 tests)\n"); exit(7);'),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
 
@@ -102,7 +122,7 @@ final class QualifyCandidateRunnerTest extends TestCase
         }
         $plan = $this->plan([
             $this->component('alpha', 'posix_kill(getmypid(), SIGKILL);'),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
 
@@ -119,7 +139,7 @@ final class QualifyCandidateRunnerTest extends TestCase
     {
         $plan = $this->plan([
             $this->component('alpha', 'exit(0);', junit: ['tests' => 5, 'failures' => 0, 'errors' => 0, 'skipped' => 2]),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
 
@@ -136,7 +156,7 @@ final class QualifyCandidateRunnerTest extends TestCase
         $plan = $this->plan([
             // exits 0 but never writes the junit file it declared
             $this->component('alpha', 'exit(0);', junit: null, declaresJunit: true),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
 
@@ -153,7 +173,7 @@ final class QualifyCandidateRunnerTest extends TestCase
         // otherwise is not this run's evidence and must not be counted green.
         $plan = $this->plan([
             $this->component('alpha', 'exit(0);', junit: ['tests' => 5, 'failures' => 2, 'errors' => 0, 'skipped' => 0]),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
 
@@ -177,7 +197,7 @@ final class QualifyCandidateRunnerTest extends TestCase
         );
         file_put_contents($out . '/alpha.log', "OLD LOG LINE\n");
         // declares a junit, exits 0, never writes one — only the stale file exists
-        $plan = $this->plan([$this->component('alpha', 'exit(0);', junit: null, declaresJunit: true)], full: true);
+        $plan = $this->plan([$this->component('alpha', 'exit(0);', junit: null, declaresJunit: true)]);
 
         $process = $this->process(['--plan=' . $plan, '--out=' . $out]);
         $exit = $process->run();
@@ -202,7 +222,7 @@ final class QualifyCandidateRunnerTest extends TestCase
             $this->component('alpha', 'exit(0);'),
             $this->component('sleeper', 'sleep(20); exit(0);'),
             $this->component('never', 'exit(0);'),
-        ], full: true);
+        ]);
         $out = $this->tmp . '/evidence-sigint';
 
         $process = $this->process(['--plan=' . $plan, '--out=' . $out]);
@@ -240,7 +260,7 @@ final class QualifyCandidateRunnerTest extends TestCase
         if (is_writable($ro)) {
             self::markTestSkipped('Read-only directory permissions are not enforced for this user.');
         }
-        $plan = $this->plan([$this->component('alpha', 'exit(0);')], full: true);
+        $plan = $this->plan([$this->component('alpha', 'exit(0);')]);
 
         $process = $this->process(['--plan=' . $plan, '--out=' . $ro . '/evidence']);
         $exit = $process->run();
@@ -257,7 +277,7 @@ final class QualifyCandidateRunnerTest extends TestCase
         $plan = $this->plan([
             $this->component('alpha', 'exit(0);'),
             $this->component('beta', 'exit(0);'),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan], env: ['WAASEYAA_QUALIFY_INTERRUPT_AFTER' => 'alpha']);
 
@@ -275,7 +295,7 @@ final class QualifyCandidateRunnerTest extends TestCase
         $plan = $this->plan([
             $this->component('alpha', 'file_put_contents(' . var_export($tracked, true) . ', "v2\n"); exit(0);'),
             $this->component('beta', 'exit(0);'),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan]);
 
@@ -290,30 +310,33 @@ final class QualifyCandidateRunnerTest extends TestCase
     public function a_dirty_tracked_tree_is_refused_unless_explicitly_allowed_and_then_never_qualifies(): void
     {
         file_put_contents($this->tmp . '/tracked.txt', "dirty\n");
-        $plan = $this->plan([$this->component('alpha', 'exit(0);')], full: true);
+        $plan = $this->plan([$this->component('alpha', 'exit(0);')]);
 
         $process = $this->process(['--plan=' . $plan]);
         self::assertSame(3, $process->run(), $process->getOutput() . $process->getErrorOutput());
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan, '--allow-dirty']);
         self::assertSame(0, $exit, $out);
+        self::assertSame('passed', $receipt['verdict']);
         self::assertFalse($receipt['qualification'], 'Evidence from a dirty tree is never a qualification.');
+        self::assertContains('dirty_worktree', $receipt['disqualifiers']);
         self::assertSame(['tracked.txt'], array_map(static fn(string $l): string => trim(substr($l, 3)), $receipt['candidate']['dirty_at_start']));
     }
 
     #[Test]
-    public function a_subset_run_is_partial_and_never_a_qualification(): void
+    public function a_subset_run_is_passed_with_a_subset_disqualifier_and_never_a_qualification(): void
     {
         $plan = $this->plan([
             $this->component('alpha', 'exit(0);'),
             $this->component('beta', 'exit(0);'),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan, '--only=alpha']);
 
         self::assertSame(0, $exit, $out);
-        self::assertSame('partial', $receipt['verdict']);
+        self::assertSame('passed', $receipt['verdict']);
         self::assertFalse($receipt['qualification']);
+        self::assertContains('subset', $receipt['disqualifiers']);
         self::assertCount(1, $receipt['components']);
     }
 
@@ -324,30 +347,112 @@ final class QualifyCandidateRunnerTest extends TestCase
             $this->component('alpha', 'usleep(200000); exit(0);'),
             $this->component('beta', 'usleep(200000); exit(0);'),
             $this->component('gamma', 'exit(0);'),
-        ], full: true);
+        ]);
 
         [$exit, $out, $receipt] = $this->qualify(['--plan=' . $plan, '--jobs=3']);
 
         self::assertSame(0, $exit, $out);
         self::assertSame(3, $receipt['runner']['jobs']);
-        self::assertSame('qualified', $receipt['verdict']);
+        self::assertSame('passed', $receipt['verdict']);
+        self::assertSame(['custom_plan'], $receipt['disqualifiers']);
         self::assertCount(3, $receipt['components']);
         self::assertSame($receipt['candidate']['tree'], $receipt['source_check']['tree_after']);
+    }
+
+    #[Test]
+    public function a_reused_out_directory_supersedes_the_prior_receipt_before_children_start(): void
+    {
+        $out = $this->tmp . '/evidence-supersede-kill';
+        mkdir($out);
+        file_put_contents(
+            $out . '/receipt.json',
+            json_encode(['verdict' => 'qualified', 'qualification' => true, 'marker' => 'OLD'], JSON_THROW_ON_ERROR),
+        );
+        $marker = 'waaseyaa_qualify_sleeper_' . bin2hex(random_bytes(8));
+        $plan = $this->plan([$this->component('sleeper', sprintf('/* %s */ sleep(20); exit(0);', $marker))]);
+
+        $process = $this->process(['--plan=' . $plan, '--out=' . $out]);
+        $process->start();
+        try {
+            usleep(1_000_000);
+            $process->signal(9);
+            $process->wait();
+
+            self::assertFileExists($out . '/receipt.json');
+            $receipt = json_decode((string) file_get_contents($out . '/receipt.json'), true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('in_progress', $receipt['verdict']);
+            self::assertFalse($receipt['qualification']);
+
+            $superseded = glob($out . '/receipt.superseded-*.json');
+            self::assertCount(1, $superseded, 'Exactly one superseded receipt must be preserved.');
+            self::assertStringContainsString('OLD', (string) file_get_contents($superseded[0]));
+        } finally {
+            // The 20s sleeper is orphaned by the SIGKILL on the runner (which
+            // never had a chance to terminate it); reap it via its unique
+            // marker argument so it does not outlive the test.
+            $this->pkillMarker($marker);
+        }
+    }
+
+    #[Test]
+    public function a_reused_out_directory_that_completes_reports_only_the_new_run(): void
+    {
+        $out = $this->tmp . '/evidence-supersede-complete';
+        mkdir($out);
+        file_put_contents(
+            $out . '/receipt.json',
+            json_encode(['verdict' => 'qualified', 'qualification' => true, 'marker' => 'OLD'], JSON_THROW_ON_ERROR),
+        );
+        $plan = $this->plan([$this->component('alpha', 'exit(0);')]);
+
+        $process = $this->process(['--plan=' . $plan, '--out=' . $out]);
+        $exit = $process->run();
+        $receipt = json_decode((string) file_get_contents($out . '/receipt.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $exit, $process->getOutput() . $process->getErrorOutput());
+        self::assertSame('passed', $receipt['verdict']);
+        self::assertArrayNotHasKey('marker', $receipt);
+        self::assertStringNotContainsString('OLD', (string) file_get_contents($out . '/receipt.json'));
+        $superseded = glob($out . '/receipt.superseded-*.json');
+        self::assertCount(1, $superseded, 'The prior receipt must be preserved, never deleted.');
+        self::assertStringContainsString('OLD', (string) file_get_contents($superseded[0]));
+    }
+
+    #[Test]
+    public function a_new_out_directory_has_no_superseded_receipts(): void
+    {
+        $out = $this->tmp . '/evidence-fresh';
+        $plan = $this->plan([$this->component('alpha', 'exit(0);')]);
+
+        $process = $this->process(['--plan=' . $plan, '--out=' . $out]);
+        $exit = $process->run();
+
+        self::assertSame(0, $exit, $process->getOutput() . $process->getErrorOutput());
+        self::assertFileExists($out . '/receipt.json');
+        self::assertSame([], glob($out . '/receipt.superseded-*.json'));
     }
 
     // ---------------------------------------------------------------- helpers
 
     /** @param list<array<string, mixed>> $components */
-    private function plan(array $components, bool $full): string
+    private function plan(array $components): string
     {
         $path = $this->tmp . '/plan-' . uniqid('', true) . '.json';
         file_put_contents($path, json_encode([
             'schema_version' => 1,
-            // A fixture plan may declare itself "the full default plan" so a
-            // green run can be a qualification; real plans are the default table.
-            'qualifies' => $full,
+            // The plan schema has no `qualifies` key: a --plan is always a
+            // custom plan and can never itself be a qualification.
             'components' => $components,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        return $path;
+    }
+
+    /** A raw plan file bypassing the component()/plan() fixture helpers, for schema-rejection cases. */
+    private function rawPlan(string $json): string
+    {
+        $path = $this->tmp . '/plan-' . uniqid('', true) . '.json';
+        file_put_contents($path, $json);
 
         return $path;
     }
@@ -433,5 +538,11 @@ final class QualifyCandidateRunnerTest extends TestCase
         $process->mustRun();
 
         return $process->getOutput();
+    }
+
+    /** Best-effort reap of an orphaned fixture child by its unique marker argument. */
+    private function pkillMarker(string $marker): void
+    {
+        new Process(['pkill', '-9', '-f', $marker])->run();
     }
 }

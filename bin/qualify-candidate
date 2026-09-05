@@ -28,27 +28,48 @@ declare(strict_types=1);
  *
  * Options:
  *   --repo=DIR       Target repository root. Default: dirname(__DIR__) (this checkout).
- *   --plan=FILE      JSON plan, schema_version 1: {qualifies: bool, components: [{id, command: [..], junit: bool}]}.
- *                    Default plan is the four real components above with qualifies=true.
- *   --only=a,b       Run only the named component ids. Always yields verdict "partial" — never a qualification.
+ *   --plan=FILE      JSON plan, schema_version 1: {components: [{id, command: [..], junit: bool}]}.
+ *                    The plan schema has NO `qualifies` key — a plan that declares one is
+ *                    rejected (exit 2): a custom plan can never itself assert qualification.
+ *                    Default plan (no --plan) is the four real components above.
+ *   --only=a,b       Run only the named component ids. An all-green subset run is verdict
+ *                    "passed" with disqualifier "subset" — never a qualification.
  *   --jobs=N         Run up to N components concurrently. Default 1. Every component still binds to one head/tree.
  *   --out=DIR        Evidence directory. Default: <repo>/build/qualification/<sha12>-<utc yyyymmddThhmmssZ>/.
+ *                    A pre-existing <out>/receipt.json is superseded (never deleted) before any
+ *                    component starts; see "Receipt" below.
  *   --base=REF       Forwarded to `check-pr-preflight --base=REF` (default component only).
- *   --allow-dirty    Permit a dirty tracked tree. The run proceeds but qualification is always false.
+ *   --allow-dirty    Permit a dirty tracked tree. An all-green run is verdict "passed" with
+ *                    disqualifier "dirty_worktree" — qualification is always false.
  *   --help           Print this text and exit 0.
  *
  * Exit codes:
- *   0   qualified, partial, or an allowed-dirty/allowed-partial pass (see receipt.verdict)
+ *   0   qualified or passed (see receipt.verdict and receipt.disqualifiers)
  *   1   at least one component failed or was signaled
  *   2   usage, spawn, or evidence-write/parse error
  *   3   dirty tracked tree at start (without --allow-dirty), or source drifted during the run
  *   130 interrupted (SIGINT/SIGTERM, or the WAASEYAA_QUALIFY_INTERRUPT_AFTER test seam)
  *
+ * Verdicts: in_progress (written before any component starts; only ever
+ * observable if the runner is killed) | qualified | passed | failed | drifted
+ * | evidence_error | interrupted. `qualification` is true iff `verdict ===
+ * "qualified"`, and `verdict: "qualified"` requires ALL of: the default plan
+ * (no --plan), no --only, a clean tracked tree at start (no --allow-dirty
+ * needed), no drift, and every component passed. An all-green run that fails
+ * only one of those is `verdict: "passed"` (exit 0) with the reasons listed
+ * in `receipt.disqualifiers` (custom_plan, subset, dirty_worktree).
+ *
  * Receipt: <out>/receipt.json, written atomically (temp file + rename).
- * On success or on any run-time outcome (failed/drifted/interrupted/evidence_error
- * from a component), a receipt is written. If the evidence directory or the
- * receipt file itself cannot be written, the runner exits 2 and prints
- * nothing on stdout that could be mistaken for a green result.
+ * Before any component starts, a pre-existing receipt.json at the same --out
+ * is renamed to receipt.superseded-<utc yyyymmddThhmmssZ>-<pid>.json (never
+ * deleted), and an initial receipt.json is written with verdict:in_progress —
+ * a runner killed mid-run (e.g. SIGKILL, which cannot be caught) therefore
+ * always leaves an honest in_progress receipt behind, never a stale success
+ * from a previous run. On completion (success or any run-time outcome —
+ * failed/drifted/interrupted/evidence_error) the final receipt overwrites it
+ * atomically. If the evidence directory or the receipt file itself cannot be
+ * written, the runner exits 2 and prints nothing on stdout that could be
+ * mistaken for a green result.
  *
  * Evidence binding per component: a previous run's log/junit at the same path
  * is removed before the child starts (unremovable -> evidence_error); a junit
@@ -414,7 +435,7 @@ function qcWriteReceiptAtomic(string $out, array $receipt): bool
 }
 
 /**
- * @return array{schema_version:int, qualifies:bool, components: list<array<string, mixed>>}
+ * @return array{schema_version:int, components: list<array<string, mixed>>}
  */
 function qcDefaultPlan(string $repo, string $out, ?string $base): array
 {
@@ -437,7 +458,7 @@ function qcDefaultPlan(string $repo, string $out, ?string $base): array
         ];
     }
 
-    return ['schema_version' => 1, 'qualifies' => true, 'components' => $components];
+    return ['schema_version' => 1, 'components' => $components];
 }
 
 // ------------------------------------------------------------------ main
@@ -515,6 +536,10 @@ if ($options['plan'] !== null) {
         fwrite(STDERR, "qualify-candidate: --plan must use schema_version 1 with a non-empty components array.\n");
         exit(2);
     }
+    if (array_key_exists('qualifies', $userPlan)) {
+        fwrite(STDERR, "qualify-candidate: custom plans cannot declare qualification (the plan schema has no `qualifies` key).\n");
+        exit(2);
+    }
     foreach ($userPlan['components'] as $component) {
         if (
             !is_array($component)
@@ -578,6 +603,7 @@ $candidate = ['head' => $source['head'], 'tree' => $source['tree'], 'branch' => 
 /**
  * @param list<array<string, mixed>> $components
  * @param array{head_after:string, tree_after:string, drifted:bool, changes:list<string>} $sourceCheck
+ * @param list<string> $disqualifiers
  */
 function qcBuildReceipt(
     array $candidate,
@@ -585,8 +611,10 @@ function qcBuildReceipt(
     array $sourceCheck,
     string $verdict,
     bool $qualification,
+    array $disqualifiers,
     int $jobs,
     string $startedAtRunner,
+    ?string $finishedAtRunner = null,
 ): array {
     return [
         'candidate' => $candidate,
@@ -594,6 +622,7 @@ function qcBuildReceipt(
         'source_check' => $sourceCheck,
         'verdict' => $verdict,
         'qualification' => $qualification,
+        'disqualifiers' => $disqualifiers,
         'runner' => [
             'schema_version' => QUALIFY_CANDIDATE_SCHEMA_VERSION,
             'version' => QUALIFY_CANDIDATE_VERSION,
@@ -601,9 +630,38 @@ function qcBuildReceipt(
             'os' => PHP_OS_FAMILY,
             'jobs' => $jobs,
             'started_at' => $startedAtRunner,
-            'finished_at' => gmdate('Y-m-d\TH:i:s\Z'),
+            'finished_at' => $finishedAtRunner ?? gmdate('Y-m-d\TH:i:s\Z'),
         ],
     ];
+}
+
+/**
+ * Reusing --out must never let a prior run's success remain visible while
+ * this run is in flight. Before any component is spawned: supersede (never
+ * delete) an existing receipt.json, then write an honest in_progress receipt.
+ * A runner killed by an uncatchable signal (SIGKILL) leaves this in_progress
+ * receipt behind — never the previous run's stale success.
+ */
+$existingReceiptPath = $out . '/receipt.json';
+if (file_exists($existingReceiptPath) || is_link($existingReceiptPath)) {
+    $supersededPath = $out . '/receipt.superseded-' . gmdate('Ymd\THis\Z') . '-' . getmypid() . '.json';
+    if (!@rename($existingReceiptPath, $supersededPath)) {
+        qcExitWithoutReceipt("cannot supersede prior receipt before starting: {$existingReceiptPath}", 2);
+    }
+}
+$inProgressReceipt = qcBuildReceipt(
+    $candidate,
+    [],
+    ['head_after' => $source['head'], 'tree_after' => $source['tree'], 'drifted' => false, 'changes' => []],
+    'in_progress',
+    false,
+    [],
+    $jobs,
+    $startedAtRunner,
+    finishedAtRunner: null,
+);
+if (!qcWriteReceiptAtomic($out, $inProgressReceipt)) {
+    qcExitWithoutReceipt('initial in-progress receipt could not be written.', 2);
 }
 
 /**
@@ -620,6 +678,7 @@ if ($dirtyAtStart !== [] && !$allowDirty) {
         ['head_after' => $source['head'], 'tree_after' => $source['tree'], 'drifted' => true, 'changes' => $changes],
         'drifted',
         false,
+        [],
         $jobs,
         $startedAtRunner,
     );
@@ -637,7 +696,6 @@ if ($dirtyAtStart !== [] && !$allowDirty) {
 }
 
 $plan = $userPlan ?? qcDefaultPlan($repo, $out, $options['base']);
-$planQualifies = ($plan['qualifies'] ?? true) === true;
 
 /** @var list<array<string, mixed>> $allComponents */
 $allComponents = $plan['components'];
@@ -813,6 +871,8 @@ foreach ($orderedComponents as $result) {
     }
 }
 
+$disqualifiers = [];
+
 if ($sigInterrupted) {
     $verdict = 'interrupted';
     $exitCode = 130;
@@ -825,15 +885,24 @@ if ($sigInterrupted) {
 } elseif ($hasFailure) {
     $verdict = 'failed';
     $exitCode = 1;
-} elseif ($onlyGiven) {
-    $verdict = 'partial';
-    $exitCode = 0;
 } else {
-    $verdict = 'qualified';
+    // Every component passed and the source never moved: this run is a
+    // qualification unless one of these conditions disqualifies it — in
+    // which case it is still an all-green "passed" run, just never one.
+    if ($userPlan !== null) {
+        $disqualifiers[] = 'custom_plan';
+    }
+    if ($onlyGiven) {
+        $disqualifiers[] = 'subset';
+    }
+    if ($dirtyAtStart !== []) {
+        $disqualifiers[] = 'dirty_worktree';
+    }
+    $verdict = $disqualifiers === [] ? 'qualified' : 'passed';
     $exitCode = 0;
 }
 
-$qualification = $verdict === 'qualified' && $planQualifies && $dirtyAtStart === [];
+$qualification = $verdict === 'qualified';
 
 $receipt = qcBuildReceipt(
     $candidate,
@@ -846,6 +915,7 @@ $receipt = qcBuildReceipt(
     ],
     $verdict,
     $qualification,
+    $disqualifiers,
     $jobs,
     $startedAtRunner,
 );
@@ -860,8 +930,14 @@ foreach ($orderedComponents as $result) {
 fwrite(STDOUT, "verdict: {$verdict}\n");
 // "verdict: qualified" alone is ambiguous on an --allow-dirty tree or a
 // non-qualifying plan; the receipt's qualification flag is echoed so stdout
-// never reads as a qualification when the receipt says it is not one.
-fwrite(STDOUT, 'qualification: ' . ($qualification ? 'true' : 'false') . "\n");
+// never reads as a qualification when the receipt says it is not one. When
+// it is false because of an otherwise-green run, the reasons are named too.
+if ($qualification) {
+    fwrite(STDOUT, "qualification: true\n");
+} else {
+    $disqualifiersSuffix = $disqualifiers !== [] ? ' (' . implode(',', $disqualifiers) . ')' : '';
+    fwrite(STDOUT, "qualification: false{$disqualifiersSuffix}\n");
+}
 fwrite(STDOUT, "receipt: {$out}/receipt.json\n");
 
 exit($exitCode);

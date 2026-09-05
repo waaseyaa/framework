@@ -28,10 +28,14 @@ The runner executes existing commands verbatim and adds none:
 | `preflight` | `php bin/check-pr-preflight --full [--base=REF]` |
 | `unit` / `integration` / `architecture` | `php -d memory_limit=1G vendor/bin/phpunit --testsuite <Suite> --no-coverage --log-junit <out>/<id>.junit.xml` |
 
-`--only=<ids>` runs a subset and yields a **partial** receipt that is never a
-qualification. `--plan=<json>` substitutes the component table (the fixture
-seam, mirroring `bin/test-random-order --plan`); the default plan is the table
-above.
+`--only=<ids>` runs a subset; an all-green subset run is verdict **passed**
+with disqualifier `subset` — never a qualification. `--plan=<json>`
+substitutes the component table (the fixture seam, mirroring
+`bin/test-random-order --plan`); the default plan is the table above. The
+plan schema has **no `qualifies` key** — a custom plan cannot declare
+qualification for itself, so a `--plan` that contains one is rejected outright
+(exit 2, "custom plans cannot declare qualification") before any component
+runs.
 
 ### Exit evidence — no shell in the loop
 
@@ -65,10 +69,41 @@ can never come from an earlier run.
 
 At start the runner records `HEAD`, `HEAD^{tree}` and `git status --porcelain
 --untracked-files=no`. A dirty tracked tree is refused (exit 3) unless
-`--allow-dirty`, which produces evidence explicitly marked `qualification:
-false`. After every component and at the end the same three are re-read; any
-change makes the verdict `drifted` (exit 3): mixed-source evidence is never
-called a qualification.
+`--allow-dirty`, which — if the run is otherwise all-green — produces verdict
+`passed` with disqualifier `dirty_worktree`, never a qualification. After every
+component and at the end the same three are re-read; any change makes the
+verdict `drifted` (exit 3): mixed-source evidence is never called a
+qualification.
+
+### Qualification vs. passed
+
+`qualification: true` iff `verdict === "qualified"`, and `verdict:
+"qualified"` requires **all** of: the default plan (no `--plan`), no
+`--only`, a clean tracked tree at start (no `--allow-dirty` needed), no
+drift, and every component `passed`. An all-green run that fails only one of
+those conditions is `verdict: "passed"` (exit 0, still green) with the
+reasons named in `receipt.disqualifiers` — drawn from `custom_plan`,
+`subset`, `dirty_worktree`. This is deliberate: a `--plan` of nothing but
+`exit(0)` children must never be able to assert qualification for itself, so
+the plan schema carries no `qualifies` key at all (a plan that declares one is
+rejected, exit 2, before any component runs).
+
+### Reusing `--out`
+
+A pre-existing `<out>/receipt.json` from an earlier run must never remain
+visible — even briefly — while a new run is in flight. Before any component is
+spawned (right after the evidence directory is created/resolved and the
+candidate identity is read): an existing `receipt.json` is atomically renamed
+to `receipt.superseded-<utc yyyymmddThhmmssZ>-<pid>.json` (never deleted; a
+rename failure is an evidence error, exit 2, no children spawned), then an
+initial `receipt.json` is written atomically with `verdict: "in_progress"`,
+`qualification: false`, `disqualifiers: []`, and `runner.finished_at: null`.
+A runner killed by an uncatchable signal (`SIGKILL`) before any component
+finishes therefore always leaves this honest `in_progress` receipt behind —
+never a stale success from a previous run. The dirty-tree refusal path goes
+through the same supersede-then-write sequence. The final receipt (any
+verdict) overwrites the in-progress one atomically as before. The existing
+per-component stale log/junit removal is unchanged.
 
 ### Receipt
 
@@ -77,13 +112,14 @@ under the git-ignored `/build/`), written atomically (temp + rename), schema
 version 1:
 
 ```
-candidate   { head, tree, branch, dirty_at_start[] }
-components[]{ id, command[], log, junit?, started_at, finished_at, duration_s,
-              exit_code, termination, signal?, counts?{tests,failures,errors,skipped}, outcome, reason? }
-source_check{ head_after, tree_after, drifted, changes[] }
-verdict     qualified | failed | drifted | evidence_error | interrupted | partial
-qualification  bool   — true only for verdict=qualified over the full default plan
-runner      { schema_version, version, php, os, jobs, started_at, finished_at }
+candidate      { head, tree, branch, dirty_at_start[] }
+components[]   { id, command[], log, junit?, started_at, finished_at, duration_s,
+                 exit_code, termination, signal?, counts?{tests,failures,errors,skipped}, outcome, reason? }
+source_check   { head_after, tree_after, drifted, changes[] }
+verdict        in_progress | qualified | passed | failed | drifted | evidence_error | interrupted
+qualification  bool   — true iff verdict === "qualified"
+disqualifiers  list<string>  — subset of {custom_plan, subset, dirty_worktree}; non-empty only for verdict=passed
+runner         { schema_version, version, php, os, jobs, started_at, finished_at }
 ```
 
 If the receipt itself cannot be written the runner exits 2 and says so; it does
@@ -91,9 +127,10 @@ not print a green summary it could not record.
 
 ### Exit codes
 
-`0` qualified · `1` at least one component failed or was signaled · `2` usage,
-spawn or evidence-write error · `3` dirty at start (without `--allow-dirty`) or
-drifted · `130` interrupted.
+`0` qualified or passed (see `receipt.verdict` and `receipt.disqualifiers`) ·
+`1` at least one component failed or was signaled · `2` usage, spawn or
+evidence-write error (including a rejected plan or a supersede failure) · `3`
+dirty at start (without `--allow-dirty`) or drifted · `130` interrupted.
 
 ### Interruption
 
@@ -165,6 +202,54 @@ Integration `OK (2313 tests, 11778 assertions)`, Architecture
 assertions updated for this change (two new classified skips; one new
 classified, bounded, fixed-delay wait inside a disposable fixture child).
 
+### Adversarial review round 2 (Codex on PR #2919): two blockers fixed
+
+Independent review found two ways the receipt could over-claim or hide a
+prior success:
+
+1. **A custom `--plan` could self-declare qualification.** The plan schema
+   carried a `qualifies` key defaulting to `true`, so a `--plan` of nothing
+   but `exit(0)` children produced `qualification: true`. Fixed by dropping
+   the key from the schema entirely (a plan that declares one is rejected,
+   exit 2) and computing qualification structurally: `verdict: "qualified"`
+   only for the default plan, the full component set, a clean tree, no
+   drift, all green. Every other all-green combination is `verdict:
+   "passed"` with `disqualifiers` naming why (`custom_plan`, `subset`,
+   `dirty_worktree`); `--only` no longer has its own `partial` verdict.
+2. **Reusing `--out` left a stale success receipt visible while a new run
+   was in flight.** A runner killed (e.g. `SIGKILL`, uncatchable) after a
+   prior qualified run's receipt was still on disk left that success
+   readable indefinitely. Fixed by superseding (rename, never delete) any
+   existing `receipt.json` and writing an honest `verdict: "in_progress"`
+   receipt before any component is spawned.
+
+Red against the pre-fix runner (`b67309ab5`):
+
+```
+There were 7 failures:
+1) …a_dirty_tracked_tree_is_refused_unless_explicitly_allowed_and_then_never_qualifies
+Failed asserting that two strings are identical.
+-'passed' +'qualified'
+2) …concurrent_components_are_all_bound_to_one_head_and_tree
+-'passed' +'qualified'
+3) …an_all_green_custom_plan_is_passed_but_never_a_qualification
+-'passed' +'qualified'
+4) …a_plan_declaring_qualifies_is_rejected
+Failed asserting that 0 is identical to 2.   (the plan ran to completion instead of being rejected)
+5) …a_subset_run_is_passed_with_a_subset_disqualifier_and_never_a_qualification
+-'passed' +'partial'
+6) …a_reused_out_directory_supersedes_the_prior_receipt_before_children_start
+-'in_progress' +'qualified'   (the pre-seeded OLD receipt was still there when the runner was SIGKILLed)
+7) …a_reused_out_directory_that_completes_reports_only_the_new_run
+-'passed' +'qualified'
+FAILURES!
+Tests: 18, Assertions: 100, Failures: 7.
+```
+
+Green after the fix: `OK (18 tests, 129 assertions)`. `bin/check-phpunit-skip-policy`
+unaffected (no new skips — `required_hosted=3 allowed=46 discovered=46`).
+`php bin/check-pr-preflight`: `39 gate(s) run — 0 failed`.
+
 ### Dogfood: the runner qualifying its own tip
 
 `php bin/qualify-candidate --jobs=1` run from the worktree against its own
@@ -182,8 +267,9 @@ receipt: build/qualification/43263a20ff57-20260905T135719Z/receipt.json
 `receipt.json`: `candidate.head`/`tree` match the exact committed SHA and
 tree; `source_check.drifted: false`, `changes: []`; every component
 `termination: "exit"` with a real numeric `exit_code`; `qualification: true`
-only because `verdict: "qualified"`, the default plan's `qualifies: true`,
-and `dirty_at_start: []` all held at once. Exit code observed: `0`.
+only because `verdict: "qualified"` — the default plan (no `--plan`), no
+`--only`, and `dirty_at_start: []` all held at once, so `disqualifiers: []`.
+Exit code observed: `0`.
 
 An earlier dogfood attempt against a prior tip caught a real defect in the
 runner's own lane: `bin/test-quality-inventory`'s git-aware determinism scan
