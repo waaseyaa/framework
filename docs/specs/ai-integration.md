@@ -273,7 +273,10 @@ control: `tests/Architecture/LocalOperatorToolProfileGateTest.php`.
 **Not owned here.** `bimaaji_search_specs` is on the allowlist and inert until
 #2661 and #2662 — `BimaajiServiceProvider::resolveSpecsDirectory()` returns
 `null` unless `bimaaji.specs_directory` is configured, and `docs/specs/` ships
-in no package. The dispatch path (reserve/finalize wrapper, `NullStrictAuditLedger`
+in no package. #2661's pre-implementation corpus contract is
+[`agent-spec-corpus.md`](agent-spec-corpus.md); it defines a sanitized,
+lifecycle-labelled Bimaaji resource while explicitly leaving search inert.
+The dispatch path (reserve/finalize wrapper, `NullStrictAuditLedger`
 refusal) is #2657's, discharged in `waaseyaa/ai-tools`. The stdio transport
 itself — the `surface` constant, per-request correlation id, and the
 conformant JSON-RPC server — is #2659's, discharged below.
