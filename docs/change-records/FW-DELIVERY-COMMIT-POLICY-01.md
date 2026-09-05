@@ -87,3 +87,18 @@ checkpoints; agents ignoring it still land correctly via squash + exact-head CI.
 - Rewriting historical branches for cosmetic green-every-SHA history.
 - Weakening exact-head required checks or allowing post-merge red discovery to
   substitute for pre-acceptance qualification.
+
+## Codex integration review
+
+The shared contract, CLAUDE adapter, workflow spec, and CI README are integrated
+in this candidate. The cookbook no longer claims to override canonical guidance
+or describes a pending change. Existing checkpoint hooks, full local publication
+gates, strict pinned-head/combined-state acceptance, and separately authorized
+release-cut identity are preserved.
+
+The supplied prose-locking Architecture test was removed. It pinned a temporary
+handoff sentence and expected `--squash` inline in the workflow, so it failed
+after #2900 correctly moved that invocation into its trusted helper. Existing
+`ProjectHooksTest` and executable `DeliveryLedgerMergeGuardTest` cover the real
+hook and merge behavior; release pipeline fixtures cover the release path.
+No replacement tests that merely search policy wording are introduced.

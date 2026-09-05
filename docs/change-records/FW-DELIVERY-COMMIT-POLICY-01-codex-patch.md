@@ -1,7 +1,9 @@
 # Codex integration patch — FW-DELIVERY-COMMIT-POLICY-01 / #2903
 
-Apply these shared-guidance edits in the Codex integration landing. Cursor did
-**not** edit these files in the lane candidate (wave ownership).
+Status: integrated by Codex in this review candidate. The proposal below is
+retained as handoff history. Live policy is in the shared agent contract,
+workflow spec, CLAUDE adapter, and CI README; no shared edits remain pending.
+Cursor supplied the lane-owned material; Codex integrated the shared wording.
 
 Lane-owned already on the candidate: `docs/cookbook/commit-qualification.md`,
 `docs/change-records/FW-DELIVERY-COMMIT-POLICY-01.md`, Architecture

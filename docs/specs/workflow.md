@@ -113,6 +113,18 @@ At session start under an ongoing effort, read the versioned change record,
 retained decision trail, and relevant `docs/specs/` contracts. Read the current
 forge mirror as supplemental context when it is available.
 
+### Commit checkpoints and review candidates
+
+Feature-branch commits may be recoverable checkpoints. Acceptance qualifies the
+coherent review-candidate head, including full local publication gates and
+exact-head hosted CI, rather than every ancestor. Ordinary landings use governed
+squash auto-merge with pinned-head and combined-state custody checks. The
+release-cut path preserves the exact release commit validated by its gates;
+rewriting that SHA through a merge operation would break its identity contract.
+This is a separate supported boundary, not a general cherry-pick or merge-commit
+policy. See [commit-qualification.md](../cookbook/commit-qualification.md).
+No per-commit full-suite or default preflight CI jobs are added by this policy.
+
 ## Drift Detection
 
 **Specs:** `tools/drift-detector.sh` and manual reads of `docs/specs/` — see [ops/observability/drift-detection.md](../../ops/observability/drift-detection.md).

@@ -177,12 +177,15 @@ composer hooks:install
 composer hooks:doctor
 ```
 
-### pre-push
+### pre-commit / pre-push
 
-Runs sequential, fast architecture checks before `git push`: Composer policy,
-Symfony import boundaries, package layers, and the advisory local spec-drift
-check. CI remains authoritative. Run `composer verify` for the complete local
-gate before publication.
+- **pre-commit:** portable-path check; `composer cs-check` when staged PHP files exist.
+- **pre-push:** `php bin/check-pr-preflight` runs every fast repo-state gate that
+  CI blocks on, including blocking spec drift. Hosted CI on the exact PR head
+  remains authoritative for acceptance. Run `php bin/check-pr-preflight --full`
+  and the Unit, Integration, and Architecture suites before opening a review
+  candidate. Intermediate commits may be recoverable checkpoints; see
+  [commit-qualification.md](../cookbook/commit-qualification.md).
 
 ## Release Scripts
 

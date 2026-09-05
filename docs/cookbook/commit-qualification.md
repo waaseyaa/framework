@@ -13,8 +13,11 @@ Intermediate branch commits may be **recoverable checkpoints**; only the
 | Tier | What it is | What must be true |
 | --- | --- | --- |
 | **Checkpoint** | Intermediate commit on a feature branch (TDD red, WIP, repair steps) | Recoverable via `bin/git`; not claimed release-ready; no stash |
-| **Review candidate** | The one coherent tip SHA offered for acceptance | Exact-head CI green; design/change-record/evidence bound; one candidate per work unit |
-| **Landed on `main`** | Squash merge of that candidate | Governed auto-merge (`--squash`); required checks already green on the PR head |
+| **Review candidate** | The one coherent tip SHA offered for acceptance | Full local preflight and three suites; exact-head CI green; design/change-record/evidence bound; one candidate per work unit |
+| **Landed on `main`** | Squash merge of that candidate | Governed pinned-head squash auto-merge; strict required checks and combined-state custody remain enforced |
+
+A squash creates a new commit identity; retain both the qualified candidate and
+accepted-main identities in delivery evidence.
 
 Do **not** claim checkpoint commits are individually release-ready. Do **not**
 rewrite others’ branches to fake a green-every-SHA history.
@@ -27,20 +30,17 @@ rewrite others’ branches to fake a green-every-SHA history.
 | `pre-push` | `php bin/check-pr-preflight` (fast repo-state) | No |
 | Before opening / qualifying a PR | `php bin/check-pr-preflight --full` + Unit + Integration + Architecture | Yes (local publication) |
 | Hosted CI | Required ruleset checks on the **exact PR head** | Yes (candidate) |
-| Merge | `auto-merge-when-green` → `gh pr merge --auto --squash` | Squash to `main` |
+| Merge | Governed workflow → `bin/enable-governed-auto-merge` (pinned-head native squash) | Squash to `main` |
 
 There are **no** per-commit full-suite or default per-commit preflight CI jobs.
 Adding them would cost runtime without proving every ancestor under squash.
 
-## Misleading guidance (pending Codex shared-file landing)
+## Canonical guidance
 
-`CLAUDE.md` currently says `` `composer test` must pass before any commit. ``
-That line is **not** enforced by hooks or CI and conflicts with checkpoint /
-TDD practice. The Codex integration patch in
-`docs/change-records/FW-DELIVERY-COMMIT-POLICY-01-codex-patch.md` replaces it
-with the tiers above. Until that lands, treat this cookbook + the agent
-contract’s “one review candidate / exact-head evidence” as authoritative over
-that CLAUDE bullet.
+The shared agent contract and workflow spec define this policy; this cookbook
+explains it. `CLAUDE.md` points to the same checkpoint/candidate distinction.
+The historical all-commits test requirement has been removed. Existing hooks
+still apply to checkpoints; the policy does not authorize bypassing them.
 
 ## Non-squash exception (explicit)
 
@@ -58,7 +58,7 @@ landings implicitly.
 
 ## Agent habits
 
-1. Commit checkpoints freely; never `git stash`.
+1. Keep recoverable checkpoints under existing hooks; never `git stash`.
 2. Keep repair history on the branch; one review candidate tip.
 3. Qualify the tip (`preflight --full` + three suites; CI on exact head).
 4. Land only through governed auto-merge squash (or the release-cut exception).
