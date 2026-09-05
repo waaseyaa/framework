@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Workflow;
 
-use Waaseyaa\Workflows\EditorialWorkflowPreset;
 use Waaseyaa\Workflows\Workflow;
 
 /**
@@ -20,9 +19,18 @@ use Waaseyaa\Workflows\Workflow;
 final class WorkflowDefinitionsController
 {
     /**
-     * Optional factory override used by tests. Defaults to the editorial preset
-     * factory; when multiple workflows become pluggable, replace with a
-     * registry-backed iterator.
+     * Optional factory override. Production wiring
+     * ({@see \Waaseyaa\Foundation\Http\Router\WorkflowDefinitionsApiRouter})
+     * supplies a provider backed by {@see \Waaseyaa\Workflows\Read\ActiveWorkflows}
+     * — the active, verified `workflows.assignments` configuration. With no
+     * provider (an unwired install, or a `core`-only install with no
+     * `waaseyaa/workflows` package at all) this defaults to a well-formed
+     * empty result.
+     *
+     * #2835: this default used to be the retired `EditorialWorkflowPreset`,
+     * which had already drifted from the live editorial transition set —
+     * a plausible-looking but fictional workflow is worse than an honest
+     * empty list.
      *
      * @var \Closure(): list<Workflow>
      */
@@ -34,7 +42,7 @@ final class WorkflowDefinitionsController
     public function __construct(?\Closure $workflowsProvider = null)
     {
         $this->workflowsProvider = $workflowsProvider
-            ?? static fn(): array => [EditorialWorkflowPreset::create()];
+            ?? static fn(): array => [];
     }
 
     /**

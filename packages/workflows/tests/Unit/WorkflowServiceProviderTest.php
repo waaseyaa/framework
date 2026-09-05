@@ -7,14 +7,21 @@ namespace Waaseyaa\Workflows\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Config\ConfigFactoryInterface;
+use Waaseyaa\Config\ConfigInterface;
 use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
 use Waaseyaa\Workflows\Config\WorkflowAssignmentsConfig;
+use Waaseyaa\Workflows\Read\ActiveWorkflows;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowServiceProvider;
 
@@ -123,5 +130,106 @@ final class WorkflowServiceProviderTest extends TestCase
             WorkflowAssignmentsConfig::CONFIG_NAME,
             WorkflowAssignmentsConfig::SCHEMA_VERSION,
         ), 'A structurally-only schema must never reach the trusted registry.');
+    }
+
+    #[Test]
+    public function registers_the_active_workflows_reader_and_resolves_the_bound_workflow(): void
+    {
+        // #2835: proves the singleton bound in register() is real, end to
+        // end — not just present as a key in getBindings().
+        $editorial = new Workflow(['id' => 'editorial', 'label' => 'Editorial']);
+        $configFactory = new class (['node.article' => 'editorial']) implements ConfigFactoryInterface {
+            public function __construct(private readonly array $assignments) {}
+
+            public function get(string $name): ConfigInterface
+            {
+                $data = $this->assignments;
+
+                return new class ($data) implements ConfigInterface {
+                    public function __construct(private readonly array $data) {}
+
+                    public function getName(): string { return 'workflows.assignments'; }
+                    public function get(string $key = ''): mixed { return $key === '' ? $this->data : ($this->data[$key] ?? null); }
+                    public function set(string $key, mixed $value): static { return $this; }
+                    public function clear(string $key): static { return $this; }
+                    public function delete(): static { return $this; }
+                    public function save(): static { return $this; }
+                    public function isNew(): bool { return $this->data === []; }
+                    public function getRawData(): array { return $this->data; }
+                };
+            }
+
+            public function getEditable(string $name): ConfigInterface { return $this->get($name); }
+            public function loadMultiple(array $names): array { return []; }
+            public function rename(string $oldName, string $newName): static { return $this; }
+            public function listAll(string $prefix = ''): array { return []; }
+        };
+        $entityTypes = new class ($editorial) implements EntityTypeManagerInterface {
+            public function __construct(private readonly Workflow $editorial) {}
+
+            public function getDefinition(string $entityTypeId): \Waaseyaa\Entity\EntityTypeInterface { throw new \LogicException('not needed'); }
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+            public function registerEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function registerCoreEntityType(\Waaseyaa\Entity\EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function getDefinitions(): array { return []; }
+            public function hasDefinition(string $entityTypeId): bool { return false; }
+            public function getStorage(string $entityTypeId): EntityStorageInterface { throw new \LogicException('not needed'); }
+
+            public function getRepository(string $entityTypeId): EntityRepositoryInterface
+            {
+                $editorial = $this->editorial;
+
+                return new class ($editorial) implements EntityRepositoryInterface {
+                    public function __construct(private readonly Workflow $editorial) {}
+
+                    public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
+                    public function find(int|string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $id === 'editorial' ? $this->editorial : null; }
+                    public function loadWorkingCopy(int|string $id): ?EntityInterface { return $this->find($id); }
+                    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return in_array('editorial', $ids, true) ? [$this->editorial] : []; }
+                    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
+                    public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }
+                    public function save(EntityInterface $entity, bool $validate = true): int { throw new \LogicException('not needed'); }
+                    public function delete(EntityInterface $entity): void {}
+                    public function exists(int|string $id): bool { return $id === 'editorial'; }
+                    public function count(array $criteria = []): int { return 1; }
+                    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface { return null; }
+                    public function rollback(int|string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+                    public function listRevisions(int|string $entityId): array { return []; }
+                    public function setCurrentRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+                    public function loadPublishedRevision(int|string $entityId): ?EntityInterface { return null; }
+                    public function setPublishedRevision(int|string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
+                    public function saveMany(array $entities, bool $validate = true): array { return []; }
+                    public function deleteMany(array $entities): int { return 0; }
+                    public function findTranslations(EntityInterface $entity): array { return []; }
+                    public function saveTranslation(int|string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
+                    public function loadTranslation(int|string $entityId, string $langcode): ?EntityInterface { return null; }
+                    public function listTranslationRevisions(int|string $entityId, string $langcode): array { return []; }
+                };
+            }
+        };
+
+        $provider = new WorkflowServiceProvider();
+        $provider->setKernelServices(new class ($configFactory, $entityTypes) implements KernelServicesInterface {
+            public function __construct(
+                private readonly ConfigFactoryInterface $configFactory,
+                private readonly EntityTypeManagerInterface $entityTypes,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    ConfigFactoryInterface::class => $this->configFactory,
+                    EntityTypeManagerInterface::class => $this->entityTypes,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        self::assertArrayHasKey(ActiveWorkflows::class, $provider->getBindings());
+
+        $reader = $provider->resolve(ActiveWorkflows::class);
+        self::assertInstanceOf(ActiveWorkflows::class, $reader);
+        self::assertSame([$editorial], $reader->all());
     }
 }

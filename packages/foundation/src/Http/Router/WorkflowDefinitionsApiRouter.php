@@ -8,13 +8,21 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Api\Workflow\WorkflowDefinitionsController;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
+use Waaseyaa\Workflows\Read\ActiveWorkflows;
 
 /**
  * Dispatches workflow-definition read endpoints for the admin SPA.
+ *
+ * #2835: `$activeWorkflows` is optional so a `core`-only install (no
+ * `waaseyaa/workflows` package at all) still boots and serves a well-formed
+ * empty result — {@see HttpKernel} resolves the service only when the
+ * workflows package is present and wired.
  */
 final class WorkflowDefinitionsApiRouter implements DomainRouterInterface
 {
     use JsonApiResponseTrait;
+
+    public function __construct(private readonly ?ActiveWorkflows $activeWorkflows = null) {}
 
     public function supports(Request $request): bool
     {
@@ -36,7 +44,12 @@ final class WorkflowDefinitionsApiRouter implements DomainRouterInterface
         [, $action] = explode('::', $controllerRef, 2);
 
         // --- WorkflowDefinitionsController actions ---
-        $apiController = new WorkflowDefinitionsController();
+        $activeWorkflows = $this->activeWorkflows;
+        $apiController = new WorkflowDefinitionsController(
+            $activeWorkflows instanceof ActiveWorkflows
+                ? static fn(): array => $activeWorkflows->all()
+                : null,
+        );
 
         $payload = match ($action) {
             'list' => $apiController->list(),
