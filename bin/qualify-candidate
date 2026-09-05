@@ -1,0 +1,747 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Local candidate qualification with trustworthy exit evidence.
+ *
+ * FW-DELIVERY-QUALIFICATION-EVIDENCE-01 (issue #2913). Runs the components of
+ * a qualification plan (default: `check-pr-preflight --full` plus the Unit,
+ * Integration and Architecture PHPUnit suites) as proc_open children whose
+ * stdout/stderr are redirected straight to a log file — no pipes, no shell,
+ * no PIPESTATUS. Numeric exit status (or signal) is read from
+ * proc_get_status(); PHPUnit counts are read from the structured junit file
+ * a component is required to produce. Source (HEAD, tree, tracked working
+ * state) is bound at the start and re-checked after every component and at
+ * the end; any change is "drift", never a qualification.
+ *
+ * Usage:
+ *   bin/qualify-candidate                 # preflight --full + Unit + Integration + Architecture on HEAD
+ *   bin/qualify-candidate --jobs=2         # explicit concurrency
+ *   bin/qualify-candidate --only=unit,integration
+ *   bin/qualify-candidate --base=origin/main
+ *   bin/qualify-candidate --allow-dirty    # run against an uncommitted tree; never a qualification
+ *   bin/qualify-candidate --plan=FILE      # substitute the component table (schema_version 1)
+ *   bin/qualify-candidate --out=DIR        # evidence directory (default build/qualification/<sha12>-<utc>/)
+ *   bin/qualify-candidate --repo=DIR       # target repository root (default: this repo)
+ *
+ * Options:
+ *   --repo=DIR       Target repository root. Default: dirname(__DIR__) (this checkout).
+ *   --plan=FILE      JSON plan, schema_version 1: {qualifies: bool, components: [{id, command: [..], junit: bool}]}.
+ *                    Default plan is the four real components above with qualifies=true.
+ *   --only=a,b       Run only the named component ids. Always yields verdict "partial" — never a qualification.
+ *   --jobs=N         Run up to N components concurrently. Default 1. Every component still binds to one head/tree.
+ *   --out=DIR        Evidence directory. Default: <repo>/build/qualification/<sha12>-<utc yyyymmddThhmmssZ>/.
+ *   --base=REF       Forwarded to `check-pr-preflight --base=REF` (default component only).
+ *   --allow-dirty    Permit a dirty tracked tree. The run proceeds but qualification is always false.
+ *   --help           Print this text and exit 0.
+ *
+ * Exit codes:
+ *   0   qualified, partial, or an allowed-dirty/allowed-partial pass (see receipt.verdict)
+ *   1   at least one component failed or was signaled
+ *   2   usage, spawn, or evidence-write/parse error
+ *   3   dirty tracked tree at start (without --allow-dirty), or source drifted during the run
+ *   130 interrupted (SIGINT/SIGTERM, or the WAASEYAA_QUALIFY_INTERRUPT_AFTER test seam)
+ *
+ * Receipt: <out>/receipt.json, written atomically (temp file + rename).
+ * On success or on any run-time outcome (failed/drifted/interrupted/evidence_error
+ * from a component), a receipt is written. If the evidence directory or the
+ * receipt file itself cannot be written, the runner exits 2 and prints
+ * nothing on stdout that could be mistaken for a green result.
+ */
+
+const QUALIFY_CANDIDATE_VERSION = '1.0.0';
+const QUALIFY_CANDIDATE_SCHEMA_VERSION = 1;
+
+function qcHelpText(): string
+{
+    // Keep in sync with the file-level PHPDoc above.
+    $comment = (string) file_get_contents(__FILE__);
+    if (preg_match('#/\*\*(.*?)\*/#s', $comment, $matches) === 1) {
+        $lines = explode("\n", $matches[1]);
+        $lines = array_map(static fn(string $line): string => (string) preg_replace('/^\s*\* ?/', '', $line), $lines);
+
+        return trim(implode("\n", $lines)) . "\n";
+    }
+
+    return "bin/qualify-candidate: local candidate qualification with trustworthy exit evidence.\n";
+}
+
+/**
+ * @param list<string> $arguments
+ * @return array{0:int, 1:string, 2:string}
+ */
+function qcRunGit(string $repo, array $arguments): array
+{
+    $descriptors = [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = @proc_open(array_merge(['git', '-C', $repo], $arguments), $descriptors, $pipes);
+    if (!is_resource($process)) {
+        return [2, '', 'qualify-candidate: failed to spawn git'];
+    }
+    $stdout = (string) stream_get_contents($pipes[1]);
+    $stderr = (string) stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exit = proc_close($process);
+
+    return [$exit, $stdout, $stderr];
+}
+
+/**
+ * @return array{head: string, tree: string, status: list<string>}|null
+ */
+function qcReadSourceState(string $repo): ?array
+{
+    [$exitHead, $head] = qcRunGit($repo, ['rev-parse', 'HEAD']);
+    if ($exitHead !== 0) {
+        return null;
+    }
+    [$exitTree, $tree] = qcRunGit($repo, ['rev-parse', 'HEAD^{tree}']);
+    if ($exitTree !== 0) {
+        return null;
+    }
+    [$exitStatus, $status] = qcRunGit($repo, ['status', '--porcelain=v1', '--untracked-files=no']);
+    if ($exitStatus !== 0) {
+        return null;
+    }
+    $lines = array_values(array_filter(explode("\n", rtrim($status, "\n")), static fn(string $l): bool => $l !== ''));
+
+    return ['head' => trim($head), 'tree' => trim($tree), 'status' => $lines];
+}
+
+/**
+ * @param array{head: string, tree: string, status: list<string>} $before
+ * @param array{head: string, tree: string, status: list<string>} $after
+ * @return list<string>
+ */
+function qcDiffSource(array $before, array $after): array
+{
+    $changes = [];
+    if ($before['head'] !== $after['head']) {
+        $changes[] = 'head: ' . $before['head'] . '..' . $after['head'];
+    }
+    if ($before['tree'] !== $after['tree']) {
+        $changes[] = 'tree: ' . $before['tree'] . '..' . $after['tree'];
+    }
+    if ($before['status'] !== $after['status']) {
+        $changes[] = 'status: ' . ($after['status'] === [] ? '(clean)' : implode('; ', $after['status']));
+    }
+
+    return $changes;
+}
+
+/**
+ * @return array{tests:int, failures:int, errors:int, skipped:int}|null
+ */
+function qcParseJunit(string $path): ?array
+{
+    if (!is_file($path) || !is_readable($path)) {
+        return null;
+    }
+    $content = file_get_contents($path);
+    if ($content === false || trim($content) === '') {
+        return null;
+    }
+    $previousSetting = libxml_use_internal_errors(true);
+    $xml = simplexml_load_string($content);
+    libxml_use_internal_errors($previousSetting);
+    if ($xml === false) {
+        return null;
+    }
+
+    // A junit document is <testsuites><testsuite ...>...</testsuite></testsuites>;
+    // each top-level <testsuite> already aggregates its nested per-class
+    // <testsuite>/<testcase> descendants, so only DIRECT children are summed
+    // — recursing into nested testsuite elements would double-count.
+    $roots = $xml->getName() === 'testsuites' ? $xml->testsuite : [$xml];
+    $tests = 0;
+    $failures = 0;
+    $errors = 0;
+    $skipped = 0;
+    foreach ($roots as $suite) {
+        $attributes = $suite->attributes();
+        $tests += (int) ($attributes['tests'] ?? 0);
+        $failures += (int) ($attributes['failures'] ?? 0);
+        $errors += (int) ($attributes['errors'] ?? 0);
+        $skipped += (int) ($attributes['skipped'] ?? 0);
+    }
+
+    return ['tests' => $tests, 'failures' => $failures, 'errors' => $errors, 'skipped' => $skipped];
+}
+
+/**
+ * @param array<string, mixed> $component
+ * @param array<string, string> $baseEnv
+ * @return array<string, mixed>
+ */
+function qcStartComponent(string $repo, string $out, array $component, array $baseEnv): array
+{
+    $id = (string) $component['id'];
+    $logPath = $out . '/' . $id . '.log';
+    $junitPath = ($component['junit'] ?? false) === true ? $out . '/' . $id . '.junit.xml' : null;
+    $env = $baseEnv;
+    if ($junitPath !== null) {
+        $env['WAASEYAA_QUALIFY_JUNIT'] = $junitPath;
+    }
+    $descriptors = [
+        0 => ['file', '/dev/null', 'r'],
+        1 => ['file', $logPath, 'a'],
+        2 => ['file', $logPath, 'a'],
+    ];
+    $startedAt = gmdate('Y-m-d\TH:i:s\Z');
+    $startHr = hrtime(true);
+    /** @var list<string> $command */
+    $command = $component['command'];
+    $process = @proc_open($command, $descriptors, $pipes, $repo, $env);
+
+    return [
+        'component' => $component,
+        'process' => is_resource($process) ? $process : null,
+        'spawn_failed' => !is_resource($process),
+        'log' => $logPath,
+        'junit_path' => $junitPath,
+        'started_at' => $startedAt,
+        'start_hr' => $startHr,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $handle
+ * @param array<string, mixed>|null $status
+ * @return array<string, mixed>
+ */
+function qcFinalizeComponent(array $handle, ?array $status): array
+{
+    $component = $handle['component'];
+    $finishedAt = gmdate('Y-m-d\TH:i:s\Z');
+    $durationS = (hrtime(true) - $handle['start_hr']) / 1_000_000_000;
+
+    if ($handle['spawn_failed'] === true) {
+        return [
+            'id' => $component['id'],
+            'command' => $component['command'],
+            'log' => $handle['log'],
+            'junit' => $handle['junit_path'],
+            'started_at' => $handle['started_at'],
+            'finished_at' => $finishedAt,
+            'duration_s' => round($durationS, 3),
+            'exit_code' => null,
+            'termination' => 'exit',
+            'outcome' => 'evidence_error',
+        ];
+    }
+
+    $signaled = ($status['signaled'] ?? false) === true;
+    $termination = $signaled ? 'signal' : 'exit';
+    $signal = $signaled ? (int) $status['termsig'] : null;
+    $exitCode = $signaled ? null : (int) $status['exitcode'];
+
+    $counts = null;
+    if ($signaled) {
+        $outcome = 'signaled';
+    } elseif ($handle['junit_path'] !== null) {
+        $counts = qcParseJunit($handle['junit_path']);
+        $outcome = $counts === null ? 'evidence_error' : ($exitCode === 0 ? 'passed' : 'failed');
+    } else {
+        $outcome = $exitCode === 0 ? 'passed' : 'failed';
+    }
+
+    $result = [
+        'id' => $component['id'],
+        'command' => $component['command'],
+        'log' => $handle['log'],
+        'junit' => $handle['junit_path'],
+        'started_at' => $handle['started_at'],
+        'finished_at' => $finishedAt,
+        'duration_s' => round($durationS, 3),
+        'exit_code' => $exitCode,
+        'termination' => $termination,
+        'outcome' => $outcome,
+    ];
+    if ($signal !== null) {
+        $result['signal'] = $signal;
+    }
+    if ($counts !== null) {
+        $result['counts'] = $counts;
+    }
+
+    return $result;
+}
+
+/**
+ * @param array<string, mixed> $result
+ */
+function qcSummaryLine(array $result): string
+{
+    $exitSegment = $result['termination'] === 'signal'
+        ? 'exit=signal ' . $result['signal']
+        : 'exit=' . ($result['exit_code'] ?? '?');
+    $countsSegment = isset($result['counts'])
+        ? sprintf(
+            'tests=%d failures=%d errors=%d skipped=%d',
+            $result['counts']['tests'],
+            $result['counts']['failures'],
+            $result['counts']['errors'],
+            $result['counts']['skipped'],
+        )
+        : 'tests=- failures=- errors=- skipped=-';
+
+    return sprintf(
+        '%s %s %s %s (%.2fs) log=%s',
+        $result['outcome'],
+        $result['id'],
+        $exitSegment,
+        $countsSegment,
+        $result['duration_s'],
+        $result['log'],
+    );
+}
+
+/**
+ * @param array<string, mixed> $receipt
+ */
+function qcWriteReceiptAtomic(string $out, array $receipt): bool
+{
+    try {
+        $json = json_encode($receipt, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    } catch (\JsonException) {
+        return false;
+    }
+    $tmp = $out . '/.receipt.json.tmp-' . getmypid();
+    if (@file_put_contents($tmp, $json . "\n") === false) {
+        return false;
+    }
+    if (!@rename($tmp, $out . '/receipt.json')) {
+        @unlink($tmp);
+
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * @return array{schema_version:int, qualifies:bool, components: list<array<string, mixed>>}
+ */
+function qcDefaultPlan(string $repo, string $out, ?string $base): array
+{
+    $preflightCommand = [PHP_BINARY, $repo . '/bin/check-pr-preflight', '--full'];
+    if ($base !== null) {
+        $preflightCommand[] = '--base=' . $base;
+    }
+    $components = [
+        ['id' => 'preflight', 'command' => $preflightCommand, 'junit' => false],
+    ];
+    foreach (['unit' => 'Unit', 'integration' => 'Integration', 'architecture' => 'Architecture'] as $id => $suite) {
+        $components[] = [
+            'id' => $id,
+            'command' => [
+                PHP_BINARY, '-d', 'memory_limit=1G', $repo . '/vendor/bin/phpunit',
+                '--testsuite', $suite, '--no-coverage',
+                '--log-junit', $out . '/' . $id . '.junit.xml',
+            ],
+            'junit' => true,
+        ];
+    }
+
+    return ['schema_version' => 1, 'qualifies' => true, 'components' => $components];
+}
+
+// ------------------------------------------------------------------ main
+
+$rawArguments = array_slice($_SERVER['argv'] ?? [], 1);
+$options = [
+    'repo' => null,
+    'plan' => null,
+    'only' => null,
+    'jobs' => '1',
+    'out' => null,
+    'base' => null,
+    'allow-dirty' => false,
+    'help' => false,
+];
+
+foreach ($rawArguments as $argument) {
+    if ($argument === '--help' || $argument === '-h') {
+        $options['help'] = true;
+    } elseif ($argument === '--allow-dirty') {
+        $options['allow-dirty'] = true;
+    } elseif (str_starts_with($argument, '--repo=')) {
+        $options['repo'] = substr($argument, strlen('--repo='));
+    } elseif (str_starts_with($argument, '--plan=')) {
+        $options['plan'] = substr($argument, strlen('--plan='));
+    } elseif (str_starts_with($argument, '--only=')) {
+        $options['only'] = substr($argument, strlen('--only='));
+    } elseif (str_starts_with($argument, '--jobs=')) {
+        $options['jobs'] = substr($argument, strlen('--jobs='));
+    } elseif (str_starts_with($argument, '--out=')) {
+        $options['out'] = substr($argument, strlen('--out='));
+    } elseif (str_starts_with($argument, '--base=')) {
+        $options['base'] = substr($argument, strlen('--base='));
+    } else {
+        fwrite(STDERR, "qualify-candidate: unknown argument {$argument}\n");
+        exit(2);
+    }
+}
+
+if ($options['help']) {
+    fwrite(STDOUT, qcHelpText());
+    exit(0);
+}
+
+$jobs = filter_var($options['jobs'], FILTER_VALIDATE_INT);
+if ($jobs === false || $jobs < 1) {
+    fwrite(STDERR, "qualify-candidate: --jobs must be a positive integer.\n");
+    exit(2);
+}
+
+$repoArgument = $options['repo'] !== null ? $options['repo'] : dirname(__DIR__);
+$repo = realpath($repoArgument);
+if ($repo === false || !is_dir($repo)) {
+    fwrite(STDERR, "qualify-candidate: --repo directory not found: {$repoArgument}\n");
+    exit(2);
+}
+
+if ($options['plan'] !== null) {
+    if (!is_file($options['plan']) || !is_readable($options['plan'])) {
+        fwrite(STDERR, "qualify-candidate: --plan file not found or unreadable: {$options['plan']}\n");
+        exit(2);
+    }
+    try {
+        $userPlan = json_decode((string) file_get_contents($options['plan']), true, 512, JSON_THROW_ON_ERROR);
+    } catch (\JsonException $exception) {
+        fwrite(STDERR, "qualify-candidate: --plan is not valid JSON: {$exception->getMessage()}\n");
+        exit(2);
+    }
+    if (
+        !is_array($userPlan)
+        || ($userPlan['schema_version'] ?? null) !== 1
+        || !is_array($userPlan['components'] ?? null)
+        || $userPlan['components'] === []
+    ) {
+        fwrite(STDERR, "qualify-candidate: --plan must use schema_version 1 with a non-empty components array.\n");
+        exit(2);
+    }
+    foreach ($userPlan['components'] as $component) {
+        if (
+            !is_array($component)
+            || !is_string($component['id'] ?? null)
+            || $component['id'] === ''
+            || !is_array($component['command'] ?? null)
+            || $component['command'] === []
+            || !is_bool($component['junit'] ?? null)
+        ) {
+            fwrite(STDERR, "qualify-candidate: --plan has a malformed component (needs id, command[], junit).\n");
+            exit(2);
+        }
+    }
+} else {
+    $userPlan = null;
+}
+
+$source = qcReadSourceState($repo);
+if ($source === null) {
+    fwrite(STDERR, "qualify-candidate: cannot read repository state at {$repo} (is it a git repository?).\n");
+    exit(2);
+}
+
+[, $branchOutput] = qcRunGit($repo, ['rev-parse', '--abbrev-ref', 'HEAD']);
+$branch = trim($branchOutput);
+
+$sha12 = substr($source['head'], 0, 12);
+$timestamp = gmdate('Ymd\THis\Z');
+$out = $options['out'] !== null ? $options['out'] : $repo . '/build/qualification/' . $sha12 . '-' . $timestamp;
+
+$dirtyAtStart = $source['status'];
+$allowDirty = $options['allow-dirty'] === true;
+$onlyGiven = $options['only'] !== null;
+
+$startedAtRunner = gmdate('Y-m-d\TH:i:s\Z');
+
+/** @return never */
+function qcExitWithoutReceipt(string $message, int $exitCode): void
+{
+    fwrite(STDERR, "qualify-candidate: {$message}\n");
+    exit($exitCode);
+}
+
+if (!@mkdir($out, 0o777, true) && !is_dir($out)) {
+    qcExitWithoutReceipt("cannot create evidence directory: {$out}", 2);
+}
+if (!is_writable($out)) {
+    qcExitWithoutReceipt("evidence directory is not writable: {$out}", 2);
+}
+
+$candidate = ['head' => $source['head'], 'tree' => $source['tree'], 'branch' => $branch, 'dirty_at_start' => $dirtyAtStart];
+
+/**
+ * @param list<array<string, mixed>> $components
+ * @param array{head_after:string, tree_after:string, drifted:bool, changes:list<string>} $sourceCheck
+ */
+function qcBuildReceipt(
+    array $candidate,
+    array $components,
+    array $sourceCheck,
+    string $verdict,
+    bool $qualification,
+    int $jobs,
+    string $startedAtRunner,
+): array {
+    return [
+        'candidate' => $candidate,
+        'components' => $components,
+        'source_check' => $sourceCheck,
+        'verdict' => $verdict,
+        'qualification' => $qualification,
+        'runner' => [
+            'schema_version' => QUALIFY_CANDIDATE_SCHEMA_VERSION,
+            'version' => QUALIFY_CANDIDATE_VERSION,
+            'php' => PHP_VERSION,
+            'os' => PHP_OS_FAMILY,
+            'jobs' => $jobs,
+            'started_at' => $startedAtRunner,
+            'finished_at' => gmdate('Y-m-d\TH:i:s\Z'),
+        ],
+    ];
+}
+
+/**
+ * A dirty tracked tree without --allow-dirty is refused before any component
+ * runs. This is treated as the same evidence family as mid-run drift (both
+ * mean "the source is not one trustworthy point"), so it is recorded and
+ * exits under the same verdict and exit code (3).
+ */
+if ($dirtyAtStart !== [] && !$allowDirty) {
+    $changes = ['status: ' . implode('; ', $dirtyAtStart)];
+    $receipt = qcBuildReceipt(
+        $candidate,
+        [],
+        ['head_after' => $source['head'], 'tree_after' => $source['tree'], 'drifted' => true, 'changes' => $changes],
+        'drifted',
+        false,
+        $jobs,
+        $startedAtRunner,
+    );
+    if (!qcWriteReceiptAtomic($out, $receipt)) {
+        qcExitWithoutReceipt('receipt could not be written after a dirty-tree refusal.', 2);
+    }
+    fwrite(STDERR, "qualify-candidate: tracked working tree is dirty; refusing without --allow-dirty.\n");
+    foreach ($dirtyAtStart as $line) {
+        fwrite(STDERR, "  {$line}\n");
+    }
+    fwrite(STDOUT, "verdict: drifted\n");
+    fwrite(STDOUT, "receipt: {$out}/receipt.json\n");
+    exit(3);
+}
+
+$plan = $userPlan ?? qcDefaultPlan($repo, $out, $options['base']);
+$planQualifies = ($plan['qualifies'] ?? true) === true;
+
+/** @var list<array<string, mixed>> $allComponents */
+$allComponents = $plan['components'];
+
+if ($onlyGiven) {
+    $wanted = array_values(array_filter(array_map('trim', explode(',', $options['only'])), static fn(string $id): bool => $id !== ''));
+    $available = array_column($allComponents, 'id');
+    $missing = array_diff($wanted, $available);
+    if ($missing !== []) {
+        qcExitWithoutReceipt('--only names components absent from the plan: ' . implode(', ', $missing), 2);
+    }
+    $componentsToRun = array_values(array_filter($allComponents, static fn(array $c): bool => in_array($c['id'], $wanted, true)));
+} else {
+    $componentsToRun = $allComponents;
+}
+
+/** @var array<string, string> $baseEnv */
+$baseEnv = getenv();
+
+$interruptAfterRaw = getenv('WAASEYAA_QUALIFY_INTERRUPT_AFTER');
+$interruptAfterId = ($interruptAfterRaw === false || $interruptAfterRaw === '' || $interruptAfterRaw === 'false')
+    ? null
+    : $interruptAfterRaw;
+
+$sigInterrupted = false;
+if (function_exists('pcntl_async_signals')) {
+    pcntl_async_signals(true);
+    $sigHandler = static function () use (&$sigInterrupted): void {
+        $sigInterrupted = true;
+    };
+    pcntl_signal(SIGINT, $sigHandler);
+    pcntl_signal(SIGTERM, $sigHandler);
+}
+
+$pending = $componentsToRun;
+$active = [];
+/** @var array<string, array<string, mixed>> $results */
+$results = [];
+$driftedFlag = false;
+$driftChanges = [];
+$stopScheduling = false;
+
+while (($pending !== [] || $active !== []) && !$stopScheduling) {
+    while (count($active) < $jobs && $pending !== []) {
+        $component = array_shift($pending);
+        $active[] = qcStartComponent($repo, $out, $component, $baseEnv);
+    }
+
+    if ($active === []) {
+        break;
+    }
+
+    usleep(50_000);
+
+    foreach ($active as $key => $handle) {
+        if ($handle['spawn_failed'] === true) {
+            $result = qcFinalizeComponent($handle, null);
+            $results[$result['id']] = $result;
+            unset($active[$key]);
+            continue;
+        }
+
+        $status = proc_get_status($handle['process']);
+        if ($status['running']) {
+            continue;
+        }
+        proc_close($handle['process']);
+        $result = qcFinalizeComponent($handle, $status);
+        $results[$result['id']] = $result;
+        unset($active[$key]);
+
+        if ($interruptAfterId !== null && $result['id'] === $interruptAfterId) {
+            $sigInterrupted = true;
+        }
+
+        if ($sigInterrupted) {
+            $stopScheduling = true;
+            break;
+        }
+
+        $currentSource = qcReadSourceState($repo);
+        if ($currentSource === null) {
+            $driftedFlag = true;
+            $driftChanges[] = 'status: unreadable after component ' . $result['id'];
+            $stopScheduling = true;
+            break;
+        }
+        $changes = qcDiffSource($source, $currentSource);
+        if ($changes !== []) {
+            $driftedFlag = true;
+            $driftChanges = $changes;
+            $stopScheduling = true;
+            break;
+        }
+    }
+    $active = array_values($active);
+}
+
+if ($sigInterrupted) {
+    // Terminate anything still running; it produced no usable result.
+    foreach ($active as $handle) {
+        if ($handle['spawn_failed'] === false && is_resource($handle['process'])) {
+            @proc_terminate($handle['process']);
+            proc_close($handle['process']);
+        }
+    }
+} elseif ($driftedFlag) {
+    // Drift is not as urgent as an interrupt: let already-started children
+    // finish (their exit evidence is still meaningful) but never schedule more.
+    foreach ($active as $handle) {
+        if ($handle['spawn_failed'] === true) {
+            $result = qcFinalizeComponent($handle, null);
+            $results[$result['id']] = $result;
+            continue;
+        }
+        while (true) {
+            $status = proc_get_status($handle['process']);
+            if (!$status['running']) {
+                break;
+            }
+            usleep(50_000);
+        }
+        proc_close($handle['process']);
+        $result = qcFinalizeComponent($handle, $status);
+        $results[$result['id']] = $result;
+    }
+}
+
+$finalSource = qcReadSourceState($repo);
+if ($finalSource === null) {
+    $driftedFlag = true;
+    $driftChanges = $driftChanges !== [] ? $driftChanges : ['status: repository state unreadable at end'];
+    $finalSource = $source;
+} else {
+    $endChanges = qcDiffSource($source, $finalSource);
+    if ($endChanges !== []) {
+        $driftedFlag = true;
+        $driftChanges = $endChanges;
+    }
+}
+
+// Preserve plan order in the receipt.
+$orderedComponents = [];
+foreach ($componentsToRun as $component) {
+    if (isset($results[$component['id']])) {
+        $orderedComponents[] = $results[$component['id']];
+    }
+}
+
+$hasEvidenceError = false;
+$hasFailure = false;
+foreach ($orderedComponents as $result) {
+    if ($result['outcome'] === 'evidence_error') {
+        $hasEvidenceError = true;
+    }
+    if (in_array($result['outcome'], ['failed', 'signaled'], true)) {
+        $hasFailure = true;
+    }
+}
+
+if ($sigInterrupted) {
+    $verdict = 'interrupted';
+    $exitCode = 130;
+} elseif ($hasEvidenceError) {
+    $verdict = 'evidence_error';
+    $exitCode = 2;
+} elseif ($driftedFlag) {
+    $verdict = 'drifted';
+    $exitCode = 3;
+} elseif ($hasFailure) {
+    $verdict = 'failed';
+    $exitCode = 1;
+} elseif ($onlyGiven) {
+    $verdict = 'partial';
+    $exitCode = 0;
+} else {
+    $verdict = 'qualified';
+    $exitCode = 0;
+}
+
+$qualification = $verdict === 'qualified' && $planQualifies && $dirtyAtStart === [];
+
+$receipt = qcBuildReceipt(
+    $candidate,
+    $orderedComponents,
+    [
+        'head_after' => $finalSource['head'],
+        'tree_after' => $finalSource['tree'],
+        'drifted' => $driftedFlag,
+        'changes' => $driftChanges,
+    ],
+    $verdict,
+    $qualification,
+    $jobs,
+    $startedAtRunner,
+);
+
+if (!qcWriteReceiptAtomic($out, $receipt)) {
+    qcExitWithoutReceipt('receipt could not be written; no result is recorded as a success.', 2);
+}
+
+foreach ($orderedComponents as $result) {
+    fwrite(STDOUT, qcSummaryLine($result) . "\n");
+}
+fwrite(STDOUT, "verdict: {$verdict}\n");
+fwrite(STDOUT, "receipt: {$out}/receipt.json\n");
+
+exit($exitCode);

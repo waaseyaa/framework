@@ -344,6 +344,22 @@
             "rationale": "Root cannot reproduce the coordinator's ordinary-user removal refusal."
         },
         {
+            "path": "tests/Architecture/QualifyCandidateRunnerTest.php",
+            "reason": "Signal termination of a child requires the posix extension.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "function_exists(posix_kill)",
+            "rationale": "The signaled-not-passed proof needs posix_kill() to terminate its own fixture child with SIGKILL; without the posix extension there is no portable way to send the signal."
+        },
+        {
+            "path": "tests/Architecture/QualifyCandidateRunnerTest.php",
+            "reason": "Read-only directory permissions are not enforced for this user.",
+            "occurrence": 1,
+            "classification": "permission-semantics",
+            "predicate": "posix_geteuid() !== 0",
+            "rationale": "Root (and some container/CI users) bypass a 0555 directory's write refusal, so the unwritable-evidence-directory proof cannot be reproduced."
+        },
+        {
             "path": "tests/Integration/Policy/CheckComposerPolicyTest.php",
             "reason": "No vX.Y.Z git tag found in repo — CP-NEW cannot resolve an expected constraint. ",
             "occurrence": 1,
