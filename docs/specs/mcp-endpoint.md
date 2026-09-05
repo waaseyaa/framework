@@ -1,13 +1,15 @@
 # MCP Endpoint
 
-<!-- Spec reviewed 2026-08-29 - #2636/#2638 stale deferrals: two live-prose
-constraints deferred current capability to issues that had already closed, so
-this spec understated what is buildable. #2220's AEAD primitive landed as
-Foundation\Security\ApplicationMaster* — but its envelope carries and enforces
-no expiry claim, which #2220's own acceptance required for short-lived cursors,
-so resources/list pagination (now #2636) still owes a registered purpose plus
-its own expiry enforcement; the prerequisite is partially, not fully,
-discharged. #2207 landed
+<!-- Spec reviewed 2026-09-05 - #2636 resources/list opaque AEAD pagination:
+ApplicationMaster sealing plus ContentResourceListCursorCodec claim expiry;
+Search catalogue resumes via SearchCatalogueScanPosition. #2638 MCP Registry
+manifest remains a separate track. -->
+<!-- Spec reviewed 2026-08-29 - #2636/#2638 stale deferrals (historical): two
+live-prose constraints deferred current capability to issues that had already
+closed. #2220's AEAD primitive landed as Foundation\Security\ApplicationMaster*
+without built-in expiry; #2636 now registers purpose
+waaseyaa.mcp.content-resource-list-cursor.v1 and enforces expiry in sealed
+claims. #2207 landed
 Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface, which
 PackageManifestCompiler detects by string constant so a provider contributes
 commands without importing Layer 6 — the layer obstacle that blocked the
@@ -173,19 +175,19 @@ enabled providerless composition fails closed.
 The Layer 5 `ContentResourceRegistry` is MCP-neutral and bounded. Its optional
 Search adapter resolves the database-backed catalogue only during a resource
 call and passes the exact immutable principal. Search scans no more than 500 raw
-pointers to return at most 50 safe projections; there is deliberately no
-`nextCursor`, raw count, or hidden-position signal. Exhaustive pagination is tracked by
-#2636. Its stated prerequisite, the purpose-bound AEAD sealing primitive of
-#2220, has landed as `Waaseyaa\Foundation\Security\ApplicationMaster*`
-(XChaCha20-Poly1305, purpose-bound key derivation, a boot-time closed
-`ApplicationMasterPurposeRegistry`) — but that envelope carries **no expiry
-claim and enforces none**, and #2220's acceptance called for expiry semantics
-suitable for short-lived cursors. A cursor built on it must therefore register
-its own purpose and carry and enforce its own expiry; see #2636 before
-assuming the prerequisite is fully discharged. The window is
-discovery, not a complete inventory; directly addressed visible content remains
-readable even when it is not listed. The endpoint's existing per-principal rate
-limiter runs before every resource method.
+pointers to return at most 50 safe projections per page. When
+`ApplicationMasterKeyring` is composed, `resources/list` accepts an opaque
+`cursor` and may emit `nextCursor` — a purpose-bound AEAD envelope
+(`waaseyaa.mcp.content-resource-list-cursor.v1`) whose sealed claims carry the
+provider-local resume token, principal binding, and an application-enforced
+expiry (`ContentResourceListCursorCodec::DEFAULT_TTL_SECONDS`). Without the
+keyring, cursors are refused and `nextCursor` is omitted (first-page discovery
+only). Responses never include a raw count or hidden-position signal; an empty
+page with a `nextCursor` is valid when a scan window yields no visible
+projections. The window is discovery, not a complete inventory; directly
+addressed visible content remains readable even when it is not listed. The
+endpoint's existing per-principal rate limiter runs before every resource
+method.
 
 Canonical resource URIs are
 `waaseyaa://content/<unpadded-base64url-public-path>`. Decoding rejects aliases,
@@ -1280,7 +1282,7 @@ provider can contribute commands without importing the Layer 6 CLI package.
 |---------|-----|--------|
 | `tools/list` | Yes | -- |
 | `tools/call` | Yes | -- |
-| `resources/list` | Yes, bounded and opt-in | Pagination — #2636 |
+| `resources/list` | Yes, bounded and opt-in | Opaque AEAD `nextCursor` when application-master keyring is composed (#2636) |
 | `resources/templates/list` | Yes, opt-in | -- |
 | `resources/read` | Yes, access-checked and opt-in | -- |
 | `prompts/list` | No | Deferred; not advertised |

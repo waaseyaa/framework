@@ -17,6 +17,7 @@ use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\AI\Tools\Resource\ContentResourceContent;
 use Waaseyaa\AI\Tools\Resource\ContentResourceDescriptor;
+use Waaseyaa\AI\Tools\Resource\ContentResourceListPage;
 use Waaseyaa\AI\Tools\Resource\ContentResourceProviderInterface;
 use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
 use Waaseyaa\AI\Tools\Resource\ContentResourceTemplate;
@@ -55,6 +56,7 @@ final class McpEndpointTest extends TestCase
         ?ContentResourceRegistry $resources = null,
         bool $resourcesEnabled = false,
         ?\Symfony\Contracts\EventDispatcher\EventDispatcherInterface $dispatcher = null,
+        ?\Waaseyaa\Mcp\Resource\ContentResourceListCursorCodec $contentResourceListCursors = null,
     ): McpEndpoint
     {
         return new McpEndpoint(
@@ -65,6 +67,7 @@ final class McpEndpointTest extends TestCase
             implementationInfo: $implementationInfo,
             contentResources: $resources,
             contentResourcesEnabled: $resourcesEnabled,
+            contentResourceListCursors: $contentResourceListCursors,
         );
     }
 
@@ -75,9 +78,11 @@ final class McpEndpointTest extends TestCase
         $registry->register('test', new class($uri, $denyReads) implements ContentResourceProviderInterface {
             public function __construct(private string $uri, private bool $denyReads) {}
 
-            public function list(AuthorizationPrincipalInterface $principal): array
+            public function list(AuthorizationPrincipalInterface $principal, ?string $resumeToken = null): ContentResourceListPage
             {
-                return [new ContentResourceDescriptor($this->uri, 'content:L2Fib3V0', 'About', 'Public page')];
+                return new ContentResourceListPage([
+                    new ContentResourceDescriptor($this->uri, 'content:L2Fib3V0', 'About', 'Public page'),
+                ]);
             }
 
             public function templates(): array
@@ -817,6 +822,60 @@ final class McpEndpointTest extends TestCase
     }
 
     #[Test]
+    public function resources_list_emits_sealed_next_cursor_and_resumes_without_counts(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $registry = new ContentResourceRegistry();
+        $registry->register('paged', new class implements ContentResourceProviderInterface {
+            public function list(AuthorizationPrincipalInterface $principal, ?string $resumeToken = null): ContentResourceListPage
+            {
+                if ($resumeToken === null) {
+                    return new ContentResourceListPage(
+                        [new ContentResourceDescriptor('waaseyaa://content/YQ', 'content:YQ', 'A', 'first')],
+                        'page2token',
+                    );
+                }
+                if ($resumeToken === 'page2token') {
+                    return new ContentResourceListPage([
+                        new ContentResourceDescriptor('waaseyaa://content/Yg', 'content:Yg', 'B', 'second'),
+                    ]);
+                }
+
+                throw new \InvalidArgumentException('bad resume');
+            }
+
+            public function templates(): array
+            {
+                return [];
+            }
+
+            public function read(string $uri, AuthorizationPrincipalInterface $principal): ?ContentResourceContent
+            {
+                return null;
+            }
+        });
+        $codec = new \Waaseyaa\Mcp\Resource\ContentResourceListCursorCodec(
+            \Waaseyaa\Mcp\Tests\Support\McpContentResourceListCursorKeyring::create(),
+        );
+        $endpoint = $this->createEndpoint(
+            resources: $registry,
+            resourcesEnabled: true,
+            contentResourceListCursors: $codec,
+        );
+
+        $first = $this->rpc($endpoint, 'resources/list');
+        self::assertCount(1, $first['result']['resources']);
+        self::assertSame('A', $first['result']['resources'][0]['title']);
+        self::assertArrayHasKey('nextCursor', $first['result']);
+        self::assertArrayNotHasKey('total', $first['result']);
+
+        $second = $this->rpc($endpoint, 'resources/list', ['cursor' => $first['result']['nextCursor']]);
+        self::assertCount(1, $second['result']['resources']);
+        self::assertSame('B', $second['result']['resources'][0]['title']);
+        self::assertArrayNotHasKey('nextCursor', $second['result']);
+    }
+
+    #[Test]
     public function resources_are_advertised_and_dispatched_only_with_the_complete_enabled_registry(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);
@@ -969,7 +1028,7 @@ final class McpEndpointTest extends TestCase
         });
         $registry = new ContentResourceRegistry();
         $registry->register('broken', new class implements ContentResourceProviderInterface {
-            public function list(AuthorizationPrincipalInterface $principal): array { return []; }
+            public function list(AuthorizationPrincipalInterface $principal, ?string $resumeToken = null): ContentResourceListPage { return new ContentResourceListPage([]); }
             public function templates(): array { return []; }
             public function read(string $uri, AuthorizationPrincipalInterface $principal): ?ContentResourceContent
             {
@@ -1009,7 +1068,7 @@ final class McpEndpointTest extends TestCase
         });
         $registry = new ContentResourceRegistry();
         $registry->register('invalid-metadata', new class implements ContentResourceProviderInterface {
-            public function list(AuthorizationPrincipalInterface $principal): array { return []; }
+            public function list(AuthorizationPrincipalInterface $principal, ?string $resumeToken = null): ContentResourceListPage { return new ContentResourceListPage([]); }
             public function templates(): array { return []; }
             public function read(string $uri, AuthorizationPrincipalInterface $principal): ?ContentResourceContent
             {
@@ -1128,7 +1187,7 @@ final class McpEndpointTest extends TestCase
         });
         $registry = new ContentResourceRegistry();
         $registry->register('broken', new class implements ContentResourceProviderInterface {
-            public function list(AuthorizationPrincipalInterface $principal): array
+            public function list(AuthorizationPrincipalInterface $principal, ?string $resumeToken = null): ContentResourceListPage
             {
                 throw new \RuntimeException('sqlite:////private/path?credential=value');
             }

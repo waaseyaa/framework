@@ -12,6 +12,8 @@ use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
 use Waaseyaa\AI\Tools\Resource\MalformedContentResourceUriException;
 use Waaseyaa\AI\Tools\Resource\SearchPackageContentResourceProvider;
 use Waaseyaa\Search\SearchCandidateProjection;
+use Waaseyaa\Search\SearchCataloguePage;
+use Waaseyaa\Search\SearchCatalogueScanPosition;
 use Waaseyaa\Search\SearchContentCatalogueInterface;
 
 #[CoversClass(SearchPackageContentResourceProvider::class)]
@@ -26,11 +28,15 @@ final class SearchPackageContentResourceProviderTest extends TestCase
             /** @param list<AuthorizationPrincipalInterface> $seen */
             public function __construct(private array &$seen) {}
 
-            public function list(AuthorizationPrincipalInterface $principal): array
-            {
+            public function list(
+                AuthorizationPrincipalInterface $principal,
+                ?SearchCatalogueScanPosition $after = null,
+            ): SearchCataloguePage {
                 $this->seen[] = $principal;
 
-                return [new SearchCandidateProjection('node:9', 'node', 'Water', 'Safe public body', '/about/water', 'site')];
+                return new SearchCataloguePage([
+                    new SearchCandidateProjection('node:9', 'node', 'Water', 'Safe public body', '/about/water', 'site'),
+                ]);
             }
 
             public function readByPublicPath(string $publicPath, AuthorizationPrincipalInterface $principal): ?SearchCandidateProjection

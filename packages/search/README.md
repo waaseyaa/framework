@@ -57,15 +57,14 @@ shapes without logging, so logs cannot become an authorization oracle.
 
 `SearchContentCatalogueInterface` is the companion resource-discovery/read
 contract. Its FTS5 implementation scans at most 500 protected pointers and
-returns at most 50 principal-safe projections in one deterministic window; it
-publishes no raw count, position, cursor, or hidden path. Direct public-path
-lookup treats the indexed URL only as a candidate and returns it only when the
-canonical principal-safe projection byte-matches that path. Exhaustive
-pagination is deferred until the framework owns an AEAD-sealed cursor primitive
-(#2220). This is discovery, not a complete inventory: a resource omitted from
-the window remains directly readable by canonical URI. More than 50 stale/raw
-pointers sharing one public path conservatively makes that path unreadable if
-the valid candidate falls outside the direct-read bound.
+returns at most 50 principal-safe projections per page, plus an optional
+scan-position resume for sealed MCP cursors (#2636). It publishes no raw count
+or hidden path. Direct public-path lookup treats the indexed URL only as a
+candidate and returns it only when the canonical principal-safe projection
+byte-matches that path. This is discovery, not a complete inventory: a resource
+omitted from the window remains directly readable by canonical URI. More than 50
+stale/raw pointers sharing one public path conservatively makes that path
+unreadable if the valid candidate falls outside the direct-read bound.
 
 The Twig helper remains `@internal` because no first-party Twig environment uses
 it; even that adapter requires an explicit principal. The write-side indexer
