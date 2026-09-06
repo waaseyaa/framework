@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Access;
 
+use Waaseyaa\Foundation\Discovery\PermissionDefinitionShape;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesPermissionsInterface;
 
 /**
@@ -72,15 +73,11 @@ final class PermissionHandler implements PermissionHandlerInterface
      */
     private function addOwned(int|string $id, mixed $definition, string $owner, array &$owners): void
     {
-        // A numeric-string key arrives as int from PHP array semantics; that
-        // is never a permission id an author wrote.
-        if (!is_string($id) || $id === '' || trim($id) !== $id || preg_match('/[\x00-\x1F\x7F]/', $id) === 1) {
-            throw new \LogicException(sprintf(
-                '%s declares an invalid permission id %s: a permission id is a non-empty string with no leading, trailing or control characters.',
-                $owner,
-                var_export($id, true),
-            ));
-        }
+        // The same closed shape the package manifest compiler admits
+        // `extra.waaseyaa.permissions` against, so a malformed entry reports
+        // identically wherever it first appears. Duplicate custody is decided
+        // BEFORE the redeclared definition is inspected.
+        $id = PermissionDefinitionShape::assertId($id, $owner);
         if (isset($owners[$id])) {
             throw new \LogicException(sprintf(
                 'Permission "%s" is declared more than once (%s and %s); retain exactly one owner.',
@@ -89,44 +86,10 @@ final class PermissionHandler implements PermissionHandlerInterface
                 $owner,
             ));
         }
-        if (!is_array($definition)) {
-            throw new \LogicException(sprintf(
-                'Permission "%s" declared by %s must be an array with a "title" and an optional "description"; got %s.',
-                $id,
-                $owner,
-                get_debug_type($definition),
-            ));
-        }
-        $title = $definition['title'] ?? null;
-        if (!is_string($title) || trim($title) === '') {
-            throw new \LogicException(sprintf(
-                'Permission "%s" declared by %s must carry a non-empty string "title".',
-                $id,
-                $owner,
-            ));
-        }
-        $description = $definition['description'] ?? '';
-        if (!is_string($description)) {
-            throw new \LogicException(sprintf(
-                'Permission "%s" declared by %s: "description" must be a string when present; got %s.',
-                $id,
-                $owner,
-                get_debug_type($description),
-            ));
-        }
-        foreach (array_keys($definition) as $member) {
-            if ($member !== 'title' && $member !== 'description') {
-                throw new \LogicException(sprintf(
-                    'Permission "%s" declared by %s carries unknown member "%s"; only "title" and "description" are permitted.',
-                    $id,
-                    $owner,
-                    (string) $member,
-                ));
-            }
-        }
+        $shape = PermissionDefinitionShape::assertDefinition($id, $definition, $owner);
 
         $owners[$id] = $owner;
-        $this->registerPermission($id, $title, $description);
+        $this->registerPermission($id, $shape['title'], $shape['description']);
     }
 
     /**
