@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\CLI\Site\DevelopmentInterruptionSeam;
+use Waaseyaa\CLI\Site\Exception\DevelopmentInterruption;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\SiteContract\CanonicalJson;
@@ -49,9 +51,24 @@ final readonly class SiteApplyHandler
             return 2;
         }
 
+        // The seam is read only where it exists. Outside an explicit
+        // development environment the option is not registered at all, and
+        // re-reading the environment here means a stale or hand-built command
+        // definition still cannot arm it.
+        $interrupt = DevelopmentInterruptionSeam::isPermitted() && (bool) $io->option(DevelopmentInterruptionSeam::OPTION);
+
         try {
             $request = ArtifactApplyRequest::fromCanonicalJson($this->read($requestOption, $projectRoot), $requestOption);
-            $invocation = new SiteInitializationService($projectRoot)->apply($request);
+            $invocation = new SiteInitializationService(
+                $projectRoot,
+                $interrupt ? DevelopmentInterruptionSeam::injector() : null,
+            )->apply($request);
+        } catch (DevelopmentInterruption $interruption) {
+            // Deliberately reported, never repaired: the durable journal this
+            // leaves behind is the evidence the next apply must recover.
+            $this->writeError($io, $interruption->getMessage(), $json);
+
+            return DevelopmentInterruptionSeam::EXIT_CODE;
         } catch (SiteManifestValidationException $exception) {
             $violation = $exception->violations[0];
             $this->writeError(

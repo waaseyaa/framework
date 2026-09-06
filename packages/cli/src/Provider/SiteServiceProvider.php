@@ -10,6 +10,7 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\SiteApplyHandler;
 use Waaseyaa\CLI\Handler\SiteDoctorHandler;
 use Waaseyaa\CLI\Handler\SiteInitHandler;
+use Waaseyaa\CLI\Site\DevelopmentInterruptionSeam;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -101,15 +102,26 @@ final class SiteServiceProvider extends ServiceProvider implements ProvidesConso
     public static function siteApplyCommand(string $projectRoot): HandlerCommand
     {
         $handler = new SiteApplyHandler($projectRoot);
+        $options = [
+            new HandlerOption('request', mode: HandlerOptionMode::Required, description: 'Canonical waaseyaa.artifact_apply_request JSON document carrying the reviewed plan and its two digests'),
+            new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Application project root'),
+            new HandlerOption('json', mode: HandlerOptionMode::None, description: 'Emit the artifact result and change receipts as JSON'),
+        ];
+        // #2789 phase 3: the crash-recovery seam is not merely refused outside
+        // an explicit development environment — it does not exist there, so the
+        // option is unknown and the command refuses it as a usage error.
+        if (DevelopmentInterruptionSeam::isPermitted()) {
+            $options[] = new HandlerOption(
+                DevelopmentInterruptionSeam::OPTION,
+                mode: HandlerOptionMode::None,
+                description: 'Development only: abandon the publication once its transaction journal is durable, so a later apply can prove recovery',
+            );
+        }
 
         return new HandlerCommand(
             name: 'site:apply',
             description: 'Publish a reviewed artifact apply request exactly as emitted, without recompiling it',
-            options: [
-                new HandlerOption('request', mode: HandlerOptionMode::Required, description: 'Canonical waaseyaa.artifact_apply_request JSON document carrying the reviewed plan and its two digests'),
-                new HandlerOption('project-root', mode: HandlerOptionMode::Required, description: 'Application project root'),
-                new HandlerOption('json', mode: HandlerOptionMode::None, description: 'Emit the artifact result and change receipts as JSON'),
-            ],
+            options: $options,
             handler: \Closure::fromCallable([$handler, 'execute']),
         );
     }

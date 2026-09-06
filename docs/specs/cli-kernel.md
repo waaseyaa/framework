@@ -509,8 +509,41 @@ receipts) and `errors`; a governed refusal publishes its coded violations
 inside `result.errors` and leaves `errors` empty, while a failure that produced
 no result at all (an undecodable document, an unreadable path, a terminated
 execution) reports it in `errors` with `result` null — the same polarity
-`site:init --json` uses. Exit codes: `0` applied or no changes, `2` refused or
-failed.
+`site:init --json` uses. The handler returns `0` for applied or no changes and
+`2` for refused or failed; as for every command, `WaaseyaaConsoleApplication`
+then normalizes any non-zero result other than `130` to `1`, so a refusal
+reaches the shell as `1` and the coded detail is read from the envelope, not
+from the exit status.
+
+### Development-only interruption seam
+
+Crash recovery is a promise about a *later process*, so proving it end to end
+needs a real process that really stops mid-transaction. When — and only when —
+`APP_ENV` is exactly `development`, `site:apply` registers
+`--interrupt-after-journal` (#2789 phase 3). Armed, it abandons the publication
+at the first target replacement: after the transaction journal is durable, and
+before publication completes. The durable journal, stage and backup trees it
+leaves are the ones the real transaction wrote, and the next ordinary
+`site:apply` recovers them before completing its own work, emitting the
+`site.recover` receipt first and reporting
+`recovered_interrupted_transaction: true`.
+
+`APP_ENV=development` is exact and narrower than
+`RuntimePolicy::isDevelopmentEnvironment()`, which also admits `dev`, `local`
+and `testing`: those are environments people work in, and abandoning a
+transaction must not be one keystroke away there. Outside that environment the
+option is not registered at all, so it is an unknown option, and the handler
+re-reads the environment before constructing the injector, so a stale or
+hand-built command definition cannot arm it either. The seam takes no stage,
+path, index or count from the operator — it is not a fault-injection API — and
+it bypasses nothing: the lock, both digests, path containment and every
+collision check run first and refuse first.
+
+An interrupted run exits `130`, the code this CLI reserves for an interrupted
+run and the only non-zero result a handler can return without being normalized
+to `1`. A bespoke code would be invisible to the black-box harness the seam
+exists for, and widening that normalization would change the exit-code contract
+of every command to serve a development-only seam.
 
 <!-- Spec reviewed 2026-09-06 - #2789: `site:apply` is the reviewed command migration ADR-025 D-12.1 constraint 1 requires before a further entrypoint may transport generation results. It enters exactly one execution-authority seam — `apply()` — and no other; `tests/Architecture/GenerationStagedActivationBoundaryTest.php` records it alongside `SiteInitHandler`/`SiteDoctorHandler` as the closed roster. Acceptance: `SiteApplyHandlerTest`, `ArtifactApplyRequestDecodingTest`, and the `site:apply` case in `ConsoleKernelTest::siteContractCommandsRunWithoutBootingOrCreatingTheDatabase`. -->
 
@@ -636,7 +669,7 @@ The Symfony application version is resolved from the project `VERSION` file, pac
 | `1` | Command/domain failure or uncaught handler exception. |
 | `2` | Usage/input error: unknown command, invalid option, missing required argument, or invalid argument shape. |
 | `64`-`78` | Reserved for future sysexits-style categories. |
-| `130` | Interrupted by SIGINT where command/application signal handling reports it. |
+| `130` | Interrupted run: SIGINT where command/application signal handling reports it, or `site:apply --interrupt-after-journal` under `APP_ENV=development` (#2789). It is the only non-zero handler result `WaaseyaaConsoleApplication::normalizeExitCode()` does not collapse to `1`. |
 
 ## Signal Handling
 
