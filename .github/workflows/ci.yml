@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -1780,7 +1780,7 @@ jobs:
       # interpolated into the script body.
       - name: Studio-alpha packaged acceptance
         env:
-          CANDIDATE_SHA: ${{ inputs.sha }}
+          CANDIDATE_SHA: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           bash tests/PackagedForm/check-studio-alpha-acceptance | tee /tmp/studio-alpha-acceptance.log
