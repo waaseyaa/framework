@@ -15,16 +15,12 @@ use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /**
- * FW-SITE-BLUEPRINT-01D, 01D-1 target: engine admission is explicitly NOT
- * widened in this slice (`SiteInitializationService::ADDITIVE_COMPILERS`
- * stays `[SiteArtifactRenderer::class]`). A plan whose `generator.fqcn` is
- * `ApplicationBlueprintCompiler` — which purely declares `set_evolution:
- * additive` per decision (a) — is refused `GEN011_UNAUTHORIZED_SET_DELTA`
- * before any write, on a fresh project and on an already-initialized one.
- * `evaluate()` never writes (it is the same code path `initialize()`'s apply
- * branch calls, before checking authorization or writing a byte), so this
- * one refusal proves both the dry-run and apply shapes 01D-2's D-13 gate
- * later re-opens. This test is never deleted; 01D-2 flips it.
+ * FW-SITE-BLUEPRINT-01D retained negative boundary: declaring additive
+ * evolution never authorizes the blueprint compiler by itself. The engine
+ * requires a matching approved decision receipt on fresh and initialized
+ * projects, and refuses the receipt-free plan with GEN011 before any write.
+ * Positive admission and transition coverage lives in
+ * BlueprintExecutionAdmissionTest.
  */
 #[CoversClass(SiteInitializationService::class)]
 final class GenerationBlueprintAdmissionTest extends TestCase
@@ -40,7 +36,7 @@ final class GenerationBlueprintAdmissionTest extends TestCase
     }
 
     #[Test]
-    public function aFreshProjectRefusesTheCompilerPlanGen011BeforeAnyWrite(): void
+    public function aFreshProjectRefusesTheCompilerPlanWithoutAReceiptBeforeAnyWrite(): void
     {
         $root = $this->root();
         $plan = ApplicationBlueprintCompilerFactory::create()->compile($this->manifest('minimal.yaml'));
@@ -56,7 +52,7 @@ final class GenerationBlueprintAdmissionTest extends TestCase
     }
 
     #[Test]
-    public function anAlreadyInitializedProjectRefusesTheCompilerPlanGen011BeforeAnyWrite(): void
+    public function anAlreadyInitializedProjectRefusesTheCompilerPlanWithoutAReceiptBeforeAnyWrite(): void
     {
         $root = $this->root();
         file_put_contents($root . '/composer.lock', "{}\n");

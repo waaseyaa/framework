@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintAppliedEvidence', 'disposition' => 'public', 'purpose' => 'Closed generated-metadata evidence that a digest-bound approved application blueprint was applied', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintCheckKind', 'disposition' => 'public', 'ref' => '#2785'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintConditionKind', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintDecision', 'disposition' => 'public'],

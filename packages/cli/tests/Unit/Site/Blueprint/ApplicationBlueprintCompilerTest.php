@@ -29,6 +29,7 @@ use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(ApplicationBlueprintCompiler::class)]
+#[CoversClass(ApplicationBlueprintCompilerFactory::class)]
 final class ApplicationBlueprintCompilerTest extends TestCase
 {
     #[Test]

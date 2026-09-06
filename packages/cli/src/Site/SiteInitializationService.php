@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Site;
 
+use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
+use Waaseyaa\SiteContract\Blueprint\BlueprintAppliedEvidence;
+use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyOutcome;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyRequest;
 use Waaseyaa\SiteContract\Generation\ArtifactApplyResult;
@@ -62,22 +66,29 @@ final class SiteInitializationService
     }
 
     /** @param null|\Closure(list<string>): bool $authorize */
-    public function initialize(GeneratedSite $site, bool $dryRun = false, ?\Closure $authorize = null): SiteInitializationResult
-    {
-        $plan = new ArtifactPlan(
-            SiteArtifactRenderer::class,
-            $site->generatorVersion,
-            'site',
-            GenerationUnitDisposition::Managed,
-            $site->manifestDigest,
-            array_values(array_filter($site->artifacts, static fn(GeneratedArtifact $artifact): bool => $artifact->path !== self::METADATA)),
-            setEvolution: ArtifactSetEvolution::Additive,
-        );
+    public function initialize(
+        GeneratedSite|ArtifactPlan $site,
+        bool $dryRun = false,
+        ?\Closure $authorize = null,
+        ?BlueprintDecisionReceipt $decisionReceipt = null,
+    ): SiteInitializationResult {
+        $plan = $site instanceof ArtifactPlan
+            ? $site
+            : new ArtifactPlan(
+                SiteArtifactRenderer::class,
+                $site->generatorVersion,
+                'site',
+                GenerationUnitDisposition::Managed,
+                $site->manifestDigest,
+                array_values(array_filter($site->artifacts, static fn(GeneratedArtifact $artifact): bool => $artifact->path !== self::METADATA)),
+                setEvolution: ArtifactSetEvolution::Additive,
+            );
+        $blueprintEvidence = $this->blueprintEvidenceForPlan($plan, $decisionReceipt);
         if ($dryRun) {
             if (is_file($this->absolute(self::JOURNAL))) {
                 throw new \RuntimeException('Site initialization recovery or committed cleanup requires a non-dry run before a new plan can be computed.');
             }
-            $prepared = $this->prepareUnitPlan($plan);
+            $prepared = $this->prepareUnitPlan($plan, $decisionReceipt);
             $evaluation = $prepared['evaluation'];
             $result = new ArtifactApplyResult(ArtifactApplyOutcome::Planned, $evaluation->planDigest, $evaluation->projectStateDigest, $evaluation->status, []);
 
@@ -87,14 +98,18 @@ final class SiteInitializationService
         // Keep deterministic refusal side-effect-free, including on a fresh
         // project. Publication still evaluates and gates again under its lock.
         if (!file_exists($this->absolute(self::JOURNAL)) && !is_link($this->absolute(self::JOURNAL))) {
-            $this->prepareUnitPlan($plan);
+            $this->prepareUnitPlan($plan, $decisionReceipt);
         }
-        $context = $this->invocationContext('site.init');
+        $context = $this->invocationContext(
+            'site.init',
+            decision: $blueprintEvidence?->decisionReceipt->digest(),
+            blueprintDecisionVerified: $blueprintEvidence !== null,
+        );
         $lock = $this->acquireLock();
         $receipts = [];
         try {
             $recovered = $this->recoverForInvocation($context, $receipts);
-            $prepared = $this->prepareUnitPlan($plan);
+            $prepared = $this->prepareUnitPlan($plan, $decisionReceipt);
             $evaluation = $prepared['evaluation'];
             $preview = $this->transactionPaths($prepared);
             // Legacy apply's count omitted the control-ignore bootstrap file.
@@ -108,7 +123,7 @@ final class SiteInitializationService
                 return new SiteInitializationResult($preview, recoveredInterruptedTransaction: $recovered, cancelled: true, receipts: $receipts, applyResult: $result, evaluation: $evaluation);
             }
             $request = new ArtifactApplyRequest($plan, $evaluation->planDigest, $evaluation->projectStateDigest);
-            $invocation = $this->applyUnderLock($request, $context, $receipts, $recovered);
+            $invocation = $this->applyUnderLock($request, $context, $receipts, $recovered, $decisionReceipt);
             if ($invocation->result->outcome === ArtifactApplyOutcome::Refused) {
                 $error = new \RuntimeException($invocation->result->errors[0]->message);
                 throw new SiteInitializationExecutionException($error, $invocation->receipts, $invocation->result);
@@ -140,8 +155,29 @@ final class SiteInitializationService
         ?string $correlationId = null,
         ?string $causationReceiptId = null,
         ?string $decisionReceiptId = null,
+        ?BlueprintDecisionReceipt $decisionReceipt = null,
     ): SiteInitializationInvocation {
         $context = $this->invocationContext($operation, $correlationId, $causationReceiptId, $decisionReceiptId);
+        try {
+            $blueprintEvidence = $this->blueprintEvidenceForPlan($request->plan, $decisionReceipt);
+            if ($blueprintEvidence !== null) {
+                $verifiedDecisionId = $blueprintEvidence->decisionReceipt->digest();
+                if ($decisionReceiptId !== null && !hash_equals($verifiedDecisionId, $decisionReceiptId)) {
+                    $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'The declared decision receipt identity does not match the verified blueprint approval.');
+                }
+                $context = $this->invocationContext(
+                    $operation,
+                    $correlationId,
+                    $causationReceiptId,
+                    $verifiedDecisionId,
+                    blueprintDecisionVerified: true,
+                );
+            }
+        } catch (GenerationRefusalException $exception) {
+            $context['decision'] = null;
+
+            return $this->refusedInvocation($request, $exception->violations, $context);
+        }
         try {
             $lock = $this->acquireLock();
         } catch (SiteInitializationLockedException $exception) {
@@ -153,7 +189,7 @@ final class SiteInitializationService
         try {
             $recovered = $this->recoverForInvocation($context, $receipts);
 
-            return $this->applyUnderLock($request, $context, $receipts, $recovered);
+            return $this->applyUnderLock($request, $context, $receipts, $recovered, $decisionReceipt);
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
@@ -184,18 +220,29 @@ final class SiteInitializationService
         return $lock;
     }
 
-    /** @return array{operation: string, correlation: string, causation: ?string, decision: ?string} */
-    private function invocationContext(string $operation, ?string $correlation = null, ?string $causation = null, ?string $decision = null): array
-    {
+    /** @return array{operation: string, correlation: string, causation: ?string, decision: ?string, blueprint_decision_verified: bool} */
+    private function invocationContext(
+        string $operation,
+        ?string $correlation = null,
+        ?string $causation = null,
+        ?string $decision = null,
+        bool $blueprintDecisionVerified = false,
+    ): array {
         if ($operation === '' || $correlation === '' || $causation === '' || $decision === '' || ($causation !== null && $causation === $decision)) {
             throw new \InvalidArgumentException('The invocation receipt context is invalid.');
         }
 
-        return ['operation' => $operation, 'correlation' => $correlation ?? $this->mintIdentifier('corr'), 'causation' => $causation, 'decision' => $decision];
+        return [
+            'operation' => $operation,
+            'correlation' => $correlation ?? $this->mintIdentifier('corr'),
+            'causation' => $causation,
+            'decision' => $decision,
+            'blueprint_decision_verified' => $blueprintDecisionVerified,
+        ];
     }
 
     /** @param array<string, mixed> $context @param list<ChangeReceipt> $receipts */
-    private function applyUnderLock(ArtifactApplyRequest $request, array $context, array $receipts, bool $recovered): SiteInitializationInvocation
+    private function applyUnderLock(ArtifactApplyRequest $request, array $context, array $receipts, bool $recovered, ?BlueprintDecisionReceipt $decisionReceipt = null): SiteInitializationInvocation
     {
         try {
             $this->assertReviewedState($request);
@@ -204,7 +251,7 @@ final class SiteInitializationService
         }
         $this->injectFault('after-apply-state-check', -1, '');
         try {
-            $prepared = $this->prepareUnitPlan($request->plan);
+            $prepared = $this->prepareUnitPlan($request->plan, $decisionReceipt);
         } catch (\Exception $exception) {
             // A change during preparation must not become an incidental
             // collision instead of the promised stale-plan refusal.
@@ -227,11 +274,12 @@ final class SiteInitializationService
         } catch (GenerationRefusalException $exception) {
             return $this->refusedInvocation($request, $exception->violations, $context, $receipts, $recovered);
         }
+        $blueprintDecisionVerified = $context['blueprint_decision_verified'] === true;
         $changed = $this->transactionPaths($prepared);
         $evaluation = $prepared['evaluation'];
         if ($changed === []) {
             $result = new ArtifactApplyResult(ArtifactApplyOutcome::NoChanges, $request->planDigest, $request->projectStateDigest, $evaluation->status, [], $recovered);
-            if (!$recovered) {
+            if (!$recovered || $blueprintDecisionVerified) {
                 $receipts[] = $this->receiptFor($result, $context['operation'], $context['correlation'], $this->receiptCause($receipts, $context), $context['decision']);
             }
 
@@ -247,7 +295,7 @@ final class SiteInitializationService
         try {
             $cleanupPending = $this->publish($prepared['prepared'], $prepared['retirements'], $prepared['composerMerge'], $reportRecovery, $state, fn(): ProjectStateIdentity => $this->assertReviewedState($request), $reportResidue);
         } catch (\Exception $exception) {
-            if (count($receipts) === $priorReceiptCount) {
+            if (count($receipts) === $priorReceiptCount || $blueprintDecisionVerified) {
                 $receipts[] = $this->terminalReceipt(ChangeOutcome::Failed, $request->planDigest, $request->projectStateDigest, $context, $this->receiptCause($receipts, $context));
             }
             throw new SiteInitializationExecutionException($exception, $receipts);
@@ -356,6 +404,9 @@ final class SiteInitializationService
     private function residueReceipt(array $instructions, bool $success, string $projectStateDigest, array $context, ?string $cause): ChangeReceipt
     {
         $context['operation'] = 'site.recover';
+        if ($context['blueprint_decision_verified']) {
+            $context['decision'] = null;
+        }
 
         return $this->terminalReceipt(
             $success ? ChangeOutcome::Recovered : ChangeOutcome::Failed,
@@ -374,6 +425,9 @@ final class SiteInitializationService
         $this->validateJournal($journal, true);
         $digest = hash('sha256', CanonicalJson::encode($journal) . "\n");
         $context['operation'] = 'site.recover';
+        if ($context['blueprint_decision_verified']) {
+            $context['decision'] = null;
+        }
 
         return $this->terminalReceipt($outcome, $digest, $projectStateDigest, $context, $cause);
     }
@@ -406,12 +460,12 @@ final class SiteInitializationService
      * Collisions throw rather than fabricating a partially evaluated preview.
      * Controlled apply converts refusals to its typed result after its stale gate.
      */
-    public function evaluate(ArtifactPlan $plan): EvaluatedArtifactPlan
+    public function evaluate(ArtifactPlan $plan, ?BlueprintDecisionReceipt $decisionReceipt = null): EvaluatedArtifactPlan
     {
         if (is_file($this->absolute(self::JOURNAL))) {
             throw new SiteInitializationCollisionException('An interrupted site initialization must be recovered before a plan is evaluated.');
         }
-        return $this->prepareUnitPlan($plan)['evaluation'];
+        return $this->prepareUnitPlan($plan, $decisionReceipt)['evaluation'];
     }
 
     /**
@@ -428,7 +482,73 @@ final class SiteInitializationService
      *
      * @var list<class-string>
      */
-    private const array ADDITIVE_COMPILERS = [SiteArtifactRenderer::class];
+    private const array ADDITIVE_COMPILERS = [SiteArtifactRenderer::class, ApplicationBlueprintCompiler::class];
+
+    /**
+     * Return normalized applied evidence for a blueprint root plan, or null
+     * for every blueprint-free plan. This helper observes only immutable plan
+     * bytes, so controlled apply can refuse before creating its lock and then
+     * repeat the same decision under that lock.
+     */
+    private function blueprintEvidenceForPlan(
+        ArtifactPlan $plan,
+        ?BlueprintDecisionReceipt $decisionReceipt,
+    ): ?BlueprintAppliedEvidence {
+        $isBlueprintCompiler = $plan->generatorFqcn === ApplicationBlueprintCompiler::class;
+        if ($isBlueprintCompiler
+            && ($plan->unitId !== 'site' || $plan->disposition !== GenerationUnitDisposition::Managed)) {
+            $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'The blueprint compiler may publish only the managed root site unit.');
+        }
+        if ($plan->unitId !== 'site' && !$isBlueprintCompiler) {
+            return null;
+        }
+
+        $manifestArtifact = null;
+        foreach ($plan->artifacts as $artifact) {
+            if ($artifact->path === '.waaseyaa/site.yaml') {
+                $manifestArtifact = $artifact;
+                break;
+            }
+        }
+        if (!$manifestArtifact instanceof GeneratedArtifact) {
+            if ($isBlueprintCompiler) {
+                $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'The blueprint compiler plan does not carry its root manifest authority.');
+            }
+
+            return null;
+        }
+
+        try {
+            $manifest = new SiteManifestParser()->parse($manifestArtifact->content, '.waaseyaa/site.yaml');
+        } catch (SiteManifestValidationException) {
+            if ($isBlueprintCompiler) {
+                $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'The blueprint compiler plan does not carry a valid root manifest authority.');
+            }
+
+            return null;
+        }
+        $hasBlueprint = $manifest->applicationBlueprint !== null;
+        if (!$hasBlueprint && !$isBlueprintCompiler) {
+            return null;
+        }
+        if (!$hasBlueprint || !$isBlueprintCompiler
+            || !hash_equals($manifest->digest, $plan->inputDigest)
+            || $manifest->generatorVersion !== $plan->generatorVersion
+            || $decisionReceipt === null) {
+            $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'Blueprint execution requires its declared compiler and a matching approved decision receipt.');
+        }
+
+        try {
+            $evidence = BlueprintAppliedEvidence::fromDecisionReceipt($decisionReceipt, '<engine-decision-receipt>');
+        } catch (SiteManifestValidationException) {
+            $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'Blueprint execution requires a structurally valid approved decision receipt.');
+        }
+        if (!$evidence->matches($manifest)) {
+            $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'Blueprint execution requires a decision receipt matching its exact blueprint and manifest.');
+        }
+
+        return $evidence;
+    }
 
     /** @internal The shared validated reader for the dormant unit-aware doctor.
      * @return array<string, mixed>
@@ -456,8 +576,9 @@ final class SiteInitializationService
      *
      * @return array{prepared: array<string, GeneratedArtifact>, retirements: array<string, array<string, mixed>>, composerMerge: array{content: string, mode: int, before_sha256: string}|null, evaluation: EvaluatedArtifactPlan}
      */
-    private function prepareUnitPlan(ArtifactPlan $plan): array
+    private function prepareUnitPlan(ArtifactPlan $plan, ?BlueprintDecisionReceipt $decisionReceipt = null): array
     {
+        $blueprintEvidence = $this->blueprintEvidenceForPlan($plan, $decisionReceipt);
         if ($plan->schemaEffects !== [] || $plan->configEffects !== []) {
             $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'Reserved effects are not active.');
         }
@@ -470,7 +591,7 @@ final class SiteInitializationService
         if (in_array('site', $plan->retires, true)) {
             $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'The root generation unit is not retirable.');
         }
-        if ($plan->unitId === 'site' && ($plan->generatorFqcn !== SiteArtifactRenderer::class || $plan->disposition !== GenerationUnitDisposition::Managed)) {
+        if ($plan->unitId === 'site' && (!in_array($plan->generatorFqcn, self::ADDITIVE_COMPILERS, true) || $plan->disposition !== GenerationUnitDisposition::Managed)) {
             $this->unitRefusal(GenerationErrorCode::MaliciousIdentifier, 'The site unit is reserved for the managed root compiler.');
         }
         $metadataPath = $this->absolute(self::METADATA);
@@ -495,18 +616,44 @@ final class SiteInitializationService
             if (!hash_equals($manifest->digest, $prior['manifest_digest']) || $manifest->generatorVersion !== $prior['generator_version']) {
                 throw new SiteInitializationCollisionException('Generated ownership metadata does not bind the current manifest authority.');
             }
+            if ($manifest->applicationBlueprint !== null && !array_key_exists('application_blueprint', $prior)) {
+                $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'A generated blueprint root requires its matching applied approval evidence.', pointer: '/application_blueprint');
+            }
+            if (array_key_exists('application_blueprint', $prior)) {
+                try {
+                    $priorEvidence = BlueprintAppliedEvidence::fromArray($prior['application_blueprint'], '.waaseyaa/generated.json');
+                } catch (SiteManifestValidationException $exception) {
+                    throw new SiteInitializationCollisionException('Generated ownership metadata contains invalid blueprint evidence.', previous: $exception);
+                }
+                if (!$priorEvidence->matches($manifest)) {
+                    throw new SiteInitializationCollisionException('Generated ownership metadata does not bind the current blueprint authority.');
+                }
+            }
         }
         $units = [];
         foreach ($prior['units'] ?? [] as $unit) {
             $units[$unit['id']] = $unit;
         }
         $existing = $plan->unitId === 'site'
-            ? ($prior === null ? null : ['generator' => ['fqcn' => SiteArtifactRenderer::class, 'version' => $prior['generator_version']], 'disposition' => 'managed', 'input_digest' => $prior['manifest_digest']])
+            ? ($prior === null ? null : ['generator' => ['fqcn' => array_key_exists('application_blueprint', $prior) ? ApplicationBlueprintCompiler::class : SiteArtifactRenderer::class, 'version' => $prior['generator_version']], 'disposition' => 'managed', 'input_digest' => $prior['manifest_digest']])
             : ($units[$plan->unitId] ?? null);
         if ($existing === null && $plan->unitId !== 'site' && $plan->artifacts === [] && $plan->registrations === []) {
             $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'A new non-root unit must own state.');
         }
-        if ($existing !== null && ($existing['generator']['fqcn'] !== $plan->generatorFqcn || $existing['generator']['version'] !== $plan->generatorVersion || $existing['disposition'] !== $plan->disposition->value)) {
+        if ($existing !== null && $plan->unitId === 'site'
+            && $existing['generator']['fqcn'] === ApplicationBlueprintCompiler::class
+            && $plan->generatorFqcn !== ApplicationBlueprintCompiler::class) {
+            $this->unitRefusal(GenerationErrorCode::UnauthorizedSetDelta, 'An applied blueprint root cannot transition back to the manifest-only compiler.', pointer: '/application_blueprint');
+        }
+        $approvedRootTransition = $existing !== null
+            && $plan->unitId === 'site'
+            && $existing['generator']['fqcn'] === SiteArtifactRenderer::class
+            && $plan->generatorFqcn === ApplicationBlueprintCompiler::class
+            && $blueprintEvidence !== null;
+        if ($existing !== null
+            && ((!$approvedRootTransition && $existing['generator']['fqcn'] !== $plan->generatorFqcn)
+                || $existing['generator']['version'] !== $plan->generatorVersion
+                || $existing['disposition'] !== $plan->disposition->value)) {
             $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'A recorded unit cannot change compiler identity or disposition.');
         }
         // @phpstan-ignore function.impossibleType (the reviewed compiler allowlist is intentionally empty before migrations)
@@ -649,6 +796,10 @@ final class SiteInitializationService
             if ($plan->unitId === 'site') {
                 $document['generator_version'] = $plan->generatorVersion;
                 $document['manifest_digest'] = $plan->inputDigest;
+                unset($document['application_blueprint']);
+                if ($blueprintEvidence !== null) {
+                    $document['application_blueprint'] = $blueprintEvidence->toArray();
+                }
             } else {
                 $units[$plan->unitId] = ['id' => $plan->unitId, 'disposition' => $plan->disposition->value, 'generator' => ['fqcn' => $plan->generatorFqcn, 'version' => $plan->generatorVersion], 'input_digest' => $plan->inputDigest];
             }
@@ -1020,9 +1171,9 @@ final class SiteInitializationService
         return json_encode($key, JSON_THROW_ON_ERROR) . $colon . $value;
     }
 
-    private function unitRefusal(GenerationErrorCode $code, string $message, ?string $path = null): never
+    private function unitRefusal(GenerationErrorCode $code, string $message, ?string $path = null, ?string $pointer = null): never
     {
-        throw new GenerationRefusalException('generation', [new GenerationViolation($code, $message, $path)]);
+        throw new GenerationRefusalException('generation', [new GenerationViolation($code, $message, $path, $pointer)]);
     }
 
     /**
@@ -1877,7 +2028,7 @@ final class SiteInitializationService
         sort($metadataKeys, SORT_STRING);
         $allowedMetadataKeys = ['artifacts', 'generator_version', 'manifest_digest', 'schema', 'version'];
         if ($unitAware) {
-            foreach (['units', 'registrations'] as $member) {
+            foreach (['units', 'registrations', 'application_blueprint'] as $member) {
                 if (array_key_exists($member, $metadata)) {
                     $allowedMetadataKeys[] = $member;
                 }
@@ -1885,6 +2036,16 @@ final class SiteInitializationService
             sort($allowedMetadataKeys, SORT_STRING);
             if (array_key_exists('registrations', $metadata)) {
                 $this->validateRegistrationRosterShape($metadata['registrations']);
+            }
+            if (array_key_exists('application_blueprint', $metadata)) {
+                if (!is_array($metadata['application_blueprint'])) {
+                    throw new SiteInitializationCollisionException('Generated ownership metadata contains invalid blueprint evidence.');
+                }
+                try {
+                    BlueprintAppliedEvidence::fromArray($metadata['application_blueprint'], '.waaseyaa/generated.json');
+                } catch (SiteManifestValidationException $exception) {
+                    throw new SiteInitializationCollisionException('Generated ownership metadata contains invalid blueprint evidence.', previous: $exception);
+                }
             }
         }
         if ($metadataKeys !== $allowedMetadataKeys

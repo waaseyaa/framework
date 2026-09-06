@@ -522,3 +522,11 @@ Not touched in 01D-1: `SiteArtifactRenderer.php`,
   `SiteDoctorService` by feature negotiation; idempotent replay
   (`no_changes`); the process-boundary envelope fixtures of (d); flipping
   tests 5 and 6 above.
+
+## Slice 01D-2 implementation plan
+
+The execution-authority activation plan and explicit decisions for receipt
+identity, generated evidence, replay, recovery attribution and the six D-13
+review obligations are recorded in
+[FW-SITE-BLUEPRINT-01D-2](../plans/FW-SITE-BLUEPRINT-01D-2.md).
+The plan composes 01D-1; it does not independently qualify that candidate.

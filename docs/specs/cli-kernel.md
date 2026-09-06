@@ -1,3 +1,10 @@
+<!-- Spec reviewed 2026-09-05 - FW-SITE-BLUEPRINT-01D-2: the existing
+boot-free site:init command accepts --decision-receipt for an exact approved
+blueprint. Machine JSON writes preserve literal artifact bytes through raw
+Symfony output. Coded GEN011/SITE050 refusals retain the existing envelope and
+process exit normalization. Execution and evidence contracts are owned by
+site-golden-path.md. -->
+
 # CLI Console
 
 <!-- #2846 slice 8 / FW-GENERATION-UNITS-08: site:init and site:doctor activate the shared unit authority; controlled apply binds the transported plan and reviewed state before staging. Other compiler migrations remain closed. -->

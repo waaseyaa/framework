@@ -24,6 +24,22 @@
             "rationale": "Real two-process attachment contention is optional on non-Linux package runners."
         },
         {
+            "path": "packages/attachment/tests/Integration/SaveActiveConcurrencyDiagnosticsTest.php",
+            "reason": "Requires pcntl extension and Linux-style fork. ",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "extension_loaded(pcntl)",
+            "rationale": "The diagnostic regression requires real fork, wait, exit-status, and child-report behavior."
+        },
+        {
+            "path": "packages/attachment/tests/Integration/SaveActiveConcurrencyDiagnosticsTest.php",
+            "reason": "posix extension required to assert signal termination reporting.",
+            "occurrence": 1,
+            "classification": "platform-capability",
+            "predicate": "extension_loaded(posix)",
+            "rationale": "The signal-termination diagnostic requires a real POSIX signal delivered to a forked child."
+        },
+        {
             "path": "packages/attachment/tests/Integration/SetActiveConcurrencyTest.php",
             "reason": "Requires pcntl extension and Linux-style fork. ",
             "occurrence": 1,

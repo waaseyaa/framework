@@ -29,15 +29,13 @@ use Waaseyaa\SiteContract\SiteManifest;
  * gate (ADR-025 D-13, added in 01D-2) can tell the two compilers apart.
  *
  * `set_evolution` is `additive`, declared purely: eligibility is entirely the
- * execution authority's decision (D-13 item 1), never this compiler's. In
- * 01D-1 that authority's closed list (`SiteInitializationService::
- * ADDITIVE_COMPILERS`) does not yet name this class, so every plan this
- * compiler produces is refused `GEN011_UNAUTHORIZED_SET_DELTA` on evaluation
- * — by design (`GenerationBlueprintAdmissionTest`).
+ * execution authority's decision (D-13 item 1), never this compiler's. The
+ * authority's closed list admits the legacy root renderer and this compiler;
+ * blueprint execution still requires a matching request-scoped approval.
  *
  * `compile()` takes no receipt and needs no approval: parsing, negotiation
  * and compilation are approval-free (ADR-023 D-4); the receipt is an input to
- * the execution authority 01D-2 adds, never to this pure function.
+ * the execution authority, never to this pure function.
  *
  * Before invoking any emitter, `compile()` also asserts every blueprint
  * entity/field/relationship id headed for a PHP identifier position is a
@@ -69,9 +67,8 @@ final class ApplicationBlueprintCompiler
 {
     /**
      * The generator-feature tokens this compiler advertises (ADR-023 D-2,
-     * decision (g)). 01D-2 unions this roster into
-     * `SiteArtifactRendererFactory::advertisedGeneratorFeatures()` when it
-     * wires the compiler into `site:init`.
+     * decision (g)). The installed generation authority advertises this exact
+     * roster when `site:init` negotiates a blueprint-bearing manifest.
      *
      * @var list<string>
      */
