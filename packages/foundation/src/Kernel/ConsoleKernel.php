@@ -66,13 +66,17 @@ final class ConsoleKernel extends AbstractKernel
         // That phantom file is exactly what db:init then had to be taught to
         // adopt. Running both here means the pre-install phase touches no
         // database at all, and verification is read-only in the literal sense.
-        if (in_array($input->getFirstArgument(), ['site:init', 'site:doctor'], true)) {
+        // #2789 joins `site:apply` to the same seam: it executes a reviewed
+        // apply request emitted by an earlier process and constructs no
+        // compiler, so it needs a project root and nothing else either.
+        if (in_array($input->getFirstArgument(), ['site:init', 'site:doctor', 'site:apply'], true)) {
             $application = new WaaseyaaConsoleApplication(
                 version: new VersionResolver($this->projectRoot)->resolve(),
                 logger: $this->logger,
             );
             $application->addCommand(SiteServiceProvider::siteInitCommand($this->projectRoot));
             $application->addCommand(SiteServiceProvider::siteDoctorCommand($this->projectRoot));
+            $application->addCommand(SiteServiceProvider::siteApplyCommand($this->projectRoot));
 
             return $application->run($input, $output);
         }

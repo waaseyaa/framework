@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -1718,6 +1718,89 @@ jobs:
             sed -n '/Acceptance surfaces/,$p' /tmp/split-artifact-acceptance.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  studio-alpha-acceptance:
+    # #2789. Packaged Studio-alpha acceptance: ONE disposable consumer,
+    # installed from the EXACT candidate sealed into a local Composer artifact
+    # repository by the same engine ci/split-artifact-acceptance uses, driven
+    # serially through install, verification, seeded real identities, a real
+    # browser operating the artifact-installed admin bundle, the typed
+    # concealed 404 against a real unprivileged identity, hand extension,
+    # snapshot, an interrupted publication recovered by a later process, an
+    # additive upgrade, a zero-write GEN011 refusal, and final restoration.
+    #
+    # It proves the story holds together in packaged form, which no in-tree
+    # suite can: those resolve sibling packages from the checkout, so nothing
+    # about export, archive bytes or the split boundary is exercised.
+    #
+    # It creates no tag and publishes nothing. --allow-dirty is never passed:
+    # a dirty seal would prove bytes that are not the bytes under review.
+    #
+    # See tests/PackagedForm/check-studio-alpha-acceptance.
+    name: ci/studio-alpha-acceptance
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml, zip
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: packages/admin/package-lock.json
+
+      # Installs into a fresh mktemp consumer with its own dependency graph, so
+      # it cannot consume prepare-test-plan's vendor archive. Exact key only —
+      # no restore-keys. waaseyaa/* never touches this cache: the artifact
+      # repository is canonical for those names.
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-php-8.5-composer-${{ hashFiles('composer.lock') }}
+
+      # The repository's own pinned Playwright, not an ad-hoc download: the
+      # harness refuses to run if this toolchain is absent.
+      - name: Install the pinned admin toolchain
+        run: npm ci --prefix packages/admin
+
+      - name: Install the pinned Playwright browser
+        run: npx --prefix packages/admin playwright install chromium
+
+      # The candidate SHA reaches the shell as an environment variable, never
+      # interpolated into the script body.
+      - name: Studio-alpha packaged acceptance
+        env:
+          CANDIDATE_SHA: ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          bash tests/PackagedForm/check-studio-alpha-acceptance | tee /tmp/studio-alpha-acceptance.log
+          {
+            echo "### Studio-alpha packaged acceptance (#2789)"
+            echo
+            echo "Candidate: \`${CANDIDATE_SHA}\`"
+            echo
+            echo '```'
+            sed -n '/Studio-alpha acceptance surfaces/,$p' /tmp/studio-alpha-acceptance.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain acceptance diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: studio-alpha-acceptance-diagnostics
+          path: /tmp/studio-alpha-acceptance.log
+          if-no-files-found: warn
 
   core-only-boot:
     # Boots the kernel from a consumer that requires ONLY waaseyaa/core, installed via a path

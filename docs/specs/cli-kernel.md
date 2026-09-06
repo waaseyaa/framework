@@ -469,6 +469,84 @@ refuses `GEN005`; an aggregate state hash cannot identify a changed location,
 so the refusal is location-free unless independently provable. Default
 initialization uses the same gate after confirmation.
 
+## Reviewed apply
+
+`SiteServiceProvider` registers `site:apply --request=PATH [--project-root=PATH]
+[--json]` (#2789) — ADR-025 D-6.5's *second process*, installed. It joins the
+boot-free command seam with `site:init` and `site:doctor`: `SiteApplyHandler`
+takes only a project root and constructs no renderer, wizard or compiler at
+all, so it must not be routed through restricted boot, which would open the
+database this phase precedes (#2644).
+
+`--request` names a canonical `waaseyaa.artifact_apply_request` v1 document —
+the reviewed plan with its bytes, `plan_digest` and `project_state_digest` —
+read exactly once and decoded by `ArtifactApplyRequest::fromCanonicalJson()`.
+The command recompiles nothing: a generator that names its target from a
+compile-time clock reading would otherwise produce a different, equally valid
+plan, and the operator's review would bind nothing. Decoding is fail-closed on
+unknown, missing, duplicate or wrong-typed members, on an invalid nested plan,
+and on any bytes that are not the canonical serialization of the document they
+decode to (a re-ordered, pretty-printed, slash-escaped or duplicate-keyed
+document decodes to *something*, and applying it would mean applying a document
+nobody emitted). One terminating newline — this framework's own on-disk framing
+for a canonical document — is the only tolerated difference. A decode refusal
+carries the shared `SITE0xx` structural codes and their JSON Pointer, and
+happens before any lock, journal or write exists.
+
+The two digests are **not** verified at decode. Whether the transported plan
+hashes to its reviewed `plan_digest`, and whether the project still matches
+`project_state_digest`, stay `GEN005` questions the execution authority answers
+under its exclusive lock; a decoder that answered them early would be a second,
+lock-free authority on staleness. A request therefore binds exactly one
+reviewed state: replaying an already-published request is `GEN005`, while
+re-evaluating the same plan against the state it will actually meet reports
+`no_changes`.
+
+Receipts use the existing `site.init` operation, because the governed operation
+is the same publication — only the entrypoint differs. `--json` emits `result`
+(the versioned artifact-result document), `receipts` (the ordered change
+receipts) and `errors`; a governed refusal publishes its coded violations
+inside `result.errors` and leaves `errors` empty, while a failure that produced
+no result at all (an undecodable document, an unreadable path, a terminated
+execution) reports it in `errors` with `result` null — the same polarity
+`site:init --json` uses. The handler returns `0` for applied or no changes and
+`2` for refused or failed; as for every command, `WaaseyaaConsoleApplication`
+then normalizes any non-zero result other than `130` to `1`, so a refusal
+reaches the shell as `1` and the coded detail is read from the envelope, not
+from the exit status.
+
+### Development-only interruption seam
+
+Crash recovery is a promise about a *later process*, so proving it end to end
+needs a real process that really stops mid-transaction. When — and only when —
+`APP_ENV` is exactly `development`, `site:apply` registers
+`--interrupt-after-journal` (#2789 phase 3). Armed, it abandons the publication
+at the first target replacement: after the transaction journal is durable, and
+before publication completes. The durable journal, stage and backup trees it
+leaves are the ones the real transaction wrote, and the next ordinary
+`site:apply` recovers them before completing its own work, emitting the
+`site.recover` receipt first and reporting
+`recovered_interrupted_transaction: true`.
+
+`APP_ENV=development` is exact and narrower than
+`RuntimePolicy::isDevelopmentEnvironment()`, which also admits `dev`, `local`
+and `testing`: those are environments people work in, and abandoning a
+transaction must not be one keystroke away there. Outside that environment the
+option is not registered at all, so it is an unknown option, and the handler
+re-reads the environment before constructing the injector, so a stale or
+hand-built command definition cannot arm it either. The seam takes no stage,
+path, index or count from the operator — it is not a fault-injection API — and
+it bypasses nothing: the lock, both digests, path containment and every
+collision check run first and refuse first.
+
+An interrupted run exits `130`, the code this CLI reserves for an interrupted
+run and the only non-zero result a handler can return without being normalized
+to `1`. A bespoke code would be invisible to the black-box harness the seam
+exists for, and widening that normalization would change the exit-code contract
+of every command to serve a development-only seam.
+
+<!-- Spec reviewed 2026-09-06 - #2789: `site:apply` is the reviewed command migration ADR-025 D-12.1 constraint 1 requires before a further entrypoint may transport generation results. It enters exactly one execution-authority seam — `apply()` — and no other; `tests/Architecture/GenerationStagedActivationBoundaryTest.php` records it alongside `SiteInitHandler`/`SiteDoctorHandler` as the closed roster. Acceptance: `SiteApplyHandlerTest`, `ArtifactApplyRequestDecodingTest`, and the `site:apply` case in `ConsoleKernelTest::siteContractCommandsRunWithoutBootingOrCreatingTheDatabase`. -->
+
 `--preset` (#2442) is an init-time-only shortcut, resolved once by
 `SitePresetResolver` into an ordinary answer document before it ever reaches
 the pipeline above — see "Init-time presets" in
@@ -492,6 +570,47 @@ substitution. See [site-golden-path.md](site-golden-path.md) "Initialization" fo
 the full disposition of a changed artifact set versus changed managed bytes.
 
 Forge, release, and deployment behavior are outside this command.
+
+## Scaffolded content types
+
+`make:content-type <name> --fields=… [--force]` keeps its surface, its generated
+entity and provider semantics, its Indigenous-orthography support, its
+no-overwrite refusal and its next-step output, but it no longer writes anything
+itself (#2789 phase 2). `ContentTypeScaffoldCompiler`
+(`packages/cli/src/Site/Scaffold/`) turns the handler's already-validated input
+into one immutable `ArtifactPlan`, and `SiteInitializationService::initialize()`
+publishes it — the single-invocation flow ADR-025 D-6.5 describes, where
+compile, evaluate and apply happen once in one process through the same
+two-digest gate a transported plan passes. There is one publication engine, not
+a scaffold-shaped second one.
+
+The compiler is a pure function of its validated input plus its own version: no
+filesystem observation, no clock, so the same request always compiles to the
+same plan digest. The unit is `scaffold:content-type:<name>` with disposition
+**seeded** and `Frozen` set evolution. Seeded is the substantive change: D-2.2
+publishes a scaffold exactly once and then treats it as the developer's, so the
+authority never re-renders it and `--force` can no longer overwrite an edited
+scaffold — it only skips the handler's pre-write "already exists" refusal, and
+the run reports the unit unchanged. `ContentTypeScaffoldCompiler` is the first
+member of `SiteInitializationService`'s closed `SEEDED_COMPILERS` admission
+list; a compiler cannot assert its own eligibility to create seeded units.
+
+The provider registration travels in the plan as a D-6.6
+`ComposerProviderRegistration` rather than a `json_decode`/mutate/`json_encode`
+of the application's manifest, so it is enacted inside the same transaction as
+the two files and preserves the application's own `composer.json` bytes and
+formatting. Path containment, unowned-target collision refusal, the durable
+journal, rollback, receipts and both state digests are the authority's, not the
+handler's.
+
+Publication therefore requires an initialized site: unit ownership is recorded
+in `.waaseyaa/generated.json`, and before `site:init` there is no roster to
+record it in, so scaffolding an uninitialized project refuses
+`GEN003_COLLISION_REFUSED` ("A non-root unit requires an initialized site")
+instead of writing ungoverned files. That is the order the canonical lifecycle
+already prescribes.
+
+<!-- Spec reviewed 2026-09-06 - #2789 phase 2: make:content-type is the first seeded-compiler migration ADR-025 D-2.2/D-6.6 anticipated. Two behaviour consequences are deliberate and recorded here rather than hidden: an uninitialized project is now refused, and --force no longer overwrites a published scaffold. Acceptance: MakeContentTypeCustodyTest, plus the unchanged assertions of MakeContentTypeHandlerTest whose fixtures now start from an initialized site. -->
 
 ## Input And Output
 
@@ -550,7 +669,7 @@ The Symfony application version is resolved from the project `VERSION` file, pac
 | `1` | Command/domain failure or uncaught handler exception. |
 | `2` | Usage/input error: unknown command, invalid option, missing required argument, or invalid argument shape. |
 | `64`-`78` | Reserved for future sysexits-style categories. |
-| `130` | Interrupted by SIGINT where command/application signal handling reports it. |
+| `130` | Interrupted run: SIGINT where command/application signal handling reports it, or `site:apply --interrupt-after-journal` under `APP_ENV=development` (#2789). It is the only non-zero handler result `WaaseyaaConsoleApplication::normalizeExitCode()` does not collapse to `1`. |
 
 ## Signal Handling
 

@@ -8,6 +8,7 @@ use Waaseyaa\CLI\Site\Blueprint\ApplicationBlueprintCompiler;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationExecutionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
+use Waaseyaa\CLI\Site\Scaffold\ContentTypeScaffoldCompiler;
 use Waaseyaa\SiteContract\Blueprint\BlueprintAppliedEvidence;
 use Waaseyaa\SiteContract\Blueprint\BlueprintDecisionReceipt;
 use Waaseyaa\SiteContract\CanonicalJson;
@@ -469,12 +470,19 @@ final class SiteInitializationService
     }
 
     /**
-     * The closed compiler admission list. No seeded compiler has migrated yet.
-     * Persisted provenance is readable independently of new-plan eligibility.
+     * The closed compiler admission list for creating seeded units. A seeded
+     * unit is published once and then belongs to the developer, so admission is
+     * the decision that a compiler may hand bytes over permanently — it is made
+     * here, per compiler, never asserted by the plan.
      *
-     * @var list<string>
+     * `ContentTypeScaffoldCompiler` is the first migrated member (#2789 phase
+     * 2, ADR-025 D-2.2): `make:content-type` scaffolds exactly the artifacts a
+     * developer then edits. Persisted provenance is readable independently of
+     * new-plan eligibility.
+     *
+     * @var list<class-string>
      */
-    private const array SEEDED_COMPILERS = [];
+    private const array SEEDED_COMPILERS = [ContentTypeScaffoldCompiler::class];
 
     /**
      * The closed compiler admission list for additive successor evolution.
@@ -656,7 +664,6 @@ final class SiteInitializationService
                 || $existing['disposition'] !== $plan->disposition->value)) {
             $this->unitRefusal(GenerationErrorCode::UnitPathConflict, 'A recorded unit cannot change compiler identity or disposition.');
         }
-        // @phpstan-ignore function.impossibleType (the reviewed compiler allowlist is intentionally empty before migrations)
         if ($existing === null && $plan->disposition === GenerationUnitDisposition::Seeded && !in_array($plan->generatorFqcn, self::SEEDED_COMPILERS, true)) {
             $this->unitRefusal(GenerationErrorCode::UnsupportedDeclaration, 'The compiler is not permitted to create seeded units.');
         }

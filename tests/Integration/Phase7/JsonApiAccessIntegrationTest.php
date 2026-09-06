@@ -177,7 +177,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->assertArrayHasKey('errors', $array);
         $this->assertSame('404', $array['errors'][0]['status']);
         $this->assertSame('Not Found', $array['errors'][0]['title']);
-        $this->assertArrayNotHasKey('code', $array['errors'][0]);
+        $this->assertSame('ENTITY_NOT_FOUND', $array['errors'][0]['code']);
     }
 
     #[Test]

@@ -62,7 +62,11 @@ final class JsonApiControllerAccessControlTest extends TestCase
         $this->assertArrayHasKey('errors', $array);
         $this->assertSame('404', $array['errors'][0]['status']);
         $this->assertSame('Not Found', $array['errors'][0]['title']);
-        $this->assertArrayNotHasKey('code', $array['errors'][0]);
+        // #2789 phase 4: the code is the concealed boundary's own, emitted from
+        // the shared document, so a missing entity answers with this exact
+        // member too (pinned byte-for-byte in JsonApiControllerDeniedNotFoundTest).
+        $this->assertSame(JsonApiController::CONCEALED_NOT_FOUND_CODE, $array['errors'][0]['code']);
+        $this->assertStringNotContainsStringIgnoringCase('forbidden', json_encode($array, JSON_THROW_ON_ERROR));
     }
 
     #[Test]

@@ -13,9 +13,12 @@ use PHPUnit\Framework\TestCase;
  * handler, no `GEN0xx` code is emitted by a path that cannot honour it, and no
  * entrypoint reaches a half-built engine."
  *
- * Slice 8 activates site:init and site:doctor only. Other entrypoints
- * remain barred until their command-specific migrations; preparation and
- * ownership readers remain inside the execution authority.
+ * Slice 8 activated site:init and site:doctor. #2789 adds exactly one further
+ * reviewed command migration — site:apply, ADR-025 D-6.5's second process —
+ * which transports a request and enters `apply()` and nothing else: it carries
+ * no compiler, no evaluation seam, and no ownership reader. Every other
+ * entrypoint remains barred until its own command-specific migration;
+ * preparation and ownership readers remain inside the execution authority.
  */
 #[CoversNothing]
 final class GenerationStagedActivationBoundaryTest extends TestCase
@@ -42,7 +45,7 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
     }
 
     #[Test]
-    public function onlySiteInitTransportsGenerationResults(): void
+    public function onlyTheMigratedSiteCommandsTransportGenerationResults(): void
     {
         $staged = '/\b(?:EvaluatedArtifactPlan|ArtifactApplyRequest|ArtifactApplyResult|ArtifactPlan|ChangeReceipt)\b/';
         $offenders = [];
@@ -56,14 +59,17 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         }
 
         self::assertSame(
-            ['packages/cli/src/Handler/SiteInitHandler.php'],
+            [
+                'packages/cli/src/Handler/SiteApplyHandler.php',
+                'packages/cli/src/Handler/SiteInitHandler.php',
+            ],
             $offenders,
             'Generation result transport requires a separately reviewed command migration.',
         );
     }
 
     #[Test]
-    public function onlySiteDoctorEntersUnitInspection(): void
+    public function onlyMigratedInspectionAndApplyCommandsEnterTheAuthoritySeams(): void
     {
         $offenders = [];
         foreach ($this->productionPhpCodeFiles() as $relative => $code) {
@@ -81,7 +87,18 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
             }
         }
 
-        self::assertSame(['packages/cli/src/Handler/SiteDoctorHandler.php'], $offenders, 'Only migrated doctor inspection may enter these seams.');
+        // #2789: `site:apply` enters exactly one of these seams — `apply()`,
+        // the transported-plan entry D-6.5 defines — and no other. It never
+        // evaluates, inspects units, or reads ownership: those stay the
+        // doctor's and the authority's.
+        self::assertSame(
+            [
+                'packages/cli/src/Handler/SiteApplyHandler.php',
+                'packages/cli/src/Handler/SiteDoctorHandler.php',
+            ],
+            $offenders,
+            'Only migrated doctor inspection and reviewed apply transport may enter these seams.',
+        );
     }
 
     #[Test]
@@ -122,8 +139,14 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         // field) — before any artifact exists, and still carrying no
         // evaluation or apply. They are recorded here as reviewed call sites
         // of that one family, not as a widening of the execution authority.
+        // #2789 phase 2: `make:content-type` publishes through the shared
+        // custody instead of writing files itself, so like `SiteInitHandler` it
+        // catches the coded refusal its own `initialize()` call may raise and
+        // relays the message to the operator. It never constructs one, and it
+        // carries no emitter, evaluation or apply of its own.
         self::assertSame(
             [
+                'packages/cli/src/Handler/MakeContentTypeHandler.php',
                 'packages/cli/src/Handler/SiteInitHandler.php',
                 'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
                 'packages/cli/src/Site/Blueprint/Emitter/AccessPolicyEmitter.php',
