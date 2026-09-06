@@ -1,0 +1,421 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Offline, advisory landing-base prequalification (#2525).
+ *
+ * The command evaluates exact declared Git objects before an expensive
+ * qualification run. It predicts Git's textual merge result without changing
+ * the worktree, index, HEAD, or refs; merge-tree may write objects. Its report
+ * never authorizes a merge and never qualifies the candidate.
+ *
+ * Usage:
+ *   php bin/check-landing-base --declaration=FILE [--repo=DIR]
+ *
+ * Exit codes:
+ *   0 textual_merge_clean or nothing_to_land
+ *   1 rebase_required
+ *   2 indeterminate, malformed input, or evidence failure
+ */
+
+$root = dirname(__DIR__);
+require_once $root . '/bin/lib/repository-files.php';
+
+const LANDING_BASE_SCHEMA = 'waaseyaa.landing-base.v1';
+
+/** @param list<string> $paths @return list<string> */
+function landingSortedPaths(array $paths): array
+{
+    $paths = array_values(array_unique($paths));
+    sort($paths, SORT_STRING);
+    return $paths;
+}
+
+/** @return list<string> */
+function landingNulPaths(string $output): array
+{
+    return landingSortedPaths(array_values(array_filter(
+        explode("\0", $output),
+        static fn(string $path): bool => $path !== '',
+    )));
+}
+
+/** @param list<string> $arguments @return array{int,string,string} */
+function landingGit(string $repo, array $arguments): array
+{
+    try {
+        return repositoryGit($repo, $arguments);
+    } catch (Throwable $exception) {
+        return [255, '', $exception->getMessage()];
+    }
+}
+
+function landingResolve(string $repo, string $ref): ?string
+{
+    [$exit, $output] = landingGit($repo, ['rev-parse', '--verify', '--end-of-options', $ref . '^{commit}']);
+    $sha = trim($output);
+    return $exit === 0 && preg_match('/^[0-9a-f]{40}$/D', $sha) === 1 ? $sha : null;
+}
+
+/** @return list<string>|null Null means malformed output; [] means disconnected. */
+function landingMergeBases(string $repo, string $left, string $right): ?array
+{
+    [$exit, $output] = landingGit($repo, ['merge-base', '--all', $left, $right]);
+    if ($exit !== 0) {
+        return [];
+    }
+    $bases = array_values(array_filter(preg_split('/\R/', trim($output)) ?: []));
+    foreach ($bases as $base) {
+        if (preg_match('/^[0-9a-f]{40}$/D', $base) !== 1) {
+            return null;
+        }
+    }
+    return $bases;
+}
+
+function landingIsAncestor(string $repo, string $ancestor, string $descendant, bool $strict = false): bool
+{
+    if ($ancestor === $descendant) {
+        return !$strict;
+    }
+    [$exit] = landingGit($repo, ['merge-base', '--is-ancestor', $ancestor, $descendant]);
+    return $exit === 0;
+}
+
+/** @return list<string>|null */
+function landingChangedPaths(string $repo, string $from, string $to, array $pathspecs = []): ?array
+{
+    $arguments = ['--literal-pathspecs', 'diff', '--name-only', '-z', '--diff-filter=ACDMRTUXB', $from, $to];
+    if ($pathspecs !== []) {
+        $arguments[] = '--';
+        array_push($arguments, ...$pathspecs);
+    }
+    [$exit, $output] = landingGit($repo, $arguments);
+    return $exit === 0 ? landingNulPaths($output) : null;
+}
+
+/** @param list<string> $paths @param list<string> $contractInputs @return array{paths:list<string>,contract_inputs:list<string>} */
+function landingChangeSet(array $paths, array $contractInputs): array
+{
+    return [
+        'paths' => $paths,
+        'contract_inputs' => landingSortedPaths(array_values(array_intersect($paths, $contractInputs))),
+    ];
+}
+
+/** @return array{tree:?string,conflicts:list<string>,exit:int,error:string} */
+function landingMergeTree(string $repo, string $base, string $head): array
+{
+    [$exit, $output, $error] = landingGit($repo, ['merge-tree', '--write-tree', '--name-only', $base, $head]);
+    $lines = preg_split('/\R/', $output) ?: [];
+    $tree = array_shift($lines);
+    if (!is_string($tree) || preg_match('/^[0-9a-f]{40}$/D', $tree) !== 1 || !in_array($exit, [0, 1], true)) {
+        return ['tree' => null, 'conflicts' => [], 'exit' => $exit, 'error' => trim($error . "\n" . $output)];
+    }
+    $conflicts = [];
+    if ($exit === 1) {
+        foreach ($lines as $line) {
+            if ($line === '') {
+                break;
+            }
+            $conflicts[] = $line;
+        }
+    }
+    return ['tree' => $tree, 'conflicts' => landingSortedPaths($conflicts), 'exit' => $exit, 'error' => trim($error)];
+}
+
+/** @return list<string>|null */
+function landingTrackedStatus(string $repo): ?array
+{
+    [$exit, $output] = landingGit($repo, ['status', '--porcelain=v1', '--untracked-files=no']);
+    if ($exit !== 0) {
+        return null;
+    }
+    return array_values(array_filter(preg_split('/\R/', rtrim($output)) ?: []));
+}
+
+/** @param mixed $value @return list<string>|null */
+function landingPathList(mixed $value): ?array
+{
+    if (!is_array($value) || !array_is_list($value)) {
+        return null;
+    }
+    $paths = [];
+    foreach ($value as $path) {
+        if (!is_string($path)) {
+            return null;
+        }
+        $path = str_replace('\\', '/', $path);
+        if ($path === '' || str_starts_with($path, '/') || str_contains($path, "\0") || preg_match('#(?:^|/)\.\.?(?:/|$)#', $path) === 1) {
+            return null;
+        }
+        $paths[] = $path;
+    }
+    return landingSortedPaths($paths);
+}
+
+/** @param array<string,mixed> $extra */
+function landingEmit(string $verdict, array $reasons, array $extra, int $exit): never
+{
+    $report = array_merge([
+        'schema' => LANDING_BASE_SCHEMA,
+        'verdict' => $verdict,
+        'qualification' => false,
+        'merge_authorized' => false,
+        'reasons' => array_values(array_unique($reasons)),
+    ], $extra);
+    fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    if ($verdict !== 'textual_merge_clean' && $verdict !== 'nothing_to_land') {
+        fwrite(STDERR, 'check-landing-base: ' . $verdict . ' — ' . implode(', ', $report['reasons']) . "\n");
+    }
+    exit($exit);
+}
+
+$repoArgument = $root;
+$declarationPath = null;
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if (str_starts_with($argument, '--repo=')) {
+        $repoArgument = substr($argument, strlen('--repo='));
+    } elseif (str_starts_with($argument, '--declaration=')) {
+        $declarationPath = substr($argument, strlen('--declaration='));
+    } elseif ($argument === '--help' || $argument === '-h') {
+        fwrite(STDOUT, "Usage: php bin/check-landing-base --declaration=FILE [--repo=DIR]\n");
+        exit(0);
+    } else {
+        landingEmit('indeterminate', ['unknown_argument'], ['argument' => $argument], 2);
+    }
+}
+
+$repo = realpath($repoArgument);
+if ($repo === false || !is_dir($repo)) {
+    landingEmit('indeterminate', ['repository_unreadable'], ['repository' => $repoArgument], 2);
+}
+if ($declarationPath === null || !is_readable($declarationPath)) {
+    landingEmit('indeterminate', ['declaration_unreadable'], ['repository' => $repo], 2);
+}
+try {
+    $declaration = json_decode((string) file_get_contents($declarationPath), true, 512, JSON_THROW_ON_ERROR);
+} catch (Throwable $exception) {
+    landingEmit('indeterminate', ['declaration_invalid_json'], ['repository' => $repo, 'detail' => $exception->getMessage()], 2);
+}
+
+if (!is_array($declaration) || ($declaration['schema'] ?? null) !== LANDING_BASE_SCHEMA) {
+    landingEmit('indeterminate', ['declaration_schema_invalid'], ['repository' => $repo], 2);
+}
+$recordedBase = $declaration['recorded_base'] ?? null;
+$current = $declaration['current_base'] ?? null;
+$head = $declaration['head'] ?? null;
+$range = $declaration['unique_range'] ?? null;
+$contractInputs = array_key_exists('contract_inputs', $declaration) ? landingPathList($declaration['contract_inputs']) : null;
+$generatedOutputs = array_key_exists('generated_outputs', $declaration) ? landingPathList($declaration['generated_outputs']) : null;
+$shaPattern = '/^[0-9a-f]{40}$/D';
+if (
+    !is_string($recordedBase) || preg_match($shaPattern, $recordedBase) !== 1
+    || !is_array($current) || !is_string($current['ref'] ?? null) || ($current['ref'] ?? '') === ''
+    || !is_string($current['sha'] ?? null) || preg_match($shaPattern, $current['sha']) !== 1
+    || !is_array($head) || !is_string($head['ref'] ?? null) || ($head['ref'] ?? '') === ''
+    || !is_string($head['sha'] ?? null) || preg_match($shaPattern, $head['sha']) !== 1
+    || !is_array($range) || !is_string($range['base'] ?? null) || preg_match($shaPattern, $range['base']) !== 1
+    || !is_string($range['head'] ?? null) || preg_match($shaPattern, $range['head']) !== 1
+    || $contractInputs === null || $generatedOutputs === null
+) {
+    landingEmit('indeterminate', ['declaration_shape_invalid'], ['repository' => $repo], 2);
+}
+
+$inputs = [
+    'recorded_base' => $recordedBase,
+    'current_base' => ['ref' => $current['ref'], 'sha' => $current['sha']],
+    'head' => ['ref' => $head['ref'], 'sha' => $head['sha']],
+    'unique_range' => ['base' => $range['base'], 'head' => $range['head']],
+    'contract_inputs' => $contractInputs,
+    'generated_outputs' => $generatedOutputs,
+];
+$baseExtra = ['repository' => $repo, 'inputs' => $inputs];
+
+[$shallowExit, $shallowOutput] = landingGit($repo, ['rev-parse', '--is-shallow-repository']);
+if ($shallowExit !== 0 || !in_array(trim($shallowOutput), ['true', 'false'], true)) {
+    landingEmit('indeterminate', ['shallow_state_unreadable'], $baseExtra, 2);
+}
+if (trim($shallowOutput) === 'true') {
+    landingEmit('indeterminate', ['shallow_repository'], $baseExtra, 2);
+}
+
+$statusBefore = landingTrackedStatus($repo);
+if ($statusBefore === null) {
+    landingEmit('indeterminate', ['worktree_state_unreadable'], $baseExtra, 2);
+}
+if ($statusBefore !== []) {
+    landingEmit('indeterminate', ['dirty_worktree'], array_merge($baseExtra, [
+        'worktree' => ['tracked_changes' => $statusBefore, 'tracked_changes_after' => $statusBefore],
+    ]), 2);
+}
+
+$resolved = [
+    'recorded_base' => landingResolve($repo, $recordedBase),
+    'current_base' => landingResolve($repo, $current['ref']),
+    'head' => landingResolve($repo, $head['ref']),
+    'unique_range_base' => landingResolve($repo, $range['base']),
+    'unique_range_head' => landingResolve($repo, $range['head']),
+];
+$reasons = [];
+foreach ($resolved as $name => $sha) {
+    if ($sha === null) {
+        $reasons[] = $name . '_unreadable';
+    }
+}
+if ($resolved['current_base'] !== null && $resolved['current_base'] !== $current['sha']) {
+    $reasons[] = 'current_base_ref_moved';
+}
+if ($resolved['head'] !== null && $resolved['head'] !== $head['sha']) {
+    $reasons[] = 'head_ref_moved';
+}
+if ($range['head'] !== $head['sha']) {
+    $reasons[] = 'declared_range_head_mismatch';
+}
+if ($reasons !== []) {
+    $initialChangedRefs = [];
+    if (in_array('current_base_ref_moved', $reasons, true)) {
+        $initialChangedRefs[] = 'current_base';
+    }
+    if (in_array('head_ref_moved', $reasons, true)) {
+        $initialChangedRefs[] = 'head';
+    }
+    landingEmit('indeterminate', $reasons, array_merge($baseExtra, [
+        'snapshots' => ['before' => $resolved, 'after' => $resolved, 'changed_refs' => $initialChangedRefs],
+        'worktree' => ['tracked_changes' => [], 'tracked_changes_after' => []],
+    ]), 2);
+}
+
+$mergeBases = landingMergeBases($repo, $current['sha'], $head['sha']);
+if ($mergeBases === null) {
+    $reasons[] = 'merge_base_output_invalid';
+} elseif ($mergeBases === []) {
+    $reasons[] = 'disconnected_history';
+} elseif (count($mergeBases) !== 1) {
+    $reasons[] = 'multiple_merge_bases';
+}
+if (!landingIsAncestor($repo, $range['base'], $range['head'], strict: true)) {
+    $reasons[] = 'declared_range_base_must_be_strict_ancestor_of_head';
+}
+if (!landingIsAncestor($repo, $recordedBase, $range['base'])) {
+    $reasons[] = 'declared_range_not_descended_from_recorded_base';
+}
+if (array_intersect($reasons, ['merge_base_output_invalid', 'disconnected_history', 'multiple_merge_bases', 'declared_range_base_must_be_strict_ancestor_of_head', 'declared_range_not_descended_from_recorded_base']) !== []) {
+    landingEmit('indeterminate', $reasons, array_merge($baseExtra, [
+        'merge_base' => count($mergeBases ?? []) === 1 ? $mergeBases[0] : null,
+        'merge_bases' => $mergeBases ?? [],
+        'snapshots' => ['before' => $resolved, 'after' => $resolved, 'changed_refs' => []],
+        'worktree' => ['tracked_changes' => [], 'tracked_changes_after' => []],
+    ]), 2);
+}
+
+$recordedRewritten = !landingIsAncestor($repo, $recordedBase, $current['sha']);
+if ($recordedRewritten) {
+    $reasons[] = 'recorded_base_not_ancestor_of_current_base';
+}
+$rangeBaseMissingFromCurrent = !landingIsAncestor($repo, $range['base'], $current['sha']);
+if ($rangeBaseMissingFromCurrent) {
+    $reasons[] = 'declared_range_base_not_ancestor_of_current_base';
+}
+
+[$countExit, $countOutput] = landingGit($repo, ['rev-list', '--left-right', '--count', $current['sha'] . '...' . $head['sha']]);
+if ($countExit !== 0 || preg_match('/^(\d+)\s+(\d+)\s*$/D', $countOutput, $countMatch) !== 1) {
+    landingEmit('indeterminate', ['ahead_behind_unreadable'], $baseExtra, 2);
+}
+$basePaths = landingChangedPaths($repo, $recordedBase, $current['sha']);
+$uniquePaths = landingChangedPaths($repo, $range['base'], $range['head']);
+if ($basePaths === null || $uniquePaths === null) {
+    landingEmit('indeterminate', ['changed_paths_unreadable'], $baseExtra, 2);
+}
+$livePaths = $uniquePaths === [] ? [] : landingChangedPaths($repo, $current['sha'], $head['sha'], $uniquePaths);
+if ($livePaths === null) {
+    landingEmit('indeterminate', ['live_candidate_paths_unreadable'], $baseExtra, 2);
+}
+$overlap = landingSortedPaths(array_values(array_intersect($basePaths, $uniquePaths)));
+$liveOverlap = landingSortedPaths(array_values(array_intersect($basePaths, $livePaths)));
+$merge = landingMergeTree($repo, $current['sha'], $head['sha']);
+if ($merge['tree'] === null) {
+    landingEmit('indeterminate', ['merge_tree_unreadable'], array_merge($baseExtra, ['detail' => $merge['error']]), 2);
+}
+[$treeExit, $currentTreeOutput] = landingGit($repo, ['rev-parse', $current['sha'] . '^{tree}']);
+$currentTree = trim($currentTreeOutput);
+if ($treeExit !== 0 || preg_match($shaPattern, $currentTree) !== 1) {
+    landingEmit('indeterminate', ['current_base_tree_unreadable'], $baseExtra, 2);
+}
+
+$statusAfter = landingTrackedStatus($repo);
+$resolvedAfter = [
+    'recorded_base' => landingResolve($repo, $recordedBase),
+    'current_base' => landingResolve($repo, $current['ref']),
+    'head' => landingResolve($repo, $head['ref']),
+    'unique_range_base' => landingResolve($repo, $range['base']),
+    'unique_range_head' => landingResolve($repo, $range['head']),
+];
+$changedRefs = [];
+foreach ($resolved as $name => $sha) {
+    if ($resolvedAfter[$name] !== $sha) {
+        $changedRefs[] = $name;
+    }
+}
+if ($statusAfter === null || $statusAfter !== [] || $changedRefs !== []) {
+    $lateReasons = [];
+    if ($statusAfter === null) {
+        $lateReasons[] = 'worktree_state_unreadable_after_check';
+    } elseif ($statusAfter !== []) {
+        $lateReasons[] = 'dirty_worktree_after_check';
+    }
+    if ($changedRefs !== []) {
+        $lateReasons[] = 'refs_changed_during_check';
+    }
+    landingEmit('indeterminate', $lateReasons, array_merge($baseExtra, [
+        'snapshots' => ['before' => $resolved, 'after' => $resolvedAfter, 'changed_refs' => $changedRefs],
+        'worktree' => ['tracked_changes' => [], 'tracked_changes_after' => $statusAfter ?? []],
+    ]), 2);
+}
+
+$conflicts = $merge['conflicts'];
+if ($conflicts !== []) {
+    $reasons[] = 'textual_conflicts';
+}
+$nothingToLand = $conflicts === [] && $merge['tree'] === $currentTree;
+// Missing ancestry does not establish that prerequisite work has landed.
+// Rebase --onto could silently discard it; require an explicit human resolution.
+$verdict = ($recordedRewritten || $rangeBaseMissingFromCurrent)
+    ? 'indeterminate'
+    : ($nothingToLand ? 'nothing_to_land' : ($conflicts !== [] ? 'rebase_required' : 'textual_merge_clean'));
+$exit = match ($verdict) {
+    'indeterminate' => 2, 'rebase_required' => 1, default => 0
+};
+$extra = array_merge($baseExtra, [
+    'merge_base' => $mergeBases[0],
+    'merge_bases' => $mergeBases,
+    'counts' => ['behind' => (int) $countMatch[1], 'ahead' => (int) $countMatch[2]],
+    'changes' => [
+        'recorded_to_current' => landingChangeSet($basePaths, $contractInputs),
+        'declared_unique_range' => landingChangeSet($uniquePaths, $contractInputs),
+        'live_candidate' => landingChangeSet($livePaths, $contractInputs),
+    ],
+    'overlap' => [
+        'paths' => $overlap,
+        'live_paths' => $liveOverlap,
+        'contract_inputs' => landingSortedPaths(array_values(array_intersect($liveOverlap, $contractInputs))),
+    ],
+    'merge' => [
+        'predicted_tree' => $merge['tree'],
+        'current_base_tree' => $currentTree,
+        'conflict_paths' => $conflicts,
+        'generated_output_conflicts' => landingSortedPaths(array_values(array_intersect($conflicts, $generatedOutputs))),
+        'semantic_correctness_proven' => false,
+    ],
+    'snapshots' => ['before' => $resolved, 'after' => $resolvedAfter, 'changed_refs' => []],
+    'worktree' => ['tracked_changes' => [], 'tracked_changes_after' => []],
+]);
+if ($verdict === 'rebase_required') {
+    $extra['rebase_onto'] = [
+        'arguments' => [$current['sha'], $range['base'], $head['sha']],
+        'automatic' => false,
+    ];
+}
+landingEmit($verdict, $reasons, $extra, $exit);
