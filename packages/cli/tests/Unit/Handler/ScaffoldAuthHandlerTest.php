@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 use Waaseyaa\CLI\Handler\ScaffoldAuthHandler;
 use Waaseyaa\CLI\Provider\OtherScaffoldsServiceProvider;
 use Waaseyaa\CLI\Scaffold\AuthUiScaffoldManager;
@@ -253,6 +254,82 @@ final class ScaffoldAuthHandlerTest extends TestCase
         $publish->execute([]);
         self::assertSame(0, $publish->getExitCode(), $publish->getStderr() . $publish->getStdout());
         self::assertFileExists($this->tempDir . '/app/pages/login.vue');
+    }
+
+    #[Test]
+    public function failsWhenNoAuthUiSourceCandidatesExist(): void
+    {
+        $manager = new AuthUiScaffoldManager($this->tempDir);
+        $method = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceContextFromCandidates');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Framework auth UI sources were not found');
+
+        $method->invoke($manager, [
+            [
+                'source_base' => $this->tempDir . '/missing-admin/app',
+                'version_roots' => [$this->tempDir],
+            ],
+        ]);
+    }
+
+    #[Test]
+    public function failsWhenAuthUiSourcesExistWithoutVersionIdentityOutsideComposer(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_scaffold_auth_version_' . bin2hex(random_bytes(8));
+        $filesystem = new Filesystem();
+
+        try {
+            $orphanAdmin = $root . '/orphan-admin';
+            $filesystem->mkdir($orphanAdmin . '/pages', 0o700);
+            file_put_contents($orphanAdmin . '/pages/login.vue', '<template>login</template>');
+
+            $probe = $root . '/probe.php';
+            $managerSource = (string) (new \ReflectionClass(AuthUiScaffoldManager::class))->getFileName();
+            file_put_contents($probe, <<<'PHP'
+                <?php
+                declare(strict_types=1);
+
+                require $argv[1];
+
+                $manager = new \Waaseyaa\CLI\Scaffold\AuthUiScaffoldManager($argv[2]);
+                $method = new \ReflectionMethod(\Waaseyaa\CLI\Scaffold\AuthUiScaffoldManager::class, 'sourceContextFromCandidates');
+
+                try {
+                    $method->invoke($manager, [[
+                        'source_base' => $argv[3],
+                        'version_roots' => [$argv[2]],
+                    ]]);
+                    fwrite(STDERR, "expected RuntimeException\n");
+                    exit(2);
+                } catch (\RuntimeException $exception) {
+                    echo $exception->getMessage();
+                    exit(str_contains($exception->getMessage(), 'Unable to identify the Framework version') ? 0 : 3);
+                }
+                PHP);
+
+            $process = new Process([PHP_BINARY, $probe, $managerSource, $root, $orphanAdmin]);
+            $process->run();
+
+            self::assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+            self::assertStringContainsString('Unable to identify the Framework version', $process->getOutput());
+        } finally {
+            $filesystem->remove($root);
+        }
+    }
+
+    #[Test]
+    public function resolveFrameworkVersionFallsBackToInstalledVersionsWhenVersionFileMissing(): void
+    {
+        $manager = new AuthUiScaffoldManager($this->tempDir);
+        $method = new \ReflectionMethod(AuthUiScaffoldManager::class, 'resolveFrameworkVersion');
+        $versionRoot = $this->tempDir . '/versionless-consumer';
+
+        mkdir($versionRoot, 0o755, true);
+
+        $version = $method->invoke($manager, [$versionRoot]);
+
+        self::assertNotSame('', $version);
     }
 
     #[Test]
