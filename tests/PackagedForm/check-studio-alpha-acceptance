@@ -356,7 +356,7 @@ php -r '
 $path = $argv[1];
 $manifest = (string) file_get_contents($path);
 $added = "content_types:\n  - {id: dispatch, canonical_route: \x27/dispatch/{slug}\x27}";
-$upgraded = preg_replace("/^content_types:/m", $added, $manifest, 1);
+$upgraded = preg_replace('/^"?content_types"?:/m', $added, $manifest, 1);
 if ($upgraded === null || $upgraded === $manifest) {
     fwrite(STDERR, "Could not compose an additive manifest upgrade.\n");
     exit(1);
