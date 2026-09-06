@@ -559,7 +559,7 @@ function selfTest(string $consumer, string $directory): int
         }
 
         // Control 2: ownership assertion must reject a unit that is not recorded.
-        if (guard(static fn(): int => assertOwnership($consumer, 'scaffold:content-type:never-published', 'src/Entity/Never.php')) === 0) {
+        if (assertionProcess(['assert', 'ownership', $consumer, 'scaffold:content-type:never-published', 'src/Entity/Never.php']) === 0) {
             $failures[] = 'The ownership assertion accepted a unit that was never published.';
         }
 
@@ -567,7 +567,7 @@ function selfTest(string $consumer, string $directory): int
         $fallbackConsumer = $scratch . '/fallback';
         ensureDirectory($fallbackConsumer);
         file_put_contents($fallbackConsumer . '/.env', "APP_ENV=local\nWAASEYAA_DEV_FALLBACK_ACCOUNT=true\n");
-        if (guard(static fn(): int => assertEnvHygiene($fallbackConsumer)) === 0) {
+        if (assertionProcess(['assert', 'env-hygiene', $fallbackConsumer]) === 0) {
             $failures[] = 'The environment assertion accepted a dev fallback account.';
         }
     } finally {
@@ -583,20 +583,24 @@ function selfTest(string $consumer, string $directory): int
     return 0;
 }
 
-/** @param callable(): int $probe */
-function guard(callable $probe): int
+/** @param list<string> $arguments */
+function assertionProcess(array $arguments): int
 {
-    $level = ob_get_level();
-    ob_start();
-    try {
-        return $probe();
-    } catch (Throwable) {
-        return 1;
-    } finally {
-        while (ob_get_level() > $level) {
-            ob_end_clean();
-        }
+    $process = proc_open(
+        [PHP_BINARY, __FILE__, ...$arguments],
+        [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']],
+        $pipes,
+    );
+    if (!is_resource($process)) {
+        fail('Could not start a negative-control assertion process.');
     }
+    fclose($pipes[0]);
+    stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    stream_get_contents($pipes[2]);
+    fclose($pipes[2]);
+
+    return proc_close($process);
 }
 
 /** @return array<string, mixed> */
