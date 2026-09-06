@@ -21,7 +21,8 @@ useful residue is present/future-tense deferral phrasing in body prose.
    opener length and treats an unclosed fence as extending to end of file.
 2. Match a narrow deferral vocabulary. Strong phrases (`blocked on`,
    `waits for`, `tracked by`, `tracked in`) may have up to 60 characters
-   before `#NNNN` without crossing a newline or sentence terminator.
+   before `#NNNN` without crossing a blank-line paragraph or sentence
+   terminator; a single hard-wrap newline remains part of the prose clause.
    `deferred to` / `pending` / `until` / `after` / `once` must be adjacent to
    the hash so "deferred to a follow-up PR (mission #1257)" and positional
    "after routers (#1129)" do not fire. `after #N` used as provenance ("the

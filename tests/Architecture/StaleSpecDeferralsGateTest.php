@@ -79,6 +79,20 @@ final class StaleSpecDeferralsGateTest extends TestCase
     }
 
     #[Test]
+    public function strong_phrase_can_cross_a_soft_line_wrap(): void
+    {
+        $this->writeSpec(
+            "This capability is tracked by\n"
+            . "#9001.\n",
+        );
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, $out);
+        self::assertStringContainsString('STALE-DEFERRAL', $out);
+    }
+
+    #[Test]
     public function strong_phrase_does_not_cross_a_paragraph_boundary(): void
     {
         $this->writeSpec("This capability is tracked by\n\nUnrelated reference #9001.\n");
@@ -143,7 +157,8 @@ final class StaleSpecDeferralsGateTest extends TestCase
     public function past_tense_until_with_query_string_question_mark_is_not_a_deferral(): void
     {
         $this->writeSpec(
-            "Until #9001 no kernel supplied one, so `?page=` was never observed.\n",
+            "The request page stayed absent. Until\n"
+            . "#9001 no kernel supplied one, so `?page=` was never observed.\n",
         );
 
         [$exit, $out] = $this->runGate();
@@ -198,7 +213,10 @@ final class StaleSpecDeferralsGateTest extends TestCase
     #[Test]
     public function past_tense_narration_is_not_a_deferral(): void
     {
-        $this->writeSpec("Until #9001 the entity, vector and relationship tools emitted raw dumps.\n");
+        $this->writeSpec(
+            "Until #9001 the entity, vector and relationship tools in\n"
+            . "`waaseyaa/ai-tools` emitted raw dumps.\n",
+        );
 
         [$exit, $out] = $this->runGate();
 

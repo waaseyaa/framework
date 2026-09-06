@@ -208,7 +208,7 @@ function staleSpecMatchDeferrals(string $text): array
 {
     $matches = [];
 
-    $strong = '/\b(blocked on|waits for|tracked by|tracked in)\b[^\r\n.!?]{0,60}?#(\d+)/iu';
+    $strong = '/\b(blocked on|waits for|tracked by|tracked in)\b(?:(?!\r?\n[ \t]*\r?\n)[^.!?]){0,60}?#(\d+)/iu';
     if (preg_match_all($strong, $text, $found, PREG_OFFSET_CAPTURE | PREG_SET_ORDER) > 0) {
         foreach ($found as $row) {
             $matches[] = [
@@ -309,8 +309,8 @@ function staleSpecClauseAt(string $text, int $offset): string
     $length = strlen($text);
     while ($end < $length) {
         $ch = $text[$end];
-        if (str_contains(".!?;\n", $ch)) {
-            $end += $ch === "\n" ? 0 : 1;
+        if (str_contains('.!?;', $ch)) {
+            ++$end;
             break;
         }
         ++$end;
