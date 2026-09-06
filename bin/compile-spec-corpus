@@ -1,0 +1,78 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Usage: php bin/compile-spec-corpus [--root DIR] [--manifest FILE] [--output DIR]
+//
+// Compiles a bounded manifest of docs/specs into a sanitized, versioned agent
+// corpus (#2661). docs/specs/ remains authoritative; this is a read-only
+// projection for local-operator retrieval (#2662).
+//
+// Exit codes:
+//   0 = compiled successfully
+//   2 = configuration or validation failure
+
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../tools/lib/SpecCorpus/SpecCorpusException.php';
+require_once __DIR__ . '/../tools/lib/SpecCorpus/SpecLifecycle.php';
+require_once __DIR__ . '/../tools/lib/SpecCorpus/SpecCorpusGuard.php';
+require_once __DIR__ . '/../tools/lib/SpecCorpus/SpecFrontmatter.php';
+require_once __DIR__ . '/../tools/lib/SpecCorpus/SpecSanitizer.php';
+require_once __DIR__ . '/../tools/lib/SpecCorpus/SpecChunker.php';
+require_once __DIR__ . '/../tools/lib/SpecCorpus/SpecCorpusCompiler.php';
+
+use Waaseyaa\Tooling\SpecCorpus\SpecCorpusCompiler;
+use Waaseyaa\Tooling\SpecCorpus\SpecCorpusException;
+
+$repoRoot = dirname(__DIR__);
+$manifestFile = $repoRoot . '/tools/spec-corpus-pilot-manifest.json';
+$outputDir = $repoRoot . '/var/spec-corpus';
+
+for ($i = 1; $i < $argc; ++$i) {
+    $arg = $argv[$i];
+    if ($arg === '--root') {
+        $repoRoot = $argv[++$i] ?? '';
+    } elseif ($arg === '--manifest') {
+        $manifestFile = $argv[++$i] ?? '';
+    } elseif ($arg === '--output') {
+        $outputDir = $argv[++$i] ?? '';
+    } elseif ($arg === '--help' || $arg === '-h') {
+        fwrite(STDOUT, "Usage: php bin/compile-spec-corpus [--root DIR] [--manifest FILE] [--output DIR]\n");
+        exit(0);
+    } else {
+        fwrite(STDERR, "Unknown argument: {$arg}\n");
+        exit(2);
+    }
+}
+
+if ($repoRoot === '' || !is_dir($repoRoot)) {
+    fwrite(STDERR, "ERROR: --root is not a directory.\n");
+    exit(2);
+}
+
+$repoRoot = (string) realpath($repoRoot);
+
+try {
+    $manifest = SpecCorpusCompiler::loadManifest($manifestFile);
+    $compiled = SpecCorpusCompiler::compile($repoRoot, $manifest);
+    SpecCorpusCompiler::writeOutput($outputDir, $compiled);
+} catch (SpecCorpusException $e) {
+    fwrite(STDERR, 'ERROR: ' . $e->getMessage() . "\n");
+    exit(2);
+} catch (\JsonException $e) {
+    fwrite(STDERR, 'ERROR: invalid manifest JSON: ' . $e->getMessage() . "\n");
+    exit(2);
+}
+
+$liveCount = count($compiled['index']['entries']);
+$totalCount = count($compiled['documents']);
+$digest = $compiled['manifest']['corpus_digest'];
+$version = $compiled['manifest']['framework_version'];
+
+fwrite(
+    STDOUT,
+    "compile-spec-corpus: OK ({$liveCount} live / {$totalCount} total; framework {$version}; digest {$digest})\n",
+);
+
+exit(0);
