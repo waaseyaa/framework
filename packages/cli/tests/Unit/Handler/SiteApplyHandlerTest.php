@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -25,6 +26,7 @@ use Waaseyaa\SiteContract\SiteManifestParser;
  * document is handed to a command in a *later* process, which executes exactly
  * those bytes through the existing execution authority and recompiles nothing.
  */
+#[CoversClass(SiteApplyHandler::class)]
 final class SiteApplyHandlerTest extends TestCase
 {
     /** @var list<string> */

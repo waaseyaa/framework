@@ -139,8 +139,14 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
         // field) — before any artifact exists, and still carrying no
         // evaluation or apply. They are recorded here as reviewed call sites
         // of that one family, not as a widening of the execution authority.
+        // #2789 phase 2: `make:content-type` publishes through the shared
+        // custody instead of writing files itself, so like `SiteInitHandler` it
+        // catches the coded refusal its own `initialize()` call may raise and
+        // relays the message to the operator. It never constructs one, and it
+        // carries no emitter, evaluation or apply of its own.
         self::assertSame(
             [
+                'packages/cli/src/Handler/MakeContentTypeHandler.php',
                 'packages/cli/src/Handler/SiteInitHandler.php',
                 'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
                 'packages/cli/src/Site/Blueprint/Emitter/AccessPolicyEmitter.php',

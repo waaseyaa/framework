@@ -538,6 +538,47 @@ the full disposition of a changed artifact set versus changed managed bytes.
 
 Forge, release, and deployment behavior are outside this command.
 
+## Scaffolded content types
+
+`make:content-type <name> --fields=… [--force]` keeps its surface, its generated
+entity and provider semantics, its Indigenous-orthography support, its
+no-overwrite refusal and its next-step output, but it no longer writes anything
+itself (#2789 phase 2). `ContentTypeScaffoldCompiler`
+(`packages/cli/src/Site/Scaffold/`) turns the handler's already-validated input
+into one immutable `ArtifactPlan`, and `SiteInitializationService::initialize()`
+publishes it — the single-invocation flow ADR-025 D-6.5 describes, where
+compile, evaluate and apply happen once in one process through the same
+two-digest gate a transported plan passes. There is one publication engine, not
+a scaffold-shaped second one.
+
+The compiler is a pure function of its validated input plus its own version: no
+filesystem observation, no clock, so the same request always compiles to the
+same plan digest. The unit is `scaffold:content-type:<name>` with disposition
+**seeded** and `Frozen` set evolution. Seeded is the substantive change: D-2.2
+publishes a scaffold exactly once and then treats it as the developer's, so the
+authority never re-renders it and `--force` can no longer overwrite an edited
+scaffold — it only skips the handler's pre-write "already exists" refusal, and
+the run reports the unit unchanged. `ContentTypeScaffoldCompiler` is the first
+member of `SiteInitializationService`'s closed `SEEDED_COMPILERS` admission
+list; a compiler cannot assert its own eligibility to create seeded units.
+
+The provider registration travels in the plan as a D-6.6
+`ComposerProviderRegistration` rather than a `json_decode`/mutate/`json_encode`
+of the application's manifest, so it is enacted inside the same transaction as
+the two files and preserves the application's own `composer.json` bytes and
+formatting. Path containment, unowned-target collision refusal, the durable
+journal, rollback, receipts and both state digests are the authority's, not the
+handler's.
+
+Publication therefore requires an initialized site: unit ownership is recorded
+in `.waaseyaa/generated.json`, and before `site:init` there is no roster to
+record it in, so scaffolding an uninitialized project refuses
+`GEN003_COLLISION_REFUSED` ("A non-root unit requires an initialized site")
+instead of writing ungoverned files. That is the order the canonical lifecycle
+already prescribes.
+
+<!-- Spec reviewed 2026-09-06 - #2789 phase 2: make:content-type is the first seeded-compiler migration ADR-025 D-2.2/D-6.6 anticipated. Two behaviour consequences are deliberate and recorded here rather than hidden: an uninitialized project is now refused, and --force no longer overwrites a published scaffold. Acceptance: MakeContentTypeCustodyTest, plus the unchanged assertions of MakeContentTypeHandlerTest whose fixtures now start from an initialized site. -->
+
 ## Input And Output
 
 Commands use Symfony Console input/output:
