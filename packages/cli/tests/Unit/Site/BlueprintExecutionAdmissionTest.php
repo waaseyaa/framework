@@ -474,6 +474,185 @@ final class BlueprintExecutionAdmissionTest extends TestCase
         $service->readUnitMetadata();
     }
 
+    /**
+     * The reviewed, literal path set `ApplicationBlueprintCompiler` compiles
+     * for `minimal.yaml` today. Frozen here (not re-derived from the plan
+     * under test) so a regression in the compiler's own output, or in the
+     * engine's additive-delta computation, cannot cancel itself out against
+     * a self-referential oracle. Sorted, matching {@see EvaluatedArtifactPlan}'s
+     * sort invariant.
+     *
+     * @var list<string>
+     */
+    private const array MINIMAL_BLUEPRINT_PATHS = [
+        '.waaseyaa/.gitignore',
+        '.waaseyaa/site.schema.json',
+        '.waaseyaa/site.yaml',
+        'AGENTS.md',
+        'bin/maintenance/site-verify',
+        'config/waaseyaa-blueprint/relationships.php',
+        'src/Entity/Article.php',
+        'src/Provider/ApplicationBlueprintServiceProvider.php',
+        'tests/Acceptance/SiteGoldenPathTest.php',
+        'tests/Architecture/SiteContractTest.php',
+        'tests/Blueprint/GovernanceDefaultDenyTest.php',
+    ];
+
+    /**
+     * The reviewed, literal path set `complete.yaml` adds on top of
+     * {@see self::MINIMAL_BLUEPRINT_PATHS}: the `person` entity plus every
+     * governance emitter's output that `minimal.yaml`'s empty
+     * relationships/permissions/roles/policies/workflows/checks sections
+     * never trigger. No path in `MINIMAL_BLUEPRINT_PATHS` is repeated here —
+     * that is the "no drops" half of the contract, asserted explicitly below
+     * rather than assumed from this list's construction.
+     *
+     * @var list<string>
+     */
+    private const array COMPLETE_BLUEPRINT_ADDED_PATHS = [
+        'config/sync/workflows.assignments.yml',
+        'src/Access/ApplicationBlueprintPermissions.php',
+        'src/Access/ArticlePolicy.php',
+        'src/Entity/Enum/ArticleStage.php',
+        'src/Entity/Person.php',
+        'src/Provider/ApplicationBlueprintGovernanceServiceProvider.php',
+        'src/Workflow/EditorialWorkflowDefinition.php',
+        'tests/Blueprint/EntityAccessChecksTest.php',
+        'tests/Blueprint/JsonApiGovernanceChecksTest.php',
+        'tests/Blueprint/RolePermissionChecksTest.php',
+        'tests/Blueprint/WorkflowTransitionChecksTest.php',
+    ];
+
+    #[Test]
+    public function anAdditiveSuccessorBlueprintPublishesTheExactAddedPathSetWithoutDroppingPriorArtifacts(): void
+    {
+        $minimal = $this->manifest();
+        $receiptA = $this->receipt($minimal);
+        $planA = ApplicationBlueprintCompilerFactory::create()->compile($minimal);
+        $service = new SiteInitializationService($this->root);
+        $service->initialize($planA, decisionReceipt: $receiptA);
+
+        $complete = $this->completeManifest();
+        $receiptB = $this->receipt($complete);
+        $planB = ApplicationBlueprintCompilerFactory::create()->compile($complete);
+        $priorPaths = array_map(static fn($artifact): string => $artifact->path, $planA->artifacts);
+        $nextPaths = array_map(static fn($artifact): string => $artifact->path, $planB->artifacts);
+        sort($priorPaths, SORT_STRING);
+        sort($nextPaths, SORT_STRING);
+        $expectedNextPaths = self::MINIMAL_BLUEPRINT_PATHS;
+        array_push($expectedNextPaths, ...self::COMPLETE_BLUEPRINT_ADDED_PATHS);
+        sort($expectedNextPaths, SORT_STRING);
+
+        // The compiled plans themselves must carry the reviewed literal path
+        // sets, independent of anything the execution authority computes.
+        self::assertSame(self::MINIMAL_BLUEPRINT_PATHS, $priorPaths, 'The minimal.yaml compiled plan drifted from its reviewed path set.');
+        self::assertSame($expectedNextPaths, $nextPaths, 'The complete.yaml compiled plan drifted from its reviewed path set.');
+        self::assertSame([], array_values(array_diff(self::MINIMAL_BLUEPRINT_PATHS, $nextPaths)), 'complete.yaml must retain every path minimal.yaml declared.');
+
+        $before = $this->snapshot();
+        $preview = $service->initialize($planB, dryRun: true, decisionReceipt: $receiptB);
+        self::assertSame(ArtifactApplyOutcome::Planned, $preview->applyResult->outcome);
+        self::assertSame([], $preview->evaluation->drops, 'The engine must not report any dropped path for an additive successor.');
+        self::assertSame(self::COMPLETE_BLUEPRINT_ADDED_PATHS, $preview->evaluation->adds, "The engine's own additive delta must equal the reviewed literal added-path set.");
+        self::assertSame($before, $this->snapshot(), 'A preview must never write.');
+        self::assertFileDoesNotExist($this->root . '/.waaseyaa/site-init.transaction.json');
+
+        $applied = $service->initialize($planB, decisionReceipt: $receiptB);
+        self::assertSame(ArtifactApplyOutcome::Applied, $applied->applyResult->outcome);
+        self::assertSame($receiptB->digest(), $applied->receipts[array_key_last($applied->receipts)]->decisionReceiptId);
+        foreach (self::COMPLETE_BLUEPRINT_ADDED_PATHS as $path) {
+            self::assertFileExists($this->root . '/' . $path);
+        }
+        foreach (self::MINIMAL_BLUEPRINT_PATHS as $path) {
+            self::assertFileExists($this->root . '/' . $path);
+        }
+        $metadata = json_decode((string) file_get_contents($this->root . '/.waaseyaa/generated.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertEquals($receiptB->toArray(), $metadata['application_blueprint']['decision_receipt']);
+
+        $replayBefore = $this->snapshot();
+        $replayPreview = $service->initialize($planB, dryRun: true, decisionReceipt: $receiptB);
+        self::assertSame([], $replayPreview->changedPaths);
+        $replay = $service->initialize($planB, decisionReceipt: $receiptB);
+        self::assertSame(ArtifactApplyOutcome::NoChanges, $replay->applyResult->outcome);
+        self::assertSame($receiptB->digest(), $replay->receipts[array_key_last($replay->receipts)]->decisionReceiptId);
+        self::assertSame($replayBefore, $this->snapshot());
+    }
+
+    #[Test]
+    public function aDriftedManagedArtifactRefusesAnOtherwiseValidSuccessorBlueprint(): void
+    {
+        $minimal = $this->manifest();
+        $receiptA = $this->receipt($minimal);
+        $planA = ApplicationBlueprintCompilerFactory::create()->compile($minimal);
+        $service = new SiteInitializationService($this->root);
+        $service->initialize($planA, decisionReceipt: $receiptA);
+        self::assertFileExists($this->root . '/src/Entity/Article.php');
+        file_put_contents($this->root . '/src/Entity/Article.php', "<?php\n// drifted by hand outside any extension region\n");
+
+        $complete = $this->completeManifest();
+        $receiptB = $this->receipt($complete);
+        $planB = ApplicationBlueprintCompilerFactory::create()->compile($complete);
+        $before = $this->snapshot();
+
+        try {
+            $service->evaluate($planB, decisionReceipt: $receiptB);
+            self::fail('Expected the drifted artifact to refuse the successor blueprint.');
+        } catch (SiteInitializationCollisionException $exception) {
+            self::assertStringContainsString('edited outside an extension region', $exception->getMessage());
+        }
+
+        self::assertSame($before, $this->snapshot());
+        self::assertFileDoesNotExist($this->root . '/src/Entity/Person.php');
+    }
+
+    #[Test]
+    public function aSuccessorPublicationFailureRestoresThePriorApprovedBlueprintSnapshot(): void
+    {
+        $minimal = $this->manifest();
+        $receiptA = $this->receipt($minimal);
+        $planA = ApplicationBlueprintCompilerFactory::create()->compile($minimal);
+        new SiteInitializationService($this->root)->initialize($planA, decisionReceipt: $receiptA);
+        $priorSnapshot = $this->snapshot();
+
+        $complete = $this->completeManifest();
+        $receiptB = $this->receipt($complete);
+        $planB = ApplicationBlueprintCompilerFactory::create()->compile($complete);
+        $fault = static function (string $stage): void {
+            if ($stage === 'after-replace') {
+                throw new \RuntimeException('simulated successor publication failure');
+            }
+        };
+
+        try {
+            new SiteInitializationService($this->root, $fault)->initialize($planB, decisionReceipt: $receiptB);
+            self::fail('Expected the simulated successor publication failure.');
+        } catch (SiteInitializationExecutionException $exception) {
+            self::assertCount(2, $exception->receipts);
+            self::assertSame('site.recover', $exception->receipts[0]->operation);
+            self::assertSame('recovered', $exception->receipts[0]->outcome->value);
+            self::assertNull($exception->receipts[0]->decisionReceiptId);
+            self::assertSame('site.init', $exception->receipts[1]->operation);
+            self::assertSame('failed', $exception->receipts[1]->outcome->value);
+            self::assertSame($receiptB->digest(), $exception->receipts[1]->decisionReceiptId);
+            self::assertSame($exception->receipts[0]->receiptId, $exception->receipts[1]->causationReceiptId);
+        }
+
+        self::assertSame($priorSnapshot, $this->snapshot(), 'Rollback must restore the prior approved blueprint snapshot exactly.');
+        $metadata = json_decode((string) file_get_contents($this->root . '/.waaseyaa/generated.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertEquals($receiptA->toArray(), $metadata['application_blueprint']['decision_receipt'], 'Receipt A remains the durable approved state.');
+        self::assertFileDoesNotExist($this->root . '/.waaseyaa/site-init.transaction.json');
+        self::assertSame([], glob($this->root . '/.waaseyaa/site-init-stage-*'));
+    }
+
+    private function completeManifest(): SiteManifest
+    {
+        $yaml = (string) file_get_contents(
+            dirname(__DIR__, 4) . '/site-contract/tests/Fixtures/Blueprint/valid/complete.yaml',
+        );
+
+        return new SiteManifestParser()->parse($yaml, 'complete.yaml');
+    }
+
     private function blueprintFreeYaml(): string
     {
         return strstr(
