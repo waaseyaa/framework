@@ -79,6 +79,31 @@ final class StaleSpecDeferralsGateTest extends TestCase
     }
 
     #[Test]
+    public function strong_phrase_does_not_cross_a_paragraph_boundary(): void
+    {
+        $this->writeSpec("This capability is tracked by\n\nUnrelated reference #9001.\n");
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, $out);
+        self::assertStringNotContainsString('STALE-DEFERRAL', $out);
+    }
+
+    #[Test]
+    public function strong_phrase_does_not_cross_a_sentence_boundary(): void
+    {
+        $this->writeSpec(
+            'This capability is tracked by the architecture registry. '
+            . "Unrelated reference #9001.\n",
+        );
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, $out);
+        self::assertStringNotContainsString('STALE-DEFERRAL', $out);
+    }
+
+    #[Test]
     public function adjacent_after_hash_to_a_closed_issue_warns(): void
     {
         $this->writeSpec("Pagination after #9001 remains a Future-column constraint.\n");
@@ -182,6 +207,19 @@ final class StaleSpecDeferralsGateTest extends TestCase
     }
 
     #[Test]
+    public function historical_subclause_does_not_hide_a_present_deferral(): void
+    {
+        $this->writeSpec(
+            "Although the legacy adapter was removed, pagination waits for #9001.\n",
+        );
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, $out);
+        self::assertStringContainsString('STALE-DEFERRAL', $out);
+    }
+
+    #[Test]
     public function past_tense_did_until_is_not_a_deferral(): void
     {
         $this->writeSpec("`ping` did exactly this until #9001.\n");
@@ -218,6 +256,39 @@ final class StaleSpecDeferralsGateTest extends TestCase
     public function fenced_example_deferrals_are_ignored(): void
     {
         $this->writeSpec("```\nPagination waits for #9001.\n```\n");
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, $out);
+        self::assertStringNotContainsString('STALE-DEFERRAL', $out);
+    }
+
+    #[Test]
+    public function tilde_fenced_example_deferrals_are_ignored(): void
+    {
+        $this->writeSpec("~~~text\nPagination waits for #9001.\n~~~\n");
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, $out);
+        self::assertStringNotContainsString('STALE-DEFERRAL', $out);
+    }
+
+    #[Test]
+    public function shorter_fence_does_not_close_a_longer_fenced_example(): void
+    {
+        $this->writeSpec("````markdown\n```\nPagination waits for #9001.\n```\n````\n");
+
+        [$exit, $out] = $this->runGate();
+
+        self::assertSame(0, $exit, $out);
+        self::assertStringNotContainsString('STALE-DEFERRAL', $out);
+    }
+
+    #[Test]
+    public function unclosed_fenced_example_extends_to_end_of_document(): void
+    {
+        $this->writeSpec("```text\nPagination waits for #9001.\n");
 
         [$exit, $out] = $this->runGate();
 

@@ -208,7 +208,7 @@ function staleSpecMatchDeferrals(string $text): array
 {
     $matches = [];
 
-    $strong = '/\b(blocked on|waits for|tracked by|tracked in)\b.{0,60}?#(\d+)/isu';
+    $strong = '/\b(blocked on|waits for|tracked by|tracked in)\b[^\r\n.!?]{0,60}?#(\d+)/iu';
     if (preg_match_all($strong, $text, $found, PREG_OFFSET_CAPTURE | PREG_SET_ORDER) > 0) {
         foreach ($found as $row) {
             $matches[] = [
@@ -253,7 +253,45 @@ function staleSpecBlankIgnoredRegions(string $content): string
 
     $content = preg_replace_callback('/<!--.*?-->/s', $blank, $content) ?? $content;
 
-    return preg_replace_callback('/```.*?```/s', $blank, $content) ?? $content;
+    $lines = preg_split('/(?<=\n)/', $content);
+    if ($lines === false) {
+        return $content;
+    }
+
+    $fenceCharacter = null;
+    $fenceLength = 0;
+    foreach ($lines as &$line) {
+        $candidate = rtrim($line, "\r\n");
+        if ($fenceCharacter !== null) {
+            $line = $blank([$line]);
+            $closing = sprintf(
+                '/^ {0,3}%s{%d,}[ \t]*$/',
+                preg_quote($fenceCharacter, '/'),
+                $fenceLength,
+            );
+            if (preg_match($closing, $candidate) === 1) {
+                $fenceCharacter = null;
+                $fenceLength = 0;
+            }
+            continue;
+        }
+
+        if (preg_match('/^ {0,3}(`{3,}|~{3,})(.*)$/', $candidate, $match) !== 1) {
+            continue;
+        }
+
+        $fence = $match[1];
+        $fenceCharacter = $fence[0];
+        if ($fenceCharacter === '`' && str_contains($match[2], '`')) {
+            $fenceCharacter = null;
+            continue;
+        }
+        $fenceLength = strlen($fence);
+        $line = $blank([$line]);
+    }
+    unset($line);
+
+    return implode('', $lines);
 }
 
 function staleSpecClauseAt(string $text, int $offset): string
@@ -261,7 +299,7 @@ function staleSpecClauseAt(string $text, int $offset): string
     $start = $offset;
     while ($start > 0) {
         $ch = $text[$start - 1];
-        if ($ch === '.' || $ch === "\n") {
+        if (str_contains(".,;:\n", $ch)) {
             break;
         }
         --$start;
@@ -271,8 +309,8 @@ function staleSpecClauseAt(string $text, int $offset): string
     $length = strlen($text);
     while ($end < $length) {
         $ch = $text[$end];
-        if ($ch === '.') {
-            ++$end;
+        if (str_contains(".!?;\n", $ch)) {
+            $end += $ch === "\n" ? 0 : 1;
             break;
         }
         ++$end;
