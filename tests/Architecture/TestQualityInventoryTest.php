@@ -36,8 +36,13 @@ final class TestQualityInventoryTest extends TestCase
         // 6 before #2658; the seventh is the built-in-server readiness handshake
         // in LocalOperatorHttpSapiRefusalTest, and the eighth is #2659's stdio
         // MCP conformance harness (subprocess-exit + response-frame polling),
-        // both classified as subprocess_polling.
-        self::assertCount(8, array_merge(
+        // both classified as subprocess_polling. The ninth is #2913's
+        // QualifyCandidateRunnerTest: a fixed 200ms micro-sleep call appears
+        // only as a string literal inside disposable php -r concurrency-proof
+        // children. The tenth is #2937's fixed 20ms fork-child delay used to
+        // prove that already-launched children are reaped. Neither is a retry
+        // loop (see bin/test-quality-inventory).
+        self::assertCount(10, array_merge(
             $inventory['determinism']['waits']['subprocess_polling'],
             $inventory['determinism']['waits']['filesystem_retry'],
         ));

@@ -4,8 +4,10 @@ namespace Waaseyaa\Foundation\Tests\Unit\Discovery;
 
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Discovery\MalformedConfigContractException;
+use Waaseyaa\Foundation\Discovery\MalformedPermissionManifestException;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Discovery\PermissionManifestCollisionException;
 use Waaseyaa\Foundation\Discovery\PolicyManifestMismatchException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
@@ -501,6 +503,10 @@ final class PackageManifestCompilerTest extends TestCase
         $storagePath = $this->tempDir . '/storage';
         mkdir($storagePath . '/framework', 0o755, true);
 
+        // A cache is trusted only with a VALID fingerprint that matches the
+        // current inputs (#2788 cache custody); this temp root has no
+        // composer.json, installed.json or autoload dumps, so every input is
+        // the empty string.
         $data = [
             'providers' => [\stdClass::class],
             'migrations' => [],
@@ -508,6 +514,7 @@ final class PackageManifestCompilerTest extends TestCase
             'middleware' => [],
             'permissions' => [],
             'policies' => [],
+            '_manifest_inputs_fp' => hash('xxh128', implode("\0", ['', '', '', '', ''])),
         ];
 
         file_put_contents(
@@ -1342,6 +1349,326 @@ final class PackageManifestCompilerTest extends TestCase
         $this->assertCount(3, $manifest->permissions);
         $this->assertSame('Access published content', $manifest->permissions['access content']['title']);
         $this->assertSame('Administer users', $manifest->permissions['administer users']['title']);
+    }
+
+    /**
+     * #2788 review: the manifest is the first custody boundary for permission
+     * ownership. Two installed packages declaring the same id previously let
+     * the later `installed.json` entry silently overwrite the earlier one;
+     * the compiler now refuses with both owners named in installed order.
+     */
+    #[Test]
+    public function compile_refuses_a_permission_declared_by_two_installed_packages(): void
+    {
+        file_put_contents($this->tempDir . '/vendor/composer/installed.json', json_encode(['packages' => [
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+            ['name' => 'acme/blog', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Read the blog']]]]],
+        ]], JSON_THROW_ON_ERROR));
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+
+        try {
+            $compiler->compile();
+            $this->fail('Expected a PermissionManifestCollisionException.');
+        } catch (PermissionManifestCollisionException $exception) {
+            $this->assertStringContainsString('PERMISSION_MANIFEST_COLLISION', $exception->getMessage());
+            $this->assertStringContainsString('"access content"', $exception->getMessage());
+            $this->assertStringContainsString('waaseyaa/node', $exception->getMessage());
+            $this->assertStringContainsString('acme/blog', $exception->getMessage());
+            $this->assertLessThan(
+                strpos($exception->getMessage(), 'acme/blog'),
+                strpos($exception->getMessage(), 'waaseyaa/node'),
+                'the first declaring package is named as the existing owner',
+            );
+        }
+        $this->assertFileDoesNotExist($this->tempDir . '/storage/framework/packages.php', 'nothing is cached on refusal');
+    }
+
+    #[Test]
+    public function compile_refuses_a_root_permission_that_an_installed_package_already_declares(): void
+    {
+        file_put_contents($this->tempDir . '/vendor/composer/installed.json', json_encode(['packages' => [
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]], JSON_THROW_ON_ERROR));
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Root override']]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+
+        try {
+            $compiler->compile();
+            $this->fail('Expected a PermissionManifestCollisionException.');
+        } catch (PermissionManifestCollisionException $exception) {
+            $this->assertStringContainsString('"access content"', $exception->getMessage());
+            $this->assertStringContainsString('waaseyaa/node', $exception->getMessage());
+            $this->assertStringContainsString('root composer.json (extra.waaseyaa)', $exception->getMessage());
+        }
+    }
+
+    /**
+     * #2788 follow-up: permission admission is centralized and fail-closed for
+     * every manifest source. A catalogue that is not an object/array, an
+     * invalid id, or a malformed definition is refused at compile time naming
+     * the owning source — never silently skipped or coerced.
+     */
+    #[Test]
+    public function compile_refuses_a_non_array_package_permission_catalogue(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'acme/blog', 'extra' => ['waaseyaa' => ['permissions' => 'read the blog']]],
+        ]);
+
+        try {
+            (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+            $this->fail('Expected a MalformedPermissionManifestException.');
+        } catch (MalformedPermissionManifestException $exception) {
+            $this->assertStringContainsString('PERMISSION_MANIFEST_MALFORMED', $exception->getMessage());
+            $this->assertStringContainsString('acme/blog', $exception->getMessage());
+            $this->assertStringContainsString('must be an object', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function compile_refuses_a_non_array_root_permission_catalogue(): void
+    {
+        $this->writeInstalled([]);
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => 'read the blog']],
+        ], JSON_THROW_ON_ERROR));
+
+        try {
+            (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+            $this->fail('Expected a MalformedPermissionManifestException.');
+        } catch (MalformedPermissionManifestException $exception) {
+            $this->assertStringContainsString('root composer.json (extra.waaseyaa)', $exception->getMessage());
+            $this->assertStringContainsString('must be an object', $exception->getMessage());
+        }
+    }
+
+    /**
+     * #2788 final follow-up: cache custody. The byte-identical cached-root
+     * re-merge exemption is only safe once a VALID fingerprint proved the cache
+     * was compiled from exactly the current inputs. A legacy or incomplete
+     * cache (no fingerprint, or a non-string one) carrying a package-owned
+     * permission that the root now also declares must recompile — and refuse
+     * as a package/root collision — never be read as unchanged root ownership.
+     *
+     * @return iterable<string, array{0: mixed}>
+     */
+    public static function invalidCacheFingerprints(): iterable
+    {
+        yield 'missing fingerprint' => [null];
+        yield 'non-string fingerprint' => [42];
+        yield 'array fingerprint' => [['stale']];
+    }
+
+    /** @param mixed $fingerprint */
+    #[Test]
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidCacheFingerprints')]
+    public function load_treats_a_cache_without_a_valid_fingerprint_as_stale_and_recompiles_through_collision_refusal(mixed $fingerprint): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]);
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]],
+        ], JSON_THROW_ON_ERROR));
+        $this->writeLegacyCache(['access content' => ['title' => 'Access published content']], $fingerprint);
+
+        $this->expectException(PermissionManifestCollisionException::class);
+        $this->expectExceptionMessage('waaseyaa/node');
+        (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->load();
+    }
+
+    /** A valid, exactly matching fingerprint keeps cache reuse and unchanged-root idempotency. */
+    #[Test]
+    public function load_reuses_a_cache_whose_fingerprint_matches_and_remerges_the_unchanged_root_idempotently(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]);
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['operate the root' => ['title' => 'Operate the root']]]],
+        ], JSON_THROW_ON_ERROR));
+        $storage = $this->tempDir . '/storage';
+
+        // load() compiles and writes the cache on a cold storage directory.
+        (new PackageManifestCompiler($this->tempDir, $storage))->load();
+        $cached = require $storage . '/framework/packages.php';
+        $this->assertIsString($cached['_manifest_inputs_fp']);
+        $cachedMtime = filemtime($storage . '/framework/packages.php');
+
+        $loaded = (new PackageManifestCompiler($this->tempDir, $storage))->load();
+
+        $this->assertSame(
+            ['access content' => ['title' => 'Access published content'], 'operate the root' => ['title' => 'Operate the root']],
+            $loaded->permissions,
+        );
+        clearstatcache(true, $storage . '/framework/packages.php');
+        $this->assertSame($cachedMtime, filemtime($storage . '/framework/packages.php'), 'a matching fingerprint reuses the cache without rewriting it');
+        $this->assertSame($cached, require $storage . '/framework/packages.php');
+    }
+
+    /** @param array<string, mixed> $permissions */
+    private function writeLegacyCache(array $permissions, mixed $fingerprint): void
+    {
+        $storage = $this->tempDir . '/storage';
+        mkdir($storage . '/framework', 0o755, true);
+        $data = [
+            'providers' => [],
+            'migrations' => [],
+            'field_types' => [],
+            'middleware' => [],
+            'permissions' => $permissions,
+            'policies' => [],
+        ];
+        if ($fingerprint !== null) {
+            $data['_manifest_inputs_fp'] = $fingerprint;
+        }
+        file_put_contents($storage . '/framework/packages.php', '<?php return ' . var_export($data, true) . ';' . "\n");
+    }
+
+    /** @return iterable<string, array{0: mixed, 1: string}> */
+    public static function malformedPermissionCatalogues(): iterable
+    {
+        yield 'padded id' => [[' access content' => ['title' => 'Access']], 'invalid permission id'];
+        yield 'integer key' => [[7 => ['title' => 'Access']], 'invalid permission id'];
+        yield 'non-array definition' => [['access content' => 'Access'], 'must be an array'];
+        yield 'missing title' => [['access content' => ['description' => 'x']], 'non-empty string "title"'];
+        yield 'non-string description' => [['access content' => ['title' => 'Access', 'description' => 1]], '"description" must be a string'];
+        yield 'unknown member' => [['access content' => ['title' => 'Access', 'scope' => 'site']], 'unknown member "scope"'];
+    }
+
+    /** @param mixed $catalogue */
+    #[Test]
+    #[\PHPUnit\Framework\Attributes\DataProvider('malformedPermissionCatalogues')]
+    public function compile_refuses_a_malformed_package_permission_entry_naming_the_package(mixed $catalogue, string $expected): void
+    {
+        $this->writeInstalled([
+            ['name' => 'acme/blog', 'extra' => ['waaseyaa' => ['permissions' => $catalogue]]],
+        ]);
+
+        try {
+            (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+            $this->fail('Expected a MalformedPermissionManifestException.');
+        } catch (MalformedPermissionManifestException $exception) {
+            $this->assertStringContainsString('acme/blog', $exception->getMessage());
+            $this->assertStringContainsString($expected, $exception->getMessage());
+        }
+        $this->assertFileDoesNotExist($this->tempDir . '/storage/framework/packages.php', 'nothing is cached on refusal');
+    }
+
+    /** @param mixed $catalogue */
+    #[Test]
+    #[\PHPUnit\Framework\Attributes\DataProvider('malformedPermissionCatalogues')]
+    public function compile_refuses_a_malformed_root_permission_entry_naming_the_root(mixed $catalogue, string $expected): void
+    {
+        $this->writeInstalled([]);
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => $catalogue]],
+        ], JSON_THROW_ON_ERROR));
+
+        try {
+            (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+            $this->fail('Expected a MalformedPermissionManifestException.');
+        } catch (MalformedPermissionManifestException $exception) {
+            $this->assertStringContainsString('root composer.json (extra.waaseyaa)', $exception->getMessage());
+            $this->assertStringContainsString($expected, $exception->getMessage());
+        }
+    }
+
+    /** A malformed REdeclaration is still a collision: duplicate custody is decided before the redeclared shape is inspected. */
+    #[Test]
+    public function compile_reports_a_collision_before_inspecting_a_malformed_redeclaration(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+            ['name' => 'acme/blog', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => 'not even an array']]]],
+        ]);
+
+        try {
+            (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+            $this->fail('Expected a PermissionManifestCollisionException.');
+        } catch (PermissionManifestCollisionException $exception) {
+            $this->assertStringContainsString('waaseyaa/node', $exception->getMessage());
+            $this->assertStringContainsString('acme/blog', $exception->getMessage());
+        }
+
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['scope' => 'malformed root redeclaration']]]],
+        ], JSON_THROW_ON_ERROR));
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]);
+
+        try {
+            (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+            $this->fail('Expected a PermissionManifestCollisionException.');
+        } catch (PermissionManifestCollisionException $exception) {
+            $this->assertStringContainsString('waaseyaa/node', $exception->getMessage());
+            $this->assertStringContainsString('root composer.json (extra.waaseyaa)', $exception->getMessage());
+        }
+    }
+
+    /** A changed root declaration invalidates the cache and recompiles through the same fail-closed admission. */
+    #[Test]
+    public function load_recompiles_a_changed_root_permission_and_refuses_a_root_declaration_that_now_collides(): void
+    {
+        $this->writeInstalled([
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]);
+        $writeRoot = function (array $permissions): void {
+            file_put_contents($this->tempDir . '/composer.json', json_encode([
+                'name' => 'test/root',
+                'extra' => ['waaseyaa' => ['permissions' => $permissions]],
+            ], JSON_THROW_ON_ERROR));
+        };
+        $storage = $this->tempDir . '/storage';
+
+        $writeRoot(['operate the root' => ['title' => 'Operate the root']]);
+        (new PackageManifestCompiler($this->tempDir, $storage))->compile();
+        $this->assertSame('Operate the root', (new PackageManifestCompiler($this->tempDir, $storage))->load()->permissions['operate the root']['title']);
+
+        $writeRoot(['operate the root' => ['title' => 'Operate the root (renamed)']]);
+        $this->assertSame(
+            'Operate the root (renamed)',
+            (new PackageManifestCompiler($this->tempDir, $storage))->load()->permissions['operate the root']['title'],
+            'a changed root declaration must invalidate the cache',
+        );
+
+        $writeRoot(['access content' => ['title' => 'Root override']]);
+        $this->expectException(PermissionManifestCollisionException::class);
+        (new PackageManifestCompiler($this->tempDir, $storage))->load();
+    }
+
+    /** A root declaration that collides with nothing is still merged, cached, and reloaded unchanged. */
+    #[Test]
+    public function compile_and_load_keep_a_distinct_root_permission_alongside_package_permissions(): void
+    {
+        file_put_contents($this->tempDir . '/vendor/composer/installed.json', json_encode(['packages' => [
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]], JSON_THROW_ON_ERROR));
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['operate the root' => ['title' => 'Operate the root']]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $compiled = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+        $loaded = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->load();
+
+        $expected = [
+            'access content' => ['title' => 'Access published content'],
+            'operate the root' => ['title' => 'Operate the root'],
+        ];
+        $this->assertSame($expected, $compiled->permissions);
+        $this->assertSame($expected, $loaded->permissions, 'reloading re-merges the root declaration idempotently');
     }
 
     #[Test]

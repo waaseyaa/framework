@@ -123,8 +123,14 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
             $this->git($fixture, ['commit', '-m', 'fixture: projection baseline']);
             self::assertSame('false', trim($this->git($fixture, ['rev-parse', '--is-shallow-repository'])));
             $fs->copy($root . '/bin/project-delivery-agent-events', $fixture . '/bin/project-delivery-agent-events', true);
-            $fs->mkdir($fixture . '/vendor');
-            $fs->dumpFile($fixture . '/vendor/autoload.php', '<?php require ' . var_export($root . '/vendor/autoload.php', true) . ";\n");
+            // The real vendor/ (not an autoload.php shim): the clone carries the
+            // repository's composer.json/composer.lock, and the ledger gate the
+            // projector shells out to runs the vendor-freshness precondition
+            // (#2926) against vendor/composer/installed.json and the dumped
+            // PSR-4 map before it touches the autoloader. On a machine whose
+            // vendor/ is stale this test therefore fails with that gate's exit-3
+            // "run composer install" message — not a fixture bug.
+            self::assertTrue(symlink($root . '/vendor', $fixture . '/vendor'));
 
             $ledgerLines = file($fixture . '/ops/observability/delivery-agent-events-v1.jsonl', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             self::assertIsArray($ledgerLines);
@@ -137,16 +143,37 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
                 }
             }
             self::assertIsArray($event);
+            // The prospective timing-completeness rule (FW-DELIVERY-TIMING-
+            // COMPLETENESS-01) requires a batch-sourced substantive_review_issued
+            // to carry elapsed_ms derived from a matching review_started cause in
+            // the same batch: explicit occurred_at on both, identical repository/
+            // pull_request/head_sha, and an exact computed duration.
+            $start = $event;
+            $start['event_id'] = '99999999-9999-4999-8999-999999999999';
+            $start['event_type'] = 'review_started';
+            $start['recorded_at'] = '2099-01-01T00:00:00+00:00';
+            $start['occurred_at'] = '2099-01-01T00:00:00+00:00';
+            $start['causation_event_id'] = null;
+            $start['outcome'] = null;
+            $start['finding_count'] = null;
+            $start['token_count'] = null;
+            $start['elapsed_ms'] = null;
+            $start['notes'] = null;
+            $start['verification'] = null;
+            $start['adjudication'] = null;
+
             $event['event_id'] = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-            $event['recorded_at'] = '2099-01-01T00:00:00+00:00';
-            $event['occurred_at'] = null;
+            $event['recorded_at'] = '2099-01-01T00:05:00+00:00';
+            $event['occurred_at'] = '2099-01-01T00:05:00+00:00';
+            $event['causation_event_id'] = $start['event_id'];
+            $event['elapsed_ms'] = 300000;
             $batchId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
             $batch = [
                 'schema_version' => 'delivery-agent-batch/v1',
                 'batch_id' => $batchId,
                 'created_at' => '2099-01-01T00:00:01+00:00',
                 'producer' => ['kind' => 'test', 'name' => 'projection fixture', 'model' => null],
-                'events' => [$event],
+                'events' => [$start, $event],
             ];
             $batchPath = $fixture . '/ops/observability/delivery-agent-batches-v1/' . $batchId . '.json';
             $batchBytes = json_encode($batch, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
@@ -159,6 +186,7 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
             $environment = ['WAASEYAA_DELIVERY_TELEMETRY_DSN' => 'sqlite:' . $database];
             self::assertSame(0, $this->project($fixture, $environment, ['install'])->getExitCode());
             $plan = $this->project($fixture, $environment, ['plan', '--source-ref=' . $source]);
+            self::assertSame(0, $plan->getExitCode(), $plan->getErrorOutput());
             self::assertSame('drift', json_decode($plan->getOutput(), true, flags: JSON_THROW_ON_ERROR)['outcome']);
             $fs->dumpFile($batchPath, "{\"poisoned\":true}\n");
             $applied = $this->project($fixture, $environment, ['apply', '--source-ref=' . $source]);
@@ -208,8 +236,14 @@ final class DeliveryAgentBatchProjectionTest extends TestCase
             $this->git($fixture, ['commit', '--allow-empty', '-m', 'fixture: legacy accepted source']);
             self::assertSame('false', trim($this->git($fixture, ['rev-parse', '--is-shallow-repository'])));
             $fs->copy($root . '/bin/project-delivery-agent-events', $fixture . '/bin/project-delivery-agent-events', true);
-            $fs->mkdir($fixture . '/vendor');
-            $fs->dumpFile($fixture . '/vendor/autoload.php', '<?php require ' . var_export($root . '/vendor/autoload.php', true) . ";\n");
+            // The real vendor/ (not an autoload.php shim): the clone carries the
+            // repository's composer.json/composer.lock, and the ledger gate the
+            // projector shells out to runs the vendor-freshness precondition
+            // (#2926) against vendor/composer/installed.json and the dumped
+            // PSR-4 map before it touches the autoloader. On a machine whose
+            // vendor/ is stale this test therefore fails with that gate's exit-3
+            // "run composer install" message — not a fixture bug.
+            self::assertTrue(symlink($root . '/vendor', $fixture . '/vendor'));
 
             $legacySource = trim($this->git($fixture, ['rev-parse', 'HEAD']));
             $database = $fixture . '/projection.sqlite';

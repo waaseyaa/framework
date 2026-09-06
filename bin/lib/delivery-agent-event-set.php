@@ -449,3 +449,93 @@ function delivery_agent_parse_v1_ledger_events(string $contents): array
 
     return $events;
 }
+
+/**
+ * Trustworthy elapsed_ms for FUTURE substantive_review_issued and
+ * repair_completed events (#2902 batch path only; the frozen v1 ledger is
+ * immutable and never passed through this rule). The declared elapsed_ms
+ * must be computed, not asserted: an explicit causation_event_id must name
+ * the authoritative start event for that event type (review_started for
+ * substantive_review_issued, repair_started for repair_completed), sharing
+ * repository and pull_request; a review's start must additionally share
+ * head_sha (repair may legitimately cross head SHAs). Both the start and end
+ * events must carry an explicit occurred_at — recorded_at is custody time,
+ * never a stand-in for occurrence. The computed duration must be
+ * non-negative and match the declared value exactly.
+ *
+ * @param array<string, mixed> $event
+ * @param array<string, array<string, mixed>> $eventsById
+ * @return list<string>
+ */
+function delivery_agent_elapsed_ms_errors(array $event, array $eventsById): array
+{
+    $requiredStart = match ($event['event_type'] ?? null) {
+        'substantive_review_issued' => 'review_started',
+        'repair_completed' => 'repair_started',
+        default => null,
+    };
+    if ($requiredStart === null) {
+        return [];
+    }
+    $id = (string) ($event['event_id'] ?? '(unknown)');
+    $elapsedMs = $event['elapsed_ms'] ?? null;
+    if ($elapsedMs === null) {
+        return [sprintf(
+            'event %s: %s requires elapsed_ms derived from its %s event',
+            $id,
+            (string) $event['event_type'],
+            $requiredStart,
+        )];
+    }
+    $causeId = $event['causation_event_id'] ?? null;
+    if (!is_string($causeId) || $causeId === '') {
+        return ["event {$id}: elapsed_ms requires a causation_event_id naming its {$requiredStart} start event"];
+    }
+    $cause = $eventsById[$causeId] ?? null;
+    if (!is_array($cause)) {
+        return ["event {$id}: elapsed_ms causation_event_id {$causeId} does not name a known event"];
+    }
+
+    $errors = [];
+    if (($cause['event_type'] ?? null) !== $requiredStart) {
+        $errors[] = sprintf(
+            'event %s: elapsed_ms must be caused by a %s event, not %s',
+            $id,
+            $requiredStart,
+            (string) ($cause['event_type'] ?? 'null'),
+        );
+    }
+    if (($cause['repository'] ?? null) !== ($event['repository'] ?? null) || ($cause['pull_request'] ?? null) !== ($event['pull_request'] ?? null)) {
+        $errors[] = "event {$id}: elapsed_ms start event repository or pull_request differs from the completion event";
+    }
+    if (($event['event_type'] ?? null) === 'substantive_review_issued' && ($cause['head_sha'] ?? null) !== ($event['head_sha'] ?? null)) {
+        $errors[] = "event {$id}: elapsed_ms start event head_sha differs from the completion event";
+    }
+
+    $startOccurred = $cause['occurred_at'] ?? null;
+    $endOccurred = $event['occurred_at'] ?? null;
+    if (!is_string($startOccurred) || !is_string($endOccurred)) {
+        $errors[] = "event {$id}: elapsed_ms requires explicit occurred_at on both itself and its {$requiredStart} start event";
+
+        return $errors;
+    }
+
+    $start = new DateTimeImmutable($startOccurred);
+    $end = new DateTimeImmutable($endOccurred);
+    $deltaMs = (int) round(((float) $end->format('U.u') - (float) $start->format('U.u')) * 1000);
+    if ($deltaMs < 0) {
+        $errors[] = "event {$id}: elapsed_ms start event occurs after the completion event";
+
+        return $errors;
+    }
+    if ($deltaMs !== $elapsedMs) {
+        $errors[] = sprintf(
+            'event %s: elapsed_ms %d does not match the computed duration %d between its start and end timestamps',
+            $id,
+            $elapsedMs,
+            $deltaMs,
+        );
+    }
+
+    return $errors;
+}

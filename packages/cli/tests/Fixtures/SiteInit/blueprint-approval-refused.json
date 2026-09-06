@@ -1,0 +1,11 @@
+{
+    "errors": [
+        {
+            "code": "GEN011_UNAUTHORIZED_SET_DELTA",
+            "message": "Blueprint execution requires its declared compiler and a matching approved decision receipt."
+        }
+    ],
+    "evaluation": null,
+    "receipts": [],
+    "result": null
+}

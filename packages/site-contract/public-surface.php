@@ -8,6 +8,7 @@ declare(strict_types=1);
 // authority — see docs/specs/public-surface-declarations.md.
 return [
     'entries' => [
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintAppliedEvidence', 'disposition' => 'public', 'purpose' => 'Closed generated-metadata evidence that a digest-bound approved application blueprint was applied', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintCheckKind', 'disposition' => 'public', 'ref' => '#2785'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintConditionKind', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Blueprint\\BlueprintDecision', 'disposition' => 'public'],
@@ -24,6 +25,7 @@ return [
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\ChangeOutcome', 'disposition' => 'public', 'purpose' => 'Closed applied/no_op/refused/failed/recovered governed-change receipt outcome'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\Exception\\GenerationErrorCode', 'disposition' => 'public', 'purpose' => 'Closed GEN001-GEN015 refusal ids for the generation execution and plan boundary, reserved by ADR-025 D-5', 'ref' => '#2846'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\GenerationUnitDisposition', 'disposition' => 'public', 'purpose' => 'Closed managed/seeded vocabulary for how a generation unit\'s artifacts are treated after publication'],
+        ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\GeneratorFeatureNegotiation', 'disposition' => 'public', 'purpose' => 'Fail-closed generator-feature negotiation refusing an unadvertised required token before any render, lock, journal or write', 'ref' => '#2787'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\ObservedTargetMode', 'disposition' => 'public', 'purpose' => 'Closed 0644/0755/other/unknown record of the permission bits evaluation observed'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\ObservedTargetState', 'disposition' => 'public', 'purpose' => 'Closed absent/file/other record of what evaluation observed at one target path'],
         ['fqcn' => 'Waaseyaa\\SiteContract\\Generation\\SiteRecipeRendererInterface', 'disposition' => 'public'],

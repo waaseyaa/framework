@@ -12,6 +12,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\AttachmentRepository;
 use Waaseyaa\Attachment\Schema\AttachmentSchema;
+use Waaseyaa\Attachment\Tests\Support\ForkChildDiagnostics;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -46,6 +47,8 @@ final class SaveActiveConcurrencyTest extends TestCase
 {
     private string $dbPath;
 
+    private string $scratchDirectory = '';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -57,22 +60,32 @@ final class SaveActiveConcurrencyTest extends TestCase
             );
         }
 
-        $this->dbPath = sys_get_temp_dir() . '/waaseyaa_attachment_save_concurrency_' . uniqid('', true) . '.sqlite';
+        $this->scratchDirectory = sys_get_temp_dir()
+            . '/waaseyaa_attachment_save_concurrency_'
+            . uniqid('', true);
+        mkdir($this->scratchDirectory, 0o700, true);
+        $this->dbPath = $this->scratchDirectory . '/concurrency.sqlite';
     }
 
     protected function tearDown(): void
     {
-        parent::tearDown();
-
-        if (file_exists($this->dbPath)) {
-            @unlink($this->dbPath);
-        }
-
-        foreach (['-wal', '-shm'] as $suffix) {
-            if (file_exists($this->dbPath . $suffix)) {
-                @unlink($this->dbPath . $suffix);
+        if ($this->scratchDirectory !== '' && is_dir($this->scratchDirectory)) {
+            foreach (glob($this->scratchDirectory . '/*') ?: [] as $path) {
+                if (is_file($path)) {
+                    @unlink($path);
+                } elseif (is_dir($path)) {
+                    foreach (glob($path . '/*') ?: [] as $nested) {
+                        if (is_file($nested)) {
+                            @unlink($nested);
+                        }
+                    }
+                    @rmdir($path);
+                }
             }
+            @rmdir($this->scratchDirectory);
         }
+
+        parent::tearDown();
     }
 
     /**
@@ -91,23 +104,36 @@ final class SaveActiveConcurrencyTest extends TestCase
         $schema = new AttachmentSchema($database);
         $schema->ensureTable();
 
-        unset($database);
+        // Release the parent setup connection before forking. AttachmentSchema
+        // retains the DatabaseInterface reference until it is unset; close and
+        // unset both before pcntl_fork() (see SaveActiveConcurrencyDiagnosticsTest).
+        $database->getConnection()->close();
+        unset($database, $schema);
+
+        $diagnostics = ForkChildDiagnostics::createInDirectory($this->scratchDirectory);
 
         $processCount = 30;
-        $pids = [];
+        $pidToChildIndex = [];
         for ($i = 0; $i < $processCount; $i++) {
             $pid = pcntl_fork();
 
             if ($pid === -1) {
-                self::fail('pcntl_fork() failed — cannot run concurrency test.');
+                $launchedFailures = $diagnostics->waitReapAndCollectFailures($pidToChildIndex);
+                $message = 'pcntl_fork() failed — cannot run concurrency test.';
+                if ($launchedFailures !== []) {
+                    $message .= "\n" . $diagnostics->formatBoundedSummary($launchedFailures);
+                }
+                self::fail($message);
             }
 
             if ($pid === 0) {
+                $stage = 'connect';
                 try {
                     $childDb = DBALDatabase::createSqlite($this->dbPath);
                     $childDb->getConnection()->executeStatement('PRAGMA journal_mode=WAL');
                     $childDb->getConnection()->executeStatement('PRAGMA busy_timeout=5000');
 
+                    $stage = 'repository-setup';
                     $entityType = EntityType::fromClass(Attachment::class);
                     $resolver = new SingleConnectionResolver($childDb);
                     $driver = new SqlStorageDriver($resolver, 'id');
@@ -124,6 +150,7 @@ final class SaveActiveConcurrencyTest extends TestCase
                         database: $childDb,
                     );
 
+                    $stage = 'save';
                     $attachment = new Attachment([
                         'parent_entity_type' => 'node',
                         'parent_entity_id' => '1',
@@ -134,18 +161,22 @@ final class SaveActiveConcurrencyTest extends TestCase
                     ]);
                     $attachment->enforceIsNew();
                     $repository->save($attachment);
-                } catch (\Throwable) {
-                    exit(1);
+                } catch (\Throwable $exception) {
+                    $diagnostics->childExitWithFailure($i, $stage, $exception);
                 }
 
                 exit(0);
             }
 
-            $pids[] = $pid;
+            $pidToChildIndex[$pid] = $i;
         }
 
-        foreach ($pids as $pid) {
-            pcntl_waitpid($pid, $childStatus);
+        $childFailures = $diagnostics->waitReapAndCollectFailures($pidToChildIndex);
+        if ($childFailures !== []) {
+            self::fail(
+                "One or more fork children failed before row assertions:\n"
+                . $diagnostics->formatBoundedSummary($childFailures),
+            );
         }
 
         $assertDb = DBALDatabase::createSqlite($this->dbPath);
@@ -170,5 +201,7 @@ final class SaveActiveConcurrencyTest extends TestCase
             $activeRows,
             'Exactly one attachment must be active after concurrent new-active saves.',
         );
+
+        $diagnostics->cleanup();
     }
 }

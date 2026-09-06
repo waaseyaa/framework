@@ -619,12 +619,6 @@ parameters:
 			path: packages/foundation/src/Discovery/PackageManifestCompiler.php
 
 		-
-			message: '#^Parameter &\$permissions by\-ref type of method Waaseyaa\\Foundation\\Discovery\\PackageManifestCompiler\:\:mergeRootWaaseyaaIntoLists\(\) expects array\<string, array\{title\: string, description\?\: string\}\>, non\-empty\-array\<string, array\<mixed\>\> given\.$#'
-			identifier: parameterByRef.type
-			count: 1
-			path: packages/foundation/src/Discovery/PackageManifestCompiler.php
-
-		-
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 2

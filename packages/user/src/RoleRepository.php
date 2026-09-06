@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\User;
 
+use Waaseyaa\Access\PermissionHandlerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
 
 /**
@@ -62,6 +63,33 @@ final class RoleRepository
         }
 
         return $repository;
+    }
+
+    /**
+     * Refuse any role granting a permission the shared catalogue does not
+     * declare (#2788 G1). The kernel calls this at boot so an unknown
+     * permission string can never be stamped onto an account by
+     * `user:assign-role`; every offending (role, permission) pair is named.
+     *
+     * @throws \LogicException
+     */
+    public function assertPermissionsCatalogued(PermissionHandlerInterface $catalogue): void
+    {
+        $unknown = [];
+        foreach ($this->roles as $role) {
+            foreach ($role->permissions as $permission) {
+                if (!$catalogue->hasPermission($permission)) {
+                    $unknown[] = sprintf('Role "%s" grants permission "%s"', $role->id, $permission);
+                }
+            }
+        }
+
+        if ($unknown !== []) {
+            throw new \LogicException(
+                implode('; ', $unknown)
+                . ', which no permission catalogue declares. Declare it through extra.waaseyaa.permissions or a provider implementing ProvidesPermissionsInterface.',
+            );
+        }
     }
 
     /**

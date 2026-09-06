@@ -41,7 +41,7 @@ application_blueprint:
           type: string
           required: true
           indexed: true
-        - id: status
+        - id: stage
           type: enum
           values: [draft, final]
     - id: person
@@ -78,6 +78,18 @@ application_blueprint:
       label: Viewer
       permissions: [view article]
   policies:
+    - id: article_create
+      entity: article
+      operation: create
+      condition:
+        kind: permission
+        permission: edit article
+    - id: article_delete_own
+      entity: article
+      operation: delete
+      condition:
+        kind: ownership
+        permission: edit article
     - id: article_view
       entity: article
       operation: view
@@ -117,11 +129,13 @@ application_blueprint:
       entity: article
       values:
         title: Welcome
-        status: draft
+        stage: draft
         author: jane
       workflow_state: draft
   checks:
     - { id: editor_publishes, kind: role_permission, role: editor, permission: use editorial transition publish, expect: granted }
     - { id: viewer_cannot_publish, kind: workflow_transition, role: viewer, workflow: editorial, transition: publish, expect: denied }
+    - { id: editor_can_publish, kind: workflow_transition, role: editor, workflow: editorial, transition: publish, expect: allowed }
     - { id: anon_cannot_update, kind: entity_access, role: viewer, entity: article, operation: update, fixture: welcome, expect: deny }
+    - { id: editor_can_update_draft, kind: entity_access, role: editor, entity: article, operation: update, fixture: welcome, expect: allow }
     - { id: welcome_exists, kind: fixture_present, fixture: welcome }

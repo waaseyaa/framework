@@ -142,6 +142,11 @@ final class ConsoleKernelTest extends TestCase
         // already materialized the database by that point.
         yield 'site:doctor' => ['site:doctor', ['--strict', '--format=json']];
         yield 'site:init' => ['site:init', ['--dry-run']];
+        // #2789: site:apply executes a reviewed request emitted by an earlier
+        // process. It refuses this argument-less invocation, and the point of
+        // the case is that it refuses it without opening a database: an apply
+        // boundary that booted would create the file the phase precedes.
+        yield 'site:apply' => ['site:apply', []];
     }
 
     #[Test]

@@ -35,7 +35,7 @@ final class PhpUnitSkipPolicyTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString(
-            'phpunit-skip-policy: OK required_hosted=3 allowed=43 discovered=43',
+            'phpunit-skip-policy: OK required_hosted=3 allowed=48 discovered=48',
             $result['output'],
         );
     }

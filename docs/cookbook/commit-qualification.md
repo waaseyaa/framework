@@ -60,5 +60,27 @@ landings implicitly.
 
 1. Keep recoverable checkpoints under existing hooks; never `git stash`.
 2. Keep repair history on the branch; one review candidate tip.
-3. Qualify the tip (`preflight --full` + three suites; CI on exact head).
+3. Qualify the tip with the canonical runner; retain its receipt and corroborate
+   the committed source with CI on the exact head.
 4. Land only through governed auto-merge squash (or the release-cut exception).
+
+## Canonical local qualifier
+
+```bash
+php bin/qualify-candidate            # preflight --full + Unit + Integration + Architecture on the exact HEAD
+php bin/qualify-candidate --jobs=2   # explicit concurrency
+```
+
+The default evidence directory is
+`build/qualification/<sha>-<time>/receipt.json`. A successful full default run
+has `verdict: qualified`, `qualification: true`, and exit 0. Custom plans,
+subsets, and allowed dirty tracked trees may also exit 0, but their receipt says
+`verdict: passed`, sets `qualification: false`, and names the disqualifiers.
+Every other exit records why the candidate was not qualified unless the evidence
+directory or receipt itself could not be written.
+
+Qualification intentionally binds HEAD, its tree, and tracked working-tree
+state. Run it from an isolated worktree: untracked scratch is permitted and is
+not represented in the receipt, even though untracked source can affect local
+autoloading or test discovery. Exact-head hosted CI remains the committed-source
+corroboration.
