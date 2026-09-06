@@ -324,7 +324,7 @@ function authenticate(string $baseUrl, string $username, string $password): stri
 function assertInterruptionEnvelope(string $outputPath): int
 {
     $envelope = readEnvelope($outputPath, 'interrupted apply');
-    if (($envelope['result'] ?? 'missing') !== null) {
+    if (!array_key_exists('result', $envelope) || $envelope['result'] !== null) {
         return fail('The interrupted apply reported a result; it must abandon the publication instead.');
     }
     $message = (string) ($envelope['errors'][0]['message'] ?? '');
