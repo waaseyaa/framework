@@ -316,12 +316,15 @@ The package layer and namespace resolver indices are a single enforcement bounda
 
 `ConsoleKernel::handle()` dispatches a small set of commands before any
 framework boot, by constructing the command directly from a static factory on
-its owning provider. `maintenance:*` and `db:init` established the pattern, and
-`site:doctor` joined it in #2644.
+its owning provider. `maintenance:*` and `db:init` established the pattern,
+`site:init` and `site:doctor` joined it in #2644, and `site:apply` in #2789.
 
 A command qualifies only when it needs no container: `db:init` takes a project
-root and manages the database it is initializing, and `site:doctor` takes a
-project root and reads only the filesystem. The seam exists because
+root and manages the database it is initializing, `site:doctor` takes a
+project root and reads only the filesystem, and `site:apply` takes a project
+root and executes a reviewed apply request an earlier process emitted —
+decoding transported bytes and entering the existing execution authority, with
+no compiler to compose. The seam exists because
 `AbstractKernel::boot()` calls `bootDatabase()` before every
 `restrictedDiscoveryOnly` guard, so *any* booting command materializes
 `storage/waaseyaa.sqlite` — which is wrong for a command whose job is to

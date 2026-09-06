@@ -2,6 +2,7 @@
 
 <!-- #2846 slice 8 / FW-GENERATION-UNITS-08: site:init and site:doctor activate the shared unit authority; controlled apply binds the transported plan and reviewed state before staging. Other compiler migrations remain closed. -->
 
+<!-- Spec reviewed 2026-09-06 - #2789, ADR-025 D-6.5: the apply request is now decodable by the contract that defines it (`ArtifactApplyRequest::fromArray()`/`fromCanonicalJson()`, strict and byte-exact), and `site:apply` installs D-6.5's second process on the boot-free seam. Digest verification is unchanged and stays with the execution authority under its lock. See "Initialization" below and cli-kernel.md "Reviewed apply". -->
 <!-- Spec reviewed 2026-09-02 - #2442, ADR-024 D-3/D-4: `site:init --preset=minimal|editorial` is implemented, and its non-interactive input is the closed, versioned `waaseyaa.site-seed` v1 document. See the "Init-time presets" subsection under "Initialization" below for the resolved contract; this supersedes the "wherever a future site:init flow (#2442) names them" phrasing the "Skeleton layout" subsection previously carried, which described only the constraint, not an implementation. Presets land the declarative half only - activating a declared capability in the canonical lifecycle is the pre-existing gap tracked by #2857, decided by #2845/#2846. -->
 <!-- Spec reviewed 2026-09-01 - ADR-023 / FW-SITE-BLUEPRINT-01: governed application blueprints extend waaseyaa.site v1 in place; proposal bytes are authored, while exact-digest decision and applied evidence remain separate and generated. -->
 
@@ -432,6 +433,23 @@ Initialization is transactional:
 6. stage and publish through the existing durable journal, installing
    `.waaseyaa/generated.json` last and marking the journal committed only after
    every target is durable.
+
+Steps 5 and 6 are also reachable on their own, in a later process. `waaseyaa
+site:apply --request=PATH` (#2789) decodes a canonical
+`waaseyaa.artifact_apply_request` v1 document — the reviewed plan with its
+bytes, `plan_digest` and `project_state_digest` — and executes exactly those
+bytes through the same controlled apply. It compiles nothing, so a generator
+that names its target from a compile-time clock reading cannot produce a
+second, equally valid plan the operator never reviewed. Decoding is fail-closed
+on unknown, missing, duplicate or wrong-typed members, on an invalid nested
+plan, and on bytes that are not the canonical serialization of the document
+they decode to; refusals carry the shared `SITE0xx` codes and their JSON
+Pointer, before any lock, journal or write exists. The two digests stay the
+execution authority's `GEN005` check under its lock, so a request binds exactly
+one reviewed state: replaying an already-published request is refused, while
+re-evaluating the same plan against the state it will meet reports no changes.
+Like `site:init` and `site:doctor`, the command runs on the boot-free seam and
+opens no database. See [cli-kernel.md](cli-kernel.md) "Reviewed apply".
 
 The control-ignore artifact is part of this transaction. A fresh cancellation
 or successful rollback leaves no `.waaseyaa/.gitignore`; only the lock/control

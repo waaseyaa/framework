@@ -469,6 +469,51 @@ refuses `GEN005`; an aggregate state hash cannot identify a changed location,
 so the refusal is location-free unless independently provable. Default
 initialization uses the same gate after confirmation.
 
+## Reviewed apply
+
+`SiteServiceProvider` registers `site:apply --request=PATH [--project-root=PATH]
+[--json]` (#2789) — ADR-025 D-6.5's *second process*, installed. It joins the
+boot-free command seam with `site:init` and `site:doctor`: `SiteApplyHandler`
+takes only a project root and constructs no renderer, wizard or compiler at
+all, so it must not be routed through restricted boot, which would open the
+database this phase precedes (#2644).
+
+`--request` names a canonical `waaseyaa.artifact_apply_request` v1 document —
+the reviewed plan with its bytes, `plan_digest` and `project_state_digest` —
+read exactly once and decoded by `ArtifactApplyRequest::fromCanonicalJson()`.
+The command recompiles nothing: a generator that names its target from a
+compile-time clock reading would otherwise produce a different, equally valid
+plan, and the operator's review would bind nothing. Decoding is fail-closed on
+unknown, missing, duplicate or wrong-typed members, on an invalid nested plan,
+and on any bytes that are not the canonical serialization of the document they
+decode to (a re-ordered, pretty-printed, slash-escaped or duplicate-keyed
+document decodes to *something*, and applying it would mean applying a document
+nobody emitted). One terminating newline — this framework's own on-disk framing
+for a canonical document — is the only tolerated difference. A decode refusal
+carries the shared `SITE0xx` structural codes and their JSON Pointer, and
+happens before any lock, journal or write exists.
+
+The two digests are **not** verified at decode. Whether the transported plan
+hashes to its reviewed `plan_digest`, and whether the project still matches
+`project_state_digest`, stay `GEN005` questions the execution authority answers
+under its exclusive lock; a decoder that answered them early would be a second,
+lock-free authority on staleness. A request therefore binds exactly one
+reviewed state: replaying an already-published request is `GEN005`, while
+re-evaluating the same plan against the state it will actually meet reports
+`no_changes`.
+
+Receipts use the existing `site.init` operation, because the governed operation
+is the same publication — only the entrypoint differs. `--json` emits `result`
+(the versioned artifact-result document), `receipts` (the ordered change
+receipts) and `errors`; a governed refusal publishes its coded violations
+inside `result.errors` and leaves `errors` empty, while a failure that produced
+no result at all (an undecodable document, an unreadable path, a terminated
+execution) reports it in `errors` with `result` null — the same polarity
+`site:init --json` uses. Exit codes: `0` applied or no changes, `2` refused or
+failed.
+
+<!-- Spec reviewed 2026-09-06 - #2789: `site:apply` is the reviewed command migration ADR-025 D-12.1 constraint 1 requires before a further entrypoint may transport generation results. It enters exactly one execution-authority seam — `apply()` — and no other; `tests/Architecture/GenerationStagedActivationBoundaryTest.php` records it alongside `SiteInitHandler`/`SiteDoctorHandler` as the closed roster. Acceptance: `SiteApplyHandlerTest`, `ArtifactApplyRequestDecodingTest`, and the `site:apply` case in `ConsoleKernelTest::siteContractCommandsRunWithoutBootingOrCreatingTheDatabase`. -->
+
 `--preset` (#2442) is an init-time-only shortcut, resolved once by
 `SitePresetResolver` into an ordinary answer document before it ever reaches
 the pipeline above — see "Init-time presets" in

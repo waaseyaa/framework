@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\SiteContract\Generation;
 
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Exception\ManifestViolation;
+use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
 
 /**
  * The input to one artifact apply (ADR-025 D-6.5).
@@ -43,6 +45,61 @@ final readonly class ArtifactApplyRequest
         // GEN005. Deriving it here would erase the evidence of transport
         // corruption before the authority could evaluate it.
         $this->planDigest = $planDigest;
+    }
+
+    /**
+     * Decode one already-parsed request document (#2789).
+     *
+     * @param array<string, mixed> $document
+     */
+    public static function fromArray(array $document, string $source = '<apply-request>'): self
+    {
+        return new ArtifactApplyRequestParser()->parse($document, $source);
+    }
+
+    /**
+     * Decode the exact bytes an emitter produced with {@see canonicalJson()}.
+     *
+     * D-6.5 makes apply's input the thing an operator reviewed, so the bytes
+     * are the evidence and this boundary refuses anything that is not the
+     * canonical serialization of the document it decoded: a re-ordered,
+     * pretty-printed, slash-escaped or duplicate-keyed document decodes to
+     * *something*, and accepting it would mean applying a document nobody
+     * emitted. The only tolerated difference is one terminating newline, which
+     * is this framework's own on-disk framing for a canonical document (the
+     * plan digest, the change receipt and `site:init --json` all append it) and
+     * not part of the document.
+     *
+     * The digests are still not verified here. Whether the transported plan
+     * hashes to the reviewed `plan_digest`, and whether the project still
+     * matches `project_state_digest`, are `GEN005` questions the execution
+     * authority answers under its exclusive lock — a decoder that answered
+     * them early would be a second, lock-free authority on staleness.
+     */
+    public static function fromCanonicalJson(string $json, string $source = '<apply-request>'): self
+    {
+        try {
+            $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            self::refuse($source, 'SITE010_INVALID_TYPE', 'Expected a canonical JSON document.', $exception);
+        }
+        if (!$decoded instanceof \stdClass) {
+            self::refuse($source, 'SITE010_INVALID_TYPE', 'Expected a canonical JSON object document.');
+        }
+        /** @var array<string, mixed> $document */
+        $document = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        $request = self::fromArray($document, $source);
+        $canonical = $request->canonicalJson();
+        if ($json !== $canonical && $json !== $canonical . "\n") {
+            self::refuse($source, 'SITE014_INVALID_VALUE', 'Expected the canonical bytes of the document this request decodes to.');
+        }
+
+        return $request;
+    }
+
+    private static function refuse(string $source, string $code, string $message, ?\Throwable $previous = null): never
+    {
+        throw new SiteManifestValidationException($source, [new ManifestViolation($code, '/', $message)], $previous);
     }
 
     /** @return array<string, mixed> */
