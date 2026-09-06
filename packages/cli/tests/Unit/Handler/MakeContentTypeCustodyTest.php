@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Handler;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -32,6 +33,7 @@ use Waaseyaa\SiteContract\SiteManifestParser;
  * same transaction as the file writes, rather than a `json_decode`/mutate/
  * `json_encode` of the application's own manifest.
  */
+#[CoversClass(ContentTypeScaffoldCompiler::class)]
 final class MakeContentTypeCustodyTest extends TestCase
 {
     /** @var list<string> */
