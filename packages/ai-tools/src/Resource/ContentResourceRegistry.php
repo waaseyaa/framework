@@ -28,6 +28,9 @@ final class ContentResourceRegistry
         if ($name === '' || isset($this->providers[$name])) {
             throw new \LogicException('Content resource provider names must be non-empty and unique.');
         }
+        if (preg_match('/^[a-z][a-z0-9_-]*$/D', $name) !== 1) {
+            throw new \LogicException('Content resource provider names must be lowercase wire-safe identifiers.');
+        }
         $this->providers[$name] = $provider;
         ksort($this->providers);
     }
@@ -37,12 +40,14 @@ final class ContentResourceRegistry
         return $this->providers !== [];
     }
 
-    /** @return list<ContentResourceDescriptor> */
+    /**
+     * @return list<ContentResourceDescriptor>
+     */
     public function list(AuthorizationPrincipalInterface $principal): array
     {
         $resources = [];
         foreach ($this->providers as $providerName => $provider) {
-            foreach ($provider->list($principal) as $resource) {
+            foreach ($provider->list($principal)->resources as $resource) {
                 if (isset($resources[$resource->uri])) {
                     $this->logger->warning('Duplicate content resource URI omitted.', ['provider' => $providerName]);
                     continue;
@@ -55,6 +60,31 @@ final class ContentResourceRegistry
         }
 
         return array_values($resources);
+    }
+
+    public function listPage(
+        AuthorizationPrincipalInterface $principal,
+        ?ContentResourceListResume $resume = null,
+    ): ContentResourceRegistryListPage {
+        if ($resume !== null) {
+            $provider = $this->providers[$resume->provider] ?? null;
+            if ($provider === null) {
+                throw new \InvalidArgumentException('The content resource list resume names an unknown provider.');
+            }
+
+            return $this->materialize($resume->provider, $provider->list($principal, $resume->token));
+        }
+
+        foreach ($this->providers as $providerName => $provider) {
+            $page = $provider->list($principal, null);
+            if ($page->resources === [] && $page->nextToken === null) {
+                continue;
+            }
+
+            return $this->materialize($providerName, $page);
+        }
+
+        return new ContentResourceRegistryListPage([]);
     }
 
     /** @return list<ContentResourceTemplate> */
@@ -83,5 +113,27 @@ final class ContentResourceRegistry
         }
 
         return null;
+    }
+
+    private function materialize(string $providerName, ContentResourceListPage $page): ContentResourceRegistryListPage
+    {
+        $resources = [];
+        foreach ($page->resources as $resource) {
+            if (isset($resources[$resource->uri])) {
+                $this->logger->warning('Duplicate content resource URI omitted.', ['provider' => $providerName]);
+                continue;
+            }
+            $resources[$resource->uri] = $resource;
+            if (count($resources) === self::MAX_RESOURCES) {
+                break;
+            }
+        }
+
+        return new ContentResourceRegistryListPage(
+            array_values($resources),
+            $page->nextToken === null
+                ? null
+                : new ContentResourceListResume($providerName, $page->nextToken),
+        );
     }
 }

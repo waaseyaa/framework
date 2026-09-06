@@ -11,6 +11,7 @@ use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
@@ -20,8 +21,14 @@ use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogEntry;
 use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContribution;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
 use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
@@ -32,6 +39,8 @@ use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Mcp\Auth\WriteTierAuthInterface;
 use Waaseyaa\Mcp\Registry\McpRegistryManifest;
 use Waaseyaa\Mcp\Registry\McpRegistryManifestConfig;
+use Waaseyaa\Mcp\Rekey\McpContentResourceListCursorRekeyAdapter;
+use Waaseyaa\Mcp\Resource\ContentResourceListCursorCodec;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 /**
@@ -51,7 +60,10 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  *
  * @api
  */
-final class McpServiceProvider extends ServiceProvider implements ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface
+final class McpServiceProvider extends ServiceProvider implements
+    ProvidesApiCatalogEntriesInterface,
+    ProvidesAiCatalogEntriesInterface,
+    ProvidesApplicationMasterRekeyContributionsInterface
 {
     public function apiCatalogEntries(): array
     {
@@ -200,6 +212,7 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
                     implementationInfo: $this->resolve(McpImplementationInfo::class),
                     contentResources: $contentResources,
                     contentResourcesEnabled: $contentResourcesEnabled,
+                    contentResourceListCursors: $this->resolveContentResourceListCursors(),
                     // The public read-only tier keeps its documented best-effort
                     // auditing. It mutates nothing, so a durable pre-record buys
                     // no safety, and making it fail-closed would take a read-only
@@ -524,6 +537,37 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
         }
 
         return $registry;
+    }
+
+    private function resolveContentResourceListCursors(): ?ContentResourceListCursorCodec
+    {
+        $keyring = $this->resolveOptional(ApplicationMasterKeyring::class);
+        if (!$keyring instanceof ApplicationMasterKeyring) {
+            return null;
+        }
+
+        return new ContentResourceListCursorCodec($keyring);
+    }
+
+    public function applicationMasterRekeyContributions(): iterable
+    {
+        $database = $this->resolve(DatabaseInterface::class);
+        if (!$database instanceof DatabaseInterface) {
+            throw new \LogicException('MCP content-resource list cursor rekey composition requires the kernel database authority.');
+        }
+
+        yield new ApplicationMasterRekeyContribution(
+            new McpContentResourceListCursorRekeyAdapter($database),
+            [new ApplicationMasterPurposePolicy(
+                ApplicationSecret::PURPOSE_MCP_CONTENT_RESOURCE_LIST_CURSOR,
+                'waaseyaa/mcp',
+                ApplicationMasterPurposeStrategy::ReencryptCiphertext,
+                ContentResourceListCursorCodec::DEFAULT_TTL_SECONDS,
+                ContentResourceListCursorCodec::DEFAULT_TTL_SECONDS,
+                McpContentResourceListCursorRekeyAdapter::ID,
+                'expire-without-ciphertext-inventory',
+            )],
+        );
     }
 
     /**

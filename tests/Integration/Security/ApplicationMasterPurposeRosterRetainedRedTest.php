@@ -15,6 +15,7 @@ use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyComposition;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Mcp\McpServiceProvider;
 use Waaseyaa\Oidc\OidcServiceProvider;
 use Waaseyaa\Publishing\PublishingServiceProvider;
 use Waaseyaa\Queue\QueueServiceProvider;
@@ -38,6 +39,7 @@ final class ApplicationMasterPurposeRosterRetainedRedTest extends TestCase
             new AuditServiceProvider(),
             new AuthServiceProvider(),
             new CacheServiceProvider(),
+            new McpServiceProvider(),
             new OidcServiceProvider(),
             new PublishingServiceProvider(),
             new QueueServiceProvider(),

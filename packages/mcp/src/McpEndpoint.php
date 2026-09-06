@@ -28,6 +28,7 @@ use Waaseyaa\Foundation\Audit\StrictAuditReservation;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
+use Waaseyaa\Mcp\Resource\ContentResourceListCursorCodec;
 
 /**
  * Streamable-HTTP MCP endpoint. Authenticates the incoming request via
@@ -128,6 +129,7 @@ final readonly class McpEndpoint
         ?McpImplementationInfo $implementationInfo = null,
         private ?ContentResourceRegistry $contentResources = null,
         private bool $contentResourcesEnabled = false,
+        private ?ContentResourceListCursorCodec $contentResourceListCursors = null,
     ) {
         $this->implementationInfo = $implementationInfo ?? new McpImplementationInfo('Waaseyaa', '0.1.0');
 
@@ -990,19 +992,51 @@ final readonly class McpEndpoint
         \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
         ?array $tokenScopes,
     ): McpResponse {
-        if (!$this->validListParams($params)) {
+        $cursor = null;
+        if (!$this->validListParams($params, $cursor)) {
             return $this->jsonRpcError(-32602, 'Invalid resources/list params', $id);
         }
         if (!$this->resourceCapabilityAllowed($principal, $tokenScopes)) {
             return $this->jsonRpcResult($id, ['resources' => []]);
         }
+        if ($this->contentResources === null) {
+            return $this->jsonRpcResult($id, ['resources' => []]);
+        }
+
+        $resume = null;
+        if ($cursor !== null) {
+            if ($this->contentResourceListCursors === null) {
+                return $this->jsonRpcError(-32602, 'Invalid resources/list params', $id);
+            }
+            try {
+                $resume = $this->contentResourceListCursors->open(
+                    $cursor,
+                    ContentResourceListCursorCodec::principalBinding($principal),
+                );
+            } catch (\InvalidArgumentException) {
+                return $this->jsonRpcError(-32602, 'Invalid resources/list params', $id);
+            }
+        }
+
+        try {
+            $page = $this->contentResources->listPage($principal, $resume);
+        } catch (\InvalidArgumentException) {
+            return $this->jsonRpcError(-32602, 'Invalid resources/list params', $id);
+        }
 
         $resources = array_map(
             static fn(\Waaseyaa\AI\Tools\Resource\ContentResourceDescriptor $resource): array => $resource->toArray(),
-            $this->contentResources?->list($principal) ?? [],
+            $page->resources,
         );
+        $result = ['resources' => $resources];
+        if ($page->next !== null && $this->contentResourceListCursors !== null) {
+            $result['nextCursor'] = $this->contentResourceListCursors->seal(
+                $page->next,
+                ContentResourceListCursorCodec::principalBinding($principal),
+            );
+        }
 
-        return $this->jsonRpcResult($id, ['resources' => $resources]);
+        return $this->jsonRpcResult($id, $result);
     }
 
     /** @param array<mixed> $params @param ?list<string> $tokenScopes */
@@ -1012,7 +1046,7 @@ final readonly class McpEndpoint
         \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
         ?array $tokenScopes,
     ): McpResponse {
-        if (!$this->validListParams($params)) {
+        if (!$this->validListParams($params, allowCursor: false)) {
             return $this->jsonRpcError(-32602, 'Invalid resources/templates/list params', $id);
         }
         if (!$this->resourceCapabilityAllowed($principal, $tokenScopes)) {
@@ -1140,14 +1174,46 @@ final readonly class McpEndpoint
         return $response;
     }
 
-    /** @param array<mixed> $params */
-    private function validListParams(array $params): bool
+    /**
+     * @param array<mixed> $params
+     * @param-out ?string $cursor
+     */
+    private function validListParams(array $params, ?string &$cursor = null, bool $allowCursor = true): bool
     {
-        if (array_key_exists('cursor', $params)) {
+        $cursor = null;
+        $keys = array_keys($params);
+        foreach ($keys as $key) {
+            if (!is_string($key)) {
+                return false;
+            }
+            if ($key === '_meta') {
+                continue;
+            }
+            if ($key === 'cursor') {
+                if (!$allowCursor) {
+                    return false;
+                }
+                continue;
+            }
+
             return false;
         }
+        if (array_key_exists('_meta', $params) && !self::isJsonObject($params['_meta'])) {
+            return false;
+        }
+        if (!array_key_exists('cursor', $params)) {
+            return true;
+        }
+        if (!is_string($params['cursor'])
+            || $params['cursor'] === ''
+            || strlen($params['cursor']) > 4_096
+            || preg_match('/^[A-Za-z0-9_-]+$/D', $params['cursor']) !== 1
+        ) {
+            return false;
+        }
+        $cursor = $params['cursor'];
 
-        return $params === [] || (array_keys($params) === ['_meta'] && self::isJsonObject($params['_meta']));
+        return true;
     }
 
     /** @param array<mixed> $params */

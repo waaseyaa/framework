@@ -15,6 +15,7 @@ use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Resource\ContentResourceContent;
+use Waaseyaa\AI\Tools\Resource\ContentResourceListPage;
 use Waaseyaa\AI\Tools\Resource\ContentResourceProviderInterface;
 use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
@@ -712,7 +713,7 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
     {
         $registry = new ContentResourceRegistry();
         $registry->register('throwing', new class implements ContentResourceProviderInterface {
-            public function list(\Waaseyaa\Access\AuthorizationPrincipalInterface $principal): array
+            public function list(\Waaseyaa\Access\AuthorizationPrincipalInterface $principal, ?string $resumeToken = null): ContentResourceListPage
             {
                 throw new \RuntimeException('resource provider offline');
             }
@@ -736,7 +737,7 @@ final class McpEndpointAuditLoggerContainmentTest extends TestCase
     {
         $registry = new ContentResourceRegistry();
         $registry->register('throwing', new class implements ContentResourceProviderInterface {
-            public function list(\Waaseyaa\Access\AuthorizationPrincipalInterface $principal): array
+            public function list(\Waaseyaa\Access\AuthorizationPrincipalInterface $principal, ?string $resumeToken = null): ContentResourceListPage
             {
                 throw new \LogicException('list() is not on any path under test.');
             }

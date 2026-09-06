@@ -9,8 +9,14 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 /** MCP-neutral, principal-explicit content resource contribution. @api */
 interface ContentResourceProviderInterface
 {
-    /** @return list<ContentResourceDescriptor> */
-    public function list(AuthorizationPrincipalInterface $principal): array;
+    /**
+     * One bounded discovery page. {@see ContentResourceListPage::$next} is a
+     * provider-local resume token; callers that expose it on a wire must seal it.
+     */
+    public function list(
+        AuthorizationPrincipalInterface $principal,
+        ?string $resumeToken = null,
+    ): ContentResourceListPage;
 
     /** @return list<ContentResourceTemplate> */
     public function templates(): array;
