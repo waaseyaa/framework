@@ -1,0 +1,22 @@
+{
+    "schema": "waaseyaa.project-board-snapshot.v1",
+    "repository": "waaseyaa/framework",
+    "project": {"owner": "waaseyaa", "number": 4, "id": "PVT_fixture", "title": "Waaseyaa Framework Roadmap", "closed": false},
+    "fields": [
+        {"id": "FIELD_status", "name": "Status", "type": "ProjectV2SingleSelectField", "options": [{"id": "STATUS_todo", "name": "Todo"}, {"id": "STATUS_progress", "name": "In Progress"}, {"id": "STATUS_done", "name": "Done"}]},
+        {"id": "FIELD_priority", "name": "Priority", "type": "ProjectV2SingleSelectField", "options": [{"id": "PRIORITY_p0", "name": "P0 - Critical"}, {"id": "PRIORITY_p1", "name": "P1 - High"}, {"id": "PRIORITY_p2", "name": "P2 - Medium"}, {"id": "PRIORITY_p3", "name": "P3 - Low"}]},
+        {"id": "FIELD_readiness", "name": "Readiness", "type": "ProjectV2SingleSelectField", "options": [{"id": "READY_ready", "name": "Ready"}, {"id": "READY_progress", "name": "In Progress"}, {"id": "READY_blocked", "name": "Blocked"}, {"id": "READY_design", "name": "Needs Design"}, {"id": "READY_validation", "name": "Needs Validation"}, {"id": "READY_rescope", "name": "Needs Rescope"}, {"id": "READY_triage", "name": "Needs Triage"}, {"id": "READY_deferred", "name": "Deferred"}, {"id": "READY_decision", "name": "Decision"}]},
+        {"id": "FIELD_stage", "name": "Roadmap Stage", "type": "ProjectV2SingleSelectField", "options": [{"id": "STAGE_safety", "name": "0 - Safety"}, {"id": "STAGE_foundation", "name": "1 - Release Foundation"}, {"id": "STAGE_later", "name": "Later"}]}
+    ],
+    "issues": [
+        {"id": "ISSUE_10", "number": 10, "state": "OPEN", "title": "Ready issue", "url": "https://github.com/waaseyaa/framework/issues/10", "labels": ["priority:p1", "status:ready", "release:beta-blocker"], "milestone": "S2"},
+        {"id": "ISSUE_11", "number": 11, "state": "OPEN", "title": "Stage zero non-blocker", "url": "https://github.com/waaseyaa/framework/issues/11", "labels": ["priority:p2", "status:needs-design", "threshold:framework-beta"], "milestone": "S3"},
+        {"id": "ISSUE_12", "number": 12, "state": "CLOSED", "title": "Closed history", "url": "https://github.com/waaseyaa/framework/issues/12", "labels": ["status:completed"], "milestone": "S1"},
+        {"id": "ISSUE_13", "number": 13, "state": "OPEN", "title": "New intake", "url": "https://github.com/waaseyaa/framework/issues/13", "labels": ["priority:p0", "portfolio:needs-validation"], "milestone": "S4"}
+    ],
+    "items": [
+        {"id": "ITEM_10", "issue_number": 10, "repository": "waaseyaa/framework", "status": "Todo", "priority": "P2 - Medium", "readiness": "Needs Design", "roadmap_stage": "1 - Release Foundation", "milestone": "S2"},
+        {"id": "ITEM_11", "issue_number": 11, "repository": "waaseyaa/framework", "status": "Todo", "priority": "P2 - Medium", "readiness": "Needs Design", "roadmap_stage": "0 - Safety", "milestone": "S3"},
+        {"id": "ITEM_12", "issue_number": 12, "repository": "waaseyaa/framework", "status": "Todo", "priority": "P3 - Low", "readiness": "Ready", "roadmap_stage": "Later", "milestone": "S1"}
+    ]
+}
