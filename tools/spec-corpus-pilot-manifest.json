@@ -1,0 +1,49 @@
+{
+  "corpus_version": "1",
+  "specs": [
+    {
+      "id": "revision-system-unified",
+      "path": "docs/specs/revision-system-unified.md",
+      "lifecycle": "live",
+      "title": "Revision system (unified, with an optional translation axis)"
+    },
+    {
+      "id": "workflow",
+      "path": "docs/specs/workflow.md",
+      "lifecycle": "live",
+      "title": "Workflow governance (forge-neutral change record + design-first)"
+    },
+    {
+      "id": "bimaaji",
+      "path": "docs/specs/bimaaji.md",
+      "lifecycle": "live"
+    },
+    {
+      "id": "config-management",
+      "path": "docs/specs/config-management.md",
+      "lifecycle": "live"
+    },
+    {
+      "id": "entity-storage-two-axis",
+      "path": "docs/specs/entity-storage-two-axis.md",
+      "lifecycle": "superseded",
+      "superseded_by": "revision-system-unified"
+    },
+    {
+      "id": "config-management-v1",
+      "path": "docs/specs/config-management-v1.md",
+      "lifecycle": "superseded",
+      "superseded_by": "config-management"
+    },
+    {
+      "id": "migration-platform-v1",
+      "path": "docs/specs/migration-platform-v1.md",
+      "lifecycle": "historical"
+    },
+    {
+      "id": "spec-corpus",
+      "path": "docs/specs/spec-corpus.md",
+      "lifecycle": "draft"
+    }
+  ]
+}
