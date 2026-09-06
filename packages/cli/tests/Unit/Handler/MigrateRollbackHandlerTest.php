@@ -35,6 +35,11 @@ final class MigrateRollbackHandlerTest extends TestCase
                 });
             }
 
+            public function providesSupportedReverse(): bool
+            {
+                return true;
+            }
+
             public function down(SchemaBuilder $schema): void
             {
                 $schema->dropIfExists('rollback_table');

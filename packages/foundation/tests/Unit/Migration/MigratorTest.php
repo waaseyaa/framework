@@ -88,6 +88,11 @@ final class MigratorTest extends TestCase
                 });
             }
 
+            public function providesSupportedReverse(): bool
+            {
+                return true;
+            }
+
             public function down(SchemaBuilder $schema): void
             {
                 $schema->dropIfExists('test');
@@ -204,6 +209,11 @@ final class MigratorTest extends TestCase
                 $schema->create('rollback_test', function ($table) {
                     $table->id();
                 });
+            }
+
+            public function providesSupportedReverse(): bool
+            {
+                return true;
             }
 
             public function down(SchemaBuilder $schema): void

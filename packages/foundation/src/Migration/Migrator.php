@@ -48,6 +48,15 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  * Live schema and ledger pre-state are validated by the coordinator before
  * any of this runs.
  *
+ * **Legacy rollback (#2731).** `rollback()` is fail-closed: every node in the
+ * last batch must declare a supported reverse (`providesSupportedReverse()` or
+ * {@see LegacyReversePlanCatalog}), match the applied package and source
+ * checksum, and change the logical schema fingerprint before the ledger row
+ * is removed. Unsupported, unverifiable, or ineffective reverses refuse with
+ * `[S1-DB104]` / `[S1-DB113]` / `[S1-DB114]` and leave schema and ledger
+ * unchanged. Missing source keeps `[S1-DB103]`. V2 nodes still have no reverse
+ * contract and fail as missing legacy reverse source.
+ *
  * **S1-FW-DB-02 failure semantics:** the repository acquires SQLite writer
  * authority before reading ledger state, and a SQL/compile/verification
  * failure rolls back every node and ledger effect in the requested plan.
@@ -132,29 +141,76 @@ final class Migrator
             }
 
             $records = $this->repository->getByBatch($batch);
-            $flat = $this->flattenMigrations($migrations);
+            $catalogue = $this->catalogueEntries($migrations);
+            $ledgerById = [];
+            foreach ($this->repository->allWithChecksums() as $row) {
+                if ($row->batch === $batch) {
+                    $ledgerById[$row->migration] = $row;
+                }
+            }
+
             foreach ($records as $record) {
                 $name = $record['migration'];
-                if (!isset($flat[$name])) {
+                if (!isset($catalogue[$name])) {
                     throw new \RuntimeException(sprintf(
                         '[S1-DB103] Rollback refused: source migration "%s" is unavailable; schema and ledger remain unchanged.',
                         $name,
                     ));
                 }
-                $declaringClass = new \ReflectionMethod($flat[$name], 'down')->getDeclaringClass()->getName();
-                if ($declaringClass === Migration::class) {
+
+                $entry = $catalogue[$name];
+                $migration = $entry['migration'];
+                $package = $entry['package'];
+                $ledger = $ledgerById[$name] ?? null;
+
+                if (!$migration->providesSupportedReverse() && !LegacyReversePlanCatalog::allows($name)) {
                     throw new \RuntimeException(sprintf(
                         '[S1-DB104] Rollback refused: migration "%s" has no declared reverse plan.',
                         $name,
+                    ));
+                }
+
+                if ($ledger === null || $ledger->checksum === null) {
+                    throw new \RuntimeException(sprintf(
+                        '[S1-DB113] Rollback refused: migration "%s" has no verifiable applied source checksum; schema and ledger remain unchanged.',
+                        $name,
+                    ));
+                }
+
+                if ($ledger->package !== $package) {
+                    throw new \RuntimeException(sprintf(
+                        '[S1-DB113] Rollback refused: migration "%s" was applied by package "%s" but the loaded catalogue declares it under "%s"; schema and ledger remain unchanged.',
+                        $name,
+                        $ledger->package,
+                        $package,
+                    ));
+                }
+
+                $loadedChecksum = MigrationCatalogFingerprint::legacySourceChecksum($migration);
+                if ($ledger->checksum !== $loadedChecksum) {
+                    throw new \RuntimeException(sprintf(
+                        '[S1-DB113] Rollback refused: migration "%s" loaded source checksum %s does not match applied checksum %s; schema and ledger remain unchanged.',
+                        $name,
+                        $loadedChecksum,
+                        $ledger->checksum,
                     ));
                 }
             }
 
             foreach ($records as $record) {
                 $name = $record['migration'];
-                $this->connection->transactional(function () use ($flat, $name): void {
+                $migration = $catalogue[$name]['migration'];
+                $this->connection->transactional(function () use ($migration, $name): void {
+                    $before = $this->repository->currentLogicalSchemaFingerprint();
                     $schema = new SchemaBuilder($this->connection);
-                    $flat[$name]->down($schema);
+                    $migration->down($schema);
+                    $after = $this->repository->currentLogicalSchemaFingerprint();
+                    if ($before === $after) {
+                        throw new \RuntimeException(sprintf(
+                            '[S1-DB114] Rollback refused: migration "%s" reverse produced no verifiable schema post-state change; schema and ledger remain unchanged.',
+                            $name,
+                        ));
+                    }
                     $this->repository->remove($name);
                 });
                 $rolledBack[] = $name;
@@ -372,11 +428,28 @@ final class Migrator
     private function flattenMigrations(array $migrations): array
     {
         $flat = [];
-        foreach ($migrations as $packageMigrations) {
-            foreach ($packageMigrations as $name => $migration) {
-                $flat[$name] = $migration;
-            }
+        foreach ($this->catalogueEntries($migrations) as $name => $entry) {
+            $flat[$name] = $entry['migration'];
         }
         return $flat;
+    }
+
+    /**
+     * @param array<string, array<string, Migration>> $migrations
+     * @return array<string, array{migration: Migration, package: string}>
+     */
+    private function catalogueEntries(array $migrations): array
+    {
+        $entries = [];
+        foreach ($migrations as $package => $packageMigrations) {
+            foreach ($packageMigrations as $name => $migration) {
+                $entries[$name] = [
+                    'migration' => $migration,
+                    'package' => $package,
+                ];
+            }
+        }
+
+        return $entries;
     }
 }
