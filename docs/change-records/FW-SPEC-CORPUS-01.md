@@ -68,3 +68,17 @@ RED `beta-2` versus `beta-3`, then GREEN with per-slug collision accounting.
 Internal reference-style execution definitions now fail closed instead of
 remaining in a supposedly sanitized corpus. These repairs are source-verified;
 final qualification and review-candidate identity follow separately.
+
+Sol's independent final-delta review then reproduced three remaining blockers.
+One source path could be aliased under conflicting lifecycle IDs, index
+verification trusted a copied digest without comparing the exact live entries,
+and angle-wrapped inline destinations bypassed internal-link classification.
+The repaired guard rejects duplicate normalized source paths; publication now
+derives and compares the exact sorted live index from manifest metadata; and
+inline angle destinations are unwrapped before classification while provenance
+retains the original target. Each reproducer was captured as a failing test
+(29 tests, 119 assertions, 3 failures) before the repairs; the focused corpus
+suite is now green (29 tests, 122 assertions). The earlier qualification receipt
+at `build/qualification/2661-final/receipt.json` remains valid evidence for the
+old `5ebce945f` head only and was not overwritten. The repaired head requires
+new exact-head qualification after this focused review candidate is committed.

@@ -91,6 +91,7 @@ final class SpecCorpusGuard
         }
 
         $seenIds = [];
+        $seenPaths = [];
         $specs = [];
         foreach ($manifest['specs'] as $index => $entry) {
             if (!is_array($entry)) {
@@ -107,6 +108,12 @@ final class SpecCorpusGuard
                 throw new SpecCorpusException("Duplicate manifest document id '{$entry['id']}'.");
             }
             $seenIds[$entry['id']] = true;
+
+            $normalizedPath = str_replace('\\', '/', $entry['path']);
+            if (isset($seenPaths[$normalizedPath])) {
+                throw new SpecCorpusException("Duplicate manifest spec path '{$normalizedPath}'.");
+            }
+            $seenPaths[$normalizedPath] = true;
             $specs[] = $entry;
         }
 

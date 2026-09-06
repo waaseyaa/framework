@@ -203,6 +203,18 @@ final class SpecCorpusCompilerTest extends TestCase
     }
 
     #[Test]
+    public function angle_wrapped_internal_inline_destination_is_sanitized(): void
+    {
+        $result = SpecSanitizer::sanitize("See [history](<../history/plans/old.md>).\n");
+
+        self::assertSame("See history.\n", $result['retrieval_text']);
+        self::assertSame(
+            [['label' => 'history', 'target' => '<../history/plans/old.md>']],
+            $result['provenance']['internal_links'],
+        );
+    }
+
+    #[Test]
     public function manifest_document_id_traversal_is_rejected_and_writes_nothing_outside_output(): void
     {
         $reviewRoot = sys_get_temp_dir() . '/waaseyaa-corpus-review-' . uniqid('', true);
@@ -310,6 +322,24 @@ final class SpecCorpusCompilerTest extends TestCase
 
         $this->expectException(SpecCorpusException::class);
         $this->expectExceptionMessage('Duplicate manifest document id');
+
+        SpecCorpusCompiler::loadManifest($this->tmpRoot . '/tools/manifest.json');
+    }
+
+    #[Test]
+    public function duplicate_source_paths_cannot_alias_one_spec_under_conflicting_lifecycles(): void
+    {
+        $this->writeManifest([
+            'corpus_version' => '1',
+            'specs' => [
+                ['id' => 'alias-live', 'path' => 'docs/specs/live-spec.md', 'lifecycle' => 'live'],
+                ['id' => 'canonical-history', 'path' => 'docs/specs/live-spec.md', 'lifecycle' => 'historical'],
+            ],
+        ]);
+        $this->writeSpec('live-spec.md', "# One source\n\nBody.\n");
+
+        $this->expectException(SpecCorpusException::class);
+        $this->expectExceptionMessage('Duplicate manifest spec path');
 
         SpecCorpusCompiler::loadManifest($this->tmpRoot . '/tools/manifest.json');
     }
@@ -550,6 +580,32 @@ final class SpecCorpusCompilerTest extends TestCase
         $beta = SpecCorpusCompiler::compile($this->tmpRoot, $this->readManifest(), '0.1.0-alpha.test');
 
         self::assertNotSame($alpha['manifest']['corpus_digest'], $beta['manifest']['corpus_digest']);
+    }
+
+    #[Test]
+    public function publication_verifier_rejects_index_entries_that_disagree_with_live_manifest_metadata(): void
+    {
+        $this->writeManifest([
+            'corpus_version' => '1',
+            'specs' => [
+                ['id' => 'live-spec', 'path' => 'docs/specs/live-spec.md', 'lifecycle' => 'live'],
+                ['id' => 'old-spec', 'path' => 'docs/specs/old-spec.md', 'lifecycle' => 'historical'],
+            ],
+        ]);
+        $this->writeSpec('live-spec.md', "# Live\n\nCurrent.\n");
+        $this->writeSpec('old-spec.md', "# Historical\n\nOld.\n");
+        $compiled = SpecCorpusCompiler::compile($this->tmpRoot, $this->readManifest(), '0.1.0-alpha.test');
+        $compiled['index']['entries'] = [[
+            'id' => 'old-spec',
+            'title' => 'Historical',
+            'source_path' => 'docs/specs/old-spec.md',
+            'source_digest' => $compiled['documents']['old-spec']['source']['digest'],
+        ]];
+
+        $this->expectException(SpecCorpusException::class);
+        $this->expectExceptionMessage('Index entries do not match live manifest metadata');
+
+        SpecCorpusCompiler::verifyCompiledDigest($compiled);
     }
 
     #[Test]

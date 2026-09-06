@@ -78,6 +78,8 @@ Retrieval text MUST omit:
 2. Markdown links to internal execution artefacts. Targets are normalized from
    the `docs/specs/` base (`../history/...` resolves like `docs/history/...`)
    and match when they begin with `kitty-specs/`, `docs/history/`, or `changes/`.
+   Standard angle-wrapped inline destinations (`[label](<target>)`) are
+   normalized before classification.
    External URLs (`https://…`), mailto links, and in-document anchors (`#…`)
    are preserved. Reference-style links (`[label][ref]`) are recorded in
    provenance as unsupported and are not stripped.
@@ -89,7 +91,7 @@ Provenance MUST retain the removed comments and links verbatim.
 - Manifest document ids MUST match `[a-z][a-z0-9_-]*` — no path separators.
 - Spec source paths MUST be regular files directly under `docs/specs/*.md`.
   Symlink paths are rejected.
-- Duplicate manifest ids, unknown lifecycles, unsupported `corpus_version`
+- Duplicate manifest ids or source paths, unknown lifecycles, unsupported `corpus_version`
   (only `"1"` today), empty `VERSION`, or conflicting declared frontmatter and
   manifest metadata abort compilation.
 - `corpus_digest` binds `corpus_version`, `framework_version`, and per-document

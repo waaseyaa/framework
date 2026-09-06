@@ -248,6 +248,30 @@ final class SpecCorpusCompiler
         if ($expected !== $compiled['index']['corpus_digest']) {
             throw new SpecCorpusException('Index corpus_digest does not match manifest.');
         }
+
+        if (
+            $compiled['index']['corpus_version'] !== $manifest['corpus_version']
+            || $compiled['index']['framework_version'] !== $manifest['framework_version']
+        ) {
+            throw new SpecCorpusException('Index version metadata does not match manifest.');
+        }
+
+        $expectedEntries = [];
+        foreach ($manifest['documents'] as $id => $document) {
+            if ($document['lifecycle'] !== SpecLifecycle::Live->value) {
+                continue;
+            }
+            $expectedEntries[] = [
+                'id' => $id,
+                'title' => $document['title'],
+                'source_path' => $document['source_path'],
+                'source_digest' => $document['source_digest'],
+            ];
+        }
+        usort($expectedEntries, static fn(array $a, array $b): int => strcmp($a['id'], $b['id']));
+        if ($compiled['index']['entries'] !== $expectedEntries) {
+            throw new SpecCorpusException('Index entries do not match live manifest metadata.');
+        }
     }
 
     public static function readFrameworkVersion(string $repoRoot): string

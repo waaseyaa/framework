@@ -86,6 +86,11 @@ final class SpecSanitizer
 
     public static function isInternalExecutionLink(string $target): bool
     {
+        $target = trim($target);
+        if (str_starts_with($target, '<') && str_ends_with($target, '>')) {
+            $target = substr($target, 1, -1);
+        }
+
         if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $target) === 1) {
             return false;
         }
