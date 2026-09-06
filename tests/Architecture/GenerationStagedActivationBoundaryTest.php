@@ -112,15 +112,31 @@ final class GenerationStagedActivationBoundaryTest extends TestCase
             }
         }
 
+        // #2788 (FW-SITE-BLUEPRINT-01E): the blueprint emitters are the
+        // compiler's own pure functions, invoked only from `compile()` at the
+        // same plan-compilation boundary. Each raises the closed GEN006/GEN007
+        // family for a declaration the validator admits but the emitter cannot
+        // represent safely (an `administrator` role id, an ownership or
+        // workflow-state condition on `create`, a colliding generated
+        // identifier, a check on an unbound workflow, a reserved workflow
+        // field) — before any artifact exists, and still carrying no
+        // evaluation or apply. They are recorded here as reviewed call sites
+        // of that one family, not as a widening of the execution authority.
         self::assertSame(
             [
                 'packages/cli/src/Handler/SiteInitHandler.php',
                 'packages/cli/src/Site/Blueprint/ApplicationBlueprintCompiler.php',
+                'packages/cli/src/Site/Blueprint/Emitter/AccessPolicyEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/EntityClassEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/GovernanceCheckEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/GovernanceProviderEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/PermissionCatalogueEmitter.php',
+                'packages/cli/src/Site/Blueprint/Emitter/WorkflowDefinitionEmitter.php',
                 'packages/cli/src/Site/SiteInitializationService.php',
                 'packages/site-contract/src/Generation/GeneratorFeatureNegotiation.php',
             ],
             $offenders,
-            'Coded generation refusals must stay in the execution authority or the reviewed feature-negotiation boundary.',
+            'Coded generation refusals must stay in the execution authority, the reviewed feature-negotiation boundary, or the compiler\'s own emitters.',
         );
     }
 

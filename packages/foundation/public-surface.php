@@ -85,6 +85,7 @@ return [
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ProvidesApplicationMasterRekeyContributionsInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ProvidesCapabilitiesInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ProvidesConsoleCommandsInterface', 'disposition' => 'public'],
+        ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ProvidesPermissionsInterface', 'disposition' => 'public', 'purpose' => 'Contributes permission definitions to the one kernel-composed permission catalogue that role grants are validated against at boot', 'ref' => '#2788'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ProvidesRolesInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\RequiresCapabilitiesInterface', 'disposition' => 'public'],
         ['fqcn' => 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\RequiresOptionalPackagesInterface', 'disposition' => 'public'],

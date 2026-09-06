@@ -1008,9 +1008,28 @@ final class JsonApiController
             $expectedRevisionId = $candidate;
         }
 
-        // Check update access.
+        // CW-v1 option-1 (#1920 PR-3, design §4): the PATCH TARGET is the
+        // WORKING COPY — `loadWorkingCopy()` returns the tip revision when the
+        // entity is disciplined and a draft exists, else it is exactly
+        // `$entity` above (mechanically safe for every undisciplined entity —
+        // pinned by a regression test). `$target` is what receives the
+        // attribute writes and what gets saved/serialized. `$repository` was
+        // already resolved above (C-22 WP3).
+        //
+        // #2788 (independent review, critical): the target is resolved BEFORE
+        // authorization, and both the entity-level `update` gate and the
+        // per-field `edit` gate below evaluate `$target` — never the
+        // `find()`-loaded published pointer. Access decisions are
+        // value-dependent (ownership, workflow state: a generated blueprint
+        // policy reads exactly those authorization inputs), so authorizing
+        // the published revision while writing a diverged tip revision let a
+        // stale published input grant or deny the wrong target. The 404 shape
+        // above is unchanged: identity resolution still runs on `$entity`.
+        $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+
+        // Check update access against the exact revision that will be mutated.
         if ($this->accessHandler !== null && $this->account !== null) {
-            $access = $this->accessHandler->check($entity, 'update', $this->account);
+            $access = $this->accessHandler->check($target, 'update', $this->account);
             if (!$access->isAllowed()) {
                 return $this->errorDocument(
                     JsonApiError::forbidden("Access denied for updating entity '{$id}'."),
@@ -1018,19 +1037,6 @@ final class JsonApiController
             }
         }
 
-        // CW-v1 option-1 (#1920 PR-3, design §4): the PATCH TARGET becomes
-        // the WORKING COPY — `loadWorkingCopy()` returns the tip revision
-        // when the entity is disciplined and a draft exists, else it is
-        // exactly `$entity` above (mechanically safe for every undisciplined
-        // entity — pinned by a regression test). The 404 shape and the
-        // entity/field-access GATES above and below intentionally still
-        // evaluate `$entity` (the `find()`-loaded, view/update-gated
-        // instance) — access decisions are type/bundle-scoped, not
-        // revision-scoped, so this is no behavior change (PR-3 report
-        // judgment note). `$target` is what receives the attribute writes
-        // and what gets saved/serialized. `$repository` was already resolved
-        // above (C-22 WP3).
-        $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
         if ($expectedMutation !== null) {
             if (!$target instanceof EntityBase) {
                 return $this->errorDocument(JsonApiError::unprocessable(
@@ -1085,13 +1091,15 @@ final class JsonApiController
         // transition can never be written back over the real current value.
         $attributes = self::stripEchoedKeys($attributes, $guardResult);
 
-        // Check field edit access for submitted attributes. Evaluated
-        // against $entity (type/bundle-scoped — see the judgment note
-        // above), not the working-copy $target.
+        // Check field edit access for submitted attributes against the same
+        // working-copy $target the entity-level gate evaluated (#2788): a
+        // field seal that depends on the revision's own inputs (an owner
+        // field on a persisted entity, an engine-owned workflow selector)
+        // must see the revision that is about to be written.
         if ($this->accessHandler !== null && $this->account !== null) {
             foreach (array_keys($attributes) as $fieldName) {
                 $fieldResult = $this->accessHandler->checkFieldAccess(
-                    $entity,
+                    $target,
                     (string) $fieldName,
                     'edit',
                     $this->account,

@@ -219,6 +219,40 @@ activates the execution and verification boundaries above under ADR-025 D-13.
 Governance emission, behavioural checks and fixture seeding are subsequent
 work packages.
 
+A compiled blueprint's governance is default deny (#2788, design in
+`docs/change-records/FW-SITE-BLUEPRINT-01.md` "Work package 01E"). The
+compiler emits, through the same factory roster and never a parallel
+authority: a permission catalogue naming every declared permission; one
+`#[PolicyAttribute]` access policy per entity that declares a policy,
+discovered and composed by the framework's own `AccessPolicyRegistry` and
+`EntityAccessHandler`, which starts every decision Neutral, returns Allowed
+only for a declared `(operation, permission, condition)` rule, never returns
+an entity-level Forbidden, and never inspects roles — while sealing the
+entity's authorization inputs at the field level through
+`FieldAccessPolicyInterface` (the `keys.owner` field is not editable once
+the entity is persisted and the `workflow_state` selector is never editable
+outside a transition); a workflow definition per declared workflow in the
+shipped `DefaultWorkflows` shape, seeded additively by a generated
+governance provider that also contributes the declared roles through
+`ProvidesRolesInterface` and the declared permissions through
+`ProvidesPermissionsInterface` (the kernel composes one permission catalogue
+from every such contribution plus `extra.waaseyaa.permissions`, binds it as
+`PermissionHandlerInterface`, and refuses to boot when a provider-declared
+role grants an uncatalogued permission); the authored
+`workflows.assignments` sync entry per binding; and companion tests for the
+declared checks, a default-deny test, and — whenever a policy is declared —
+a JSON:API companion that drives every entity through the real
+`JsonApiController` create, list, show, update and delete methods with
+allowed, denied and near-miss principals. A workflow-bound generated entity
+carries the `workflow_state` selector only; it never fabricates Node's
+`status` field. An entity without a policy is denied every operation;
+roles reach accounts only through `user:assign-role`; an `administrator`
+role id, an `ownership` or `workflow_state` condition on `create`, and a
+wildcard permission are refused before any artifact is produced. Generated
+types are not exposed on generic JSON:API routes by generation (exposure is
+the operator's `api.entity_type_allowlist` decision), and binding
+activation remains a verified `config:import`, not a boot-time write.
+
 ### Closed vocabulary (#2785)
 
 Namespace `Waaseyaa\SiteContract\Blueprint\`. Every list is a closed mapping
