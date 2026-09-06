@@ -10,7 +10,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Access\PermissionHandlerInterface;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
+use Waaseyaa\Foundation\Tests\Unit\Kernel\Fixtures\BootWritingUncataloguedRolesFixtureProvider;
 use Waaseyaa\Foundation\Tests\Unit\Kernel\Fixtures\CataloguedRolesFixtureProvider;
+use Waaseyaa\Foundation\Tests\Unit\Kernel\Fixtures\StatefulRolesFixtureProvider;
 use Waaseyaa\Foundation\Tests\Unit\Kernel\Fixtures\UncataloguedRolesFixtureProvider;
 use Waaseyaa\Tests\Support\ProcessFieldReadRuntime;
 use Waaseyaa\User\RoleRepository;
@@ -109,6 +111,65 @@ final class PermissionCatalogueCompositionTest extends TestCase
         $this->expectExceptionMessage('composed during boot');
 
         $this->newKernel()->permissionCatalogue();
+    }
+
+    #[Test]
+    public function the_role_repository_is_unavailable_before_boot(): void
+    {
+        $this->writeRootComposer([CataloguedRolesFixtureProvider::class]);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('composed during boot');
+
+        $this->newKernel()->roleRepository();
+    }
+
+    /**
+     * #2788 review B: the generated governance provider's boot() seeds
+     * workflows, a durable write. Catalogue composition and role validation
+     * therefore precede every provider boot hook, so an invalid grant leaves
+     * no boot-time side effect behind.
+     */
+    #[Test]
+    public function an_invalid_role_grant_is_refused_before_any_provider_boot_hook_runs(): void
+    {
+        $marker = $this->projectRoot . '/storage/provider-booted.marker';
+        BootWritingUncataloguedRolesFixtureProvider::$markerPath = $marker;
+        $this->writeRootComposer([BootWritingUncataloguedRolesFixtureProvider::class]);
+
+        try {
+            $this->newKernel()->publicBoot();
+            self::fail('Expected boot to be refused.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('Role "phantom" grants permission "walk through walls"', $exception->getMessage());
+        } finally {
+            BootWritingUncataloguedRolesFixtureProvider::$markerPath = null;
+        }
+
+        self::assertFileDoesNotExist($marker, 'the provider boot hook must not run when the catalogue refuses the role grant');
+    }
+
+    /**
+     * #2788 review C: roles() is consulted exactly once; the validated
+     * repository is retained in kernel state and the handler container serves
+     * that exact instance rather than re-collecting (and re-trusting) roles.
+     */
+    #[Test]
+    public function the_validated_role_repository_is_collected_once_and_served_by_identity(): void
+    {
+        StatefulRolesFixtureProvider::$rolesCalls = 0;
+        $this->writeRootComposer([StatefulRolesFixtureProvider::class]);
+        $kernel = $this->newKernel();
+        $kernel->publicBoot();
+
+        $repository = $kernel->roleRepository();
+        self::assertSame(1, StatefulRolesFixtureProvider::$rolesCalls, 'roles() consulted exactly once during boot');
+        self::assertSame([StatefulRolesFixtureProvider::PERMISSION], $repository->get('curator')?->permissions, 'the validated first answer is retained');
+
+        $container = $kernel->buildHandlerContainer();
+        self::assertSame($repository, $container->get(RoleRepository::class), 'the container serves the validated instance by identity');
+        self::assertSame($repository, $container->get(RoleRepository::class));
+        self::assertSame(1, StatefulRolesFixtureProvider::$rolesCalls, 'the container did not call roles() again');
     }
 
     /** @param list<class-string> $providers @param array<string, array{title: string}> $permissions */

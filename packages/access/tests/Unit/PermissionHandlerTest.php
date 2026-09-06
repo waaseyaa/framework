@@ -142,16 +142,95 @@ class PermissionHandlerTest extends TestCase
     public function testFromProvidersRefusesAnEmptyPermissionId(): void
     {
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('empty permission id');
+        $this->expectExceptionMessage("declares an invalid permission id ''");
 
         PermissionHandler::fromProviders([$this->provider(['' => ['title' => 'Blank', 'description' => '']])]);
     }
 
-    /** @param array<string, array{title: string, description: string}> $permissions */
+    // -- fromProviders(): malformed shapes fail closed, naming the owner ----
+
+    /** @return iterable<string, array{0: mixed, 1: string}> */
+    public static function malformedDefinitions(): iterable
+    {
+        yield 'non-array definition' => ['Title only', 'must be an array'];
+        yield 'missing title' => [['description' => 'x'], 'non-empty string "title"'];
+        yield 'non-string title' => [['title' => 12], 'non-empty string "title"'];
+        yield 'empty title' => [['title' => '   '], 'non-empty string "title"'];
+        yield 'non-string description' => [['title' => 'Ok', 'description' => ['no']], '"description" must be a string'];
+        yield 'unknown member' => [['title' => 'Ok', 'scope' => 'global'], 'unknown member "scope"'];
+    }
+
+    /** @param mixed $definition */
+    #[\PHPUnit\Framework\Attributes\DataProvider('malformedDefinitions')]
+    public function testFromProvidersRejectsAMalformedProviderDefinitionNamingTheProvider(mixed $definition, string $expected): void
+    {
+        $provider = $this->provider(['view article' => $definition]);
+
+        try {
+            PermissionHandler::fromProviders([$provider]);
+            $this->fail('Expected a LogicException.');
+        } catch (\LogicException $exception) {
+            $this->assertStringContainsString('Permission "view article"', $exception->getMessage());
+            $this->assertStringContainsString($expected, $exception->getMessage());
+            $this->assertStringContainsString($provider::class, $exception->getMessage());
+        }
+    }
+
+    /** @param mixed $definition */
+    #[\PHPUnit\Framework\Attributes\DataProvider('malformedDefinitions')]
+    public function testFromProvidersRejectsAMalformedManifestDefinitionNamingTheManifest(mixed $definition, string $expected): void
+    {
+        try {
+            PermissionHandler::fromProviders([], ['view article' => $definition]);
+            $this->fail('Expected a LogicException.');
+        } catch (\LogicException $exception) {
+            $this->assertStringContainsString('Permission "view article"', $exception->getMessage());
+            $this->assertStringContainsString($expected, $exception->getMessage());
+            $this->assertStringContainsString('extra.waaseyaa.permissions', $exception->getMessage());
+        }
+    }
+
+    /** @return iterable<string, array{0: int|string}> */
+    public static function invalidIds(): iterable
+    {
+        yield 'empty' => [''];
+        yield 'whitespace only' => ['  '];
+        yield 'leading space' => [' view article'];
+        yield 'trailing space' => ['view article '];
+        yield 'control character' => ["view\tarticle"];
+        yield 'integer key' => [7];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidIds')]
+    public function testFromProvidersRejectsAnInvalidPermissionId(int|string $id): void
+    {
+        $provider = $this->provider([$id => ['title' => 'Valid', 'description' => '']]);
+
+        try {
+            PermissionHandler::fromProviders([$provider]);
+            $this->fail('Expected a LogicException.');
+        } catch (\LogicException $exception) {
+            $this->assertStringContainsString('invalid permission id', $exception->getMessage());
+            $this->assertStringContainsString($provider::class, $exception->getMessage());
+        }
+    }
+
+    public function testFromProvidersReportsADuplicateBeforeAMalformedRedeclaration(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Permission "view article" is declared more than once');
+
+        PermissionHandler::fromProviders(
+            [$this->provider(['view article' => 'not even an array'])],
+            ['view article' => ['title' => 'View']],
+        );
+    }
+
+    /** @param array<int|string, mixed> $permissions */
     private function provider(array $permissions): ProvidesPermissionsInterface
     {
         return new class ($permissions) implements ProvidesPermissionsInterface {
-            /** @param array<string, array{title: string, description: string}> $permissions */
+            /** @param array<int|string, mixed> $permissions */
             public function __construct(private readonly array $permissions) {}
 
             public function permissions(): array

@@ -91,6 +91,8 @@ final class PackageManifestCompiler
         $formatters = [];
         $middleware = [];
         $permissions = [];
+        /** @var array<string, string> $permissionOwners id => declaring package name */
+        $permissionOwners = [];
         $policies = [];
         $packageDeclarations = [];
         $attributeEntityTypes = [];
@@ -126,7 +128,17 @@ final class PackageManifestCompiler
                     $migrations[$packageName] = self::validateMigrationsEntry($packageName, $extra['migrations']);
                 }
                 if (isset($extra['permissions']) && is_array($extra['permissions'])) {
+                    // Duplicate custody fails closed: a later installed.json entry
+                    // must not overwrite an earlier package's permission owner
+                    // (#2788). The root application is merged after this loop
+                    // under the same rule.
+                    $packageName = is_string($package['name'] ?? null) ? $package['name'] : 'unknown';
                     foreach ($extra['permissions'] as $permId => $permDef) {
+                        $permId = (string) $permId;
+                        if (isset($permissionOwners[$permId])) {
+                            throw new PermissionManifestCollisionException($permId, $permissionOwners[$permId], $packageName);
+                        }
+                        $permissionOwners[$permId] = $packageName;
                         $permissions[$permId] = $permDef;
                     }
                 }
@@ -143,8 +155,7 @@ final class PackageManifestCompiler
         // Read root composer.json for app-level providers and migrations.
         // Composer's installed.json excludes the root package, so app providers
         // and migrations declared in extra.waaseyaa must be read separately.
-        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, $migrations, onlyAppendMissingFromRoot: false);
-
+        $this->mergeRootWaaseyaaIntoLists($providers, $permissions, $migrations, onlyAppendMissingFromRoot: false, permissionOwners: $permissionOwners);
 
         // Detect provider capability: ProvidesConsoleCommandsInterface
         // Uses string constant to avoid importing from Layer 6 (CLI package).
@@ -961,15 +972,26 @@ final class PackageManifestCompiler
     /**
      * Merge root extra.waaseyaa providers, permissions, and migrations.
      *
+     * Permissions: on a fresh compile (`$onlyAppendMissingFromRoot === false`)
+     * a root id that an installed package already owns is a
+     * {@see PermissionManifestCollisionException} — the root application never
+     * silently overrides a package's definition. On a cache reload the cached
+     * manifest already carries the root's own entries from that compile, so
+     * they are re-merged idempotently by appending only what is missing; a
+     * changed root declaration invalidates the cache fingerprint and recompiles
+     * through the fail-closed path.
+     *
      * @param list<string> $providers
-     * @param array<string, array{title: string, description?: string}> $permissions
+     * @param array<string, array<mixed>> $permissions raw declared shapes; `PermissionHandler::fromProviders()` validates them at boot
      * @param array<string, string|list<string>> $migrations
+     * @param array<string, string> $permissionOwners id => declaring package name (fresh compile only)
      */
     private function mergeRootWaaseyaaIntoLists(
         array &$providers,
         array &$permissions,
         array &$migrations,
         bool $onlyAppendMissingFromRoot,
+        array $permissionOwners = [],
     ): void {
         $rootExtra = $this->readRootWaaseyaaExtra();
         if ($rootExtra === null) {
@@ -989,9 +1011,19 @@ final class PackageManifestCompiler
 
         if (isset($rootExtra['permissions']) && is_array($rootExtra['permissions'])) {
             foreach ($rootExtra['permissions'] as $permId => $permDef) {
-                if (is_string($permId) && is_array($permDef)) {
-                    $permissions[$permId] = $permDef;
+                if (!is_string($permId) || !is_array($permDef)) {
+                    continue;
                 }
+                if ($onlyAppendMissingFromRoot) {
+                    if (!array_key_exists($permId, $permissions)) {
+                        $permissions[$permId] = $permDef;
+                    }
+                    continue;
+                }
+                if (isset($permissionOwners[$permId])) {
+                    throw new PermissionManifestCollisionException($permId, $permissionOwners[$permId], 'root composer.json (extra.waaseyaa)');
+                }
+                $permissions[$permId] = $permDef;
             }
         }
 

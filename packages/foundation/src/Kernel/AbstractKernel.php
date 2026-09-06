@@ -105,6 +105,7 @@ abstract class AbstractKernel
     private ?SecretResolverRegistry $secretResolverRegistry = null;
     private ?\Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface $healthChecker = null;
     private ?\Waaseyaa\Access\PermissionHandlerInterface $permissionCatalogue = null;
+    private ?\Waaseyaa\User\RoleRepository $roleRepository = null;
     protected MigrationLoader $migrationLoader;
     protected MigrationRepository $migrationRepository;
 
@@ -249,8 +250,12 @@ abstract class AbstractKernel
         }
         if (!$this->restrictedDiscoveryOnly) {
             $this->composeApplicationMasterRekeyOwners();
-            $this->bootProviders();
+            // Declarative governance is validated BEFORE any provider boot hook
+            // runs: a boot hook may perform durable writes (the generated
+            // governance provider seeds workflows), so an invalid catalogue or
+            // role grant must refuse the process before that point (#2788).
             $this->composePermissionCatalogue();
+            $this->bootProviders();
             $this->discoverAccessPolicies();
             $this->installFieldReadRuntime();
             $this->bootScheduleEntries();
@@ -769,22 +774,26 @@ abstract class AbstractKernel
     }
 
     /**
-     * Compose the one permission catalogue and validate every provider-declared
-     * role against it (#2788 G1).
+     * Compose the one permission catalogue and the one validated role
+     * repository, before any provider boot hook runs (#2788 G1).
      *
      * The catalogue unions the compiled manifest's `extra.waaseyaa.permissions`
      * entries with every provider implementing `ProvidesPermissionsInterface`
-     * (duplicate ids fail closed). A role contributed through
-     * `ProvidesRolesInterface` that grants a permission outside that catalogue
-     * is a hard boot failure: `user:assign-role` stamps role permissions onto
-     * accounts as opaque strings, so an uncatalogued grant would otherwise
-     * become live authority nothing declared.
+     * (duplicate or malformed entries fail closed). Roles are collected from
+     * every `ProvidesRolesInterface` provider exactly once; a role granting a
+     * permission outside the catalogue is a hard boot failure, because
+     * `user:assign-role` stamps role permissions onto accounts as opaque
+     * strings and an uncatalogued grant would otherwise become live authority
+     * nothing declared. The validated repository is retained and served by
+     * identity through {@see self::roleRepository()} and the handler
+     * container; providers' `roles()` is never consulted a second time.
      */
     private function composePermissionCatalogue(): void
     {
         try {
             $catalogue = \Waaseyaa\Access\PermissionHandler::fromProviders($this->providers, $this->manifest->permissions);
-            \Waaseyaa\User\RoleRepository::fromProviders($this->providers)->assertPermissionsCatalogued($catalogue);
+            $roles = \Waaseyaa\User\RoleRepository::fromProviders($this->providers);
+            $roles->assertPermissionsCatalogued($catalogue);
         } catch (\LogicException $exception) {
             $owners = [];
             foreach ($this->providers as $provider) {
@@ -799,6 +808,7 @@ abstract class AbstractKernel
             ), previous: $exception);
         }
         $this->permissionCatalogue = $catalogue;
+        $this->roleRepository = $roles;
     }
 
     /**
@@ -812,6 +822,20 @@ abstract class AbstractKernel
         }
 
         return $this->permissionCatalogue;
+    }
+
+    /**
+     * The one validated role repository composed at boot (the exact instance
+     * `assertPermissionsCatalogued()` accepted); served through the handler
+     * container as `RoleRepository`.
+     */
+    public function roleRepository(): \Waaseyaa\User\RoleRepository
+    {
+        if ($this->roleRepository === null) {
+            throw new \LogicException('The role repository is composed during boot; call after boot.');
+        }
+
+        return $this->roleRepository;
     }
 
     /** Freeze the complete active owner graph before any provider boot hook executes. */
@@ -1311,11 +1335,13 @@ abstract class AbstractKernel
             \Waaseyaa\Entity\EntityTypeManagerInterface::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $c->get(\Waaseyaa\Entity\EntityTypeManager::class),
 
-            // Role registry composed from every provider implementing
-            // ProvidesRolesInterface, so role-aware handlers (e.g.
-            // UserAssignRoleHandler) can stamp role permissions onto a user.
+            // The one validated role registry composed at boot (#2788): the
+            // exact instance the catalogue validation accepted, so role-aware
+            // handlers (e.g. UserAssignRoleHandler) stamp only validated
+            // permissions onto a user and providers' roles() is never
+            // consulted a second time.
             \Waaseyaa\User\RoleRepository::class =>
-                static fn(\Psr\Container\ContainerInterface $c) => \Waaseyaa\User\RoleRepository::fromProviders($providers),
+                static fn(\Psr\Container\ContainerInterface $c) => $kernel->roleRepository(),
 
             // The one permission catalogue composed at boot (#2788 G1), so
             // `permission:list` and any catalogue-aware handler read the same

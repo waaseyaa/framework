@@ -6,6 +6,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use Waaseyaa\Foundation\Discovery\MalformedConfigContractException;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Discovery\PermissionManifestCollisionException;
 use Waaseyaa\Foundation\Discovery\PolicyManifestMismatchException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
@@ -1342,6 +1343,85 @@ final class PackageManifestCompilerTest extends TestCase
         $this->assertCount(3, $manifest->permissions);
         $this->assertSame('Access published content', $manifest->permissions['access content']['title']);
         $this->assertSame('Administer users', $manifest->permissions['administer users']['title']);
+    }
+
+    /**
+     * #2788 review: the manifest is the first custody boundary for permission
+     * ownership. Two installed packages declaring the same id previously let
+     * the later `installed.json` entry silently overwrite the earlier one;
+     * the compiler now refuses with both owners named in installed order.
+     */
+    #[Test]
+    public function compile_refuses_a_permission_declared_by_two_installed_packages(): void
+    {
+        file_put_contents($this->tempDir . '/vendor/composer/installed.json', json_encode(['packages' => [
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+            ['name' => 'acme/blog', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Read the blog']]]]],
+        ]], JSON_THROW_ON_ERROR));
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+
+        try {
+            $compiler->compile();
+            $this->fail('Expected a PermissionManifestCollisionException.');
+        } catch (PermissionManifestCollisionException $exception) {
+            $this->assertStringContainsString('PERMISSION_MANIFEST_COLLISION', $exception->getMessage());
+            $this->assertStringContainsString('"access content"', $exception->getMessage());
+            $this->assertStringContainsString('waaseyaa/node', $exception->getMessage());
+            $this->assertStringContainsString('acme/blog', $exception->getMessage());
+            $this->assertLessThan(
+                strpos($exception->getMessage(), 'acme/blog'),
+                strpos($exception->getMessage(), 'waaseyaa/node'),
+                'the first declaring package is named as the existing owner',
+            );
+        }
+        $this->assertFileDoesNotExist($this->tempDir . '/storage/framework/packages.php', 'nothing is cached on refusal');
+    }
+
+    #[Test]
+    public function compile_refuses_a_root_permission_that_an_installed_package_already_declares(): void
+    {
+        file_put_contents($this->tempDir . '/vendor/composer/installed.json', json_encode(['packages' => [
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]], JSON_THROW_ON_ERROR));
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Root override']]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+
+        try {
+            $compiler->compile();
+            $this->fail('Expected a PermissionManifestCollisionException.');
+        } catch (PermissionManifestCollisionException $exception) {
+            $this->assertStringContainsString('"access content"', $exception->getMessage());
+            $this->assertStringContainsString('waaseyaa/node', $exception->getMessage());
+            $this->assertStringContainsString('root composer.json (extra.waaseyaa)', $exception->getMessage());
+        }
+    }
+
+    /** A root declaration that collides with nothing is still merged, cached, and reloaded unchanged. */
+    #[Test]
+    public function compile_and_load_keep_a_distinct_root_permission_alongside_package_permissions(): void
+    {
+        file_put_contents($this->tempDir . '/vendor/composer/installed.json', json_encode(['packages' => [
+            ['name' => 'waaseyaa/node', 'extra' => ['waaseyaa' => ['permissions' => ['access content' => ['title' => 'Access published content']]]]],
+        ]], JSON_THROW_ON_ERROR));
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'test/root',
+            'extra' => ['waaseyaa' => ['permissions' => ['operate the root' => ['title' => 'Operate the root']]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $compiled = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+        $loaded = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->load();
+
+        $expected = [
+            'access content' => ['title' => 'Access published content'],
+            'operate the root' => ['title' => 'Operate the root'],
+        ];
+        $this->assertSame($expected, $compiled->permissions);
+        $this->assertSame($expected, $loaded->permissions, 'reloading re-merges the root declaration idempotently');
     }
 
     #[Test]
