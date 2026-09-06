@@ -111,6 +111,10 @@ function s1SchemaClass(string $path): string
         'packages/entity-storage/src/SqlEntityQuery.php' => 'explicit-exclusion',
         'packages/entity-storage/src/SqlSchemaHandler.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/src/Testing/EntityMutationAuthoritySchema.php' => 'test-only',
+        // #2788: a pure emitter whose heredoc bodies render generated companion
+        // TESTS (`$repository->create(...)` inside the emitted test source); it
+        // executes no schema boundary itself.
+        'packages/cli/src/Site/Blueprint/Emitter/GovernanceCheckEmitter.php' => 'tooling-generator',
         'packages/entity/src/Attribute/Field.php' => 'read-only-or-declaration',
         'packages/entity/testing/StorageBackedStubRepository.php' => 'test-tooling',
         'packages/entity/testing/Translation/TranslatableEntityContractTest.php' => 'test-only',

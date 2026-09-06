@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Site\Blueprint\Emitter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\GovernanceCheckEmitter;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Blueprint\BlueprintCheck;
@@ -58,6 +59,7 @@ final class GovernanceCheckEmitterTest extends TestCase
         $expectedPaths = [
             'tests/Blueprint/EntityAccessChecksTest.php',
             'tests/Blueprint/GovernanceDefaultDenyTest.php',
+            'tests/Blueprint/JsonApiGovernanceChecksTest.php',
             'tests/Blueprint/RolePermissionChecksTest.php',
             'tests/Blueprint/WorkflowTransitionChecksTest.php',
         ];
@@ -100,14 +102,19 @@ final class GovernanceCheckEmitterTest extends TestCase
      * End-to-end proof: every companion test generated for `complete.yaml`,
      * loaded alongside the REAL entity/policy/provider/workflow-definition
      * classes the OTHER governance emitters produce for the same blueprint,
-     * and executed as a real PHPUnit run via `proc_open` — not merely
+     * and executed as a real PHPUnit run in a child process — not merely
      * syntax-checked. Covers `GovernanceDefaultDenyTest` (2 per-entity denial
      * methods plus the 3 decision-(i) invariant methods added by #2788
      * review F7), `RolePermissionChecksTest`, `EntityAccessChecksTest` (one
      * `deny` and, since #2788 review F2, one genuine `allow` check),
-     * and `WorkflowTransitionChecksTest` (one `denied` and one genuine
+     * `WorkflowTransitionChecksTest` (one `denied` and one genuine
      * `allowed` check — the real `TransitionService` wired against a
-     * `TemporarySqliteDatabase`-backed repository) — 10 methods in total.
+     * `TemporarySqliteDatabase`-backed repository), and
+     * `JsonApiGovernanceChecksTest` (#2788 review gap 2: the real
+     * `JsonApiController` create/list/show/update/delete for both entities —
+     * 12 article methods covering allowed, denied and near-miss principals
+     * plus the field-level owner/workflow_state seal, 5 denied-only person
+     * methods) — 27 methods in total.
      */
     #[Test]
     public function everyGeneratedCompanionTestPassesWhenExecutedAgainstTheFullyMaterializedBlueprint(): void
@@ -177,22 +184,21 @@ final class GovernanceCheckEmitterTest extends TestCase
                 </phpunit>
                 XML);
 
+            // The house subprocess pattern (#2491, SubprocessHarnessContractTest):
+            // Symfony Process drains stdout and stderr concurrently, so a chatty
+            // child can never wedge the sequential-pipe shape proc_open() had here.
             $phpunitBin = \dirname(__DIR__, 7) . '/vendor/bin/phpunit';
-            $process = proc_open(
-                ['php', '-d', 'memory_limit=512M', $phpunitBin, '-c', $dir . '/phpunit.xml', '--no-coverage'],
-                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-                $pipes,
+            $process = new Process(
+                [PHP_BINARY, '-d', 'memory_limit=512M', $phpunitBin, '-c', $dir . '/phpunit.xml', '--no-coverage'],
                 $dir,
+                timeout: 120,
             );
-            self::assertNotFalse($process);
-            $stdout = stream_get_contents($pipes[1]);
-            $stderr = stream_get_contents($pipes[2]);
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-            $exitCode = proc_close($process);
+            $exitCode = $process->run();
+            $stdout = $process->getOutput();
+            $stderr = $process->getErrorOutput();
 
             self::assertSame(0, $exitCode, "Generated companion tests failed:\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}");
-            self::assertStringContainsString('OK (10 tests', (string) $stdout);
+            self::assertStringContainsString('OK (27 tests', $stdout);
         } finally {
             new \Symfony\Component\Filesystem\Filesystem()->remove($dir);
         }

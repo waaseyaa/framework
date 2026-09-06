@@ -109,6 +109,7 @@ final class ApplicationBlueprintCompilerTest extends TestCase
             [
                 'tests/Blueprint/EntityAccessChecksTest.php',
                 'tests/Blueprint/GovernanceDefaultDenyTest.php',
+                'tests/Blueprint/JsonApiGovernanceChecksTest.php',
                 'tests/Blueprint/RolePermissionChecksTest.php',
                 'tests/Blueprint/WorkflowTransitionChecksTest.php',
             ],

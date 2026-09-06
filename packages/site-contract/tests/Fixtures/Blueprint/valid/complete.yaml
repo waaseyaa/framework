@@ -78,6 +78,18 @@ application_blueprint:
       label: Viewer
       permissions: [view article]
   policies:
+    - id: article_create
+      entity: article
+      operation: create
+      condition:
+        kind: permission
+        permission: edit article
+    - id: article_delete_own
+      entity: article
+      operation: delete
+      condition:
+        kind: ownership
+        permission: edit article
     - id: article_view
       entity: article
       operation: view

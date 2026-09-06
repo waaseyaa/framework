@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\CLI\Site\Blueprint\Emitter\AccessPolicyEmitter;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Blueprint\BlueprintConditionKind;
@@ -92,10 +93,14 @@ final class AccessPolicyEmitterTest extends TestCase
         self::assertFalse($handler->check($owned, 'update', $publisher)->isAllowed(), 'published state does not satisfy the workflow_state condition');
         self::assertFalse($handler->check($unowned, 'update', $viewer)->isAllowed());
 
-        self::assertFalse($handler->check($owned, 'delete', $editor)->isAllowed(), 'no delete policy is declared; every account is denied');
+        self::assertTrue($handler->check($owned, 'delete', $editor)->isAllowed(), 'owner + edit article permission grants delete (article_delete_own)');
+        self::assertFalse($handler->check($unowned, 'delete', $editor)->isAllowed(), 'a non-owner holding the permission is not granted delete');
+        self::assertFalse($handler->check($owned, 'delete', $viewer)->isAllowed());
 
         self::assertInstanceOf(AccessResult::class, new $policyClass()->createAccess('article', 'article', $viewer));
+        self::assertTrue(new $policyClass()->createAccess('article', 'article', $editor)->isAllowed(), 'edit article permission grants create (article_create)');
         self::assertTrue(new $policyClass()->createAccess('article', 'article', $viewer)->isNeutral());
+        self::assertFalse($handler->checkCreateAccess('article', 'article', $anonymous)->isAllowed());
     }
 
     /**
@@ -124,6 +129,65 @@ final class AccessPolicyEmitterTest extends TestCase
 
         $instance = $attributes[0]->newInstance();
         self::assertSame(['article'], $instance->entityTypes);
+    }
+
+    /**
+     * #2788 review gap 3: an entity-level `update` grant must not let the
+     * grantee rewrite the very inputs the grant was decided on. The generated
+     * policy therefore also implements {@see FieldAccessPolicyInterface}
+     * through the canonical `EntityAccessHandler::checkFieldAccess()` path:
+     * the `keys.owner` field is edit-Forbidden on a persisted entity
+     * (ownership reassignment) while still settable at create
+     * (`isNew()`, the `NodeAccessPolicy` authorship precedent), and the
+     * engine-owned `workflow_state` selector is edit-Forbidden always
+     * (`TransitionService` is its only writer). Ordinary fields stay
+     * open-by-default, and `view` is never Forbidden here (Protected fields
+     * are concealed by the read layout, not by this policy).
+     */
+    #[Test]
+    public function theGeneratedPolicySealsAuthorizationInputsAgainstEditWhileOrdinaryFieldsStayOpen(): void
+    {
+        $manifest = $this->manifest('complete.yaml');
+        $emission = new AccessPolicyEmitter()->emit($manifest->applicationBlueprint, $manifest);
+
+        [, $entityClass, $policyClass] = $this->loadGeneratedPolicyWithEntity($emission->artifacts[0]->content, $manifest);
+        self::assertInstanceOf(FieldAccessPolicyInterface::class, new $policyClass());
+
+        $handler = new EntityAccessHandler([new $policyClass()]);
+        $owner = AuthorizationPrincipalFactory::authenticated(99, permissions: ['edit article']);
+        $persisted = $this->sealedArticle($entityClass, authorId: 99, workflowState: 'draft');
+        self::assertFalse($persisted->isNew());
+        self::assertTrue($handler->check($persisted, 'update', $owner)->isAllowed(), 'precondition: the owner holds an entity-level update grant');
+
+        self::assertFalse($handler->checkFieldAccess($persisted, 'title', 'edit', $owner)->isForbidden(), 'ordinary field update stays open');
+        self::assertFalse($handler->checkFieldAccess($persisted, 'stage', 'edit', $owner)->isForbidden());
+        self::assertTrue($handler->checkFieldAccess($persisted, 'author', 'edit', $owner)->isForbidden(), 'owner reassignment on a persisted entity is refused');
+        self::assertTrue($handler->checkFieldAccess($persisted, 'workflow_state', 'edit', $owner)->isForbidden(), 'the workflow selector is engine-owned');
+        self::assertFalse($handler->checkFieldAccess($persisted, 'author', 'view', $owner)->isForbidden(), 'view is concealed by the read layout, never Forbidden here');
+
+        $fresh = new $entityClass(['title' => 'New']);
+        self::assertTrue($fresh->isNew());
+        self::assertFalse($handler->checkFieldAccess($fresh, 'author', 'edit', $owner)->isForbidden(), 'authorship is settable at create');
+        self::assertTrue($handler->checkFieldAccess($fresh, 'workflow_state', 'edit', $owner)->isForbidden(), 'the selector is engine-owned even at create');
+    }
+
+    /**
+     * A policy for an entity with no authorization inputs (no `keys.owner`,
+     * not workflow-bound) has nothing to seal, so it stays an
+     * `AccessPolicyInterface`-only class: the field-access surface is
+     * introduced only where a protected input exists.
+     */
+    #[Test]
+    public function aPolicyForAnEntityWithoutAuthorizationInputsDoesNotImplementFieldAccess(): void
+    {
+        $manifest = $this->manifestWithBlueprint($this->blueprintWithOnePolicy(
+            BlueprintOperation::View,
+            new BlueprintPolicyCondition(BlueprintConditionKind::Permission, permission: 'view article'),
+        ));
+        $emission = new AccessPolicyEmitter()->emit($manifest->applicationBlueprint, $manifest);
+
+        self::assertStringNotContainsString('FieldAccessPolicyInterface', $emission->artifacts[0]->content);
+        self::assertStringNotContainsString('fieldAccess(', $emission->artifacts[0]->content);
     }
 
     #[Test]

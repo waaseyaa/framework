@@ -7,8 +7,13 @@ namespace Waaseyaa\CLI\Site\Blueprint\Emitter;
 use Waaseyaa\SiteContract\Blueprint\ApplicationBlueprint;
 use Waaseyaa\SiteContract\Blueprint\BlueprintCheck;
 use Waaseyaa\SiteContract\Blueprint\BlueprintCheckKind;
+use Waaseyaa\SiteContract\Blueprint\BlueprintConditionKind;
 use Waaseyaa\SiteContract\Blueprint\BlueprintEntity;
+use Waaseyaa\SiteContract\Blueprint\BlueprintField;
+use Waaseyaa\SiteContract\Blueprint\BlueprintFieldType;
 use Waaseyaa\SiteContract\Blueprint\BlueprintFixture;
+use Waaseyaa\SiteContract\Blueprint\BlueprintPolicy;
+use Waaseyaa\SiteContract\Blueprint\BlueprintWorkflow;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationErrorCode;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationRefusalException;
 use Waaseyaa\SiteContract\Generation\Exception\GenerationViolation;
@@ -68,6 +73,11 @@ use Waaseyaa\SiteContract\SiteManifest;
  * denial reason — unbound, unknown transition, illegal edge — is reachable
  * from a role/permission-shaped check).
  *
+ * `JsonApiGovernanceChecksTest` (#2788 review gap 2) is emitted whenever the
+ * blueprint declares at least one policy and drives EVERY entity through the
+ * real `Waaseyaa\Api\JsonApiController` — see
+ * {@see self::renderJsonApiGovernanceChecks()}.
+ *
  * @api
  */
 final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
@@ -100,6 +110,10 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
         $workflowChecks = self::checksOfKind($blueprint, BlueprintCheckKind::WorkflowTransition);
         if ($workflowChecks !== []) {
             $artifacts[] = new GeneratedArtifact('tests/Blueprint/WorkflowTransitionChecksTest.php', $this->renderWorkflowTransitionChecks($blueprint, $workflowChecks));
+        }
+
+        if ($blueprint->policies !== []) {
+            $artifacts[] = new GeneratedArtifact('tests/Blueprint/JsonApiGovernanceChecksTest.php', $this->renderJsonApiGovernanceChecks($blueprint, $policyEntityIds));
         }
 
         usort($artifacts, static fn(GeneratedArtifact $left, GeneratedArtifact $right): int => strcmp($left->path, $right->path));
@@ -400,6 +414,7 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
     private function renderRolePermissionMethod(BlueprintCheck $check): string
     {
         \assert($check->role !== null && $check->permission !== null);
+        $quoted = self::quoted(...);
         $method = 'test' . self::pascalCase($check->id);
         $assertion = self::expectAllowed($check->expect) ? 'assertTrue' : 'assertFalse';
 
@@ -409,12 +424,12 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
                 {
                     \$provider = new \\App\\Provider\\ApplicationBlueprintGovernanceServiceProvider();
                     \$repository = RoleRepository::fromProviders([\$provider]);
-                    \$role = \$repository->get({$this->quoted($check->role)});
+                    \$role = \$repository->get({$quoted($check->role)});
                     self::assertNotNull(\$role);
 
                     \$account = AuthorizationPrincipalFactory::authenticated(1, roles: [\$role->id], permissions: \$role->permissions);
 
-                    self::{$assertion}(\$account->hasPermission({$this->quoted($check->permission)}));
+                    self::{$assertion}(\$account->hasPermission({$quoted($check->permission)}));
                 }
 
             PHP;
@@ -457,6 +472,7 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
     private function renderEntityAccessMethod(ApplicationBlueprint $blueprint, BlueprintCheck $check, array $policyEntityIds): string
     {
         \assert($check->role !== null && $check->entity !== null && $check->operation !== null);
+        $quoted = self::quoted(...);
         $entity = $blueprint->entities[$check->entity];
         $entityClass = self::pascalCase($entity->id);
         $fixture = $check->fixture !== null ? ($blueprint->fixtures[$check->fixture] ?? null) : null;
@@ -467,8 +483,8 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
         $operation = $check->operation->value;
 
         $callLine = $operation === 'create'
-            ? "\$result = \$handler->checkCreateAccess({$this->quoted($entity->id)}, {$this->quoted($entity->id)}, \$account);"
-            : "\$result = \$handler->check(\$subject, {$this->quoted($operation)}, \$account);";
+            ? "\$result = \$handler->checkCreateAccess({$quoted($entity->id)}, {$quoted($entity->id)}, \$account);"
+            : "\$result = \$handler->check(\$subject, {$quoted($operation)}, \$account);";
         $subjectLine = $operation === 'create'
             ? ''
             : "        \$subject = new \\App\\Entity\\{$entityClass}({$subjectValues});\n";
@@ -479,7 +495,7 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
                 {
                     \$provider = new \\App\\Provider\\ApplicationBlueprintGovernanceServiceProvider();
                     \$repository = RoleRepository::fromProviders([\$provider]);
-                    \$role = \$repository->get({$this->quoted($check->role)});
+                    \$role = \$repository->get({$quoted($check->role)});
                     self::assertNotNull(\$role);
                     \$account = AuthorizationPrincipalFactory::authenticated(1, roles: [\$role->id], permissions: \$role->permissions);
 
@@ -647,6 +663,8 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
     private function renderWorkflowTransitionMethod(ApplicationBlueprint $blueprint, BlueprintCheck $check): string
     {
         \assert($check->role !== null && $check->workflow !== null && $check->transition !== null);
+        $quoted = self::quoted(...);
+        $pascal = self::pascalCase(...);
         $workflow = $blueprint->workflows[$check->workflow];
         // A workflow with zero bindings is refused by
         // self::assertChecksAreCompileTimeSafe() (#2788 review F5) before
@@ -659,7 +677,7 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
         $method = 'test' . self::pascalCase($check->id);
         $allowed = self::expectAllowed($check->expect);
 
-        $transitionCall = '$transitionService->transition($entity, ' . $this->quoted($check->transition) . ', $account);';
+        $transitionCall = '$transitionService->transition($entity, ' . self::quoted($check->transition) . ', $account);';
         $body = $allowed
             ? "        \$this->expectNotToPerformAssertions();\n        {$transitionCall}"
             : "        try {\n            {$transitionCall}\n            self::fail('Expected a TransitionDeniedException.');\n        } catch (TransitionDeniedException \$exception) {\n            self::assertSame(TransitionDeniedException::REASON_PERMISSION, \$exception->reason);\n        }";
@@ -670,7 +688,7 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
                 {
                     \$provider = new \\App\\Provider\\ApplicationBlueprintGovernanceServiceProvider();
                     \$repository = RoleRepository::fromProviders([\$provider]);
-                    \$role = \$repository->get({$this->quoted($check->role)});
+                    \$role = \$repository->get({$quoted($check->role)});
                     // A NATIVE assert, not a PHPUnit assertion: an 'allowed'-expecting
                     // method below calls expectNotToPerformAssertions(), which fails the
                     // test (risky: "performed N assertions") if ANY PHPUnit assertion runs
@@ -680,9 +698,9 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
 
                     [\$transitionService, \$entityRepository, \$temporaryDatabase] = \$this->bootTransitionService(
                         \\App\\Entity\\{$entityClass}::class,
-                        {$this->quoted($entity->id)},
-                        {$this->quoted($workflow->id)},
-                        \\App\\Workflow\\{$this->pascalCase($workflow->id)}WorkflowDefinition::DEFINITION,
+                        {$quoted($entity->id)},
+                        {$quoted($workflow->id)},
+                        \\App\\Workflow\\{$pascal($workflow->id)}WorkflowDefinition::DEFINITION,
                     );
                     \$entity = \$entityRepository->create(['id' => 1]);
                     \$entity->enforceIsNew();
@@ -692,6 +710,511 @@ final class GovernanceCheckEmitter implements BlueprintArtifactEmitterInterface
                 }
 
             PHP;
+    }
+
+    // -- JsonApiGovernanceChecksTest ---------------------------------------
+
+    /**
+     * Emitted whenever the blueprint declares at least one policy (#2788
+     * review gap 2): every blueprint entity is driven through the REAL
+     * `Waaseyaa\Api\JsonApiController` — `store()`, `index()`, `show()`,
+     * `update()`, `destroy()` — composed with a real `EntityAccessHandler`
+     * over that entity's generated policy (or none), a
+     * `TemporarySqliteDatabase`-backed repository, and immutable principals.
+     *
+     * Per entity and operation this renders (a) the canonical denial — a
+     * permission-less authenticated principal, plus anonymous for `show` —
+     * asserting the controller's exact status/document shape (`403`
+     * forbidden for writes, `404` non-oracle not-found for a concealed read,
+     * `200` with an empty collection for a filtered list); (b) when the
+     * entity declares a policy for that operation, the allowed path built
+     * from the first declared policy (permission held, ownership satisfied,
+     * workflow state matched) with exact status/document assertions; and (c)
+     * for `ownership`/`workflow_state` conditions, a near-miss denial (holds
+     * the permission, but is not the owner / not in a listed state). The
+     * allowed `update` path additionally proves the field-level seal
+     * (review gap 3): reassigning `keys.owner` or writing `workflow_state`
+     * through an entity-level update grant is `403`.
+     *
+     * @param array<string, true> $policyEntityIds
+     */
+    private function renderJsonApiGovernanceChecks(ApplicationBlueprint $blueprint, array $policyEntityIds): string
+    {
+        $entities = array_values($blueprint->entities);
+        usort($entities, static fn(BlueprintEntity $left, BlueprintEntity $right): int => strcmp($left->id, $right->id));
+
+        $methods = '';
+        foreach ($entities as $entity) {
+            $methods .= $this->renderJsonApiEntityMethods($blueprint, $entity, isset($policyEntityIds[$entity->id]));
+        }
+
+        return <<<PHP
+            <?php
+
+            declare(strict_types=1);
+
+            namespace App\\Tests\\Blueprint;
+
+            use PHPUnit\\Framework\\TestCase;
+            use Waaseyaa\\Access\\AccountInterface;
+            use Waaseyaa\\Access\\EntityAccessHandler;
+            use Waaseyaa\\Api\\JsonApiController;
+            use Waaseyaa\\Api\\ResourceSerializer;
+            use Waaseyaa\\Entity\\EntityType;
+            use Waaseyaa\\Entity\\EntityTypeInterface;
+            use Waaseyaa\\Entity\\EntityTypeManager;
+            use Waaseyaa\\Entity\\Repository\\EntityRepositoryInterface;
+            use Waaseyaa\\EntityStorage\\Connection\\SingleConnectionResolver;
+            use Waaseyaa\\EntityStorage\\Driver\\RevisionableStorageDriver;
+            use Waaseyaa\\EntityStorage\\Driver\\SqlStorageDriver;
+            use Waaseyaa\\EntityStorage\\SqlSchemaHandler;
+            use Waaseyaa\\EntityStorage\\Testing\\EntityMutationAuthoritySchema;
+            use Waaseyaa\\EntityStorage\\Testing\\V2EntityRepositoryFactory;
+            use Waaseyaa\\Foundation\\Event\\SymfonyEventDispatcherAdapter;
+            use Waaseyaa\\Testing\\Database\\TemporarySqliteDatabase;
+            use Waaseyaa\\Testing\\Factory\\AuthorizationPrincipalFactory;
+
+            /**
+             * Generated by Waaseyaa\\CLI\\Site\\Blueprint\\ApplicationBlueprintCompiler.
+             * Do not edit by hand. Drives every blueprint entity through the real
+             * JsonApiController (store/index/show/update/destroy) composed with a real
+             * EntityAccessHandler over the generated policy, asserting the exact status
+             * and document shape for a denied principal, and for an allowed principal
+             * wherever the blueprint declares a policy for that operation. Reads that are
+             * denied answer the canonical not-found shape, never an existence oracle.
+             */
+            final class JsonApiGovernanceChecksTest extends TestCase
+            {
+            {$methods}
+                /**
+                 * The returned TemporarySqliteDatabase MUST be kept alive by the caller for
+                 * as long as the controller is used: its destructor deletes the backing
+                 * SQLite file.
+                 *
+                 * @param list<\\Waaseyaa\\Access\\AccessPolicyInterface> \$policies
+                 * @return array{0: JsonApiController, 1: EntityRepositoryInterface, 2: TemporarySqliteDatabase}
+                 */
+                private function bootJsonApi(string \$entityClass, string \$entityId, bool \$revisionable, array \$policies, AccountInterface \$account): array
+                {
+                    \$dispatcher = new SymfonyEventDispatcherAdapter();
+                    \$database = new TemporarySqliteDatabase();
+                    \$resolver = new SingleConnectionResolver(\$database->database());
+                    EntityMutationAuthoritySchema::ensure(\$database->database());
+                    \$handler = new EntityAccessHandler(\$policies);
+
+                    \$definition = EntityType::fromClass(\$entityClass, revisionable: \$revisionable);
+                    \$schemaHandler = new SqlSchemaHandler(\$definition, \$database->database());
+                    \$schemaHandler->ensureTable();
+                    \$revisionDriver = null;
+                    if (\$revisionable) {
+                        \$schemaHandler->ensureRevisionTable();
+                        \$revisionDriver = new RevisionableStorageDriver(\$resolver, \$definition);
+                    }
+                    \$repository = V2EntityRepositoryFactory::createFromSqlStorageDriver(
+                        \$definition,
+                        new SqlStorageDriver(\$resolver, \$definition->getKeys()['id']),
+                        \$dispatcher,
+                        \$revisionDriver,
+                        \$database->database(),
+                        accessHandler: \$handler,
+                    );
+                    \$entityTypeManager = new EntityTypeManager(
+                        \$dispatcher,
+                        repositoryFactory: static fn(string \$typeId, EntityTypeInterface \$def): EntityRepositoryInterface => \$repository,
+                    );
+                    \$entityTypeManager->registerEntityType(\$definition);
+
+                    \$controller = new JsonApiController(\$entityTypeManager, new ResourceSerializer(\$entityTypeManager), \$handler, \$account);
+
+                    return [\$controller, \$repository, \$database];
+                }
+
+                /** @param array<string, mixed> \$values */
+                private function seedSubject(EntityRepositoryInterface \$repository, array \$values): void
+                {
+                    \$entity = \$repository->create(\$values);
+                    \$entity->enforceIsNew();
+                    \$repository->save(\$entity, validate: false);
+                }
+            }
+
+            PHP;
+    }
+
+    private function renderJsonApiEntityMethods(ApplicationBlueprint $blueprint, BlueprintEntity $entity, bool $hasPolicy): string
+    {
+        $quoted = self::quoted(...);
+        $pascal = self::pascalCase(...);
+        $entityClass = self::pascalCase($entity->id);
+        $entityId = self::quoted($entity->id);
+        $classLiteral = "\\App\\Entity\\{$entityClass}::class";
+        $revisionable = $entity->revisionable ? 'true' : 'false';
+        $policiesArg = $hasPolicy ? "[new \\App\\Access\\{$entityClass}Policy()]" : '[]';
+        $labelField = $entity->keys->label;
+        $ownerField = $entity->keys->owner;
+        $workflow = self::boundWorkflow($blueprint, $entity->id);
+
+        $byOperation = [];
+        foreach ($blueprint->policies as $policy) {
+            if ($policy->entity === $entity->id) {
+                $byOperation[$policy->operation->value][] = $policy;
+            }
+        }
+        foreach ($byOperation as &$list) {
+            usort($list, static fn(BlueprintPolicy $left, BlueprintPolicy $right): int => strcmp($left->id, $right->id));
+        }
+        unset($list);
+
+        $boot = fn(string $accountExpr): string => "        [\$controller, \$repository, \$database] = \$this->bootJsonApi({$classLiteral}, {$entityId}, {$revisionable}, {$policiesArg}, {$accountExpr});\n";
+        $denied = 'AuthorizationPrincipalFactory::authenticated(7)';
+        $subject = fn(int $ownerId, ?string $state): string => $this->renderJsonApiSubject($entity, $ownerId, $state, $workflow?->initialState);
+        $createPayload = fn(int $ownerId): string => $this->renderJsonApiCreatePayload($blueprint, $entity, $ownerId);
+        $patch = fn(string $field, string $valueLiteral): string => "['data' => ['type' => {$entityId}, 'attributes' => [" . self::quoted($field) . " => {$valueLiteral}]]]";
+
+        $methods = '';
+
+        // -- create --------------------------------------------------------
+        $methods .= <<<PHP
+
+                public function test{$entityClass}CreateIsDeniedWithoutAGrant(): void
+                {
+            {$boot($denied)}        \$document = \$controller->store({$entityId}, {$createPayload(7)});
+
+                    self::assertSame(403, \$document->statusCode);
+                    self::assertSame('403', \$document->toArray()['errors'][0]['status']);
+                }
+
+            PHP;
+        if (isset($byOperation['create'])) {
+            $policy = $byOperation['create'][0];
+            $methods .= <<<PHP
+
+                    public function test{$entityClass}CreateIsAllowedBy{$pascal($policy->id)}(): void
+                    {
+                {$boot($this->renderJsonApiPrincipal(42, $policy))}        \$document = \$controller->store({$entityId}, {$createPayload(42)});
+
+                        self::assertSame(201, \$document->statusCode);
+                        self::assertSame('Created', \$document->toArray()['data']['attributes'][{$quoted($labelField)}]);
+                    }
+
+                PHP;
+        }
+
+        // -- list ----------------------------------------------------------
+        $methods .= <<<PHP
+
+                public function test{$entityClass}ListIsEmptyWithoutAGrant(): void
+                {
+            {$boot($denied)}        \$this->seedSubject(\$repository, {$subject(42, null)});
+                    \$document = \$controller->index({$entityId});
+
+                    self::assertSame(200, \$document->statusCode);
+                    self::assertSame([], \$document->toArray()['data']);
+                    self::assertSame(0, \$document->toArray()['meta']['total']);
+                }
+
+            PHP;
+        if (isset($byOperation['view'])) {
+            $policy = $byOperation['view'][0];
+            $methods .= <<<PHP
+
+                    public function test{$entityClass}ListIsAllowedBy{$pascal($policy->id)}(): void
+                    {
+                {$boot($this->renderJsonApiPrincipal(42, $policy))}        \$this->seedSubject(\$repository, {$subject(42, self::stateFor($policy, $workflow))});
+                        \$document = \$controller->index({$entityId});
+
+                        self::assertSame(200, \$document->statusCode);
+                        self::assertCount(1, \$document->toArray()['data']);
+                        self::assertSame(1, \$document->toArray()['meta']['total']);
+                        self::assertSame('Welcome', \$document->toArray()['data'][0]['attributes'][{$quoted($labelField)}]);
+                    }
+
+                PHP;
+        }
+
+        // -- show ----------------------------------------------------------
+        $methods .= <<<PHP
+
+                public function test{$entityClass}ShowIsConcealedWithoutAGrant(): void
+                {
+                    foreach ([{$denied}, AuthorizationPrincipalFactory::anonymous()] as \$account) {
+            {$this->indent($boot('$account'), 4)}            \$this->seedSubject(\$repository, {$subject(42, null)});
+                        \$document = \$controller->show({$entityId}, 1);
+
+                        // A denied read answers the canonical not-found shape, never an existence oracle.
+                        self::assertSame(404, \$document->statusCode);
+                        self::assertSame('404', \$document->toArray()['errors'][0]['status']);
+                        self::assertArrayNotHasKey('code', \$document->toArray()['errors'][0]);
+                    }
+                }
+
+            PHP;
+        if (isset($byOperation['view'])) {
+            $policy = $byOperation['view'][0];
+            $concealed = '';
+            foreach (array_values(array_filter([$ownerField, $workflow !== null ? 'workflow_state' : null], static fn(?string $field): bool => $field !== null)) as $protected) {
+                $concealed .= "        self::assertArrayNotHasKey({$quoted($protected)}, \$attributes, 'authorization inputs never enter the ordinary projection');\n";
+            }
+            $methods .= <<<PHP
+
+                    public function test{$entityClass}ShowIsAllowedBy{$pascal($policy->id)}(): void
+                    {
+                {$boot($this->renderJsonApiPrincipal(42, $policy))}        \$this->seedSubject(\$repository, {$subject(42, self::stateFor($policy, $workflow))});
+                        \$document = \$controller->show({$entityId}, 1);
+
+                        self::assertSame(200, \$document->statusCode);
+                        \$attributes = \$document->toArray()['data']['attributes'];
+                        self::assertSame('Welcome', \$attributes[{$quoted($labelField)}]);
+                {$concealed}    }
+
+                PHP;
+            $methods .= $this->renderJsonApiNearMiss($entity, 'Show', $policy, $workflow, $boot, $subject, "        \$document = \$controller->show({$entityId}, 1);\n\n        self::assertSame(404, \$document->statusCode);\n");
+        }
+
+        // -- update --------------------------------------------------------
+        $updateCall = "\$controller->update({$entityId}, 1, {$patch($labelField, "'Updated'")})";
+        $methods .= <<<PHP
+
+                public function test{$entityClass}UpdateIsDeniedWithoutAGrant(): void
+                {
+            {$boot($denied)}        \$this->seedSubject(\$repository, {$subject(42, null)});
+                    \$document = {$updateCall};
+
+                    self::assertSame(403, \$document->statusCode);
+                    self::assertSame('403', \$document->toArray()['errors'][0]['status']);
+                }
+
+            PHP;
+        if (isset($byOperation['update'])) {
+            $policy = $byOperation['update'][0];
+            $sealed = '';
+            if ($ownerField !== null) {
+                $sealed .= "\n        // Review gap 3: the entity-level grant must not reassign the owner it was decided on.\n"
+                    . "        self::assertSame(403, \$controller->update({$entityId}, 1, {$patch($ownerField, '999')})->statusCode);\n";
+            }
+            if ($workflow !== null) {
+                $seededState = self::stateFor($policy, $workflow);
+                $moved = self::otherState($workflow, $seededState === null ? [] : [$seededState]) ?? $seededState ?? $workflow->initialState;
+                $sealed .= "        // The workflow selector is engine-owned; only a transition moves it.\n"
+                    . "        self::assertSame(403, \$controller->update({$entityId}, 1, {$patch('workflow_state', self::quoted($moved))})->statusCode);\n";
+            }
+            $methods .= <<<PHP
+
+                    public function test{$entityClass}UpdateIsAllowedBy{$pascal($policy->id)}(): void
+                    {
+                {$boot($this->renderJsonApiPrincipal(42, $policy))}        \$this->seedSubject(\$repository, {$subject(42, self::stateFor($policy, $workflow))});
+                        \$document = {$updateCall};
+
+                        self::assertSame(200, \$document->statusCode);
+                        self::assertSame('Updated', \$document->toArray()['data']['attributes'][{$quoted($labelField)}]);
+                {$sealed}    }
+
+                PHP;
+            $methods .= $this->renderJsonApiNearMiss($entity, 'Update', $policy, $workflow, $boot, $subject, "        \$document = {$updateCall};\n\n        self::assertSame(403, \$document->statusCode);\n");
+        }
+
+        // -- delete --------------------------------------------------------
+        $methods .= <<<PHP
+
+                public function test{$entityClass}DeleteIsDeniedWithoutAGrant(): void
+                {
+            {$boot($denied)}        \$this->seedSubject(\$repository, {$subject(42, null)});
+                    \$document = \$controller->destroy({$entityId}, 1);
+
+                    self::assertSame(403, \$document->statusCode);
+                    self::assertSame('403', \$document->toArray()['errors'][0]['status']);
+                }
+
+            PHP;
+        if (isset($byOperation['delete'])) {
+            $policy = $byOperation['delete'][0];
+            $methods .= <<<PHP
+
+                    public function test{$entityClass}DeleteIsAllowedBy{$pascal($policy->id)}(): void
+                    {
+                {$boot($this->renderJsonApiPrincipal(42, $policy))}        \$this->seedSubject(\$repository, {$subject(42, self::stateFor($policy, $workflow))});
+                        \$document = \$controller->destroy({$entityId}, 1);
+
+                        self::assertSame(204, \$document->statusCode);
+                        self::assertNull(\$repository->find(1));
+                    }
+
+                PHP;
+            $methods .= $this->renderJsonApiNearMiss($entity, 'Delete', $policy, $workflow, $boot, $subject, "        \$document = \$controller->destroy({$entityId}, 1);\n\n        self::assertSame(403, \$document->statusCode);\n");
+        }
+
+        return $methods;
+    }
+
+    /**
+     * A near-miss denial for an `ownership` or `workflow_state` condition:
+     * the principal HOLDS the condition's permission but is not the owner /
+     * the subject is not in a listed state, so the grant must still not
+     * fire. `permission` conditions have no near miss beyond the base
+     * permission-less denial.
+     *
+     * @param \Closure(string): string $boot
+     * @param \Closure(int, ?string): string $subject
+     */
+    private function renderJsonApiNearMiss(BlueprintEntity $entity, string $operation, BlueprintPolicy $policy, ?BlueprintWorkflow $workflow, \Closure $boot, \Closure $subject, string $body): string
+    {
+        $entityClass = self::pascalCase($entity->id);
+        $condition = $policy->condition;
+        if ($condition->kind === BlueprintConditionKind::Ownership) {
+            $method = "test{$entityClass}{$operation}IsDeniedToANonOwnerHoldingThePermission";
+            $seed = $subject(42, self::stateFor($policy, $workflow));
+            $principal = $this->renderJsonApiPrincipal(7, $policy);
+        } elseif ($condition->kind === BlueprintConditionKind::WorkflowState && $workflow !== null) {
+            $other = self::otherState($workflow, $condition->states ?? []);
+            if ($other === null) {
+                return '';
+            }
+            $method = "test{$entityClass}{$operation}IsDeniedOutsideTheListedWorkflowStates";
+            $seed = $subject(42, $other);
+            $principal = $this->renderJsonApiPrincipal(42, $policy);
+        } else {
+            return '';
+        }
+
+        return <<<PHP
+
+                public function {$method}(): void
+                {
+            {$boot($principal)}        \$this->seedSubject(\$repository, {$seed});
+            {$body}    }
+
+            PHP;
+    }
+
+    private function renderJsonApiPrincipal(int $id, BlueprintPolicy $policy): string
+    {
+        $permission = $policy->condition->permission;
+        $permissions = $permission === null ? '[]' : '[' . self::quoted($permission) . ']';
+
+        return "AuthorizationPrincipalFactory::authenticated({$id}, permissions: {$permissions})";
+    }
+
+    /** The persisted subject row: label, owner (when declared) and workflow state (when bound). */
+    private function renderJsonApiSubject(BlueprintEntity $entity, int $ownerId, ?string $state, ?string $initialState): string
+    {
+        $entries = ["'id' => 1", self::quoted($entity->keys->label) . " => 'Welcome'"];
+        if ($entity->keys->owner !== null) {
+            $entries[] = self::quoted($entity->keys->owner) . " => {$ownerId}";
+        }
+        $effectiveState = $state ?? $initialState;
+        if ($effectiveState !== null) {
+            $entries[] = "'workflow_state' => " . self::quoted($effectiveState);
+        }
+
+        return '[' . implode(', ', $entries) . ']';
+    }
+
+    /**
+     * A create payload satisfying every required declared field and
+     * relationship, with the owner set to the acting principal (create-time
+     * authorship, the `NodeAccessPolicy` precedent).
+     */
+    private function renderJsonApiCreatePayload(ApplicationBlueprint $blueprint, BlueprintEntity $entity, int $ownerId): string
+    {
+        $entries = [self::quoted($entity->keys->label) . " => 'Created'"];
+        foreach (self::sortedEntityFields($entity) as $field) {
+            if (!$field->required || $field->id === $entity->keys->label) {
+                continue;
+            }
+            $entries[] = self::quoted($field->id) . ' => ' . self::sampleLiteral($field);
+        }
+        foreach ($blueprint->relationships as $relationship) {
+            if ($relationship->fromEntity !== $entity->id) {
+                continue;
+            }
+            if ($relationship->fromField === $entity->keys->owner) {
+                $entries[] = self::quoted($relationship->fromField) . " => {$ownerId}";
+            } elseif ($relationship->required) {
+                $entries[] = self::quoted($relationship->fromField) . ' => 1';
+            }
+        }
+
+        return "['data' => ['type' => " . self::quoted($entity->id) . ", 'attributes' => [" . implode(', ', $entries) . ']]]';
+    }
+
+    /** @return list<BlueprintField> sorted by id */
+    private static function sortedEntityFields(BlueprintEntity $entity): array
+    {
+        $fields = array_values($entity->fields);
+        usort($fields, static fn(BlueprintField $left, BlueprintField $right): int => strcmp($left->id, $right->id));
+
+        return $fields;
+    }
+
+    private static function sampleLiteral(BlueprintField $field): string
+    {
+        return match ($field->type) {
+            BlueprintFieldType::String, BlueprintFieldType::Text => "'Sample'",
+            BlueprintFieldType::Integer => '1',
+            BlueprintFieldType::Float, BlueprintFieldType::Decimal => '1.5',
+            BlueprintFieldType::Boolean => 'true',
+            BlueprintFieldType::Date => "'2026-01-01'",
+            BlueprintFieldType::DateTime => "'2026-01-01T00:00:00+00:00'",
+            BlueprintFieldType::Email => "'sample@example.test'",
+            BlueprintFieldType::Link => "'https://example.test/'",
+            BlueprintFieldType::Json, BlueprintFieldType::ListSelect => '[]',
+            BlueprintFieldType::Enum => self::quoted(self::firstSorted($field->values ?? [''])),
+        };
+    }
+
+    private static function boundWorkflow(ApplicationBlueprint $blueprint, string $entityId): ?BlueprintWorkflow
+    {
+        foreach ($blueprint->workflows as $workflow) {
+            foreach ($workflow->bindings as $binding) {
+                if ($binding->entity === $entityId) {
+                    return $workflow;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** The workflow state that satisfies the policy: a listed state for `workflow_state`, otherwise the initial state. */
+    private static function stateFor(BlueprintPolicy $policy, ?BlueprintWorkflow $workflow): ?string
+    {
+        if ($workflow === null) {
+            return null;
+        }
+        if ($policy->condition->kind === BlueprintConditionKind::WorkflowState && ($policy->condition->states ?? []) !== []) {
+            return self::firstSorted($policy->condition->states);
+        }
+
+        return $workflow->initialState;
+    }
+
+    /** @param list<string> $excluded */
+    private static function otherState(BlueprintWorkflow $workflow, array $excluded): ?string
+    {
+        $ids = array_keys($workflow->states);
+        sort($ids, SORT_STRING);
+        foreach ($ids as $id) {
+            if (!in_array($id, $excluded, true)) {
+                return $id;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param list<string> $values */
+    private static function firstSorted(array $values): string
+    {
+        sort($values, SORT_STRING);
+
+        return $values[0];
+    }
+
+    private function indent(string $code, int $spaces): string
+    {
+        $pad = str_repeat(' ', $spaces);
+
+        return implode("\n", array_map(static fn(string $line): string => $line === '' ? '' : $pad . $line, explode("\n", rtrim($code, "\n")))) . "\n";
     }
 
     private static function quoted(string $value): string
