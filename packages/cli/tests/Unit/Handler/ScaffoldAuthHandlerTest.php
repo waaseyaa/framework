@@ -214,46 +214,149 @@ final class ScaffoldAuthHandlerTest extends TestCase
     }
 
     #[Test]
-    public function resolvesAuthUiSourcesFromLoadedCliPackageSiblingWithoutFrameworkAggregate(): void
+    public function resolvesAuthUiSourcesFromSymlinkedCliPackageWithoutFrameworkAggregate(): void
     {
-        // Isolate the #2833 path: empty consumer root, no in-tree packages/, and
-        // only the loaded waaseyaa/cli package's monorepo sibling admin app.
-        (new Filesystem())->remove($this->tempDir . '/packages');
-        unlink($this->tempDir . '/VERSION');
-        self::assertDirectoryDoesNotExist($this->tempDir . '/vendor/waaseyaa/framework');
+        $root = sys_get_temp_dir() . '/waaseyaa_scaffold_auth_cli_path_' . bin2hex(random_bytes(8));
+        $filesystem = new Filesystem();
+        $cliPrettyVersion = '0.1.0-alpha.direct-cli-proof';
 
-        $manager = new AuthUiScaffoldManager($this->tempDir);
-        $candidates = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceCandidates')
-            ->invoke($manager);
-        self::assertIsArray($candidates);
+        try {
+            $detachedCli = $root . '/detached/cli/src/Scaffold';
+            $detachedAdmin = $root . '/detached/admin/app';
+            $consumer = $root . '/consumer';
+            $cliVendorLink = $consumer . '/vendor/waaseyaa/cli';
+            $filesystem->mkdir([$detachedCli, $detachedAdmin . '/pages', $detachedAdmin . '/components/auth', $detachedAdmin . '/composables', $detachedAdmin . '/assets', $consumer . '/vendor/waaseyaa'], 0o700);
 
-        $cliRoot = dirname((string) (new \ReflectionClass(AuthUiScaffoldManager::class))->getFileName(), 3);
-        $siblingAdmin = dirname($cliRoot) . '/admin/app';
-        self::assertDirectoryExists($siblingAdmin);
+            $managerSource = (string) (new \ReflectionClass(AuthUiScaffoldManager::class))->getFileName();
+            $managerCopy = $detachedCli . '/AuthUiScaffoldManager.php';
+            $filesystem->copy($managerSource, $managerCopy);
+            self::assertSame(hash_file('sha256', $managerSource), hash_file('sha256', $managerCopy));
 
-        $siblingOnly = array_values(array_filter(
-            $candidates,
-            static fn(array $candidate): bool => $candidate['source_base'] === $siblingAdmin,
-        ));
-        self::assertNotSame([], $siblingOnly, 'Loaded CLI package must nominate its sibling admin app.');
+            foreach ([
+                'pages/login.vue' => '<template>login</template>',
+                'components/auth/LoginForm.vue' => '<template>form</template>',
+                'components/auth/BrandPanel.vue' => '<template>brand</template>',
+                'composables/useAuth.ts' => 'export function useAuth() {}',
+                'assets/auth.css' => ':root {}',
+            ] as $relativePath => $contents) {
+                file_put_contents($detachedAdmin . '/' . $relativePath, $contents);
+            }
 
-        $context = new \ReflectionMethod(AuthUiScaffoldManager::class, 'sourceContextFromCandidates')
-            ->invoke($manager, $siblingOnly);
-        self::assertSame($siblingAdmin, $context['source_base']);
-        self::assertNotSame('', $context['framework_version']);
+            self::assertTrue(symlink($root . '/detached/cli', $cliVendorLink));
+            self::assertSame(realpath($root . '/detached/cli'), realpath($cliVendorLink));
 
-        $check = $this->makeTester();
-        $check->execute(['--check']);
-        self::assertSame(0, $check->getExitCode(), $check->getStderr() . $check->getStdout());
-        self::assertStringContainsString(
-            'Auth UI is framework-owned; no published consumer files were detected.',
-            $check->getStdout(),
-        );
+            $installedVersionsStub = $root . '/installed_versions_stub.php';
+            file_put_contents($installedVersionsStub, <<<'PHP'
+                <?php
 
-        $publish = $this->makeTester();
-        $publish->execute([]);
-        self::assertSame(0, $publish->getExitCode(), $publish->getStderr() . $publish->getStdout());
-        self::assertFileExists($this->tempDir . '/app/pages/login.vue');
+                declare(strict_types=1);
+
+                namespace Composer;
+
+                final class InstalledVersions
+                {
+                    public static function isInstalled(string $package): bool
+                    {
+                        return $package === 'waaseyaa/cli';
+                    }
+
+                    public static function getInstallPath(string $package): ?string
+                    {
+                        return $package === 'waaseyaa/cli' ? $GLOBALS['waaseyaa_cli_install_path'] : null;
+                    }
+
+                    public static function getPrettyVersion(string $package): ?string
+                    {
+                        return $package === 'waaseyaa/cli' ? $GLOBALS['waaseyaa_cli_pretty_version'] : null;
+                    }
+                }
+                PHP);
+
+            $probe = $root . '/probe.php';
+            file_put_contents($probe, <<<'PHP'
+                <?php
+                declare(strict_types=1);
+
+                $GLOBALS['waaseyaa_cli_install_path'] = $argv[4];
+                $GLOBALS['waaseyaa_cli_pretty_version'] = $argv[5];
+                require $argv[7];
+                require $argv[1];
+                require $argv[2];
+
+                $consumerRoot = $argv[3];
+                $expectedAdmin = $argv[6];
+                $expectedVersion = $argv[5];
+                $manager = new \Waaseyaa\CLI\Scaffold\AuthUiScaffoldManager($consumerRoot);
+                $sourceContext = new \ReflectionMethod($manager, 'sourceContext');
+                $context = $sourceContext->invoke($manager);
+                if ($context['source_base'] !== $expectedAdmin) {
+                    fwrite(STDERR, 'unexpected source_base: ' . $context['source_base'] . "\n");
+                    exit(10);
+                }
+                if ($context['framework_version'] !== $expectedVersion) {
+                    fwrite(STDERR, 'unexpected framework_version: ' . $context['framework_version'] . "\n");
+                    exit(11);
+                }
+
+                $inspect = $manager->inspect();
+                if (($inspect['status'] ?? null) !== 'not-published') {
+                    fwrite(STDERR, 'inspect status: ' . json_encode($inspect, JSON_THROW_ON_ERROR) . "\n");
+                    exit(12);
+                }
+
+                $publish = $manager->publish(force: false, dryRun: false);
+                if (($publish['copied'] ?? 0) !== 5) {
+                    fwrite(STDERR, 'publish copied: ' . json_encode($publish, JSON_THROW_ON_ERROR) . "\n");
+                    exit(13);
+                }
+
+                $manifestPath = $consumerRoot . '/app/.waaseyaa/scaffold-manifest.json';
+                $manifest = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+                $recordedVersion = $manifest['scaffolds']['auth-ui']['files']['pages/login.vue']['framework_version'] ?? '';
+                if ($recordedVersion !== $expectedVersion) {
+                    fwrite(STDERR, 'manifest framework_version: ' . $recordedVersion . "\n");
+                    exit(14);
+                }
+
+                echo json_encode([
+                    'source_base' => $context['source_base'],
+                    'framework_version' => $context['framework_version'],
+                    'inspect_status' => $inspect['status'],
+                    'copied' => $publish['copied'],
+                    'manifest_version' => $recordedVersion,
+                    'manager' => (new \ReflectionClass($manager))->getFileName(),
+                ], JSON_THROW_ON_ERROR);
+                PHP);
+
+            $expectedAdmin = realpath($detachedAdmin);
+            self::assertIsString($expectedAdmin);
+
+            $process = new Process([
+                PHP_BINARY,
+                $probe,
+                $managerCopy,
+                dirname(__DIR__, 5) . '/vendor/autoload.php',
+                $consumer,
+                $cliVendorLink,
+                $cliPrettyVersion,
+                $expectedAdmin,
+                $installedVersionsStub,
+            ]);
+            $process->run();
+
+            self::assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+            $result = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame($expectedAdmin, $result['source_base']);
+            self::assertSame($cliPrettyVersion, $result['framework_version']);
+            self::assertSame('not-published', $result['inspect_status']);
+            self::assertSame(5, $result['copied']);
+            self::assertSame($cliPrettyVersion, $result['manifest_version']);
+            self::assertSame(realpath($managerCopy), realpath($result['manager']));
+            self::assertDirectoryDoesNotExist($consumer . '/packages');
+            self::assertDirectoryDoesNotExist($consumer . '/vendor/waaseyaa/framework');
+        } finally {
+            $filesystem->remove($root);
+        }
     }
 
     #[Test]
